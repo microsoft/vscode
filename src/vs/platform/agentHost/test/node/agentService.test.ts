@@ -78,7 +78,7 @@ import { SessionDatabase, sessionDatabaseMigrations } from '../../node/sessionDa
 import { ActionType, ActionEnvelope, isChatAction, NotificationType, type ChatAction, type ChatConfigChangedAction, type INotification, type SessionAction, type SessionSummaryChanges } from '../../common/state/sessionActions.js';
 import { chatToolCallReady, chatToolCallStart, chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
 import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, isMessageRequestHiddenFromTranscript, getAgentHostChatId, isSessionStatusArchived, isSessionStatusRead, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubData, readSessionGitHubState, readSessionGitState, readWorkingDirectoryKeys, readWorkingDirectoryScopeIds, SESSION_META_GITHUB_DATA_KEY, SESSION_META_GITHUB_KEY, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, readSessionWorkspaceless, withSessionEhcliAdoptable, withSessionExternal, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionGitHubState, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type SessionSummaryMeta, type ChatState, type ToolCallCompletedState, type ToolCallResponsePart, type Turn, readSessionScratchFolders, withSessionScratchFolders } from '../../common/state/sessionState.js';
-import { BackgroundWorkKind, ChatInteractivity, McpServerStatus, PendingMessageKind, SessionOriginKind, type BackgroundWork, type Message, type MessageAttachment, TerminalClaimKind, type TerminalClaim, type SystemNotificationResponsePart } from '../../common/state/protocol/state.js';
+import { BackgroundWorkKind, ChatInteractivity, ConfirmationOptionKind, McpServerStatus, PendingMessageKind, SessionInputRequestKind, SessionOriginKind, type BackgroundWork, type Message, type MessageAttachment, TerminalClaimKind, type TerminalClaim, type SystemNotificationResponsePart } from '../../common/state/protocol/state.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { readAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { readRemoteSessionDepth, readRemoteSessionOrigin, REMOTE_SESSION_ORIGIN_METADATA_KEY, withRemoteSessionOrigin } from '../../common/meta/agentRemoteSessionMeta.js';
@@ -1181,6 +1181,58 @@ suite('AgentService (node dispatcher)', () => {
 		};
 		assert.deepStrictEqual([format(opaque), format(unspecified), format(legacy)], ['opaque', 'opaque', 'shaped']);
 		assert.strictEqual(stateManager.getDefaultChat(legacy.toString()), buildDefaultChatUri(legacy.toString()));
+	});
+
+	test('accepts only outstanding session extension permission responses with an offered option on the owning session channel', async () => {
+		registerTestAgentProvider(service, copilotAgent);
+		const session = await service.createSession({ legacyChatUris: false, provider: 'copilot' });
+		const sessionChannel = session.toString();
+		const chatChannel = getStateManager(service).getDefaultChat(sessionChannel)!;
+		getStateManager(service).dispatchServerAction(sessionChannel, {
+			type: ActionType.SessionInputNeededSet,
+			request: {
+				kind: SessionInputRequestKind.ExtensionPermission,
+				id: 'extension-permission-1',
+				extensionName: 'plugin:test-extension:test-extension',
+				capabilities: ['register hooks'],
+				options: [
+					{ id: 'allow-once', label: 'Allow', kind: ConfirmationOptionKind.Approve },
+					{ id: 'deny', label: 'Deny', kind: ConfirmationOptionKind.Deny },
+				],
+			},
+		});
+		const dispatch = async (channel: string, requestId: string, clientSeq: number, approved: boolean, selectedOptionId?: string) => {
+			const envelopePromise = Event.toPromise(Event.filter(service.onDidAction, envelope => envelope.origin?.clientSeq === clientSeq));
+			service.dispatchAction(channel, {
+				type: ActionType.SessionPermissionResponded,
+				requestId,
+				approved,
+				selectedOptionId,
+			}, 'client-1', clientSeq);
+			return envelopePromise;
+		};
+
+		const stale = await dispatch(sessionChannel, 'missing-permission', 1, true);
+		const wrongChannel = await dispatch(chatChannel, 'extension-permission-1', 2, true);
+		const unofferedOption = await dispatch(sessionChannel, 'extension-permission-1', 3, true, 'allow-forever');
+		const mismatchedOption = await dispatch(sessionChannel, 'extension-permission-1', 4, true, 'deny');
+		const accepted = await dispatch(sessionChannel, 'extension-permission-1', 5, true, 'allow-once');
+
+		assert.deepStrictEqual({
+			rejections: [stale, wrongChannel, unofferedOption, mismatchedOption, accepted].map(envelope => envelope.rejectionReason),
+			responses: copilotAgent.respondToPermissionCalls,
+			remaining: getStateManager(service).getSessionState(sessionChannel)?.inputNeeded,
+		}, {
+			rejections: [
+				'Session permission response does not match an outstanding request.',
+				'Session permission response does not match an outstanding request.',
+				'Session permission response selects an option the request did not offer.',
+				'Session permission response selects an option the request did not offer.',
+				undefined,
+			],
+			responses: [{ requestId: 'extension-permission-1', approved: true }],
+			remaining: undefined,
+		});
 	});
 
 	test('host sandbox certificate management routes without creating or restoring a chat', async () => {
@@ -5773,7 +5825,9 @@ suite('AgentService (node dispatcher)', () => {
 			svc.dispatchAction(chat, { type: ActionType.ChatTurnCancelled, turnId: 'missing-turn', duration: 0 }, 'client-b', 2);
 			const activeTurnAfterStaleStop = stateManager.getChatState(chat)?.activeTurn?.id;
 			const abortsAfterStaleStop = agent.abortSessionCalls.length;
-			const inputNeededAfterStaleStop = stateManager.getSessionState(session.toString())?.inputNeeded?.map(request => request.chat);
+			const inputNeededAfterStaleStop = stateManager.getSessionState(session.toString())?.inputNeeded?.map(request =>
+				request.kind === SessionInputRequestKind.ExtensionPermission ? undefined : request.chat
+			);
 			svc.dispatchAction(chat, { type: ActionType.ChatTurnCancelled, turnId: 'turn-2', duration: 0 }, 'client-b', 3);
 			svc.dispatchAction(chat, { type: ActionType.ChatTurnCancelled, turnId: 'turn-2', duration: 0 }, 'client-b', 4);
 

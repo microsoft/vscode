@@ -24,7 +24,7 @@ import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.
 import type { AuthenticateTarget, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { CanvasState } from './state/protocol/channels-canvas/state.js';
 import { subagentChatUri, type ChatUriFormat } from './agentHostChatMinting.js';
-import { ProtectedResourceMetadata, type BackgroundWork, type Changeset, type ChatInteractivity, type ChatOrigin, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type SessionOrigin, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
+import { ProtectedResourceMetadata, type BackgroundWork, type Changeset, type ChatInteractivity, type ChatOrigin, type ConfigSchema, type ConfirmationOption, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type SessionOrigin, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
 import type { ActionOrigin, AuthRequiredParams, SessionAction, ChatAction, ProgressParams } from './state/sessionActions.js';
 import { AHP_CHAT_SCHEME, ChatInputResponseKind, ChatOriginKind, SessionStatus, type AgentCapabilities, type ClientPluginCustomization, type Customization, type ErrorInfo, type ISessionFolderPickerDecision, type Message, type PendingMessage, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
 
@@ -1427,6 +1427,8 @@ export type AgentSignal =
 	| IAgentChatUsageSignal
 	| IAgentModelCallCompletedSignal
 	| IAgentModelCallFinishedSignal
+	| IAgentSessionPermissionRequestedSignal
+	| IAgentSessionPermissionCompletedSignal
 	| IAgentToolPendingConfirmationSignal
 	| IAgentSubagentStartedSignal
 	| IAgentSubagentResumedSignal
@@ -1515,6 +1517,27 @@ export const enum AgentPermissionKind {
 	ExtensionManagement = 'extension-management',
 	ExtensionPermissionAccess = 'extension-permission-access',
 	ExtensionEnvAccess = 'extension-env-access',
+}
+
+/**
+ * A permission request that is owned by the session rather than a chat tool
+ * call. The host surfaces it through the session's input-needed state.
+ */
+export interface IAgentSessionPermissionRequestedSignal {
+	readonly kind: 'session_permission_requested';
+	readonly session: URI;
+	readonly requestId: string;
+	readonly extensionName: string;
+	readonly capabilities: readonly string[];
+	/** Choices the client may present; the provider maps the selected option to its runtime decision. */
+	readonly options: readonly ConfirmationOption[];
+}
+
+/** A session-owned permission request settled or cancelled by the provider. */
+export interface IAgentSessionPermissionCompletedSignal {
+	readonly kind: 'session_permission_completed';
+	readonly session: URI;
+	readonly requestId: string;
 }
 
 /**

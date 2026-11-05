@@ -8,7 +8,7 @@
 
 import { ActionType } from '../common/actions.js';
 import type { ErrorInfo, URI } from '../common/state.js';
-import type { ToolDefinition, SessionActiveClient, SessionInputRequest, Customization, CustomizationEnablement, McpServerState } from './state.js';
+import type { ToolDefinition, SessionActiveClient, SessionInputRequest, SessionExtensionPermissionRequest, Customization, CustomizationEnablement, McpServerState } from './state.js';
 import type { Changeset } from '../channels-changeset/state.js';
 import type { ChatSummary } from '../channels-chat/state.js';
 
@@ -389,6 +389,32 @@ export interface SessionInputNeededRemovedAction {
 	type: ActionType.SessionInputNeededRemoved;
 	/** The `id` of the input request to remove. */
 	id: string;
+}
+
+/**
+ * A client responded to a session-scoped permission request.
+ *
+ * The host MUST validate that `requestId` identifies an outstanding
+ * {@link SessionExtensionPermissionRequest}, apply the decision to the
+ * underlying extension operation, and only then broadcast the accepted action.
+ * The host MUST reject a `selectedOptionId` that the request did not offer,
+ * or whose option kind does not match `approved`. Without a
+ * `selectedOptionId`, the host applies its narrowest approval or a plain
+ * denial. The session reducer removes the resolved request from
+ * {@link SessionState.inputNeeded}.
+ *
+ * @category Session Actions
+ * @version 1
+ * @clientDispatchable
+ */
+export interface SessionPermissionRespondedAction {
+	type: ActionType.SessionPermissionResponded;
+	/** The opaque `id` of the session input request being answered. */
+	requestId: string;
+	/** Whether the user approved the request. */
+	approved: boolean;
+	/** ID of the selected option, if the request offered options. */
+	selectedOptionId?: string;
 }
 
 // ─── Customization Actions ───────────────────────────────────────────────────

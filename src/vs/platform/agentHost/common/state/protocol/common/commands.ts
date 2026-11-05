@@ -216,6 +216,17 @@ export interface ClientCapabilities {
 	 * App-bearing tool calls as ordinary MCP tool calls.
 	 */
 	mcpApps?: Record<string, never>;
+	/**
+	 * Client can render and answer session-owned
+	 * {@link SessionInputRequestKind.ExtensionPermission | `extensionPermission`}
+	 * input requests with `session/permissionResponded`.
+	 *
+	 * Hosts MUST NOT send `extensionPermission` entries or
+	 * `session/permissionResponded` actions to clients that omit this
+	 * capability, because such clients may assume every session input request
+	 * belongs to a chat.
+	 */
+	extensionPermissions?: Record<string, never>;
 }
 
 /**

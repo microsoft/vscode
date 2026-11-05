@@ -346,6 +346,9 @@ const USER_DENIED_PERMISSION_RESULT = { kind: 'reject', feedback: 'The user deni
 const ALLOW_SAMPLING_ALWAYS_OPTION_ID = 'allow-sampling-always';
 const ALLOW_MCP_SKILLS_ALWAYS_OPTION_ID = 'allow-mcp-skills-always';
 const DENY_MCP_SKILLS_ALWAYS_OPTION_ID = 'deny-mcp-skills-always';
+const EXTENSION_PERMISSION_ALLOW_ONCE_OPTION_ID = 'allow-once';
+const EXTENSION_PERMISSION_ALLOW_SESSION_OPTION_ID = 'allow-session';
+const EXTENSION_PERMISSION_DENY_OPTION_ID = 'deny';
 
 function isSamplingContent(value: unknown): value is { text?: unknown; content?: unknown } {
 	return isObject(value);
@@ -1313,6 +1316,7 @@ export class CopilotAgentSession extends Disposable {
 	/** Pending permission requests awaiting a renderer-side decision. */
 	private readonly _pendingPermissions = new PendingRequestRegistry<PendingPermissionResponse, {
 		readonly managedApprovalRequired: boolean;
+		readonly extensionPermissionName?: string;
 		readonly sandboxPathGrant?: ISandboxPathGrant;
 		readonly samplingServerIdentity?: string;
 		/** The prompt offered optional feedback about the Assisted permissions review. */
@@ -8137,7 +8141,9 @@ export class CopilotAgentSession extends Disposable {
 			const abortToken = this._abortToken;
 			const toolCallId = request.toolCallId;
 			if (!toolCallId) {
-				// TODO: handle permission requests without a toolCallId by creating a synthetic tool call
+				if (request.kind === 'extension-permission-access') {
+					return this._handleSessionExtensionPermissionRequest(request);
+				}
 				this._logService.warn(`[Copilot:${this.sessionId}] Permission request without toolCallId, auto-denying: kind=${request.kind}`);
 				return attributePermissionResult({ kind: 'reject' }, 'host_policy');
 			}
@@ -8453,6 +8459,65 @@ export class CopilotAgentSession extends Disposable {
 				void this._syncPermissionModeAfterConfigChange();
 			}
 		}
+	}
+
+	/**
+	 * Asks a person whether an extension may use privileged capabilities. The runtime raises this
+	 * while the extension joins the session, outside any tool call, so it is surfaced on the session
+	 * and stays pending until a client answers or the session is disposed.
+	 */
+	private async _handleSessionExtensionPermissionRequest(request: Extract<PermissionRequest, { kind: 'extension-permission-access' }>): Promise<PermissionRequestResult | AttributedPermissionResult> {
+		if (this._isUnattendedAssistedAutopilot()) {
+			return attributePermissionResult({ kind: 'user-not-available' }, 'unattended_fallback');
+		}
+		const requestId = generateUuid();
+		const pendingPermission = this._pendingPermissions.register(requestId, {
+			managedApprovalRequired: false,
+			extensionPermissionName: request.extensionName,
+		});
+		this._emitProgress({
+			kind: 'session_permission_requested',
+			session: this._ownerSessionUri,
+			requestId,
+			extensionName: request.extensionName,
+			capabilities: request.capabilities,
+			options: [
+				{ id: EXTENSION_PERMISSION_ALLOW_ONCE_OPTION_ID, label: localize('extensionPermissionAllow', "Allow"), kind: ConfirmationOptionKind.Approve },
+				{ id: EXTENSION_PERMISSION_ALLOW_SESSION_OPTION_ID, label: localize('extensionPermissionAllowForSession', "Allow for Session"), kind: ConfirmationOptionKind.Approve },
+				{ id: EXTENSION_PERMISSION_DENY_OPTION_ID, label: localize('extensionPermissionDeny', "Deny"), kind: ConfirmationOptionKind.Deny, group: 1 },
+			],
+		});
+		try {
+			const result = await pendingPermission;
+			if (result.kind === 'grant-sandbox-path') {
+				this._logService.warn(`[Copilot:${this.sessionId}] Rejecting invalid sandbox grant for session permission request: ${requestId}`);
+				return attributePermissionResult({ kind: 'reject' }, 'host_policy');
+			}
+			this._logService.info(`[Copilot:${this.sessionId}] Session permission response: requestId=${requestId}, result=${result.result.kind}`);
+			return attributePermissionResult(result.result, result.source, result.userFeedback);
+		} finally {
+			this._emitProgress({
+				kind: 'session_permission_completed',
+				session: this._ownerSessionUri,
+				requestId,
+			});
+		}
+	}
+
+	/** Maps a client's answer to an extension permission request onto the runtime's decision. */
+	private _extensionPermissionDecision(extensionName: string, approved: boolean, context: IAgentPermissionResponseContext | undefined): PermissionRequestResult {
+		const selectedOptionId = context?.selectedOptionId;
+		if (!approved) {
+			return context?.userNotAvailable ? { kind: 'user-not-available' } : USER_DENIED_PERMISSION_RESULT;
+		}
+		if (selectedOptionId === EXTENSION_PERMISSION_ALLOW_SESSION_OPTION_ID) {
+			return { kind: 'approve-for-session', approval: { kind: 'extension-permission-access', extensionName } };
+		}
+		if (selectedOptionId === undefined || selectedOptionId === EXTENSION_PERMISSION_ALLOW_ONCE_OPTION_ID) {
+			return { kind: 'approve-once' };
+		}
+		this._logService.warn(`[Copilot:${this.sessionId}] Rejecting extension permission approval with unknown option: ${selectedOptionId}`);
+		return { kind: 'reject' };
 	}
 
 	private async _isReadWithinAppliedPluginDirectory(filePath: string): Promise<boolean> {
@@ -9087,6 +9152,9 @@ export class CopilotAgentSession extends Disposable {
 			const responded = this._pendingPermissions.respond(requestId, { kind: 'grant-sandbox-path', context });
 			this._deletePendingEditContent(requestId);
 			return responded;
+		}
+		if (metadata?.extensionPermissionName !== undefined) {
+			return this._pendingPermissions.respond(requestId, { kind: 'decision', result: this._extensionPermissionDecision(metadata.extensionPermissionName, approved, context), source: context?.decisionSource });
 		}
 		const result = { kind: 'decision', result: approved ? { kind: 'approve-once' } as const : context?.userNotAvailable ? { kind: 'user-not-available' } as const : USER_DENIED_PERMISSION_RESULT, source: context?.decisionSource, userFeedback } as const;
 		if (this._pendingPermissions.respond(requestId, result)) {

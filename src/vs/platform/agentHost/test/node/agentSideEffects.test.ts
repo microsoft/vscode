@@ -8515,7 +8515,7 @@ suite('AgentSideEffects', () => {
 			const produced = sessionInputNeeded();
 			assert.deepStrictEqual(produced.map(r => ({
 				kind: r.kind,
-				chat: r.chat,
+				chat: r.kind === SessionInputRequestKind.ExtensionPermission ? undefined : r.chat,
 				request: r.kind === SessionInputRequestKind.ChatInput ? r.request : undefined,
 			})), [
 				{
@@ -8646,7 +8646,11 @@ suite('AgentSideEffects', () => {
 
 			const pending = sessionInputNeeded();
 			assert.deepStrictEqual(
-				pending.map(r => ({ kind: r.kind, chat: r.chat, toolCallId: r.kind === SessionInputRequestKind.ToolConfirmation ? r.toolCall.toolCallId : undefined })),
+				pending.map(r => ({
+					kind: r.kind,
+					chat: r.kind === SessionInputRequestKind.ExtensionPermission ? undefined : r.chat,
+					toolCallId: r.kind === SessionInputRequestKind.ToolConfirmation ? r.toolCall.toolCallId : undefined,
+				})),
 				[{ kind: SessionInputRequestKind.ToolConfirmation, chat: defaultChatUri, toolCallId: 'tc-1' }],
 			);
 
@@ -8671,7 +8675,11 @@ suite('AgentSideEffects', () => {
 
 			const running = sessionInputNeeded();
 			assert.deepStrictEqual(
-				running.map(r => ({ kind: r.kind, chat: r.chat, clientId: r.kind === SessionInputRequestKind.ToolClientExecution ? r.clientId : undefined })),
+				running.map(r => ({
+					kind: r.kind,
+					chat: r.kind === SessionInputRequestKind.ExtensionPermission ? undefined : r.chat,
+					clientId: r.kind === SessionInputRequestKind.ToolClientExecution ? r.clientId : undefined,
+				})),
 				[{ kind: SessionInputRequestKind.ToolClientExecution, chat: defaultChatUri, clientId: 'client-1' }],
 			);
 
@@ -8775,7 +8783,7 @@ suite('AgentSideEffects', () => {
 			assert.deepStrictEqual({
 				pending: pending.map(request => ({
 					kind: request.kind,
-					chat: request.chat,
+					chat: request.kind === SessionInputRequestKind.ExtensionPermission ? undefined : request.chat,
 					toolCallId: request.kind === SessionInputRequestKind.ToolAuthentication ? request.toolCall.toolCallId : undefined,
 				})),
 				resolved: sessionInputNeeded(),
@@ -8836,6 +8844,75 @@ suite('AgentSideEffects', () => {
 	// ---- Session permissions ------------------------------------------------
 
 	suite('session permissions', () => {
+
+		const extensionPermissionOptions = [
+			{ id: 'allow-once', label: 'Allow', kind: ConfirmationOptionKind.Approve },
+			{ id: 'deny', label: 'Deny', kind: ConfirmationOptionKind.Deny, group: 1 },
+		];
+
+		test('publishes and removes session extension permission requests', () => {
+			setupSession();
+			disposables.add(sideEffects.registerProgressListener(agent));
+			agent.fireProgress({
+				kind: 'session_permission_requested',
+				session: sessionUri,
+				requestId: 'extension-permission-1',
+				extensionName: 'plugin:test-extension:test-extension',
+				capabilities: ['register hooks'],
+				options: extensionPermissionOptions,
+			});
+			const published = stateManager.getSessionState(sessionUri.toString())?.inputNeeded;
+			agent.fireProgress({
+				kind: 'session_permission_completed',
+				session: sessionUri,
+				requestId: 'extension-permission-1',
+			});
+
+			assert.deepStrictEqual({
+				published,
+				remaining: stateManager.getSessionState(sessionUri.toString())?.inputNeeded,
+			}, {
+				published: [{
+					kind: SessionInputRequestKind.ExtensionPermission,
+					id: 'extension-permission-1',
+					extensionName: 'plugin:test-extension:test-extension',
+					capabilities: ['register hooks'],
+					options: extensionPermissionOptions,
+				}],
+				remaining: undefined,
+			});
+		});
+
+		test('routes accepted session extension permission responses with the chosen option to the owning agent', () => {
+			setupSession();
+			disposables.add(sideEffects.registerProgressListener(agent));
+			const responses: Parameters<IAgent['respondToPermissionRequest']>[] = [];
+			agent.respondToPermissionRequest = (...args) => { responses.push(args); };
+			agent.fireProgress({
+				kind: 'session_permission_requested',
+				session: sessionUri,
+				requestId: 'extension-permission-1',
+				extensionName: 'plugin:test-extension:test-extension',
+				capabilities: ['register hooks'],
+				options: extensionPermissionOptions,
+			});
+			const response = {
+				type: ActionType.SessionPermissionResponded,
+				requestId: 'extension-permission-1',
+				approved: true,
+				selectedOptionId: 'allow-once',
+			} as const;
+			stateManager.dispatchClientAction(sessionUri.toString(), response, { clientId: 'test', clientSeq: 1 });
+			sideEffects.handleAction(sessionUri.toString(), response);
+
+			assert.deepStrictEqual({
+				responses,
+				remaining: stateManager.getSessionState(sessionUri.toString())?.inputNeeded,
+			}, {
+				responses: [['extension-permission-1', true, { decisionSource: 'human_response', selectedOptionId: 'allow-once' }]],
+				remaining: undefined,
+			});
+		});
 
 		test('live sampling tool parts route their custom approval without granting ordinary tool permissions', () => {
 			setupSession();

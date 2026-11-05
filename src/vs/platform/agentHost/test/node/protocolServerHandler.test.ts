@@ -71,7 +71,7 @@ import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.j
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, AhpErrorCodes, AHP_UNSUPPORTED_PROTOCOL_VERSION, AHP_SESSION_NOT_FOUND, AHP_AUTH_REQUIRED, type AhpNotification, type InitializeResult, type ProtocolMessage, type JsonRpcResponse, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot, type SubscribeResult } from '../../common/state/sessionProtocol.js';
 import { supportsAgentHostManagedWorktrees, supportsForceWorktreeCleanup } from '../../common/meta/agentHostWorktreeCleanupMeta.js';
 import { ROOT_STATE_URI, AUTOMATION_CATALOG_URI, ChatInteractivity, ChatOriginKind, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, readSessionExternal, readSessionWorkspaceless, withSessionExternal, withSessionWorkspaceless, type AgentInfo, type ChangesetState, type ChatState, type Message, type RootState, type SessionState, type SessionSummary, type Turn } from '../../common/state/sessionState.js';
-import { ChatInputResponseKind, SessionInputRequestKind, TerminalClaimKind, type AutomationEntry, type JsonPrimitive } from '../../common/state/protocol/state.js';
+import { ChatInputResponseKind, SessionInputRequestKind, TerminalClaimKind, type AutomationEntry, type SessionInputRequest, type JsonPrimitive } from '../../common/state/protocol/state.js';
 import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanReview.js';
 import type { SessionAddedParams, SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import { parseProtocolMessage, type IProtocolServer, type IProtocolTransport } from '../../common/state/sessionTransport.js';
@@ -9229,6 +9229,61 @@ suite('ProtocolServerHandler', () => {
 				hostActions: [ActionType.ChatMoved],
 				current: [ActionType.ChatMoved],
 				older: [],
+			});
+		});
+
+		test('extension permission requests reach only clients that declare the capability, including after reconnect', async () => {
+			stateManager.createSession(makeSessionSummary());
+			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady });
+			const extensionPermissions = { extensionPermissions: {} };
+			const connect = async (clientId: string, protocolVersions: readonly string[], capabilities?: typeof extensionPermissions) => {
+				const transport = disposables.add(new MockProtocolTransport());
+				server.simulateConnection(transport);
+				const response = waitForResponse(transport, 1);
+				transport.simulateMessage(request(1, 'initialize', { protocolVersions, clientId, initialSubscriptions: [sessionUri], capabilities }));
+				await response;
+				const initialized = findResponse(transport.sent, 1) as { result: InitializeResult };
+				transport.sent.length = 0;
+				return { transport, initialized: initialized.result };
+			};
+			const capable = await connect('permission-capable', ['1.0.0'], extensionPermissions);
+			const incapable = await connect('permission-incapable', [PROTOCOL_VERSION]);
+
+			const permissionRequest: SessionInputRequest = {
+				id: 'extension-permission-1',
+				kind: SessionInputRequestKind.ExtensionPermission,
+				extensionName: 'plugin:test-extension:test-extension',
+				capabilities: ['register hooks'],
+			};
+			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionInputNeededSet, request: permissionRequest });
+			const capableSnapshot = await connect('permission-capable-snapshot', ['1.0.0'], extensionPermissions);
+			const incapableSnapshot = await connect('permission-incapable-snapshot', [PROTOCOL_VERSION]);
+			const actionTypes = (transport: MockProtocolTransport) => findNotifications(transport.sent, 'action').map(message => (message.params as ActionEnvelope).action.type);
+			const summarize = (snapshots: readonly IStateSnapshot[]) => {
+				const state = snapshots.find(snapshot => snapshot.resource === sessionUri)?.state as SessionState | undefined;
+				return { status: state?.status, inputNeeded: state?.inputNeeded };
+			};
+
+			capable.transport.simulateClose();
+			const reconnected = disposables.add(new MockProtocolTransport());
+			server.simulateConnection(reconnected);
+			const reconnectResponse = waitForResponse(reconnected, 2);
+			reconnected.simulateMessage(request(2, 'reconnect', { clientId: 'permission-capable', lastSeenServerSeq: -1, subscriptions: [sessionUri] }));
+			const reconnectResult = (await reconnectResponse as { result: ReconnectResult }).result;
+
+			const visible = { inputNeeded: [permissionRequest], status: SessionStatus.InputNeeded };
+			assert.deepStrictEqual({
+				capableActions: actionTypes(capable.transport),
+				incapableActions: actionTypes(incapable.transport),
+				capableSnapshot: summarize(capableSnapshot.initialized.snapshots),
+				incapableSnapshot: summarize(incapableSnapshot.initialized.snapshots),
+				reconnectSnapshot: reconnectResult.type === 'snapshot' ? summarize(reconnectResult.snapshots) : reconnectResult.type,
+			}, {
+				capableActions: [ActionType.SessionInputNeededSet],
+				incapableActions: [],
+				capableSnapshot: visible,
+				incapableSnapshot: { inputNeeded: undefined, status: SessionStatus.Idle },
+				reconnectSnapshot: visible,
 			});
 		});
 

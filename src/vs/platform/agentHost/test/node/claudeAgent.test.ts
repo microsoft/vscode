@@ -4987,7 +4987,11 @@ suite('ClaudeAgent', () => {
 		const sessionUri = created.session;
 		const observed: AgentSignal[] = [];
 		disposables.add(agent.onDidChatProgress(s => {
-			const resource = s.kind === 'action' || s.kind === 'model_call_completed' || s.kind === 'model_call_finished' ? s.resource : s.chat;
+			const resource = s.kind === 'action' || s.kind === 'model_call_completed' || s.kind === 'model_call_finished'
+				? s.resource
+				: s.kind === 'session_permission_requested' || s.kind === 'session_permission_completed'
+					? s.session
+					: s.chat;
 			if ((mintedTestChatOwner(resource) ?? resource.toString()) === sessionUri.toString()) {
 				observed.push(s);
 			}

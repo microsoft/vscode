@@ -67,6 +67,8 @@ import { compareProtocolVersions, isActionKnownToVersion, PROTOCOL_VERSION } fro
 import { AgentHostTcpBudget } from '../common/agentHostTcpConnection.js';
 import { agentHostStateReceiveLimits, negotiateChannelFlowControl } from '../common/agentHostChannel.js';
 import { ChannelRecoveryKind, type ChannelFlowControl, type ResumedChannelSubscription } from '../common/state/protocol/common/state.js';
+import { SessionInputRequestKind } from '../common/state/protocol/channels-session/state.js';
+import { sessionReducer } from '../common/state/sessionReducers.js';
 import { AgentHostConnectionChannels } from './agentHostConnectionChannels.js';
 import { getAgentHostSupportedProtocolVersions, negotiateAgentHostProtocolVersion } from '../common/agentHostProtocolCompatibility.js';
 import { VSCODE_UPGRADE_METHOD, type UnsupportedProtocolVersionErrorDataEx } from '../common/state/protocolUpgrade.js';
@@ -114,7 +116,7 @@ import {
 } from '../common/otlp/otlpLogEmitter.js';
 import { isFileResourceRead } from '../common/resourceReadLogging.js';
 import { getAgentHostAhpLogDirectoryMeta } from '../common/meta/agentHostDebugLogsMeta.js';
-import type { Implementation, SubscribeParams } from '../common/state/protocol/common/commands.js';
+import type { ClientCapabilities, Implementation, SubscribeParams } from '../common/state/protocol/common/commands.js';
 import { AGENT_HOST_CLIENT_CONNECTION_HISTORY_RETENTION, IAgentHostClientConnectionService, type IAgentHostClientConnectionSource } from './agentHostClientConnectionService.js';
 import { AgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
 import { isAgentHostTelemetryService } from './agentHostTelemetryService.js';
@@ -482,6 +484,7 @@ interface IConnectedClient {
 	readonly clientInfo: Implementation | undefined;
 	readonly telemetryContext: IAgentHostClientTelemetryContext;
 	readonly protocolVersion: string;
+	readonly capabilities: ClientCapabilities | undefined;
 	readonly transport: IProtocolTransport;
 	readonly connectionStopWatch: StopWatch;
 	readonly isReconnect: boolean;
@@ -541,6 +544,7 @@ interface IGraceClientRecord {
 	readonly clientInfo: Implementation | undefined;
 	readonly telemetryContext: IAgentHostClientTelemetryContext | undefined;
 	readonly protocolVersion: string | undefined;
+	readonly capabilities?: ClientCapabilities;
 	/**
 	 * Epoch ms when the client last had a live transport, or when this record
 	 * was created for a never-connected orphan tool-call stamp. Pins the grace
@@ -674,6 +678,17 @@ export interface IProtocolServerConfig {
 	 * rejected.
 	 */
 	readonly otlpLogEmitter?: OtlpLogEmitter;
+}
+
+/** Removes session-scoped extension permission requests using the protocol reducer, so the session's activity matches what remains. */
+function withoutSessionExtensionPermissions(state: SessionState): SessionState {
+	let projected = state;
+	for (const request of state.inputNeeded ?? []) {
+		if (request.kind === SessionInputRequestKind.ExtensionPermission) {
+			projected = sessionReducer(projected, { type: ActionType.SessionInputNeededRemoved, id: request.id });
+		}
+	}
+	return projected;
 }
 
 /**
@@ -962,6 +977,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 							clientInfo: record.clientInfo,
 							telemetryContext: client.telemetryContext,
 							protocolVersion: client.protocolVersion,
+							capabilities: client.capabilities,
 							lastSeenAt: Date.now(),
 							disconnectTimeouts: new DisposableMap(),
 						});
@@ -1042,6 +1058,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			clientInfo: params.clientInfo,
 			telemetryContext,
 			protocolVersion: negotiated,
+			capabilities: params.capabilities,
 			transport,
 			connectionStopWatch: StopWatch.create(true),
 			isReconnect: this._clientConnections.hasSeenClient(params.clientId),
@@ -1375,6 +1392,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		const priorProtocolVersion = existingRecord.state === 'active'
 			? existingRecord.connections.at(-1)?.protocolVersion
 			: existingRecord.protocolVersion;
+		const priorCapabilities = existingRecord.state === 'active'
+			? existingRecord.connections.at(-1)?.capabilities
+			: existingRecord.capabilities;
 		const isReconnect = this._clientConnections.hasSeenClient(params.clientId);
 		const initializationDisposables = disposables.add(new DisposableStore());
 		const client: IConnectedClient = {
@@ -1384,6 +1404,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			clientInfo: existingRecord.clientInfo,
 			telemetryContext: this._createClientTelemetryContext(existingRecord.clientInfo, params._meta, transport, priorTelemetryContext?.connectionKind),
 			protocolVersion: priorProtocolVersion ?? PROTOCOL_VERSION,
+			capabilities: priorCapabilities,
 			transport,
 			connectionStopWatch: StopWatch.create(true),
 			isReconnect,
@@ -3161,7 +3182,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	}
 
 	private _projectRelayRootSnapshot(client: IConnectedClient, snapshot: IStateSnapshot): IStateSnapshot {
-		snapshot = this._projectModelSelections(client, this._projectSnapshotChats(client, this._projectSnapshot(snapshot)));
+		snapshot = this._projectSessionExtensionPermissionSnapshot(client, this._projectModelSelections(client, this._projectSnapshotChats(client, this._projectSnapshot(snapshot))));
 		if (isAhpRootChannel(snapshot.resource) && hasKey(snapshot.state, { agents: true })) {
 			snapshot = { ...snapshot, state: { ...snapshot.state, agents: this._projectModelConfigAliases(client, this._projectScopedModels(client, snapshot.state.agents)) } };
 		}
@@ -4437,6 +4458,11 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	 * reorder is filtered, since a reorder that does not list every known chat is ignored.
 	 */
 	private _projectActionForClient(client: IConnectedClient, envelope: ActionEnvelope): ActionEnvelope | undefined {
+		if (!this._supportsSessionExtensionPermission(client)
+			&& envelope.action.type === ActionType.SessionInputNeededSet
+			&& envelope.action.request.kind === SessionInputRequestKind.ExtensionPermission) {
+			return undefined;
+		}
 		const vscode = getAgentHostClientType(client.clientInfo) !== AgentHostClientType.Unknown;
 		if (envelope.action.type === ActionType.AutomationSet) {
 			envelope = { ...envelope, action: { ...envelope.action, automation: projectCopilotAutomation(envelope.action.automation, vscode) } };
@@ -4489,7 +4515,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	private _projectNotificationForClient(client: IConnectedClient, notification: INotification): INotification | undefined {
 		switch (notification.type) {
 			case 'root/sessionAdded': {
-				const summary = notification.summary;
+				const summary = this._projectSessionExtensionPermissionSummary(client, notification.summary);
 				if (!this._isSessionVisible(client, summary.resource, summary.defaultChat ?? this._chatOwnership.getDefaultChat(summary.resource))
 					|| (this._config.sessionSummaryFilter && !this._config.sessionSummaryFilter(summary))) {
 					return undefined;
@@ -4497,7 +4523,12 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				if (this._config.sessionSummaryFilter) {
 					client.knownSessionSummaries.add(summary.resource);
 				}
-				return summary.chats ? { ...notification, summary: { ...summary, chats: [...this._filterVisibleChats(client, summary.resource, summary.chats, chat => chat.resource)] } } : notification;
+				return {
+					...notification,
+					summary: summary.chats
+						? { ...summary, chats: [...this._filterVisibleChats(client, summary.resource, summary.chats, chat => chat.resource)] }
+						: summary,
+				};
 			}
 			case 'root/sessionSummaryChanged': {
 				if (!this._isSessionVisible(client, notification.session)) {
@@ -4513,7 +4544,13 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					}
 				}
 				const chats = notification.changes.chats;
-				return chats ? { ...notification, changes: { ...notification.changes, chats: [...this._filterVisibleChats(client, notification.session, chats, chat => chat.resource)] } } : notification;
+				const status = notification.changes.status;
+				const changes = {
+					...notification.changes,
+					...(status !== undefined ? { status: this._projectSessionExtensionPermissionStatus(client, notification.session, status) } : {}),
+					...(chats ? { chats: [...this._filterVisibleChats(client, notification.session, chats, chat => chat.resource)] } : {}),
+				};
+				return { ...notification, changes };
 			}
 			case 'root/sessionRemoved':
 				client.knownSessionSummaries.delete(notification.session);
@@ -4521,6 +4558,41 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			default:
 				return notification;
 		}
+	}
+
+	private _supportsSessionExtensionPermission(client: IConnectedClient): boolean {
+		return client.capabilities?.extensionPermissions !== undefined;
+	}
+
+	/**
+	 * Hides session-scoped extension permission requests from clients that did not declare the
+	 * `extensionPermissions` capability, since those clients may assume every input request
+	 * belongs to a chat.
+	 */
+	private _projectSessionExtensionPermissionSnapshot(client: IConnectedClient, snapshot: IStateSnapshot): IStateSnapshot {
+		if (this._supportsSessionExtensionPermission(client) || !hasKey(snapshot.state, { chats: true })) {
+			return snapshot;
+		}
+		const state = withoutSessionExtensionPermissions(snapshot.state);
+		return state === snapshot.state ? snapshot : { ...snapshot, state };
+	}
+
+	private _projectSessionExtensionPermissionSummary(client: IConnectedClient, summary: SessionSummary): SessionSummary {
+		const status = this._projectSessionExtensionPermissionStatus(client, summary.resource, summary.status);
+		return status === summary.status ? summary : { ...summary, status };
+	}
+
+	private _projectSessionExtensionPermissionStatus(client: IConnectedClient, session: string, status: SessionStatus): SessionStatus {
+		if (this._supportsSessionExtensionPermission(client)) {
+			return status;
+		}
+		const state = this._stateManager.getSessionState(session);
+		const projected = state && withoutSessionExtensionPermissions(state);
+		if (!projected || projected === state) {
+			return status;
+		}
+		const metadata = SessionStatus.IsRead | SessionStatus.IsArchived;
+		return (status & metadata) | (projected.status & ~metadata);
 	}
 
 	/**

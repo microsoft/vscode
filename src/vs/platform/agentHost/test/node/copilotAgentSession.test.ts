@@ -74,7 +74,7 @@ import { chatToolCallComplete, chatToolCallStart, chatTurnComplete, chatTurnStar
 import { TestChatOwnerRef } from './agentChatContextTestUtils.js';
 import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, createChatState, createSessionState, getInlineToolInput, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, withSessionPromptCacheState, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfoMeta, type MessageAttachment } from '../../common/state/sessionState.js';
 import { chatReducer, sessionReducer } from '../../common/state/sessionReducers.js';
-import { BackgroundWorkKind, TerminalClaimKind, type BackgroundWork, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
+import { BackgroundWorkKind, ConfirmationOptionKind, TerminalClaimKind, type BackgroundWork, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { canStopBackgroundWork, toStoppableBackgroundWorkMeta } from '../../common/meta/agentHostBackgroundWorkStopMeta.js';
 import { readCopilotShellAttachment, toCopilotBackgroundShellMeta } from '../../common/meta/copilotBackgroundWorkMeta.js';
 import { toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
@@ -1328,7 +1328,7 @@ type TestPermissionRequest = TestPermissionRequestBase & ({
 	readonly toolTitle: string;
 	readonly readOnly?: boolean;
 	readonly permissionRecommendation?: Extract<PermissionRequest, { kind: 'mcp' }>['permissionRecommendation'];
-} | Extract<PermissionRequest, { kind: 'hook' }>);
+} | Extract<PermissionRequest, { kind: 'hook' | 'extension-permission-access' }>);
 
 function toPermissionRequest(request: TestPermissionRequest): PermissionRequest {
 	switch (request.kind) {
@@ -1352,6 +1352,7 @@ function toPermissionRequest(request: TestPermissionRequest): PermissionRequest 
 		case 'mcp':
 			return { readOnly: false, ...request };
 		case 'hook':
+		case 'extension-permission-access':
 			return request;
 	}
 }
@@ -12147,6 +12148,90 @@ suite('CopilotAgentSession', () => {
 				{ kind: 'attributed', result: { kind: 'reject' }, decisionContext: { source: 'host_policy', surface: 'sdk', outcome: 'autopilot_denied' } },
 				{ kind: 'attributed', result: { kind: 'reject' }, decisionContext: { source: 'unattended_fallback', surface: 'sdk', outcome: 'autopilot_denied' } },
 			]);
+		});
+
+		const extensionPermissionRequest: TestPermissionRequest = {
+			kind: 'extension-permission-access',
+			extensionName: 'plugin:test-extension:test-extension',
+			capabilities: ['register hooks'],
+		};
+
+		test('asks for session extension permission and maps the chosen option while other requests without tool calls remain denied', async () => {
+			const { session, runtime, signals, waitForSignal } = await createAgentSession(disposables);
+			const answer = async (approved: boolean, selectedOptionId: string) => {
+				const seen = new Set(signals.filter(signal => signal.kind === 'session_permission_requested').map(signal => signal.requestId));
+				const pending = runtime.handleAttributedPermissionRequest(extensionPermissionRequest);
+				const request = await waitForSignal(signal => signal.kind === 'session_permission_requested' && !seen.has(signal.requestId));
+				if (request.kind !== 'session_permission_requested') {
+					throw new Error('Expected a session permission request');
+				}
+				session.respondToPermissionRequest(request.requestId, approved, { decisionSource: 'human_response', selectedOptionId });
+				return pending;
+			};
+
+			const results = [
+				await answer(true, 'allow-session'),
+				await answer(true, 'allow-once'),
+				await answer(false, 'deny'),
+				await answer(true, 'allow-forever'),
+			];
+			const unrelated = await runtime.handleAttributedPermissionRequest({ kind: 'write' });
+			const requests = signals.filter(signal => signal.kind === 'session_permission_requested');
+			const human = { source: 'human_response', surface: 'sdk', outcome: 'prompted_user', responseCapability: 'interactive' };
+			assert.deepStrictEqual({
+				request: requests.map(({ session, extensionName, capabilities, options }) => ({ session: session.toString(), extensionName, capabilities, options }))[0],
+				completions: signals.filter(signal => signal.kind === 'session_permission_completed').map(signal => signal.requestId),
+				results: [...results, unrelated],
+			}, {
+				request: {
+					session: AgentSession.uri('copilot', 'test-session-1').toString(),
+					extensionName: 'plugin:test-extension:test-extension',
+					capabilities: ['register hooks'],
+					options: [
+						{ id: 'allow-once', label: 'Allow', kind: ConfirmationOptionKind.Approve },
+						{ id: 'allow-session', label: 'Allow for Session', kind: ConfirmationOptionKind.Approve },
+						{ id: 'deny', label: 'Deny', kind: ConfirmationOptionKind.Deny, group: 1 },
+					],
+				},
+				completions: requests.map(signal => signal.requestId),
+				results: [
+					{ kind: 'attributed', result: { kind: 'approve-for-session', approval: { kind: 'extension-permission-access', extensionName: 'plugin:test-extension:test-extension' } }, decisionContext: human },
+					{ kind: 'attributed', result: { kind: 'approve-once' }, decisionContext: human },
+					{ kind: 'attributed', result: { kind: 'reject', feedback: 'The user denied permission.' }, decisionContext: human },
+					{ kind: 'attributed', result: { kind: 'reject' }, decisionContext: human },
+					{ kind: 'attributed', result: { kind: 'reject' }, decisionContext: { source: 'host_policy', surface: 'sdk', outcome: 'autopilot_denied' } },
+				],
+			});
+		});
+
+		test('session extension permission asks under Allow All, is unavailable to unattended Assisted Autopilot, and is denied on dispose', async () => {
+			const allowAll = await createAgentSession(disposables, {
+				configValues: { [SessionConfigKey.AutoApprove]: 'autoApprove' },
+			});
+			const allowAllPending = allowAll.runtime.handleAttributedPermissionRequest(extensionPermissionRequest);
+			await allowAll.waitForSignal(signal => signal.kind === 'session_permission_requested');
+			allowAll.session.dispose();
+			const deniedOnDispose = await allowAllPending;
+
+			const unattended = await createAgentSession(disposables, {
+				sessionUri: AgentSession.uri('copilot', 'unattended-session'),
+				configValues: { [SessionConfigKey.AutoApprove]: 'assisted', [SessionConfigKey.Mode]: 'autopilot' },
+			});
+			await unattended.session.syncPermissionMode('turn-start');
+			await unattended.session.applyMode('autopilot');
+			const unavailable = await unattended.runtime.handleAttributedPermissionRequest(extensionPermissionRequest);
+
+			assert.deepStrictEqual({
+				allowAllSignals: allowAll.signals.filter(signal => signal.kind === 'session_permission_requested' || signal.kind === 'session_permission_completed').map(signal => signal.kind),
+				deniedOnDispose,
+				unattendedSignals: unattended.signals.filter(signal => signal.kind === 'session_permission_requested' || signal.kind === 'session_permission_completed'),
+				unavailable,
+			}, {
+				allowAllSignals: ['session_permission_requested', 'session_permission_completed'],
+				deniedOnDispose: { kind: 'attributed', result: { kind: 'reject' }, decisionContext: { source: 'unattended_fallback', surface: 'sdk', outcome: 'autopilot_denied' } },
+				unattendedSignals: [],
+				unavailable: { kind: 'attributed', result: { kind: 'user-not-available' }, decisionContext: { source: 'unattended_fallback', surface: 'sdk', outcome: 'autopilot_denied' } },
+			});
 		});
 
 		test('honors the runtime approve recommendation for MCP tools unless managed approval or the judge outranks it', async () => {

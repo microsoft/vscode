@@ -47,7 +47,7 @@ import { ChatProvidersConfigKey, chatProvidersRootConfigSchema } from '../common
 import { resolveChatAttachment } from '../common/state/chatAttachmentContext.js';
 import { buildOpenSessionLinkForChat } from '../common/openSessionLink.js';
 import { McpServerStatus, ToolCallContributorKind, type AgentInfo, type SessionActiveClient } from '../common/state/protocol/state.js';
-import { CustomizationEnablementKind, type CustomizationEnablement } from '../common/state/protocol/channels-session/state.js';
+import { CustomizationEnablementKind, SessionInputRequestKind, type CustomizationEnablement } from '../common/state/protocol/channels-session/state.js';
 import { ActionType, isChatAction, StateAction, type ChatDeltaAction, type ChatReasoningAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallResultConfirmedAction, type ChatToolCallStartAction, type ChatTurnStartedAction } from '../common/state/sessionActions.js';
 import {
 	createErrorResponsePart,
@@ -758,6 +758,26 @@ export class AgentSideEffects extends Disposable {
 	private _handleAgentSignal(agent: IAgent, signal: AgentSignal): void {
 		if (signal.kind === 'chat_usage') {
 			this._chatContributions.chatUsage(signal);
+			return;
+		}
+		if (signal.kind === 'session_permission_requested') {
+			this._stateManager.dispatchServerAction(signal.session.toString(), {
+				type: ActionType.SessionInputNeededSet,
+				request: {
+					kind: SessionInputRequestKind.ExtensionPermission,
+					id: signal.requestId,
+					extensionName: signal.extensionName,
+					capabilities: [...signal.capabilities],
+					options: [...signal.options],
+				},
+			});
+			return;
+		}
+		if (signal.kind === 'session_permission_completed') {
+			this._stateManager.dispatchServerAction(signal.session.toString(), {
+				type: ActionType.SessionInputNeededRemoved,
+				id: signal.requestId,
+			});
 			return;
 		}
 		if (signal.kind === 'canvas') {
@@ -1931,6 +1951,15 @@ export class AgentSideEffects extends Disposable {
 				// Persist the host-issued session grant selected by the user.
 				if (action.approved && !managedApprovalRequired) {
 					this._permissionManager.handleToolCallConfirmed(channel, action.toolCallId, action.selectedOptionId);
+				}
+				break;
+			}
+			case ActionType.SessionPermissionResponded: {
+				const agent = this._options.getAgent(sessionChannel);
+				if (agent) {
+					agent.respondToPermissionRequest(action.requestId, action.approved, { decisionSource: 'human_response', selectedOptionId: action.selectedOptionId });
+				} else {
+					this._logService.warn(`[AgentSideEffects] No agent for session permission response: ${action.requestId}`);
 				}
 				break;
 			}

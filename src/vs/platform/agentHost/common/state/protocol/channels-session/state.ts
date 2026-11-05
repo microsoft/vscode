@@ -8,7 +8,7 @@
 
 import type { Changeset } from '../channels-changeset/state.js';
 import type { AnnotationsSummary } from '../channels-annotations/state.js';
-import type { ChatInteractivity, ChatOrigin, ChatSummary, ChatInputRequest, ToolCallConfirmationState, ToolCallRunningState, ToolCallAuthRequiredState } from '../channels-chat/state.js';
+import type { ChatInteractivity, ChatOrigin, ChatSummary, ChatInputRequest, ConfirmationOption, ToolCallConfirmationState, ToolCallRunningState, ToolCallAuthRequiredState } from '../channels-chat/state.js';
 import type { AutomationRunState } from '../channels-automation-run/state.js';
 import type { AutomationEntry } from '../channels-automation/state.js';
 import type { ConfigPropertySchema, ErrorInfo, Icon, ProtectedResourceMetadata, TextRange, URI } from '../common/state.js';
@@ -288,6 +288,8 @@ export const enum SessionInputRequestKind {
 	ToolClientExecution = 'toolClientExecution',
 	/** A tool call blocked on MCP authentication mid-execution. */
 	ToolAuthentication = 'toolAuthentication',
+	/** A session-scoped extension capability awaiting explicit user approval. */
+	ExtensionPermission = 'extensionPermission',
 }
 
 /**
@@ -304,6 +306,14 @@ interface SessionInputRequestBase {
 	 * `session/inputNeededSet` / `session/inputNeededRemoved` upsert convention.
 	 */
 	id: string;
+}
+
+/**
+ * Fields common to input requests owned by a chat.
+ *
+ * @category Session Input Types
+ */
+interface SessionChatInputRequestBase extends SessionInputRequestBase {
 	/**
 	 * The chat the underlying request lives in. This is the channel a client
 	 * dispatches its response to — it does not need to have subscribed to that
@@ -322,7 +332,7 @@ interface SessionInputRequestBase {
  *
  * @category Session Input Types
  */
-export interface SessionChatInputRequest extends SessionInputRequestBase {
+export interface SessionChatInputRequest extends SessionChatInputRequestBase {
 	kind: SessionInputRequestKind.ChatInput;
 	/** The mirrored chat input request. */
 	request: ChatInputRequest;
@@ -340,7 +350,7 @@ export interface SessionChatInputRequest extends SessionInputRequestBase {
  *
  * @category Session Input Types
  */
-export interface SessionToolConfirmationRequest extends SessionInputRequestBase {
+export interface SessionToolConfirmationRequest extends SessionChatInputRequestBase {
 	kind: SessionInputRequestKind.ToolConfirmation;
 	/** The turn the tool call belongs to. */
 	turnId: string;
@@ -369,7 +379,7 @@ export interface SessionToolConfirmationRequest extends SessionInputRequestBase 
  *
  * @category Session Input Types
  */
-export interface SessionToolClientExecutionRequest extends SessionInputRequestBase {
+export interface SessionToolClientExecutionRequest extends SessionChatInputRequestBase {
 	kind: SessionInputRequestKind.ToolClientExecution;
 	/** The turn the tool call belongs to. */
 	turnId: string;
@@ -402,7 +412,7 @@ export interface SessionToolClientExecutionRequest extends SessionInputRequestBa
  *
  * @category Session Input Types
  */
-export interface SessionToolAuthenticationRequest extends SessionInputRequestBase {
+export interface SessionToolAuthenticationRequest extends SessionChatInputRequestBase {
 	kind: SessionInputRequestKind.ToolAuthentication;
 	/** The turn the tool call belongs to. */
 	turnId: string;
@@ -411,17 +421,41 @@ export interface SessionToolAuthenticationRequest extends SessionInputRequestBas
 }
 
 /**
- * One outstanding piece of input a session is blocked on, aggregated across all
- * chats in {@link SessionState.inputNeeded}.
+ * An extension capability request that is not associated with a chat turn or
+ * tool call, surfaced at the session level for explicit user approval. For
+ * example, an agent extension may need approval to register hooks when it
+ * starts, before any turn exists.
  *
- * Each entry is self-sufficient: it carries the owning
- * {@link SessionInputRequestBase.chat | `chat`} URI plus every identifier needed
- * to construct the response, so a client can answer by dispatching the ordinary
- * `chat/*` action (`chat/inputCompleted`, `chat/toolCallConfirmed`,
- * `chat/toolCallComplete`, …) to that chat's channel **without having subscribed
- * to the chat** — except {@link SessionToolAuthenticationRequest}, which is
- * resolved via the `authenticate` command instead. The host removes the entry
- * with `session/inputNeededRemoved` once the underlying request resolves.
+ * Respond by dispatching `session/permissionResponded` to the owning session
+ * channel, keyed by {@link SessionInputRequestBase.id | `id`}. The host applies
+ * the decision to the pending extension operation and removes this entry once
+ * the response is accepted.
+ *
+ * @category Session Input Types
+ */
+export interface SessionExtensionPermissionRequest extends SessionInputRequestBase {
+	kind: SessionInputRequestKind.ExtensionPermission;
+	/** Host-defined identifier of the extension requesting access. */
+	extensionName: string;
+	/** Human-readable capabilities the extension is requesting. */
+	capabilities: string[];
+	/**
+	 * Options the host offers for this request, such as approving once or for
+	 * the rest of the session. When present, the client SHOULD render these
+	 * instead of a plain approve/deny UI and echo the chosen option's `id` in
+	 * `session/permissionResponded`.
+	 */
+	options?: ConfirmationOption[];
+}
+
+/**
+ * One outstanding piece of input a session is blocked on, aggregated across all
+ * chats and session-scoped operations in {@link SessionState.inputNeeded}.
+ *
+ * Each entry is self-sufficient and documents its response path. Chat-owned
+ * entries carry the owning chat URI so a client can answer without subscribing
+ * to that chat. Session-owned entries are answered on the session channel.
+ * The host removes the entry once the underlying request resolves.
  *
  * @category Session Input Types
  */
@@ -429,7 +463,8 @@ export type SessionInputRequest =
 	| SessionChatInputRequest
 	| SessionToolConfirmationRequest
 	| SessionToolClientExecutionRequest
-	| SessionToolAuthenticationRequest;
+	| SessionToolAuthenticationRequest
+	| SessionExtensionPermissionRequest;
 
 /**
  * Server-owned project metadata for a session.

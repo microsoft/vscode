@@ -179,7 +179,9 @@ export class SessionInputNeededContribution extends Disposable implements IAgent
 			const blockedToolCallId = hasKey(request, { toolCall: true }) ? request.toolCall.toolCallId : undefined;
 			this._turnTracker.turnBlocked(chatUri, blockedTurnId, request.id, request.kind, blockedToolCallId);
 		}
-		if (request.kind !== SessionInputRequestKind.ChatInput) {
+		if (request.kind === SessionInputRequestKind.ToolConfirmation
+			|| request.kind === SessionInputRequestKind.ToolClientExecution
+			|| request.kind === SessionInputRequestKind.ToolAuthentication) {
 			const agent = this._providerService.getProviderForChat(sessionUri, chatUri);
 			if (agent) {
 				this._toolCallTracker.toolCallBlocked(agent.id, chatUri, sessionUri, request);
@@ -198,7 +200,7 @@ export class SessionInputNeededContribution extends Disposable implements IAgent
 
 	private _removeSessionInputNeededForChat(sessionUri: ProtocolURI, chatUri: ProtocolURI): void {
 		for (const request of this._stateManager.getSessionState(sessionUri)?.inputNeeded ?? []) {
-			if (request.chat === chatUri) {
+			if (request.kind !== SessionInputRequestKind.ExtensionPermission && request.chat === chatUri) {
 				this._removeSessionInputNeeded(sessionUri, chatUri, request.id);
 			}
 		}

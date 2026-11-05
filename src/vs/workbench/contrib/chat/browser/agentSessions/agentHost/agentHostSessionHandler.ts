@@ -76,7 +76,7 @@ import { getComputerUseActivationAnswers, isComputerUseActivationAccepted, readC
 import { IAgentSubscription, observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ChatTruncatedAction } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { CompletionItemKind as AhpCompletionItemKind, ContentEncoding, type CompletionItem as AhpCompletionItem } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { BackgroundWorkKind, ConfirmationOptionKind, CustomizationType, JsonPrimitive, McpServerAuthRequiredState, McpServerStatus, SessionInputRequestKind, SessionLifecycle, TerminalClaimKind, ToolCallContributorKind, ToolResultContentType, type ConfirmationOption, type ProtectedResourceMetadata, type SessionActiveClient, type SessionInputRequest, type SessionToolClientExecutionRequest, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { BackgroundWorkKind, ConfirmationOptionKind, CustomizationType, JsonPrimitive, McpServerAuthRequiredState, McpServerStatus, SessionInputRequestKind, SessionLifecycle, TerminalClaimKind, ToolCallContributorKind, ToolResultContentType, type ConfirmationOption, type ProtectedResourceMetadata, type SessionActiveClient, type SessionExtensionPermissionRequest, type SessionInputRequest, type SessionToolClientExecutionRequest, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { compareProtocolVersions } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { ActionType, ChatTurnStartedAction, isChatAction, type ClientChatAction, type ClientSessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AuthenticateTargetKind, AhpErrorCodes, AHP_AUTH_REQUIRED, AHP_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
@@ -176,6 +176,8 @@ import { getFusionAutoModeTierLabel } from '../../../../../../platform/agentHost
 import { getFusionTierLabel } from '../../widget/input/modelPicker/modelPickerPresentation.js';
 import { autoAuthenticateMcpServer, agentHostMcpServerId, modelRequiresAgentAuthentication } from './agentHostAuth.js';
 import { AgentHostSubagentProgress, isUnstartedSubagent } from './agentHostSubagentProgress.js';
+import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotificationService } from '../../widget/input/chatInputNotificationService.js';
+import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 export { toolDataToDefinition };
 
 /**
@@ -195,6 +197,16 @@ const MAX_INLINED_UNSAVED_EDITOR_BYTES = 1024 * 1024;
 const CUSTOMIZATION_ENABLEMENT_PROTOCOL_VERSION = '0.8.0';
 
 export const UNOBSERVED_CLIENT_TOOL_GRACE_MS = 5000;
+
+/** Answers an extension permission request shown above the chat input; the arguments name the notification and the chosen option. */
+const RESPOND_TO_EXTENSION_PERMISSION_COMMAND_ID = '_agentHost.extensionPermission.respond';
+const pendingExtensionPermissionResponses = new Map<string, (choiceIndex: number) => void>();
+CommandsRegistry.registerCommand(RESPOND_TO_EXTENSION_PERMISSION_COMMAND_ID, (_accessor, notificationId: unknown, choiceIndex: unknown) => {
+	if (typeof notificationId === 'string' && typeof choiceIndex === 'number') {
+		pendingExtensionPermissionResponses.get(notificationId)?.(choiceIndex);
+	}
+});
+
 type AgentHostInvocationFailureStage = 'resolveSession' | 'provisionalSession' | 'sessionState' | 'authentication' | 'createSession' | 'subscribeSession' | 'prepareTurn' | 'dispatchTurn' | 'observeTurn';
 
 interface IRestoredSubagentState extends IDisposable {
@@ -1527,6 +1539,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@IWorkbenchAssignmentService assignmentService: IWorkbenchAssignmentService,
 		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
 		@INotificationService private readonly _notificationService: INotificationService,
+		@IChatInputNotificationService private readonly _chatInputNotificationService: IChatInputNotificationService,
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@ITextFileService textFileService: ITextFileService,
@@ -3198,6 +3211,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// exactly once, keyed by its request id.
 		store.add(autorunPerKeyedItem(requests, request => request.id, (_requestId, request$, itemStore) => {
 			const initial = request$.get();
+			if (initial.kind === SessionInputRequestKind.ExtensionPermission) {
+				itemStore.add(this._showSessionExtensionPermissionRequest(backendSession, initial));
+				return;
+			}
 			const chatURI = initial.chat.toString();
 
 			if (!this._isOwnedClientToolRequest(initial)) {
@@ -3314,6 +3331,67 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				}));
 			}
 		}));
+	}
+
+	/**
+	 * Asks the user to answer an extension's session-scoped permission request
+	 * above the chat input of every chat open for the backend session. The
+	 * request is a security decision, so the notice cannot be dismissed; it is
+	 * removed when the host removes the request.
+	 */
+	private _showSessionExtensionPermissionRequest(backendSession: URI, request: SessionExtensionPermissionRequest): IDisposable {
+		const sessionKey = backendSession.toString();
+		const notificationId = `agentHost.extensionPermission/${sessionKey}/${request.id}`;
+		const choices: readonly { readonly label: string; readonly approved: boolean; readonly selectedOptionId?: string }[] = request.options?.length
+			? request.options.map(option => ({ label: option.label, approved: option.kind === ConfirmationOptionKind.Approve, selectedOptionId: option.id }))
+			: [
+				{ label: localize('agentHost.extensionPermission.allow', "Allow"), approved: true },
+				{ label: localize('agentHost.extensionPermission.deny', "Deny"), approved: false },
+			];
+
+		let responded = false;
+		pendingExtensionPermissionResponses.set(notificationId, choiceIndex => {
+			const choice = choices[choiceIndex];
+			if (!choice || responded) {
+				return;
+			}
+			responded = true;
+			this._dispatchAction(backendSession, {
+				type: ActionType.SessionPermissionResponded,
+				requestId: request.id,
+				approved: choice.approved,
+				selectedOptionId: choice.selectedOptionId,
+			});
+		});
+
+		this._chatInputNotificationService.setNotification({
+			id: notificationId,
+			telemetryId: 'agentHost.extensionPermission',
+			severity: ChatInputNotificationSeverity.Warning,
+			message: localize(
+				'agentHost.extensionPermissionRequest',
+				"Extension \"{0}\" requests permission to: {1}",
+				request.extensionName,
+				request.capabilities.join(', ')
+			),
+			description: undefined,
+			actions: choices.map((choice, index) => ({
+				kind: ChatInputNotificationActionKind.Command,
+				label: choice.label,
+				commandId: RESPOND_TO_EXTENSION_PERMISSION_COMMAND_ID,
+				commandArgs: [notificationId, index],
+				telemetryActionId: choice.approved ? 'approve' : 'deny',
+			})),
+			when: context => !!context.sessionResource && !!this._inputNeededWatchers.get(sessionKey)?.refs.has(context.sessionResource.toString()),
+			dismissible: false,
+			autoDismissOnMessage: false,
+		});
+		this._signalToolConfirmation();
+
+		return toDisposable(() => {
+			pendingExtensionPermissionResponses.delete(notificationId);
+			this._chatInputNotificationService.deleteNotification(notificationId);
+		});
 	}
 
 	private _isOwnedClientToolRequest(request: ObservedSessionInputRequest): request is ClientToolExecutionRequest {

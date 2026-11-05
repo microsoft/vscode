@@ -94,7 +94,7 @@ import { managedPermissionsConfigurationIds, resolveManagedSettingsPermissions, 
 import { AgentHostClientConnectionKind, toAgentHostClientMeta } from '../common/agentHostTelemetry.js';
 import type { OtlpExportLogsParams } from '../common/state/protocol/channels-otlp/notifications.js';
 import type { TelemetryCapabilities } from '../common/state/protocol/channels-otlp/state.js';
-import type { Implementation, InitializeResult } from '../common/state/protocol/common/commands.js';
+import type { ClientCapabilities, Implementation, InitializeResult } from '../common/state/protocol/common/commands.js';
 import { derived, observableValue, type IObservable, autorun, observableFromEvent } from '../../../base/common/observable.js';
 import { isFileResourceRead } from '../common/resourceReadLogging.js';
 import { ResourceSet } from '../../../base/common/map.js';
@@ -111,6 +111,9 @@ const AHP_CLIENT_CONNECTION_CLOSED = -32000;
 
 /** The first protocol version whose hosts may advertise `multipleChatProviders`. */
 const MULTIPLE_CHAT_PROVIDERS_PROTOCOL_VERSION = '1.1.0';
+
+/** Optional protocol features this client implements, declared during `initialize`. */
+const AGENT_HOST_CLIENT_CAPABILITIES: ClientCapabilities = { extensionPermissions: {} };
 
 function toAgentExtensionMode(value: unknown): AgentExtensionMode | undefined {
 	if (typeof value !== 'string') {
@@ -919,6 +922,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				protocolVersions: this._offeredProtocolVersions(),
 				clientId: this._clientId,
 				clientInfo: this._clientInfo,
+				capabilities: AGENT_HOST_CLIENT_CAPABILITIES,
 				_meta: this._clientMeta(),
 				initialSubscriptions: [ROOT_STATE_URI],
 			}, { bypassInitializeQueue: true }));
@@ -1343,6 +1347,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			protocolVersions: this._offeredProtocolVersions(),
 			clientId: this._clientId,
 			clientInfo: this._clientInfo,
+			capabilities: AGENT_HOST_CLIENT_CAPABILITIES,
 			_meta: this._clientMeta(),
 			initialSubscriptions: subscriptions,
 		}, { bypassReconnectGate: true });

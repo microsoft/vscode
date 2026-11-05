@@ -49,6 +49,57 @@ function withInputNeededStatus(status: SessionStatus, inputNeeded: readonly Sess
 	return status & ~(SessionStatus.InputNeeded & ~SessionStatus.InProgress);
 }
 
+/**
+ * Activity implied by the session's chats, following the chat aggregation
+ * rule: promote `InputNeeded`, then `Error`, from any chat; otherwise use the
+ * default chat, else the most recently modified chat (UTC ISO 8601 timestamps
+ * compare lexicographically). Used when a session-owned request resolves: it
+ * may have promoted an idle session to `InputNeeded`, so the activity cannot be
+ * recovered by clearing bits from the current status.
+ */
+function activityFromChats(state: SessionState): SessionStatus {
+	const chats = state.chats;
+	if (chats.some(chat => (chat.status & SessionStatus.InputNeeded) === SessionStatus.InputNeeded)) {
+		return SessionStatus.InputNeeded;
+	}
+	if (chats.some(chat => (chat.status & SessionStatus.Error) !== 0)) {
+		return SessionStatus.Error;
+	}
+	let source = chats.find(chat => chat.resource === state.defaultChat);
+	if (!source) {
+		for (const chat of chats) {
+			if (!source || chat.modifiedAt > source.modifiedAt) {
+				source = chat;
+			}
+		}
+	}
+	return (source && source.status & STATUS_ACTIVITY_MASK) || SessionStatus.Idle;
+}
+
+function removeInputNeeded(state: SessionState, id: string): SessionState {
+	const list = state.inputNeeded;
+	if (!list) {
+		return state;
+	}
+	const idx = list.findIndex(request => request.id === id);
+	if (idx < 0) {
+		return state;
+	}
+	const removed = list[idx];
+	const remaining = list.slice();
+	remaining.splice(idx, 1);
+	const status = removed.kind === SessionInputRequestKind.ExtensionPermission && !remaining.some(awaitsUser)
+		? (state.status & ~STATUS_ACTIVITY_MASK) | activityFromChats(state)
+		: withInputNeededStatus(state.status, remaining);
+	const next: SessionState = { ...state, status };
+	if (remaining.length > 0) {
+		next.inputNeeded = remaining;
+	} else {
+		delete next.inputNeeded;
+	}
+	return next;
+}
+
 function updateMcpServerCustomization(
 	state: SessionState,
 	id: string,
@@ -367,23 +418,11 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
 		}
 
 		case ActionType.SessionInputNeededRemoved: {
-			const list = state.inputNeeded;
-			if (!list) {
-				return state;
-			}
-			const idx = list.findIndex(r => r.id === action.id);
-			if (idx < 0) {
-				return state;
-			}
-			const remaining = list.slice();
-			remaining.splice(idx, 1);
-			const next: SessionState = { ...state, status: withInputNeededStatus(state.status, remaining) };
-			if (remaining.length > 0) {
-				next.inputNeeded = remaining;
-			} else {
-				delete next.inputNeeded;
-			}
-			return next;
+			return removeInputNeeded(state, action.id);
+		}
+
+		case ActionType.SessionPermissionResponded: {
+			return removeInputNeeded(state, action.requestId);
 		}
 
 		// ── Customizations ──────────────────────────────────────────────────
