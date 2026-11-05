@@ -181,9 +181,25 @@ suite('CellOutput', () => {
 			},
 			instantiationService
 		);
-
 	});
 
+	test('updateOutputHeight does not throw for removed or out-of-bounds output index (#225569)', async () => {
+		const outputItem = { data: VSBuffer.fromString('output content'), mime: 'text/plain' };
+		const output1: IOutputDto = { outputId: 'abc', outputs: [outputItem] };
+
+		await withTestNotebook(
+			[
+				['print(output content)', 'python', CellKind.Code, [output1], {}],
+			],
+			(_editor, viewModel) => {
+				const cell = viewModel.viewCells[0] as CodeCellViewModel;
+				assert.doesNotThrow(() => cell.updateOutputHeight(0, 50));
+				assert.doesNotThrow(() => cell.updateOutputHeight(1, 50));
+				assert.doesNotThrow(() => cell.updateOutputHeight(999, 50));
+			},
+			instantiationService
+		);
+	});
 
 });
 
