@@ -901,6 +901,14 @@ export class GitStatusParser {
 	}
 }
 
+/**
+ * Returns the working tree path of a linked worktree, given the contents of its
+ * `gitdir` file: the absolute path of the worktree's `.git` file.
+ */
+export function parseWorktreeGitdir(gitdirContent: string): string {
+	return gitdirContent.replace(/[\\/]\.git$/, '');
+}
+
 export interface Submodule {
 	name: string;
 	path: string;
@@ -3154,8 +3162,7 @@ export class Repository {
 
 					result.push({
 						name: dirent.name,
-						// Remove '/.git' suffix
-						path: gitdirContent.replace(/\/.git.*$/, ''),
+						path: parseWorktreeGitdir(gitdirContent),
 						// Remove 'ref: ' prefix
 						ref: headContent.replace(/^ref: /, ''),
 						// Detached if HEAD does not start with 'ref: '
