@@ -9,6 +9,7 @@ import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.
 import { TelemetryConfiguration, TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import { telemetryLevelToAgentHostValue } from './agentHostTelemetry.js';
 import { SessionConfigKey, type SessionSandboxEnabled } from './sessionConfigKeys.js';
+import { MissionControlUseLocalCredentialsConfigKey } from './missionControlEnvironment.js';
 import type { IShellInitScript } from './shellInitScript.js';
 import type { SessionConfigPropertySchema, SessionConfigSchema } from './state/protocol/commands.js';
 import { JsonRpcErrorCodes, ProtocolError } from './state/sessionProtocol.js';
@@ -830,6 +831,12 @@ const mcpServersValueProperties: Record<string, SessionConfigPropertySchema> = {
 
 export const platformRootSchema = createSchema({
 	...agentHostProxyConfigDefinition,
+	[MissionControlUseLocalCredentialsConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.localCredentials.title', "Use Local Credentials"),
+		description: localize('agentHost.config.localCredentials.description', "Use this host's GitHub and Copilot credentials for same-account Mission Control sessions."),
+		readOnly: true,
+	}),
 	[AgentHostAhpJsonlLoggingEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.ahpJsonlLogging.title', "AHP Transport Logging"),

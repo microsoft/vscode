@@ -5033,7 +5033,7 @@ suite('ProtocolServerHandler', () => {
 
 		test('only listener configuration can delegate execution to a local credential source', async () => {
 			const resolutions: { owner: string; resource: string }[] = [];
-			const f = await fixture(undefined, async (principal, resource) => {
+			const f = await fixture(undefined, (principal, resource) => {
 				resolutions.push({ owner: principal.userId, resource });
 				return {
 					principal,
@@ -5050,7 +5050,7 @@ suite('ProtocolServerHandler', () => {
 			}));
 			await f.scopedHandler.whenIdle();
 			assert.deepStrictEqual({
-				resolutions,
+				resolutions: resolutions[0],
 				executionToken: agentService.createSessionConfigs[0]?.credentials?.getCredential({ resource })?.token,
 				sourceForwarded: agentService.createSessionConfigs[0]?.credentials === scope,
 				desktop: f.authentication.getAuthToken({ resource }),
@@ -5058,7 +5058,7 @@ suite('ProtocolServerHandler', () => {
 				changedTokens: f.changedTokens,
 				tokenPublished: JSON.stringify(transport.sent).includes('delegated-desktop-token'),
 			}, {
-				resolutions: [{ owner: '123', resource }],
+				resolutions: { owner: '123', resource },
 				executionToken: 'delegated-desktop-token',
 				sourceForwarded: true,
 				desktop: 'desktop-token',
@@ -5067,6 +5067,39 @@ suite('ProtocolServerHandler', () => {
 				tokenPublished: false,
 			});
 		});
+
+		for (const local of [false, true]) {
+			test(`a live changeset operation ${local ? 'uses host repository credentials' : 'does not inherit host repository credentials'} without client repository authentication`, async () => {
+				const repository = `${resource}/repos`;
+				const f = await fixture(undefined, (principal, target) => local && target === repository ? {
+					principal,
+					getCredential: request => request.resource === repository
+						? { resource: repository, token: 'host-repository-token', revision: 1, expiresAt: undefined }
+						: undefined,
+				} : undefined);
+				const transport = f.connect('changeset-client');
+				const scope = await f.authenticate(transport, 'client-token');
+				const tokens: (string | undefined)[] = [];
+				agentService.invokeChangesetOperation = async (_params, source) => {
+					tokens.push(source?.getCredential({ resource: repository })?.token);
+					return {};
+				};
+				transport.simulateMessage(request(3, 'invokeChangesetOperation', { channel: sessionUri, operationId: 'test' }));
+				await f.scopedHandler.whenIdle();
+				const response = findResponse(transport.sent, 3);
+				transport.relayAuthenticated = false;
+				assert.throws(() => scope.getCredential({ resource: repository }), { code: AHP_AUTH_REQUIRED });
+				assert.deepStrictEqual({
+					tokens,
+					authenticatedResources: f.authentications.map(authentication => authentication.params.resource),
+					succeeded: !!response && hasKey(response, { result: true }),
+				}, {
+					tokens: [local ? 'host-repository-token' : undefined],
+					authenticatedResources: [resource],
+					succeeded: true,
+				});
+			});
+		}
 
 		test('forwards the exact connection source to session creation, dispatch, changesets and listener extensions', async () => {
 			const extensionSources: (IAgentHostCredentialSource | undefined)[] = [];

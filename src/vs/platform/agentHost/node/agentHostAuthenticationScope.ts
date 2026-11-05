@@ -16,7 +16,6 @@ interface IScopedCredential extends IAgentHostScopedCredential {
 /** Host-owned connection capture with optional listener-authorized credential delegation. */
 export class AgentHostAuthenticationScope extends Disposable implements IAgentHostAuthenticationScope {
 	private readonly _credentials = new Map<string, IScopedCredential>();
-	private readonly _delegatedSources = new Map<string, IAgentHostCredentialSource>();
 	private readonly _attempts = new Map<string, number>();
 	private _revision = 0;
 
@@ -24,7 +23,7 @@ export class AgentHostAuthenticationScope extends Disposable implements IAgentHo
 		private readonly _validate: (params: AuthenticateParams) => Promise<AuthenticateParams>,
 		private readonly _checkAuthorization: () => void,
 		readonly principal?: IAgentHostCredentialPrincipal,
-		private readonly _resolveCredentials?: (resource: string) => Promise<IAgentHostCredentialSource | undefined>,
+		private readonly _resolveCredentials?: (resource: string) => IAgentHostCredentialSource | undefined,
 	) {
 		super();
 	}
@@ -51,7 +50,7 @@ export class AgentHostAuthenticationScope extends Disposable implements IAgentHo
 		if (isExpired(expiresAt)) {
 			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Credential has expired');
 		}
-		const source = await this._resolveCredentials?.(params.resource);
+		const source = this._resolveCredentials?.(params.resource);
 		this._checkLive();
 		this._checkAuthorization();
 		if (this._attempts.get(key) !== attempt) {
@@ -59,13 +58,11 @@ export class AgentHostAuthenticationScope extends Disposable implements IAgentHo
 		}
 		if (source) {
 			if (!source.getCredential({ resource: params.resource })) {
-				throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Local Copilot authentication is required');
+				throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Local authentication is required');
 			}
 			this._credentials.delete(key);
-			this._delegatedSources.set(key, source);
 			return;
 		}
-		this._delegatedSources.delete(key);
 		this._credentials.set(key, {
 			resource: params.resource,
 			scopes,
@@ -95,13 +92,12 @@ export class AgentHostAuthenticationScope extends Disposable implements IAgentHo
 
 	override dispose(): void {
 		this._credentials.clear();
-		this._delegatedSources.clear();
 		this._attempts.clear();
 		super.dispose();
 	}
 
 	private _getLive(key: string): IAgentHostScopedCredential | undefined {
-		const source = this._delegatedSources.get(key);
+		const source = this._resolveCredentials?.(key);
 		if (source) {
 			return source.getCredential({ resource: key });
 		}

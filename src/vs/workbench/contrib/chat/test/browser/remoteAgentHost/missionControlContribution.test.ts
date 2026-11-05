@@ -17,7 +17,8 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/timeTrave
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostService, IMissionControlOptions } from '../../../../../../platform/agentHost/common/agentService.js';
 import { CloudSandboxAutoConnectOnOpenSettingId, CloudSandboxEarlyPreparationSettingId, CloudSandboxEnabledSettingId, ICloudSandboxDraftPreparationService } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
-import { AgentHostDefaultCloneDirectorySettingId, AgentHostRemoteConnectionsBackend, AgentHostRemoteConnectionsSettingId, GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService, MissionControlUseLocalCredentialsSettingId } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { AgentHostDefaultCloneDirectorySettingId, AgentHostRemoteConnectionsBackend, AgentHostRemoteConnectionsSettingId, GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService, MissionControlUseLocalCredentialsConfigKey, MissionControlUseLocalCredentialsSettingId } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { AgentHostConfigurationSyncTarget, resolveAgentHostConfigurationSyncPatch } from '../../../../../../platform/agentHost/common/agentHostConfigurationSync.js';
 import { IConfigurationChangeEvent, IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
 import { ConfigurationModelParser } from '../../../../../../platform/configuration/common/configurationModels.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../../platform/configuration/common/configurationRegistry.js';
@@ -509,7 +510,11 @@ suite('Mission Control sharing service', () => {
 			const { calls, configuration, sharing } = fixture();
 			await configuration.setUserConfiguration(localCredentialSetting, enabled);
 			await sharing.setEnabled(true);
-			assert.deepStrictEqual(calls.map(call => call.options?.useLocalCredentials === true), [enabled]);
+			assert.deepStrictEqual({
+				registration: calls.map(call => call.options?.useLocalCredentials === true),
+				localHost: resolveAgentHostConfigurationSyncPatch(configuration, AgentHostConfigurationSyncTarget.Local)[MissionControlUseLocalCredentialsConfigKey],
+				remoteHost: resolveAgentHostConfigurationSyncPatch(configuration, AgentHostConfigurationSyncTarget.Remote)[MissionControlUseLocalCredentialsConfigKey],
+			}, { registration: [enabled], localHost: enabled, remoteHost: undefined });
 		}));
 	}
 
