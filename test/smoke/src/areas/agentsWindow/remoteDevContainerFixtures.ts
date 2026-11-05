@@ -1040,8 +1040,8 @@ async function createWslFixture(options: IRemoteDevContainerFixtureOptions, reso
 		verifyMockServerRouting: async () => {
 			const logs = await run(`find ${shellQuote(`${root}/user-data/logs`)} -name agenthost.log -type f -exec cat {} +`);
 			if (clientProxy) {
-				if (!logs.includes(`Using CAPI URL override ${options.mockServerUrl};`) || !logs.includes('[Copilot] Resolved CAPI proxy and forwarded HTTP_PROXY/HTTPS_PROXY to Copilot SDK')) {
-					throw new Error('The WSL Agent Host did not route the mock CAPI endpoint through the client-resolved proxy.');
+				if (!logs.includes(`Using CAPI URL override ${options.mockServerUrl};`) || !logs.includes('[Copilot] The Copilot runtime resolves proxies and Kerberos tickets through this agent host')) {
+					throw new Error('The WSL Agent Host did not have the Copilot runtime resolve proxies and Kerberos tickets through its network callbacks.');
 				}
 				if (copilotRuntimePath && !logs.includes(`[Copilot] Using configured runtime path: ${copilotRuntimePath}`)) {
 					throw new Error(`The WSL Agent Host did not use the Copilot runtime at ${copilotRuntimePath}.`);

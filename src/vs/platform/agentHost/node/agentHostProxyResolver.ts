@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LogLevel as ProxyLogLevel, ProxyAgentParams, createFetchPatch, createProxyAuthorizationLookup, createProxyResolver, createWebSocketPatch, loadSystemCertificates, resetCaches, type Log as ProxyLog } from '@vscode/proxy-agent';
+import { LogLevel as ProxyLogLevel, ProxyAgentParams, createFetchPatch, createProxyAuthorizationLookup, createProxyResolver, createWebSocketPatch, loadSystemCertificates, resetCaches, type Log as ProxyLog, type ResolvedProxyInfo } from '@vscode/proxy-agent';
 import { getCACertificates } from 'tls';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
@@ -108,6 +108,12 @@ export interface IAgentHostProxyResolver {
 	 */
 	lookupClientKerberosAuthorization(proxyUrl: string): Promise<string | undefined>;
 
+	/**
+	 * A `Negotiate` `Proxy-Authorization` value for `proxyUrl` from a connected renderer or this machine's Kerberos
+	 * tickets, falling back to a client that shares this agent host's network. `undefined` when none supplies one.
+	 */
+	lookupKerberosAuthorization(proxyUrl: string): Promise<string | undefined>;
+
 	getConfigurationValue<T>(key: AgentHostProxyConfigurationKey): T | undefined;
 
 	/**
@@ -118,6 +124,12 @@ export interface IAgentHostProxyResolver {
 	 * that runs in VS Code (Electron session) via the reverse channel.
 	 */
 	resolveProxy(url: string): Promise<string | undefined>;
+
+	/**
+	 * Like {@link resolveProxy}, with the type of the result and the configuration that determined it, such as `remote`
+	 * when no client was connected to resolve the system proxy with.
+	 */
+	resolveProxyByURL(url: string): Promise<ResolvedProxyInfo>;
 
 	/** Fetch using the same proxy, certificate, and host/PAC resolution as {@link resolveProxy}. */
 	fetch(input: string | URL | Request, init?: RequestInit): Promise<Response>;
@@ -309,8 +321,16 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 		return undefined;
 	}
 
+	lookupKerberosAuthorization(proxyUrl: string): Promise<string | undefined> {
+		return this._hostLookupKerberosAuthorization(proxyUrl);
+	}
+
 	resolveProxy(url: string): Promise<string | undefined> {
 		return this._getProxyResolver().resolver.resolveProxyURL(url);
+	}
+
+	resolveProxyByURL(url: string): Promise<ResolvedProxyInfo> {
+		return this._getProxyResolver().resolver.resolveProxyByURL(url);
 	}
 
 	async fetch(input: string | URL | Request, init?: RequestInit): Promise<Response> {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { getOrLoadAdditionalCertificates, resetCaches, type ProxyAgentParams } from '@vscode/proxy-agent';
+import { getOrLoadAdditionalCertificates, resetCaches, type ProxyAgentParams, type ResolvedProxyInfo } from '@vscode/proxy-agent';
 import { rootCertificates } from 'tls';
 import { X509Certificate } from 'crypto';
 import { streamToBuffer } from '../../../../base/common/buffer.js';
@@ -56,12 +56,20 @@ class TestProxyResolver implements IAgentHostProxyResolver {
 		return undefined;
 	}
 
+	async lookupKerberosAuthorization(): Promise<string | undefined> {
+		return undefined;
+	}
+
 	getConfigurationValue<T>(_key: string): T | undefined {
 		return undefined;
 	}
 
 	resolveProxy(_url: string): Promise<string | undefined> {
 		return Promise.resolve('http://proxy.example:8080');
+	}
+
+	async resolveProxyByURL(): Promise<ResolvedProxyInfo> {
+		return { url: 'http://proxy.example:8080', type: 'PROXY', source: 'system', result: 'PROXY proxy.example:8080' };
 	}
 
 	fetch(input: string | URL | Request, init?: RequestInit): Promise<Response> {
@@ -434,13 +442,17 @@ suite('AgentHostProxyResolver', () => {
 			lookupKerberosAuthorization: async () => undefined,
 		}));
 		const shared = await resolver.resolveProxy('https://shared.example/path');
+		const sharedInfo = await resolver.resolveProxyByURL('https://shared-info.example/path');
 		client.dispose();
 		const afterDisconnect = await resolver.resolveProxy('https://disconnected.example/path');
+		const afterDisconnectInfo = await resolver.resolveProxyByURL('https://disconnected.example/path');
 
-		assert.deepStrictEqual({ shared, afterDisconnect, resolved, registrations }, {
+		assert.deepStrictEqual({ shared, sharedInfo, afterDisconnect, afterDisconnectInfo, resolved, registrations }, {
 			shared: 'http://proxy.example:8080',
+			sharedInfo: { url: 'http://proxy.example:8080', type: 'PROXY', source: 'system', result: 'PROXY proxy.example:8080' },
 			afterDisconnect: undefined,
-			resolved: ['https://shared.example/path'],
+			afterDisconnectInfo: { url: undefined, type: 'DIRECT', source: 'remote', result: 'DIRECT' },
+			resolved: ['https://shared.example/path', 'https://shared-info.example/path'],
 			registrations: 1,
 		});
 	});
@@ -478,9 +490,7 @@ suite('AgentHostProxyResolver', () => {
 				return 'Negotiate client-token';
 			},
 		}));
-		const lookup = (url: string) => (resolver as unknown as {
-			_hostLookupKerberosAuthorization(url: string): Promise<string | undefined>;
-		})._hostLookupKerberosAuthorization(url);
+		const lookup = (url: string) => resolver.lookupKerberosAuthorization(url);
 
 		const native = await lookup('http://proxy.example:8080');
 		resolver.nativeKerberosFails = true;
