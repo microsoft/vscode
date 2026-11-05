@@ -2103,7 +2103,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			this._cancelRestore();
 			this._startOpenSession();
 			const wasActive = this._visibility.activeSession.get()?.sessionId === session.sessionId;
-			this._visibility.removeMany([session.sessionId], true);
+			this._visibility.removeMany([session.sessionId], true, true);
 			if (wasActive && this._visibility.activeSession.get() === undefined && !this._visibility.visibleSessions.get().includes(undefined)) {
 				// The grid shows the new-session composer instead, without taking focus from the window.
 				this._visibility.setActive(undefined, true);
