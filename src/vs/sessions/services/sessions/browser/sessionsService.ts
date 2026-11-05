@@ -15,7 +15,6 @@ import { IHostService } from '../../../../workbench/services/host/browser/host.j
 import { IObservable, autorun, constObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -2743,5 +2742,3 @@ export class SessionsService extends Disposable implements ISessionsService {
 		await this._navigation.goForward();
 	}
 }
-
-registerSingleton(ISessionsService, SessionsService, InstantiationType.Eager);

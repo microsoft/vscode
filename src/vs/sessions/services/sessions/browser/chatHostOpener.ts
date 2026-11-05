@@ -5,7 +5,6 @@
 
 import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
-import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 
 /**
@@ -71,5 +70,3 @@ export class ChatHostOpenerService implements IChatHostOpenerService {
 		return this._openers.find(opener => opener.showsChat(chat));
 	}
 }
-
-registerSingleton(IChatHostOpenerService, ChatHostOpenerService, InstantiationType.Delayed);

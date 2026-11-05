@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
-import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ISessionsListPresentation, SessionNameKind } from './sessionsListPresentation.js';
 
 export class DefaultSessionsListPresentation implements ISessionsListPresentation {
@@ -18,5 +17,3 @@ export class DefaultSessionsListPresentation implements ISessionsListPresentatio
 	renderHeader(): IDisposable { return Disposable.None; }
 	decorateList(): IDisposable { return Disposable.None; }
 }
-
-registerSingleton(ISessionsListPresentation, DefaultSessionsListPresentation, InstantiationType.Delayed);

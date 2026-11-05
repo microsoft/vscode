@@ -8,7 +8,6 @@ import { Disposable, IDisposable, toDisposable } from '../../../../base/common/l
 import { derived, IObservable, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILifecycleService } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { ISession } from '../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../workbench/contrib/sessions/common/sessionsProvider.js';
@@ -159,5 +158,3 @@ export class SessionsProvidersService extends Disposable implements ISessionsPro
 			?? (entry && this._providers.has(entry.ownerProviderId) ? entry.backend : undefined)) as T | undefined;
 	}
 }
-
-registerSingleton(ISessionsProvidersService, SessionsProvidersService, InstantiationType.Delayed);

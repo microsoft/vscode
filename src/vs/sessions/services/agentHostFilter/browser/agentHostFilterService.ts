@@ -11,7 +11,6 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { isAgentHostProvider, IAgentHostGroup, IAgentHostSessionsProvider } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
@@ -399,5 +398,3 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 		this._storageService.store(STORAGE_KEY, hostId, StorageScope.PROFILE, StorageTarget.USER);
 	}
 }
-
-registerSingleton(IAgentHostFilterService, AgentHostFilterService, InstantiationType.Delayed);

@@ -11,7 +11,6 @@ import { IObservable, IReader, observableValue, runOnChange, transaction } from 
 import { ThemeIcon, themeColorFromId } from '../../../../base/common/themables.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { AutomationSessionsListMode, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
@@ -598,5 +597,3 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		);
 	}
 }
-
-registerSingleton(ISessionsListModelService, SessionsListModelService, InstantiationType.Delayed);

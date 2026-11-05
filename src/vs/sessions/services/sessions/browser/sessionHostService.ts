@@ -8,7 +8,6 @@ import { Disposable, IDisposable, toDisposable } from '../../../../base/common/l
 import { derivedObservableWithCache, IObservable, IReader, recomputeInitiallyAndOnChange, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
-import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { GroupIdentifier } from '../../../../workbench/common/editor.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
@@ -129,6 +128,3 @@ export class FocusedSessionHostService extends Disposable implements IFocusedSes
 		return this._loadingFallback(host, this.focusedHost.get(), undefined);
 	}
 }
-
-registerSingleton(ISessionHostService, SessionHostService, InstantiationType.Delayed);
-registerSingleton(IFocusedSessionHostService, FocusedSessionHostService, InstantiationType.Delayed);

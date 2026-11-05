@@ -6,7 +6,6 @@
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
 /**
@@ -350,7 +349,3 @@ function arraysEqual(a: readonly string[], b: readonly string[]): boolean {
 	}
 	return true;
 }
-
-//#endregion
-
-registerSingleton(ISessionSectionOrderService, SessionSectionOrderService, InstantiationType.Delayed);

@@ -10,7 +10,6 @@ import { ResourceMap } from '../../../../base/common/map.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { URI } from '../../../../base/common/uri.js';
-import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { getSessionsTelemetryProviderId, SessionsTelemetryProviderId } from '../../../common/sessionsTelemetry.js';
@@ -258,5 +257,3 @@ export class SessionOpenTelemetryService extends Disposable implements ISessionO
 		return Math.max(0, Math.round(attempt.stopwatch.elapsed()));
 	}
 }
-
-registerSingleton(ISessionOpenTelemetryService, SessionOpenTelemetryService, InstantiationType.Delayed);

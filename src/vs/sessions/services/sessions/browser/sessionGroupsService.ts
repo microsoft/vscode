@@ -11,7 +11,6 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ISession } from '../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
@@ -1012,5 +1011,3 @@ function withParent(group: ISessionGroup, parentId: string | undefined): ISessio
 	const { parentId: _, ...properties } = group;
 	return parentId === undefined ? properties : { ...properties, parentId };
 }
-
-registerSingleton(ISessionGroupsService, SessionGroupsService, InstantiationType.Delayed);

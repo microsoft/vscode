@@ -13,7 +13,6 @@ import { autorun, observableSignalFromEvent, observableValue } from '../../../..
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -1328,5 +1327,3 @@ function comparisonTitle(prompt: string): string {
 	const firstLine = prompt.trim().split(/\r?\n/, 1)[0];
 	return firstLine.length > 60 ? `${firstLine.slice(0, 57)}...` : firstLine;
 }
-
-registerSingleton(ISessionComparisonService, SessionComparisonService, InstantiationType.Delayed);

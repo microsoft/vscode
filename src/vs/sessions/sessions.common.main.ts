@@ -148,7 +148,6 @@ import '../workbench/services/log/common/defaultLogLevels.js';
 import '../workbench/services/agentHost/common/agentHostResourceService.js';
 import '../platform/agentHost/browser/agentHostConnectionsService.js';
 import '../platform/agentHost/browser/agentHostEnablementService.js';
-import './services/agentHost/browser/agentHostCustomizationService.js';
 
 import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
 import { ArtifactIntegrationRegistry, IArtifactIntegrationRegistry } from '../platform/artifactIntegrations/common/artifactIntegrationRegistry.js';
@@ -470,8 +469,6 @@ import './browser/parts/sessionsParts.js';
 import './browser/parts/customViewGridParts.js';
 import './services/sessions/browser/sessionsWindowUsageService.js';
 import './services/sessions/browser/sessionsServices.registration.js';
-import './services/sessions/browser/sessionsService.js';
-import './services/sessions/browser/sessionHostService.js';
 import './services/workspaceFolderLabel/browser/workspaceFolderLabelService.js';
 import './services/mcp/browser/mcpWorkspaceInstallTargetService.js';
 import './services/customView/browser/customViewService.js';
@@ -495,13 +492,6 @@ import './contrib/chat/browser/customizationsDebugLog.contribution.js';
 import './contrib/providers/copilotChatSessions/browser/copilotChatSessions.contribution.js';
 import './contrib/sessions/browser/sessions.contribution.js';
 import './contrib/canvases/browser/pinnedCanvases.contribution.js';
-import './services/sessions/browser/sessionsListModelService.js';
-import './services/sessions/browser/sessionGroupsService.js';
-import './services/sessions/browser/sessionComparisonService.js';
-import './services/sessions/browser/sessionSectionOrderService.js';
-import './services/agentHostFilter/browser/agentHostFilterService.js';
-import './services/presentation/browser/defaultSessionRepositoryPicker.js';
-import './services/presentation/browser/defaultSessionsListPresentation.js';
 import './contrib/sessions/browser/customizationsToolbar.contribution.js';
 import './contrib/changes/browser/changes.contribution.js';
 import './contrib/codeReview/browser/codeReview.contributions.js';
@@ -535,5 +525,4 @@ import './contrib/onboardingTours/browser/onboardingTours.contribution.js';
 import './contrib/getStarted/browser/getStarted.contribution.js';
 import './contrib/worktreeSuggestion/browser/worktreeSuggestion.contribution.js';
 
-import './services/sessions/browser/sessionsManagementService.js';
 //#endregion

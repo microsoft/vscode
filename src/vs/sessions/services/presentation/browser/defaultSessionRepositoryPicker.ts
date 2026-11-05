@@ -5,7 +5,6 @@
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { RepositoryPicker } from '../../../../workbench/contrib/chat/browser/agentSessions/repositoryPicker.js';
 import { ISessionRepositoryPicker } from './sessionRepositoryPicker.js';
@@ -27,5 +26,3 @@ export class DefaultSessionRepositoryPicker implements ISessionRepositoryPicker 
 		}
 	}
 }
-
-registerSingleton(ISessionRepositoryPicker, DefaultSessionRepositoryPicker, InstantiationType.Delayed);
