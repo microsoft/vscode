@@ -504,9 +504,11 @@ suite('SCM structural diff model', () => {
 	});
 
 	test('locates deleted entities in the modified document', async () => {
-		original.setValue('class Calculator {\n\trun() { return 1; }\n\tstop() { return 2; }\n}');
-		modified.setValue('class Calculator {\n\tstop() { return 2; }\n}');
-		provider.result = createResultWithMethods(createMethod('run', 'run', 2, undefined), createMethod('stop', 'stop', 3, undefined));
+		original.setValue('class Calculator {\n\trun() { return 1; }\n\t// Stops.\n\tstop() { return 2; }\n}');
+		modified.setValue('class Calculator {\n\t// Stops.\n}');
+		// The range of stop starts at its comment, which is unchanged.
+		const stop = createMethod('stop', 'stop', 4, undefined);
+		provider.result = createResultWithMethods(createMethod('run', 'run', 2, undefined), { ...stop, original: { ...stop.original!, range: new Range(3, 2, 4, original.getLineMaxColumn(4)) } });
 		const [calculator] = await model.getChildren(resource);
 		assert.ok(calculator.type === 'structuralDiff' && provider.context);
 		// Deleted text is located where it was deleted, unchanged text where it is in the modified document.
