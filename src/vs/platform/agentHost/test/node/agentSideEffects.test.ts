@@ -210,6 +210,8 @@ function createNoopCustomizationEnablementService(): IAgentHostCustomizationEnab
 		applyClientGlobalEnablement: () => ({ kind: 'resolved', enablement: [], enabled: true, workingDirectory: { kind: 'workspaceless' } }),
 		replaceEnablement: () => ({ kind: 'resolved', enablement: [], enabled: true, workingDirectory: { kind: 'workspaceless' } }),
 		setEnablement: () => ({ kind: 'resolved', enablement: [], enabled: true, workingDirectory: { kind: 'workspaceless' } }),
+		resolveWorkspaceMcpServers: () => ({ kind: 'pending', reason: 'session' }),
+		replaceWorkspaceMcpServersEnablement: () => ({ kind: 'pending', reason: 'session' }),
 		whenIdle: async () => { },
 	};
 }
@@ -340,6 +342,7 @@ function createTestSideEffects(
 	services.set(IAgentHostLocalTurns, localTurns);
 	const localCommands = disposables.add(instantiationService.createInstance(AgentHostLocalCommands));
 	services.set(IAgentHostLocalCommands, localCommands);
+	services.set(IAgentHostCustomizationEnablementService, customizationEnablementService);
 	disposables.add(registerBuiltInChatContributions(chatContributions));
 	const resolvedOptions: IAgentSideEffectsOptions = {
 		...options,

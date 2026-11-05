@@ -32,7 +32,7 @@ import type { CommandExecutionRequestApprovalResponse } from '../../../node/code
 import { PendingRequestRegistry } from '../../../common/pendingRequestRegistry.js';
 import { toToolCallMeta } from '../../../common/meta/agentToolCallMeta.js';
 import { targetForMcpServer } from '../../../node/shared/customizationEnablementGate.js';
-import { McpCustomizationController, type IMcpCustomizationControllerOptions } from '../../../node/shared/mcpCustomizationController.js';
+import { McpCustomizationController, type IMcpCustomizationControllerOptions, type IMcpServerProvenance } from '../../../node/shared/mcpCustomizationController.js';
 import { createGitHubMcpServerConfiguration, getGitHubMcpTools } from '../../../node/shared/githubMcpServer.js';
 import { requireMintedTestChatOwner } from '../../common/mintedChatUri.js';
 
@@ -68,6 +68,7 @@ interface ICodexMcpControllerHarness {
 	readonly _emitMcpCustomizationAction: (...args: readonly unknown[]) => void;
 	readonly _preferredMcpPublisher: (ownerSession: URI) => ICodexMcpControllerSession | undefined;
 	readonly _switchMcpPublisher: (session: ICodexMcpControllerSession) => void;
+	readonly _resolveMcpServerProvenance: (session: ICodexMcpControllerSession, serverName: string) => IMcpServerProvenance | undefined;
 }
 
 interface ICodexMcpRequestHarness {
@@ -792,6 +793,7 @@ suite('CodexAgent', () => {
 			_emitMcpCustomizationAction: () => { },
 			_preferredMcpPublisher: () => session,
 			_switchMcpPublisher: () => { },
+			_resolveMcpServerProvenance: () => undefined,
 		};
 		const beforeChatBinding = getOrCreateMcpController(harness, session);
 		session.chatChannel = URI.parse(buildDefaultChatUri(session.sessionUri));

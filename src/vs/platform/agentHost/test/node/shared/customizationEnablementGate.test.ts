@@ -8,10 +8,11 @@ import { Event } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isCustomizationEnabled, sortCustomizationEnablement } from '../../../common/customizationEnablement.js';
+import { withMcpServerSourceMeta } from '../../../common/meta/mcpCustomizationMeta.js';
 import { withRuntimePluginEnablement } from '../../../common/meta/pluginEnablementMeta.js';
 import { CustomizationEnablementKind, CustomizationType, McpServerStatus, type AgentCustomization, type ChildCustomization, type ClientPluginCustomization, type Customization, type CustomizationEnablement, type McpServerCustomization, type PluginCustomization } from '../../../common/state/protocol/channels-session/state.js';
 import { IAgentHostCustomizationEnablementService, type CustomizationEnablementResolution, type ICustomizationEnablementTarget, type WorkingDirectoryState } from '../../../node/agentHostCustomizationEnablementService.js';
-import { getSdkMcpServerEnablement, isCustomizationSdkEligible, recordClientPluginEnablement, resolveCustomizationEnablement } from '../../../node/shared/customizationEnablementGate.js';
+import { getSdkMcpServerEnablement, isCustomizationSdkEligible, recordClientPluginEnablement, resolveCustomizationEnablement, targetForMcpServer } from '../../../node/shared/customizationEnablementGate.js';
 
 class TestEnablementService implements IAgentHostCustomizationEnablementService {
 	declare readonly _serviceBrand: undefined;
@@ -69,6 +70,14 @@ class TestEnablementService implements IAgentHostCustomizationEnablementService 
 
 	setEnablement(session: string, target: ICustomizationEnablementTarget, _kind: CustomizationEnablementKind, _enabled: boolean): CustomizationEnablementResolution {
 		return this.resolve(session, target);
+	}
+
+	resolveWorkspaceMcpServers(): CustomizationEnablementResolution {
+		return this._resolved([]);
+	}
+
+	replaceWorkspaceMcpServersEnablement(): CustomizationEnablementResolution {
+		return this._resolved([]);
 	}
 
 	async whenIdle(): Promise<void> { }
@@ -431,6 +440,25 @@ suite('CustomizationEnablementGate', () => {
 		}, {
 			disabledSdkAgents: [],
 			reenabledSdkAgents: ['agent'],
+		});
+	});
+
+	test('marks only unowned workspace-sourced MCP servers as workspace-configured', () => {
+		const workspaceServer: McpServerCustomization = { ...server(), _meta: withMcpServerSourceMeta(undefined, 'workspace') };
+		const userServer: McpServerCustomization = { ...server(), _meta: withMcpServerSourceMeta(undefined, 'user') };
+		const pluginUri = 'file:///plugins/example';
+
+		assert.deepStrictEqual({
+			workspace: targetForMcpServer(workspaceServer, undefined, false).isWorkspaceConfigured,
+			user: targetForMcpServer(userServer, undefined, false).isWorkspaceConfigured,
+			unmarked: targetForMcpServer(server(), undefined, false).isWorkspaceConfigured,
+			// A plugin's server is governed by its plugin even when the plugin itself was discovered in the workspace.
+			pluginOwned: targetForMcpServer(workspaceServer, pluginUri, false).isWorkspaceConfigured,
+		}, {
+			workspace: true,
+			user: undefined,
+			unmarked: undefined,
+			pluginOwned: undefined,
 		});
 	});
 });

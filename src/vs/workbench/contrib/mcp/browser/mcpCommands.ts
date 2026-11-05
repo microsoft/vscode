@@ -430,10 +430,12 @@ function getAgentHostMcpServerEnablementItems(server: IAgentHostMcpServer, hasWo
 	return items;
 }
 
-function getLocalMcpServerEnablementItems(disabled: boolean, isEmptyWorkbench: boolean, includeWorkspace = true): AgentHostEnablementItemType[] {
+function getLocalMcpServerEnablementItems(disabled: boolean, isEmptyWorkbench: boolean, includeWorkspace = true, canEnableProfile = true): AgentHostEnablementItemType[] {
 	const items: AgentHostEnablementItemType[] = [];
 	if (disabled) {
-		items.push({ label: localize('mcp.agentHost.enable', 'Enable'), action: 'enableProfile' });
+		if (canEnableProfile) {
+			items.push({ label: localize('mcp.agentHost.enable', 'Enable'), action: 'enableProfile' });
+		}
 		if (includeWorkspace && !isEmptyWorkbench) {
 			items.push({ label: localize('mcp.agentHost.enableWorkspace', 'Enable (Workspace)'), action: 'enableWorkspace' });
 		}
@@ -532,6 +534,7 @@ export class McpAgentHostServerOptionsCommand extends Action2 {
 		const pluginDisabled = server.disabledReason?.source === 'plugin';
 		const localServer = findLocalMcpServer(mcpService, server);
 		const durableProfileDisabled = localServer !== undefined && !mcpService.enablementModel.readProfileEnabled(localServer.definition.id);
+		const canEnableLocalProfile = localServer === undefined || (mcpService.enablementModel.canSetEnabled?.(localServer.definition.id, ContributionEnablementState.EnabledProfile) ?? true);
 		const isEmptyWorkbench = aiCustomizationWorkspaceService.getActiveProjectRoot() === undefined;
 		items.push({ type: 'separator', label: localize('mcp.actions.enablement', 'Enablement') });
 		if (pluginDisabled) {
@@ -543,7 +546,7 @@ export class McpAgentHostServerOptionsCommand extends Action2 {
 			items.push(
 				...(localServer
 					? [
-						...getLocalMcpServerEnablementItems(durableProfileDisabled, isEmptyWorkbench, false),
+						...getLocalMcpServerEnablementItems(durableProfileDisabled, isEmptyWorkbench, false, canEnableLocalProfile),
 						...getAgentHostMcpServerEnablementItems(server, agentHostCustomizations.getWorkingDirectories(agentHostSession).length > 0, ['workspace', 'session']),
 					]
 					: getAgentHostMcpServerEnablementItems(server, agentHostCustomizations.getWorkingDirectories(agentHostSession).length > 0)),

@@ -94,7 +94,7 @@ import { CustomizationToggle } from './customizationToggle.js';
 import { affectsCustomizationDiscoveryAvailability, isCustomizationDiscoveryAvailable } from './customizationMarketplaceConfiguration.js';
 import { renderCustomizationMarketplaceIcon } from './aiCustomizationPresentation.js';
 import { findAICustomizationWorkspaceGroupContaining, getAICustomizationWorkspaceGroups, isAICustomizationWorkspaceGroupKey, isInAICustomizationWorkspaceFolder } from './aiCustomizationWorkspaceGroups.js';
-import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 
 export type { AgentHostMcpServer } from './mcpServerCount.js';
 
@@ -238,6 +238,39 @@ function getMcpInstalledEntryIcon(entry: IMcpInstalledEntry): CustomizationMarke
 interface IMcpMarketplaceEntry {
 	readonly type: 'marketplace-item';
 	readonly server: IWorkbenchMcpServer;
+}
+
+/** The resolved decision for workspace-configured MCP servers shown by the Workspace group toggle. */
+interface IWorkspaceMcpServersState {
+	readonly enabled: boolean;
+	/** The scope whose decision is in effect. */
+	readonly decidedBy: 'setting' | 'workspace' | 'session';
+	/** Whether a Workspace decision can be recorded for the current folder. */
+	readonly canOverride: boolean;
+	/** Records a Workspace decision. */
+	setEnabled(enabled: boolean): Promise<void>;
+}
+
+function getWorkspaceMcpServersToggleTitle(state: IWorkspaceMcpServersState): string {
+	if (!state.canOverride) {
+		return state.enabled
+			? localize('workspaceMcpServers.enabled.noWorkspace', "Workspace MCP servers are enabled. Open a folder to change this for a workspace.")
+			: localize('workspaceMcpServers.disabled.noWorkspace', "Workspace MCP servers are disabled by the chat.mcp.workspaceServersEnabled setting. Open a folder to enable them for a workspace.");
+	}
+	switch (state.decidedBy) {
+		case 'session':
+			return state.enabled
+				? localize('workspaceMcpServers.enabled.session', "Workspace MCP servers are enabled for this session. Click to disable them for this workspace.")
+				: localize('workspaceMcpServers.disabled.session', "Workspace MCP servers are disabled for this session. Click to enable them for this workspace.");
+		case 'workspace':
+			return state.enabled
+				? localize('workspaceMcpServers.enabled.workspace', "Workspace MCP servers are enabled for this workspace. Click to disable them for this workspace.")
+				: localize('workspaceMcpServers.disabled.workspace', "Workspace MCP servers are disabled for this workspace. Click to enable them for this workspace.");
+		default:
+			return state.enabled
+				? localize('workspaceMcpServers.enabled.setting', "Workspace MCP servers are enabled by the chat.mcp.workspaceServersEnabled setting. Click to disable them for this workspace.")
+				: localize('workspaceMcpServers.disabled.setting', "Workspace MCP servers are disabled by the chat.mcp.workspaceServersEnabled setting. Click to enable them for this workspace.");
+	}
 }
 
 interface IMcpGroupHeaderEntry extends ICustomizationGroupHeaderEntry {
@@ -3167,7 +3200,75 @@ export class McpListWidget extends Disposable {
 		if (entry.group !== 'user' && entry.group !== 'workspace' && !isAICustomizationWorkspaceGroupKey(entry.group)) {
 			return;
 		}
+		if (entry.group !== 'user') {
+			this.renderWorkspaceMcpServersToggle(container, disposables);
+		}
 		this.renderInstalledSectionActionsWithDisposables(container, disposables, entry.workspaceFolder);
+	}
+
+	/**
+	 * How the class of workspace-configured MCP servers resolves for the active
+	 * harness: the agent host's published decision for its session, or the
+	 * local enablement model. `undefined` when the harness offers no override.
+	 */
+	private getWorkspaceMcpServersState(reader?: IReader): IWorkspaceMcpServersState | undefined {
+		const sessionResource = this.customizationHarnessService.activeSessionResource.read(reader);
+		if (this.customizationHarnessService.getDescriptorForSession(sessionResource)?.itemProvider) {
+			const published = this.agentHostCustomizationService.getWorkspaceMcpServers(sessionResource);
+			if (!published) {
+				return undefined;
+			}
+			const decision = published.enablement[0];
+			return {
+				enabled: published.enabled,
+				decidedBy: decision?.kind === CustomizationEnablementKind.Workspace ? 'workspace' : decision?.kind === CustomizationEnablementKind.Session ? 'session' : 'setting',
+				canOverride: this.agentHostCustomizationService.getWorkingDirectories(sessionResource).length > 0,
+				setEnabled: enabled => this.agentHostCustomizationService.setWorkspaceMcpServersEnablement(sessionResource, CustomizationEnablementKind.Workspace, enabled),
+			};
+		}
+		const state = this.mcpService.workspaceServersEnablement.readWorkspaceServersEnabled(reader);
+		return {
+			enabled: isContributionEnabled(state),
+			decidedBy: state === ContributionEnablementState.EnabledWorkspace || state === ContributionEnablementState.DisabledWorkspace ? 'workspace' : 'setting',
+			canOverride: this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY,
+			setEnabled: async enabled => this.mcpService.workspaceServersEnablement.setWorkspaceServersEnabled(enabled),
+		};
+	}
+
+	/** A header action that overrides `chat.mcp.workspaceServersEnabled` for the current workspace. */
+	private renderWorkspaceMcpServersToggle(header: HTMLElement, disposables: DisposableStore): void {
+		const actions = DOM.append(header, $('.plugin-card-section-actions'));
+		const toggle = disposables.add(new Button(actions, {
+			...getButtonStyles({
+				buttonSecondaryBackground: undefined,
+				buttonSecondaryForeground: undefined,
+				buttonSecondaryHoverBackground: undefined,
+				buttonSecondaryBorder: undefined,
+			}),
+			secondary: true,
+			supportIcons: true,
+		}));
+		toggle.element.classList.add('plugin-installed-action', 'plugin-card-ghost-button', 'plugin-card-icon-button');
+		let current: IWorkspaceMcpServersState | undefined;
+		const update = (reader?: IReader) => {
+			current = this.getWorkspaceMcpServersState(reader);
+			actions.style.display = current ? '' : 'none';
+			if (!current) {
+				return;
+			}
+			toggle.icon = current.enabled ? Codicon.pass : Codicon.circleSlash;
+			toggle.enabled = current.canOverride;
+			const title = getWorkspaceMcpServersToggleTitle(current);
+			toggle.setTitle(title);
+			toggle.element.setAttribute('aria-label', title);
+		};
+		disposables.add(autorun(reader => update(reader)));
+		disposables.add(this.agentHostCustomizationService.onDidChangeCustomizations(() => update()));
+		disposables.add(toggle.onDidClick(() => {
+			if (current?.canOverride) {
+				current.setEnabled(!current.enabled).catch(error => this.logService.error('[McpListWidget] Failed to change workspace MCP server enablement', error));
+			}
+		}));
 	}
 
 	private renderInstalledSectionActionsWithDisposables(header: HTMLElement, disposables: DisposableStore, workspaceFolder?: URI): void {

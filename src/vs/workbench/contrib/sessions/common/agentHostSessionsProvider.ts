@@ -18,12 +18,12 @@ import { ResolveSessionConfigResult, SessionConfigValueItem } from '../../../../
 import { AgentCustomization, Customization, McpServerStatus, RootConfigState, type CustomizationEnablement, type McpServerState, type RootState, type TextRange } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { type CustomizationDisabledReason } from '../../../../platform/agentHost/common/customizationEnablement.js';
 import { type McpServerSource } from '../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
+import type { ISessionWorkspaceMcpServers } from '../../../../platform/agentHost/common/meta/agentHostWorkspaceMcpServersMeta.js';
 import type { IMcpServerConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { ISessionConfigProvider, ISessionsProvider } from './sessionsProvider.js';
 import { ISessionAgentRef } from '../../../services/sessions/common/session.js';
 import type { AgentMergeSessionOverrides, AgentMergeSessionState } from '../../../../platform/agentHost/common/agentMerge.js';
 import type { ISessionSandboxPolicy } from '../../../../platform/agentHost/common/meta/agentSandboxPolicyMeta.js';
-
 /**
  * Progress emitted while an agent-host provider is establishing a connection.
  */
@@ -436,6 +436,13 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	getMcpServers(sessionId: string): readonly IAgentHostMcpServer[];
 	/** Replaces an agent-host customization's explicit enablement decisions. */
 	setCustomizationEnablement(sessionId: string, customizationId: string, enablement: readonly CustomizationEnablement[]): void;
+	/**
+	 * The host-published class decision for the MCP servers the session's workspace configures, or
+	 * `undefined` when the host does not decide for them as a class.
+	 */
+	getWorkspaceMcpServers?(sessionId: string): ISessionWorkspaceMcpServers | undefined;
+	/** Replaces the Workspace and Session decisions of that class; Workspace entries carry client-space URIs. */
+	setWorkspaceMcpServersEnablement?(sessionId: string, enablement: readonly CustomizationEnablement[]): Promise<void>;
 
 	/**
 	 * Set (or clear) the selected custom agent for a session. Optional so

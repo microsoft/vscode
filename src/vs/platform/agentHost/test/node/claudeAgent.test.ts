@@ -74,7 +74,9 @@ import { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager, IAgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
-import { IAgentHostCustomizationEnablementService, type IAgentHostCustomizationEnablementService as ICustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
+import { IAgentHostCustomizationEnablementService, type IAgentHostCustomizationEnablementService as ICustomizationEnablementService, type ICustomizationEnablementTarget } from '../../node/agentHostCustomizationEnablementService.js';
+import { createNoopCustomizationEnablementService } from './testCustomizationEnablementService.js';
+import { readMcpServerSource } from '../../common/meta/mcpCustomizationMeta.js';
 import { AgentHostSessionTitleSignal, IAgentHostSessionTitleSignal } from '../../node/agentHostSessionTitleSignal.js';
 import { AgentHostGitHubEndpointService, IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
 import { IAgentHostAuthenticationService, type IAgentHostAuthTokenChangeEvent } from '../../node/agentHostAuthenticationService.js';
@@ -1143,7 +1145,7 @@ class CapturingLogService extends NullLogService {
 
 function createTestContext(
 	disposables: Pick<DisposableStore, 'add'>,
-	overrides?: { logService?: ILogService; database?: TestSessionDatabase; sessionDataService?: ISessionDataService; userHome?: URI; gitHubEndpointService?: IAgentHostGitHubEndpointService; copilotApiService?: ICopilotApiService; claudeProxyService?: IClaudeProxyService; checkpointService?: IAgentHostCheckpointService; nativeAccount?: AccountInfo; startupPerformance?: IAgentHostStartupPerformance },
+	overrides?: { logService?: ILogService; database?: TestSessionDatabase; sessionDataService?: ISessionDataService; userHome?: URI; gitHubEndpointService?: IAgentHostGitHubEndpointService; copilotApiService?: ICopilotApiService; claudeProxyService?: IClaudeProxyService; checkpointService?: IAgentHostCheckpointService; nativeAccount?: AccountInfo; startupPerformance?: IAgentHostStartupPerformance; customizationEnablementService?: ICustomizationEnablementService },
 ): ITestContext {
 	const proxy = new FakeClaudeProxyService();
 	const api = new FakeCopilotApiService();
@@ -1187,7 +1189,7 @@ function createTestContext(
 		[IAgentConfigurationService, configService],
 		[IAgentHostStateManager, stateManager],
 		[IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager)],
-		[IAgentHostCustomizationEnablementService, reducerBackedEnablementService(stateManager)],
+		[IAgentHostCustomizationEnablementService, overrides?.customizationEnablementService ?? reducerBackedEnablementService(stateManager)],
 		[IAgentHostSessionTitleSignal, disposables.add(new AgentHostSessionTitleSignal(stateManager))],
 		[IAgentHostOTelService, otelService],
 		[IProductService, FakeProductService],
@@ -1329,6 +1331,8 @@ function reducerBackedEnablementService(stateManager: AgentHostStateManager): IC
 		applyClientGlobalEnablement: resolve,
 		replaceEnablement: resolve,
 		setEnablement: resolve,
+		resolveWorkspaceMcpServers: () => ({ kind: 'resolved', enablement: [], enabled: true, workingDirectory: { kind: 'workspaceless' } }),
+		replaceWorkspaceMcpServersEnablement: () => ({ kind: 'resolved', enablement: [], enabled: true, workingDirectory: { kind: 'workspaceless' } }),
 		whenIdle: async () => { },
 	};
 }
@@ -9043,6 +9047,8 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 				},
 				replaceEnablement: () => ({ kind: 'resolved', enablement: [], enabled: true, workingDirectory: { kind: 'workspaceless' } }),
 				setEnablement: () => ({ kind: 'resolved', enablement: [], enabled: true, workingDirectory: { kind: 'workspaceless' } }),
+				resolveWorkspaceMcpServers: () => ({ kind: 'resolved', enablement: [], enabled: true, workingDirectory: { kind: 'workspaceless' } }),
+				replaceWorkspaceMcpServersEnablement: () => ({ kind: 'resolved', enablement: [], enabled: true, workingDirectory: { kind: 'workspaceless' } }),
 				whenIdle: async () => { },
 			} satisfies ICustomizationEnablementService],
 			[IProductService, FakeProductService],
@@ -9418,6 +9424,58 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		}, {
 			explicitServers: ['additional-disabled', 'additional-enabled', 'github-mcp-server'],
 			deniedServers: undefined,
+		});
+	});
+
+	test('project MCP servers resolve as workspace-configured so the class gate withholds them from the UI and SDK startup', async () => {
+		const resolvedTargets: { readonly name: string; readonly isWorkspaceConfigured: boolean | undefined }[] = [];
+		const customizationEnablementService: ICustomizationEnablementService = {
+			...createNoopCustomizationEnablementService(),
+			resolve: (_session: string, target: ICustomizationEnablementTarget) => {
+				if (target.type === CustomizationType.McpServer) {
+					resolvedTargets.push({ name: target.name, isWorkspaceConfigured: target.isWorkspaceConfigured });
+				}
+				const enabled = target.isWorkspaceConfigured !== true;
+				return { kind: 'resolved', enablement: [{ kind: CustomizationEnablementKind.Global, enabled }], enabled, workingDirectory: { kind: 'workspaceless' } };
+			},
+		};
+		const { agent, sdk, fileService, stateManager } = createTestContext(disposables, { customizationEnablementService });
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const workspace = URI.file('/work');
+		await Promise.all([
+			fileService.writeFile(URI.joinPath(workspace, '.mcp.json'), VSBuffer.fromString(JSON.stringify({
+				project: { type: 'http', url: 'https://project.example.com/mcp' },
+			}))),
+			fileService.writeFile(URI.joinPath(URI.file('/mock-home'), '.claude', 'settings.json'), VSBuffer.fromString(JSON.stringify({
+				mcpServers: { personal: { type: 'http', url: 'https://personal.example.com/mcp' } },
+			}))),
+		]);
+		const created = await createSession(agent, { workingDirectories: [workspace] });
+		const chat = defaultChatUri(created.session);
+		const customizations = await agent.getChatCustomizations!(chat, chatContext(chat), hostCustomizations(stateManager, created.session));
+
+		sdk.supportedAgentsResult = [];
+		sdk.mcpServerStatusResult = [];
+		sdk.nextQueryMessages = [makeSystemInitMessage(created.sdkSessionId), makeResultSuccess(created.sdkSessionId)];
+		await agent.chats.sendMessage(chat, 'first', [workspace], undefined, 'turn-1', undefined, undefined, chatContext(chat));
+
+		const options = sdk.capturedStartupOptions[0];
+		const uniqueTargets = new Map(resolvedTargets.filter(target => target.name === 'project' || target.name === 'personal').map(target => [target.name, target.isWorkspaceConfigured]));
+		assert.deepStrictEqual({
+			servers: customizations
+				.filter(customization => customization.type === CustomizationType.McpServer)
+				.map(customization => ({ name: customization.name, source: readMcpServerSource(customization), enabled: isCustomizationEnabled(customization) })),
+			resolvedTargets: [...uniqueTargets].sort(([a], [b]) => a.localeCompare(b)),
+			explicitServers: Object.keys(options.mcpServers ?? {}).sort(),
+			deniedServers: typeof options.settings === 'string' ? undefined : options.settings?.deniedMcpServers,
+		}, {
+			servers: [
+				{ name: 'personal', source: 'user', enabled: true },
+				{ name: 'project', source: 'workspace', enabled: false },
+			],
+			resolvedTargets: [['personal', undefined], ['project', true]],
+			explicitServers: ['github-mcp-server'],
+			deniedServers: [{ serverName: 'project' }],
 		});
 	});
 
