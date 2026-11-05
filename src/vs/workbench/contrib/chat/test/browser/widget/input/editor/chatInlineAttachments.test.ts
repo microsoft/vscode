@@ -19,7 +19,7 @@ import { HoverStartMode, HoverStartSource } from '../../../../../../../../editor
 import { Selection } from '../../../../../../../../editor/common/core/selection.js';
 import { IMarkerDecorationsService } from '../../../../../../../../editor/common/services/markerDecorations.js';
 import { ICodeEditor } from '../../../../../../../../editor/browser/editorBrowser.js';
-import { EditorContributionInstantiation, MultiCommand } from '../../../../../../../../editor/browser/editorExtensions.js';
+import { EditorContributionCtor, EditorContributionInstantiation, MultiCommand } from '../../../../../../../../editor/browser/editorExtensions.js';
 import { CodeEditorWidget } from '../../../../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { ContentHoverController } from '../../../../../../../../editor/contrib/hover/browser/contentHoverController.js';
 import { ShowOrFocusHoverAction } from '../../../../../../../../editor/contrib/hover/browser/hoverActions.js';
@@ -114,7 +114,7 @@ suite('ChatInlineAttachments', () => {
 			disposables.add(toDisposable(() => overflowWidgetsDomNode.remove()));
 			editor = disposables.add(instantiationService.createInstance(CodeEditorWidget, container, { overflowWidgetsDomNode }, {
 				isSimpleWidget: true,
-				contributions: [{ id: ContentHoverController.ID, ctor: ContentHoverController, instantiation: EditorContributionInstantiation.Lazy }],
+				contributions: [{ id: ContentHoverController.ID, ctor: ContentHoverController as EditorContributionCtor, instantiation: EditorContributionInstantiation.Lazy }],
 			}));
 			editor.setModel(model);
 		} else {
