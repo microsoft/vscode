@@ -14,7 +14,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { findOnboardingTarget, markOnboardingTarget, resolveOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { ExtUri } from '../../../../../base/common/resources.js';
+import { ExtUri, isEqual } from '../../../../../base/common/resources.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, observableFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
@@ -85,7 +85,7 @@ import { ISessionGroup, ISessionGroupsChangeEvent, ISessionGroupsService, Sessio
 import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionChangeset, ISessionChangesSummary, ISessionFileChange, ISessionFolder, ISessionType, SessionArtifactKind, SessionStatus, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ICreateNewSessionOptions, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionChangeEvent, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -4299,7 +4299,7 @@ suite('Sessions - SessionsList', () => {
 	});
 
 	suite('repository and environment grouping', () => {
-		function render(sessions: ISession[], options: IListHarnessOptions = {}, hostConnected = true, grouping = SessionsGrouping.Repository) {
+		function render(sessions: ISession[], options: Parameters<typeof createListHarness>[2] = {}, hostConnected = true, grouping = SessionsGrouping.Repository) {
 			const providers = [
 				{ id: 'local-provider', environment: { id: 'local', label: 'This Computer' } },
 				{ id: 'cloud-provider', environment: { id: 'cloud', label: 'Cloud' } },
@@ -4513,6 +4513,42 @@ suite('Sessions - SessionsList', () => {
 						: ['New Session on This Computer', 'New Session in Cloud'],
 					singleEnvironment: { newSession: true, entries: [] },
 					started: [['vscode', 'cloud']],
+				});
+			}));
+		}
+
+		for (const available of [true, false]) {
+			test(`New Session dropdown offers a repository-only cloud session only when its creation target is available (${available})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const cloud = createTestSession('Cloud session', {
+					providerId: 'cloud-provider',
+					environment: 'cloud',
+					repository: 'microsoft/vscode',
+					workspaceResource: URI.parse('https://github.com/microsoft/vscode'),
+				}).session;
+				const target = { providerId: 'cloud-creator', folderUri: URI.parse('github-remote-file://github/microsoft/vscode/HEAD') };
+				const { harness, list, contextMenus, rowOf } = render([
+					cloud, repositorySession('Local session', 'local', 1),
+				], instantiationService => {
+					instantiationService.stub(ISessionsManagementService, 'getNewSessionTarget',
+						(providerId: string, resource: URI) => providerId === cloud.providerId && isEqual(resource, cloud.resource) ? target : undefined);
+					instantiationService.stub(ISessionsManagementService, 'isNewSessionTargetAvailable',
+						(folder: URI, options?: ICreateNewSessionOptions) => available && isEqual(folder, target.folderUri) && options?.providerId === target.providerId);
+				});
+				await timeout(100);
+				const menuCount = contextMenus.length;
+				rowOf('vscode').querySelector('.monaco-dropdown .dropdown-label')?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+				const actions = (contextMenus[menuCount] ?? []).filter(action => action.id.startsWith(`${NEW_SESSION_IN_ENVIRONMENT_ACTION_ID}.`));
+				await actions.find(action => action.label === 'New Session in Cloud')?.run();
+				list.dispose();
+
+				assert.deepStrictEqual({
+					entries: actions.map(action => action.label),
+					started: harness.commandService.calls
+						.filter(call => call.commandId === NEW_SESSION_IN_ENVIRONMENT_ACTION_ID)
+						.map(call => [(call.args[0] as ISessionSection).label, call.args[1]]),
+				}, {
+					entries: available ? ['New Session on This Computer', 'New Session in Cloud'] : [],
+					started: available ? [['vscode', 'cloud']] : [],
 				});
 			}));
 		}
