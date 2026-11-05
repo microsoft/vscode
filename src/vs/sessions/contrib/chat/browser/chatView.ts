@@ -533,7 +533,7 @@ export class ChatView extends AbstractChatView {
 				sandboxToggleChecked: observeSessionSandboxToggle(this._currentSessionObs, this._currentChatResourceObs, this.sessionsProvidersService),
 				transcriptTabIndex: -1,
 				enableFind: true,
-				persistentContentHeight: SESSION_CHAT_INPUT_TOOLBAR_HEIGHT,
+				persistentContentHeight: this.chatBackgroundService.getBackground() ? 0 : SESSION_CHAT_INPUT_TOOLBAR_HEIGHT,
 				renderGettingStartedTip: () => shouldShowSessionChatTip(this._currentSessionObs.get()?.status.get()),
 			},
 			this._buildStyles(this._isActive)
@@ -1391,6 +1391,8 @@ export class ChatView extends AbstractChatView {
 
 	private _updateChatBackground(): void {
 		const background = this.chatBackgroundService.getBackground();
+		// Wallpaper cannot hide transcript content beneath floating controls.
+		this._widget.setPersistentContentHeight(background ? 0 : SESSION_CHAT_INPUT_TOOLBAR_HEIGHT);
 		this._updateChatItemHorizontalPadding(!!background);
 		this._stickyScrollBackgroundReplica.value?.setBackground(background);
 	}
