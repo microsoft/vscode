@@ -4096,7 +4096,7 @@ suite('NewChatWidget', () => {
 	}));
 
 	for (const activation of ['click', 'Enter'] as const) {
-		test(`Inbox sent-session link persists and opens the sent session on ${activation}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		test(`Inbox sent-session link opens the sent session on ${activation} before expiring`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			instantiationService.stub(IHoverService, NullHoverService);
 			instantiationService.stub(IOpenerService, {});
@@ -4134,6 +4134,50 @@ suite('NewChatWidget', () => {
 			});
 		}));
 	}
+
+	test('Inbox sent-session confirmation expires after eight seconds, pausing for hover and focus', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IHoverService, NullHoverService);
+		instantiationService.stub(IOpenerService, {});
+		const status = observableValue<string | undefined>('status', undefined);
+		const harness = {
+			_backgroundSend: true,
+			_backgroundSendStatus: status,
+			_lastBackgroundSentSessionResource: URI.parse('test-session:/started') as URI | undefined,
+			_newChatInput: { onDidChangeInput: Event.None, hasInput: false },
+			accessibilityService: { status: () => { } },
+			instantiationService,
+			_register: <T extends IDisposable>(value: T) => disposables.add(value),
+		};
+		const host = $('div');
+		const render = Reflect.get(NewChatWidget.prototype, '_renderBackgroundSendStatus') as (this: typeof harness, container: HTMLElement) => void;
+		render.call(harness, host);
+		status.set('Message sent', undefined);
+		await timeout(7999);
+		const beforeTimeout = host.textContent;
+		await timeout(1);
+		const afterTimeout = host.textContent;
+		harness._lastBackgroundSentSessionResource = URI.parse('test-session:/next');
+		status.set('Message sent', undefined);
+		await timeout(3000);
+		const confirmation = host.firstElementChild!;
+		const link = host.querySelector('a')!;
+		confirmation.dispatchEvent(new MouseEvent('mouseenter'));
+		await timeout(8000);
+		const hovered = host.textContent;
+		link.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+		confirmation.dispatchEvent(new MouseEvent('mouseleave'));
+		await timeout(8000);
+		const focused = host.textContent;
+		link.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+		await timeout(4999);
+		const beforeResumedTimeout = host.textContent;
+		await timeout(1);
+		assert.deepStrictEqual({ beforeTimeout, afterTimeout, hovered, focused, beforeResumedTimeout, afterResumedTimeout: host.textContent, resource: harness._lastBackgroundSentSessionResource }, {
+			beforeTimeout: 'Message sentOpen Session', afterTimeout: '', hovered: 'Message sentOpen Session', focused: 'Message sentOpen Session',
+			beforeResumedTimeout: 'Message sentOpen Session', afterResumedTimeout: '', resource: undefined,
+		});
+	}));
 
 	for (const origin of [
 		WorkspaceSelectionOrigin.None, WorkspaceSelectionOrigin.CheckedWorkspace, WorkspaceSelectionOrigin.AgentsRecent,

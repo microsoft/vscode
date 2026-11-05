@@ -2183,6 +2183,30 @@ export class NewChatWidget extends Disposable {
 					}, {
 						opener: () => { void this.sessionsService.openSession(sessionResource, { source: 'inbox', forceMainChat: true }).catch(onUnexpectedError); },
 					}));
+					const dismissal = reader.store.add(new MutableDisposable<IDisposable>());
+					let remaining = 8000;
+					let startedAt = Date.now();
+					let hovered = false;
+					let focused = false;
+					const updateDismissal = () => {
+						if (hovered || focused) {
+							if (dismissal.value) {
+								remaining -= Date.now() - startedAt;
+								dismissal.clear();
+							}
+						} else if (!dismissal.value) {
+							startedAt = Date.now();
+							dismissal.value = disposableTimeout(() => {
+								this._lastBackgroundSentSessionResource = undefined;
+								this._backgroundSendStatus.set(undefined, undefined);
+							}, Math.max(0, remaining));
+						}
+					};
+					reader.store.add(dom.addDisposableListener(status, dom.EventType.MOUSE_ENTER, () => { hovered = true; updateDismissal(); }));
+					reader.store.add(dom.addDisposableListener(status, dom.EventType.MOUSE_LEAVE, () => { hovered = false; updateDismissal(); }));
+					reader.store.add(dom.addDisposableListener(status, dom.EventType.FOCUS_IN, () => { focused = true; updateDismissal(); }));
+					reader.store.add(dom.addDisposableListener(status, dom.EventType.FOCUS_OUT, () => { focused = false; updateDismissal(); }));
+					updateDismissal();
 				} else {
 					reader.store.add(disposableTimeout(() => this._backgroundSendStatus.set(undefined, undefined), 5000));
 				}
