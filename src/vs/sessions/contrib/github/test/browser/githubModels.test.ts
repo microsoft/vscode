@@ -28,7 +28,7 @@ import { IPullRequestChecksSource } from '../../browser/fetchers/githubPRChecksS
 import { PullRequestCheck, PullRequestChecks } from '../../../../../platform/github/common/githubPullRequestService.js';
 import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { computePullRequestIcon, GitHubCIOverallStatus, GitHubCheckConclusion, GitHubCheckStatus, GitHubIssueState, GitHubPullRequestState, IGitHubCICheck, IGitHubPRComment, IGitHubPullRequestReview, IGitHubPullRequest, IGitHubPullRequestReviewThread } from '../../common/types.js';
-import { getHighestPriorityPullRequestIcon } from '../../../../services/sessions/common/session.js';
+import { getHighestPriorityPullRequestIcon } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { PullRequestIconCache } from '../../browser/pullRequestIconCache.js';
 
 //#region Mock Fetchers

@@ -12,8 +12,8 @@ import { BrowserEditorInput } from '../../../../workbench/contrib/browserView/co
 import { browserViewUrlMatches, BrowserViewSharingState, getAgentBrowserViewsNewestFirst, IBrowserViewWorkbenchService } from '../../../../workbench/contrib/browserView/common/browserView.js';
 import { getChatPillEntries, type IChatPillEntry, type IChatPillSection } from '../../../../workbench/browser/chatPills.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-import { ChatOriginKind, IChat } from '../../../services/sessions/common/session.js';
-import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
+import { ChatOriginKind, IChat } from '../../../../workbench/contrib/sessions/common/session.js';
+import { IActiveSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import type { ISessionChatPillsDebugData } from './sessionChatInputToolbarDebug.js';
 
 const NO_URLS: ReadonlySet<string> = new Set();

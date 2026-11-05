@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from '../../base/common/cancellation.js';
-import { Event } from '../../base/common/event.js';
-import { IDisposable } from '../../base/common/lifecycle.js';
-import { IObservable, IReader } from '../../base/common/observable.js';
-import { equals } from '../../base/common/objects.js';
-import { ThemeIcon } from '../../base/common/themables.js';
-import { URI } from '../../base/common/uri.js';
-import { localize } from '../../nls.js';
-import { AuthenticateParams, AuthenticateResult, IAgentConnection } from '../../platform/agentHost/common/agentService.js';
-import { RemoteAgentHostConnectionStatus } from '../../platform/agentHost/common/remoteAgentHostService.js';
-import { ResolveSessionConfigResult, SessionConfigValueItem } from '../../platform/agentHost/common/state/protocol/commands.js';
-import { AgentCustomization, Customization, McpServerStatus, RootConfigState, type CustomizationEnablement, type McpServerState, type RootState, type TextRange } from '../../platform/agentHost/common/state/protocol/state.js';
-import { type CustomizationDisabledReason } from '../../platform/agentHost/common/customizationEnablement.js';
-import { type McpServerSource } from '../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
-import type { IMcpServerConfiguration } from '../../platform/mcp/common/mcpPlatformTypes.js';
-import { ISessionConfigProvider, ISessionsProvider } from '../services/sessions/common/sessionsProvider.js';
-import { ISessionAgentRef } from '../services/sessions/common/session.js';
-import type { AgentMergeSessionOverrides, AgentMergeSessionState } from '../../platform/agentHost/common/agentMerge.js';
-import type { ISessionSandboxPolicy } from '../../platform/agentHost/common/meta/agentSandboxPolicyMeta.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Event } from '../../../../base/common/event.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { IObservable, IReader } from '../../../../base/common/observable.js';
+import { equals } from '../../../../base/common/objects.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
+import { AuthenticateParams, AuthenticateResult, IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
+import { RemoteAgentHostConnectionStatus } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { ResolveSessionConfigResult, SessionConfigValueItem } from '../../../../platform/agentHost/common/state/protocol/commands.js';
+import { AgentCustomization, Customization, McpServerStatus, RootConfigState, type CustomizationEnablement, type McpServerState, type RootState, type TextRange } from '../../../../platform/agentHost/common/state/protocol/state.js';
+import { type CustomizationDisabledReason } from '../../../../platform/agentHost/common/customizationEnablement.js';
+import { type McpServerSource } from '../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
+import type { IMcpServerConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { ISessionConfigProvider, ISessionsProvider } from './sessionsProvider.js';
+import { ISessionAgentRef } from './session.js';
+import type { AgentMergeSessionOverrides, AgentMergeSessionState } from '../../../../platform/agentHost/common/agentMerge.js';
+import type { ISessionSandboxPolicy } from '../../../../platform/agentHost/common/meta/agentSandboxPolicyMeta.js';
 
 /**
  * Progress emitted while an agent-host provider is establishing a connection.

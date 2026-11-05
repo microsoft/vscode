@@ -8,7 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { ContextKeyValue, IContext } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ActiveEditorContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
 import { CanvasInput } from '../../../../../workbench/contrib/canvases/common/canvas.js';
-import { SessionActiveChatCanvasReferenceKeysContext } from '../../../../common/contextkeys.js';
+import { SessionActiveChatCanvasReferenceKeysContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ActiveSessionCanvasReferenceContext } from '../../../../common/agentsWindowContextKeys.js';
 import { WindowCanvasInput } from '../../../../services/canvas/browser/windowCanvasService.js';
 import { CanvasActivityBarToggledContext } from '../../browser/canvasActivityBar.js';

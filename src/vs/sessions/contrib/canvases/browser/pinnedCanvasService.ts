@@ -22,8 +22,8 @@ import { getCanvasInputResource, getCanvasReferenceKey, ICanvas, ICanvasReferenc
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ICustomViewService } from '../../../services/customView/browser/customViewService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ISession } from '../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISession } from '../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { CanvasesPinnedToSidebarContext, IPinnedCanvas, IPinnedCanvasIdentity, IPinnedCanvasService, MAX_PINNED_CANVASES, PINNED_CANVAS_PAGE_ID, PinnedCanvasState, PinnedCanvasTarget } from './pinnedCanvases.js';
 
 const PINNED_CANVASES_STORAGE_KEY = 'sessions.pinnedCanvases';

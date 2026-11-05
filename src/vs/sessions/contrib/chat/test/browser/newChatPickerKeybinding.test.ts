@@ -17,7 +17,7 @@ import { Context } from '../../../../../platform/contextkey/browser/contextKeySe
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { MockContextKeyService, MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { FOCUS_NEW_SESSION_HARNESS_PICKER_KEYBINDING, FOCUS_NEW_SESSION_HARNESS_PICKER_WHEN, FOCUS_NEW_SESSION_WORKSPACE_PICKER_KEYBINDING, FOCUS_NEW_SESSION_WORKSPACE_PICKER_WHEN, FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_WHEN, FOCUS_NEW_SESSION_BRANCH_PICKER_WHEN, FOCUS_NEW_SESSION_WORKTREE_PICKER_WHEN, FOCUS_SESSION_SYNC_ACTION_WHEN, registerPickerKeybindingPresentation } from '../../browser/newChatPickerKeybinding.js';
-import { noSessionPickerVisibility, SessionInputPickerVisibility, SessionPickerVisibilityContextKeys } from '../../../../services/sessions/common/sessionPickerVisibility.js';
+import { noSessionPickerVisibility, SessionInputPickerVisibility, SessionPickerVisibilityContextKeys } from '../../../../../workbench/contrib/sessions/common/sessionPickerVisibility.js';
 
 suite('New chat picker keybindings', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();

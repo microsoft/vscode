@@ -16,8 +16,8 @@ import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/l
 import { ISessionsHostLayoutService } from '../../../services/layout/browser/sessionsHostLayoutService.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { getSessionPaneId, ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../services/sessions/common/sessionComparison.js';
-import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../workbench/contrib/sessions/common/sessionComparison.js';
+import { IActiveSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { HIDE_INACTIVE_COMPARISON_INPUTS_SETTING } from '../common/sessionComparison.js';
 
 const HIDE_INACTIVE_COMPARISON_INPUTS_CLASS = 'session-comparison-hide-inactive-inputs';

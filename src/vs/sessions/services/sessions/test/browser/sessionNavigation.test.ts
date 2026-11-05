@@ -16,12 +16,12 @@ import { MockContextKeyService } from '../../../../../platform/keybinding/test/c
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { AbstractCustomView } from '../../../customView/browser/customView.js';
 import { CustomViewService, ICustomViewService } from '../../../customView/browser/customViewService.js';
-import { IActiveSession, ICreateNewSessionOptions, IProviderSessionType, IRecentlyOpenedSessions, ISessionsManagementService } from '../../common/sessionsManagement.js';
-import { ChatInteractivity, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionType, ISessionWorkspace, ISideChatSelection, SessionStatus } from '../../common/session.js';
+import { IActiveSession, ICreateNewSessionOptions, IProviderSessionType, IRecentlyOpenedSessions, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ChatInteractivity, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionType, ISessionWorkspace, ISideChatSelection, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { SessionsNavigation } from '../../browser/sessionNavigation.js';
 import { getRecencyEntryKey, SessionsRecencyHistory } from '../../browser/sessionsRecencyHistory.js';
 import { Event } from '../../../../../base/common/event.js';
-import { INestedChatWorkspace, ISendRequestOptions } from '../../common/sessionsProvider.js';
+import { INestedChatWorkspace, ISendRequestOptions } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { TestWindowCanvasService } from '../../../canvas/test/browser/testWindowCanvasService.js';
 import { IWindowCanvasDescriptor } from '../../../canvas/browser/windowCanvasService.js';
 

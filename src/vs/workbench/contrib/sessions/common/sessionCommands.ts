@@ -54,7 +54,7 @@ export const SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID = 'sessionsViewPane.sho
 export {
 	AGENT_SESSION_MARK_READ_ACTION_ID as MARK_SESSION_READ_COMMAND_ID,
 	AGENT_SESSION_MARK_UNREAD_ACTION_ID as MARK_SESSION_UNREAD_COMMAND_ID,
-} from '../../workbench/common/chatSessionCommands.js';
+} from '../../../common/chatSessionCommands.js';
 
 /** Closes a chat tab. Registered in `sessionsActions.ts`. */
 export const CLOSE_CHAT_COMMAND_ID = 'sessions.chatCompositeBar.closeChat';

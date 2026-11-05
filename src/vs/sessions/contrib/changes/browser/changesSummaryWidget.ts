@@ -7,7 +7,7 @@ import './media/changesSummaryWidget.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { derived, IObservable } from '../../../../base/common/observable.js';
-import { ISessionChangesSummary } from '../../../services/sessions/common/session.js';
+import { ISessionChangesSummary } from '../../../../workbench/contrib/sessions/common/session.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ChangesStatsWidget, IChangesStats } from '../../../../workbench/browser/changesStatsWidget.js';
 

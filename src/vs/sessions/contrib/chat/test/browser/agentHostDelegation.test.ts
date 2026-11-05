@@ -16,8 +16,8 @@ import type { SessionView } from '../../../../browser/parts/sessionView.js';
 import { IFocusedSessionHostService, ISessionHost, ISessionHostService, SessionHostKind } from '../../../../services/sessions/browser/sessionHost.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISession, ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IActiveSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import '../../browser/agentHostDelegation.js';
 
 suite('Sessions - Agent Host delegation', () => {

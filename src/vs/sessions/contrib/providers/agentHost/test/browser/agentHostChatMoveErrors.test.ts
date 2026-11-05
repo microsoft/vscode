@@ -8,7 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { AgentChatMoveRefusal, AgentChatMoveRefusedError } from '../../../../../../platform/agentHost/common/agentHostChatMove.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { getChatMoveRefusal, toChatMoveError } from '../../browser/agentHostChatMoveErrors.js';
-import { SessionMoveRefusedError } from '../../../../../services/sessions/common/sessionsProvider.js';
+import { SessionMoveRefusedError } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 
 suite('Agent Host Chat Move Errors', () => {
 

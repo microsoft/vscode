@@ -17,11 +17,11 @@ import { INotificationService, Severity } from '../../../../platform/notificatio
 import { ILifecycleService, LifecyclePhase } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { ISessionsSetUpService } from '../../../browser/sessionsSetUpService.js';
-import { WorkspaceSelectionOrigin } from '../../../common/workspaceSelection.js';
+import { WorkspaceSelectionOrigin } from '../../../../workbench/contrib/sessions/common/workspaceSelection.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { WorkspaceHandoffState } from '../../sessions/browser/sessionsWindowOpenTelemetry.js';
 import { SessionsView, SessionsViewId } from '../../sessions/browser/views/sessionsView.js';
 import { INewSessionComposerService } from './newSessionComposerService.js';

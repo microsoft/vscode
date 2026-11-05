@@ -14,8 +14,8 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, agentSessionApprovalId } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISession, SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { BlockedSessionReason, BlockedSessions, describeBlockedSessions, IBlockedSession } from '../../blockedSessions/browser/blockedSessions.js';
 import { BlockedSessionsCIFixModel } from './blockedSessionsCIFixModel.js';
 import { getFirstApprovalAcrossChats, IApprovedSession } from './views/sessionsList.js';

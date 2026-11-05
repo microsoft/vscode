@@ -13,7 +13,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { createEditorOpenError, IResourceMultiDiffEditorInput, isEditorOpenError } from '../../../../workbench/common/editor.js';
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffSourceResolverService.js';
-import { IGitHubPullRequestRef } from '../../../services/sessions/common/session.js';
+import { IGitHubPullRequestRef } from '../../../../workbench/contrib/sessions/common/session.js';
 import { GitHubPullRequestState, IGitHubPullRequestChanges } from '../common/types.js';
 import { toPRContentUri } from '../common/utils.js';
 import { IGitHubService } from './githubService.js';

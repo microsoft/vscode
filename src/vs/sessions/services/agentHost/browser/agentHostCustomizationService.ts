@@ -9,14 +9,14 @@ import { combinedDisposable, DisposableMap } from '../../../../base/common/lifec
 import { basename, isEqual } from '../../../../base/common/resources.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IAgentHostCustomizationService, AbstractAgentHostCustomizationService, type IAgentHostCustomizationTarget } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
-import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
+import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
-import { ISessionsManagementService } from '../../sessions/common/sessionsManagement.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IFocusedSessionHostService } from '../../sessions/browser/sessionHost.js';
-import { ISessionsProvider } from '../../sessions/common/sessionsProvider.js';
+import { ISessionsProvider } from '../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { AgentCustomization, CustomizationType } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { type CustomizationEnablement } from '../../../../platform/agentHost/common/state/protocol/state.js';
-import { ISession } from '../../sessions/common/session.js';
+import { ISession } from '../../../../workbench/contrib/sessions/common/session.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';

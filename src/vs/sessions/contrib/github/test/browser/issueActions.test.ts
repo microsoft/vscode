@@ -19,8 +19,8 @@ import { IOpenURLOptions, IURLService } from '../../../../../platform/url/common
 import { IExtensionService } from '../../../../../workbench/services/extensions/common/extensions.js';
 import { Menus } from '../../../../browser/menus.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISession, ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
 import '../../browser/issueActions.js';
 import { stubSessionHostsFromSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 

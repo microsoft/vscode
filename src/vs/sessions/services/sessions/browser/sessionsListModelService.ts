@@ -14,9 +14,9 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { AutomationSessionsListMode, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING } from '../../../common/sessionConfig.js';
-import { ISession, SessionStatus } from '../common/session.js';
-import { ISessionsManagementService } from '../common/sessionsManagement.js';
+import { AutomationSessionsListMode, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { ISession, SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 export const enum SessionListModelChangeKind {
 	Pinned = 'pinned',
 	Sort = 'sort',

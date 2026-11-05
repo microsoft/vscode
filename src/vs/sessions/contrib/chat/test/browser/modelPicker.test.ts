@@ -29,12 +29,12 @@ import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbenc
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { ModelComparisonAvailableContext, ModelComparisonPickerFocusedContext } from '../../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerComparison.js';
-import { COMPARE_SESSION_MODELS_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { COMPARE_SESSION_MODELS_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { SessionView } from '../../../../browser/parts/sessionView.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { Menus } from '../../../../browser/menus.js';
-import { IsPhoneLayoutContext, SessionUsesCombinedConfigPickerContext } from '../../../../common/contextkeys.js';
+import { IsPhoneLayoutContext, SessionUsesCombinedConfigPickerContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ModelPicker, ModelPickerActionViewItem } from '../../browser/modelPicker.js';
 import { INewChatModelPickerService, NewChatModelPickerService } from '../../browser/newChatModelPicker.js';
 import { ISessionModelSelection } from '../../browser/sessionModelSelection.js';

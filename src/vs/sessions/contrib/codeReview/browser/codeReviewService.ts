@@ -16,8 +16,8 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { IGitHubPullRequestReview, IGitHubPullRequestReviewThread } from '../../github/common/types.js';
-import { getGitHubPullRequestRefs, IChat, IGitHubPullRequestRef, ISessionFileChange } from '../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { getGitHubPullRequestRefs, IChat, IGitHubPullRequestRef, ISessionFileChange } from '../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { parsePRContentUri } from '../../github/common/utils.js';

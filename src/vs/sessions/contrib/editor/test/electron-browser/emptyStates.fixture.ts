@@ -59,7 +59,7 @@ import { EmptyFileEditorInput } from '../../../../../sessions/contrib/editor/bro
 import { ChangesEmptyState } from '../../../../../sessions/contrib/changes/browser/changesEmptyState.js';
 import '../../../../../sessions/contrib/editor/electron-browser/browserEmptyState.contribution.js';
 import { FixtureKeybindingService } from '../../../../../sessions/test/browser/addTabFixtureUtils.js';
-import { NEW_FILE_TAB_COMMAND_ID } from '../../../../../sessions/common/sessionCommands.js';
+import { NEW_FILE_TAB_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { OpenEditorCommandId } from '../../../../../workbench/contrib/searchEditor/browser/constants.js';
 import '../../../../../sessions/browser/parts/media/editorPart.css';
 

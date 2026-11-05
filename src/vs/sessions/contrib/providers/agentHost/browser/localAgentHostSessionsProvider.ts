@@ -28,7 +28,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../platform/workspace/common/workspaceTrust.js';
-import { ISessionsProviderAutomations, type SessionResourceResolveReason } from '../../../../services/sessions/common/sessionsProvider.js';
+import { ISessionsProviderAutomations, type SessionResourceResolveReason } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IAgentHostMcpAppToolsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostMcpAppToolsService.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
@@ -38,12 +38,12 @@ import { IChatService } from '../../../../../workbench/contrib/chat/common/chatS
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
-import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
+import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { IPathService } from '../../../../../workbench/services/path/common/pathService.js';
 import { ICopilotHomeService } from '../../../../../workbench/services/environment/common/copilotHomeService.js';
-import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../../common/agentHostSessionWorkspace.js';
+import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../../../workbench/contrib/sessions/common/agentHostSessionWorkspace.js';
 import { areDevContainerSamplesEnabled, IDevContainerAgentHostService } from '../../../../common/devContainerAgentHostService.js';
-import { IGitHubInfo, ISession, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../../services/sessions/common/session.js';
+import { IGitHubInfo, ISession, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IFocusedSessionHostService, ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';

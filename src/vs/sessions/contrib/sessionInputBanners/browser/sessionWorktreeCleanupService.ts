@@ -25,8 +25,8 @@ import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { localize } from '../../../../nls.js';
 import { ISessionsListModelService } from '../../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionHostService } from '../../../services/sessions/browser/sessionHost.js';
-import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
-import { IManagedSessionWorktree, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISession, SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
+import { IManagedSessionWorktree, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 
 export const CLEANUP_THRESHOLD_BYTES = 5 * ByteSize.GB;
 export const LOW_DISK_SPACE_BYTES = 5 * ByteSize.GB;

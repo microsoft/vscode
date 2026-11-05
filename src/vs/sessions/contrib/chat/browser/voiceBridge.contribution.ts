@@ -17,8 +17,8 @@ import { combineVoiceInput } from '../../../../workbench/contrib/chat/browser/vo
 import { IVoiceModelSelectionResult, resolveVoiceModel } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceToolDispatchService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { getFocusedSessionChatSource, getMainWindowHost, IFocusedSessionHostService, ISessionHostService } from '../../../services/sessions/browser/sessionHost.js';
-import { SessionStatus } from '../../../services/sessions/common/session.js';
-import { IHostSession, inheritableSessionTarget, ISendRequestOptions, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
+import { IHostSession, inheritableSessionTarget, ISendRequestOptions, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { INewChatVoiceComposer, INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL } from './newChatVoice.js';
 import { INewSessionComposerService } from './newSessionComposerService.js';
 import { ChatRequestQueueKind } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';

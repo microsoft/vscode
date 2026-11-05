@@ -11,8 +11,8 @@ import { isSSHHostKeyDeniedError } from '../../platform/agentHost/common/sshRemo
 import { PROTOCOL_VERSION } from '../../platform/agentHost/common/state/protocol/version/registry.js';
 import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
 import { reportSessionArtifactOpen, SessionArtifactOpenSource } from '../../workbench/common/sessionArtifactOpenTelemetry.js';
-import { LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_PREFIX } from './agentHostSessionsProvider.js';
-import { ISession, SessionArtifactKind } from '../services/sessions/common/session.js';
+import { LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_PREFIX } from '../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { ISession, SessionArtifactKind } from '../../workbench/contrib/sessions/common/session.js';
 
 /** Bounded provider categories emitted by Agents window telemetry. */
 export type SessionsTelemetryProviderId = 'default-copilot' | 'local-agent-host' | 'remote-agent-host' | 'other';

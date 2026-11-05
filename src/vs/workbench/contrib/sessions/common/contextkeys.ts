@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from '../../nls.js';
-import { ContextKeyExpr, RawContextKey } from '../../platform/contextkey/common/contextkey.js';
-import { AuxiliaryBarFocusContext, EditorAreaFocusContext } from '../../workbench/common/contextkeys.js';
+import { localize } from '../../../../nls.js';
+import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { AuxiliaryBarFocusContext, EditorAreaFocusContext } from '../../../common/contextkeys.js';
 
 export function sessionActivityBarChatActionContext(commandId: string): RawContextKey<boolean> {
 	return new RawContextKey<boolean>(`sessionActivityBar.chatAction.${commandId}`, false);

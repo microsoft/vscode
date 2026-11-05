@@ -12,8 +12,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IWorkspaceSelectionSnapshot } from '../../../common/workspaceSelection.js';
-import { ISendRequestOptions } from '../../../services/sessions/common/sessionsManagement.js';
+import { IWorkspaceSelectionSnapshot } from '../../../../workbench/contrib/sessions/common/workspaceSelection.js';
+import { ISendRequestOptions } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 
 export const NEW_SESSION_PROMPT_TYPING_DURATION_MS = 2_500;
 

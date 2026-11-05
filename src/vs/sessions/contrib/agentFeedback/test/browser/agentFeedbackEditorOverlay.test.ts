@@ -26,8 +26,8 @@ import { IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ActiveSessionHost, ISessionHostService, SessionHostKind } from '../../../../services/sessions/browser/sessionHost.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { IChat, ISession } from '../../../../services/sessions/common/session.js';
+import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IChat, ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
 
 suite('AgentFeedbackEditorOverlay', () => {
 

@@ -21,9 +21,9 @@ import { ChatWindowNotifier } from '../../../../../workbench/contrib/chat/browse
 import { setChatNotificationResource } from '../../../../../workbench/contrib/chat/common/chatNotification.js';
 import { IHostService, IToastOptions, IToastResult } from '../../../../../workbench/services/host/browser/host.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { ISessionComparison, ISessionComparisonParticipant, ISessionComparisonService } from '../../../../services/sessions/common/sessionComparison.js';
-import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionComparison, ISessionComparisonParticipant, ISessionComparisonService } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
+import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { SessionsWindowNotifier } from '../../browser/sessionsWindowNotifier.js';
 import { focusedSessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 

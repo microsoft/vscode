@@ -28,8 +28,8 @@ import { MockChatSessionsService } from '../../../../../../workbench/contrib/cha
 import { IChatModel, IChatRequestModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IAgentSource, PromptsStorage } from '../../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { Target } from '../../../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
-import { IChat, ISession } from '../../../../../services/sessions/common/session.js';
-import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
+import { IChat, ISession } from '../../../../../../workbench/contrib/sessions/common/session.js';
+import { IActiveSession } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ModePicker, ModePickerModel, ScopedModePickerModelCache } from '../../browser/modePicker.js';
 import { sessionChatSourceOf } from '../../../../../services/sessions/browser/sessionHost.js';
 import { IEditorService } from '../../../../../../workbench/services/editor/common/editorService.js';

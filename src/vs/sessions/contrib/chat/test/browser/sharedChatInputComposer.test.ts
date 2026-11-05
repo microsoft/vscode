@@ -25,8 +25,8 @@ import { IPromptsService } from '../../../../../workbench/contrib/chat/common/pr
 import { ChatRequestParser } from '../../../../../workbench/contrib/chat/common/requestParser/chatRequestParser.js';
 import { INewChatComposerInputOptions, INewChatInputSendRequest } from '../../browser/newChatComposerInput.js';
 import { SharedChatInputComposer } from '../../browser/sharedChatInputComposer.js';
-import { IChat } from '../../../../services/sessions/common/session.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IChat } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 
 suite('SharedChatInputComposer', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

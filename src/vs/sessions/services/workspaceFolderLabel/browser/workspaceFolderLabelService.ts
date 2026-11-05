@@ -9,8 +9,8 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { IWorkspaceFolderLabelService } from '../../../../workbench/services/workspaces/common/workspaceFolderLabelService.js';
 import { IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
-import { ISessionsManagementService } from '../../sessions/common/sessionsManagement.js';
-import { ISessionFolder } from '../../sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionFolder } from '../../../../workbench/contrib/sessions/common/session.js';
 
 export class SessionsWorkspaceFolderLabelService implements IWorkspaceFolderLabelService {
 

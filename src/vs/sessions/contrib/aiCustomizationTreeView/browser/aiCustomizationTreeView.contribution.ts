@@ -25,7 +25,7 @@ import { SessionsView, SessionsViewId } from '../../sessions/browser/views/sessi
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { TerminalContextKeys } from '../../../../workbench/contrib/terminal/common/terminalContextKey.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { IsPhoneLayoutContext } from '../../../common/contextkeys.js';
+import { IsPhoneLayoutContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 
 //#region Utilities
 

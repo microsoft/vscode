@@ -23,7 +23,7 @@ import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quic
 import { IPreferencesService } from '../../../../../workbench/services/preferences/common/preferences.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { ISSHRemoteAgentHostService } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
-import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
+import { IAgentHostSessionsProvider } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { INotificationService, Severity as NotificationSeverity } from '../../../../../platform/notification/common/notification.js';
 import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';

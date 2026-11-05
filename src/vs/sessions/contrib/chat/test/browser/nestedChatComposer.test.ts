@@ -29,8 +29,8 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { MockContextKeyService, MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { IChat, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { INestedChatFolderInfo, INestedChatWorkspace, INestedChatWorkspaceSupport, NestedChatWorkspaceError } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IChat, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { INestedChatFolderInfo, INestedChatWorkspace, INestedChatWorkspaceSupport, NestedChatWorkspaceError } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js';
 import { getNoWorkspaceChoicePresentation } from '../../browser/noWorkspaceChoice.js';
 import { INestedChatWorkspaceHost, NestedChatWorkspaceControls } from '../../browser/nestedChatWorkspacePicker.js';

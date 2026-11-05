@@ -29,12 +29,12 @@ import { ChatEntitlement, IChatEntitlementService, IChatSentiment } from '../../
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
-import { IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
+import { IsPhoneLayoutContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISession, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IChangesViewService } from '../../../changes/common/changesViewService.js';
 import { ISessionChangesService } from '../../../changes/common/sessionChangesService.js';
 import { createTestSession } from '../../../sessions/test/browser/sessionsListTestUtils.js';

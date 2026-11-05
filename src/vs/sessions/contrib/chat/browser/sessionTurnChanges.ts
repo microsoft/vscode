@@ -11,11 +11,11 @@ import { AbstractChatResponseFileChangesService, AUTHORITATIVE_EMPTY_CHAT_RESPON
 import { IEditSessionEntryDiff } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { ISessionsHostLayoutService } from '../../../services/layout/browser/sessionsHostLayoutService.js';
-import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
+import { isAgentHostProviderId } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
-import { IChat, ISession, ISessionChangeset, ISessionFileChange, TURN_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { IChat, ISession, ISessionChangeset, ISessionFileChange, TURN_CHANGES_CHANGESET_ID } from '../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
 import { IChangesViewService } from '../../changes/common/changesViewService.js';
 

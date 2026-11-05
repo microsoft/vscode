@@ -10,8 +10,8 @@ import type { IChatPillSection } from '../../../../workbench/browser/chatPills.j
 import { createSessionSubagentsPillData, type IChatSubagentPillEntry } from '../../../../workbench/contrib/chat/browser/sessionSubagentsPill.js';
 import { ISessionChatPillVisibilityService } from '../../../../workbench/contrib/chat/common/sessionChatPills.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ChatOriginKind, IChat, isActiveSessionStatus } from '../../../services/sessions/common/session.js';
-import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
+import { ChatOriginKind, IChat, isActiveSessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
+import { IActiveSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import type { ISessionChatPillsDebugData } from './sessionChatInputToolbarDebug.js';
 
 /** Supplies the viewed chat's direct subagents, grouped and filtered by their activity status. */

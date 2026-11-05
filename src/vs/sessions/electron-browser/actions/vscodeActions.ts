@@ -19,7 +19,7 @@ import { IsLinuxContext } from '../../../platform/contextkey/common/contextkeys.
 import { KeybindingWeight } from '../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
 import { EditorAreaFocusContext, IsAuxiliaryWindowContext, LayoutModeContext } from '../../../workbench/common/contextkeys.js';
-import { IsPhoneLayoutContext, SessionsWelcomeVisibleContext } from '../../common/contextkeys.js';
+import { IsPhoneLayoutContext, SessionsWelcomeVisibleContext } from '../../../workbench/contrib/sessions/common/contextkeys.js';
 import { logSessionsInteraction } from '../../common/sessionsTelemetry.js';
 import { AgentsWindowMenus } from '../../browser/agentsWindowMenus.js';
 import { resolveSessionCommandTarget } from '../../services/sessions/browser/sessionCommandTarget.js';
@@ -33,9 +33,9 @@ import { resolveRemoteFolderUri } from '../../browser/openInVSCodeUtils.js';
 import { INativeHostService } from '../../../platform/native/common/native.js';
 import { IFolderToOpen, IOpenedMainWindow } from '../../../platform/window/common/window.js';
 import { ILabelService, Verbosity } from '../../../platform/label/common/label.js';
-import { OPEN_VSCODE_WINDOW_COMMAND_ID, RETURN_TO_VSCODE_EDITOR_COMMAND_ID, SHOULD_SHOW_RETURN_TO_VSCODE_EDITOR_COMMAND_ID } from '../../common/sessionCommands.js';
-import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
-import { IChat, ISession } from '../../services/sessions/common/session.js';
+import { OPEN_VSCODE_WINDOW_COMMAND_ID, RETURN_TO_VSCODE_EDITOR_COMMAND_ID, SHOULD_SHOW_RETURN_TO_VSCODE_EDITOR_COMMAND_ID } from '../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { IActiveSession } from '../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IChat, ISession } from '../../../workbench/contrib/sessions/common/session.js';
 import { hasKey } from '../../../base/common/types.js';
 
 export class OpenSessionInVSCodeAction extends Action2 {

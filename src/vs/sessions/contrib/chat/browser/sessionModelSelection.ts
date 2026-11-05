@@ -21,9 +21,9 @@ import { getAgentModelPolicyError, resolveAgentModelPreferences } from '../../..
 import { IModelPickerComparison } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerComparison.js';
 import { IPendingModelSelection, isInConversationModelChoice, ModelSelectionReason, RestoredModelReason } from '../../../../workbench/contrib/chat/common/modelSelection.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { ChatModelSource, ISessionType, SessionStatus } from '../../../services/sessions/common/session.js';
-import { ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
-import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
+import { ChatModelSource, ISessionType, SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionsProvider } from '../../../../workbench/contrib/sessions/common/sessionsProvider.js';
+import { IActiveSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { createModelSelectionState, EMPTY_MODEL_SELECTION_STATE, INormalizedSessionModelPickerOptions, ISessionModelSelectionState, normalizeModelPickerOptions } from './sessionModelPickerState.js';
 
 /** Bounded: a long-lived window binds arbitrarily many chats, and old ones are not worth the memory. */

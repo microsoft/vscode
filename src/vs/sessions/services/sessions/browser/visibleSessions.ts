@@ -7,8 +7,8 @@ import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable }
 import { IObservable, ISettableObservable, ITransaction, autorun, derived, observableValue, subtransaction, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IActiveSession, IHostSession } from '../common/sessionsManagement.js';
-import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../common/session.js';
+import { IActiveSession, IHostSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { Direction } from '../../../../base/browser/ui/grid/grid.js';
 import { ISessionGridSlot } from './sessionsPartService.js';

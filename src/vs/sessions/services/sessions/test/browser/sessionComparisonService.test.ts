@@ -21,10 +21,10 @@ import { IChatModelReference, IChatService, IChatUsage } from '../../../../../wo
 import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { getChatNotificationResource } from '../../../../../workbench/contrib/chat/common/chatNotification.js';
 import { hashSessionIdForTelemetry } from '../../../../common/sessionsTelemetry.js';
-import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../../common/session.js';
-import { getSessionComparisonHarnessDisplayLabel, getSessionComparisonWorkspaceError, ISessionComparison, ISessionComparisonHarness, ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, SessionComparisonParticipantRole, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../common/sessionComparison.js';
-import { IChatDeletedEvent, ICreateNewSessionOptions, ISendRequestOptions, ISessionsManagementService, NewSessionRequestOptions } from '../../common/sessionsManagement.js';
-import { IChatMovedEvent, ISessionChangeEvent } from '../../common/sessionsProvider.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { getSessionComparisonHarnessDisplayLabel, getSessionComparisonWorkspaceError, ISessionComparison, ISessionComparisonHarness, ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, SessionComparisonParticipantRole, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
+import { IChatDeletedEvent, ICreateNewSessionOptions, ISendRequestOptions, ISessionsManagementService, NewSessionRequestOptions } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IChatMovedEvent, ISessionChangeEvent } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { IDeletedSessionGroups, ISessionGroup, ISessionGroupsChangeEvent, ISessionGroupsService } from '../../browser/sessionGroupsService.js';
 import { SessionComparisonService } from '../../browser/sessionComparisonService.js';
 

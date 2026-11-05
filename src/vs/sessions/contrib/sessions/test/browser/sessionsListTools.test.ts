@@ -14,11 +14,11 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IToolImpl, IToolResult } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
-import { SESSIONS_LIST_AGENT_TOOLS_SETTING } from '../../../../common/sessionConfig.js';
+import { SESSIONS_LIST_AGENT_TOOLS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { ISessionGroup, ISessionGroupsService, SessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
-import { ISession } from '../../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { OrganizeSessionsListTool, ReadSessionsListTool } from '../../browser/sessionsListTools.js';
 import { SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { SessionsView } from '../../browser/views/sessionsView.js';

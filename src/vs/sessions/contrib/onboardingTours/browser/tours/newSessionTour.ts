@@ -11,7 +11,7 @@ import { onboardingScenarioRegistry } from '../../../../../workbench/contrib/onb
 import { IOnboardingScenario } from '../../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
 import { ISpotlightPayload, SPOTLIGHT_PRESENTATION_KIND } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightTypes.js';
 import { localize } from '../../../../../nls.js';
-import { SessionsWelcomeVisibleContext } from '../../../../common/contextkeys.js';
+import { SessionsWelcomeVisibleContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { NewSessionOnboardingHandoffContext } from '../../../../common/agentsWindowContextKeys.js';
 
 /**

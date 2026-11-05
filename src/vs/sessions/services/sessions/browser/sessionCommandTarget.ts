@@ -9,8 +9,8 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { isEditorCommandsContext } from '../../../../workbench/common/editor.js';
 import { isWindowCommandContext } from '../../../../workbench/common/windowCommandContext.js';
-import { IChat, ISession } from '../common/session.js';
-import { ISessionsManagementService } from '../common/sessionsManagement.js';
+import { IChat, ISession } from '../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { getHostOfSession, getWindowHost, IFocusedSessionHostService, ISessionGridPanes, ISessionHost, ISessionHostService, isSessionHostCommandContext, SessionHostKind } from './sessionHost.js';
 import { ISessionsPartService, ISessionView } from './sessionsPartService.js';
 import { ISessionsService } from './sessionsService.js';

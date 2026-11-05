@@ -18,7 +18,7 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { ChangesEmptyState } from '../../browser/changesEmptyState.js';
-import { NEW_FILE_TAB_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { NEW_FILE_TAB_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { OpenEditorCommandId } from '../../../../../workbench/contrib/searchEditor/browser/constants.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { SessionsChangesAccessibilityHelp } from '../../browser/sessionsChangesAccessibilityHelp.js';

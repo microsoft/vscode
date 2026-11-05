@@ -20,7 +20,7 @@ import { IUserDataProfile, IUserDataProfilesService } from '../../../../../platf
 import { ILanguageModelToolsService, IToolData, IToolImpl } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { IUserDataProfileService } from '../../../../../workbench/services/userDataProfile/common/userDataProfile.js';
 import { ISessionsChatBackgroundService } from '../../../../services/chatBackground/browser/chatBackgroundService.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { SetChatBackgroundToolContribution } from '../../electron-browser/chatBackgroundTool.contribution.js';
 import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING } from '../../common/constants.js';
 

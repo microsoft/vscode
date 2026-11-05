@@ -22,7 +22,7 @@ import {
 	ToolResultContentType,
 } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ISessionChatCustomization, ISessionTurnFileChange, ISessionWorkspace, sessionTurnFileChangesEqual } from '../../../../services/sessions/common/session.js';
+import { ISessionChatCustomization, ISessionTurnFileChange, ISessionWorkspace, sessionTurnFileChangesEqual } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { createActiveSessionSubscriptionObs } from './agentHostSessionChangesets.js';
 import { createCustomizationIndexObservable, createProgressiveChatCustomizations, type CustomizationIndexFactory, type ICustomizationJobScheduler } from '../../../../../workbench/contrib/chat/common/agentHostSessionCustomizations.js';
 import { IAgentHostAdapterOptions } from './baseAgentHostSessionsProvider.js';

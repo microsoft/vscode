@@ -16,7 +16,7 @@ import { ContextKeyExpr } from '../../../platform/contextkey/common/contextkey.j
 import { IOpenerService } from '../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
-import { IsPhoneLayoutContext, SessionsWelcomeVisibleContext } from '../../common/contextkeys.js';
+import { IsPhoneLayoutContext, SessionsWelcomeVisibleContext } from '../../../workbench/contrib/sessions/common/contextkeys.js';
 import { logSessionsInteraction } from '../../common/sessionsTelemetry.js';
 import { AgentsWindowMenus } from '../agentsWindowMenus.js';
 import { resolveSessionCommandTarget } from '../../services/sessions/browser/sessionCommandTarget.js';
@@ -27,7 +27,7 @@ import { IInstantiationService } from '../../../platform/instantiation/common/in
 import { IWorkbenchContribution } from '../../../workbench/common/contributions.js';
 import { resolveRemoteAuthority, resolveRemoteFolderUri } from '../openInVSCodeUtils.js';
 import { OpenInVSCodeTitleBarWidget } from '../widget/openInVSCodeWidget.js';
-import { IChat, ISession } from '../../services/sessions/common/session.js';
+import { IChat, ISession } from '../../../workbench/contrib/sessions/common/session.js';
 
 export class OpenInVSCodeAction extends Action2 {
 	static readonly ID = 'sessions.openInVSCode';

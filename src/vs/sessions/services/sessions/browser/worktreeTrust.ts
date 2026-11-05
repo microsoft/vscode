@@ -5,7 +5,7 @@
 
 import { isWorktreeUnderRepository } from '../../../../platform/agentHost/common/worktreePaths.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
-import { ISessionWorkspace } from '../common/session.js';
+import { ISessionWorkspace } from '../../../../workbench/contrib/sessions/common/session.js';
 
 /**
  * Auto-trusts every isolated git worktree in `workspace` that VS Code created off

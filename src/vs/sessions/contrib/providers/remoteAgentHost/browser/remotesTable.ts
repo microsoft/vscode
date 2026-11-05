@@ -22,7 +22,7 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { Link } from '../../../../../platform/opener/browser/link.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { getAgentHostConnectionStatusLabel } from '../../../../common/agentHostSessionsProvider.js';
+import { getAgentHostConnectionStatusLabel } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ICustomizationRemote, RemoteKind } from './remotesModel.js';
 import { getStatusHover } from './remoteHostOptions.js';
 

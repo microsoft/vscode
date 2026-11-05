@@ -20,12 +20,12 @@ import { ContextKeyService } from '../../../platform/contextkey/browser/contextK
 import { IsAuxiliaryWindowContext, LayoutModeContext } from '../../../workbench/common/contextkeys.js';
 import { OpenInVSCodeAction } from '../../browser/actions/vscodeActions.js';
 import { AgentsWindowMenus } from '../../browser/agentsWindowMenus.js';
-import { IAgentHostSessionsProvider } from '../../common/agentHostSessionsProvider.js';
+import { IAgentHostSessionsProvider } from '../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
-import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
-import { ISessionsProvider } from '../../services/sessions/common/sessionsProvider.js';
-import { IChat, ISessionWorkspace } from '../../services/sessions/common/session.js';
+import { IActiveSession } from '../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionsProvider } from '../../../workbench/contrib/sessions/common/sessionsProvider.js';
+import { IChat, ISessionWorkspace } from '../../../workbench/contrib/sessions/common/session.js';
 import { ITestSessionsService, stubSessionHostsFromSessionsService } from '../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Web Open in Editor', () => {

@@ -41,7 +41,7 @@ import type { IAutomationDescriptor, IAutomationRun } from '../../../../../../wo
 import { ProviderAutomationService } from '../../../../automations/browser/providerAutomationService.js';
 import { AutomationRunner } from '../../../../automations/browser/automationRunner.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
+import { ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 
 class TestAutomationConnection {
 

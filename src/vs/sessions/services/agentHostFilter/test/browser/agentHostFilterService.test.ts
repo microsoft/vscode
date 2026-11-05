@@ -20,8 +20,8 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ILifecycleService } from '../../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { TestLifecycleService } from '../../../../../workbench/test/common/workbenchTestServices.js';
-import { IAgentHostGroup } from '../../../../common/agentHostSessionsProvider.js';
-import { ISessionsProvider } from '../../../sessions/common/sessionsProvider.js';
+import { IAgentHostGroup } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService, SessionsProvidersService } from '../../../sessions/browser/sessionsProvidersService.js';
 import { AgentHostFilterService } from '../../browser/agentHostFilterService.js';
 import { AgentHostFilterConnectionStatus } from '../../common/agentHostFilter.js';

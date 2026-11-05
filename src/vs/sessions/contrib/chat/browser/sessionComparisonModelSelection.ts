@@ -9,8 +9,8 @@ import { localize } from '../../../../nls.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IModelPickerComparison, IModelPickerComparisonState, IModelPickerComparisonVariant } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerComparison.js';
-import { SESSION_COMPARISON_MAX_ATTEMPTS, SESSION_COMPARISON_MIN_ATTEMPTS } from '../../../services/sessions/common/sessionComparison.js';
-import { COMPARE_SESSION_MODELS_COMMAND_ID } from '../../../common/sessionCommands.js';
+import { SESSION_COMPARISON_MAX_ATTEMPTS, SESSION_COMPARISON_MIN_ATTEMPTS } from '../../../../workbench/contrib/sessions/common/sessionComparison.js';
+import { COMPARE_SESSION_MODELS_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { CompareAgentsSpotlight } from './compareAgentsSpotlight.js';
 
 type ComparisonStep = 'attempts' | 'judge' | 'synthesizer';

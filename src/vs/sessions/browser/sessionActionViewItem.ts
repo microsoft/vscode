@@ -19,7 +19,7 @@ import { INotificationService } from '../../platform/notification/common/notific
 import { logSettingExperimentTrigger } from '../../platform/telemetry/common/experimentTrigger.js';
 import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../platform/theme/common/themeService.js';
-import { ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSION_GROUP_COMMAND_ID } from '../common/sessionCommands.js';
+import { ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSION_GROUP_COMMAND_ID } from '../../workbench/contrib/sessions/common/sessionCommands.js';
 
 export function getSessionArchiveActionViewItemOptions(options: IActionViewItemOptions, configurationService: IConfigurationService, shouldTriggerClickAnimation?: (context: unknown) => boolean): IMenuEntryActionViewItemOptions {
 	return {

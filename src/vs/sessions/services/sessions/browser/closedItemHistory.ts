@@ -7,9 +7,9 @@ import { Disposable, IDisposable, toDisposable } from '../../../../base/common/l
 import { autorun, ISettableObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { SessionsHasClosedItemContext } from '../../../common/contextkeys.js';
-import { ISession, SessionStatus } from '../common/session.js';
-import { ISessionsManagementService } from '../common/sessionsManagement.js';
+import { SessionsHasClosedItemContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { ISession, SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsPartService } from './sessionsPartService.js';
 import { VisibleSessions } from './visibleSessions.js';
 import { Direction } from '../../../../base/browser/ui/grid/grid.js';

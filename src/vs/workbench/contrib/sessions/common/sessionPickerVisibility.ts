@@ -7,7 +7,7 @@ import { Disposable, IDisposable, toDisposable } from '../../../../base/common/l
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { SessionBranchPickerVisibleContext, SessionEnvironmentPickerVisibleContext, SessionHarnessPickerVisibleContext, SessionIsolationPickerVisibleContext, SessionSyncActionVisibleContext, SessionWorkspacePickerVisibleContext, SessionWorktreePickerVisibleContext } from '../../../common/contextkeys.js';
+import { SessionBranchPickerVisibleContext, SessionEnvironmentPickerVisibleContext, SessionHarnessPickerVisibleContext, SessionIsolationPickerVisibleContext, SessionSyncActionVisibleContext, SessionWorkspacePickerVisibleContext, SessionWorktreePickerVisibleContext } from './contextkeys.js';
 
 export interface ISessionPickerVisibility {
 	readonly workspace: boolean;

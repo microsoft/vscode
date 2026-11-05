@@ -5,12 +5,12 @@
 
 import { IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostEntryType } from '../../platform/agentHost/common/remoteAgentHostService.js';
 import { ISessionsProvidersService } from '../services/sessions/browser/sessionsProvidersService.js';
-import { isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_PREFIX } from '../common/agentHostSessionsProvider.js';
+import { isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_PREFIX } from '../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { encodeHex, VSBuffer } from '../../base/common/buffer.js';
 import { URI } from '../../base/common/uri.js';
 import { AGENT_HOST_SCHEME, fromAgentHostUri, LOCAL_AGENT_HOST_AUTHORITY } from '../../platform/agentHost/common/agentHostUri.js';
 import { Schemas } from '../../base/common/network.js';
-import { ISessionsProvider } from '../services/sessions/common/sessionsProvider.js';
+import { ISessionsProvider } from '../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { findDevContainerSample } from '../../platform/agentHost/common/devContainerSamples.js';
 import { localize } from '../../nls.js';
 

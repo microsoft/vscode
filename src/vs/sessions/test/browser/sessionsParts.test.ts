@@ -9,7 +9,7 @@ import { upcastPartial } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { SessionView } from '../../browser/parts/sessionView.js';
 import { SessionsParts } from '../../browser/parts/sessionsParts.js';
-import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession } from '../../../workbench/contrib/sessions/common/sessionsManagement.js';
 
 suite('Sessions - Sessions Parts', () => {
 

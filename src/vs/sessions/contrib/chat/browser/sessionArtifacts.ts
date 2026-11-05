@@ -50,11 +50,11 @@ import { getGitHubResourcePresentation, GitHubResourceDetailsResolver } from '..
 import { ChatPillHoverCache, createChatPillHover } from '../../../../workbench/browser/chatPillHover.js';
 import { IWorkbenchGitHubService } from '../../../../workbench/services/github/common/githubService.js';
 import { linkKey } from '../../../common/sessionLinks.js';
-import { getChatSessionArtifacts, getSessionArtifactKey, SessionArtifactKind, type IChat, type IGitHubPullRequestRef, type ISessionArtifact } from '../../../services/sessions/common/session.js';
+import { getChatSessionArtifacts, getSessionArtifactKey, SessionArtifactKind, type IChat, type IGitHubPullRequestRef, type ISessionArtifact } from '../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ArtifactIntegrationPresentation, IArtifactDetailsHost } from './artifactIntegrationPresentation.js';
 import { collapseArtifactIntegrationAliases, getArtifactIntegrationAliasCandidate, getArtifactIntegrationGroupId } from './artifactIntegrationPillSources.js';
-import { ISessionsManagementService, type IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsManagementService, type IActiveSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { logSessionArtifactOpen } from '../../../common/sessionsTelemetry.js';
 import { ISessionGitHubReferences, parseGitHubArtifactLink } from '../../github/common/sessionGitHubReferences.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';

@@ -26,12 +26,12 @@ import { IChatService } from '../../../../../workbench/contrib/chat/common/chatS
 import { logChangesToStateModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatModeKind } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { Menus } from '../../../../browser/menus.js';
-import { IAgentHostSessionsProvider, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_RE } from '../../../../common/agentHostSessionsProvider.js';
-import { SessionProviderIdContext, IsPhoneLayoutContext, SessionActiveChatIsUntitledContext } from '../../../../common/contextkeys.js';
+import { IAgentHostSessionsProvider, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_RE } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { SessionProviderIdContext, IsPhoneLayoutContext, SessionActiveChatIsUntitledContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { IChat, ISession, ISessionAgentRef, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { IHostSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IChat, ISession, ISessionAgentRef, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IHostSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ModePicker, ScopedModePickerModelCache } from '../../copilotChatSessions/browser/modePicker.js';
 import { IFocusedSessionHostService, InSessionHostScopeContext, ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';

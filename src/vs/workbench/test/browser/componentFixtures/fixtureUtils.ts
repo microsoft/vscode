@@ -109,14 +109,12 @@ import { InMemoryTextModelService } from '../../../../editor/common/services/inM
 // eslint-disable-next-line local/code-import-patterns
 import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, IAgentFeedbackService } from '../../../../sessions/contrib/agentFeedback/browser/agentFeedbackService.js';
 import { IChatEditingService } from '../../../contrib/chat/common/editing/chatEditingService.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ISessionsManagementService } from '../../../../sessions/services/sessions/common/sessionsManagement.js';
+import { ISessionsManagementService } from '../../../contrib/sessions/common/sessionsManagement.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionsService } from '../../../../sessions/services/sessions/browser/sessionsService.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ActiveSessionHost, SessionHostKind } from '../../../../sessions/services/sessions/browser/sessionHost.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ISessionChangesStatsCache, SessionChangesStatsCache } from '../../../../sessions/services/sessions/common/sessionChangesStatsCache.js';
+import { ISessionChangesStatsCache, SessionChangesStatsCache } from '../../../contrib/sessions/common/sessionChangesStatsCache.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ICodeReviewService, PRReviewStateKind } from '../../../../sessions/contrib/codeReview/browser/codeReviewService.js';
 import { constObservable } from '../../../../base/common/observable.js';

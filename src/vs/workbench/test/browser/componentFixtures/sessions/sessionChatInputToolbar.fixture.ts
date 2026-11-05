@@ -36,16 +36,13 @@ import { ISessionChatPillsDebugData } from '../../../../../sessions/contrib/chat
 import { IGitHubService } from '../../../../../sessions/contrib/github/browser/githubService.js';
 // eslint-disable-next-line local/code-import-patterns
 import { SessionInputBanners } from '../../../../../sessions/contrib/sessionInputBanners/browser/sessionInputBanners.js';
-// eslint-disable-next-line local/code-import-patterns
-import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../sessions/common/agentHostSessionsProvider.js';
+import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../contrib/sessions/common/agentHostSessionsProvider.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IAgentWorkbenchLayoutService } from '../../../../../sessions/browser/workbench.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionChangesService } from '../../../../../sessions/contrib/changes/browser/sessionChangesService.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ChatOriginKind, type IGitHubInfo, type IGitHubPullRequestRef, ISessionArtifact, ISessionCanvas, ISessionChatCustomization, ISessionTurnFileChange, ISessionWorkspace, IChat, ISessionCapabilities, ISessionFolder, ISessionGitRepository, SessionArtifactKind, SessionCustomizationKind, SessionStatus } from '../../../../../sessions/services/sessions/common/session.js';
-// eslint-disable-next-line local/code-import-patterns
-import { IActiveSession, ISessionsManagementService } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
+import { ChatOriginKind, type IGitHubInfo, type IGitHubPullRequestRef, ISessionArtifact, ISessionCanvas, ISessionChatCustomization, ISessionTurnFileChange, ISessionWorkspace, IChat, ISessionCapabilities, ISessionFolder, ISessionGitRepository, SessionArtifactKind, SessionCustomizationKind, SessionStatus } from '../../../../contrib/sessions/common/session.js';
+import { IActiveSession, ISessionsManagementService } from '../../../../contrib/sessions/common/sessionsManagement.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionHost, SessionHostKind } from '../../../../../sessions/services/sessions/browser/sessionHost.js';
 // eslint-disable-next-line local/code-import-patterns

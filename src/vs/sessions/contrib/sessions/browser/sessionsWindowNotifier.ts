@@ -21,9 +21,9 @@ import { ChatConfiguration, ChatNotificationMode } from '../../../../workbench/c
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
-import { IChat, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
-import { ISessionComparisonService } from '../../../services/sessions/common/sessionComparison.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { IChat, ISession, SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionComparisonService } from '../../../../workbench/contrib/sessions/common/sessionComparison.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 
 export class SessionsWindowNotifier extends Disposable implements IWorkbenchContribution {
 

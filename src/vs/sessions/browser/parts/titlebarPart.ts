@@ -33,7 +33,7 @@ import { safeIntl } from '../../../base/common/date.js';
 import { ITitlebarPart, ITitleProperties, ITitleVariable, IAuxiliaryTitlebarPart } from '../../../workbench/browser/parts/titlebar/titlebarPart.js';
 import { WindowTitle } from '../../../workbench/browser/parts/titlebar/windowTitle.js';
 import { AgentsWindowMenus } from '../agentsWindowMenus.js';
-import { IsNewChatSessionContext } from '../../common/contextkeys.js';
+import { IsNewChatSessionContext } from '../../../workbench/contrib/sessions/common/contextkeys.js';
 import { createInstantHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { createMainWindowInstantiationService } from '../../services/sessions/browser/sessionHost.js';
 

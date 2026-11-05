@@ -25,7 +25,7 @@ import { IViewsService } from '../../../../workbench/services/views/common/views
 import { NewSessionOnboardingHandoffContext } from '../../../common/agentsWindowContextKeys.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
-import { ISession } from '../../../services/sessions/common/session.js';
+import { ISession } from '../../../../workbench/contrib/sessions/common/session.js';
 import { getSessionOnboardingTargetId } from '../../sessions/browser/views/sessionsList.js';
 import { SessionsView, SessionsViewId } from '../../sessions/browser/views/sessionsView.js';
 import { createAgentsWindowInvitationTour, IAgentsWindowInvitationTourCopy } from './tours/agentsWindowInvitationTour.js';

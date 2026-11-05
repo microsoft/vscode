@@ -68,7 +68,7 @@ import { ChatQuestionCarouselData } from '../../../../workbench/contrib/chat/com
 import { ChatPlanReviewData } from '../../../../workbench/contrib/chat/common/model/chatProgressTypes/chatPlanReviewData.js';
 import { ConfirmationOptionKind } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../platform/chat/common/sessionArchiveActions.js';
-import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
+import { isAgentHostProviderId } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { IWindowCanvas } from '../../../services/canvas/browser/windowCanvasService.js';
 import { AbstractChatView, IChatViewRequestOutcome } from '../../../browser/parts/chatView.js';
 import { IChatViewFactory } from '../../../services/chatView/browser/chatViewFactory.js';
@@ -76,8 +76,8 @@ import { ISessionsService } from '../../../services/sessions/browser/sessionsSer
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { WelcomeName } from '../../chat/browser/welcomeName.js';
 import { createSessionSummaryHover, getSessionSummaryHoverData } from '../../sessions/browser/sessionHoverContent.js';
-import { getChatSessionArtifacts, IChat, ISession } from '../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { getChatSessionArtifacts, IChat, ISession } from '../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';

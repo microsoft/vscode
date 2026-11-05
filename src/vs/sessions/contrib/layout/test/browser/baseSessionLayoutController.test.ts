@@ -17,11 +17,11 @@ import { TERMINAL_VIEW_ID } from '../../../../../workbench/contrib/terminal/comm
 import { BaseLayoutController } from '../../browser/baseSessionLayoutController.js';
 import { IMenuItem, isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyValue, IContext } from '../../../../../platform/contextkey/common/contextkey.js';
-import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../../../common/sessionConfig.js';
+import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { Menus } from '../../../../browser/menus.js';
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { SessionEditorWorkingSetService } from '../../common/sessionEditorWorkingSet.js';
-import { SessionStatus } from '../../../../services/sessions/common/session.js';
+import { SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { OS } from '../../../../../base/common/platform.js';
@@ -39,7 +39,7 @@ import { IChatWindow, IChatWindowService } from '../../../../../workbench/contri
 import { ChatWindowLayoutMode } from '../../../../../workbench/contrib/chatWindow/common/chatWindowLayout.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { CustomViewVisibleContext } from '../../../../common/agentsWindowContextKeys.js';
-import { TOGGLE_SIDE_PANEL_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { TOGGLE_SIDE_PANEL_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { addPeerChat, createTestHarness, ICreateOptions, ITestLayoutHarness, makePaneComposite, makeSession, setActiveChat, TestStubEditorInput } from './layoutControllerTestUtils.js';
 
 /** Concrete, behaviourless subclass so the abstract base (its view-state hook is a no-op) can be instantiated. */

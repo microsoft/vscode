@@ -17,13 +17,13 @@ import { ILoggerService, NullLoggerService, NullLogService } from '../../../../.
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { IOutputService } from '../../../../../workbench/services/output/common/output.js';
 import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
-import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
+import { IAgentHostSessionsProvider } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { AgentHostCustomizationService } from '../../browser/agentHostCustomizationService.js';
-import { IChat, ISession } from '../../../sessions/common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../../sessions/common/sessionsManagement.js';
+import { IChat, ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IActiveSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../sessions/browser/sessionsProvidersService.js';
 import { focusedSessionHostServiceOf } from '../../../sessions/test/browser/sessionHostTestUtils.js';
-import { ISessionsProvider } from '../../../sessions/common/sessionsProvider.js';
+import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { assertCodexSkillItems, createCodexSkillCustomizations } from '../../../../../workbench/contrib/chat/test/browser/agentSessions/agentHostSkillDiscoveryTestUtils.js';
 
 suite('AgentHostCustomizationService', () => {

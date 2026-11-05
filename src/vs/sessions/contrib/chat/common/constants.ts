@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
-import { COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_TOOLS_ENABLED_SETTING } from '../../../services/sessions/common/sessionComparison.js';
+import { COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_TOOLS_ENABLED_SETTING } from '../../../../workbench/contrib/sessions/common/sessionComparison.js';
 
 export { NEW_SESSION_IN_AGENTS_WINDOW_COMMAND_ID as NEW_SESSION_ACTION_ID } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 export const AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING = 'chat.agentSessions.responseSelectionMenu.enabled';

@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ISessionFileChange } from '../../../../services/sessions/common/session.js';
+import { ISessionFileChange } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { isChangesFileResource } from '../../browser/changesViewRenderer.js';
 
 suite('ChangesViewRenderer', () => {

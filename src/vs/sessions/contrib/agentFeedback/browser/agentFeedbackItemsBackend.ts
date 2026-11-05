@@ -16,8 +16,8 @@ import { Annotation, AnnotationEntry, AnnotationsState, StateComponents, StringO
 import { TextRange } from '../../../../platform/agentHost/common/state/protocol/common/state.js';
 import { authorForFeedbackKind, feedbackAnnotationEntryMeta, FEEDBACK_ANNOTATION_META_KEY, readFeedbackAnnotationMeta, resolveFeedbackEntryAuthor, type AgentFeedbackKindValue, type AgentFeedbackStateValue, type IFeedbackAnnotationMeta, type IFeedbackPullRequest } from '../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 import { ICodeReviewSuggestion } from '../../codeReview/browser/codeReviewService.js';
-import { IAgentHostSessionsProvider, isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { IAgentHostSessionsProvider, isAgentHostProviderId } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';

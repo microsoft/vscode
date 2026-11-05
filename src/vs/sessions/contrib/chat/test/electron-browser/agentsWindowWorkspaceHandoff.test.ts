@@ -19,7 +19,7 @@ import { TestLifecycleService } from '../../../../../workbench/test/common/workb
 import { ISessionsWindowOpenContext, SessionsWindowOpenTelemetry } from '../../../sessions/browser/sessionsWindowOpenTelemetry.js';
 import { AgentsWindowRequestActivity, SelectAgentsFolderContribution } from '../../electron-browser/chat.contribution.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { ISession } from '../../../../services/sessions/common/session.js';
+import { ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IAgentsWindowWorkspaceHandoff } from '../../browser/agentsWindowWorkspaceHandoff.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';

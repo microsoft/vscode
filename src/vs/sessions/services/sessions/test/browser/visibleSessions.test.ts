@@ -13,7 +13,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { VisibleSession, VisibleSessions } from '../../browser/visibleSessions.js';
-import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../common/session.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
 
 const stubChat: IChat = {
 	resource: URI.parse('test:///chat'),

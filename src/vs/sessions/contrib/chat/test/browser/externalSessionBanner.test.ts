@@ -15,8 +15,8 @@ import { ChatExternalSessionsMode } from '../../../../../platform/chat/common/ch
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
-import { ISession } from '../../../../services/sessions/common/session.js';
-import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
+import { ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { ExternalSessionBanner, getExternalSessionBannerSelectedMode, getExternalSessionVisibilityConfirmation, shouldConfirmExternalSessionVisibilityChange } from '../../browser/externalSessionBanner.js';
 
 suite('Sessions - External Session Banner', () => {

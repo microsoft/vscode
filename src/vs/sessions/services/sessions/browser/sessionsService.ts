@@ -21,9 +21,9 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { localize } from '../../../../nls.js';
-import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../common/session.js';
-import { IActiveSession, ICreateNewChatInSessionOptions, IHostSession, ICreateNewSessionOptions, inheritableSessionTarget, IRecentlyOpenedSessions, ISessionsChangeEvent, ISessionsManagementService, IToggleSessionStickinessEvent } from '../common/sessionsManagement.js';
-import { IChatMovedEvent } from '../common/sessionsProvider.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
+import { IActiveSession, ICreateNewChatInSessionOptions, IHostSession, ICreateNewSessionOptions, inheritableSessionTarget, IRecentlyOpenedSessions, ISessionsChangeEvent, ISessionsManagementService, IToggleSessionStickinessEvent } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IChatMovedEvent } from '../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
 import { ensureSessionWorktreesTrusted } from './worktreeTrust.js';
 import { ClosedItemHistory } from './closedItemHistory.js';
@@ -35,11 +35,11 @@ import { ISessionsPartService, SessionGridRequest } from './sessionsPartService.
 import { IChatHostClosedChat, IChatHostOpenerService } from './chatHostOpener.js';
 import { ICustomViewService } from '../../customView/browser/customViewService.js';
 import { IWindowCanvasService } from '../../canvas/browser/windowCanvasService.js';
-import { IsNewChatSessionContext } from '../../../common/contextkeys.js';
-import { setActiveSessionContextKeys } from '../common/sessionContextKeys.js';
-import { ISessionChangesStatsCache } from '../common/sessionChangesStatsCache.js';
+import { IsNewChatSessionContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { setActiveSessionContextKeys } from '../../../../workbench/contrib/sessions/common/sessionContextKeys.js';
+import { ISessionChangesStatsCache } from '../../../../workbench/contrib/sessions/common/sessionChangesStatsCache.js';
 import { ISessionOpenTelemetryAttempt, ISessionOpenTelemetryService, SessionOpenSource } from './sessionOpenTelemetryService.js';
-import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
+import { isAgentHostProvider } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { Direction } from '../../../../base/browser/ui/grid/grid.js';
 import { ISessionGridState, isSessionGridState, projectSessionGrid } from './sessionGridState.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';

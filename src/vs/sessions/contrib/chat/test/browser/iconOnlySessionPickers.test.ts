@@ -15,7 +15,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
-import { FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { IconOnlySessionPickers } from '../../browser/iconOnlySessionPickers.js';
 
 class TestContextMenuService extends mock<IContextMenuService>() {

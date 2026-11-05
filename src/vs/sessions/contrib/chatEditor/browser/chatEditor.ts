@@ -23,7 +23,7 @@ import { decideStackedChatInputOnlyWhileDragging } from '../../../../workbench/c
 import { ChatWindowLayoutMode } from '../../../../workbench/contrib/chatWindow/common/chatWindowLayout.js';
 import { AbstractChatView, ISessionViewHostOptions } from '../../../browser/parts/chatView.js';
 import { ChatEditorContent } from './chatEditorContent.js';
-import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { URI } from '../../../../base/common/uri.js';

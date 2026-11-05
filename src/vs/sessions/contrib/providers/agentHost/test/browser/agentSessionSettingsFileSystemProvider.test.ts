@@ -15,10 +15,10 @@ import { ServiceCollection } from '../../../../../../platform/instantiation/comm
 import { NullLogService, ILogService } from '../../../../../../platform/log/common/log.js';
 import { Extensions as JSONExtensions, IJSONContributionRegistry } from '../../../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
-import type { IAgentHostSessionsProvider } from '../../../../../common/agentHostSessionsProvider.js';
+import type { IAgentHostSessionsProvider } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import type { ISession } from '../../../../../services/sessions/common/session.js';
-import type { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
+import type { ISession } from '../../../../../../workbench/contrib/sessions/common/session.js';
+import type { ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { agentSessionSettingsUri, AgentSessionSettingsFileSystemProvider, AgentSessionSettingsSchemaRegistrar } from '../../browser/agentSessionSettingsFileSystemProvider.js';
 
 const PROVIDER_ID = 'local-agent-host';

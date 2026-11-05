@@ -14,14 +14,14 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ResolveSessionConfigResult } from '../../../../platform/agentHost/common/state/protocol/commands.js';
-import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
-import { IChatSendRequestOptions } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { IChatSessionInitialMessage } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ILanguageModelChatMetadataAndIdentifier, type IModelConfigurationAccess } from '../../../../workbench/contrib/chat/common/languageModels.js';
-import { ModelIdentifierResolution } from '../../../../workbench/contrib/chat/common/modelSelection.js';
-import { IAgentModelPreferences } from '../../../../workbench/contrib/chat/common/promptSyntax/languageProviders/promptModelResolver.js';
-import { IAutomationSessionTemplate } from '../../../../workbench/contrib/chat/common/automations/automation.js';
-import { AutomationUnavailableReasonCode, IAutomationProviderConfiguration, IAutomationStore } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { IChatRequestVariableEntry } from '../../chat/common/attachments/chatVariableEntries.js';
+import { IChatSendRequestOptions } from '../../chat/common/chatService/chatService.js';
+import { IChatSessionInitialMessage } from '../../chat/common/chatSessionsService.js';
+import { ILanguageModelChatMetadataAndIdentifier, type IModelConfigurationAccess } from '../../chat/common/languageModels.js';
+import { ModelIdentifierResolution } from '../../chat/common/modelSelection.js';
+import { IAgentModelPreferences } from '../../chat/common/promptSyntax/languageProviders/promptModelResolver.js';
+import { IAutomationSessionTemplate } from '../../chat/common/automations/automation.js';
+import { AutomationUnavailableReasonCode, IAutomationProviderConfiguration, IAutomationStore } from '../../chat/common/automations/automationService.js';
 import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionCreationReference, ISessionEnvironment, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, type SessionCanvasDefinitionSnapshot } from './session.js';
 
 /**

@@ -42,11 +42,11 @@ import { TestStorageService } from '../../../../../../workbench/test/common/work
 import { IWorkbenchEnvironmentService } from '../../../../../../workbench/services/environment/common/environmentService.js';
 import { IOpenSettingsOptions, IPreferencesService } from '../../../../../../workbench/services/preferences/common/preferences.js';
 import { AGENT_HOST_PERMISSIONS_SETTINGS_QUERY, MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
-import { IAgentHostSessionsProvider } from '../../../../../common/agentHostSessionsProvider.js';
+import { IAgentHostSessionsProvider } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
-import { IChat } from '../../../../../services/sessions/common/session.js';
-import { ISessionConfigProvider, ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
+import { IActiveSession } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IChat } from '../../../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionConfigProvider, ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { AgentHostModePicker } from '../../browser/agentHostModePicker.js';
 import { AgentHostPermissionPickerDelegate } from '../../browser/agentHostPermissionPickerDelegate.js';
 import { PickerActionViewItem } from '../../browser/agentHostSessionConfigPicker.js';

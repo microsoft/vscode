@@ -13,7 +13,7 @@ import { IsWebContext } from '../../../../../platform/contextkey/common/contextk
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IsAuxiliaryWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
-import { IsNewChatSessionContext, IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
+import { IsNewChatSessionContext, IsPhoneLayoutContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { Menus } from '../../../../browser/menus.js';
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { HostFilterActionViewItem } from './hostFilterActionViewItem.js';

@@ -7,9 +7,9 @@ import { filterConfigurationToSchema } from '../../../../workbench/contrib/chat/
 import { isModelComparisonSupported } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerPresentation.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { localize } from '../../../../nls.js';
-import { ISessionType } from '../common/session.js';
-import { ISessionComparisonHarness } from '../common/sessionComparison.js';
-import { ISessionPermissionOption } from '../common/sessionsProvider.js';
+import { ISessionType } from '../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionComparisonHarness } from '../../../../workbench/contrib/sessions/common/sessionComparison.js';
+import { ISessionPermissionOption } from '../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 
 export function createSessionComparisonHarness(
 	providerId: string,

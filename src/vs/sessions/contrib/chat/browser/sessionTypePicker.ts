@@ -18,10 +18,10 @@ import { IContextMenuService } from '../../../../platform/contextview/browser/co
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
-import { IProviderSessionType, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { IProviderSessionType, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { autorun, IObservable, observableValue } from '../../../../base/common/observable.js';
-import { getChatHarness, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionType, SessionStatus } from '../../../services/sessions/common/session.js';
+import { getChatHarness, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionType, SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';

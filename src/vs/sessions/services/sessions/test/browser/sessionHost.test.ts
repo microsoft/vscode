@@ -15,8 +15,8 @@ import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/ser
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { ActiveSessionHost, getMainWindowHost, getWindowHost, ISessionHost, SessionHostKind, shownChatOf } from '../../browser/sessionHost.js';
 import { FocusedSessionHostService, SessionHostService } from '../../browser/sessionHostService.js';
-import { IChat } from '../../common/session.js';
-import { IActiveSession } from '../../common/sessionsManagement.js';
+import { IChat } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { sessionsServiceWithGridHost } from './sessionHostTestUtils.js';
 
 function chat(path: string): IChat {

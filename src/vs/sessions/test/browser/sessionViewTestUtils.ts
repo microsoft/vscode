@@ -23,20 +23,20 @@ import { AbstractChatView, ChatViewKind, IChatViewOptions } from '../../browser/
 import { SessionsPart } from '../../browser/parts/sessionsPart.js';
 import { IAgentWorkbenchLayoutService } from '../../browser/workbench.js';
 import { ISessionsHostLayoutService } from '../../services/layout/browser/sessionsHostLayoutService.js';
-import { SessionBranchPickerVisibleContext, SessionEnvironmentPickerVisibleContext, SessionHarnessPickerVisibleContext, SessionIsolationPickerVisibleContext, SessionSyncActionVisibleContext, SessionWorkspacePickerVisibleContext, SessionWorktreePickerVisibleContext } from '../../common/contextkeys.js';
-import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../common/sessionConfig.js';
+import { SessionBranchPickerVisibleContext, SessionEnvironmentPickerVisibleContext, SessionHarnessPickerVisibleContext, SessionIsolationPickerVisibleContext, SessionSyncActionVisibleContext, SessionWorkspacePickerVisibleContext, SessionWorktreePickerVisibleContext } from '../../../workbench/contrib/sessions/common/contextkeys.js';
+import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { ISessionsChatBackground, ISessionsChatBackgroundService } from '../../services/chatBackground/browser/chatBackgroundService.js';
 import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
 import { ISessionsListModelService } from '../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionsPartService } from '../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
-import { ChatInteractivity, IChat, ISessionCapabilities, ISessionPreparationProgress, SessionStatus } from '../../services/sessions/common/session.js';
+import { ChatInteractivity, IChat, ISessionCapabilities, ISessionPreparationProgress, SessionStatus } from '../../../workbench/contrib/sessions/common/session.js';
 import { stubSessionHosts } from '../../services/sessions/test/browser/sessionHostTestUtils.js';
 import { ChatHostOpenerService, IChatHostOpenerService } from '../../services/sessions/browser/chatHostOpener.js';
-import { ISessionChangesStatsCache } from '../../services/sessions/common/sessionChangesStatsCache.js';
-import { SessionInputPickerVisibility } from '../../services/sessions/common/sessionPickerVisibility.js';
-import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
+import { ISessionChangesStatsCache } from '../../../workbench/contrib/sessions/common/sessionChangesStatsCache.js';
+import { SessionInputPickerVisibility } from '../../../workbench/contrib/sessions/common/sessionPickerVisibility.js';
+import { IActiveSession, ISessionsManagementService } from '../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { MobileSessionsPart } from '../../browser/parts/mobile/mobileSessionsPart.js';
 

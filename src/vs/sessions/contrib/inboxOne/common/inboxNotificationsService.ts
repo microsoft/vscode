@@ -12,7 +12,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IChatPlanReview, IChatQuestion, IChatToolInvocation } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../../../workbench/contrib/chat/common/chat.js';
 import { AgentHostPullRequestOperationId } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
-import { getGitHubPullRequestRefs, getSessionOwnedGitHubPullRequestRefs, IGitHubPullRequestRef, ISession, ISessionChangeset, ISessionChangesetOperation, SessionChangesetOperationScope, SessionChangesetOperationStatus } from '../../../services/sessions/common/session.js';
+import { getGitHubPullRequestRefs, getSessionOwnedGitHubPullRequestRefs, IGitHubPullRequestRef, ISession, ISessionChangeset, ISessionChangesetOperation, SessionChangesetOperationScope, SessionChangesetOperationStatus } from '../../../../workbench/contrib/sessions/common/session.js';
 import { getSessionGitHubReferences } from '../../github/common/sessionGitHubReferences.js';
 
 export const IInboxNotificationsService = createDecorator<IInboxNotificationsService>('sessionsInboxNotificationsService');

@@ -27,11 +27,11 @@ import { ComponentFixtureContext, createEditorServices, defineComponentFixture, 
 import { fixtureResourceUri, readFixtureBinaryResource } from '../../../../../workbench/test/browser/componentFixtures/fixtureResourceLoader.js';
 import { AbstractChatView } from '../../../../browser/parts/chatView.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { IChat, ISession, SessionArtifactKind } from '../../../../services/sessions/common/session.js';
+import { IChat, ISession, SessionArtifactKind } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IChatViewFactory } from '../../../../services/chatView/browser/chatViewFactory.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IAgentFeedbackService } from '../../../agentFeedback/browser/agentFeedbackService.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { NEW_SESSION_WELCOME_NAME_SETTING } from '../../../chat/common/constants.js';

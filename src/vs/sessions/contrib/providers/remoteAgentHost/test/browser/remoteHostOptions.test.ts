@@ -21,7 +21,7 @@ import { IInputOptions, IQuickInputService, IQuickPick, IQuickPickItem, QuickInp
 import { IRemoteAgentHostLocationPreferenceService, RemoteAgentHostLocationPreference } from '../../../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
 import { IEditorService } from '../../../../../../workbench/services/editor/common/editorService.js';
 import { IPreferencesService } from '../../../../../../workbench/services/preferences/common/preferences.js';
-import { IAgentHostSessionsProvider } from '../../../../../common/agentHostSessionsProvider.js';
+import { IAgentHostSessionsProvider } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import {
 	buildRemoteHostOptionItems,

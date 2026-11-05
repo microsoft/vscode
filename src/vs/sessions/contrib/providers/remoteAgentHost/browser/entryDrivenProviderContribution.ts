@@ -9,7 +9,7 @@ import { type IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostCon
 import { type IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { type IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { type INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { type IAgentHostAutoConnect, type IAgentHostConnectProgress } from '../../../../common/agentHostSessionsProvider.js';
+import { type IAgentHostAutoConnect, type IAgentHostConnectProgress } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { type ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { RemoteAgentHostSessionsProvider, type IRemoteAgentHostSessionsProviderConfig } from './remoteAgentHostSessionsProvider.js';
 import { watchForIncompatibleNotifications } from './remoteHostOptions.js';

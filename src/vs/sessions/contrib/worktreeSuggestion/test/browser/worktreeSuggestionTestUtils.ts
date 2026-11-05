@@ -7,8 +7,8 @@ import { constObservable, IReader, ISettableObservable, observableValue } from '
 import { basename } from '../../../../../base/common/resources.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ActionListItemKind, IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
-import { ISessionFileChange } from '../../../../services/sessions/common/session.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionFileChange } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { WorktreeSuggestionVariant } from '../../common/worktreeSuggestion.js';
 import { getChangedFileUri } from '../../browser/worktreeSuggestionPresentation.js';
 import { IUncommittedChangesListItem, IWorktreeSuggestion, IWorktreeSuggestionService, WorktreeSpotlightChoice } from '../../browser/worktreeSuggestionService.js';

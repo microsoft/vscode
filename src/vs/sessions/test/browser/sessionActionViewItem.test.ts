@@ -24,7 +24,7 @@ import { mock } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../platform/chat/common/sessionArchiveActions.js';
 import { TestExperimentTriggerTelemetryService } from '../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
-import { ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSION_GROUP_COMMAND_ID } from '../../common/sessionCommands.js';
+import { ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSION_GROUP_COMMAND_ID } from '../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { createSessionActionViewItemProvider, getSessionArchiveActionViewItemOptions, SessionArchiveActionViewItem } from '../../browser/sessionActionViewItem.js';
 
 suite('SessionActionViewItem', () => {

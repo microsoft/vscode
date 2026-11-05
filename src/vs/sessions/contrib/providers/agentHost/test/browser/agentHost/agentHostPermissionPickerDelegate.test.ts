@@ -46,10 +46,10 @@ import { ChatConfiguration, ChatPermissionLevel } from '../../../../../../../wor
 import { AgentHostSessionSandbox } from '../../../browser/agentHostSessionSandbox.js';
 import { AgentHostPermissionPickerDelegate, isWellKnownAutoApproveSchema, isWellKnownClaudePermissionModeSchema, isWellKnownModeSchema, isWellKnownModeValue } from '../../../browser/agentHostPermissionPickerDelegate.js';
 import { getPermissionLevelMeta } from '../../../../copilotChatSessions/browser/permissionPicker.js';
-import { IAgentHostSessionsProvider } from '../../../../../../common/agentHostSessionsProvider.js';
+import { IAgentHostSessionsProvider } from '../../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsProvider } from '../../../../../../services/sessions/common/sessionsProvider.js';
-import { IActiveSession } from '../../../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsProvider } from '../../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
+import { IActiveSession } from '../../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../../services/sessions/browser/sessionsService.js';
 import { IUnavailablePermissionLevel } from '../../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { IChatPhoneInputPresenter } from '../../../../../../../workbench/contrib/chat/browser/widget/input/chatPhoneInputPresenter.js';

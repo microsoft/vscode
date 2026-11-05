@@ -23,9 +23,9 @@ import { AccessibilityVerbositySettingId } from '../../../../../workbench/contri
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { OPEN_REMOTES_EDITOR_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { OPEN_REMOTES_EDITOR_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { SessionsCategories } from '../../../../common/categories.js';
-import { IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
+import { IsPhoneLayoutContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { Menus } from '../../../../browser/menus.js';
 import { RemotesEditorInput } from '../browser/remotesEditorInput.js';
 import { RemotesEditor, RemotesEditorFocusedContext } from './remotesEditor.js';

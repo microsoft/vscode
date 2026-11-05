@@ -5,7 +5,7 @@
 
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { IPendingModelSelection } from '../../../../workbench/contrib/chat/common/modelSelection.js';
-import { ISessionModelPickerOptions, ISessionModelsSnapshot } from '../../../services/sessions/common/sessionsProvider.js';
+import { ISessionModelPickerOptions, ISessionModelsSnapshot } from '../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 
 /**
  * What the picker shows, as opposed to what the conversation runs on. A model it is meant to run on

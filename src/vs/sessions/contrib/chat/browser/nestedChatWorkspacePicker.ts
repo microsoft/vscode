@@ -23,8 +23,8 @@ import { IActionWidgetService } from '../../../../platform/actionWidget/browser/
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
-import { ISessionWorkspaceBrowseAction } from '../../../services/sessions/common/session.js';
-import { INestedChatFolderInfo, INestedChatWorkspace, INestedChatWorkspaceSupport } from '../../../services/sessions/common/sessionsProvider.js';
+import { ISessionWorkspaceBrowseAction } from '../../../../workbench/contrib/sessions/common/session.js';
+import { INestedChatFolderInfo, INestedChatWorkspace, INestedChatWorkspaceSupport } from '../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { BranchPicker, IBranchPickerState } from './branchPicker.js';
 import { IsolationPicker } from './isolationPicker.js';
 import { INoWorkspaceChoicePresentation } from './noWorkspaceChoice.js';

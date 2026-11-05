@@ -31,12 +31,12 @@ import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/servic
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
-import { SessionWithWorkspaceContext } from '../../../common/contextkeys.js';
+import { SessionWithWorkspaceContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { SessionActivityBarLayoutActionsContext } from '../../../common/agentsWindowContextKeys.js';
-import { CHAT_WINDOW_OPEN_BROWSER_COMMAND_ID, CHAT_WINDOW_OPEN_CHANGES_COMMAND_ID, CHAT_WINDOW_OPEN_FILES_COMMAND_ID } from '../../../common/sessionCommands.js';
+import { CHAT_WINDOW_OPEN_BROWSER_COMMAND_ID, CHAT_WINDOW_OPEN_CHANGES_COMMAND_ID, CHAT_WINDOW_OPEN_FILES_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { ISessionHostService, SessionHostKind } from '../../../services/sessions/browser/sessionHost.js';
-import { IChat } from '../../../services/sessions/common/session.js';
-import { IHostSession } from '../../../services/sessions/common/sessionsManagement.js';
+import { IChat } from '../../../../workbench/contrib/sessions/common/session.js';
+import { IHostSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { SessionChangesEditorInput } from '../../changes/browser/sessionChangesEditorInput.js';
 import { ISessionChangesService } from '../../changes/common/sessionChangesService.js';
 import { EmptyFileEditorInput } from '../../editor/browser/emptyFileEditorInput.js';

@@ -10,7 +10,7 @@ import { ISessionFileDiff } from '../../../../../platform/agentHost/common/state
 import { normalizeFileEdit } from '../../../../../platform/agentHost/common/fileEditDiff.js';
 import { canonicalizeSessionDbUri } from '../../../../../platform/agentHost/common/sessionDbUri.js';
 import { IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ISessionFileChange, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ISessionFileChange, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { readChangesetFileMeta } from '../../../../../platform/agentHost/common/meta/agentChangesetFileMeta.js';
 import type { AgentHostUriMapper } from '../../../../../platform/agentHost/common/agentHostUri.js';
 

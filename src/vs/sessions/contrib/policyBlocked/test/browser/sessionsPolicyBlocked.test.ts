@@ -30,7 +30,7 @@ import { TestLayoutService } from '../../../../../workbench/test/browser/workben
 import { SessionsPolicyBlockedContribution } from '../../browser/policyBlocked.contribution.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ITestSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Sessions policy update explanation', () => {

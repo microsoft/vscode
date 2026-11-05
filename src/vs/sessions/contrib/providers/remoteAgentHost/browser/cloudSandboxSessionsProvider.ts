@@ -14,8 +14,8 @@ import { AgentSession, type IAgentSessionMetadata } from '../../../../../platfor
 import { CLOUD_SANDBOX_AGENT_PROVIDER, CLOUD_SANDBOX_SESSION_SCHEME, CloudSandboxAutoConnectOnOpenSettingId, CloudSandboxRequestError, isRetryableCloudSandboxError } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { getGitHubRepositoryId } from '../../../../../platform/github/common/githubUrls.js';
-import { GITHUB_REMOTE_FILE_SCHEME, type ISession } from '../../../../services/sessions/common/session.js';
-import type { ISessionCreationTarget } from '../../../../services/sessions/common/sessionsProvider.js';
+import { GITHUB_REMOTE_FILE_SCHEME, type ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
+import type { ISessionCreationTarget } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import type { AgentHostSessionAdapter } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
 import { CLOUD_SANDBOX_CREATION_PROVIDER_ID, COPILOT_PROVIDER_ID } from '../../copilotChatSessions/common/copilotChatSessions.js';
 import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';

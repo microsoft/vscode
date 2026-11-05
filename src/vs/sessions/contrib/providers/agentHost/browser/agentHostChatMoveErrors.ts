@@ -6,7 +6,7 @@
 import { localize } from '../../../../../nls.js';
 import { AgentChatMoveRefusal, AgentChatMoveRefusedError } from '../../../../../platform/agentHost/common/agentHostChatMove.js';
 import { ProtocolError } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { SessionMoveRefusedError } from '../../../../services/sessions/common/sessionsProvider.js';
+import { SessionMoveRefusedError } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 
 const refusals: ReadonlySet<string> = new Set<string>([
 	AgentChatMoveRefusal.Disabled,

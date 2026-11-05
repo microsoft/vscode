@@ -7,8 +7,8 @@ import assert from 'assert';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ISessionWorkspaceBrowseAction } from '../../../../services/sessions/common/session.js';
-import { INestedChatFolderInfo, INestedChatWorkspaceSupport } from '../../../../services/sessions/common/sessionsProvider.js';
+import { ISessionWorkspaceBrowseAction } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { INestedChatFolderInfo, INestedChatWorkspaceSupport } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { getDefaultNestedChatFolder, getNestedChatFolderMark, getNestedChatFolderOptions, NestedChatFolderChoice, toNestedChatWorkspace } from '../../browser/nestedChatWorkspacePicker.js';
 
 suite('NestedChatWorkspacePicker', () => {

@@ -13,7 +13,7 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { ISpotlightStep } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightTypes.js';
 import { ONBOARDING_DEVELOPER_MODE_CONFIG, ONBOARDING_DEVELOPER_MODE_VARIATIONS_CONFIG } from '../../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { NullWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/test/common/nullAssignmentService.js';
-import { IsNewChatSessionContext, SessionHarnessPickerVisibleContext, SessionHasWorkspaceContext, SessionsWelcomeVisibleContext, SessionWorkspacePickerVisibleContext } from '../../../../common/contextkeys.js';
+import { IsNewChatSessionContext, SessionHarnessPickerVisibleContext, SessionHasWorkspaceContext, SessionsWelcomeVisibleContext, SessionWorkspacePickerVisibleContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { AgentHostSessionTypesAvailableContext } from '../../../../common/agentsWindowContextKeys.js';
 import { resolveNewSessionViewV2TourVariation } from '../../browser/newSessionViewV2TourVariation.js';
 import { createNewSessionViewV2Tour, NEW_SESSION_VIEW_V2_TOUR_ID } from '../../browser/tours/newSessionViewV2Tour.js';

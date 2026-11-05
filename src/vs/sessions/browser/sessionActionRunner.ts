@@ -5,7 +5,7 @@
 
 import { ActionRunner, IAction } from '../../base/common/actions.js';
 import { ISessionsService } from '../services/sessions/browser/sessionsService.js';
-import { IActiveSession } from '../services/sessions/common/sessionsManagement.js';
+import { IActiveSession } from '../../workbench/contrib/sessions/common/sessionsManagement.js';
 
 /** Activates the originating session before running a session-scoped action. */
 export class SessionActivatingActionRunner extends ActionRunner {

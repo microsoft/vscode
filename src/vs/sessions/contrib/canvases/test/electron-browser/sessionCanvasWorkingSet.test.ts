@@ -34,7 +34,7 @@ import { IEditorService, USE_MODAL_EDITOR_SETTING, UseModalEditorMode } from '..
 import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { createEditorParts, registerTestEditor, TestFileEditorInput, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
-import { IChat, ISessionCanvas } from '../../../../services/sessions/common/session.js';
+import { IChat, ISessionCanvas } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { ChatLayoutMode } from '../../../../common/chatLayout.js';
 import { BaseLayoutController } from '../../../layout/browser/baseSessionLayoutController.js';
 import { createTestHarness, makeSession } from '../../../layout/test/browser/layoutControllerTestUtils.js';

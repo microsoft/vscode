@@ -18,11 +18,11 @@ import { IEditorGroupsService } from '../../../../workbench/services/editor/comm
 import { Menus, SessionHeaderMenus } from '../../../browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { SessionIsCreatedContext, SessionItemIsMultiSelectionContext } from '../../../common/contextkeys.js';
+import { SessionIsCreatedContext, SessionItemIsMultiSelectionContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { getMainWindowHost, ISessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { resolveSessionCommandTarget } from '../../../services/sessions/browser/sessionCommandTarget.js';
-import { IChat, ISession } from '../../../services/sessions/common/session.js';
+import { IChat, ISession } from '../../../../workbench/contrib/sessions/common/session.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../common/chatWindows.js';
 
 export const OPEN_CHAT_IN_WINDOW_COMMAND_ID = 'sessions.chatWindow.openChat';

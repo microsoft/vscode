@@ -18,7 +18,7 @@ import { IChatWidget, IChatWidgetService } from '../../../../workbench/contrib/c
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../../../workbench/contrib/chat/common/model/chatViewModel.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ArtifactDetailsViewState, IArtifactActivitiesViewData, IArtifactActivityViewData } from './artifactDetailsView.js';
 
 interface IActivityPage {

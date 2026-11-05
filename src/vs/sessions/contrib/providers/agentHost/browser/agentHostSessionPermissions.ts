@@ -10,7 +10,7 @@ import { CODEX_PERMISSIONS_PRESET_LABELS, CodexSessionConfigKey, narrowCodexPerm
 import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { getAvailableSessionApprovalValues, getEffectiveSessionApprovalValue, getSessionApprovalProperty, isSessionConfigWritable, readSessionApprovalLevel, writeSessionApprovalLevel } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { type ISessionPermissionOption } from '../../../../services/sessions/common/sessionsProvider.js';
+import { type ISessionPermissionOption } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 
 const COPILOT_CLI_AGENT_PROVIDER_ID = 'copilotcli';
 const policyLockedReason = () => localize('sessionComparison.permissions.policyLocked', "Disabled by your organization");

@@ -14,15 +14,15 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { getGitHubRepositoryId, getPullRequestUrlKey, parseGitHubIssueUrl, parseGitHubPullRequestUrl } from '../../../../platform/github/common/githubUrls.js';
 import { localize } from '../../../../nls.js';
-import { getHighestPriorityPullRequestIcon } from '../../../../workbench/common/chatPullRequest.js';
-import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ISessionChatCustomization } from '../../../../workbench/contrib/chat/common/sessionChatCustomizations.js';
-import type { IChatBackgroundShell } from '../../../../workbench/contrib/chat/common/sessionChatPills.js';
-import { ICanvas as ISessionCanvas } from '../../../../workbench/contrib/canvases/common/canvas.js';
+import { getHighestPriorityPullRequestIcon } from '../../../common/chatPullRequest.js';
+import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../chat/common/chatSessionsService.js';
+import { ISessionChatCustomization } from '../../chat/common/sessionChatCustomizations.js';
+import type { IChatBackgroundShell } from '../../chat/common/sessionChatPills.js';
+import { ICanvas as ISessionCanvas } from '../../canvases/common/canvas.js';
 
 export { getHighestPriorityPullRequestIcon };
-export { type ISessionChatCustomization, SessionCustomizationKind } from '../../../../workbench/contrib/chat/common/sessionChatCustomizations.js';
-export { type ICanvas as ISessionCanvas } from '../../../../workbench/contrib/canvases/common/canvas.js';
+export { type ISessionChatCustomization, SessionCustomizationKind } from '../../chat/common/sessionChatCustomizations.js';
+export { type ICanvas as ISessionCanvas } from '../../canvases/common/canvas.js';
 
 export interface ISessionType {
 	/** Unique identifier (e.g., 'copilot-cli', 'copilot-cloud', 'agent-host-claude'). */

@@ -13,7 +13,7 @@ import { OpenEditorCommandId } from '../../../../workbench/contrib/searchEditor/
 import { Menus } from '../../../browser/menus.js';
 import { SessionsEmptyStateActions } from '../../../browser/parts/sessionsEmptyStateActions.js';
 import { SessionsEmptyStateLayout } from '../../../browser/parts/sessionsEmptyStateLayout.js';
-import { NEW_FILE_TAB_COMMAND_ID } from '../../../common/sessionCommands.js';
+import { NEW_FILE_TAB_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { EmptyFileEditorInput } from '../../editor/browser/emptyFileEditorInput.js';
 
 export class ChangesEmptyState extends Disposable {

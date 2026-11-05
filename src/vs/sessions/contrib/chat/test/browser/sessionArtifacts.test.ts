@@ -44,8 +44,8 @@ import { ToolDataSource } from '../../../../../workbench/contrib/chat/common/too
 import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { IWorkbenchGitHubService } from '../../../../../workbench/services/github/common/githubService.js';
 import { buildSessionArtifactSections, sessionArtifactLocationText, SessionArtifacts, type ISessionArtifactActions } from '../../browser/sessionArtifacts.js';
-import { type IChat, type IGitHubInfo, type ISessionArtifact, type ISessionWorkspace, SessionArtifactKind } from '../../../../services/sessions/common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { type IChat, type IGitHubInfo, type ISessionArtifact, type ISessionWorkspace, SessionArtifactKind } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IActiveSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { hashSessionIdForTelemetry } from '../../../../common/sessionsTelemetry.js';
 import { IGitHubService as ISessionsGitHubService } from '../../../github/browser/githubService.js';
 import { OPEN_PULL_REQUEST_CHANGES_ACTION_ID } from '../../../github/common/types.js';

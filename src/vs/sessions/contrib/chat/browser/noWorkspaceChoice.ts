@@ -6,8 +6,8 @@
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
-import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
-import { ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
+import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { ISessionsProvider } from '../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 
 /** How a "no workspace" choice reads in a workspace picker. */
 export interface INoWorkspaceChoicePresentation {

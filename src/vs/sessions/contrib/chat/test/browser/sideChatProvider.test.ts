@@ -28,8 +28,8 @@ import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/
 import { SessionsSideChatProviderContribution } from '../../browser/sideChatProvider.contribution.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionNavigationRequest, ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ChatInteractivity, ChatOriginKind, IChat, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { IActiveSession, ISendRequestOptions, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ChatInteractivity, ChatOriginKind, IChat, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IActiveSession, ISendRequestOptions, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 
 suite('SessionsSideChatProviderContribution', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();

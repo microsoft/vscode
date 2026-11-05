@@ -20,10 +20,10 @@ import { TogglePanelAction } from '../../workbench/browser/parts/panel/panelActi
 import { LayoutDensityMenu } from '../../workbench/browser/actions/layoutDensityActions.js';
 import { IsAuxiliaryWindowContext, IsWindowAlwaysOnTopContext, LayoutModeContext, PanelVisibleContext, SideBarVisibleContext } from '../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService, Parts } from '../../workbench/services/layout/browser/layoutService.js';
-import { SessionsWelcomeVisibleContext, DesktopLayoutContext, IsPhoneLayoutContext } from '../common/contextkeys.js';
+import { SessionsWelcomeVisibleContext, DesktopLayoutContext, IsPhoneLayoutContext } from '../../workbench/contrib/sessions/common/contextkeys.js';
 import { CustomViewVisibleContext, SessionActivityBarLayoutActionsContext } from '../common/agentsWindowContextKeys.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
-import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../common/sessionConfig.js';
+import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../workbench/contrib/sessions/common/sessionConfig.js';
 
 MenuRegistry.appendMenuItem(AgentsWindowMenus.TitleBarContext, {
 	title: localize('layoutDensity', "Layout Density"),

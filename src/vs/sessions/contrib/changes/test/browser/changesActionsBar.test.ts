@@ -28,8 +28,8 @@ import { NullTelemetryService } from '../../../../../platform/telemetry/common/t
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IChatPetService } from '../../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { Menus } from '../../../../browser/menus.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { IChat, ISessionChangeset, ISessionChangesetOperation, ISessionWorkspace, ISessionFolder, SessionChangesetOperationScope, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { IActiveSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IChat, ISessionChangeset, ISessionChangesetOperation, ISessionWorkspace, ISessionFolder, SessionChangesetOperationScope, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IChangesSessionObservables, IChangesSessionScope, IChangesViewService } from '../../common/changesViewService.js';
 import { actionsNamingSession, ChangesActionsBar, createChangesSessionScope } from '../../browser/changesView.js';
 import { ActiveSessionHost, SessionHostKind } from '../../../../services/sessions/browser/sessionHost.js';

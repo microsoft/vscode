@@ -9,8 +9,8 @@ import { autorun } from '../../../base/common/observable.js';
 import { isEqual } from '../../../base/common/resources.js';
 import { IContextKey, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
-import { SessionHeaderTargetsChatContext, SessionToolbarShowsSessionContext } from '../../common/contextkeys.js';
-import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
+import { SessionHeaderTargetsChatContext, SessionToolbarShowsSessionContext } from '../../../workbench/contrib/sessions/common/contextkeys.js';
+import { IActiveSession } from '../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
 import { SessionHeaderBar } from './sessionHeaderBar.js';
 

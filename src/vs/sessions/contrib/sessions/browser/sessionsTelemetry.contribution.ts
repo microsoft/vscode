@@ -23,11 +23,11 @@ import { IChatEntitlementService } from '../../../../workbench/services/chat/com
 import { getExcludes, ISearchConfiguration, ISearchService, QueryType } from '../../../../workbench/services/search/common/search.js';
 import { AgentFeedbackKind, IAgentFeedbackAddedEvent, IAgentFeedbackConvertedEvent, IAgentFeedbackReplyAddedEvent, IAgentFeedbackService, IAgentFeedbackSubmittedEvent } from '../../agentFeedback/browser/agentFeedbackService.js';
 import { ISessionsTasksService } from '../../chat/browser/sessionsTasksService.js';
-import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../services/sessions/common/session.js';
-import { ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
+import { ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
-import { ISendRequestOptions, ISessionChangesetOperationInvokedEvent, ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
+import { ISendRequestOptions, ISessionChangesetOperationInvokedEvent, ISessionsProvider } from '../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { classifySessionWorkspaceTopology, getNonArchivedSessionListCount, getSessionsTelemetryProviderId, hashSessionIdForTelemetry } from '../../../common/sessionsTelemetry.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';

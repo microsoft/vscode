@@ -14,7 +14,7 @@ import { IEditorGroupsService } from '../../../../../workbench/services/editor/c
 import { CanvasInput } from '../../../../../workbench/contrib/canvases/common/canvas.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
-import { ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { WindowCanvasInput } from '../../../../services/canvas/browser/windowCanvasService.js';
 
 const PULL_REQUEST_OVERVIEW_VIEW_TYPE = 'PullRequestOverview';

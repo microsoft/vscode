@@ -10,7 +10,7 @@ import { autorun, constObservable, derived, observableValue } from '../../../../
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IGitHubPullRequestRef } from '../../../../services/sessions/common/session.js';
+import { IGitHubPullRequestRef } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IGitHubService } from '../../browser/githubService.js';
 import { GitHubPullRequestCIModel } from '../../browser/models/githubPullRequestCIModel.js';
 import { GitHubPullRequestModel } from '../../browser/models/githubPullRequestModel.js';

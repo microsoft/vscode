@@ -9,7 +9,7 @@ import { derived, IObservable, ISettableObservable, observableValue } from '../.
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ChatSendResult, IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/constants.js';
-import { ISession } from '../../../services/sessions/common/session.js';
+import { ISession } from '../../../../workbench/contrib/sessions/common/session.js';
 import { buildFixCIPrompt, countRequiredChecks } from '../../changes/browser/checksActions.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { GitHubPullRequestCIModel } from '../../github/browser/models/githubPullRequestCIModel.js';

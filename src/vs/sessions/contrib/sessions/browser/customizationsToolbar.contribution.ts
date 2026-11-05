@@ -39,7 +39,7 @@ import { IEditorService } from '../../../../workbench/services/editor/common/edi
 import { AICustomizationManagementSection } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
-import { ISession } from '../../../services/sessions/common/session.js';
+import { ISession } from '../../../../workbench/contrib/sessions/common/session.js';
 import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { SessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { CanvasesEnabledSettingId } from '../../../../platform/agentHost/common/agentService.js';

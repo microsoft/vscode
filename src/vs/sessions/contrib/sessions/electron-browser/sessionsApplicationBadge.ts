@@ -18,8 +18,8 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IColorTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND } from '../../../../workbench/common/theme.js';
-import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISession, SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { BlockedSessions } from '../../blockedSessions/browser/blockedSessions.js';
 
 export const SESSIONS_APPLICATION_BADGE_SETTING = 'sessions.showApplicationBadge';

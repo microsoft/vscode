@@ -24,7 +24,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { Link } from '../../../../../platform/opener/browser/link.js';
 import { getDevTunnelsDetail, getGitHubEnvironmentsDetail, getOffDetail, GitHubEnvironmentsAvailability, RemoteConnectionsMethod, RemoteConnectionsSharing, RemoteConnectionsState } from '../../../../../workbench/contrib/chat/electron-browser/remoteConnectionsSharing.js';
 import { IPreferencesService } from '../../../../../workbench/services/preferences/common/preferences.js';
-import { TOGGLE_REMOTE_CONNECTIONS_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { TOGGLE_REMOTE_CONNECTIONS_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 
 function getMethodLabel(method: Exclude<RemoteConnectionsMethod, 'off'>): string {
 	return method === 'devTunnel'

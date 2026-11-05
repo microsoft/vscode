@@ -12,8 +12,8 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
-import { SessionPrimaryPullRequestOperationContext } from '../../../../common/contextkeys.js';
-import { ISessionChangeset, ISessionChangesetOperation } from '../../../../services/sessions/common/session.js';
+import { SessionPrimaryPullRequestOperationContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { ISessionChangeset, ISessionChangesetOperation } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { GitHubPullRequestCIModel } from '../../../github/browser/models/githubPullRequestCIModel.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { ActiveSessionState, IChangesSessionObservables, IChangesSessionScope } from '../../common/changesViewService.js';

@@ -32,8 +32,8 @@ import { automationTriggerChoices, canEditAutomationTriggers, hasAutomationEvent
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IWorkbenchGitHubService } from '../../../../../workbench/services/github/common/githubService.js';
 import { AgentSessionProviders } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
-import { GITHUB_REMOTE_FILE_SCHEME } from '../../../../services/sessions/common/session.js';
-import { ISessionsProviderAutomations } from '../../../../services/sessions/common/sessionsProvider.js';
+import { GITHUB_REMOTE_FILE_SCHEME } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionsProviderAutomations } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { CloudAutomationToolCatalog, GitHubCloudAutomationStore, ICloudAutomationEntry, ICloudAutomationHistoryEntry } from './githubCloudAutomationStore.js';
 
 interface ICloudAutomationCatalogueItem {

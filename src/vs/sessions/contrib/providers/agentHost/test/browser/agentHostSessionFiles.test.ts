@@ -31,7 +31,7 @@ import {
 } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CustomizationIndex } from '../../../../../../workbench/contrib/chat/common/agentHostSessionCustomizations.js';
 import { TestCustomizationJobScheduler } from '../../../../../../workbench/contrib/chat/test/common/testCustomizationJobScheduler.js';
-import type { ISessionWorkspace } from '../../../../../services/sessions/common/session.js';
+import type { ISessionWorkspace } from '../../../../../../workbench/contrib/sessions/common/session.js';
 import { IAgentHostAdapterOptions } from '../../browser/baseAgentHostSessionsProvider.js';
 import {
 	createIncrementalChatFileEditsParser,

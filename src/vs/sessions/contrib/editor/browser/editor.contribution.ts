@@ -28,7 +28,7 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { Menus } from '../../../browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { AgentWorkbenchLayout } from '../../../services/layout/browser/sessionsHostLayoutService.js';
-import { DesktopLayoutContext } from '../../../common/contextkeys.js';
+import { DesktopLayoutContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { CustomViewVisibleContext, EditorMaximizedContext } from '../../../common/agentsWindowContextKeys.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';

@@ -12,7 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { McpServerStatus } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { CustomizationType, ResponsePartKind, ToolCallContributorKind, ToolCallStatus, type Customization, type ResponsePart } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { SessionCustomizationKind } from '../../../../../services/sessions/common/session.js';
+import { SessionCustomizationKind } from '../../../../../../workbench/contrib/sessions/common/session.js';
 import { autorun, observableValue } from '../../../../../../base/common/observable.js';
 import { TestCustomizationJobScheduler } from '../../../../../../workbench/contrib/chat/test/common/testCustomizationJobScheduler.js';
 import { createIncrementalChatCustomizationRefsParser, createProgressiveChatCustomizations, CustomizationIndex, type ICustomizationRefChatState, CustomizationRefKind, parseTurnCustomizationRefs, resolveChatCustomizations } from '../../../../../../workbench/contrib/chat/common/agentHostSessionCustomizations.js';

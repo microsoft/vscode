@@ -8,7 +8,7 @@ import { basename, extUriBiasedIgnorePathCase } from '../../../../base/common/re
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ISessionFileChange } from '../../../services/sessions/common/session.js';
+import { ISessionFileChange } from '../../../../workbench/contrib/sessions/common/session.js';
 import type { IWorktreeSuggestion } from './worktreeSuggestionService.js';
 
 /** Describes the uncommitted changes that make a worktree worthwhile, e.g. "main has 3 uncommitted files." */

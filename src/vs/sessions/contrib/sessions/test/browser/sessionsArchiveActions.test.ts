@@ -25,12 +25,12 @@ import { IChatSessionItemArchiveState } from '../../../../../workbench/contrib/c
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { getSessionGroupSectionId, ISessionGroupsService, SessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
-import { DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { SessionComparisonService } from '../../../../services/sessions/browser/sessionComparisonService.js';
-import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
+import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { ISessionsListModelService, SessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
-import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISession } from '../../../../services/sessions/common/session.js';
+import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionGroupItem, ISessionSection, SessionsGrouping, SessionsList, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { ISessionsListNotice, SessionsListNotification } from '../../browser/views/sessionsListNotification.js';
 import { SessionsView } from '../../browser/views/sessionsView.js';

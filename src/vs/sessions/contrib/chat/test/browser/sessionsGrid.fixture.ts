@@ -21,11 +21,11 @@ import { GRID_GAP_SASH_CLASS } from '../../../../../workbench/browser/parts/part
 import { ISessionsChatBackground } from '../../../../services/chatBackground/browser/chatBackgroundService.js';
 import { IChatViewFactory } from '../../../../services/chatView/browser/chatViewFactory.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ChatOriginKind, IChat, ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
-import { IActiveSession, IHostSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ChatOriginKind, IChat, ISession, ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IActiveSession, IHostSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../../../../common/layoutConstants.js';
-import { SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
+import { SessionsChatTabsMode } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { createSessionsWorkbenchFixture } from './sessionsWorkbenchFixtureUtils.js';
 
 import '../../../../browser/media/style.css';

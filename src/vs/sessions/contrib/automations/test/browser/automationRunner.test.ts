@@ -15,7 +15,7 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { IAutomationDescriptor, IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationCatalogueState, AutomationMutationUncertainError, IAutomationService, IAutomationRunRequestResult } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsProvider, ISessionsProviderAutomations } from '../../../../services/sessions/common/sessionsProvider.js';
+import { ISessionsProvider, ISessionsProviderAutomations } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { AutomationRunner } from '../../browser/automationRunner.js';
 
 suite('AutomationRunner', () => {

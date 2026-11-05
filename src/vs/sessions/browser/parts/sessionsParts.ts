@@ -11,8 +11,8 @@ import { InstantiationType, registerSingleton } from '../../../platform/instanti
 import { SessionsPart } from './sessionsPart.js';
 import { MobileSessionsPart } from './mobile/mobileSessionsPart.js';
 import { SessionView } from './sessionView.js';
-import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
-import { ISession } from '../../services/sessions/common/session.js';
+import { IActiveSession } from '../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISession } from '../../../workbench/contrib/sessions/common/session.js';
 import { IProgressIndicator } from '../../../platform/progress/common/progress.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { ISessionGridSlot, ISessionsPartService, IToggleMaximizeSessionEvent, SessionGridRequest } from '../../services/sessions/browser/sessionsPartService.js';

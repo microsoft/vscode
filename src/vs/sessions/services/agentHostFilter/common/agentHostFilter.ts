@@ -7,7 +7,7 @@ import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IAgentHostGroup } from '../../../common/agentHostSessionsProvider.js';
+import { IAgentHostGroup } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 
 /**
  * Connection status of a host surfaced in the host filter.

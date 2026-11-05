@@ -19,12 +19,12 @@ import { IViewsService } from '../../../../../../workbench/services/views/common
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { IAgentWorkbenchLayoutService } from '../../../../../browser/workbench.js';
 import { ISessionsHostLayoutService } from '../../../../../services/layout/browser/sessionsHostLayoutService.js';
-import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../common/agentHostSessionsProvider.js';
+import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { IChat } from '../../../../../services/sessions/common/session.js';
-import { ISessionInputPickerVisibility, SessionInputPickerVisibility } from '../../../../../services/sessions/common/sessionPickerVisibility.js';
-import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
+import { IChat } from '../../../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionInputPickerVisibility, SessionInputPickerVisibility } from '../../../../../../workbench/contrib/sessions/common/sessionPickerVisibility.js';
+import { IActiveSession } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { ISessionChangesService } from '../../../../changes/browser/sessionChangesService.js';
 import { AgentHostSessionConfigPicker } from '../../browser/agentHostSessionConfigPicker.js';
 import { IWorktreeSuggestionService } from '../../../../worktreeSuggestion/browser/worktreeSuggestionService.js';

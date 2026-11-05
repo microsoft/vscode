@@ -17,8 +17,8 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { NullOpenerService } from '../../../../../platform/opener/test/common/nullOpenerService.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { SessionInputPickerVisibility } from '../../../../services/sessions/common/sessionPickerVisibility.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { SessionInputPickerVisibility } from '../../../../../workbench/contrib/sessions/common/sessionPickerVisibility.js';
+import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { NEW_SESSION_BANNERS_MIN_CREATED_SESSIONS, NewSessionBannerPriority, NewSessionBanners } from '../../../chat/common/newSessionBanners.js';
 import { WorktreeSuggestionVariant } from '../../common/worktreeSuggestion.js';
 import { WorktreeSuggestionController } from '../../browser/worktreeSuggestionController.js';

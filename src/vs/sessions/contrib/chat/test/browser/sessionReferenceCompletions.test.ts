@@ -23,8 +23,8 @@ import { IChatWidget } from '../../../../../workbench/contrib/chat/browser/chat.
 import { IDynamicVariable } from '../../../../../workbench/contrib/chat/common/attachments/chatVariables.js';
 import { ChatRequestDynamicVariablePart } from '../../../../../workbench/contrib/chat/common/requestParser/chatParserTypes.js';
 import { getSessionReferenceResource } from '../../../../services/sessions/browser/sessionReference.js';
-import { ISession } from '../../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { SessionReferenceCompletions } from '../../browser/sessionReferenceCompletions.js';
 
 suite('SessionReferenceCompletions', () => {

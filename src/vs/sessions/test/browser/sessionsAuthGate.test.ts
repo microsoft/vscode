@@ -7,7 +7,7 @@ import assert from 'assert';
 import { isWeb } from '../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { ConditionalAuthState, conditionalAuthState, resolveSignedOutWindowGate, shouldShowGitHubWorkspaceGroupSignIn, SignedOutWindowGate } from '../../browser/sessionsAuthGate.js';
-import { SessionTypeAuthRequirement } from '../../services/sessions/common/session.js';
+import { SessionTypeAuthRequirement } from '../../../workbench/contrib/sessions/common/session.js';
 
 suite('Sessions - Auth Gate', () => {
 

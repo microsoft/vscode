@@ -8,8 +8,8 @@ import { IObservable } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
-import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
-import { ISession } from '../common/session.js';
+import { isAgentHostProvider } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { ISession } from '../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
 
 /*

@@ -35,13 +35,13 @@ import { registerSessionActivityBarExternalHost, SESSION_ACTIVITY_BAR_COLUMN_WID
 import { TitlebarPart } from '../../../browser/parts/titlebarPart.js';
 import { CustomViewVisibleContext } from '../../../common/agentsWindowContextKeys.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../../../common/layoutConstants.js';
-import { SESSION_ACTIVITY_BAR_SETTING } from '../../../common/sessionConfig.js';
+import { SESSION_ACTIVITY_BAR_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { SessionsChatSurface } from '../../../services/chatBackground/browser/sessionsChatSurface.js';
 import { ActiveSessionHost, bindSessionHostScopeContext, getMainWindowHost, ISessionHost, ISessionHostService, SessionHostKind } from '../../../services/sessions/browser/sessionHost.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IChatHostOpenerService } from '../../../services/sessions/browser/chatHostOpener.js';
-import { IChat, ISession } from '../../../services/sessions/common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { IChat, ISession } from '../../../../workbench/contrib/sessions/common/session.js';
+import { IActiveSession, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { bindSessionScopeContextKeys } from '../../changes/browser/sessionActionsHost.js';
 import { SessionChangesEditorFileListContext } from '../../changes/common/changes.js';
 import { IChangesViewService } from '../../changes/common/changesViewService.js';

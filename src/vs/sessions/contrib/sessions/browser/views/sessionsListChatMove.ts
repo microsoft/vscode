@@ -12,9 +12,9 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { ChatInteractivity, ChatOriginKind, getChatHarness, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { ISessionChatMoveTarget, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { SessionMoveRefusedError } from '../../../../services/sessions/common/sessionsProvider.js';
+import { ChatInteractivity, ChatOriginKind, getChatHarness, IChat, ISession, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionChatMoveTarget, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { SessionMoveRefusedError } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 
 /**
  * Whether dragging chats and sessions to move them is on: the Move Chats setting is enabled and AI features are not

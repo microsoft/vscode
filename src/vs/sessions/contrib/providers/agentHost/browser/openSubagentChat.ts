@@ -18,10 +18,10 @@ import { IOpenSubagentChatContext, OpenSubagentChatActionViewItem, shouldShowSub
 import { fillSessionChatDragData } from '../../../../browser/dnd.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
-import { IHostSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { isAgentHostProvider } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { IHostSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionHostService, SessionHostKind } from '../../../../services/sessions/browser/sessionHost.js';
-import { IChat } from '../../../../services/sessions/common/session.js';
+import { IChat } from '../../../../../workbench/contrib/sessions/common/session.js';
 
 export { OpenSubagentChatActionViewItem, shouldShowSubagentModel };
 

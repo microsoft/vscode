@@ -7,7 +7,7 @@ import { constObservable, derived, derivedOpts, IObservable, ObservablePromise }
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { BRANCH_CHANGES_CHANGESET_ID, gitHubInfoEqual, IChat, IGitHubInfo, ISessionChangeset, ISessionChangesetOperation, ISessionChangesetOperationTarget, ISessionFileChange, ISessionWorkspace, sessionFileChangesEqual } from '../../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, gitHubInfoEqual, IChat, IGitHubInfo, ISessionChangeset, ISessionChangesetOperation, ISessionChangesetOperationTarget, ISessionFileChange, ISessionWorkspace, sessionFileChangesEqual } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { toPRContentUri } from '../../../github/common/utils.js';
 

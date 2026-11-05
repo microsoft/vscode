@@ -24,10 +24,10 @@ import { workbenchInstantiationService } from '../../../../../../workbench/test/
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
 import { ISessionHost, ISessionHostService } from '../../../../../services/sessions/browser/sessionHost.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../common/agentHostSessionsProvider.js';
-import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
-import { IChat } from '../../../../../services/sessions/common/session.js';
-import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
+import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
+import { IChat } from '../../../../../../workbench/contrib/sessions/common/session.js';
+import { IActiveSession } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { OpenSubagentChatActionViewItem, OpenSubagentChatActionViewItemContribution, shouldShowSubagentModel } from '../../browser/openSubagentChat.js';
 import { ITestSessionsService } from '../../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 

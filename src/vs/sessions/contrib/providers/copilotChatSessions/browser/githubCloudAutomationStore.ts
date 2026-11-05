@@ -25,7 +25,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { AutomationCatalogueState, AutomationMutationUncertainError, AutomationRepositoryOwnershipUnavailableError, AutomationTriggerCatalog, AutomationUnavailableError, IAutomationRefreshOptions, IAutomationWorkspaceTarget } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IWorkbenchGitHubService } from '../../../../../workbench/services/github/common/githubService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
-import { GITHUB_REMOTE_FILE_SCHEME } from '../../../../services/sessions/common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME } from '../../../../../workbench/contrib/sessions/common/session.js';
 
 const REPOSITORIES_STORAGE_KEY = 'cloudAutomations.repositories';
 const REPOSITORY_CAPABILITY_FAILURE_RETRY_DELAY = 30_000;

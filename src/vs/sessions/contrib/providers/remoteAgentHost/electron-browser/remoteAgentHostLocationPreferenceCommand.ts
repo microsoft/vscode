@@ -25,8 +25,8 @@ import { IRemoteAgentHostLocationPreferenceService } from '../../../../../platfo
 import { ChangeRemoteAgentHostLocationPreferenceCommandId } from '../../../../../platform/agentHost/common/remoteAgentHostLocationPreferenceDialog.js';
 import { CHAT_CATEGORY } from '../../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
-import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { changeRemoteAgentHostLocationPreference } from '../browser/remoteHostOptions.js';
 

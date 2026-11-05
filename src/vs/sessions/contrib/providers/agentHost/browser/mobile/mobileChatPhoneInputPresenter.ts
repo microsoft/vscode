@@ -24,7 +24,7 @@ import { getModelProviderIcon } from '../../../../../../workbench/contrib/chat/b
 import { IChatMode } from '../../../../../../workbench/contrib/chat/common/chatModes.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IWorkbenchLayoutService } from '../../../../../../workbench/services/layout/browser/layoutService.js';
-import { type IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../../common/agentHostSessionsProvider.js';
+import { type IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { IFocusedSessionHostService } from '../../../../../services/sessions/browser/sessionHost.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { showMobilePickerSheet, IMobilePickerSheetItem } from '../../../../../browser/parts/mobile/mobilePickerSheet.js';

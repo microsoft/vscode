@@ -21,10 +21,10 @@ import { IEditorService } from '../../../../../workbench/services/editor/common/
 import { Menus, SessionActivityBarGroup } from '../../../../browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionsHostLayoutService } from '../../../../services/layout/browser/sessionsHostLayoutService.js';
-import { sessionActivityBarChatActionContext, SessionHasPullRequestContext } from '../../../../common/contextkeys.js';
-import { IGitHubPullRequestRef, ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { sessionActivityBarChatActionContext, SessionHasPullRequestContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { IGitHubPullRequestRef, ISession, ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import '../../browser/pullRequestActions.js';
 import { createPullRequestChangesEditorInput } from '../../browser/pullRequestChangesMultiDiffSourceResolver.js';
 import { SessionPullRequestPresentationModel } from '../../browser/pullRequestIconStatus.js';

@@ -10,8 +10,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { createPullRequestChatMeta, createPullRequestConversationMeta, createPullRequestOperationMeta, createPullRequestValidationMeta, PREPARE_PULL_REQUEST_OPERATION_ID, readPullRequestDetailsResult } from '../../../../../platform/agentHost/common/meta/agentPullRequestOperationMeta.js';
 import { InvokeChangesetOperationResult } from '../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
-import { ISessionChangesetOperation } from '../../../../services/sessions/common/session.js';
-import { ISendRequestOptions } from '../../../../services/sessions/common/sessionsProvider.js';
+import { ISessionChangesetOperation } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ISendRequestOptions } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { ISessionPullRequestChatOptions, ISessionPullRequestCreation, ISessionPullRequestDetails, ISessionPullRequestOperation, ISessionPullRequestOptions } from '../../../changes/common/pullRequestCreation.js';
 
 export class AgentHostPullRequestCreation implements ISessionPullRequestCreation {

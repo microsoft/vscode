@@ -33,11 +33,11 @@ import { ICommandService, CommandsRegistry } from '../../../../../../platform/co
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsPartService } from '../../../../../services/sessions/browser/sessionsPartService.js';
-import { IAgentHostSessionsProvider } from '../../../../../common/agentHostSessionsProvider.js';
-import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
+import { IAgentHostSessionsProvider } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { IActiveSession } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { SessionView } from '../../../../../browser/parts/sessionView.js';
-import { ISessionWorkspace, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../../services/sessions/common/session.js';
-import { SessionWorkspacePickerGroupContext } from '../../../../../common/contextkeys.js';
+import { ISessionWorkspace, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../../../workbench/contrib/sessions/common/session.js';
+import { SessionWorkspacePickerGroupContext } from '../../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ConnectMissionControlEnvironmentCommand } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/missionControlEnvironmentActions.js';
 import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
 import { isIMenuItem, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';

@@ -13,7 +13,7 @@ import { SubmenuAction, IAction } from '../../../../../base/common/actions.js';
 import { isString } from '../../../../../base/common/types.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { ISessionWorkspaceBrowseAction } from '../../../../services/sessions/common/session.js';
+import { ISessionWorkspaceBrowseAction } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 

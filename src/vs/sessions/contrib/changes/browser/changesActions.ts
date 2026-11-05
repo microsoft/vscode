@@ -30,10 +30,10 @@ import { ISessionsHostLayoutService } from '../../../services/layout/browser/ses
 import { Menus } from '../../../browser/menus.js';
 import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID, AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID, AGENT_HOST_SYNC_CHANGESET_OPERATION_ID } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { IHostSession } from '../../../services/sessions/common/sessionsManagement.js';
+import { IHostSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { resolveSessionCommandTarget } from '../../../services/sessions/browser/sessionCommandTarget.js';
-import { IChat, ISessionChangeset, ISessionChangesetOperation, ISessionFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
-import { ISessionChangesStatsCache, readSessionChangesStats } from '../../../services/sessions/common/sessionChangesStatsCache.js';
+import { IChat, ISessionChangeset, ISessionChangesetOperation, ISessionFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionChangesStatsCache, readSessionChangesStats } from '../../../../workbench/contrib/sessions/common/sessionChangesStatsCache.js';
 import { getChangesOfSession, IChangesSessionObservables, IChangesViewService } from '../common/changesViewService.js';
 import { ChangesMultiDiffSourceResolver } from './changesMultiDiffSourceResolver.js';
 import { ISessionChangesService } from './sessionChangesService.js';

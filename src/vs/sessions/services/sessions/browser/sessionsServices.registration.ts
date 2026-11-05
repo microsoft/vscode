@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { ISessionChangesStatsCache, SessionChangesStatsCache } from '../common/sessionChangesStatsCache.js';
+import { ISessionChangesStatsCache, SessionChangesStatsCache } from '../../../../workbench/contrib/sessions/common/sessionChangesStatsCache.js';
 
 // The session services are implemented in modules that do not register themselves, so that a window loads them only
 // when its entry point imports this module.

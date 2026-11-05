@@ -7,8 +7,8 @@ import { Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { IObservable } from '../../../base/common/observable.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
-import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
-import { IChat } from '../../services/sessions/common/session.js';
+import { IActiveSession } from '../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IChat } from '../../../workbench/contrib/sessions/common/session.js';
 import { SessionHeaderBar } from './sessionHeaderBar.js';
 
 export interface IChatHeaderContext {

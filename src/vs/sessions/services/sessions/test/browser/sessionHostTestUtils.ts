@@ -15,8 +15,8 @@ import { IEditorGroupsService } from '../../../../../workbench/services/editor/c
 import { ActiveSessionHost, IFocusedSessionHostService, ISessionHost, ISessionHostService, SessionHostKind } from '../../browser/sessionHost.js';
 import { SessionHostService } from '../../browser/sessionHostService.js';
 import { ISessionsService } from '../../browser/sessionsService.js';
-import { IChat } from '../../common/session.js';
-import { IActiveSession } from '../../common/sessionsManagement.js';
+import { IChat } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 
 /**
  * The grid state a test models on its `ISessionsService` mock, from which the host stubs derive what the windows show:

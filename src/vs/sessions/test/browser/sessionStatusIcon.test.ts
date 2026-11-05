@@ -11,7 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/comm
 import { TestAccessibilityService } from '../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { SessionStatusIcon } from '../../browser/sessionStatusIcon.js';
 import { ISessionsListModelService } from '../../services/sessions/browser/sessionsListModelService.js';
-import { SessionStatus } from '../../services/sessions/common/session.js';
+import { SessionStatus } from '../../../workbench/contrib/sessions/common/session.js';
 
 interface IRenderedIcon {
 	readonly className: string;

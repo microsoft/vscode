@@ -27,7 +27,7 @@ import { ComponentFixtureContext, createEditorServices, defineComponentFixture, 
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IFormState, IValidationState, renderForm } from '../../browser/automationDialog.js';
 import '../../browser/media/automationDialog.css';
 

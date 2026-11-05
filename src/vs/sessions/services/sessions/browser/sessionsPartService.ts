@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IActiveSession } from '../common/sessionsManagement.js';
-import { IChat, ISession } from '../common/session.js';
-import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../common/workspaceSelection.js';
+import { IActiveSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IChat, ISession } from '../../../../workbench/contrib/sessions/common/session.js';
+import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../../workbench/contrib/sessions/common/workspaceSelection.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IAgentsWindowDraft } from '../../../../platform/window/common/window.js';

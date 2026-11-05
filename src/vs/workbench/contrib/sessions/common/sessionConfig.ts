@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ResolveSessionConfigResult } from '../../platform/agentHost/common/state/protocol/commands.js';
+import type { ResolveSessionConfigResult } from '../../../../platform/agentHost/common/state/protocol/commands.js';
 
 export const USE_WORKTREE_SETTING = 'sessions.useWorktree';
 

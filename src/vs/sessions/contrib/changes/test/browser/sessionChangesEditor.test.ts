@@ -33,7 +33,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ISessionChangesService } from '../../browser/sessionChangesService.js';
 import { stubSessionHosts } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IChangesViewService } from '../../common/changesViewService.js';
 import { InstantiationService } from '../../../../../platform/instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';

@@ -24,8 +24,8 @@ import type { IInstantiationService } from '../../../../../platform/instantiatio
 import { Target } from '../../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { AICustomizationManagementCommands } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
 import { AICustomizationManagementSection } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
-import type { ISession } from '../../../../services/sessions/common/session.js';
-import type { IHostSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import type { ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
+import type { IHostSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import type { ISessionChatSource } from '../../../../services/sessions/browser/sessionHost.js';
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
 import { CopilotCLISessionType } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';

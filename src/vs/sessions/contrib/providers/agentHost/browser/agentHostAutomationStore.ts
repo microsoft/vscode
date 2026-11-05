@@ -31,7 +31,7 @@ import { type IAgentCustomizationScope, IAgentHostActiveClientService } from '..
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
 import { assertAutomationSessionTemplate, type AutomationTarget, type IAutomationDescriptor, type IAutomationRun, type IAutomationSchedule, type IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationUnavailableError, type AutomationCatalogueState, type AutomationHistoryState, assertAutomationSessionTemplateAuthority, type AutomationMutationGuard, type IAutomationCustomizationChoice, type IAutomationRunRequestResult, type ICreateAutomationOptions, type IGuardedAutomationUpdateResult, serializeAutomationEditableState, type IUpdateAutomationOptions, type IDeleteAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
-import type { ISessionsProviderAutomations } from '../../../../services/sessions/common/sessionsProvider.js';
+import type { ISessionsProviderAutomations } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 
 const MUTATION_TIMEOUT_MS = 30_000;
 const LEGACY_RUN_ARCHIVE_VERSION = 1;

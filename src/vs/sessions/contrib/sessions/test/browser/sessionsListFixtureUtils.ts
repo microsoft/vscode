@@ -62,7 +62,7 @@ import { ComponentFixtureContext, ComponentFixtureOptions, createEditorServices,
 import { TestProductService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { TestQuickInputService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { Menus } from '../../../../browser/menus.js';
-import { IsPhoneLayoutContext, SessionsListRearrangeContext } from '../../../../common/contextkeys.js';
+import { IsPhoneLayoutContext, SessionsListRearrangeContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { ISessionsListPresentation } from '../../../../services/presentation/browser/sessionsListPresentation.js';
 import { DefaultSessionsListPresentation } from '../../../../services/presentation/browser/defaultSessionsListPresentation.js';
@@ -74,11 +74,11 @@ import { ISessionsProvidersService } from '../../../../services/sessions/browser
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
 import { sessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
-import { IChat, ISession, ISessionEnvironment } from '../../../../services/sessions/common/session.js';
-import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
-import { ISessionComparison, ISessionComparisonService } from '../../../../services/sessions/common/sessionComparison.js';
-import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { buildTestSession, ITestChat, ITestChatSpec, ITestSession, ITestSessionSpec } from '../../../../services/sessions/test/common/testSessionBuilder.js';
+import { IChat, ISession, ISessionEnvironment } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
+import { ISessionComparison, ISessionComparisonService } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
+import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { buildTestSession, ITestChat, ITestChatSpec, ITestSession, ITestSessionSpec } from '../../../../../workbench/contrib/sessions/test/common/testSessionBuilder.js';
 import { BlockedSessionReason, BlockedSessions } from '../../../blockedSessions/browser/blockedSessions.js';
 import { NEW_SESSION_ACTION_ID } from '../../../chat/common/constants.js';
 import { IInboxNotificationsService, InboxNotificationsSortMode } from '../../../inboxOne/common/inboxNotificationsService.js';

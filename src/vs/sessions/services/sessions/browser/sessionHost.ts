@@ -15,8 +15,8 @@ import { createDecorator, IInstantiationService } from '../../../../platform/ins
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { GroupIdentifier } from '../../../../workbench/common/editor.js';
 import { IEditorGroup } from '../../../../workbench/services/editor/common/editorGroupsService.js';
-import { IChat } from '../common/session.js';
-import { IActiveSession, IHostSession, IShownChat } from '../common/sessionsManagement.js';
+import { IChat } from '../../../../workbench/contrib/sessions/common/session.js';
+import { IActiveSession, IHostSession, IShownChat } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 
 export const enum SessionHostKind {
 	/** The main window of the Agents window. */

@@ -8,14 +8,14 @@ import { constObservable, IObservable } from '../../../base/common/observable.js
 import { URI } from '../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
-import { IAgentHostSessionsProvider, IAgentMergeClientState } from '../../common/agentHostSessionsProvider.js';
+import { IAgentHostSessionsProvider, IAgentMergeClientState } from '../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { getSessionAgentMergeConfigurationObservable, getSessionAgentMergeStateObservable } from '../../browser/sessionAgentMerge.js';
 import { ArtifactIntegrationsSettingId } from '../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { IConfigurationChangeEvent } from '../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
-import { IChat, ISession } from '../../services/sessions/common/session.js';
-import { ISessionsProvider } from '../../services/sessions/common/sessionsProvider.js';
+import { IChat, ISession } from '../../../workbench/contrib/sessions/common/session.js';
+import { ISessionsProvider } from '../../../workbench/contrib/sessions/common/sessionsProvider.js';
 
 suite('sessionAgentMerge', () => {
 

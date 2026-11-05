@@ -53,10 +53,10 @@ import { ILanguageModelsService } from '../../../../workbench/contrib/chat/commo
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { Menus } from '../../../browser/menus.js';
 import { activeSessionViewBackground, activeSessionViewForeground, agentsPanelBackground, inactiveSessionViewBackground } from '../../../common/theme.js';
-import { IWorkspaceSelectionSnapshot } from '../../../common/workspaceSelection.js';
+import { IWorkspaceSelectionSnapshot } from '../../../../workbench/contrib/sessions/common/workspaceSelection.js';
 import { ISessionsProvidersService, observeSessionSandboxToggle } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ActiveSessionHost, ISessionHost, ISessionHostService, SessionHostKind } from '../../../services/sessions/browser/sessionHost.js';
-import { ISessionInputPickerVisibility, SessionInputPickerVisibility } from '../../../services/sessions/common/sessionPickerVisibility.js';
+import { ISessionInputPickerVisibility, SessionInputPickerVisibility } from '../../../../workbench/contrib/sessions/common/sessionPickerVisibility.js';
 import { WorkbenchHoverDelegate } from '../../../../platform/hover/browser/hover.js';
 import { HoverStyle } from '../../../../base/browser/ui/hover/hover.js';
 import { readNewChatDraftState, writeNewChatDraftState } from '../common/newChatDraftState.js';

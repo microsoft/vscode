@@ -5,8 +5,8 @@
 
 import { localize } from '../../nls.js';
 import { ContextKeyExpr, RawContextKey } from '../../platform/contextkey/common/contextkey.js';
-import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from './sessionConfig.js';
-import { DesktopLayoutContext, IsPhoneLayoutContext } from './contextkeys.js';
+import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../workbench/contrib/sessions/common/sessionConfig.js';
+import { DesktopLayoutContext, IsPhoneLayoutContext } from '../../workbench/contrib/sessions/common/contextkeys.js';
 
 /*
  * Context keys of the Agents window shell (title bar, custom views, docked

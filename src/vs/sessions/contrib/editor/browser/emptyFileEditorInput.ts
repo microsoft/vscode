@@ -13,7 +13,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { DockedEditorInput } from '../../../browser/dockedEditorInput.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
-import { ISessionWorkspace } from '../../../services/sessions/common/session.js';
+import { ISessionWorkspace } from '../../../../workbench/contrib/sessions/common/session.js';
 
 export class EmptyFileEditorInput extends DockedEditorInput {
 

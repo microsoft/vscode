@@ -7,7 +7,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ISessionFileChange } from '../../../services/sessions/common/session.js';
+import { ISessionFileChange } from '../../../../workbench/contrib/sessions/common/session.js';
 
 export interface IChangesEditorLabels {
 	readonly label: string;

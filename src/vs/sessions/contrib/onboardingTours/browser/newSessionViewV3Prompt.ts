@@ -20,8 +20,8 @@ import { IGitService } from '../../../../workbench/contrib/git/common/gitService
 import { getGitHubRemoteInfo, IGitHubRemoteInfo } from '../../../../workbench/contrib/git/common/utils.js';
 import { getOnboardingDeveloperModeVariation, isOnboardingDeveloperModeEnabled, OnboardingDeveloperModeVariations, ONBOARDING_DEVELOPER_MODE_VARIATIONS_CONFIG } from '../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { IWorkbenchAssignmentService } from '../../../../workbench/services/assignment/common/assignmentService.js';
-import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
-import { IHostSession } from '../../../services/sessions/common/sessionsManagement.js';
+import { isAgentHostProviderId } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { IHostSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { INewSessionComposer, INewSessionComposerService, INewSessionPromptOption, INewSessionPromptOptionsController, NEW_SESSION_PROMPT_TYPING_DURATION_MS, NewSessionPromptOptionsProgress, NewSessionPromptOptionsState } from '../../chat/browser/newSessionComposerService.js';
 import { getGitHubRepositoryFromUri } from '../../github/common/utils.js';
 import { GitHubRequestError } from '../../../../platform/github/common/githubTypes.js';

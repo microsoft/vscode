@@ -17,8 +17,8 @@ import { workbenchInstantiationService } from '../../../../../../workbench/test/
 import { IsSessionsWindowContext } from '../../../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { Menus } from '../../../../../browser/menus.js';
-import { DesktopChangesEditorTransitionContext, SessionAgentMergeEnabledContext, SessionHasOpenPullRequestContext, SessionIsArchivedContext, SessionPrimaryPullRequestOperationContext, SessionProviderIdContext } from '../../../../../common/contextkeys.js';
-import { ISessionChangeset } from '../../../../../services/sessions/common/session.js';
+import { DesktopChangesEditorTransitionContext, SessionAgentMergeEnabledContext, SessionHasOpenPullRequestContext, SessionIsArchivedContext, SessionPrimaryPullRequestOperationContext, SessionProviderIdContext } from '../../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { ISessionChangeset } from '../../../../../../workbench/contrib/sessions/common/session.js';
 import { GitHubPullRequestCIModel } from '../../../../github/browser/models/githubPullRequestCIModel.js';
 import { ActiveSessionState } from '../../../../changes/common/changesViewService.js';
 import { bindSessionActionContextKeys } from '../../../../changes/browser/sessionActionContextKeys.js';

@@ -15,9 +15,9 @@ import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessi
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { AgentSandboxEnabledSettingValue, AgentSandboxSettingId, isAgentSandboxEnabledValue } from '../../../../../platform/sandbox/common/settings.js';
 import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
-import { getSessionConfigProvider, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
-import { ISession } from '../../../../services/sessions/common/session.js';
-import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
+import { getSessionConfigProvider, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 
 /** The session-specific inputs shared by the permissions picker and its composer indicator. */
 export class AgentHostSessionSandbox {

@@ -21,7 +21,7 @@ import { searchViewIcon } from '../../../../workbench/contrib/search/browser/sea
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 import { SessionsEmptyStateActions } from '../../../browser/parts/sessionsEmptyStateActions.js';
 import { SessionsEmptyStateLayout } from '../../../browser/parts/sessionsEmptyStateLayout.js';
-import { NEW_FILE_TAB_COMMAND_ID } from '../../../common/sessionCommands.js';
+import { NEW_FILE_TAB_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { EmptyFileEditorInput } from '../../editor/browser/emptyFileEditorInput.js';

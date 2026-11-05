@@ -28,10 +28,10 @@ import { NullTelemetryService } from '../../../../../../platform/telemetry/commo
 import { IChatAcceptInputOptions, IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatModel, IChatRequestModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatViewModel } from '../../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
-import { IAgentHostSessionsProvider } from '../../../../../common/agentHostSessionsProvider.js';
+import { IAgentHostSessionsProvider } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { IChat, SessionStatus } from '../../../../../services/sessions/common/session.js';
-import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
+import { IChat, SessionStatus } from '../../../../../../workbench/contrib/sessions/common/session.js';
+import { IActiveSession } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { AgentHostCodexApprovalsPicker } from '../../browser/agentHostCodexApprovalsPicker.js';
 import { sessionChatSourceOf } from '../../../../../services/sessions/browser/sessionHost.js';
 

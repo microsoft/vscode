@@ -30,13 +30,13 @@ import { IOnboardingScenarioService, ONBOARDING_ENABLED_CONFIG } from '../../../
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../services/layout/browser/sessionsHostLayoutService.js';
-import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
-import { IsPhoneLayoutContext } from '../../../common/contextkeys.js';
+import { isAgentHostProvider } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { IsPhoneLayoutContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { isDevContainerWorktreeEnabled } from '../../../common/devContainerAgentHostService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionFileChange, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
-import { IHostSession } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
+import { ISessionFileChange, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../workbench/contrib/sessions/common/session.js';
+import { IHostSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionsProvider } from '../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { CHANGES_VIEW_ID } from '../../changes/common/changes.js';
 import { ISessionChangesService } from '../../changes/common/sessionChangesService.js';
 import { createWorktreeSuggestionTour } from '../../onboardingTours/browser/tours/worktreeSuggestionTour.js';

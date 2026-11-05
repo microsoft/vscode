@@ -10,11 +10,11 @@ import { getComparisonKey, isEqual } from '../../../../base/common/resources.js'
 import { URI } from '../../../../base/common/uri.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { CanGoBackContext, CanGoForwardContext } from '../../../common/contextkeys.js';
+import { CanGoBackContext, CanGoForwardContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { IWindowCanvasService } from '../../canvas/browser/windowCanvasService.js';
 import { ICustomViewOpenRequest, ICustomViewService } from '../../customView/browser/customViewService.js';
-import { ISession, SessionStatus } from '../common/session.js';
-import { ISessionsChangeEvent, ISessionsManagementService, IActiveSession } from '../common/sessionsManagement.js';
+import { ISession, SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionsChangeEvent, ISessionsManagementService, IActiveSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { getRecencyEntryKey, SessionRecencyEntry, SessionsRecencyHistory } from './sessionsRecencyHistory.js';
 
 export type SessionNavigationIntent = 'explicit' | 'history' | 'automatic';

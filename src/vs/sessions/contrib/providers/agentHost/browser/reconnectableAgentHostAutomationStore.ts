@@ -12,7 +12,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { supportsAgentHostAutonomousAutomations } from '../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
 import type { AutomationTarget, IAutomationDescriptor, IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationUnavailableError, type AutomationCatalogueState, type AutomationMutationGuard, type AutomationUnavailableReasonCode, type IAutomationCustomizationChoice, type IAutomationRunRequestResult, type ICreateAutomationOptions, type IDeleteAutomationOptions, type IGuardedAutomationUpdateResult, type IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
-import type { ISessionsProviderAutomations } from '../../../../services/sessions/common/sessionsProvider.js';
+import type { ISessionsProviderAutomations } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { AgentHostAutomationStore, type IAgentHostAutomationBoundaryMapper, type IAgentHostAutomationConnection } from './agentHostAutomationStore.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 

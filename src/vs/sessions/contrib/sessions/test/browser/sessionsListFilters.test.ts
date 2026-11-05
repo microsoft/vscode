@@ -8,9 +8,9 @@ import { autorun, constObservable, observableValue } from '../../../../../base/c
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
-import { getSessionApplication } from '../../../../common/sessionApplication.js';
-import { ISession, ISessionEnvironment } from '../../../../services/sessions/common/session.js';
-import { buildTestSession } from '../../../../services/sessions/test/common/testSessionBuilder.js';
+import { getSessionApplication } from '../../../../../workbench/contrib/sessions/common/sessionApplication.js';
+import { ISession, ISessionEnvironment } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { buildTestSession } from '../../../../../workbench/contrib/sessions/test/common/testSessionBuilder.js';
 import { getSessionFilterOptions, sessionFilterKey, SessionsListFilters } from '../../browser/views/sessionsListFilters.js';
 
 suite('SessionsListFilters', () => {

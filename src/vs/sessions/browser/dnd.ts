@@ -10,7 +10,7 @@ import { stringHash } from '../../base/common/hash.js';
 import { CodeDataTransfers, DraggedChatReferenceIdentifier, fillInChatReferenceDragData, LocalSelectionTransfer } from '../../platform/dnd/browser/dnd.js';
 import { isHTMLElement } from '../../base/browser/dom.js';
 import { getInputDropTargetClipPath, isInputDropTarget } from '../../workbench/browser/dnd.js';
-import { ISession } from '../services/sessions/common/session.js';
+import { ISession } from '../../workbench/contrib/sessions/common/session.js';
 
 /**
  * Code data transfer mime types specific to the Agents window.

@@ -13,7 +13,7 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { IAgentHostDebugLogsExportService } from '../../../../../../workbench/contrib/chat/browser/actions/exportAgentHostDebugLogsAction.js';
 import { IFocusedSessionHostService, ISessionHost, ISessionHostService, SessionHostKind } from '../../../../../services/sessions/browser/sessionHost.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsManagementService } from '../../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsManagementService } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ExportAgentHostDebugLogsAction } from '../../browser/exportDebugLogsAction.js';
 
 suite('Sessions - Export Agent Host Debug Logs', () => {

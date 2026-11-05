@@ -19,17 +19,17 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../platform/
 import { contrastBorder } from '../../../platform/theme/common/colorRegistry.js';
 import { IThemeService, Themable } from '../../../platform/theme/common/themeService.js';
 import { agentsPanelBorder } from '../../common/theme.js';
-import { ChatOriginKind, IChat } from '../../services/sessions/common/session.js';
-import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
+import { ChatOriginKind, IChat } from '../../../workbench/contrib/sessions/common/session.js';
+import { IActiveSession } from '../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
 import { IChatHostOpenerService } from '../../services/sessions/browser/chatHostOpener.js';
 import { getWindowHost, ISessionHost } from '../../services/sessions/browser/sessionHost.js';
-import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../common/workspaceSelection.js';
+import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../workbench/contrib/sessions/common/workspaceSelection.js';
 import { AbstractChatView, IChatViewOptions, ISessionViewHostOptions } from './chatView.js';
 import { ChatGroupView, IChatGroupContext } from './chatGroupView.js';
 import { ChatDropZone, ChatGroupDropTarget, IChatGroupDropTargetDelegate } from './chatGroupDropTarget.js';
 import { DraggedSessionIdentifier, getSessionChatDragData, IDraggedSessionChat, isSessionChatDrag, SessionsDataTransfers } from '../dnd.js';
-import { SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../common/sessionConfig.js';
+import { SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { getGridBottomCornerViews, getGridEdgeInsets, NO_GRID_EDGE_INSETS, updateGridGapSashes } from '../../../workbench/browser/parts/partGrid/partGridGap.js';
 
 interface IGroupEntry {

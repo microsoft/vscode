@@ -14,10 +14,10 @@ import { IChatInputPickerResponsiveLayoutItem } from '../../../../workbench/cont
 import { IModelPickerComparison } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerComparison.js';
 import { getGitHubIssueOrPullRequestAttachments } from '../../../../workbench/contrib/chat/browser/widget/input/editor/chatPasteProviders.js';
 import { IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
-import { IWorkspaceSelectionSnapshot } from '../../../common/workspaceSelection.js';
+import { IWorkspaceSelectionSnapshot } from '../../../../workbench/contrib/sessions/common/workspaceSelection.js';
 import { isInputGitHubContext, toInputGitHubContextMetadata } from '../common/newChatContextIds.js';
-import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
-import type { IChat } from '../../../services/sessions/common/session.js';
+import { IActiveSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import type { IChat } from '../../../../workbench/contrib/sessions/common/session.js';
 import { NewSessionWorkspacePreselectionSource } from './newSessionComposerService.js';
 import type { NewChatUserInteraction } from './newChatUserInteraction.js';
 import type { ISessionTypePickerOptions } from './sessionTypePicker.js';

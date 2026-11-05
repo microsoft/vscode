@@ -10,7 +10,7 @@ import { Range, type IRange } from '../../../../editor/common/core/range.js';
 import { localize } from '../../../../nls.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { AgentFeedbackReviewCommandId, IChatAgentFeedbackPullRequestThreadLink, IChatAgentFeedbackReviewComment } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ICodeReviewService } from '../../codeReview/browser/codeReviewService.js';
 import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedbackService } from './agentFeedbackService.js';
 

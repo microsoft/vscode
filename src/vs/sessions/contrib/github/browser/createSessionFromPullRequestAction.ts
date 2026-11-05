@@ -19,7 +19,7 @@ import { IQuickInputService } from '../../../../platform/quickinput/common/quick
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID } from '../../../browser/workbench.js';
 import { Menus } from '../../../browser/menus.js';

@@ -10,8 +10,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILifecycleService } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
-import { ISession } from '../common/session.js';
-import { ISessionsProvider } from '../common/sessionsProvider.js';
+import { ISession } from '../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionsProvider } from '../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 
 export const ISessionsProvidersService = createDecorator<ISessionsProvidersService>('sessionsProvidersService');
 

@@ -28,7 +28,7 @@ import { ChatGroupDropTarget } from '../../../../browser/parts/chatGroupDropTarg
 import { SessionDropTarget } from '../../../../browser/parts/sessionDropTarget.js';
 import { clearChatReferenceDragData, fillChatReferenceDragData, fillSessionChatDragData, getSessionChatDragData, isSessionChatDrag } from '../../../../browser/dnd.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import '../../../../../workbench/contrib/chat/browser/widget/media/chat.css';
 
 suite('Sessions - Chat Reference Drop Priority', () => {

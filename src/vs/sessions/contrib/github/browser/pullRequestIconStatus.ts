@@ -6,7 +6,7 @@
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { derived, IObservable, IReaderWithStore } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { getHighestPriorityPullRequestIcon, IGitHubPullRequestRef } from '../../../services/sessions/common/session.js';
+import { getHighestPriorityPullRequestIcon, IGitHubPullRequestRef } from '../../../../workbench/contrib/sessions/common/session.js';
 import { computePullRequestIcon, getPullRequestDisplayState, GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPullRequest, IPullRequestIconStatus } from '../common/types.js';
 import { IGitHubService, isGitHubReferenceSupported } from './githubService.js';
 import { IPullRequestIconCache } from './pullRequestIconCache.js';

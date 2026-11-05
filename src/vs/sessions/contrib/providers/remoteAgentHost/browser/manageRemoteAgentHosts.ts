@@ -20,7 +20,7 @@ import { TUNNEL_ADDRESS_PREFIX } from '../../../../../platform/agentHost/common/
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
 import { Menus } from '../../../../browser/menus.js';
 import { SessionsCategories } from '../../../../common/categories.js';
-import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
+import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { getStatusLabel, removeRemoteHost, showRemoteHostOptions } from './remoteHostOptions.js';
 import { RemoteAgentHostCommandIds } from './remoteAgentHostActions.js';

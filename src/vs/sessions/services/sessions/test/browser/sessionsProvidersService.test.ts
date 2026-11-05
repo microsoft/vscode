@@ -11,7 +11,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { ILifecycleService, ShutdownReason } from '../../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { TestLifecycleService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { SessionsProvidersService } from '../../browser/sessionsProvidersService.js';
-import { ISessionsProvider } from '../../common/sessionsProvider.js';
+import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 
 suite('SessionsProvidersService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

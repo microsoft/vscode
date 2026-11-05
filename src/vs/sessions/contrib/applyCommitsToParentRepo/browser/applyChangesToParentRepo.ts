@@ -23,7 +23,7 @@ import { resolveSessionCommandTarget } from '../../../services/sessions/browser/
 import { bindHasWorktreeAndRepositoryContextKey, hasWorktreeAndRepositoryContextKey } from '../../../services/sessions/browser/sessionScopedContextKeys.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { URI } from '../../../../base/common/uri.js';
-import { SessionIsArchivedContext } from '../../../common/contextkeys.js';
+import { SessionIsArchivedContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 
 class ApplyChangesToParentRepoContribution extends Disposable implements IWorkbenchContribution {
 

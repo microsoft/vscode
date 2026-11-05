@@ -8,7 +8,7 @@ import { autorun } from '../../../../base/common/observable.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
-import { setHostSessionContextKeys } from '../../../services/sessions/common/sessionContextKeys.js';
+import { setHostSessionContextKeys } from '../../../../workbench/contrib/sessions/common/sessionContextKeys.js';
 import { bindHasWorktreeAndRepositoryContextKey, bindIsAgentHostSessionContextKey } from '../../../services/sessions/browser/sessionScopedContextKeys.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { IGitHubService } from '../../github/browser/githubService.js';

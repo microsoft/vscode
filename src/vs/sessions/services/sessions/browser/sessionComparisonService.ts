@@ -24,10 +24,10 @@ import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/co
 import { IChatModelReference, IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { aggregateChatUsage } from '../../../../workbench/contrib/chat/common/chatUsage.js';
 import { setChatNotificationResource } from '../../../../workbench/contrib/chat/common/chatNotification.js';
-import { ChatInteractivity, ChatOriginKind, isActiveSessionStatus, ISession, SessionStatus } from '../common/session.js';
+import { ChatInteractivity, ChatOriginKind, isActiveSessionStatus, ISession, SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionGroupsService } from './sessionGroupsService.js';
-import { ICreateNewSessionOptions, ISendRequestOptions, ISessionsChangeEvent, ISessionsManagementService } from '../common/sessionsManagement.js';
-import { getBoundedSessionComparisonManifestText, getSessionComparisonAttemptLabel, getSessionComparisonChat, getSessionComparisonHarnessLabel, ISessionComparison, ISessionComparisonHarness, ISessionComparisonParticipant, ISessionComparisonService, ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, IStartSessionComparisonOptions, SESSION_COMPARISON_MANIFEST_LIST_MAX_ITEMS, SESSION_COMPARISON_MAX_ATTEMPTS, SESSION_COMPARISON_SYNTHESIS_INSTRUCTIONS_MAX_LENGTH, SessionComparisonLaunchError, SessionComparisonParticipantRole } from '../common/sessionComparison.js';
+import { ICreateNewSessionOptions, ISendRequestOptions, ISessionsChangeEvent, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { getBoundedSessionComparisonManifestText, getSessionComparisonAttemptLabel, getSessionComparisonChat, getSessionComparisonHarnessLabel, ISessionComparison, ISessionComparisonHarness, ISessionComparisonParticipant, ISessionComparisonService, ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, IStartSessionComparisonOptions, SESSION_COMPARISON_MANIFEST_LIST_MAX_ITEMS, SESSION_COMPARISON_MAX_ATTEMPTS, SESSION_COMPARISON_SYNTHESIS_INSTRUCTIONS_MAX_LENGTH, SessionComparisonLaunchError, SessionComparisonParticipantRole } from '../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { getSessionsTelemetryAgentId, getSessionsTelemetryModelId, getSessionsTelemetryProviderId, hashSessionIdForTelemetry, logSessionComparisonAttemptCompleted, logSessionComparisonModelOutcome } from '../../../common/sessionsTelemetry.js';
 
 interface IStoredSessionComparisonParticipant extends Omit<ISessionComparisonParticipant, 'sessionResource' | 'chatResource'> {

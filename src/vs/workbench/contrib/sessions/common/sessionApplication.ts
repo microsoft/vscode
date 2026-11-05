@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { uppercaseFirstLetter } from '../../base/common/strings.js';
-import { localize } from '../../nls.js';
-import type { ISessionApplication } from '../services/sessions/common/session.js';
+import { uppercaseFirstLetter } from '../../../../base/common/strings.js';
+import { localize } from '../../../../nls.js';
+import type { ISessionApplication } from './session.js';
 
 export const UNKNOWN_SESSION_APPLICATION_ID = 'unknown';
 

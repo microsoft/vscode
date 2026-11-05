@@ -21,17 +21,17 @@ import { IsSessionsWindowContext } from '../../../../workbench/common/contextkey
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { getNewSessionRepositoryConfigGroup, Menus } from '../../../browser/menus.js';
-import { SessionActiveChatResourceContext, SessionIdContext } from '../../../common/contextkeys.js';
+import { SessionActiveChatResourceContext, SessionIdContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { getWindowHost, ISessionHost, SessionHostKind } from '../../../services/sessions/browser/sessionHost.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { resolveSessionCommandTarget } from '../../../services/sessions/browser/sessionCommandTarget.js';
-import { getSessionWorkspaceKind, IChat, ISession, ISessionChangeset, ISessionChangesetOperation, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionWorkspaceKind, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
-import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISessionInputPickerVisibility } from '../../../services/sessions/common/sessionPickerVisibility.js';
+import { getSessionWorkspaceKind, IChat, ISession, ISessionChangeset, ISessionChangesetOperation, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionWorkspaceKind, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../workbench/contrib/sessions/common/session.js';
+import { IActiveSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionInputPickerVisibility } from '../../../../workbench/contrib/sessions/common/sessionPickerVisibility.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { FOCUS_SESSION_SYNC_ACTION_COMMAND_ID } from '../../../common/sessionCommands.js';
+import { FOCUS_SESSION_SYNC_ACTION_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
 
 function getSyncChangesOperation(chat: IChat | undefined, reader?: IReader): { changeset: ISessionChangeset; operation: ISessionChangesetOperation } | undefined {
 	const changeset = chat?.changesets.read(reader)?.find(candidate =>

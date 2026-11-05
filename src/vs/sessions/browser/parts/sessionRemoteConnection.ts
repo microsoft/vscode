@@ -10,10 +10,10 @@ import { Disposable, MutableDisposable } from '../../../base/common/lifecycle.js
 import { autorun, derived, derivedObservableWithCache, IObservable, IReader, observableSignal, observableValue, transaction } from '../../../base/common/observable.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../../platform/log/common/log.js';
-import { IAgentHostConnectionLabels, isAgentHostProvider } from '../../common/agentHostSessionsProvider.js';
-import { SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus } from '../../services/sessions/common/session.js';
-import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
-import { ISessionsProvider } from '../../services/sessions/common/sessionsProvider.js';
+import { IAgentHostConnectionLabels, isAgentHostProvider } from '../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus } from '../../../workbench/contrib/sessions/common/session.js';
+import { IActiveSession } from '../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionsProvider } from '../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
 import { IRemoteHostUnavailableEmptyStateContent } from './remoteHostUnavailableEmptyState.js';
 import { ISessionReadOnlyBannerContent } from './sessionReadOnlyBanner.js';

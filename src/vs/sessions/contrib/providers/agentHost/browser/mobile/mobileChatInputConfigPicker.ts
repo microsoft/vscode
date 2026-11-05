@@ -25,10 +25,10 @@ import { getModelProviderIcon } from '../../../../../../workbench/contrib/chat/b
 import { ChatPetAchievementIds, didExplicitlySwitchChatPetModel } from '../../../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
 import { IChatPetService } from '../../../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { Menus } from '../../../../../browser/menus.js';
-import { SessionUsesCombinedConfigPickerContext, IsPhoneLayoutContext } from '../../../../../common/contextkeys.js';
-import { type IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../../common/agentHostSessionsProvider.js';
-import { IHostSession } from '../../../../../services/sessions/common/sessionsManagement.js';
-import { IChat } from '../../../../../services/sessions/common/session.js';
+import { SessionUsesCombinedConfigPickerContext, IsPhoneLayoutContext } from '../../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { type IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { IHostSession } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IChat } from '../../../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IFocusedSessionHostService, ISessionChatSource, ISessionHost } from '../../../../../services/sessions/browser/sessionHost.js';
 import { isWellKnownModeSchema } from '../agentHostPermissionPickerDelegate.js';

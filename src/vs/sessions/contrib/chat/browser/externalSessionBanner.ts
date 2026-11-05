@@ -25,8 +25,8 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { defaultButtonStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
-import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../common/sessionConfig.js';
-import { ISession } from '../../../services/sessions/common/session.js';
+import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { ISession } from '../../../../workbench/contrib/sessions/common/session.js';
 
 const EXTERNAL_SESSION_BANNER_DISMISSED_STORAGE_KEY = 'sessions.externalSessionBanner.dismissed';
 const DAY = 24 * 60 * 60 * 1000;

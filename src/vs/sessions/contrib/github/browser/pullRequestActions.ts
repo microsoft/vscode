@@ -13,10 +13,10 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
 import { ISessionsHostLayoutService } from '../../../services/layout/browser/sessionsHostLayoutService.js';
-import { sessionActivityBarChatActionContext, SessionHasPullRequestContext } from '../../../common/contextkeys.js';
+import { sessionActivityBarChatActionContext, SessionHasPullRequestContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { resolveSessionCommandTarget } from '../../../services/sessions/browser/sessionCommandTarget.js';
-import { getGitHubPullRequestRefs, IGitHubPullRequestRef, ISession } from '../../../services/sessions/common/session.js';
-import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
+import { getGitHubPullRequestRefs, IGitHubPullRequestRef, ISession } from '../../../../workbench/contrib/sessions/common/session.js';
+import { IActiveSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { OPEN_PULL_REQUEST_ACTION_ID, OPEN_PULL_REQUEST_CHANGES_ACTION_ID } from '../common/types.js';
 import { createPullRequestChangesEditorInput } from './pullRequestChangesMultiDiffSourceResolver.js';
 

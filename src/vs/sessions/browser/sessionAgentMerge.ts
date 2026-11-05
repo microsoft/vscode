@@ -12,9 +12,9 @@ import { AgentMergeConfiguration, AgentMergeSettingId, defaultAgentMergeConfigur
 import { ArtifactIntegrationsSettingId } from '../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { observableConfigValue } from '../../platform/observable/common/platformObservableUtils.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
-import { IAgentMergeClientState, isAgentHostProvider } from '../common/agentHostSessionsProvider.js';
+import { IAgentMergeClientState, isAgentHostProvider } from '../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../services/sessions/browser/sessionsProvidersService.js';
-import { IChat, ISession } from '../services/sessions/common/session.js';
+import { IChat, ISession } from '../../workbench/contrib/sessions/common/session.js';
 
 const noAgentMergeConfiguration = constObservable<ISessionAgentMergeConfiguration | undefined>(undefined);
 /** Cached per session, then per chat (`''` for the session folder). */

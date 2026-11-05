@@ -16,7 +16,7 @@ import { IContextMenuService } from '../../../../platform/contextview/browser/co
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
-import { IsNewChatSessionContext, NewSessionComposerFocusContext, SessionEnvironmentPickerVisibleContext, SessionHarnessPickerVisibleContext, SessionWorkspacePickerVisibleContext, SessionBranchPickerVisibleContext, SessionWorktreePickerVisibleContext, SessionSyncActionVisibleContext } from '../../../common/contextkeys.js';
+import { IsNewChatSessionContext, NewSessionComposerFocusContext, SessionEnvironmentPickerVisibleContext, SessionHarnessPickerVisibleContext, SessionWorkspacePickerVisibleContext, SessionBranchPickerVisibleContext, SessionWorktreePickerVisibleContext, SessionSyncActionVisibleContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 
 export const FOCUS_NEW_SESSION_WORKSPACE_PICKER_KEYBINDING = KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyF);
 export const FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_KEYBINDING = KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyE);

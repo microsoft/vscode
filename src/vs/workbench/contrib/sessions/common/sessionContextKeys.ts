@@ -6,7 +6,7 @@
 import { IReader } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { getCanvasReferenceKey } from '../../../../workbench/contrib/canvases/common/canvas.js';
+import { getCanvasReferenceKey } from '../../canvases/common/canvas.js';
 import {
 	SessionHasChangesContext,
 	SessionHasCachedChangesContext,
@@ -39,7 +39,7 @@ import {
 	SessionActiveChatResourceContext,
 	SessionActiveChatCanvasReferenceKeysContext,
 	SessionHasGitRepositoryContext,
-} from '../../../common/contextkeys.js';
+} from './contextkeys.js';
 import { ChatOriginKind, getChatCapabilities, IChat, isActiveSessionStatus, isSideChatOf, ISession, SessionStatus } from './session.js';
 import { ISessionChangesStatsCache, readChatChangesStats, readSessionChangesStats } from './sessionChangesStatsCache.js';
 import { IActiveSession, IHostSession } from './sessionsManagement.js';

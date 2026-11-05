@@ -16,10 +16,10 @@ import { IEditorOptions } from '../../../editor/common/config/editorOptions.js';
 import { IAgentsWindowDraft } from '../../../platform/window/common/window.js';
 import { defaultProgressBarStyles } from '../../../platform/theme/browser/defaultStyles.js';
 import { IProgressScope, ScopedProgressIndicator } from '../../../workbench/services/progress/browser/progressIndicator.js';
-import { IChat, ISession } from '../../services/sessions/common/session.js';
-import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
-import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../common/workspaceSelection.js';
-import { ISessionPickerVisibility, noSessionPickerVisibility } from '../../services/sessions/common/sessionPickerVisibility.js';
+import { IChat, ISession } from '../../../workbench/contrib/sessions/common/session.js';
+import { IActiveSession } from '../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../workbench/contrib/sessions/common/workspaceSelection.js';
+import { ISessionPickerVisibility, noSessionPickerVisibility } from '../../../workbench/contrib/sessions/common/sessionPickerVisibility.js';
 import type { IChatSessionHistoryStatus } from '../../../platform/chat/common/chatSessionHistory.js';
 
 /**

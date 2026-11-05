@@ -21,8 +21,8 @@ import { resolveSessionCommandTarget } from '../../browser/sessionCommandTarget.
 import { SessionHostService } from '../../browser/sessionHostService.js';
 import { ISessionsService } from '../../browser/sessionsService.js';
 import { VisibleSessions } from '../../browser/visibleSessions.js';
-import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../common/sessionsManagement.js';
+import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IActiveSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { sessionsServiceWithGridHost } from './sessionHostTestUtils.js';
 
 const CHAT_WINDOW_ID = 4242;

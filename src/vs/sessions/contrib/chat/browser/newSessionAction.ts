@@ -16,8 +16,8 @@ import { INewSessionInAgentsWindowOptions } from '../../../../workbench/contrib/
 import { Menus } from '../../../browser/menus.js';
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 import { resolveDevContainerSourceWorkspace } from '../../../browser/openInVSCodeUtils.js';
-import { isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
-import { SessionsListRearrangeContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { SessionsListRearrangeContext, SessionsWelcomeVisibleContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { SessionsTitleBarNewSessionEnabledContext } from '../../../common/agentsWindowContextKeys.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
@@ -26,7 +26,7 @@ import { ISessionsService } from '../../../services/sessions/browser/sessionsSer
 import { getMainWindowHost, ISessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { ICustomViewService } from '../../../services/customView/browser/customViewService.js';
 import { IWindowCanvasService, WindowCanvasInput } from '../../../services/canvas/browser/windowCanvasService.js';
-import { inheritableSessionTarget, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { inheritableSessionTarget, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { NEW_SESSION_ACTION_ID } from '../common/constants.js';
 import { INewSessionComposerService } from './newSessionComposerService.js';
 

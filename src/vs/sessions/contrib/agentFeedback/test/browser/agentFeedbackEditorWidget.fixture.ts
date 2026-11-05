@@ -22,8 +22,8 @@ import { ComponentFixtureContext, createEditorServices, createTextModel, defineC
 import { ICodeReviewService, ICodeReviewSuggestion } from '../../../codeReview/browser/codeReviewService.js';
 import { createMockCodeReviewService } from '../../../../../workbench/test/browser/componentFixtures/sessions/mockCodeReviewService.js';
 import { ISessionEditorComment, SessionEditorCommentSource } from '../../browser/sessionEditorComments.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISession, ISessionFileChange } from '../../../../services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISession, ISessionFileChange } from '../../../../../workbench/contrib/sessions/common/session.js';
 
 const sessionResource = URI.parse('vscode-agent-session://fixture/session-1');
 const fileResource = URI.parse('inmemory://model/agent-feedback-widget.ts');

@@ -39,11 +39,11 @@ import { NullWorkbenchAssignmentService } from '../../../../../workbench/service
 import { ChatEntitlement, ChatEntitlementContextKeys } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { TestHostService, TestLayoutService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { TestChatEntitlementService, TestLifecycleService, TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
-import { IsNewChatSessionContext, SessionHarnessPickerVisibleContext, SessionWorkspacePickerVisibleContext } from '../../../../common/contextkeys.js';
+import { IsNewChatSessionContext, SessionHarnessPickerVisibleContext, SessionWorkspacePickerVisibleContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { AgentHostSessionTypesAvailableContext, NewSessionOnboardingHandoffContext } from '../../../../common/agentsWindowContextKeys.js';
 import { ISessionNavigationRequest } from '../../../../services/sessions/browser/sessionsService.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { SessionStatus } from '../../../../services/sessions/common/session.js';
+import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { getSessionOnboardingTargetId, SessionsList } from '../../../sessions/browser/views/sessionsList.js';
 import { SessionsView } from '../../../sessions/browser/views/sessionsView.js';
 import { createTestSession } from '../../../sessions/test/browser/sessionsListTestUtils.js';

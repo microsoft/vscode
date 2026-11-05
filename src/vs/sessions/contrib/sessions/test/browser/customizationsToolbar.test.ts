@@ -41,7 +41,7 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { CustomizationMigrationType, ICustomizationMigrationHint, ICustomizationMigrationIgnoredGroup, ICustomizationMigrationService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
 import { PromptsStorage } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { ILanguageModelToolsService, IToolData, IToolSet } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IAICustomizationMcpServerCountService } from '../../browser/customizationMcpServerCount.js';
 import { CUSTOMIZATION_ITEMS, CustomizationLinkViewItem, CustomizationsToolbarContribution, readCustomizationCount } from '../../browser/customizationsToolbar.contribution.js';
 import { CustomizationsNavigationState } from '../../browser/customizationsNavigationState.js';

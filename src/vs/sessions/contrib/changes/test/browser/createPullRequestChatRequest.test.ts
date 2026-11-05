@@ -10,8 +10,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { ChatInteractivity, IChat, ISession } from '../../../../services/sessions/common/session.js';
-import { ISendRequestOptions, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ChatInteractivity, IChat, ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ISendRequestOptions, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { createPullRequestMessage, CreatePullRequestChatRequest } from '../../browser/createPullRequestChatRequest.js';
 import { ISessionPullRequestChatOptions, ISessionPullRequestContext, ISessionPullRequestCreation } from '../../common/pullRequestCreation.js';
 

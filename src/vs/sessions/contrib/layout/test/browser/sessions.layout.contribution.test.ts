@@ -19,7 +19,7 @@ import { AgentWorkbenchLayout } from '../../../../services/layout/browser/sessio
 import { SESSIONS_LAYOUT_SCOPE_SETTING, ChatLayoutPresentation } from '../../../../common/chatLayout.js';
 import { SessionsLayoutContribution } from '../../browser/sessions.layout.contribution.js';
 import { ConfigurationMigration, Extensions as WorkbenchConfigurationExtensions, IConfigurationMigrationRegistry } from '../../../../../workbench/common/configuration.js';
-import { LEGACY_SESSION_TOOLBAR_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../../../common/sessionConfig.js';
+import { LEGACY_SESSION_TOOLBAR_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 
 // Capture registration before configuration tests reset the shared registry.
 const registeredProperties = { ...Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties() };

@@ -10,7 +10,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ChatCustomizationMigrationNotice, IChatCustomizationMigrationNoticeContext } from '../../../../workbench/contrib/chat/browser/aiCustomization/chatCustomizationMigrationNotice.js';
 import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { isAgentHostSessionResource } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { NewSessionBannerPriority, NewSessionBanners } from '../common/newSessionBanners.js';
 
 export class NewChatMigrationNotice extends Disposable {

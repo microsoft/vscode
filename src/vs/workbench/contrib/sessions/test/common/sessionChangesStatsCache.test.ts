@@ -8,7 +8,7 @@ import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
+import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { IChat, ISession, ISessionChangeset, ISessionFileChange } from '../../common/session.js';
 import { ISessionChangesStats, MAX_CACHED_SESSION_CHANGES_STATS, readLoadedChatChangesStats, readSessionChangesStats, SessionChangesStatsCache } from '../../common/sessionChangesStatsCache.js';
 

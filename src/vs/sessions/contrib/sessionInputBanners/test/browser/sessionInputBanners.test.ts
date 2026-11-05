@@ -29,10 +29,10 @@ import { IStorageService, StorageScope } from '../../../../../platform/storage/c
 import { IChatWidget, IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import type { IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
-import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { IChat, IGitHubPullRequestRef, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IChat, IGitHubPullRequestRef, ISessionWorkspace, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ActiveSessionHost, ISessionHost, SessionHostKind } from '../../../../services/sessions/browser/sessionHost.js';
 import { stubSessionHosts } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';

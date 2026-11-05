@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Codicon } from '../../../base/common/codicons.js';
-import { constObservable, observableValue } from '../../../base/common/observable.js';
-import { isEqual } from '../../../base/common/resources.js';
-import { URI } from '../../../base/common/uri.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
-import type { ISessionGitState } from '../../../platform/agentHost/common/state/sessionState.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { isEqual } from '../../../../../base/common/resources.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import type { ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { buildAgentHostChatWorkspace, buildAgentHostChatWorkspaceWithScratchFolders, buildAgentHostSessionWorkspace, type IFolderGitHubInfoResolver } from '../../common/agentHostSessionWorkspace.js';
-import { getSessionWorkspaceKind, IGitHubInfo, ISessionWorkspace, SessionWorkspaceKind } from '../../services/sessions/common/session.js';
+import { getSessionWorkspaceKind, IGitHubInfo, ISessionWorkspace, SessionWorkspaceKind } from '../../common/session.js';
 
 suite('Agent Host Session Workspace', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

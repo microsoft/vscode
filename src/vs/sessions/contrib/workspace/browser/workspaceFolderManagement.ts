@@ -15,7 +15,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { IWorkspaceFolderCreationData } from '../../../../platform/workspaces/common/workspaces.js';
 import { Queue } from '../../../../base/common/async.js';
-import { ISessionWorkspace } from '../../../services/sessions/common/session.js';
+import { ISessionWorkspace } from '../../../../workbench/contrib/sessions/common/session.js';
 import { IWorkspaceFolderLabelService } from '../../../../workbench/services/workspaces/common/workspaceFolderLabelService.js';
 import { IHistoryService } from '../../../../workbench/services/history/common/history.js';
 

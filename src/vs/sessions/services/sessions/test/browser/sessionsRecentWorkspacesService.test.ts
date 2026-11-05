@@ -25,7 +25,7 @@ import { IRecentlyOpened, isRecentFolder, IWorkspacesService } from '../../../..
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { ISessionsProvidersService } from '../../browser/sessionsProvidersService.js';
 import { SessionsRecentWorkspacesService } from '../../browser/sessionsRecentWorkspacesService.js';
-import { ISessionsProvider } from '../../common/sessionsProvider.js';
+import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 
 suite('SessionsRecentWorkspacesService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();

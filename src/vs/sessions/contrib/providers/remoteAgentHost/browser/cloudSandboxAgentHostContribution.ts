@@ -27,10 +27,10 @@ import { CloudSandboxSessionContribution, ICloudSandboxSessionEnvironment } from
 import { IRemoteAgentHostConnectionCustomizationService } from '../../../../../workbench/contrib/chat/browser/remoteAgentHost/remoteAgentHostConnectionCustomization.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
-import { IAgentHostConnectionLabels, IAgentHostGroup } from '../../../../common/agentHostSessionsProvider.js';
+import { IAgentHostConnectionLabels, IAgentHostGroup } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISession } from '../../../../services/sessions/common/session.js';
+import { ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { CLOUD_SANDBOX_CREATION_PROVIDER_ID, COPILOT_PROVIDER_ID } from '../../copilotChatSessions/common/copilotChatSessions.js';
 import { CloudSandboxSessionsProvider } from './cloudSandboxSessionsProvider.js';
 import { IRemoteAgentHostSessionsProviderConfig } from './remoteAgentHostSessionsProvider.js';
