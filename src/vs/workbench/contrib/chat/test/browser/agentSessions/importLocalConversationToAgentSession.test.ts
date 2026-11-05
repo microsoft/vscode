@@ -230,6 +230,8 @@ suite('importedTurnsFromChatModel', () => {
 			markdown(`See [b.ts](${remote('/repo/b.ts').toString()} "the file") and \`[c](${remote('/repo/c.ts').toString()})\`, or [docs](https://example.com/docs).`),
 			// The label is kept as written, escapes and markup included.
 			markdown(`Read [a\\]b *now*](${remote('/repo/a.ts').toString()}) ![shot](${remote('/repo/shot.png').toString()})`),
+			// A code span may hold a `]`, and a title literal backslashes and quotes.
+			markdown(`Code [\`a]b\`](${remote('/repo/x.ts').toString()} "a\\\\*b \\"q\\"")`),
 			// A relative link resolves against the part's base URI, which the imported text does not keep.
 			{ kind: 'markdownContent', content: Object.assign(new MarkdownString('Open [d.ts](d.ts)'), { baseUri: remote('/repo/') }) } as IChatProgressResponseContent,
 		]))]), { resourceUris });
@@ -237,6 +239,7 @@ suite('importedTurnsFromChatModel', () => {
 		assert.deepStrictEqual(turns[0].responseParts.map(part => part.kind === ResponsePartKind.Markdown ? part.content : part.kind), [
 			`See [b.ts](file:///repo/b.ts "the file") and \`[c](${remote('/repo/c.ts').toString()})\`, or [docs](https://example.com/docs).`,
 			'Read [a\\]b *now*](file:///repo/a.ts) ![shot](file:///repo/shot.png)',
+			'Code [`a]b`](file:///repo/x.ts "a\\\\*b \\"q\\"")',
 			'Open [d.ts](file:///repo/d.ts)',
 		]);
 	});

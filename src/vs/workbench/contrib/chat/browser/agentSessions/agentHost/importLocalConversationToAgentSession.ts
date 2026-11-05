@@ -152,38 +152,79 @@ function toHostMarkdown(markdown: string, resourceUris: IAgentHostResourceUriMap
 			if (href === token.href && target.toString() === uri.toString()) {
 				return undefined;
 			}
-			const title = token.title ? ` "${token.title.replace(/"/g, '\\"')}"` : '';
-			const label = linkLabelSource(token.raw) ?? escapeMarkdownLinkLabel(token.text);
-			return `${token.type === 'image' ? '!' : ''}[${label}](${target.toString()}${title})`;
+			// Only the destination changes; the label and title stay as written, escapes and markup
+			// included, since the parsed ones have been unescaped. A link without an inline destination
+			// (e.g. a reference-style link) is written as an inline link with its label escaped.
+			const destination = linkDestinationRange(token.raw);
+			return destination
+				? token.raw.slice(0, destination.start) + target.toString() + token.raw.slice(destination.end)
+				: `${token.type === 'image' ? '!' : ''}[${escapeMarkdownLinkLabel(token.text)}](${target.toString()})`;
 		},
 	});
 }
 
 /**
- * The label of an inline link or image as written in the source, with its
- * escapes and markup, which the parsed text has lost. `undefined` when the
- * link has no bracketed label, such as an autolink.
+ * Where the destination of an inline link or image is in its source, after
+ * its bracketed label (brackets that are escaped or inside a code span do not
+ * end the label). `undefined` when the link has no inline destination, such
+ * as a reference-style link or an autolink.
  */
-function linkLabelSource(raw: string): string | undefined {
+function linkDestinationRange(raw: string): { readonly start: number; readonly end: number } | undefined {
 	const start = raw.startsWith('![') ? 2 : raw.startsWith('[') ? 1 : -1;
 	if (start < 0) {
 		return undefined;
 	}
+	let labelEnd: number | undefined;
 	let depth = 0;
-	for (let i = start; i < raw.length; i++) {
+	for (let i = start; i < raw.length && labelEnd === undefined; i++) {
 		const char = raw[i];
 		if (char === '\\') {
 			i++;
+		} else if (char === '`') {
+			// A code span runs to the next backtick run of the same length; without one, the backticks are literal.
+			const ticks = /^`+/.exec(raw.slice(i))![0];
+			const closing = new RegExp(`(?<!\`)${ticks}(?!\`)`, 'g');
+			closing.lastIndex = i + ticks.length;
+			const match = closing.exec(raw);
+			i = (match ? match.index : i) + ticks.length - 1;
 		} else if (char === '[') {
 			depth++;
 		} else if (char === ']') {
 			if (depth === 0) {
-				return raw.slice(start, i);
+				labelEnd = i;
 			}
 			depth--;
 		}
 	}
-	return undefined;
+	if (labelEnd === undefined || raw[labelEnd + 1] !== '(') {
+		return undefined;
+	}
+	let i = labelEnd + 2;
+	while (i < raw.length && /\s/.test(raw[i])) {
+		i++;
+	}
+	if (raw[i] === '<') {
+		const close = raw.indexOf('>', i);
+		return close < 0 ? undefined : { start: i, end: close + 1 };
+	}
+	const destinationStart = i;
+	let parens = 0;
+	for (; i < raw.length; i++) {
+		const char = raw[i];
+		if (char === '\\') {
+			i++;
+		} else if (/\s/.test(char)) {
+			break;
+		} else if (char === '(') {
+			parens++;
+		} else if (char === ')') {
+			if (parens === 0) {
+				break;
+			}
+			parens--;
+		}
+	}
+	return i > destinationStart ? { start: destinationStart, end: i } : undefined;
 }
 
 /** Converts Local markdown to the host's, see {@link toHostMarkdown}. */
