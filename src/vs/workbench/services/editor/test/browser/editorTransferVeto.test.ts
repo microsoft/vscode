@@ -4,18 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { EventType } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { isMacintosh } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ConfirmResult, IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
+import { LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockScopableContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { DraggedEditorGroupIdentifier } from '../../../../browser/dnd.js';
+import { IEditorGroupView } from '../../../../browser/parts/editor/editor.js';
 import { CopyEditorToNewindowAction, MoveEditorGroupToNewWindowAction, MoveEditorToNewWindowAction } from '../../../../browser/parts/editor/editorActions.js';
 import { EditorPart } from '../../../../browser/parts/editor/editorPart.js';
 import { getEditorsTransferVeto, IEditorTransferVeto, INewWindowTransfer, NEW_WINDOW_TARGET, transferToNewWindow } from '../../../../browser/parts/editor/editorTransferVeto.js';
@@ -356,6 +361,65 @@ suite('Editor transfer vetoes', () => {
 
 			assert.deepStrictEqual({ closed, mainGroupCount: parts.mainPart.count, editors: editorsOf(parts.mainPart.activeGroup) }, { closed: true, mainGroupCount: mainGroupCount + 1, editors: ['/ordinary'] });
 		});
+
+		/** Drops the title of `source` onto the tab strip of `target`, as dragging a group onto the tabs of another group does. */
+		function dropGroupOnTabStrip(source: IEditorGroup, target: IEditorGroup, copy: boolean): void {
+			LocalSelectionTransfer.getInstance<DraggedEditorGroupIdentifier>().setData([new DraggedEditorGroupIdentifier(source.id)], DraggedEditorGroupIdentifier.prototype);
+			const tabStrip = (target as IEditorGroupView).element.querySelector('.tabs-container')!;
+			tabStrip.dispatchEvent(new DragEvent(EventType.DROP, { dataTransfer: new DataTransfer(), bubbles: true, cancelable: true, altKey: copy && isMacintosh, ctrlKey: copy && !isMacintosh }));
+		}
+
+		test('dropping a group onto the tab strip of another part, with an editor that cannot go, merges nothing and leaves focus and the active group alone', async () => {
+			const { parts, dialogs } = await createServices();
+			const part = createPart(parts);
+			const target = part.activeGroup;
+			await target.openEditor(createInput('/target'), { pinned: true });
+			const source = parts.mainPart.activeGroup;
+			await source.openEditors([{ editor: createInput('/ordinary'), options: { pinned: true } }, { editor: createInput('/vetoing', { veto: true }), options: { pinned: true, inactive: true } }]);
+			parts.activateGroup(source);
+			const activeBefore = parts.activeGroup;
+			const events = recordEvents(part, parts.mainPart);
+
+			dropGroupOnTabStrip(source, target, false);
+
+			assert.deepStrictEqual({
+				sourceEditors: editorsOf(source),
+				targetEditors: editorsOf(target),
+				active: parts.activeGroup === activeBefore,
+				focusInTarget: (target as IEditorGroupView).element.contains(mainWindow.document.activeElement),
+				events,
+				dialogs: dialogs.errors,
+				transferCleared: !LocalSelectionTransfer.getInstance<DraggedEditorGroupIdentifier>().hasData(DraggedEditorGroupIdentifier.prototype),
+			}, {
+				sourceEditors: ['/ordinary', '/vetoing'],
+				targetEditors: ['/target'],
+				active: true,
+				focusInTarget: false,
+				events: [],
+				dialogs: [{ message: VETO, detail: undefined }],
+				transferCleared: true,
+			});
+		});
+
+		for (const copy of [false, true]) {
+			test(`dropping a group onto the tab strip of another part ${copy ? 'copies' : 'moves'} its editors when they can go`, async () => {
+				const { parts, dialogs } = await createServices();
+				const part = createPart(parts);
+				const target = part.activeGroup;
+				await target.openEditor(createInput('/target'), { pinned: true });
+				const source = parts.mainPart.activeGroup;
+				// Not a singleton: a copy does not ask it
+				await source.openEditors([{ editor: createInput('/ordinary'), options: { pinned: true } }, { editor: createInput('/vetoing', { veto: copy }), options: { pinned: true, inactive: true } }]);
+
+				dropGroupOnTabStrip(source, target, copy);
+
+				assert.deepStrictEqual({ sourceEditors: source.isEmpty ? [] : editorsOf(source), targetEditors: editorsOf(target), dialogs: dialogs.errors }, {
+					sourceEditors: copy ? ['/ordinary', '/vetoing'] : [],
+					targetEditors: ['/target', '/ordinary', '/vetoing'],
+					dialogs: [],
+				});
+			});
+		}
 	});
 
 	suite('commands into a new window', () => {

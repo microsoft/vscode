@@ -60,7 +60,7 @@ import { IReadonlyEditorGroupModel } from '../../../common/editor/editorGroupMod
 import { IHostService } from '../../../services/host/browser/host.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { applyDragImage } from '../../../../base/browser/ui/dnd/dnd.js';
-import { getEditorsTransferVeto } from './editorTransferVeto.js';
+import { getEditorsTransferVeto, getGroupTransferVeto } from './editorTransferVeto.js';
 
 interface IEditorInputLabel {
 	readonly editor: EditorInput;
@@ -2748,8 +2748,18 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			if (Array.isArray(data) && data.length > 0) {
 				const sourceGroup = this.editorPartsView.getGroup(data[0].identifier);
 				if (sourceGroup) {
+					const copy = !this.isMoveOperation(e, sourceGroup.id);
+
+					// Into another part only when all its editors can go there, before anything is merged or focused
+					const veto = sourceGroup.groupsView !== this.groupsView ? getGroupTransferVeto(sourceGroup, this.groupView.id, { copy }) : undefined;
+					if (veto) {
+						this.groupTransfer.clearData(DraggedEditorGroupIdentifier.prototype);
+						this.editorPartsView.showTransferVeto(veto);
+						return;
+					}
+
 					const mergeGroupOptions: IMergeGroupOptions = { index: targetEditorIndex };
-					if (!this.isMoveOperation(e, sourceGroup.id)) {
+					if (copy) {
 						mergeGroupOptions.mode = MergeGroupMode.COPY_EDITORS;
 					}
 
