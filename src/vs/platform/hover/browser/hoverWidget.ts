@@ -376,7 +376,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 			this._plainTextContent.textContent = content;
 			this._options.content = content;
 			// A data refresh must not cancel a real mouseout that is already dismissing the hover.
-			if (this.isMouseIn || this.isLocked || this.domNode.contains(this._targetWindow.document.activeElement)) {
+			if (this._mouseTracker?.isMouseIn || this.isLocked || this.domNode.contains(this._targetWindow.document.activeElement)) {
 				this.layout();
 				this._onRequestLayout.fire();
 			}

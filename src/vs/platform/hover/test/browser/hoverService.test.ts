@@ -1703,6 +1703,24 @@ suite('HoverService', () => {
 	suite('layout and resize', () => {
 		teardown(() => sinon.restore());
 
+		test('plain-text updates do not suppress dismissal when moving from the target into the hover', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const target = createTarget();
+			const hover = store.add(asHoverWidget(showHover('Initial', target)));
+			const hoverContainer = hover.domNode.parentElement!;
+			target.dispatchEvent(new MouseEvent('mouseleave', { relatedTarget: hoverContainer }));
+			hoverContainer.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, relatedTarget: target }));
+			assert.strictEqual(hover.isMouseIn, true, 'The lock tracker should still include the hover');
+
+			await timeout(100);
+			assert.strictEqual(hover.updateContent('Updated during the transition'), true);
+			assert.strictEqual(hover.domNode.querySelector('.hover-contents')?.textContent, 'Updated during the transition');
+			await timeout(99);
+			assertInDOM(hover, 'Hover should remain until the original dismissal timer fires');
+			await timeout(1);
+			assertNotInDOM(hover, 'A text update must not cancel dismissal when the pointer enters the hover');
+			assert.strictEqual(hover.isDisposed, true);
+		}));
+
 		test('plain-text updates do not suppress a pending mouseout dismissal', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const target = createTarget();
 			const hover = asHoverWidget(showHover('Initial', target, { persistence: { hideOnHover: false } }));
