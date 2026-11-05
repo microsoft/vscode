@@ -8,11 +8,14 @@ import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { raceCancellation, Sequencer } from '../../../../base/common/async.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { localize } from '../../../../nls.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IAgentHostByokLmHandler } from '../../../../platform/agentHost/common/agentHostByokLm.js';
 import { IAgentHostConnectionsService } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { toRemoteAgentHostSessionType } from '../../../../platform/agentHost/common/agentHostSessionType.js';
 import { buildExternalOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkTurnId, parseOpenSessionLinkUri } from '../../../../platform/agentHost/common/openSessionLink.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { AgentHostByokLmHandler } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostByokLmHandler.js';
@@ -45,12 +48,14 @@ import { SessionsWorkspaceSelectionTelemetry } from '../../sessions/browser/sess
 import { AgentsWindowInvitationOnboarding } from '../../onboardingTours/browser/agentsWindowInvitationOnboarding.js';
 import { isAgentsWindowInvitationSource } from '../../../../workbench/contrib/chat/common/agentsWindowInvitation.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { isAgentHostTarget } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { isAgentHostTarget, isLocalAgentHostTarget } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import '../../../../workbench/contrib/chat/browser/aiCustomization/copilotCanvases.contribution.js';
 import './chatBackgroundTool.contribution.js';
 import { ScreenshotWindowToolContribution } from '../browser/screenshotWindowTool.js';
 import { ISession, isSessionCreated } from '../../../../workbench/services/sessions/common/session.js';
+import { IRemoteWorkspaceHandoffService, RemoteAgentHostHandoffResult } from '../../../common/remoteWorkspaceHandoff.js';
+import { getRemoteName } from '../../../../platform/remote/common/remoteHosts.js';
 
 /** Revokes editor request ownership when the next request is submitted here. */
 export class AgentsWindowRequestActivity extends Disposable implements IWorkbenchContribution {
@@ -107,6 +112,7 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 		@INotificationService private readonly notificationService: INotificationService,
 		@IProductService private readonly productService: IProductService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IRemoteWorkspaceHandoffService private readonly remoteWorkspaceHandoffService: IRemoteWorkspaceHandoffService,
 	) {
 		super();
 		this._workspaceHandoff = this._register(instantiationService.createInstance(AgentsWindowWorkspaceHandoff));
@@ -221,7 +227,9 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 		// the folder selection is only needed for the folder-only handoff (no
 		// session to restore).
 		if (sessionResource) {
-			await this.openExistingSession(sessionResource, token);
+			// A remote editor window names sessions of the agent host on its machine like local ones, and sends its folder to identify that machine.
+			const remoteAuthority = workspaceUri?.scheme === Schemas.vscodeRemote && isLocalAgentHostTarget(sessionResource.scheme) ? workspaceUri.authority : undefined;
+			await this.openExistingSession(sessionResource, token, remoteAuthority);
 			return;
 		}
 		const resolved = resolveAgentsWindowFolderIntent(workspaceUri, this.configurationService);
@@ -244,7 +252,7 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 		}
 	}
 
-	private async openExistingSession(sessionResource: URI, token: CancellationToken): Promise<void> {
+	private async openExistingSession(sessionResource: URI, token: CancellationToken, remoteAuthority?: string): Promise<void> {
 		this.logService.info(`[AgentsHandoff] openExistingSession: target=${sessionResource.toString()}`);
 
 		// Wait until initial restore has started so opening the target can cancel it,
@@ -258,6 +266,11 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 		const backendSession = parseOpenSessionLinkUri(sessionResource);
 		if (backendSession) {
 			await this.sessionsPartService.getProgressIndicator().showWhile(this.resolveAndOpenSessionLink(sessionResource, backendSession, token));
+			return;
+		}
+
+		if (remoteAuthority) {
+			await this.sessionsPartService.getProgressIndicator().showWhile(this.resolveAndOpenRemoteSession(sessionResource, remoteAuthority, token));
 			return;
 		}
 
@@ -362,6 +375,53 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 		const session = this.getSessionForResource(sessionResource);
 		if (!session) {
 			this.logService.warn('[AgentsHandoff] target session disappeared before opening; aborting');
+			return;
+		}
+		await this.sessionsService.openChat(session, sessionResource, { source: 'chat' });
+	}
+
+	/**
+	 * Opens a session of a remote editor window. That window reaches the agent host on its remote machine as its own
+	 * agent host, while this window connects to the same host as a remote agent host, which names its sessions differently.
+	 */
+	private async resolveAndOpenRemoteSession(editorSessionResource: URI, remoteAuthority: string, token: CancellationToken): Promise<void> {
+		// Only a tunnel's editor windows share their agent host with this window. Elsewhere, the editor's VS Code server
+		// runs its own agent host, with a session registry separate from that of the agent host this window starts.
+		if (getRemoteName(remoteAuthority) !== 'tunnel') {
+			this.notificationService.warn(localize('agentsHandoff.remoteSessionUnsupported', "The Agents Window can't open sessions from this remote window yet. Only sessions from local and tunnel windows can be opened here."));
+			return;
+		}
+		let host: RemoteAgentHostHandoffResult;
+		try {
+			host = await this.remoteWorkspaceHandoffService.resolveHost(remoteAuthority, token);
+		} catch (error) {
+			if (isCancellationError(error)) {
+				return;
+			}
+			throw error;
+		}
+		if (host.unavailableReason !== undefined) {
+			this.notificationService.warn(localize('agentsHandoff.remoteSessionUnavailable', "The session of your remote window could not be opened in the Agents Window. {0}", host.unavailableReason));
+			return;
+		}
+		const sessionType = toRemoteAgentHostSessionType(editorSessionResource.scheme, host.connectionAuthority);
+		// The handoff reports failures of the connection it starts.
+		if (!sessionType || !await raceCancellation(host.connected, token, false)) {
+			return;
+		}
+		const sessionResource = editorSessionResource.with({ scheme: sessionType });
+		this.logService.info(`[AgentsHandoff] remote session: target=${sessionResource.toString()}`);
+		if (isEqual(this._focusedSessionHostService.focusedHost.get().session.get()?.resource, sessionResource)) {
+			return;
+		}
+		const found = await this.waitForSessionAvailable(sessionResource, token);
+		if (token.isCancellationRequested) {
+			return;
+		}
+		const session = found ? this.getSessionForResource(sessionResource) : undefined;
+		if (!session) {
+			this.logService.warn('[AgentsHandoff] remote session never appeared in its host\'s provider; aborting');
+			this.notificationService.warn(localize('agentsHandoff.remoteSessionNotFound', "The session of your remote window could not be found on the remote agent host."));
 			return;
 		}
 		await this.sessionsService.openChat(session, sessionResource, { source: 'chat' });

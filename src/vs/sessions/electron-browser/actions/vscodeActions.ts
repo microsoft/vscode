@@ -13,6 +13,8 @@ import { EditorContextKeys } from '../../../editor/common/editorContextKeys.js';
 import { localize2 } from '../../../nls.js';
 import { Action2 } from '../../../platform/actions/common/actions.js';
 import { IRemoteAgentHostService } from '../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IAgentHostConnectionsService } from '../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { INotificationService } from '../../../platform/notification/common/notification.js';
 import { KeyCode, KeyMod } from '../../../base/common/keyCodes.js';
 import { ContextKeyExpr } from '../../../platform/contextkey/common/contextkey.js';
 import { IsLinuxContext } from '../../../platform/contextkey/common/contextkeys.js';
@@ -29,7 +31,7 @@ import { OpenInVSCodeTitleBarWidget } from '../../browser/widget/openInVSCodeWid
 import { IActionViewItemService } from '../../../platform/actions/browser/actionViewItemService.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
-import { resolveRemoteFolderUri } from '../../../workbench/contrib/sessions/browser/openInVSCodeUtils.js';
+import { getEditorWindowSessionResource, notifyEditorWindowSessionUnsupported, resolveRemoteFolderUri } from '../../../workbench/contrib/sessions/browser/openInVSCodeUtils.js';
 import { INativeHostService } from '../../../platform/native/common/native.js';
 import { IFolderToOpen, IOpenedMainWindow } from '../../../platform/window/common/window.js';
 import { ILabelService, Verbosity } from '../../../platform/label/common/label.js';
@@ -70,6 +72,8 @@ export async function openSessionInVSCode(accessor: ServicesAccessor, session: I
 	const nativeHostService = accessor.get(INativeHostService);
 	const sessionsProvidersService = accessor.get(ISessionsProvidersService);
 	const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
+	const agentHostConnectionsService = accessor.get(IAgentHostConnectionsService);
+	const notificationService = accessor.get(INotificationService);
 	const labelService = accessor.get(ILabelService);
 
 	const folders = (chat ?? session?.mainChat.get())?.workspace.get()?.folders;
@@ -90,7 +94,11 @@ export async function openSessionInVSCode(accessor: ServicesAccessor, session: I
 	}
 
 	const chatSessionToOpen = getChatSessionToOpenInEditor(session, chat);
-	return nativeHostService.openWindow(foldersToOpen, { forceNewWindow: true, chatSessionToOpen });
+	const editorChatSession = chatSessionToOpen && getEditorWindowSessionResource(chatSessionToOpen, session.providerId, sessionsProvidersService, remoteAgentHostService, agentHostConnectionsService);
+	if (chatSessionToOpen && !editorChatSession) {
+		notifyEditorWindowSessionUnsupported(notificationService);
+	}
+	return nativeHostService.openWindow(foldersToOpen, { forceNewWindow: true, chatSessionToOpen: editorChatSession });
 }
 
 /**

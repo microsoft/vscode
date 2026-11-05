@@ -31,6 +31,7 @@ import { extUri } from '../../../../../base/common/resources.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { CommandService } from '../../../../services/commands/common/commandService.js';
 import { IExtensionService, NullExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { IChatWidget, IChatWidgetService } from '../../browser/chat.js';
@@ -244,6 +245,38 @@ suite('OpenWorkspaceInAgentsWindowAction', () => {
 			folderUri: workspaceFolderUri.toString(),
 			source: AgentsWindowOpenSource.ChatTitleBar,
 		}]);
+	});
+});
+
+suite('OpenChatSessionInAgentsWindowAction', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('identifies the machine of a remote window\'s own agent host sessions by the window\'s folder', async () => {
+		const calls: { folder: string | undefined; reveal: string | undefined }[] = [];
+		const run = async (remoteAuthority: string | undefined, folders: URI[], session: string) => {
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(IConfigurationService, new TestConfigurationService());
+			instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({ lastFocusedWidget: undefined }));
+			instantiationService.stub(IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({ remoteAuthority }));
+			instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
+				getWorkspace: () => ({ id: 'workspace', folders: folders.map((uri, index) => new WorkspaceFolder({ uri, name: uri.path, index })) }),
+			}));
+			instantiationService.stub(INativeHostService, upcastPartial<INativeHostService>({
+				openAgentsWindow: async options => { calls.push({ folder: URI.revive(options?.folderUri)?.toString(), reveal: options?.reveal === 'new' ? 'new' : URI.revive(options?.reveal)?.toString() }); },
+			}));
+			await instantiationService.invokeFunction(accessor => new OpenChatSessionInAgentsWindowAction().run(accessor, URI.parse(session)));
+		};
+		const remoteFolder = URI.from({ scheme: Schemas.vscodeRemote, authority: 'tunnel+box', path: '/project' });
+		await run('tunnel+box', [remoteFolder], 'agent-host-copilotcli:/session');
+		await run('tunnel+box', [], 'agent-host-copilotcli:/session');
+		await run('tunnel+box', [remoteFolder], 'copilotcli:/session');
+		await run(undefined, [URI.file('/project')], 'agent-host-copilotcli:/session');
+		assert.deepStrictEqual(calls, [
+			{ folder: remoteFolder.toString(), reveal: 'agent-host-copilotcli:/session' },
+			{ folder: URI.from({ scheme: Schemas.vscodeRemote, authority: 'tunnel+box', path: '/' }).toString(), reveal: 'agent-host-copilotcli:/session' },
+			{ folder: undefined, reveal: 'copilotcli:/session' },
+			{ folder: undefined, reveal: 'agent-host-copilotcli:/session' },
+		]);
 	});
 });
 
