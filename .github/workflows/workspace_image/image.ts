@@ -154,7 +154,7 @@ async function runUntilDeadline(command: string, args: readonly string[]): Promi
 	}
 }
 
-/** Whether a volume is mounted at a folder, on Linux */
+/** Whether a volume is mounted at a folder, on Linux and macOS */
 function isMountPoint(folder: string): boolean {
 	return fs.statSync(folder).dev !== fs.statSync(path.dirname(folder)).dev;
 }
@@ -753,6 +753,23 @@ async function mount(source: Source, root: string, connections: number): Promise
 			return () => {
 				spawnSync('sudo', ['umount', root], { stdio: 'inherit' });
 				spawnSync('sudo', ['losetup', '--detach', loop], { stdio: 'inherit' });
+			};
+		}
+		case 'darwin': {
+			// An APFS volume in a sparse ASIF image, which hides the empty workspace folder of the runner
+			const file = path.join(temp, 'workspace-image.asif');
+			log(await unpack(source, file, { sparse: true, connections }));
+			try {
+				await runUntilDeadline('diskutil', ['image', 'attach', '--nobrowse', '--mountPoint', root, file]);
+			} catch (err) {
+				// The deadline may have stopped diskutil after the mount
+				if (isMountPoint(root)) {
+					spawnSync('diskutil', ['unmount', 'force', root], { stdio: 'inherit' });
+				}
+				throw err;
+			}
+			return () => {
+				spawnSync('diskutil', ['unmount', 'force', root], { stdio: 'inherit' });
 			};
 		}
 		case 'win32': {

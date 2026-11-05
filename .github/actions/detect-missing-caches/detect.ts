@@ -41,7 +41,7 @@ interface ICore {
  * The `runner.os` of a job. The Windows runners check out text files with CRLF line endings, which
  * changes the cache keys that hash them.
  */
-type RunnerOs = 'Linux' | 'Windows';
+type RunnerOs = 'Linux' | 'macOS' | 'Windows';
 
 /**
  * Line endings of a runner's checkout.
@@ -88,6 +88,13 @@ export const cacheWarmingJobs: Readonly<Record<string, ICacheWarmingJob>> = {
 		electron: { arch: 'x64' },
 		playwright: { arch: 'X64', browsers: '--only-shell chromium' },
 	},
+	// Commented out with the macOS job of pr-node-modules.yml (see there).
+	// 'macOS': {
+	// 	os: 'macOS',
+	// 	nodeModules: { prefix: 'node_modules-macos', args: ['darwin', 'arm64', 'arm64'] },
+	// 	electron: { arch: 'arm64' },
+	// 	playwright: { arch: 'ARM64', browsers: '--only-shell chromium webkit' },
+	// },
 	'windows': {
 		os: 'Windows',
 		nodeModules: { prefix: 'node_modules-windows', args: ['win32', 'x64', 'x64'] },
@@ -111,6 +118,7 @@ export const cacheWarmingJobs: Readonly<Record<string, ICacheWarmingJob>> = {
  */
 const electronCachePaths: Readonly<Record<RunnerOs, string>> = {
 	Linux: '/home/runner/.cache/electron',
+	macOS: '/Users/runner/Library/Caches/electron',
 	Windows: 'C:\\Users\\runneradmin\\AppData\\Local\\electron\\Cache',
 };
 

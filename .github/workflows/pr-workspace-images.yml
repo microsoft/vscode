@@ -1,10 +1,11 @@
 name: Code OSS (workspace images)
 
 # Builds the workspace images for the test jobs of pull requests (pr-linux-test.yml and
-# pr-win32-test.yml): a disk image of a workspace of main, with its dependencies, Electron and the
-# Playwright browsers installed, at the path of the workspaces of the jobs, and with a .git that their
-# checkouts reuse. A job that mounts an image installs only what changed since. See
-# .github/workflows/workspace_image/README.md.
+# pr-win32-test.yml): a disk image of a workspace of main, with its
+# dependencies, Electron and the Playwright browsers installed, at the path of the workspaces of the
+# jobs, and with a .git that their checkouts reuse. A job that mounts an image installs only what
+# changed since. The macOS job is commented out with the macOS test jobs of pr.yml, which never
+# adopted the images. See .github/workflows/workspace_image/README.md.
 # The daily and manual runs also prepare the WSL distribution of the Windows smoke tests (the
 # wsl-distro job), and cache the apt packages of the Linux test jobs (the linux-packages job).
 on:
@@ -208,6 +209,88 @@ jobs:
           archive: false
           retention-days: 2
           if-no-files-found: error
+
+  # Commented out with the macOS test jobs of pr.yml, which never adopted the images (see macos-tests
+  # there).
+  # macOS:
+  #   name: macOS
+  #   runs-on: vscode-large-runners-macos-5-core-0
+  #   timeout-minutes: 60
+  #   env:
+  #     NPM_ARCH: arm64
+  #     VSCODE_ARCH: arm64
+  #   steps:
+  #     - *download-scripts
+  #     - *setup-node
+  #
+  #     # An APFS volume in a sparse ASIF image, mounted at the parent folder of the workspace like in the jobs
+  #     - name: Create the volume of the image
+  #       working-directory: ${{ runner.temp }}
+  #       run: |
+  #         set -euo pipefail
+  #         root="$(dirname "$GITHUB_WORKSPACE")"
+  #         diskutil image create blank --fs APFS --format ASIF --size 100G --volumeName vscode-workspace "$RUNNER_TEMP/workspace-image.asif"
+  #         diskutil image attach --nobrowse --mountPoint "$root" "$RUNNER_TEMP/workspace-image.asif"
+  #         # Spotlight leaves the volume alone
+  #         touch "$root/.metadata_never_index"
+  #         mkdir "$GITHUB_WORKSPACE"
+  #
+  #     - *checkout
+  #     - *setup-pnpm
+  #     - *tool-folders
+  #
+  #     - name: Install dependencies
+  #       run: |
+  #         set -e
+  #         c++ --version
+  #         xcode-select -print-path
+  #         python3 -m pip install --break-system-packages setuptools
+  #
+  #         for i in {1..5}; do # try 5 times
+  #           pnpm install --frozen-lockfile && break
+  #           if [ $i -eq 5 ]; then
+  #             echo "pnpm install failed too many times" >&2
+  #             exit 1
+  #           fi
+  #           echo "pnpm install failed $i, trying again..."
+  #         done
+  #       env:
+  #         npm_config_arch: ${{ env.NPM_ARCH }}
+  #         VSCODE_ARCH: ${{ env.VSCODE_ARCH }}
+  #         ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+  #         PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #         # Same as in pr-darwin-test.yml
+  #         GYP_DEFINES: "kerberos_use_rtld=false"
+  #
+  #     - *check-native-optional-deps
+  #
+  #     - *setup-electron
+  #
+  #     - name: Install Playwright Chromium and WebKit
+  #       run: pnpm exec playwright install --only-shell chromium webkit
+  #
+  #     - *seed
+  #
+  #     - name: Build the image
+  #       working-directory: ${{ runner.temp }}
+  #       run: |
+  #         set -euo pipefail
+  #         root="$(dirname "$GITHUB_WORKSPACE")"
+  #         du -sh "$root"/.[!.]* "$root"/*/node_modules "$root"/*/.build "$root"/*/.git || true
+  #         df -h "$root"
+  #         # Retried, in case Spotlight or a process that just ended still holds a file
+  #         hdiutil detach "$root" || { sleep 5; hdiutil detach -force "$root"; }
+  #         ls -la "$RUNNER_TEMP/workspace-image.asif"
+  #         node "$RUNNER_TEMP/workspace-image/image.ts" pack --in "$RUNNER_TEMP/workspace-image.asif" --out "$RUNNER_TEMP/workspace-image-darwin-arm64.img"
+  #
+  #     - name: Upload the image
+  #       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+  #       with:
+  #         path: ${{ runner.temp }}/workspace-image-darwin-arm64.img
+  #         archive: false
+  #         retention-days: 2
+  #         if-no-files-found: error
 
   windows:
     name: Windows

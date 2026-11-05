@@ -44,7 +44,7 @@ interface ITestJob {
 }
 
 /** Matches the reusable workflows that the test jobs of pr.yml call. */
-const testWorkflow = /^\.\/\.github\/workflows\/(?<file>pr-(linux|win32)-test\.yml|pr-linux-cli-test\.yml)$/;
+const testWorkflow = /^\.\/\.github\/workflows\/(?<file>pr-(linux|darwin|win32)-test\.yml|pr-linux-cli-test\.yml)$/;
 
 /**
  * Returns the jobs of the reusable test workflows that pr.yml calls, by the names of their checks, such as
@@ -428,7 +428,7 @@ suite('Detect Changes', () => {
 		// GitHub neither expands the matrix of a skipped job nor evaluates the expressions in its name, so a skipped
 		// "chat-lib - Test (${{ matrix.os }})" job would report under that name.
 		const alwaysRun = ['${{ !cancelled() }}', '${{ always() }}'];
-		const workflows = ['pr.yml', 'pr-linux-test.yml', 'pr-win32-test.yml', 'pr-linux-cli-test.yml'];
+		const workflows = ['pr.yml', 'pr-linux-test.yml', 'pr-darwin-test.yml', 'pr-win32-test.yml', 'pr-linux-cli-test.yml'];
 		assert.deepStrictEqual(workflows.flatMap(workflow => Object.entries(loadWorkflow(workflow).jobs)
 			.filter(([, job]) => job.if !== undefined && !alwaysRun.includes(job.if) && job.name?.includes('${{'))
 			.map(([id, job]) => `${workflow}: ${id}: ${job.name}`)), []);

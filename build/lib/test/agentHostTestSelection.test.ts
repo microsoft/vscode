@@ -158,7 +158,7 @@ suite('Agent Host PR test selection', () => {
 		]);
 	});
 
-	test('Linux and Windows run Agent Host E2E in their own jobs, propagate the profile and fail open when detection is unavailable', () => {
+	test('Linux and Windows run Agent Host E2E in their own jobs, pr-darwin-test.yml in its Electron job; all propagate the profile and fail open when detection is unavailable', () => {
 		interface IStep { id?: string; name?: string; if?: string; run?: string; uses?: string; with?: Record<string, string>; env?: Record<string, string> }
 		interface IJob { name?: string; needs?: string; if?: string; uses?: string; with?: Record<string, unknown>; env?: Record<string, unknown>; outputs?: Record<string, string>; steps?: IStep[] }
 		const action = load(readFileSync(path.join(repositoryRoot, '.github/actions/detect-agent-host-e2e-changes/action.yml'), 'utf8')) as {
@@ -170,6 +170,7 @@ suite('Agent Host PR test selection', () => {
 		const checkout = changes.steps?.find(step => step.uses?.startsWith('actions/checkout@'));
 		const profile = '${{ needs.changes.outputs.agent-host-test-profile || \'full\' }}';
 		const reason = '${{ needs.changes.outputs.agent-host-test-profile-reason || \'Change detection unavailable\' }}';
+		// pr.yml does not call pr-darwin-test.yml while its macos-tests job is commented out.
 		const callers = [['linux-tests', 'linux'], ['windows-tests', 'win32']].map(([id, platform]) => {
 			const caller = pr.jobs[id];
 			const { jobs } = load(readFileSync(path.join(repositoryRoot, `.github/workflows/pr-${platform}-test.yml`), 'utf8')) as { jobs: Record<string, IJob> };
@@ -184,8 +185,8 @@ suite('Agent Host PR test selection', () => {
 				integrationTests: job.env?.INTEGRATION_TESTS,
 				shard: job.env?.AGENT_HOST_E2E_SHARD_INDEX === undefined ? undefined : `${job.env.AGENT_HOST_E2E_SHARD_INDEX}/${job.env.AGENT_HOST_E2E_SHARD_TOTAL}`,
 			});
-			// The job that runs the node.js integration tests, apart from the extension host tests.
-			const nodeIntegration = jobs['electron-node'];
+			// The job that runs the node.js integration tests: Linux runs them apart from the extension host tests.
+			const nodeIntegration = jobs.electron ?? jobs['electron-node'];
 			return {
 				needs: caller.needs,
 				if: caller.if,
@@ -197,7 +198,7 @@ suite('Agent Host PR test selection', () => {
 				integration: describe(nodeIntegration),
 			};
 		});
-		const platforms = ['linux', 'win32'].map(platform => {
+		const platforms = ['linux', 'darwin', 'win32'].map(platform => {
 			const workflow = load(readFileSync(path.join(repositoryRoot, `.github/workflows/pr-${platform}-test.yml`), 'utf8')) as {
 				on: { workflow_call: { inputs: Record<string, { default?: unknown }> } };
 				jobs: Record<string, { steps: IStep[] }>;
@@ -289,35 +290,38 @@ suite('Agent Host PR test selection', () => {
 					},
 				};
 			}),
-			platforms: ['linux', 'win32'].map(() => ({
-				// Linux and Windows run Agent Host E2E in their own jobs, so their Electron jobs have no input for it.
-				defaults: { agentHostTests: undefined, nodeIntegrationTests: true, profile: 'full', reason: 'Change detection unavailable' },
-				// Every platform runs only the planned node.js integration tests and Agent Host E2E suites.
-				agentHost: {
-					id: 'agent-host-e2e',
-					if: '${{ env.ELECTRON_TESTS == \'true\' && env.AGENT_HOST_E2E_TESTS == \'true\' }}',
-					runsScript: true,
-					runList: true,
-					profile: '${{ inputs.agent_host_test_profile }}',
-					reason: '${{ inputs.agent_host_test_profile_reason }}',
-					skip: undefined,
-				},
-				// Runs after an Agent Host E2E failure in the same job, so that one does not hide the other. The node.js
-				// integration tests and the extension host tests run in separate jobs.
-				integration: {
-					id: 'node-integration-tests',
-					if: '${{ env.ELECTRON_TESTS == \'true\' && env.INTEGRATION_TESTS == \'true\' && env.INTEGRATION_TEST_SUITE != \'extension-host\' && !cancelled() && (success() || steps.agent-host-e2e.outcome == \'failure\') }}',
-					runsScript: true,
-					runList: true,
-					profile: '${{ inputs.agent_host_test_profile }}',
-					reason: '${{ inputs.agent_host_test_profile_reason }}',
-				},
-				// Runs after a node.js integration test or Agent Host E2E failure in the same job.
-				extensionHost: {
-					if: '${{ env.ELECTRON_TESTS == \'true\' && env.INTEGRATION_TESTS == \'true\' && env.INTEGRATION_TEST_SUITE != \'node\' && !cancelled() && (success() || steps.agent-host-e2e.outcome == \'failure\' || steps.node-integration-tests.outcome == \'failure\') }}',
-					runsScript: true,
-				},
-			})),
+			platforms: ['linux', 'darwin', 'win32'].map(platform => {
+				// Linux and Windows run the node.js integration tests and the extension host tests in separate jobs.
+				const splitsIntegrationTests = platform !== 'darwin';
+				return {
+					// Linux and Windows run Agent Host E2E in their own jobs, so their Electron jobs have no input for it.
+					defaults: { agentHostTests: platform === 'darwin' ? false : undefined, nodeIntegrationTests: true, profile: 'full', reason: 'Change detection unavailable' },
+					// Every platform runs only the planned node.js integration tests and Agent Host E2E suites.
+					agentHost: {
+						id: 'agent-host-e2e',
+						if: '${{ env.ELECTRON_TESTS == \'true\' && env.AGENT_HOST_E2E_TESTS == \'true\' }}',
+						runsScript: true,
+						runList: true,
+						profile: '${{ inputs.agent_host_test_profile }}',
+						reason: '${{ inputs.agent_host_test_profile_reason }}',
+						skip: undefined,
+					},
+					// Runs after an Agent Host E2E failure in the same job, so that one does not hide the other.
+					integration: {
+						id: 'node-integration-tests',
+						if: `\${{ env.ELECTRON_TESTS == 'true' && env.INTEGRATION_TESTS == 'true' && ${splitsIntegrationTests ? 'env.INTEGRATION_TEST_SUITE != \'extension-host\'' : 'env.NODE_INTEGRATION_TESTS == \'true\''} && !cancelled() && (success() || steps.agent-host-e2e.outcome == 'failure') }}`,
+						runsScript: true,
+						runList: true,
+						profile: '${{ inputs.agent_host_test_profile }}',
+						reason: '${{ inputs.agent_host_test_profile_reason }}',
+					},
+					// Runs after a node.js integration test or Agent Host E2E failure in the same job.
+					extensionHost: {
+						if: `\${{ env.ELECTRON_TESTS == 'true' && env.INTEGRATION_TESTS == 'true' && ${splitsIntegrationTests ? 'env.INTEGRATION_TEST_SUITE != \'node\' && ' : ''}!cancelled() && (success() || steps.agent-host-e2e.outcome == 'failure' || steps.node-integration-tests.outcome == 'failure') }}`,
+						runsScript: true,
+					},
+				};
+			}),
 		});
 	});
 
@@ -410,6 +414,7 @@ suite('Agent Host PR test selection', () => {
 			}];
 		});
 		assert.deepStrictEqual(pairs, [
+			'.github/workflows/pr-darwin-test.yml',
 			'.github/workflows/pr-linux-test.yml',
 			'.github/workflows/pr-win32-test.yml',
 			'build/azure-pipelines/darwin/product-smoke-flaky-darwin.yml',
