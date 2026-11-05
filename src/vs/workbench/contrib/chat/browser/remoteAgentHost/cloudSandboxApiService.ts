@@ -55,6 +55,8 @@ import { createPricingMetaFromBilling, normalizeCAPIBilling } from '../../../../
 import { COPILOT_INTEGRATION_ID } from '../../../../../platform/endpoint/common/licenseAgreement.js';
 import { GITHUB_DOT_COM_COPILOT_API_BASE_URI, deriveGitHubEndpoints } from '../../../../../platform/github/common/githubEndpoints.js';
 import { nextLink } from '../../../../../platform/github/common/githubResponse.js';
+import { GitHubRequestTimeoutError } from '../../../../../platform/github/common/githubTypes.js';
+import { RequestError } from '../../../../../platform/github/common/types.js';
 import { parseMissionControlError } from '../../../../../platform/github/common/missionControl/missionControlError.js';
 import { ApiRequestError } from '../../../../../platform/github/common/missionControl/missionControlClient.js';
 import type { TaskClient } from '../../../../../platform/github/common/missionControl/tasks.js';
@@ -424,6 +426,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	async connectSessionFeed(token: CancellationToken): Promise<ICloudSandboxSessionFeedConnection | undefined> {
 		const store = new DisposableStore();
 		let connection: ICloudSandboxSessionFeedConnection;
+		let requested = false;
 		try {
 			const signal = AbortSignal.any([CancellationToken.toAbortSignal(token, store), AbortSignal.timeout(REQUEST_TIMEOUT_MS)]);
 			const authentication = await raceCancellationError(this._resolveGitHubSession(), token);
@@ -435,6 +438,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 				accountId: authentication.account.id, scopes: authentication.scopes,
 				authorizationServer: authentication.authorizationServer?.toString(),
 			}, signal));
+			requested = true;
 			connection = await client.tasks.connectFeed(signal, { caller: 'mc.sessionFeed.connect', deadline: Date.now() + REQUEST_TIMEOUT_MS });
 			const current = await raceCancellationError(this._resolveGitHubSession(), token);
 			if (!current || current.account.id !== authentication.account.id) {
@@ -455,6 +459,9 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 				throw new CloudSandboxRequestError(error.statusCode, error.message, error.retryAfterSeconds, {
 					code: error.code, limitedResource: error.limitedResource, requestId: error.requestId,
 				});
+			}
+			if (requested && error instanceof RequestError && (error.kind === 'network' || error instanceof GitHubRequestTimeoutError && error.requestDispatched)) {
+				this._telemetry.reportRequest('connectSessionFeed', 'networkError');
 			}
 			this._logService.debug(`${LOG_PREFIX} Session feed negotiation failed; retaining discovery polling.`);
 			throw error;
@@ -592,6 +599,9 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			trigger: options?.trigger ?? 'unknown', requestedMode, mode: requestedMode, outcome: 'failed',
 			durationMs: 0, pageCount: 0, listRequestCount: 0, taskCount: 0,
 			sandboxTaskCount: 0, changedSandboxTaskCount: 0, checkpointAdvanced: false,
+			checkpointAvailable: false, checkpointSource: 'unavailable',
+			listPageFailureCount: 0, taskDetailFailureCount: 0, repositoryEnrichmentMissCount: 0,
+			unresolvedTaskCount: 0, unreadPageScopeCount: 0, generationInvalidated: false,
 		};
 		const updates = new Map<string, ICachedSandboxTask | undefined>();
 		this._activeDiscoveryReads.add(updates);
@@ -605,6 +615,13 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		} finally {
 			this._activeDiscoveryReads.delete(updates);
 			telemetry.durationMs = stopwatch.elapsed();
+			telemetry.intentMode = options?.diagnostics?.intentMode;
+			telemetry.previousInventoryAgeMs = options?.diagnostics?.previousInventoryAgeMs;
+			telemetry.lastFullAgeMs = options?.diagnostics?.lastFullAgeMs;
+			telemetry.queued = options?.diagnostics?.queued;
+			telemetry.coalescedRequestCount = options?.diagnostics?.coalescedRequestCount;
+			telemetry.coalescedTrigger = options?.diagnostics?.coalescedTrigger;
+			this._logService.info(`${LOG_PREFIX} Discovery diagnostics ${JSON.stringify(telemetry)}`);
 			this._telemetry.reportDiscovery(telemetry);
 		}
 	}
@@ -618,6 +635,10 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			: this._discoverySince;
 		const since = !targeted && options?.incremental ? checkpointSince : undefined;
 		telemetry.mode = targeted ? 'targeted' : since ? 'incremental' : 'full';
+		telemetry.checkpointAvailable = checkpointSince !== undefined;
+		telemetry.fullScanReason = targeted || since ? 'notFull'
+			: options?.incremental ? this._discoverySince && includeArchived && !this._archivedDiscoverySince ? 'scopeInitialization' : 'noCheckpoint'
+				: options?.diagnostics?.fullScanReason ?? 'requestedFull';
 		const tasks = new Map<string, IScannedTask>();
 		const details = new Map<string, ITaskDetail>();
 		const cache = new Map(this._discoveredTasks);
@@ -666,6 +687,8 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 							cache.delete(id);
 							removedTaskIds.push(id);
 						} else {
+							telemetry.taskDetailFailureCount = (telemetry.taskDetailFailureCount ?? 0) + 1;
+							telemetry.unresolvedTaskCount = (telemetry.unresolvedTaskCount ?? 0) + 1;
 							truncated = true;
 							failedTaskIds.add(id);
 							this._logService.warn(`${LOG_PREFIX} Feed task refresh failed: ${toErrorMessage(error)}`);
@@ -721,11 +744,13 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 					url = nextTaskPageUrl(context.res.headers?.link, url, query);
 					if (page === DISCOVERY_TASK_SCAN_MAX_PAGES && url) {
 						hasUnreadPages = true;
+						telemetry.unreadPageScopeCount = (telemetry.unreadPageScopeCount ?? 0) + 1;
 					}
 				} catch (error) {
 					if (isCancellationError(error) || token.isCancellationRequested) {
 						throw new CancellationError();
 					}
+					telemetry.listPageFailureCount = (telemetry.listPageFailureCount ?? 0) + 1;
 					if (tasks.size === 0) {
 						return { kind: 'failed', reason: `listTasks failed: ${toErrorMessage(error)}` };
 					}
@@ -745,6 +770,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			}
 		}
 		const discoveryTime = checkpoint ?? Date.now();
+		telemetry.checkpointSource = checkpoint !== undefined ? 'serverDate' : latestUpdate !== undefined ? 'taskUpdate' : 'unavailable';
 		const sandboxTasks: IScannedTask[] = [];
 		const exclusions = { notSandboxCompute: 0, missingSessionBinding: 0, stalledQueuedSession: 0, emptySession: 0, detailFetchFailed: 0 };
 		const logExcludedTask = (taskId: string, reason: keyof typeof exclusions) => {
@@ -853,6 +879,9 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 					}
 					if (cached.session && cached.repositoryId !== undefined && !cached.session.repoName) {
 						const repoName = await this._resolveRepositoryName(cached.repositoryId, token);
+						if (!repoName) {
+							telemetry.repositoryEnrichmentMissCount = (telemetry.repositoryEnrichmentMissCount ?? 0) + 1;
+						}
 						cached = { ...cached, session: { ...cached.session, repoName } };
 					}
 					cache.set(task.id, cached);
@@ -871,6 +900,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 					}
 					this._logService.warn(`${LOG_PREFIX} Discovery getTask ${task.id} failed: ${toErrorMessage(error)}`);
 					logExcludedTask(task.id, 'detailFetchFailed');
+					telemetry.taskDetailFailureCount = (telemetry.taskDetailFailureCount ?? 0) + 1;
 					cache.set(task.id, { ...cache.get(task.id), summary: task, needsRefresh: true });
 					unresolved++;
 					failedTaskIds.add(task.id);
@@ -884,7 +914,9 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
+		telemetry.unresolvedTaskCount = (telemetry.unresolvedTaskCount ?? 0) + unresolved;
 		if (generation !== this._discoveryGeneration) {
+			telemetry.generationInvalidated = true;
 			return { kind: 'failed', reason: 'Sandbox discovery was invalidated while listing sessions' };
 		}
 		const partial = unresolved > 0 || truncated;
