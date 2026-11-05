@@ -2665,6 +2665,13 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 	// TODO@BenV: Move automation-specific code into an AutomationSectionRenderer subclass.
 	readonly automationStatus = derived(this, reader => {
 		const automationSessions = this.automationSessions.read(reader);
+		const sessionsByResource = new Map<string, ISession>();
+		for (const session of automationSessions) {
+			const key = this.uriIdentityService.extUri.getComparisonKey(session.resource);
+			if (!sessionsByResource.has(key)) {
+				sessionsByResource.set(key, session);
+			}
+		}
 		const personalAutomationIds = new Set(this.automationService.automations.read(reader)
 			.filter(automation => automation.ownership !== 'repository')
 			.map(automation => automation.id));
@@ -2672,7 +2679,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		// unless the row cannot: a cloud run can still be active while its session reports it finished.
 		const runs = this.automationService.runs.read(reader).map(run => {
 			const sessionResource = run.sessionResource;
-			const session = sessionResource && automationSessions.find(candidate => this.uriIdentityService.extUri.isEqual(candidate.resource, sessionResource));
+			const session = sessionResource && sessionsByResource.get(this.uriIdentityService.extUri.getComparisonKey(sessionResource));
 			return { automationId: run.automationId, status: run.status, session };
 		}).filter(({ status, session }) => {
 			if (!session || !this.isSessionListed(session, reader)) {
