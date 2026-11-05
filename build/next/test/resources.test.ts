@@ -30,20 +30,6 @@ globalThis.answer = calculateAnswer(41);
 `;
 
 suite('production resources', () => {
-	test('ships host-owned troubleshooting to desktop and server hosts, not browser-only builds', async () => {
-		const skill = 'vs/platform/agentHost/node/copilot/skills/troubleshoot/SKILL.md';
-		const inventory = await Promise.all(targets.map(async target => ({
-			target,
-			skills: (await getResourcePaths(path.join(repoRoot, 'src'), target)).filter(file => file === skill),
-		})));
-		assert.deepStrictEqual(inventory, [
-			{ target: 'desktop', skills: [skill] },
-			{ target: 'server', skills: [skill] },
-			{ target: 'server-web', skills: [skill] },
-			{ target: 'web', skills: [] },
-		]);
-	});
-
 	test('includes animated and reduced-motion koi backgrounds in every UI target', async () => {
 		const directory = 'vs/sessions/services/chatBackground/browser/media';
 		const images = ['koi-dark-static.webp', 'koi-dark.webp', 'koi-light-static.webp', 'koi-light.webp'].map(file => `${directory}/${file}`);

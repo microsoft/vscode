@@ -25,7 +25,7 @@ Shared workbench code owns reusable discovery and management behavior. Sessions 
 
 Harness-specific built-in skills belong to their provider. Copilot Agent Host supplies `troubleshoot` through the SDK skill provider on both create and resume, enriching its Markdown lazily with the exact host-local SDK conversation log and session-state directory. Explicit session-reference attachments take precedence over the current conversation. The extension troubleshooting skill handles extension debug logs and is registered only for Local sessions. SDK-provided invocation names take precedence over same-named disk skills under the SDK catalog contract. Virtual-workspace Copilot sessions retain their disabled skill discovery.
 
-The host-owned troubleshooting Markdown is packaged as a `SKILL.md` asset for desktop and server hosts and loaded through the SDK skill provider. Its customization entry is discovery-only, like Claude's built-in skills, and has no openable source. Attached Agent Host sessions resolve their state file through the owning connection using the advertised backend identity, rather than deriving a log path from the frontend session ID.
+The host-owned troubleshooting Markdown is defined in code and loaded through the SDK skill provider, without a separate packaged skill asset. Its customization entry is discovery-only, like Claude's built-in skills, and has no openable source. Attached Agent Host sessions resolve their state file through the owning connection using the advertised backend identity, rather than deriving a log path from the frontend session ID.
 
 ## Service boundary
 
