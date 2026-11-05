@@ -12,6 +12,7 @@ import { match } from '../../../../../../base/common/glob.js';
 import { StopWatch } from '../../../../../../base/common/stopwatch.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
+import { isObject } from '../../../../../../base/common/types.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { IAgentHostMcpOAuthMetadataService } from '../../../../../../platform/agentHost/common/agentHostMcpOAuthMetadataService.js';
 import { AgentHostAuthenticationPendingError } from '../../../../../../platform/agentHost/common/agentHostAdvertisedAuthentication.js';
@@ -22,8 +23,10 @@ import type { IDefaultAccount } from '../../../../../../base/common/defaultAccou
 import { deriveGitHubEndpoints } from '../../../../../../platform/github/common/githubEndpoints.js';
 import { gitHubCopilotResource } from '../../../../../../platform/agentHost/common/githubEndpoints.js';
 import { copilotEntraAuthorizationServer, copilotEntraClientId, copilotEntraDiscoveryResource, copilotEntraResources, isCopilotEntraResource } from '../../../../../../platform/agentHost/common/copilotEntraAuthentication.js';
+import type { CopilotAccountContext } from '../../../../../../platform/agentHost/common/copilotAccountContext.js';
 import { type McpAuthRequirement, type McpOAuthClient, type ModelSelection, type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import type { AuthenticateTarget, McpServerAuthenticateTarget } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
+import type { AuthenticateResult } from '../../../../../../platform/agentHost/common/agent.js';
 import { AuthRequiredReason } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
@@ -619,6 +622,8 @@ export interface IAgentHostAuthenticationOptions {
 	readonly preferredSessionId?: string;
 	/** Exact Microsoft identity from the host's current shared account context. */
 	readonly microsoftAccountId?: string;
+	/** Pins conversation preparation to the host-selected service instead of the first advertised resource. */
+	readonly copilotAccountContext?: CopilotAccountContext;
 	readonly copilotAccountChoice?: boolean;
 	readonly isCurrent?: () => boolean;
 	/** Returns true after renewing a connection-owned credential, or false to use normal provider recovery. */
@@ -630,7 +635,7 @@ interface IResolvedAgentHostAuthenticationOptions extends IAgentHostAuthenticati
 	readonly preferConnectorScopedSession: boolean;
 }
 
-interface IAgentHostAuthenticationForwardingOptions extends Pick<IAgentHostAuthenticationOptions, 'authTokenCache' | 'authenticate' | 'isCurrent'> {
+interface IAgentHostAuthenticationForwardingOptions extends Pick<IAgentHostAuthenticationOptions, 'authTokenCache' | 'authenticate' | 'isCurrent' | 'copilotAccountContext'> {
 	readonly target?: AuthenticateTarget;
 }
 
@@ -691,11 +696,21 @@ async function forwardAuthenticationToken(
 		...toAuthenticateRequest(resource, scopes, session, providerId, entitlement),
 		...(options.target ? { target: options.target } : {}),
 	};
+	const authenticate = async () => {
+		const result = await options.authenticate(request);
+		if (options.copilotAccountContext) {
+			throwIfAuthenticationStale(options);
+			if (isObject(result) && (result as Partial<AuthenticateResult>).authenticated === false) {
+				throw new Error(localize('agentHost.copilotCredentialRejected', "The agent host did not accept the selected Copilot service credential."));
+			}
+		}
+		return result;
+	};
 	if (options.authTokenCache) {
 		const identity = session?.id && session.account ? { sessionId: session.id, accountId: session.account.id } : undefined;
-		return options.authTokenCache.authenticate(resource, scopes ?? [], token, () => options.authenticate(request), authenticationAccountId(readAuthenticationAccount(request)), readAgentEntitlementHint(request), options.target, identity);
+		return options.authTokenCache.authenticate(resource, scopes ?? [], token, authenticate, authenticationAccountId(readAuthenticationAccount(request)), readAgentEntitlementHint(request), options.target, identity);
 	}
-	await options.authenticate(request);
+	await authenticate();
 	return true;
 }
 
@@ -1184,6 +1199,14 @@ export async function resolveAuthenticationInteractively(
 	protectedResources: readonly ProtectedResourceMetadata[],
 	options: IAgentHostAuthenticationOptions,
 ): Promise<boolean> {
+	const context = options.copilotAccountContext;
+	if (context && protectedResources.some(isCopilotEntraResource)) {
+		if (context.kind !== 'ready') {
+			return false;
+		}
+		protectedResources = protectedResources.filter(resource => resource.resource === context.choice.resource);
+		options = { ...options, microsoftAccountId: context.entraAccountId };
+	}
 	const authenticationService = accessor.get(IAuthenticationService);
 	const defaultAccountService = accessor.get(IDefaultAccountService);
 	const commandService = accessor.get(ICommandService);
@@ -1201,7 +1224,9 @@ export async function resolveAuthenticationInteractively(
 		throwIfAuthenticationStale(options);
 		if (existingSessionResolution.kind === 'resolved') {
 			const existingSession = existingSessionResolution.session;
-			if (await forwardAuthenticationToken(resolvedOptions, resource.resource, scopes, existingSession, existingSessionResolution.providerId, existingSessionResolution.entitlement)) {
+			const forwarded = await forwardAuthenticationToken(resolvedOptions, resource.resource, scopes, existingSession, existingSessionResolution.providerId, existingSessionResolution.entitlement);
+			throwIfAuthenticationStale(options);
+			if (forwarded) {
 				reportAgentHostAuthRecovery(telemetryService, {
 					trigger: 'sessionCreation',
 					action: 'forwardCurrent',
@@ -1219,7 +1244,9 @@ export async function resolveAuthenticationInteractively(
 			initialSessionMatch: existingSessionResolution.kind === 'signedOut' ? 'none' : 'unavailable',
 			quarantinePresent: rejectedSession !== undefined,
 		});
-		return (await forceAuthenticationInteractively(authenticationService, defaultAccountService, commandService, logService, telemetryService, resource, resolvedOptions, 'sessionCreation', rejectedSession?.accessToken)) !== undefined;
+		const session = await forceAuthenticationInteractively(authenticationService, defaultAccountService, commandService, logService, telemetryService, resource, resolvedOptions, 'sessionCreation', rejectedSession?.accessToken);
+		throwIfAuthenticationStale(options);
+		return session !== undefined;
 	}
 
 	return false;

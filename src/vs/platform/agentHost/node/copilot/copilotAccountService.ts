@@ -153,11 +153,12 @@ export class CopilotAccountService extends Disposable implements ICopilotAccount
 	}
 
 	private hasPreparedCredential(accountId: string): boolean {
-		return (['github', 'm365'] as const).some(service => {
-			const resource = resourceForService(service);
-			const credential = this._authenticationService.getAuthCredential({ resource: resource.resource, scopes: resource.scopes_supported });
-			return credential?.account?.providerId === 'microsoft' && credential.account.accountId === accountId;
-		});
+		return (['github', 'm365'] as const).some(service => this.hasCredential(accountId, resourceForService(service)));
+	}
+
+	private hasCredential(accountId: string, resource: ProtectedResourceMetadata): boolean {
+		const credential = this._authenticationService.getAuthCredential({ resource: resource.resource, scopes: resource.scopes_supported });
+		return credential?.account?.providerId === 'microsoft' && credential.account.accountId === accountId;
 	}
 
 	acceptCredential(params: AuthenticateParams, connection: CancellationToken): boolean {
@@ -202,6 +203,9 @@ export class CopilotAccountService extends Disposable implements ICopilotAccount
 		if (!attempt || this.state.get() !== context || token.isCancellationRequested) {
 			throw new CancellationError();
 		}
+		if (options.kind === 'create') {
+			this.requireSessionCredential(context);
+		}
 		const { kind, ...sessionOptions } = options;
 		const session = kind === 'create'
 			? await client.createSession({ ...accountSessionConfig(this._home.home.fsPath), ...sessionOptions })
@@ -223,9 +227,10 @@ export class CopilotAccountService extends Disposable implements ICopilotAccount
 	}
 
 	private async authenticateSession(session: CopilotSession, context: Extract<CopilotAccountContext, { kind: 'ready' }>, authority: CancellationToken, token: CancellationToken): Promise<void> {
-		if (token.isCancellationRequested) {
+		if (token.isCancellationRequested || authority.isCancellationRequested) {
 			throw new CancellationError();
 		}
+		this.requireSessionCredential(context);
 		const flow = await session.rpc.accounts.login.begin({ kind: 'entra', accountId: context.derivedFrom });
 		try {
 			let step = flow.step;
@@ -244,6 +249,12 @@ export class CopilotAccountService extends Disposable implements ICopilotAccount
 			}
 		} finally {
 			await session.rpc.accounts.login.cancel({ flowId: flow.flowId });
+		}
+	}
+
+	private requireSessionCredential(context: Extract<CopilotAccountContext, { kind: 'ready' }>): void {
+		if (!this.hasCredential(context.entraAccountId, resourceForChoice(context.choice))) {
+			throw new ProtocolError(AhpErrorCodes.AuthRequired, localize('copilot.sessionCredentialRequired', "The selected Copilot service requires authentication. Retry with the same Microsoft account."));
 		}
 	}
 

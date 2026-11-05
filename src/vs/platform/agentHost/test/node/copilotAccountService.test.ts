@@ -453,6 +453,31 @@ suite('Copilot account context', () => {
 		});
 	}
 
+	test('creates a conversation only after the selected service credential is accepted', async () => {
+		const f = fixture();
+		await f.discover();
+		await f.select('m365');
+		const context = f.context.requireReady();
+		const resource = copilotEntraResources.get(copilotEntraM365Audience)!;
+		f.authentication.invalidateAuthTokens(resource);
+		let created = 0;
+		const client = new class extends mock<CopilotClient>() {
+			override async createSession() { created++; return f.session; }
+		}();
+		const options = { kind: 'create' as const, sessionId: f.session.sessionId, enableSessionStore: false };
+		await assert.rejects(f.context.openSession(client, options, context, CancellationToken.None), /selected Copilot service requires authentication/);
+		const beforeDelivery = created;
+		const params = f.credential({ kind: 'discover' }, 'm365');
+		await f.authentication.authenticate({
+			...params, _meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: context.entraAccountId }),
+		}, [f.provider], undefined, f.connection.token);
+		f.authentication.invalidateAuthTokens(copilotEntraResources.get(copilotEntraEmuAudience)!);
+		await f.context.openSession(client, options, context, CancellationToken.None);
+		assert.deepStrictEqual({ beforeDelivery, created, sourceUnchanged: f.context.requireReady() === context }, {
+			beforeDelivery: 0, created: 1, sourceUnchanged: true,
+		});
+	});
+
 	test('does not expose the setup session after its account changes', async () => {
 		const f = fixture();
 		await f.discover();

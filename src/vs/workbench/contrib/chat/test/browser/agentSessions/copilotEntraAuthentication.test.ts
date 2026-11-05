@@ -10,7 +10,8 @@ import type { IDefaultAccount } from '../../../../../../base/common/defaultAccou
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { copilotEntraAuthorizationServer, copilotEntraClientId, copilotEntraDiscoveryResource, copilotEntraM365Audience, copilotEntraResources } from '../../../../../../platform/agentHost/common/copilotEntraAuthentication.js';
+import { copilotEntraAuthorizationServer, copilotEntraClientId, copilotEntraDiscoveryResource, copilotEntraEmuAudience, copilotEntraM365Audience, copilotEntraResources } from '../../../../../../platform/agentHost/common/copilotEntraAuthentication.js';
+import type { CopilotAccountContext } from '../../../../../../platform/agentHost/common/copilotAccountContext.js';
 import { authenticationAccountId, authenticationAccountMeta } from '../../../../../../platform/agentHost/common/meta/agentAuthenticationAccount.js';
 import type { ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AuthRequiredReason } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -239,6 +240,115 @@ suite('Agent Host Microsoft credential acquisition', () => {
 			signedIn: true, forwarded: [], interactive: [],
 		});
 	});
+
+	for (const service of ['m365', 'github'] as const) {
+		test(`chat-start prepares only the host-selected ${service} service before continuing`, async () => {
+			const f = fixture();
+			f.defaults.currentDefaultAccount = null;
+			const m365: ProtectedResourceMetadata = { ...resource, resource: copilotEntraResources.get(copilotEntraM365Audience)!, scopes_supported: [`${copilotEntraM365Audience}/.default`] };
+			const github: ProtectedResourceMetadata = { ...resource, resource: copilotEntraResources.get(copilotEntraEmuAudience)!, scopes_supported: [`${copilotEntraEmuAudience}/user_impersonation`] };
+			const target = service === 'm365' ? m365 : github;
+			const credential = { ...selected, id: 'service-session', scopes: target.scopes_supported!, accessToken: 'synthetic-service-token' };
+			f.authentication.sessions = [selected, credential];
+			const context: CopilotAccountContext = {
+				kind: 'ready', entraAccountId: selected.account.id, discoveryId: 'discovery', derivedFrom: 'runtime-base',
+				choice: { service, resource: target.resource, host: 'https://service.example', accountName: 'account', displayName: 'Account', selectionId: 'selected-service' },
+			};
+			const forwarded: IAgentHostAuthenticateRequest[] = [];
+			const authenticated = await f.instantiation.invokeFunction(resolveAuthenticationInteractively, [resource, github, m365], {
+				logPrefix: '[test]', copilotAccountContext: context,
+				authenticate: async request => { forwarded.push(request); return { authenticated: true }; },
+			});
+			assert.deepStrictEqual({
+				authenticated, forwarded: forwarded.map(request => ({ resource: request.resource, token: request.token })),
+				queriedScopes: f.authentication.calls.filter(([, scopes]) => scopes !== undefined).map(([, scopes]) => scopes),
+				interactive: f.authentication.created,
+			}, {
+				authenticated: true, forwarded: [{ resource: target.resource, token: credential.accessToken }],
+				queriedScopes: [target.scopes_supported], interactive: [],
+			});
+		});
+	}
+
+	test('chat-start refuses incomplete selection without prompting for another account or service', async () => {
+		const f = fixture();
+		const forwarded: IAgentHostAuthenticateRequest[] = [];
+		const authenticated = await f.instantiation.invokeFunction(resolveAuthenticationInteractively, [resource], {
+			logPrefix: '[test]', copilotAccountContext: { kind: 'incomplete', entraAccountId: selected.account.id },
+			authenticate: async request => { forwarded.push(request); },
+		});
+		assert.deepStrictEqual({ authenticated, forwarded, calls: f.authentication.calls, interactive: f.authentication.created }, {
+			authenticated: false, forwarded: [], calls: [], interactive: [],
+		});
+	});
+
+	test('chat-start rechecks the selected context after joining an in-flight credential delivery', async () => {
+		const f = fixture();
+		const target: ProtectedResourceMetadata = { ...resource, resource: copilotEntraResources.get(copilotEntraM365Audience)!, scopes_supported: [`${copilotEntraM365Audience}/.default`] };
+		f.authentication.sessions = [{ ...selected, scopes: target.scopes_supported! }];
+		const context: CopilotAccountContext = {
+			kind: 'ready', entraAccountId: selected.account.id, discoveryId: 'discovery', derivedFrom: 'runtime-base',
+			choice: { service: 'm365', resource: target.resource, host: 'https://service.example', accountName: 'account', displayName: 'Account', selectionId: 'selected-service' },
+		};
+		const delivery = new DeferredPromise<void>();
+		const joined = new DeferredPromise<void>();
+		let observeJoin = false;
+		const cache = new class extends AgentHostAuthTokenCache {
+			override authenticate(...args: Parameters<AgentHostAuthTokenCache['authenticate']>): Promise<boolean> {
+				const result = super.authenticate(...args);
+				if (observeJoin) {
+					joined.complete();
+				}
+				return result;
+			}
+		}();
+		const background = cache.authenticate(target.resource, target.scopes_supported, selected.accessToken, () => delivery.p,
+			authenticationAccountId({ providerId: 'microsoft', accountId: selected.account.id }));
+		observeJoin = true;
+		let current = true;
+		const preflight = f.instantiation.invokeFunction(resolveAuthenticationInteractively, [resource, target], {
+			logPrefix: '[test]', copilotAccountContext: context, authTokenCache: cache,
+			isCurrent: () => current,
+			authenticate: async () => { assert.fail('Must reuse the pending delivery'); },
+		});
+		await joined.p;
+		current = false;
+		delivery.complete();
+		await background;
+		await assert.rejects(preflight, isCancellationError);
+	});
+
+	for (const scenario of ['unadvertised', 'rejected', 'stale'] as const) {
+		test(`chat-start does not proceed with ${scenario} selected-service authentication`, async () => {
+			const f = fixture();
+			const target: ProtectedResourceMetadata = { ...resource, resource: copilotEntraResources.get(copilotEntraM365Audience)!, scopes_supported: [`${copilotEntraM365Audience}/.default`] };
+			f.authentication.sessions = [{ ...selected, scopes: target.scopes_supported! }];
+			const context: CopilotAccountContext = {
+				kind: 'ready', entraAccountId: selected.account.id, discoveryId: 'discovery', derivedFrom: 'runtime-base',
+				choice: { service: 'm365', resource: target.resource, host: 'https://service.example', accountName: 'account', displayName: 'Account', selectionId: 'selected-service' },
+			};
+			const cache = new AgentHostAuthTokenCache();
+			const forwarded: string[] = [];
+			let current = true;
+			const opening = f.instantiation.invokeFunction(resolveAuthenticationInteractively, scenario === 'unadvertised' ? [resource] : [resource, target], {
+				logPrefix: '[test]', copilotAccountContext: context, authTokenCache: cache,
+				isCurrent: () => current,
+				authenticate: async request => {
+					forwarded.push(request.resource);
+					current = scenario !== 'stale';
+					return { authenticated: scenario !== 'rejected' };
+				},
+			});
+			if (scenario === 'unadvertised') {
+				assert.strictEqual(await opening, false);
+			} else {
+				await assert.rejects(opening, scenario === 'stale' ? isCancellationError : /did not accept the selected/);
+			}
+			assert.deepStrictEqual({ forwarded, cachedSession: cache.getSessionId(target.resource, target.scopes_supported), interactive: f.authentication.created }, {
+				forwarded: scenario === 'unadvertised' ? [] : [target.resource], cachedSession: undefined, interactive: [],
+			});
+		});
+	}
 
 	for (const defaultProvider of ['none', 'github'] as const) {
 		test(`preserves the host-selected M365 account on a later token request with ${defaultProvider} as the window default`, async () => {
