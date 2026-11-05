@@ -5,7 +5,8 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { fromZoneFreeVerticalOffset, IMinimapWhitespace, MinimapLayout, toZoneFreeVerticalOffset } from '../../../browser/viewParts/minimap/minimap.js';
+import { MinimapLayout } from '../../../browser/viewParts/minimap/minimap.js';
+import { LinesLayout } from '../../../common/viewLayout/linesLayout.js';
 
 suite('MinimapLayout', () => {
 
@@ -31,17 +32,24 @@ suite('MinimapLayout', () => {
 	}
 
 	/**
-	 * Lay out `LINE_COUNT` lines and the given view zones like the editor does, and compute the minimap layout at `scrollTop`.
+	 * Lay out `LINE_COUNT` lines and the given view zones like the editor does.
+	 */
+	function createLinesLayout(zones: { afterLineNumber: number; height: number }[]): LinesLayout {
+		const linesLayout = new LinesLayout(LINE_COUNT, LINE_HEIGHT, 0, 0, []);
+		linesLayout.changeWhitespace(accessor => {
+			for (const zone of zones) {
+				accessor.insertWhitespace(zone.afterLineNumber, 0, zone.height, 0);
+			}
+		});
+		return linesLayout;
+	}
+
+	/**
+	 * Compute the minimap layout at `scrollTop` like the minimap does.
 	 */
 	function layoutAt(minimapHeightIsEditorHeight: boolean, zones: { afterLineNumber: number; height: number }[], scrollTop: number, previousLayout: MinimapLayout | null): MinimapLayout {
-		const whitespaces: IMinimapWhitespace[] = zones.map(zone => ({ zoneFreeVerticalOffset: zone.afterLineNumber * LINE_HEIGHT, height: zone.height }));
-		const zonesHeightBefore = (lineNumber: number) => zones.filter(zone => zone.afterLineNumber < lineNumber).reduce((sum, zone) => sum + zone.height, 0);
-
-		let viewportStartLineNumber = 1;
-		while ((viewportStartLineNumber - 1) * LINE_HEIGHT + zonesHeightBefore(viewportStartLineNumber) + LINE_HEIGHT <= scrollTop) {
-			viewportStartLineNumber++;
-		}
-
+		const linesLayout = createLinesLayout(zones);
+		const viewportStartLineNumber = linesLayout.getLineNumberAtOrAfterVerticalOffset(scrollTop);
 		return MinimapLayout.create(
 			createOptions(minimapHeightIsEditorHeight),
 			viewportStartLineNumber,
@@ -50,8 +58,8 @@ suite('MinimapLayout', () => {
 			LINE_COUNT,
 			LINE_COUNT,
 			scrollTop,
-			toZoneFreeVerticalOffset(whitespaces, scrollTop),
-			LINE_COUNT * LINE_HEIGHT,
+			MinimapLayout.getZoneFreeScrollTop(linesLayout, LINE_HEIGHT, 0, viewportStartLineNumber, scrollTop),
+			MinimapLayout.getZoneFreeScrollHeight(linesLayout, LINE_COUNT, LINE_HEIGHT, 0, linesLayout.getLinesTotalHeight()),
 			previousLayout
 		);
 	}
@@ -78,38 +86,6 @@ suite('MinimapLayout', () => {
 	function isMonotonic(values: number[], direction: 1 | -1): boolean {
 		return values.every((value, i) => i === 0 || direction * (value - values[i - 1]) >= 0);
 	}
-
-	test('zone-free vertical offsets', () => {
-		// Lines are 20px high: a 100px view zone after line 5 and two 50px view zones after line 10
-		const whitespaces: IMinimapWhitespace[] = [
-			{ zoneFreeVerticalOffset: 100, height: 100 },
-			{ zoneFreeVerticalOffset: 200, height: 50 },
-			{ zoneFreeVerticalOffset: 200, height: 50 },
-		];
-		const offsets = [0, 99, 100, 150, 199, 200, 250, 299, 300, 350, 400, 420];
-		assert.deepStrictEqual(
-			offsets.map(offset => {
-				const zoneFree = toZoneFreeVerticalOffset(whitespaces, offset);
-				return [offset, zoneFree, fromZoneFreeVerticalOffset(whitespaces, zoneFree)];
-			}),
-			[
-				[0, 0, 0],
-				[99, 99, 99],
-				// inside the first view zone: pinned to its start, which maps back to before the view zone
-				[100, 100, 100],
-				[150, 100, 100],
-				[199, 100, 100],
-				[200, 100, 100],
-				[250, 150, 250],
-				[299, 199, 299],
-				// inside the view zones after line 10
-				[300, 200, 300],
-				[350, 200, 300],
-				[400, 200, 300],
-				[420, 220, 420],
-			]
-		);
-	});
 
 	test('without view zones, the slider has a stable height and moves with the scroll position', () => {
 		const result = scroll(false, [], 0, LINE_COUNT * LINE_HEIGHT - VIEWPORT_HEIGHT, 10);
@@ -171,9 +147,9 @@ suite('MinimapLayout', () => {
 
 	test('dragging the slider moves the editor past a view zone instead of into it', () => {
 		const zones = [{ afterLineNumber: 100, height: 3000 }];
-		const whitespaces: IMinimapWhitespace[] = [{ zoneFreeVerticalOffset: 2000, height: 3000 }];
+		const linesLayout = createLinesLayout(zones);
 		const layout = layoutAt(false, zones, 1900, null);
-		const scrollTops = [0, 1, 2, 3, 4, 5, 10, 20].map(delta => fromZoneFreeVerticalOffset(whitespaces, layout.getDesiredZoneFreeScrollTopFromDelta(delta)));
+		const scrollTops = [0, 1, 2, 3, 4, 5, 10, 20].map(delta => MinimapLayout.getScrollTopForZoneFreeScrollTop(linesLayout, LINE_COUNT, LINE_HEIGHT, 0, layout.getDesiredZoneFreeScrollTopFromDelta(delta), LINE_COUNT * LINE_HEIGHT, linesLayout.getLinesTotalHeight(), VIEWPORT_HEIGHT));
 		assert.deepStrictEqual(
 			{
 				first: scrollTops[0],
@@ -181,6 +157,17 @@ suite('MinimapLayout', () => {
 				insideZone: scrollTops.filter(scrollTop => scrollTop > 2000 && scrollTop < 5000),
 			},
 			{ first: 1900, increasing: true, insideZone: [] }
+		);
+	});
+
+	test('dragging the slider to the end reaches the end of the editor, past a view zone after the last lines', () => {
+		const linesLayout = new LinesLayout(100, LINE_HEIGHT, 0, 0, []);
+		linesLayout.changeWhitespace(accessor => accessor.insertWhitespace(90, 0, 3000, 0));
+		const scrollHeight = linesLayout.getLinesTotalHeight();
+		const maxZoneFreeScrollTop = 100 * LINE_HEIGHT - VIEWPORT_HEIGHT;
+		assert.deepStrictEqual(
+			[maxZoneFreeScrollTop - 1, maxZoneFreeScrollTop, maxZoneFreeScrollTop + 100].map(zoneFreeScrollTop => MinimapLayout.getScrollTopForZoneFreeScrollTop(linesLayout, 100, LINE_HEIGHT, 0, zoneFreeScrollTop, 100 * LINE_HEIGHT, scrollHeight, VIEWPORT_HEIGHT)),
+			[maxZoneFreeScrollTop - 1, scrollHeight - VIEWPORT_HEIGHT, scrollHeight - VIEWPORT_HEIGHT]
 		);
 	});
 });

@@ -26,7 +26,7 @@ import { RenderingContext, RestrictedRenderingContext } from '../../view/renderi
 import { ViewContext } from '../../../common/viewModel/viewContext.js';
 import { EditorTheme } from '../../../common/editorTheme.js';
 import * as viewEvents from '../../../common/viewEvents.js';
-import { ViewLineData } from '../../../common/viewModel.js';
+import { IViewLayout, ViewLineData } from '../../../common/viewModel.js';
 import { minimapSelection, minimapBackground, minimapForegroundOpacity, editorForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { ModelDecorationMinimapOptions } from '../../../common/model/textModel.js';
 import { Selection } from '../../../common/core/selection.js';
@@ -212,48 +212,6 @@ class MinimapOptions {
 }
 
 /**
- * A view zone as seen by the minimap, which does not render view zones.
- */
-export interface IMinimapWhitespace {
-	/**
-	 * The vertical offset where the view zone starts, ignoring the height of all view zones.
-	 */
-	readonly zoneFreeVerticalOffset: number;
-	readonly height: number;
-}
-
-/**
- * Convert an editor vertical offset to the vertical offset it would have if all view zones were removed.
- * An offset inside a view zone maps to the offset where the view zone starts.
- * @param whitespaces The view zones, sorted by `zoneFreeVerticalOffset`.
- */
-export function toZoneFreeVerticalOffset(whitespaces: readonly IMinimapWhitespace[], verticalOffset: number): number {
-	let removedHeight = 0;
-	for (const whitespace of whitespaces) {
-		if (verticalOffset < whitespace.zoneFreeVerticalOffset + removedHeight + whitespace.height) {
-			return Math.min(verticalOffset - removedHeight, whitespace.zoneFreeVerticalOffset);
-		}
-		removedHeight += whitespace.height;
-	}
-	return verticalOffset - removedHeight;
-}
-
-/**
- * The inverse of {@link toZoneFreeVerticalOffset}. An offset where view zones start maps to the offset before them.
- * @param whitespaces The view zones, sorted by `zoneFreeVerticalOffset`.
- */
-export function fromZoneFreeVerticalOffset(whitespaces: readonly IMinimapWhitespace[], zoneFreeVerticalOffset: number): number {
-	let addedHeight = 0;
-	for (const whitespace of whitespaces) {
-		if (whitespace.zoneFreeVerticalOffset >= zoneFreeVerticalOffset) {
-			break;
-		}
-		addedHeight += whitespace.height;
-	}
-	return zoneFreeVerticalOffset + addedHeight;
-}
-
-/**
  * The minimap does not render view zones, so its layout is computed in zone-free coordinates:
  * the vertical offsets and scroll positions the editor would have if all view zones were removed.
  * This keeps the slider still while a view zone scrolls by, instead of moving it over lines that are not visible.
@@ -298,6 +256,45 @@ export class MinimapLayout {
 	) { }
 
 	/**
+	 * The minimap renders every line with the default line height and does not render view zones.
+	 * Compute the editor `scrollTop` in that coordinate system from the first line in the viewport, without looking at the view zones themselves.
+	 * Inside a view zone, the first line in the viewport is the line after the view zone, so the result stays at that line until the view zone has scrolled by.
+	 */
+	public static getZoneFreeScrollTop(viewLayout: Pick<IViewLayout, 'getVerticalOffsetForLineNumber'>, lineHeight: number, paddingTop: number, viewportStartLineNumber: number, scrollTop: number): number {
+		if (scrollTop < paddingTop) {
+			return scrollTop;
+		}
+		const partialLine = Math.max(0, Math.min(lineHeight, scrollTop - viewLayout.getVerticalOffsetForLineNumber(viewportStartLineNumber)));
+		return (viewportStartLineNumber - 1) * lineHeight + paddingTop + partialLine;
+	}
+
+	/**
+	 * Compute the editor `scrollHeight` in the coordinate system of `getZoneFreeScrollTop`.
+	 */
+	public static getZoneFreeScrollHeight(viewLayout: Pick<IViewLayout, 'getVerticalOffsetAfterLineNumber'>, lineCount: number, lineHeight: number, paddingTop: number, scrollHeight: number): number {
+		// The height of the view zones and the difference due to custom line heights
+		const extraHeight = viewLayout.getVerticalOffsetAfterLineNumber(lineCount, true) - (lineCount * lineHeight + paddingTop);
+		return scrollHeight - extraHeight;
+	}
+
+	/**
+	 * Convert a zone-free `scrollTop` chosen through the minimap to an editor `scrollTop` (the inverse of `getZoneFreeScrollTop`).
+	 * The end of the slider's range is the end of the editor, even when view zones follow the last line.
+	 */
+	public static getScrollTopForZoneFreeScrollTop(viewLayout: Pick<IViewLayout, 'getVerticalOffsetForLineNumber'>, lineCount: number, lineHeight: number, paddingTop: number, zoneFreeScrollTop: number, zoneFreeScrollHeight: number, scrollHeight: number, viewportHeight: number): number {
+		const maxScrollTop = Math.max(0, scrollHeight - viewportHeight);
+		if (zoneFreeScrollTop >= zoneFreeScrollHeight - viewportHeight) {
+			return maxScrollTop;
+		}
+		if (zoneFreeScrollTop < paddingTop) {
+			return Math.max(0, zoneFreeScrollTop);
+		}
+		const lineNumber = Math.max(1, Math.min(lineCount, Math.floor((zoneFreeScrollTop - paddingTop) / lineHeight) + 1));
+		const partialLine = zoneFreeScrollTop - ((lineNumber - 1) * lineHeight + paddingTop);
+		return Math.min(maxScrollTop, viewLayout.getVerticalOffsetForLineNumber(lineNumber) + partialLine);
+	}
+
+	/**
 	 * Compute a desired zone-free `scrollTop` such that the slider moves by `delta`.
 	 */
 	public getDesiredZoneFreeScrollTopFromDelta(delta: number): number {
@@ -340,7 +337,7 @@ export class MinimapLayout {
 	/**
 	 * @param viewportStartLineNumberZoneFreeVerticalOffset The vertical offset of `viewportStartLineNumber`, ignoring view zones.
 	 * @param scrollTop The editor scrollTop.
-	 * @param zoneFreeScrollTop The editor scrollTop, ignoring view zones (see {@link toZoneFreeVerticalOffset}).
+	 * @param zoneFreeScrollTop The editor scrollTop, ignoring view zones (see `MinimapLayout.getZoneFreeScrollTop`).
 	 * @param zoneFreeScrollHeight The editor scrollHeight, ignoring view zones.
 	 */
 	public static create(
@@ -631,7 +628,7 @@ export interface IMinimapModel {
 	getOptions(): TextModelResolvedOptions;
 	revealLineNumber(lineNumber: number): void;
 	/**
-	 * Scroll the editor to a scrollTop given in zone-free coordinates (see {@link toZoneFreeVerticalOffset}).
+	 * Scroll the editor to a scrollTop given in zone-free coordinates (see `MinimapLayout.getZoneFreeScrollTop`).
 	 */
 	setZoneFreeScrollTop(zoneFreeScrollTop: number): void;
 	setScrollTop(scrollTop: number): void;
@@ -1025,25 +1022,20 @@ export class Minimap extends ViewPart implements IMinimapModel {
 			viewportStartLineNumber = this._samplingState.modelLineToMinimapLine(viewportStartLineNumber);
 		}
 
-		const whitespaces = this._getMinimapWhitespaces();
-		let whitespacesTotalHeight = 0;
-		let whitespacesHeightBeforeViewportStart = 0;
-		for (const whitespace of this._context.viewModel.viewLayout.getWhitespaces()) {
-			whitespacesTotalHeight += whitespace.height;
-			if (whitespace.afterLineNumber < viewportStartLineNumber) {
-				whitespacesHeightBeforeViewportStart += whitespace.height;
-			}
-		}
-
+		// The minimap does not render view zones, so its layout is computed as if there were none.
+		// This only needs the first line in the viewport and the last line, never the view zones themselves.
+		const viewLayout = this._context.viewModel.viewLayout;
+		const lineHeight = this.options.lineHeight;
+		const paddingTop = this.options.paddingTop;
 		const minimapCtx: IMinimapRenderingContext = {
 			scrollWidth: ctx.scrollWidth,
-			zoneFreeScrollHeight: ctx.scrollHeight - whitespacesTotalHeight,
+			zoneFreeScrollHeight: MinimapLayout.getZoneFreeScrollHeight(viewLayout, this._context.viewModel.getLineCount(), lineHeight, paddingTop, ctx.scrollHeight),
 
 			viewportStartLineNumber: viewportStartLineNumber,
-			viewportStartLineNumberZoneFreeVerticalOffset: ctx.getVerticalOffsetForLineNumber(viewportStartLineNumber) - whitespacesHeightBeforeViewportStart,
+			viewportStartLineNumberZoneFreeVerticalOffset: (ctx.visibleRange.startLineNumber - 1) * lineHeight + paddingTop,
 
 			scrollTop: ctx.scrollTop,
-			zoneFreeScrollTop: toZoneFreeVerticalOffset(whitespaces, ctx.scrollTop),
+			zoneFreeScrollTop: MinimapLayout.getZoneFreeScrollTop(viewLayout, lineHeight, paddingTop, ctx.visibleRange.startLineNumber, ctx.scrollTop),
 			scrollLeft: ctx.scrollLeft,
 
 			viewportWidth: ctx.viewportWidth,
@@ -1206,35 +1198,19 @@ export class Minimap extends ViewPart implements IMinimapModel {
 	}
 
 	public setZoneFreeScrollTop(zoneFreeScrollTop: number): void {
-		this.setScrollTop(fromZoneFreeVerticalOffset(this._getMinimapWhitespaces(), zoneFreeScrollTop));
+		const viewLayout = this._context.viewModel.viewLayout;
+		const lineCount = this._context.viewModel.getLineCount();
+		const lineHeight = this.options.lineHeight;
+		const paddingTop = this.options.paddingTop;
+		const scrollHeight = viewLayout.getScrollHeight();
+		const zoneFreeScrollHeight = MinimapLayout.getZoneFreeScrollHeight(viewLayout, lineCount, lineHeight, paddingTop, scrollHeight);
+		this.setScrollTop(MinimapLayout.getScrollTopForZoneFreeScrollTop(viewLayout, lineCount, lineHeight, paddingTop, zoneFreeScrollTop, zoneFreeScrollHeight, scrollHeight, viewLayout.getCurrentViewport().height));
 	}
 
 	public setScrollTop(scrollTop: number): void {
 		this._context.viewModel.viewLayout.setScrollPosition({
 			scrollTop: scrollTop
 		}, ScrollType.Immediate);
-	}
-
-	/**
-	 * The view zones, with their offsets computed as if no view zones existed.
-	 */
-	private _getMinimapWhitespaces(): IMinimapWhitespace[] {
-		const viewLayout = this._context.viewModel.viewLayout;
-		const result: IMinimapWhitespace[] = [];
-		let accumulatedHeight = 0;
-		let heightBeforeAfterLineNumber = 0;
-		let previousAfterLineNumber = -1;
-		for (const whitespace of viewLayout.getWhitespaces()) {
-			if (whitespace.afterLineNumber !== previousAfterLineNumber) {
-				heightBeforeAfterLineNumber = accumulatedHeight;
-				previousAfterLineNumber = whitespace.afterLineNumber;
-			}
-			// `getVerticalOffsetAfterLineNumber` includes the view zones placed after lines before `afterLineNumber`
-			const zoneFreeVerticalOffset = viewLayout.getVerticalOffsetAfterLineNumber(whitespace.afterLineNumber) - heightBeforeAfterLineNumber;
-			result.push({ zoneFreeVerticalOffset, height: whitespace.height });
-			accumulatedHeight += whitespace.height;
-		}
-		return result;
 	}
 
 	//#endregion
@@ -1433,6 +1409,11 @@ class InnerMinimap extends Disposable {
 			}
 
 			const pointerDelta = posy - initialPosY;
+			if (pointerDelta === 0) {
+				// The slider is where the drag started: keep the scroll position, which might be inside a view zone
+				this._model.setScrollTop(initialSliderState.scrollTop);
+				return;
+			}
 			this._model.setZoneFreeScrollTop(initialSliderState.getDesiredZoneFreeScrollTopFromDelta(pointerDelta));
 		};
 
