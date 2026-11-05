@@ -404,6 +404,11 @@ function hasLiveChat(agent: CopilotAgent, chatUri: URI): boolean {
 	return !!sdkSessionId && !!chatEntriesBySdkId(agent).get(sdkSessionId);
 }
 
+/** Publishes a window's contribution to `chat`, which released canvases wait for before restoring. */
+function contributeActiveClient(agent: CopilotAgent, chat: URI, context: IAgentChatContext): void {
+	agent.getOrCreateActiveClient(chat, context, { clientId: 'canvas-window' });
+}
+
 class TestAgentPluginManager implements IAgentPluginManager {
 	declare readonly _serviceBrand: undefined;
 
@@ -1182,6 +1187,7 @@ class MockCopilotSession {
 		},
 		canvas: {
 			list: async () => ({ canvases: this.canvases }),
+			listOpen: async () => ({ openCanvases: this.openCanvases }),
 			open: async (params: Parameters<CopilotSession['rpc']['canvas']['open']>[0]) => {
 				this.canvasOpenCalls.push(params);
 				return {
@@ -8294,6 +8300,121 @@ suite('CopilotAgent', () => {
 				identity: sdkId, token: 'fresh', question: 'Remember the isolated conversation', sends: 1,
 				liveCanvases: ['preview'],
 			});
+		});
+
+		test('restores released scoped canvases on observation once a client contributes, across repeated releases', async () => {
+			const directory = URI.file(process.cwd());
+			const initialCanvas = {
+				instanceId: 'preview-instance',
+				canvasId: 'preview',
+				extensionId: 'project:preview',
+				title: 'Preview',
+				input: {},
+				url: 'https://example.test/initial',
+			};
+			const restoredCanvas = { ...initialCanvas, url: 'https://example.test/restored' };
+			const resumedRuntimes: MockCopilotSession[] = [];
+			const resumeCanvasSeeds: (CopilotSession['openCanvases'] | undefined)[] = [];
+			const resumePluginDirectories: (readonly string[] | undefined)[] = [];
+			const { agent, launches } = setup(undefined, [], [], { [AgentHostCanvasesEnabledConfigKey]: true }, {
+				onClientCreated: client => {
+					client.resumeSession = async (sessionId, config) => {
+						const runtime = new MockCopilotSession(sessionId);
+						Object.assign(runtime.rpc, { sendMessages: async () => { runtime.sendCalls++; return {}; } });
+						resumeCanvasSeeds.push(config.openCanvases);
+						resumePluginDirectories.push(config.pluginDirectories);
+						runtime.openCanvases.push(restoredCanvas);
+						resumedRuntimes.push(runtime);
+						return runtime as unknown as CopilotSession;
+					};
+				},
+			});
+			const session = AgentSession.uri('copilotcli', 'scoped-canvas-release');
+			const chat = defaultChatUri(session);
+			const credentials = { getCredential: () => ({ resource: 'https://api.github.com', token: 'sponsor', expiresAt: undefined, revision: 1 }) };
+			const context = { ...exactChatContext(session, chat, session), credentials };
+			const signals: AgentSignal[] = [];
+			const listener = disposables.add(agent.onDidChatProgress(signal => signals.push(signal)));
+			const restores = (agent as unknown as {
+				_canvasRestores: { get(chat: URI): Promise<void> | undefined };
+			})._canvasRestores;
+			// Observing alone waits until a window republishes its customizations; the restore then uses them.
+			const releaseAndObserve = async () => {
+				await agent.chats.releaseChat(chat, context, { reason: () => 'idle', canContinue: () => true });
+				const resumesBeforeHistory = resumedRuntimes.length;
+				await agent.chats.getMessages(chat, exactChatContext(session, chat, session));
+				const resumedForHistory = resumedRuntimes.length !== resumesBeforeHistory;
+				const canvasesBeforeClient = await agent.listSessionCanvases(session, chat, exactChatContext(session, chat, session));
+				const resumedForInventory = resumedRuntimes.length !== resumesBeforeHistory;
+				const watch = agent.watchChatCanvases(chat, {
+					published: () => [],
+					resolveContext: async () => context,
+				});
+				const restoredBeforeClient = restores.get(chat) !== undefined;
+				contributeActiveClient(agent, chat, context);
+				const restoration = restores.get(chat);
+				assert.ok(restoration);
+				await restoration;
+				watch.dispose();
+				agent.removeActiveClient(chat, context, 'canvas-window');
+				return { canvasesBeforeClient, restoredBeforeClient, resumedForHistory, resumedForInventory };
+			};
+			try {
+				await provisionSession(agent, { session, credentials, workingDirectories: [directory] });
+				await agent.chats.prepareTurn!(chat, 'first-turn', [directory], context);
+				await agent.chats.sendMessage(chat, 'Open the canvas', [directory], undefined, 'first-turn', undefined, context);
+				const runtime = launches[0].runtime;
+				runtime.openCanvases.push(initialCanvas);
+				runtime.emit({
+					id: 'canvas-open',
+					timestamp: '2026-01-01T00:00:00Z',
+					parentId: null,
+					ephemeral: true,
+					type: 'session.canvas.opened',
+					data: initialCanvas,
+				});
+				const initialResource = signals.find((signal): signal is Extract<AgentSignal, { kind: 'canvas' }> => signal.kind === 'canvas')?.resource;
+				assert.ok(initialResource);
+				chatEntriesBySdkId(agent).get(launches[0].sessionId)!.chatSession.discardActiveTurn();
+
+				const restoredBeforeClient = [await releaseAndObserve(), await releaseAndObserve()];
+
+				const canvasStates = signals.filter((signal): signal is Extract<AgentSignal, { kind: 'canvas' }> => signal.kind === 'canvas');
+				const urls = canvasStates.map(signal => signal.state.url);
+				assert.deepStrictEqual({
+					restoredBeforeClient,
+					launches: launches.map(launch => ({ kind: launch.kind, sends: launch.runtime.sendCalls })),
+					resumes: resumedRuntimes.map(runtime => runtime.sendCalls),
+					resumeCanvasSeeds,
+					resumePluginDirectories,
+					resources: [...new Set(canvasStates.map(signal => signal.resource.toString()))],
+					sources: {
+						first: urls[0],
+						hadUnavailable: urls.includes(undefined),
+						last: urls.at(-1),
+						unexpected: urls.filter(url => url !== undefined && url !== initialCanvas.url && url !== restoredCanvas.url),
+					},
+				}, {
+					restoredBeforeClient: [
+						{ canvasesBeforeClient: undefined, restoredBeforeClient: false, resumedForHistory: false, resumedForInventory: false },
+						{ canvasesBeforeClient: undefined, restoredBeforeClient: false, resumedForHistory: false, resumedForInventory: false },
+					],
+					launches: [{ kind: 'create', sends: 1 }],
+					resumes: [0, 0],
+					resumeCanvasSeeds: [undefined, undefined],
+					resumePluginDirectories: [[], []],
+					resources: [initialResource.toString()],
+					sources: {
+						first: initialCanvas.url,
+						hadUnavailable: true,
+						last: restoredCanvas.url,
+						unexpected: [],
+					},
+				});
+			} finally {
+				listener.dispose();
+				await disposeAgent(agent);
+			}
 		});
 
 		test('live registration refreshes a cached isolated canvas inventory after an early registry event without dropping open canvases', async () => {
@@ -27342,6 +27463,589 @@ suite('CopilotAgent', () => {
 				defaultLive: true,
 				peerLive: false,
 				peerBacking: { sdkSessionId: 'sdk-' + peerChat.toString() },
+			});
+		});
+
+		test('idle release retains source-less canvas continuity and republishes it on observation', async () => {
+			const agent = createTestAgent(disposables);
+			afterTest(() => disposeAgent(agent));
+			const session = AgentSession.uri('copilotcli', 'canvas-release');
+			const chat = URI.parse(buildChatUri(session, 'peer-canvas'));
+			const resource = URI.parse('ahp-canvas:/retained');
+			let destroyed = false;
+			setPeerChatStub(agent, chat, {
+				hasActiveTurn: false,
+				hasRunningDetachedShells: async () => false,
+				takeCanvasProjection: () => ({
+					projections: [{
+						resource,
+						canvas: { instanceId: 'preview', extensionId: 'project:preview', canvasId: 'preview' },
+					}],
+					pendingCloseInstanceIds: new Set<string>(),
+				}),
+				destroySession: async () => { destroyed = true; },
+				dispose: () => { },
+			}, 'sdk-canvas-release');
+			const signals: AgentSignal[] = [];
+			disposables.add(agent.onDidChatProgress(signal => signals.push(signal)));
+			const restore = stub(agent as unknown as { _restoreReleasedCanvasContinuity(chat: URI, host: unknown): void }, '_restoreReleasedCanvasContinuity');
+			disposables.add(toDisposable(() => restore.restore()));
+
+			await agent.chats.releaseChat(chat, exactChatContext(session, chat), {
+				reason: () => 'idle',
+				canContinue: () => true,
+			});
+			contributeActiveClient(agent, chat, exactChatContext(session, chat));
+			const watch = agent.watchChatCanvases(chat, {
+				published: () => [],
+				resolveContext: async () => exactChatContext(session, chat),
+			});
+			watch.dispose();
+
+			const canvasSignals = signals.filter((signal): signal is Extract<AgentSignal, { kind: 'canvas' }> => signal.kind === 'canvas');
+			const membership = signals.filter((signal): signal is Extract<AgentSignal, { kind: 'action' }> =>
+				signal.kind === 'action' && signal.action.type === ActionType.ChatCanvasesChanged);
+			assert.deepStrictEqual({
+				destroyed,
+				live: hasLiveChat(agent, chat),
+				states: canvasSignals.map(signal => ({ resource: signal.resource.toString(), state: signal.state })),
+				membership: membership.map(signal => signal.action.type === ActionType.ChatCanvasesChanged ? signal.action.canvases?.map(canvas => canvas.resource) ?? [] : []),
+				restores: restore.callCount,
+			}, {
+				destroyed: true,
+				live: false,
+				states: [{
+					resource: resource.toString(),
+					state: { instanceId: 'preview', extensionId: 'project:preview', canvasId: 'preview' },
+				}],
+				membership: [[resource.toString()]],
+				restores: 1,
+			});
+		});
+
+		test('does not restore released canvases after their observing watch is disposed', async () => {
+			const agent = createTestAgent(disposables);
+			afterTest(() => disposeAgent(agent));
+			const session = AgentSession.uri('copilotcli', 'canvas-stale-watch');
+			const chat = URI.parse(buildChatUri(session, 'peer-canvas'));
+			setPeerChatStub(agent, chat, {
+				hasActiveTurn: false,
+				hasRunningDetachedShells: async () => false,
+				takeCanvasProjection: () => ({
+					projections: [{
+						resource: URI.parse('ahp-canvas:/retained'),
+						canvas: { instanceId: 'preview', extensionId: 'project:preview', canvasId: 'preview' },
+					}],
+					pendingCloseInstanceIds: new Set<string>(),
+				}),
+				destroySession: async () => { },
+				dispose: () => { },
+			}, 'sdk-canvas-stale-watch');
+			await agent.chats.releaseChat(chat, exactChatContext(session, chat), {
+				reason: () => 'idle',
+				canContinue: () => true,
+			});
+			const context = new DeferredPromise<IAgentChatContext>();
+			const resume = stub(agent as unknown as {
+				_resolveSessionCanvasChat(session: URI, chat: URI, context: IAgentChatContext, operation: string): Promise<CopilotAgentSession>;
+			}, '_resolveSessionCanvasChat').rejects(new Error('stale watch resumed the chat'));
+			disposables.add(toDisposable(() => resume.restore()));
+
+			contributeActiveClient(agent, chat, exactChatContext(session, chat));
+			const watch = agent.watchChatCanvases(chat, {
+				published: () => [],
+				resolveContext: () => context.p,
+			});
+			const restoration = (agent as unknown as {
+				_canvasRestores: { get(chat: URI): Promise<void> | undefined };
+			})._canvasRestores.get(chat);
+			assert.ok(restoration);
+			watch.dispose();
+			context.complete(exactChatContext(session, chat));
+			await restoration;
+
+			assert.deepStrictEqual({
+				resumes: resume.callCount,
+				live: hasLiveChat(agent, chat),
+			}, {
+				resumes: 0,
+				live: false,
+			});
+		});
+
+		test('keeps transient canvas restore failures retryable but clears terminally missing backing', async () => {
+			const agents: CopilotAgent[] = [];
+			afterTest(async () => {
+				for (const agent of agents) {
+					await disposeAgent(agent);
+				}
+			});
+			const run = async (id: string, error?: Error) => {
+				const agent = createTestAgent(disposables);
+				agents.push(agent);
+				const session = AgentSession.uri('copilotcli', `canvas-restore-${id}`);
+				const chat = URI.parse(buildChatUri(session, 'peer-canvas'));
+				const resource = URI.parse(`ahp-canvas:/${id}`);
+				setPeerChatStub(agent, chat, {
+					hasActiveTurn: false,
+					hasRunningDetachedShells: async () => false,
+					takeCanvasProjection: () => ({
+						projections: [{
+							resource,
+							canvas: { instanceId: 'preview', extensionId: 'project:preview', canvasId: 'preview' },
+						}],
+						pendingCloseInstanceIds: new Set<string>(),
+					}),
+					destroySession: async () => { },
+					dispose: () => { },
+				}, `sdk-canvas-restore-${id}`);
+				const signals: AgentSignal[] = [];
+				disposables.add(agent.onDidChatProgress(signal => signals.push(signal)));
+				await agent.chats.releaseChat(chat, exactChatContext(session, chat), {
+					reason: () => 'idle',
+					canContinue: () => true,
+				});
+				const resume = error ? stub(agent as unknown as {
+					_resolveSessionCanvasChat(session: URI, chat: URI, context: IAgentChatContext, operation: string): Promise<CopilotAgentSession>;
+				}, '_resolveSessionCanvasChat').rejects(error) : undefined;
+				if (resume) {
+					disposables.add(toDisposable(() => resume.restore()));
+				} else {
+					chatBackings(agent).delete(chat.toString());
+				}
+				signals.length = 0;
+
+				contributeActiveClient(agent, chat, exactChatContext(session, chat));
+				const watch = agent.watchChatCanvases(chat, {
+					published: () => [],
+					resolveContext: async () => exactChatContext(session, chat),
+				});
+				const restoration = (agent as unknown as {
+					_canvasRestores: { get(chat: URI): Promise<void> | undefined };
+				})._canvasRestores.get(chat);
+				assert.ok(restoration);
+				await restoration;
+				watch.dispose();
+
+				return {
+					retained: (agent as unknown as {
+						_releasedCanvasContinuities: { has(key: string): boolean };
+					})._releasedCanvasContinuities.has(chat.toString()),
+					membership: signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatCanvasesChanged
+						? [signal.action.canvases?.map(canvas => canvas.resource) ?? []]
+						: []),
+					resumes: resume?.callCount ?? 0,
+				};
+			};
+
+			const transient = await run('transient', new Error('connection interrupted'));
+			const terminal = await run('terminal');
+
+			assert.deepStrictEqual({ transient, terminal }, {
+				transient: {
+					retained: true,
+					membership: [[URI.parse('ahp-canvas:/transient').toString()]],
+					resumes: 1,
+				},
+				terminal: {
+					retained: false,
+					membership: [[URI.parse('ahp-canvas:/terminal').toString()], []],
+					resumes: 0,
+				},
+			});
+		});
+
+		test('releases a restored runtime with idle continuity when its watch closes during resume', async () => {
+			const agent = createTestAgent(disposables);
+			afterTest(() => disposeAgent(agent));
+			const session = AgentSession.uri('copilotcli', 'canvas-watch-closes-during-resume');
+			const chat = URI.parse(buildChatUri(session, 'peer-canvas'));
+			setPeerChatStub(agent, chat, {
+				hasActiveTurn: false,
+				hasRunningDetachedShells: async () => false,
+				takeCanvasProjection: () => ({
+					projections: [{
+						resource: URI.parse('ahp-canvas:/retained'),
+						canvas: { instanceId: 'preview', extensionId: 'project:preview', canvasId: 'preview' },
+					}],
+					pendingCloseInstanceIds: new Set<string>(),
+				}),
+				destroySession: async () => { },
+				dispose: () => { },
+			}, 'sdk-canvas-watch-closes-during-resume');
+			await agent.chats.releaseChat(chat, exactChatContext(session, chat), {
+				reason: () => 'idle',
+				canContinue: () => true,
+			});
+			const resumed = {
+				ownerSessionUri: session,
+			} as unknown as CopilotAgentSession;
+			const resume = stub(agent as unknown as {
+				_resolveSessionCanvasChat(session: URI, chat: URI, context: IAgentChatContext, operation: string): Promise<CopilotAgentSession>;
+			}, '_resolveSessionCanvasChat').callsFake(async () => {
+				watch?.dispose();
+				return resumed;
+			});
+			const releaseReasons: string[] = [];
+			const release = stub(agent as unknown as {
+				_releaseChat(chat: URI, context: IAgentChatContext, options: { reason(): string }): Promise<void>;
+			}, '_releaseChat').callsFake(async (_chat, _context, options) => {
+				releaseReasons.push(options.reason());
+			});
+			disposables.add(toDisposable(() => { resume.restore(); release.restore(); }));
+
+			contributeActiveClient(agent, chat, exactChatContext(session, chat));
+			const watch = agent.watchChatCanvases(chat, {
+				published: () => [],
+				resolveContext: async () => exactChatContext(session, chat),
+			});
+			const restoration = (agent as unknown as {
+				_canvasRestores: { get(chat: URI): Promise<void> | undefined };
+			})._canvasRestores.get(chat);
+			assert.ok(restoration);
+			await restoration;
+
+			assert.deepStrictEqual({
+				resumes: resume.callCount,
+				releaseReasons,
+			}, {
+				resumes: 1,
+				releaseReasons: ['idle'],
+			});
+		});
+
+		test('closing a released canvas records a pending close without resuming the chat', async () => {
+			const agent = createTestAgent(disposables);
+			afterTest(() => disposeAgent(agent));
+			const session = AgentSession.uri('copilotcli', 'canvas-cold-close');
+			const chat = URI.parse(buildChatUri(session, 'peer-canvas'));
+			const resource = URI.parse('ahp-canvas:/retained');
+			setPeerChatStub(agent, chat, {
+				hasActiveTurn: false,
+				hasRunningDetachedShells: async () => false,
+				takeCanvasProjection: () => ({
+					projections: [{
+						resource,
+						canvas: { instanceId: 'preview', extensionId: 'project:preview', canvasId: 'preview' },
+					}],
+					pendingCloseInstanceIds: new Set<string>(),
+				}),
+				destroySession: async () => { },
+				dispose: () => { },
+			}, 'sdk-canvas-cold-close');
+
+			const signals: AgentSignal[] = [];
+			disposables.add(agent.onDidChatProgress(signal => signals.push(signal)));
+			await agent.chats.releaseChat(chat, exactChatContext(session, chat), {
+				reason: () => 'idle',
+				canContinue: () => true,
+			});
+			await agent.closeSessionCanvas(session, { resource }, chat, exactChatContext(session, chat));
+			const continuity = (agent as unknown as {
+				_releasedCanvasContinuities: { get(key: string): { handoff: ICopilotCanvasHandoff } | undefined };
+			})._releasedCanvasContinuities.get(chat.toString());
+
+			assert.deepStrictEqual({
+				live: hasLiveChat(agent, chat),
+				projections: continuity?.handoff.projections.map(projection => projection.resource.toString()),
+				pendingCloses: [...(continuity?.handoff.pendingCloseInstanceIds ?? [])],
+				membership: signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatCanvasesChanged
+					? [signal.action.canvases?.map(canvas => canvas.resource) ?? []]
+					: []),
+			}, {
+				live: false,
+				projections: [resource.toString()],
+				pendingCloses: ['preview'],
+				membership: [[]],
+			});
+		});
+
+		test('closing a released canvas publishes removal before observation restoration settles', async () => {
+			const agent = createTestAgent(disposables);
+			afterTest(() => disposeAgent(agent));
+			const session = AgentSession.uri('copilotcli', 'canvas-close-during-restore');
+			const chat = URI.parse(buildChatUri(session, 'peer-canvas'));
+			const resource = URI.parse('ahp-canvas:/retained');
+			setPeerChatStub(agent, chat, {
+				hasActiveTurn: false,
+				hasRunningDetachedShells: async () => false,
+				takeCanvasProjection: () => ({
+					projections: [{
+						resource,
+						canvas: { instanceId: 'preview', extensionId: 'project:preview', canvasId: 'preview' },
+					}],
+					pendingCloseInstanceIds: new Set<string>(),
+				}),
+				destroySession: async () => { },
+				dispose: () => { },
+			}, 'sdk-canvas-close-during-restore');
+			const signals: AgentSignal[] = [];
+			disposables.add(agent.onDidChatProgress(signal => signals.push(signal)));
+			await agent.chats.releaseChat(chat, exactChatContext(session, chat), {
+				reason: () => 'idle',
+				canContinue: () => true,
+			});
+			const restoration = new DeferredPromise<void>();
+			(agent as unknown as {
+				_canvasRestores: { set(chat: URI, restore: Promise<void>): void };
+			})._canvasRestores.set(chat, restoration.p);
+
+			const closing = agent.closeSessionCanvas(session, { resource }, chat, exactChatContext(session, chat));
+			await timeout(0);
+			const membershipBeforeRestore = signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatCanvasesChanged
+				? [signal.action.canvases?.map(canvas => canvas.resource) ?? []]
+				: []);
+			restoration.complete();
+			await closing;
+
+			assert.deepStrictEqual(membershipBeforeRestore, [[]]);
+		});
+
+		test('closing a canvas on a registered replacement updates claimed membership before adoption', async () => {
+			const agent = createTestAgent(disposables);
+			afterTest(() => disposeAgent(agent));
+			const session = AgentSession.uri('copilotcli', 'canvas-close-claimed');
+			const chat = URI.parse(buildChatUri(session, 'peer-canvas'));
+			const resource = URI.parse('ahp-canvas:/retained');
+			const survivor = URI.parse('ahp-canvas:/survivor');
+			const sdkSessionId = 'sdk-canvas-close-claimed';
+			setPeerChatStub(agent, chat, {
+				hasActiveTurn: false,
+				hasRunningDetachedShells: async () => false,
+				takeCanvasProjection: () => ({
+					projections: [{
+						resource,
+						canvas: { instanceId: 'preview', extensionId: 'project:preview', canvasId: 'preview' },
+					}, {
+						resource: survivor,
+						canvas: { instanceId: 'survivor', extensionId: 'project:preview', canvasId: 'preview' },
+					}],
+					pendingCloseInstanceIds: new Set<string>(),
+				}),
+				destroySession: async () => { },
+				dispose: () => { },
+			}, sdkSessionId);
+			const signals: AgentSignal[] = [];
+			disposables.add(agent.onDidChatProgress(signal => signals.push(signal)));
+			await agent.chats.releaseChat(chat, exactChatContext(session, chat), {
+				reason: () => 'idle',
+				canContinue: () => true,
+			});
+			const internals = agent as unknown as {
+				_releasedCanvasContinuities: { get(key: string): IReleasedCanvasContinuity | undefined; delete(key: string): boolean };
+				_claimedReleasedCanvasContinuities: Map<string, IReleasedCanvasContinuity>;
+			};
+			type IReleasedCanvasContinuity = {
+				readonly chat: URI;
+				readonly ownerSession: URI;
+				readonly sdkSessionId: string;
+				readonly generation: number;
+				readonly handoff: ICopilotCanvasHandoff;
+			};
+			const continuity = internals._releasedCanvasContinuities.get(chat.toString());
+			assert.ok(continuity);
+			internals._releasedCanvasContinuities.delete(chat.toString());
+			internals._claimedReleasedCanvasContinuities.set(chat.toString(), continuity);
+			let closeCalls = 0;
+			setPeerChatStub(agent, chat, {
+				ownerSessionUri: session,
+				closeCanvas: async () => { closeCalls++; },
+				dispose: () => { },
+			}, sdkSessionId);
+			signals.length = 0;
+
+			await agent.closeSessionCanvas(session, { resource }, chat, exactChatContext(session, chat));
+
+			// A source-less state would replace the survivor's fresh source that the replacement already published.
+			assert.deepStrictEqual({
+				closeCalls,
+				pendingCloses: [...(continuity.handoff.pendingCloseInstanceIds ?? [])],
+				states: signals.filter(signal => signal.kind === 'canvas').length,
+				membership: signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatCanvasesChanged
+					? [signal.action.canvases?.map(canvas => canvas.resource) ?? []]
+					: []),
+			}, {
+				closeCalls: 1,
+				pendingCloses: ['preview'],
+				states: 0,
+				membership: [[survivor.toString()]],
+			});
+		});
+
+		test('settling a claimed continuity drops it when the chat backing changed during restoration', async () => {
+			const agent = createTestAgent(disposables);
+			afterTest(() => disposeAgent(agent));
+			const session = AgentSession.uri('copilotcli', 'canvas-settle-backing');
+			const chat = URI.parse(buildChatUri(session, 'peer-canvas'));
+			setPeerChatStub(agent, chat, {
+				hasActiveTurn: false,
+				hasRunningDetachedShells: async () => false,
+				takeCanvasProjection: () => ({
+					projections: [{
+						resource: URI.parse('ahp-canvas:/retained'),
+						canvas: { instanceId: 'preview', extensionId: 'project:preview', canvasId: 'preview' },
+					}],
+					pendingCloseInstanceIds: new Set<string>(),
+				}),
+				destroySession: async () => { },
+				dispose: () => { },
+			}, 'sdk-canvas-settle-backing');
+			await agent.chats.releaseChat(chat, exactChatContext(session, chat), {
+				reason: () => 'idle',
+				canContinue: () => true,
+			});
+			const internals = agent as unknown as {
+				_claimReleasedCanvasContinuity(chat: URI): object | undefined;
+				_settleReleasedCanvasContinuity(continuity: object, replacement: undefined): void;
+				_releasedCanvasContinuities: { has(key: string): boolean };
+			};
+			const continuity = internals._claimReleasedCanvasContinuity(chat);
+			assert.ok(continuity);
+			chatBackings(agent).set(chat.toString(), { ...chatBackings(agent).get(chat.toString()), sdkSessionId: 'sdk-replaced' });
+			const signals: AgentSignal[] = [];
+			disposables.add(agent.onDidChatProgress(signal => signals.push(signal)));
+
+			internals._settleReleasedCanvasContinuity(continuity, undefined);
+
+			assert.deepStrictEqual({
+				retained: internals._releasedCanvasContinuities.has(chat.toString()),
+				membership: signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatCanvasesChanged
+					? [signal.action.canvases?.map(canvas => canvas.resource) ?? []]
+					: []),
+			}, {
+				retained: false,
+				membership: [[]],
+			});
+		});
+
+		test('closing a canvas does not mutate invalidated claimed continuity', async () => {
+			const agent = createTestAgent(disposables);
+			afterTest(() => disposeAgent(agent));
+			const session = AgentSession.uri('copilotcli', 'canvas-close-invalidated');
+			const chat = URI.parse(buildChatUri(session, 'peer-canvas'));
+			const resource = URI.parse('ahp-canvas:/retained');
+			setPeerChatStub(agent, chat, {
+				hasActiveTurn: false,
+				hasRunningDetachedShells: async () => false,
+				takeCanvasProjection: () => ({
+					projections: [{
+						resource,
+						canvas: { instanceId: 'preview', extensionId: 'project:preview', canvasId: 'preview' },
+					}],
+					pendingCloseInstanceIds: new Set<string>(),
+				}),
+				destroySession: async () => { },
+				dispose: () => { },
+			}, 'sdk-canvas-close-invalidated');
+			await agent.chats.releaseChat(chat, exactChatContext(session, chat), {
+				reason: () => 'idle',
+				canContinue: () => true,
+			});
+			const internals = agent as unknown as {
+				_releasedCanvasContinuities: { get(key: string): IReleasedCanvasContinuity | undefined; delete(key: string): boolean };
+				_claimedReleasedCanvasContinuities: Map<string, IReleasedCanvasContinuity>;
+			};
+			type IReleasedCanvasContinuity = {
+				readonly chat: URI;
+				readonly ownerSession: URI;
+				readonly sdkSessionId: string;
+				readonly generation: number;
+				readonly handoff: ICopilotCanvasHandoff;
+			};
+			const continuity = internals._releasedCanvasContinuities.get(chat.toString());
+			assert.ok(continuity);
+			internals._releasedCanvasContinuities.delete(chat.toString());
+			internals._claimedReleasedCanvasContinuities.set(chat.toString(), continuity);
+			agent.clearCanvasContinuity(session, chat);
+
+			await agent.closeSessionCanvas(session, { resource }, chat, exactChatContext(session, chat));
+
+			assert.deepStrictEqual([...(continuity.handoff.pendingCloseInstanceIds ?? [])], []);
+		});
+
+		test('continuity trimming preserves pending closes and deleted-chat generations are pruned', () => {
+			const agent = createTestAgent(disposables);
+			afterTest(() => disposeAgent(agent));
+			type Continuity = {
+				readonly chat: URI;
+				readonly ownerSession: URI;
+				readonly sdkSessionId: string;
+				readonly generation: number;
+				readonly handoff: ICopilotCanvasHandoff;
+			};
+			const internals = agent as unknown as {
+				_retainReleasedCanvasContinuity(continuity: Continuity): void;
+				_invalidateCanvasContinuity(chat: URI, forgetAfterSettlement?: boolean): void;
+				_releasedCanvasContinuities: { size: number; has(key: string): boolean };
+				_canvasContinuityGenerations: Map<string, number>;
+			};
+			const ownerSession = AgentSession.uri('copilotcli', 'continuity-lru');
+			const pendingChat = URI.parse(buildChatUri(ownerSession, 'pending-close'));
+			internals._retainReleasedCanvasContinuity({
+				chat: pendingChat,
+				ownerSession,
+				sdkSessionId: 'pending-close',
+				generation: 0,
+				handoff: { projections: [], pendingCloseInstanceIds: new Set(['preview']) },
+			});
+			const ordinaryChats = Array.from({ length: 32 }, (_, index) => URI.parse(buildChatUri(ownerSession, `ordinary-${index}`)));
+			for (const [index, chat] of ordinaryChats.entries()) {
+				internals._retainReleasedCanvasContinuity({
+					chat,
+					ownerSession,
+					sdkSessionId: `ordinary-${index}`,
+					generation: 0,
+					handoff: { projections: [] },
+				});
+			}
+			const deleted = URI.parse(buildChatUri(ownerSession, 'deleted'));
+			internals._invalidateCanvasContinuity(deleted, true);
+
+			assert.deepStrictEqual({
+				size: internals._releasedCanvasContinuities.size,
+				pendingRetained: internals._releasedCanvasContinuities.has(pendingChat.toString()),
+				oldestOrdinaryRetained: internals._releasedCanvasContinuities.has(ordinaryChats[0].toString()),
+				deletedGenerationRetained: internals._canvasContinuityGenerations.has(deleted.toString()),
+			}, {
+				size: 32,
+				pendingRetained: true,
+				oldestOrdinaryRetained: false,
+				deletedGenerationRetained: false,
+			});
+		});
+
+		test('continuity limit holds when every older entry has pending closes and keeps the newest continuity', () => {
+			const agent = createTestAgent(disposables);
+			afterTest(() => disposeAgent(agent));
+			const internals = agent as unknown as {
+				_retainReleasedCanvasContinuity(continuity: { chat: URI; ownerSession: URI; sdkSessionId: string; generation: number; handoff: ICopilotCanvasHandoff }): void;
+				_releasedCanvasContinuities: { size: number; has(key: string): boolean };
+			};
+			const ownerSession = AgentSession.uri('copilotcli', 'continuity-pending-limit');
+			const retain = (name: string, pendingClose: boolean) => {
+				const chat = URI.parse(buildChatUri(ownerSession, name));
+				internals._retainReleasedCanvasContinuity({
+					chat,
+					ownerSession,
+					sdkSessionId: name,
+					generation: 0,
+					handoff: { projections: [], ...(pendingClose ? { pendingCloseInstanceIds: new Set(['closed']) } : {}) },
+				});
+				return chat;
+			};
+			const pending = Array.from({ length: 40 }, (_, index) => retain(`pending-${index}`, true));
+			const ordinary = retain('ordinary', false);
+
+			assert.deepStrictEqual({
+				size: internals._releasedCanvasContinuities.size,
+				ordinaryRetained: internals._releasedCanvasContinuities.has(ordinary.toString()),
+				oldestPendingRetained: internals._releasedCanvasContinuities.has(pending[0].toString()),
+				newestPendingRetained: internals._releasedCanvasContinuities.has(pending[39].toString()),
+			}, {
+				size: 32,
+				ordinaryRetained: true,
+				oldestPendingRetained: false,
+				newestPendingRetained: true,
 			});
 		});
 
