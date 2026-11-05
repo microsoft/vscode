@@ -43,7 +43,8 @@ import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../co
 import { ISessionsChatBackground, ISessionsChatBackgroundService } from '../../../../services/chatBackground/browser/chatBackgroundService.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ITestSessionsGridState } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { focusedSessionHostServiceOf, ITestSessionsGridState, stubSessionHosts } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { IFocusedSessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { createSessionViewTestServices } from '../../../../test/browser/sessionViewTestUtils.js';
 import { AccountWidgetContribution } from '../../../accountMenu/browser/account.contribution.js';
@@ -151,6 +152,10 @@ export function createSessionsWorkbenchFixture(context: ComponentFixtureContext,
 	instantiationService.stub(IWorkbenchLayoutService, layoutService);
 	instantiationService.stub(IAgentWorkbenchLayoutService, layoutService);
 	instantiationService.stub(ISessionsService, sessionsService);
+	// The main window shows the grid's active session: the host UI of its parts, such as the title bar, injects, and the
+	// focused host, which grid commands check.
+	stubSessionHosts(instantiationService, disposableStore, { session: sessionsService.activeSession });
+	instantiationService.stub(IFocusedSessionHostService, focusedSessionHostServiceOf(sessionsService.activeSession ?? constObservable(undefined)));
 	instantiationService.stub(ISessionsChatBackgroundService, new class extends mock<ISessionsChatBackgroundService>() {
 		override readonly onDidChangeBackground = Event.None;
 		override getBackground() { return options.chatBackground; }
