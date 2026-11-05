@@ -110,24 +110,33 @@ export async function openCustomizationChat(accessor: ServicesAccessor, type: Pr
 		query = type === 'init' ? '/init' : `/create-${type} `;
 	} else {
 		const documentationUrl = getDocumentationUrl(type === 'init' ? PromptsType.instructions : type);
+		const documentationResource = URI.parse(documentationUrl);
+		widget.attachmentModel.addContext({
+			kind: 'generic',
+			id: documentationUrl,
+			name: localize('generateCustomization.documentation', "Documentation"),
+			icon: Codicon.book,
+			value: documentationResource,
+			references: [{ reference: documentationResource, kind: 'reference' }],
+		});
 		switch (type) {
 			case 'init':
-				query = localize('generateInstructions.request', "Analyze this codebase and create agent instructions for it. Follow the documentation at {0}.", documentationUrl);
+				query = localize('generateInstructions.request', "Analyze this codebase and create agent instructions for it. Follow the attached documentation.");
 				break;
 			case PromptsType.instructions:
-				query = localize('generateOnDemandInstructions.request', "Create a new on-demand instructions file. Follow the documentation at {0}. ", documentationUrl);
+				query = localize('generateOnDemandInstructions.request', "Create a new on-demand instructions file. Follow the attached documentation. Tell me what you'd like the instructions to cover, and I'll put together a first draft. ");
 				break;
 			case PromptsType.prompt:
-				query = localize('generatePrompt.request', "Create a new reusable prompt file. Follow the documentation at {0}. ", documentationUrl);
+				query = localize('generatePrompt.request', "Create a new reusable prompt file. Follow the attached documentation. Tell me what you'd like the prompt to do, and I'll put together a first draft. ");
 				break;
 			case PromptsType.skill:
-				query = localize('generateSkill.request', "Create a new skill with a SKILL.md file. Follow the documentation at {0}. ", documentationUrl);
+				query = localize('generateSkill.request', "Create a new skill with a SKILL.md file. Follow the attached documentation. Tell me what you'd like the skill to do, and I'll put together a first draft. ");
 				break;
 			case PromptsType.agent:
-				query = localize('generateAgent.request', "Create a new custom agent file. Follow the documentation at {0}. ", documentationUrl);
+				query = localize('generateAgent.request', "Create a new custom agent file. Follow the attached documentation. Tell me what you'd like the agent to do, and I'll put together a first draft. ");
 				break;
 			case PromptsType.hook:
-				query = localize('generateHook.request', "Create a new hook configuration file. Follow the documentation at {0}. ", documentationUrl);
+				query = localize('generateHook.request', "Create a new hook configuration file. Follow the attached documentation. Tell me when you'd like the hook to run and what it should do, and I'll put together a first draft. ");
 				break;
 		}
 	}

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Codicon } from '../../../../../../base/common/codicons.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -14,6 +15,8 @@ import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { IChatViewModel } from '../../../common/model/chatViewModel.js';
 import { getDocumentationUrl, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
+import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import { ChatAttachmentModel } from '../../../browser/attachments/chatAttachmentModel.js';
 
 suite('Chat customization actions', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -27,11 +30,24 @@ suite('Chat customization actions', () => {
 		agent: 'Create a new custom agent file.',
 		hook: 'Create a new hook configuration file.',
 	};
+	const invitations = {
+		instructions: 'Tell me what you\'d like the instructions to cover, and I\'ll put together a first draft.',
+		prompt: 'Tell me what you\'d like the prompt to do, and I\'ll put together a first draft.',
+		skill: 'Tell me what you\'d like the skill to do, and I\'ll put together a first draft.',
+		agent: 'Tell me what you\'d like the agent to do, and I\'ll put together a first draft.',
+		hook: 'Tell me when you\'d like the hook to run and what it should do, and I\'ll put together a first draft.',
+	};
 
 	function setup(sessionResource: URI | undefined, available = true) {
 		const calls: { commandId: string; options: IChatViewOpenOptions }[] = [];
+		const attachments: IChatRequestVariableEntry[] = [];
 		const instantiation = store.add(new TestInstantiationService());
 		const widget = new class extends mock<IChatWidget>() {
+			override readonly attachmentModel = new class extends mock<ChatAttachmentModel>() {
+				override addContext(...entries: IChatRequestVariableEntry[]): void {
+					attachments.push(...entries);
+				}
+			}();
 			override readonly viewModel = sessionResource ? new class extends mock<IChatViewModel>() {
 				constructor(override readonly sessionResource: URI) { super(); }
 			}(sessionResource) : undefined;
@@ -47,11 +63,11 @@ suite('Chat customization actions', () => {
 				return undefined;
 			}
 		}());
-		return { instantiation, calls };
+		return { instantiation, calls, attachments };
 	}
 
 	test('preserves Local creation skills, submission behavior, and workspace attachments', async () => {
-		const { instantiation, calls } = setup(LocalChatSessionUri.forSession('local-session'));
+		const { instantiation, calls, attachments } = setup(LocalChatSessionUri.forSession('local-session'));
 		for (const type of types) {
 			await instantiation.invokeFunction(openCustomizationChat, type, workspaceFolder);
 		}
@@ -64,11 +80,12 @@ suite('Chat customization actions', () => {
 				attachFiles: [workspaceFolder],
 			},
 		})));
+		assert.deepStrictEqual(attachments, []);
 	});
 
 	for (const sessionResource of [URI.parse('agent-host-copilotcli:///session'), URI.parse('claude-code:///session'), undefined]) {
 		test(`uses documented plain-text requests for ${sessionResource?.scheme ?? 'an uninitialized chat'}`, async () => {
-			const { instantiation, calls } = setup(sessionResource);
+			const { instantiation, calls, attachments } = setup(sessionResource);
 			for (const type of types) {
 				await instantiation.invokeFunction(openCustomizationChat, type, workspaceFolder);
 			}
@@ -76,11 +93,23 @@ suite('Chat customization actions', () => {
 				commandId: CHAT_OPEN_ACTION_ID,
 				options: {
 					mode: 'agent',
-					query: `${requests[type]} Follow the documentation at ${getDocumentationUrl(type === 'init' ? PromptsType.instructions : type)}.${type === 'init' ? '' : ' '}`,
+					query: `${requests[type]} Follow the attached documentation.${type === 'init' ? '' : ` ${invitations[type]} `}`,
 					isPartialQuery: type !== 'init',
 					attachFiles: [workspaceFolder],
 				},
 			})));
+			assert.deepStrictEqual(attachments, types.map(type => {
+				const url = getDocumentationUrl(type === 'init' ? PromptsType.instructions : type);
+				const resource = URI.parse(url);
+				return {
+					kind: 'generic',
+					id: url,
+					name: 'Documentation',
+					icon: Codicon.book,
+					value: resource,
+					references: [{ reference: resource, kind: 'reference' }],
+				};
+			}));
 		});
 	}
 
