@@ -17,9 +17,12 @@ const mocks = vi.hoisted(() => {
 	return {
 		available: true,
 		useTs7: true,
+		hasNativeExtension: true,
 		listeners,
+		extensionListeners: [] as (() => void)[],
 		events: [] as string[],
 		onConfigurationChange: vi.fn<(listener: (event: vscode.ConfigurationChangeEvent) => void) => vscode.Disposable>(),
+		onExtensionsChange: vi.fn<(listener: () => void) => vscode.Disposable>(),
 		register: vi.fn<(selector: vscode.DocumentSelector, provider: vscode.StructuralDiffProvider) => vscode.Disposable>(),
 		provide: {
 			TS6: vi.fn<vscode.StructuralDiffProvider['provideStructuralDiff']>(),
@@ -41,6 +44,10 @@ vi.mock('vscode', async importOriginal => {
 				inspect: () => ({ key: 'experimental.useTsgo', globalValue: mocks.useTs7 }),
 				get: () => mocks.useTs7,
 			}),
+		},
+		extensions: {
+			getExtension: (extensionId: string) => mocks.hasNativeExtension && extensionId === 'typescriptteam.vscode-typescript' ? { id: extensionId } : undefined,
+			onDidChange: mocks.onExtensionsChange,
 		},
 	};
 });
@@ -68,11 +75,17 @@ suite('TypeScript structural diff contribution', () => {
 		vi.resetAllMocks();
 		mocks.available = true;
 		mocks.useTs7 = true;
+		mocks.hasNativeExtension = true;
 		mocks.listeners.length = 0;
+		mocks.extensionListeners.length = 0;
 		mocks.events.length = 0;
 		mocks.onConfigurationChange.mockImplementation(listener => {
 			mocks.listeners.push(listener);
 			return { dispose: () => { mocks.listeners.splice(mocks.listeners.indexOf(listener), 1); } };
+		});
+		mocks.onExtensionsChange.mockImplementation(listener => {
+			mocks.extensionListeners.push(listener);
+			return { dispose: () => { mocks.extensionListeners.splice(mocks.extensionListeners.indexOf(listener), 1); } };
 		});
 		mocks.register.mockImplementation(() => {
 			mocks.events.push('register');
@@ -140,6 +153,28 @@ suite('TypeScript structural diff contribution', () => {
 		mocks.listeners[0]({ affectsConfiguration: () => true });
 		mocks.useTs7 = false;
 		mocks.listeners[0]({ affectsConfiguration: () => true });
+		assert.deepStrictEqual(mocks.events, [
+			'create TS6', 'register',
+			'dispose TS6', 'unregister', 'create TS7', 'register',
+			'dispose TS7', 'unregister', 'create TS6', 'register',
+		]);
+	});
+
+	test('registers the TS6 provider while TS7 is enabled but no native TypeScript extension is installed', () => {
+		mocks.hasNativeExtension = false;
+		store.add(new StructuralDiffContribution(new TestLogService()));
+		assert.deepStrictEqual(mocks.events, ['create TS6', 'register']);
+	});
+
+	test('replaces the provider when a native TypeScript extension is installed or removed', () => {
+		mocks.hasNativeExtension = false;
+		store.add(new StructuralDiffContribution(new TestLogService()));
+		mocks.hasNativeExtension = true;
+		mocks.extensionListeners[0]();
+		// Changes of other extensions keep the provider.
+		mocks.extensionListeners[0]();
+		mocks.hasNativeExtension = false;
+		mocks.extensionListeners[0]();
 		assert.deepStrictEqual(mocks.events, [
 			'create TS6', 'register',
 			'dispose TS6', 'unregister', 'create TS7', 'register',

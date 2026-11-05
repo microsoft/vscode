@@ -72,6 +72,37 @@ suite('TypeScript 6 structural diff', () => {
 		});
 	}
 
+	test('opens the backing file and repeats a staged request that tsserver rejects before it has a project', async () => {
+		const texts: [string, string][] = [];
+		let opened: vscode.Uri | undefined;
+		const provider = new TS6StructuralDiffProvider(async args => {
+			texts.push([args.originalText, args.modifiedText]);
+			if (opened === undefined) {
+				throw new Error('Unrecognized JSON command: _.copilot.structuralDiff');
+			}
+			return serve(args);
+		}, async fileUri => { opened = fileUri; });
+		const original = 'function staged() { return 1; }';
+		const modified = 'function staged() { return 2; }';
+		const result = await provider.provideStructuralDiff(
+			createTextDocumentData(toGitUri(uri, 'HEAD'), original, 'typescript').document,
+			createTextDocumentData(toGitUri(uri, ''), modified, 'typescript').document,
+			{ changes: [{ originalRange: rangeOf(original, '1'), modifiedRange: rangeOf(modified, '2') }] },
+			CancellationToken.None);
+		assert.deepStrictEqual({ opened: opened?.toString(), texts, names: result?.root.children.map(node => node.modified?.name) }, {
+			opened: uri.toString(),
+			texts: [[original, modified], [original, modified]],
+			names: ['staged'],
+		});
+	});
+
+	test('rejects with the request failure when the backing file cannot be opened', async () => {
+		const failure = new Error('Unrecognized JSON command: _.copilot.structuralDiff');
+		const provider = new TS6StructuralDiffProvider(async () => { throw failure; }, async () => { throw new Error('File not found'); });
+		const document = createTextDocumentData(toGitUri(uri, ''), 'const value = 1;', 'typescript').document;
+		await assert.rejects(provider.provideStructuralDiff(document, document, { changes: [] }, CancellationToken.None), error => error === failure);
+	});
+
 	test('does not send a request for an already cancelled request', async () => {
 		const requests: protocol.StructuralDiffRequestArgs[] = [];
 		const provider = new TS6StructuralDiffProvider(async args => {
