@@ -172,7 +172,8 @@ export class ViewLine implements IVisibleLine {
 			lineData.textDirection,
 			options.verticalScrollbarSize,
 			false,
-			options.useTwoCellFullwidthCharacters
+			options.useTwoCellFullwidthCharacters,
+			lineFontSize
 		);
 
 		if (this._renderedViewLine && this._renderedViewLine.input.equals(renderLineInput)) {

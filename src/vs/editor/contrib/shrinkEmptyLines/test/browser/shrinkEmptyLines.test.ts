@@ -381,6 +381,65 @@ suite('Shrink Empty Lines', () => {
 		}
 	});
 
+	test('updates caret and selection geometry when compression changes', () => {
+		for (const text of ['{};;', '    {};;']) {
+			const container = document.createElement('div');
+			document.body.appendChild(container);
+			disposables.add(toDisposable(() => container.remove()));
+			const editor = disposables.add(instantiationService.createInstance(CodeEditorWidget, container, {
+				fontFamily: 'monospace',
+				fontSize: 20,
+				lineHeight: 30,
+				allowVariableLineHeights: true,
+				allowVariableFonts: true,
+				shrinkEmptyLinesKind: 'punctuation',
+				cursorStyle: 'line-thin',
+				cursorBlinking: 'solid',
+				roundedSelection: false,
+				renderWhitespace: 'none',
+				minimap: { enabled: false },
+			}, { contributions: [] }));
+			const model = disposables.add(instantiateTextModel(instantiationService, `code\n\n${text}\ncode`));
+			editor.setModel(model);
+			disposables.add(new ShrinkEmptyLinesController(editor));
+			editor.layout({ width: 400, height: 240 });
+			editor.setSelection(new Range(3, 1, 3, model.getLineMaxColumn(3)));
+			editor.focus();
+
+			for (const multiplier of [1, 0.5, 0.25, 0.75, 1, 0.5]) {
+				editor.updateOptions({ shrinkEmptyLines: multiplier });
+				editor.render();
+				const line = container.querySelectorAll('.view-lines .view-line')[2];
+				const content = line?.firstElementChild;
+				const cursor = container.querySelector('.cursors-layer .cursor');
+				const selection = container.querySelector('.selected-text');
+				assert.ok(line && content && cursor && selection);
+				const textRange = getWindow(container).document.createRange();
+				textRange.selectNodeContents(content);
+				const textBounds = textRange.getBoundingClientRect();
+				const lineBounds = line.getBoundingClientRect();
+				const cursorBounds = cursor.getBoundingClientRect();
+				const selectionBounds = selection.getBoundingClientRect();
+
+				assert.deepStrictEqual({
+					fontSize: getWindow(container).getComputedStyle(line).fontSize,
+					lineHeight: lineBounds.height,
+					caretAtEnd: Math.abs(cursorBounds.left - textBounds.right) <= 1,
+					caretOnLine: Math.abs(cursorBounds.top - lineBounds.top) <= 1,
+					selectionMatchesText: Math.abs(selectionBounds.left - textBounds.left) <= 1 && Math.abs(selectionBounds.right - textBounds.right) <= 1,
+					selectionMatchesLine: Math.abs(selectionBounds.top - lineBounds.top) <= 1 && Math.abs(selectionBounds.height - lineBounds.height) <= 1,
+				}, {
+					fontSize: `${20 * multiplier}px`,
+					lineHeight: Math.round(30 * multiplier),
+					caretAtEnd: true,
+					caretOnLine: true,
+					selectionMatchesText: true,
+					selectionMatchesLine: true,
+				}, JSON.stringify({ text, multiplier, lineBounds, textBounds, cursorBounds, selectionBounds }));
+			}
+		}
+	});
+
 	test('compresses braces and empty lines in the C# example from #66468', () => {
 		const { editor } = createEditor([
 			'internal class TestDbAsyncEnumerator<T> : IDbAsyncEnumerator<T>',
