@@ -512,9 +512,9 @@ suite('TerminalTaskSystem process executable', () => {
 		const result = system.system.rerun();
 		assert.ok(result);
 		const error = new Error('variable resolution failed');
-		const rejection = assert.rejects(result.promise, reason => reason === error);
+		const rejection = result.promise.then(() => undefined, reason => reason);
 		await execution.error(error);
-		await rejection;
+		assert.strictEqual(await rejection, error);
 		assert.strictEqual(system.system['_isRerun'], false);
 	});
 
