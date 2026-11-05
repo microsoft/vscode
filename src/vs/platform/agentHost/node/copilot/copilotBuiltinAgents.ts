@@ -6,7 +6,7 @@
 import type { CustomAgentConfig } from '@github/copilot-sdk';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { getComparisonKey } from '../../../../base/common/resources.js';
+import { getComparisonKey, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import type { IFileService } from '../../../files/common/files.js';
@@ -18,7 +18,7 @@ import { toSdkClientToolName } from './copilotPluginConverters.js';
 import type { IActiveClientSnapshot } from './copilotSessionLauncher.js';
 import { CopilotToolName } from './copilotToolDisplay.js';
 import { COPILOT_BUILTIN_CUSTOMIZATION_SCHEME } from '../../common/agentHostCustomizationUri.js';
-import { buildCopilotBuiltinSkillsContainer, COPILOT_TROUBLESHOOT_SKILL_CONTENT } from './copilotBuiltinSkills.js';
+import { buildCopilotBuiltinSkillsContainer, getCopilotBuiltinSkillUri, readCopilotTroubleshootSkillContent } from './copilotBuiltinSkills.js';
 
 export const COPILOT_BUILTIN_AGENTS_SCHEME = COPILOT_BUILTIN_CUSTOMIZATION_SCHEME;
 const builtinAgentsDirectory = URI.from({ scheme: COPILOT_BUILTIN_AGENTS_SCHEME, path: '/agents' });
@@ -96,11 +96,27 @@ export function buildCopilotBuiltinAgentMarkdown(agent: ICopilotBuiltinAgent): s
 	].join('\n');
 }
 
+/** Serves packaged skill content lazily alongside generated agent files. */
+class CopilotBuiltinFileSystemProvider extends InMemoryFileSystemProvider {
+	override async readFile(resource: URI): Promise<Uint8Array> {
+		return isEqual(resource, getCopilotBuiltinSkillUri('troubleshoot'))
+			? VSBuffer.fromString(await readCopilotTroubleshootSkillContent()).buffer
+			: super.readFile(resource);
+	}
+
+	override async stat(resource: URI) {
+		const stat = await super.stat(resource);
+		return isEqual(resource, getCopilotBuiltinSkillUri('troubleshoot'))
+			? { ...stat, size: (await this.readFile(resource)).byteLength }
+			: stat;
+	}
+}
+
 /** Owns read-only built-in customization files served through the host's normal resource-read path. */
 export class CopilotBuiltinAgentsStore extends Disposable {
 	constructor(fileService: IFileService) {
 		super();
-		const provider = this._register(new InMemoryFileSystemProvider());
+		const provider = this._register(new CopilotBuiltinFileSystemProvider());
 		// These in-memory mutations run synchronously before their promises resolve, so files exist before publication.
 		void provider.mkdir(builtinAgentsDirectory);
 		for (const agent of COPILOT_BUILTIN_AGENTS) {
@@ -113,7 +129,7 @@ export class CopilotBuiltinAgentsStore extends Disposable {
 		for (const skill of skills.children ?? []) {
 			const uri = URI.parse(skill.uri);
 			void provider.mkdir(URI.joinPath(uri, '..'));
-			void provider.writeFile(uri, VSBuffer.fromString(COPILOT_TROUBLESHOOT_SKILL_CONTENT).buffer, {
+			void provider.writeFile(uri, VSBuffer.alloc(0).buffer, {
 				create: true, overwrite: true, append: false, unlock: false, atomic: false,
 			});
 		}

@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { FileOperationResult, FileSystemProviderCapabilities, toFileOperationResult } from '../../../files/common/files.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { buildCopilotBuiltinSkillsContainer, COPILOT_TROUBLESHOOT_SKILL_CONTENT, createCopilotSkillProvider } from '../../node/copilot/copilotBuiltinSkills.js';
+import { buildCopilotBuiltinSkillsContainer, readCopilotTroubleshootSkillContent, createCopilotSkillProvider } from '../../node/copilot/copilotBuiltinSkills.js';
 import { CopilotBuiltinAgentsStore } from '../../node/copilot/copilotBuiltinAgents.js';
 
 suite('Copilot builtin troubleshoot skill', () => {
@@ -48,11 +48,13 @@ suite('Copilot builtin troubleshoot skill', () => {
 		await assert.rejects(fileService.writeFile(uri, VSBuffer.fromString('modified')),
 			(error: Error) => toFileOperationResult(error) === FileOperationResult.FILE_PERMISSION_DENIED);
 		const provider = createCopilotSkillProvider('sdk-id', URI.file('/copilot-home'));
+		const content = await readCopilotTroubleshootSkillContent();
 		assert.deepStrictEqual({
 			scheme: uri.scheme,
 			readonly: fileService.hasCapability(uri, FileSystemProviderCapabilities.Readonly),
 			content: (await fileService.readFile(uri)).value.toString(),
+			size: (await fileService.stat(uri)).size,
 			sdkContent: (await provider.readSkill('troubleshoot', { signal: new AbortController().signal }))?.startsWith('# Troubleshoot'),
-		}, { scheme: 'copilot-builtin', readonly: true, content: COPILOT_TROUBLESHOOT_SKILL_CONTENT, sdkContent: true });
+		}, { scheme: 'copilot-builtin', readonly: true, content, size: VSBuffer.fromString(content).byteLength, sdkContent: true });
 	});
 });
