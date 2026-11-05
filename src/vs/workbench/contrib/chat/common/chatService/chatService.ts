@@ -1297,6 +1297,8 @@ export interface IChatSubagentToolInvocationData {
 	/** Whether the child has reported a turn; false defers its entry, while undefined preserves legacy publication. */
 	hasStarted?: boolean;
 	isActive?: boolean;
+	/** Whether the latest observed child turn failed, independently of the task tool's result. */
+	isError?: boolean;
 	activity?: 'markdown' | 'reasoning';
 	description?: string;
 	/** Provider-supplied display name for the subagent type. */
