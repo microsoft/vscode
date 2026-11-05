@@ -6,10 +6,8 @@
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { isMacintosh } from '../../../../../base/common/platform.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { INativeHostService } from '../../../../../platform/native/common/native.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
-import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { confirmSessionShutdown, getEffectiveSessionShutdownReason } from '../../../../../workbench/contrib/chat/electron-browser/chatLifecycle.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { INativeWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/electron-browser/environmentService.js';
@@ -28,7 +26,6 @@ export class LocalAgentHostLifecycleContribution extends Disposable implements I
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@IDialogService private readonly dialogService: IDialogService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
@@ -57,10 +54,6 @@ export class LocalAgentHostLifecycleContribution extends Disposable implements I
 		const windowCount = reason === ShutdownReason.CLOSE ? await this.nativeHostService.getWindowCount() : 0;
 		const effectiveReason = getEffectiveSessionShutdownReason(reason, windowCount, isMacintosh);
 		if (effectiveReason !== ShutdownReason.QUIT || !this.hasActiveSession()) {
-			return false;
-		}
-
-		if (ChatContextKeys.skipChatRequestInProgressMessage.getValue(this.contextKeyService) === true) {
 			return false;
 		}
 

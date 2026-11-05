@@ -5,13 +5,14 @@
 import path from 'path';
 import { spawn } from 'child_process';
 import { promises as fs } from 'fs';
+import { getPnpmCommand } from './pnpm.ts';
 
-const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const rootDir = path.resolve(import.meta.dirname, '..', '..');
 
-function runProcess(command: string, args: ReadonlyArray<string> = []) {
+function runPnpm(args: ReadonlyArray<string>, env: NodeJS.ProcessEnv = process.env) {
+	const pnpm = getPnpmCommand();
 	return new Promise<void>((resolve, reject) => {
-		const child = spawn(command, args, { cwd: rootDir, stdio: 'inherit', env: process.env, shell: process.platform === 'win32' });
+		const child = spawn(pnpm.command, [...pnpm.args, ...args], { cwd: rootDir, stdio: 'inherit', env, shell: pnpm.shell });
 		child.on('exit', err => !err ? resolve() : process.exit(err ?? 1));
 		child.on('error', reject);
 	});
@@ -28,38 +29,22 @@ async function exists(subdir: string) {
 
 async function ensureNodeModules() {
 	if (!(await exists('node_modules'))) {
-		await runProcess(npm, ['ci']);
+		// pnpm doesn't pass --frozen-lockfile on to the installs of the separate install roots that
+		// the postinstall runs; the environment variable reaches them.
+		await runPnpm(['install', '--frozen-lockfile'], { ...process.env, PNPM_CONFIG_FROZEN_LOCKFILE: 'true' });
 	}
 }
 
 async function getElectron() {
-	// `npm run electron` deletes and re-downloads `.build/electron` on every
-	// invocation. When preLaunch runs repeatedly (e.g. once per integration test
-	// section) this is both wasteful and a source of flaky failures on Windows,
-	// where the just-exited Electron process can still hold file locks while the
-	// directory is being removed and re-extracted. Skip the refresh when the
-	// already-present Electron matches the expected version; any detection
-	// failure falls back to a (re)download to preserve the previous behavior.
-	if (!process.env['VSCODE_FORCE_PRELAUNCH'] && await isExpectedElectronInstalled()) {
-		return;
-	}
-	await runProcess(npm, ['run', 'electron']);
-}
-
-async function isExpectedElectronInstalled(): Promise<boolean> {
-	try {
-		const { getElectronVersion } = await import('./electronVersion.ts');
-		const { electronVersion } = getElectronVersion();
-		const installedVersion = (await fs.readFile(path.join(rootDir, '.build', 'electron', 'version'), 'utf8')).trim().replace(/^v/, '');
-		return installedVersion === electronVersion;
-	} catch {
-		return false;
+	const { shouldDownloadElectron } = await import('./electronVersion.ts');
+	if (shouldDownloadElectron(rootDir)) {
+		await runPnpm(['run', 'electron']);
 	}
 }
 
 async function ensureCompiled() {
 	if (!(await exists('out'))) {
-		await runProcess(npm, ['run', 'compile']);
+		await runPnpm(['run', 'compile']);
 	}
 }
 

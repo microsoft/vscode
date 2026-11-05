@@ -8,6 +8,7 @@ import { IChatMode, getModeNameForTelemetry } from './chatModes.js';
 import { isInClaudeAgentsFolder } from './promptSyntax/config/promptFileLocations.js';
 
 type ChatModeChangeClassification = {
+	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Identifies the agent implementation handling the associated chat session, such as copilotcli, claude, or codex.' };
 	owner: 'digitarald';
 	comment: 'Reporting when agent is switched between different modes';
 	fromMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The previous agent name' };
@@ -17,10 +18,11 @@ type ChatModeChangeClassification = {
 	extensionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Extension ID if the target mode is from an extension' };
 	toolsCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of custom tools in the target mode'; isMeasurement: true };
 	handoffsCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of handoffs in the target mode'; isMeasurement: true };
-	isClaudeAgent?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the target mode is a Claude agent file from .claude/agents/' };
+	isClaudeAgent?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the target mode is a Claude agent file from .claude/agents/' };
 };
 
 type ChatModeChangeEvent = {
+	provider: string | undefined;
 	fromMode: string;
 	mode: string;
 	requestCount: number;
@@ -31,7 +33,7 @@ type ChatModeChangeEvent = {
 	isClaudeAgent?: boolean;
 };
 
-export function reportChatModeChange(telemetryService: ITelemetryService, currentMode: IChatMode, targetMode: IChatMode, requestCount: number): void {
+export function reportChatModeChange(telemetryService: ITelemetryService, currentMode: IChatMode, targetMode: IChatMode, requestCount: number, provider: string | undefined): void {
 	if (currentMode.id === targetMode.id) {
 		return;
 	}
@@ -41,6 +43,7 @@ export function reportChatModeChange(telemetryService: ITelemetryService, curren
 	const modeUri = targetMode.uri?.get();
 
 	telemetryService.publicLog2<ChatModeChangeEvent, ChatModeChangeClassification>('chat.modeChange', {
+		provider,
 		fromMode: getModeNameForTelemetry(currentMode),
 		mode: getModeNameForTelemetry(targetMode),
 		requestCount,

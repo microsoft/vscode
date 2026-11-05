@@ -15,6 +15,7 @@ import { DetailedLineRangeMapping, RangeMapping } from '../../../common/diff/ran
 import { ITextModel } from '../../../common/model.js';
 import { DiffAlgorithmName, IEditorWorkerService } from '../../../common/services/editorWorker.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
 export const IDiffProviderFactoryService = createDecorator<IDiffProviderFactoryService>('diffProviderFactoryService');
 
@@ -50,10 +51,13 @@ export class WorkerBasedDocumentDiffProvider implements IDocumentDiffProvider, I
 
 	private static readonly diffCache = new Map<string, { result: IDocumentDiff; context: string }>();
 
+	private static readonly maxVerifiedLineCount = 50_000;
+
 	constructor(
 		options: IWorkerBasedDocumentDiffProviderOptions,
 		@IEditorWorkerService private readonly editorWorkerService: IEditorWorkerService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		this.setOptions(options);
 	}
@@ -116,25 +120,35 @@ export class WorkerBasedDocumentDiffProvider implements IDocumentDiffProvider, I
 		}
 
 		const sw = StopWatch.create();
-		const result = await this.editorWorkerService.computeDiff(original.uri, modified.uri, options, this.diffAlgorithm);
+		const verify = this._shouldVerify(original, modified);
+		const result = await this.editorWorkerService.computeDiff(original.uri, modified.uri, options, this.diffAlgorithm, verify);
 		const timeMs = sw.elapsed();
 
 		this.telemetryService.publicLog2<{
 			timeMs: number;
 			timedOut: boolean;
 			detectedMoves: number;
+			diffAlgorithm: string;
+			ignoreTrimWhitespace: boolean;
+			validity: string;
 		}, {
 			owner: 'hediet';
 
 			timeMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'To understand if the new diff algorithm is slower/faster than the old one' };
 			timedOut: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'To understand how often the new diff algorithm times out' };
 			detectedMoves: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'To understand how often the new diff algorithm detects moves' };
+			diffAlgorithm: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The diff algorithm that computed the diff, to compare algorithms.' };
+			ignoreTrimWhitespace: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether leading/trailing whitespace changes were ignored.' };
+			validity: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the diff reproduces the modified text (valid, invalid, unverified, or notChecked if not sampled), to measure how often an algorithm produces incorrect diffs. Includes verification time in timeMs when checked.' };
 
 			comment: 'This event gives insight about the performance of the new diff algorithm.';
 		}>('diffEditor.computeDiff', {
 			timeMs,
 			timedOut: result?.quitEarly ?? true,
 			detectedMoves: options.computeMoves ? (result?.moves.length ?? 0) : -1,
+			diffAlgorithm: this.diffAlgorithm,
+			ignoreTrimWhitespace: options.ignoreTrimWhitespace,
+			validity: result?.validity ?? 'notChecked',
 		});
 
 		if (cancellationToken.isCancellationRequested) {
@@ -158,6 +172,17 @@ export class WorkerBasedDocumentDiffProvider implements IDocumentDiffProvider, I
 
 		WorkerBasedDocumentDiffProvider.diffCache.set(uriKey, { result, context });
 		return result;
+	}
+
+	/**
+	 * Verifying a diff is linear in the document size, so it is only done for a sample of diffs,
+	 * controlled by an experiment, and never for very large documents.
+	 */
+	private _shouldVerify(original: ITextModel, modified: ITextModel): boolean {
+		const sampleRate = this.configurationService.getValue<number>('diffEditor.experimental.verifyDiffSampleRate') ?? 0;
+		return Math.random() < sampleRate
+			&& original.getLineCount() <= WorkerBasedDocumentDiffProvider.maxVerifiedLineCount
+			&& modified.getLineCount() <= WorkerBasedDocumentDiffProvider.maxVerifiedLineCount;
 	}
 
 	public setOptions(newOptions: IWorkerBasedDocumentDiffProviderOptions): void {

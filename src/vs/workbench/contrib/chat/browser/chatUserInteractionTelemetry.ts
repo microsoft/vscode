@@ -6,14 +6,17 @@
 import { addDisposableListener, getWindow } from '../../../../base/browser/dom.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { TelemetryTrustedValue } from '../../../../platform/telemetry/common/telemetryUtils.js';
 import { IChatWidget } from './chat.js';
 import { IChatUserInteractionOTelService } from './chatUserInteractionOTel.js';
 import { IChatProgress, IChatToolInvocation } from '../common/chatService/chatService.js';
 import { getChatSessionTelemetryContext } from '../common/chatService/chatServiceTelemetry.js';
 import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../common/constants.js';
+import { getTelemetryModelIdentifier, ILanguageModelsService } from '../common/languageModels.js';
 import { IChatProgressResponseContent, IChatResponseModel } from '../common/model/chatModel.js';
 
 export type ChatUserInteractionTimingResult = 'success' | 'cancelled' | 'error' | 'completedWithoutProgress' | 'notDispatched' | 'queued' | 'navigated' | 'hidden' | 'disposed';
@@ -78,6 +81,7 @@ export class ChatUserInteraction extends Disposable {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILogService private readonly _logService: ILogService,
 		@IChatUserInteractionOTelService private readonly _otelService: IChatUserInteractionOTelService,
+		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 	) {
 		super();
 		this._now = _options.now ?? (() => globalThis.performance.now());
@@ -90,7 +94,7 @@ export class ChatUserInteraction extends Disposable {
 				this.cancel('hidden');
 			}
 		}));
-		this._logService.trace('[ChatTTFP] start', { interactionId: this.id, interactionKind: 'turn' });
+		this._logService.trace('[ChatTTFP] start', { interactionId: this.id, interactionKind: 'turn', epochMs: performance.timeOrigin + this.startedAt });
 		if (!_options.visible || _options.window.document.visibilityState !== 'visible') {
 			this.cancel('hidden');
 		}
@@ -220,8 +224,10 @@ export class ChatUserInteraction extends Disposable {
 		this.resetRender();
 		this._response = undefined;
 		this._getWidget = undefined;
+		const { model, ...context } = this._context;
 		const data: ChatUserPerceivedTimeToFirstProgressEvent = {
-			...this._context,
+			...context,
+			...(hasKey(this._context, { model: true }) ? { model: this._getTelemetryModel(model) } : {}),
 			timeToFirstProgress: result === 'success' ? elapsedMs : undefined,
 			timeToTermination: result === 'success' ? undefined : elapsedMs,
 			result,
@@ -231,7 +237,7 @@ export class ChatUserInteraction extends Disposable {
 			windowVisible: this._options.window.document.visibilityState === 'visible',
 			windowFocused: this._options.window.document.hasFocus(),
 		};
-		this._logService.trace('[ChatTTFP] end', { interactionId: this.id, ...data });
+		this._logService.trace('[ChatTTFP] end', { interactionId: this.id, ...data, epochMs: performance.timeOrigin + this._now() });
 		this._telemetryService.publicLog2<ChatUserPerceivedTimeToFirstProgressEvent, ChatUserPerceivedTimeToFirstProgressClassification>('chat.userPerceivedTimeToFirstProgress', data);
 		this._otelService.report({
 			schemaVersion: 1,
@@ -249,13 +255,22 @@ export class ChatUserInteraction extends Disposable {
 		super.dispose();
 	}
 
+	private _getTelemetryModel(modelId: string | undefined): string | TelemetryTrustedValue<string> | undefined {
+		if (!modelId) {
+			return undefined;
+		}
+		const metadata = this._languageModelsService.lookupLanguageModel(modelId);
+		return getTelemetryModelIdentifier(metadata && { identifier: modelId, metadata }, this._languageModelsService);
+	}
+
 	override dispose(): void {
 		this.cancel('disposed');
 		super.dispose();
 	}
 }
 
-type ChatUserPerceivedTimeToFirstProgressEvent = IChatUserInteractionTelemetryContext & {
+type ChatUserPerceivedTimeToFirstProgressEvent = Omit<IChatUserInteractionTelemetryContext, 'model'> & {
+	model?: string | TelemetryTrustedValue<string>;
 	timeToFirstProgress: number | undefined;
 	timeToTermination: number | undefined;
 	result: ChatUserInteractionTimingResult;
@@ -278,7 +293,7 @@ type ChatUserPerceivedTimeToFirstProgressClassification = {
 	agent?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat agent handling the request.' };
 	agentExtensionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension that contributed the chat agent.' };
 	location?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The location where the chat interaction occurred.' };
-	model?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The selected language model identifier. For Auto, this is the Auto identifier rather than the resolved model.' };
+	model?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The selected built-in language model identifier, or "unknown" for models the user brought or that cannot be resolved. For Auto, this is the Auto identifier rather than the resolved model.' };
 	permissionLevel?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The tool auto-approval permission level selected for the request.' };
 	chatMode?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat mode used for the request.' };
 	sessionType?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The normalized chat session type.' };

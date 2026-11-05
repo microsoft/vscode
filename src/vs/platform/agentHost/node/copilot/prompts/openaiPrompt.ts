@@ -5,15 +5,14 @@
 
 import type { SectionOverride, SystemMessageSection } from '@github/copilot-sdk';
 import type { ModelSelection } from '../../../common/state/protocol/state.js';
+import { isOpenAIModel } from './progressUpdatesInstructions.js';
 import { agentHostPromptRegistry, type IAgentHostPrompt } from './promptRegistry.js';
 
 class OpenAIPromptResolver implements IAgentHostPrompt {
 	static readonly familyPrefixes: readonly string[] = [];
 
 	static matchesModel(model: ModelSelection): boolean {
-		// Like Copilot Chat's OpenAI routing, match GPT families and the OpenAI alias; include legacy o-series IDs.
-		const family = model.id.toLowerCase();
-		return family.startsWith('gpt-') || family === 'openai' || /^o[134](?:-|$)/.test(family);
+		return isOpenAIModel(model);
 	}
 
 	resolveSectionOverrides(): Partial<Record<SystemMessageSection, SectionOverride>> {

@@ -20,6 +20,7 @@ import { IChatUserInteractionOTelService } from '../../browser/chatUserInteracti
 import { IChatUserInteractionTiming } from '../../../../../platform/otel/common/chatUserInteraction.js';
 import { ChatResponseModelChangeReason, IChatModel, IChatProgressResponseContent, IChatRequestModel, IChatResponseModel, IResponse } from '../../common/model/chatModel.js';
 import { IChatViewModel } from '../../common/model/chatViewModel.js';
+import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../common/languageModels.js';
 
 export function createChatUserInteractionTestHarness(disposables: Pick<DisposableStore, 'add'>) {
 	let now = 100;
@@ -63,6 +64,14 @@ export function createChatUserInteractionTestHarness(disposables: Pick<Disposabl
 	});
 	instantiationService.stub(ITelemetryService, {
 		publicLog2: (name: string, data: Record<string, unknown> = {}) => { events.push({ name, data }); },
+	});
+	const languageModels = new Map<string, ILanguageModelChatMetadata>([
+		['model-id', upcastPartial<ILanguageModelChatMetadata>({ vendor: 'copilot' })],
+		['user-model', upcastPartial<ILanguageModelChatMetadata>({ vendor: 'user-vendor' })],
+	]);
+	instantiationService.stub(ILanguageModelsService, {
+		lookupLanguageModel: (modelId: string) => languageModels.get(modelId),
+		getVendors: () => [],
 	});
 	instantiationService.stub(ILogService, {
 		trace: (message: string, ...args: unknown[]) => {

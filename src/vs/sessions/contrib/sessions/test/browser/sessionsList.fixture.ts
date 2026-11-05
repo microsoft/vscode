@@ -7,11 +7,12 @@ import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSetting
 import { ONBOARDING_TARGET_ATTR } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { SpotlightOverlay } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightOverlay.js';
 import { ComponentFixtureContext, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
-import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
-import { SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
+import { ISessionEnvironment, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
+import { getTestSessionResource } from '../../../../services/sessions/test/common/testSessionBuilder.js';
 import { createSessionArchiveTour } from '../../../onboardingTours/browser/tours/sessionArchiveTour.js';
-import { AUTOMATIONS_NEW_BADGE_STYLE_SETTING } from '../../browser/automationsNewBadge.js';
-import { SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsGrouping } from '../../browser/views/sessionsList.js';
+import { SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsGrouping } from '../../browser/views/sessionsList.js';
 import { defineSessionsListFixture, ISessionsListFixture, ISessionsListFixtureGroup, ISessionsListFixtureSession } from './sessionsListFixtureUtils.js';
 
 //#region Data
@@ -25,10 +26,44 @@ const NESTED_CHAT_SESSION: ISessionsListFixtureSession = {
 	title: 'HTTP Client Retry Plan',
 	workspace: 'vscode-tools',
 	minutesAgo: 2,
+	mainChatMinutesAgo: 7,
 	chats: [
-		{ id: 'task-a', title: 'Task A' },
-		{ id: 'task-b', title: 'Task B' },
+		{ id: 'task-a', title: 'Task A', minutesAgo: 18 },
+		{ id: 'task-b', title: 'Task B', minutesAgo: 43 },
 	],
+};
+/** Two sessions whose nested chats form separate hierarchies, followed by a session without chats. */
+const NESTED_CHAT_HIERARCHY_SESSIONS: readonly ISessionsListFixtureSession[] = [
+	NESTED_CHAT_SESSION,
+	{
+		id: 'b',
+		title: 'Session Persistence Cleanup',
+		workspace: 'vscode-tools',
+		minutesAgo: 9,
+		mainChatMinutesAgo: 12,
+		chats: [
+			{ id: 'audit', title: 'Audit stored state', minutesAgo: 25 },
+			{ id: 'migrate', title: 'Migrate old entries', minutesAgo: 51 },
+		],
+	},
+	{ id: 'c', title: 'Update onboarding copy', workspace: 'vscode-tools', minutesAgo: 64 },
+];
+const BAKEOFF_SESSIONS: readonly ISessionsListFixtureSession[] = [
+	{ id: 'attempt-one', title: 'First attempt', workspace: 'vscode', status: SessionStatus.InProgress },
+	{ id: 'attempt-two', title: 'Second attempt', workspace: 'vscode', status: SessionStatus.InProgress },
+];
+const BAKEOFF_COMPARISON: ISessionComparison = {
+	id: 'bakeoff',
+	groupId: 'bakeoff',
+	title: 'Improve session navigation',
+	prompt: 'Improve session navigation',
+	createdAt: 1,
+	participants: BAKEOFF_SESSIONS.map((session, index) => ({
+		id: session.id,
+		role: SessionComparisonParticipantRole.Attempt,
+		sessionResource: getTestSessionResource(session.id),
+		harness: { providerId: 'local', sessionTypeId: 'copilot', label: 'Copilot', modelLabel: index === 0 ? 'Claude Opus 5' : 'GPT-5.4' },
+	})),
 };
 const ARCHIVED_CHAT_SESSION: ISessionsListFixtureSession = {
 	id: 'nested-archive',
@@ -38,6 +73,15 @@ const ARCHIVED_CHAT_SESSION: ISessionsListFixtureSession = {
 	chats: [
 		{ id: 'active', title: 'Compare provider state', canArchive: true },
 		{ id: 'archived', title: 'Previous persistence approach', isArchived: true, canArchive: true },
+	],
+};
+const NEW_NESTED_CHAT_SESSION: ISessionsListFixtureSession = {
+	id: 'nested-new',
+	title: 'Investigate session persistence',
+	workspace: 'vscode',
+	minutesAgo: 2,
+	chats: [
+		{ id: 'new', title: 'New Chat', status: SessionStatus.Untitled, canArchive: true },
 	],
 };
 const NESTED_CHAT_APPROVAL_SESSION: ISessionsListFixtureSession = {
@@ -70,9 +114,14 @@ const GROUPED_SESSIONS: readonly ISessionsListFixtureSession[] = [
 ];
 const EXTERNAL_SESSIONS: readonly ISessionsListFixtureSession[] = [
 	{ id: 'regular', title: 'Update onboarding copy', workspace: 'vscode', minutesAgo: 10 },
-	{ id: 'external-repo', title: 'Hello world test', workspace: 'vscode', minutesAgo: 15, isExternal: true, supportsMultipleChats: true },
-	{ id: 'external-directory', title: 'Directory-only SDK session', workspace: 'scratch', minutesAgo: 30, isExternal: true, supportsMultipleChats: true },
-	{ id: 'done', title: 'Completed external session', workspace: 'vscode', minutesAgo: 60, isExternal: true, isArchived: true },
+	{ id: 'external-repo', title: 'Add retry diagnostics', workspace: 'vscode', application: 'github/cli', minutesAgo: 15, isExternal: true, supportsMultipleChats: true },
+	{ id: 'external-directory', title: 'Investigate authentication report', workspace: 'vscode', application: 'slack', minutesAgo: 30, isExternal: true, supportsMultipleChats: true },
+	{ id: 'done', title: 'Prepare release notes', workspace: 'vscode', application: 'github/autopilot', minutesAgo: 60, isExternal: true, isArchived: true },
+];
+const EXTERNAL_QUICK_CHAT_SESSIONS: readonly ISessionsListFixtureSession[] = [
+	{ id: 'regular', title: 'Explain the retry policy', isQuickChat: true, minutesAgo: 10 },
+	{ id: 'external-cli', title: 'Summarize the release checklist', isQuickChat: true, application: 'github/cli', minutesAgo: 15, isExternal: true },
+	{ id: 'external-slack', title: 'Draft a reply to the support thread', isQuickChat: true, application: 'slack', minutesAgo: 30, isExternal: true },
 ];
 const COLLAPSED_SECTION_SESSIONS: readonly ISessionsListFixtureSession[] = [
 	{ id: 'grouped-unread', title: 'Unread session in the group only', workspace: 'vscode', minutesAgo: 12, isRead: false },
@@ -118,10 +167,90 @@ const GROUP_SESSIONS: readonly ISessionsListFixtureSession[] = [
 	{ id: 'guide', title: 'Refresh the getting started guide', workspace: 'vscode-docs', minutesAgo: 90 },
 	{ id: 'copy', title: 'Update onboarding copy', workspace: 'vscode-docs', minutesAgo: 180 },
 ];
+const STICKY_SHOW_LESS_SESSIONS: readonly ISessionsListFixtureSession[] = Array.from({ length: 20 }, (_, index) => ({
+	...GROUP_SESSIONS[index % GROUP_SESSIONS.length],
+	id: `session-${index}`,
+	minutesAgo: index * 10,
+	status: SessionStatus.Completed,
+}));
 const RELEASE_GROUP: ISessionsListFixtureGroup = { id: 'release', name: 'Release work', sessions: ['auth', 'backoff'] };
 const TRIAGE_GROUP: ISessionsListFixtureGroup = { id: 'triage', name: 'Triage', sessions: ['flaky'] };
 const DOCS_GROUP: ISessionsListFixtureGroup = { id: 'docs', name: 'Docs refresh', sessions: ['guide'] };
 const EMPTY_GROUP: ISessionsListFixtureGroup = { id: 'later', name: 'Later' };
+
+/** Sessions for the nested custom group fixtures. */
+const NESTED_GROUP_SESSIONS: readonly ISessionsListFixtureSession[] = [
+	{ id: 'notes', title: 'Draft the release notes', workspace: 'vscode-docs', minutesAgo: 8 },
+	{ id: 'auth', title: 'Fix authentication redirect loop', workspace: 'vscode', minutesAgo: 12, changesSummary: { files: 4, additions: 132, deletions: 18 } },
+	{ id: 'cve', title: 'Patch the URL parser vulnerability', workspace: 'vscode', minutesAgo: 5, status: SessionStatus.NeedsInput, description: 'Which advisory should the fix reference?' },
+	{ id: 'flaky', title: 'Investigate flaky smoke test', workspace: 'vscode', minutesAgo: 20 },
+	{ id: 'guide', title: 'Refresh the getting started guide', workspace: 'vscode-docs', minutesAgo: 90 },
+];
+/** Release work holds Hotfixes, which holds Urgent, and an empty Docs subgroup; Triage is top-level. */
+const NESTED_GROUPS: readonly ISessionsListFixtureGroup[] = [
+	{ id: 'release', name: 'Release work', sessions: ['notes'] },
+	{ id: 'hotfixes', name: 'Hotfixes', parent: 'release', sessions: ['auth'] },
+	{ id: 'urgent', name: 'Urgent', parent: 'hotfixes', sessions: ['cve'] },
+	{ id: 'docs', name: 'Docs', parent: 'release' },
+	{ id: 'triage', name: 'Triage', sessions: ['flaky'] },
+];
+/** Five levels of groups with long names, each holding one session. */
+const DEEP_GROUP_NAMES = ['Platform reliability', 'Authentication and accounts', 'Token refresh regressions', 'Windows credential manager', 'Follow-ups after the credential manager hotfix'];
+const DEEP_GROUP_SESSIONS: readonly ISessionsListFixtureSession[] = DEEP_GROUP_NAMES.map((_, index) => ({ id: `deep-${index}`, title: `Investigate level ${index + 1} of the token refresh failure`, workspace: 'vscode', minutesAgo: 5 + index }));
+const DEEP_GROUPS: readonly ISessionsListFixtureGroup[] = DEEP_GROUP_NAMES.map((name, index) => ({ id: `level-${index}`, name, parent: index === 0 ? undefined : `level-${index - 1}`, sessions: [`deep-${index}`] }));
+
+/** Environments of the repository grouping fixtures; sessions name them as their provider. */
+const REPOSITORY_ENVIRONMENTS: readonly ISessionEnvironment[] = [
+	{ id: 'local', label: 'This Computer' },
+	{ id: 'cloud', label: 'Cloud' },
+	{ id: 'devbox', label: 'devbox' },
+];
+/** Sessions of the repository grouping fixtures, in several environments and repositories. */
+const REPOSITORY_SESSIONS: readonly ISessionsListFixtureSession[] = [
+	{ id: 'cloud-auth', title: 'Fix authentication redirect loop', workspace: 'microsoft/vscode', repository: 'microsoft/vscode', environment: 'cloud', providerId: 'cloud', minutesAgo: 5, changesSummary: { files: 4, additions: 132, deletions: 18 } },
+	{ id: 'local-backoff', title: 'Add reconnect backoff', workspace: 'vscode', repository: 'microsoft/vscode', minutesAgo: 12 },
+	{ id: 'devbox-tests', title: 'Investigate flaky integration tests', workspace: 'vscode [devbox]', repository: 'microsoft/vscode', environment: 'devbox', providerId: 'devbox', minutesAgo: 20 },
+	{ id: 'fork-notes', title: 'Port the release notes fix', workspace: 'vscode', repository: 'contoso/vscode', minutesAgo: 35 },
+	{ id: 'docs-guide', title: 'Refresh the getting started guide', workspace: 'vscode-docs', repository: 'microsoft/vscode-docs', environment: 'cloud', providerId: 'cloud', minutesAgo: 50 },
+	{ id: 'scratch', title: 'Prototype a settings parser', workspace: 'scratch', minutesAgo: 70 },
+];
+
+/** The query of the search fixtures, whose words are in another order and case than in the titles it matches. */
+const SEARCH_QUERY = 'macos terminal';
+/**
+ * Sessions that {@link SEARCH_QUERY} finds by their title, a chat, their branch, or a pull request, and two that it
+ * hides. The session it finds by a chat has a second chat that it hides.
+ */
+const SEARCH_SESSIONS: readonly ISessionsListFixtureSession[] = [
+	{ id: 'flaky', title: 'Fix flaky terminal tests on macOS', workspace: 'vscode', minutesAgo: 5 },
+	{ id: 'websocket', title: 'Refactor websocket transport', workspace: 'vscode', minutesAgo: 12 },
+	{
+		id: 'crash',
+		title: 'Investigate macOS renderer crash',
+		workspace: 'vscode',
+		minutesAgo: 20,
+		chats: [
+			{ id: 'dump', title: 'Review the terminal crash dump' },
+			{ id: 'regression', title: 'Write a regression test' },
+		],
+	},
+	{ id: 'build', title: 'Speed up the macOS build', workspace: 'vscode', branch: 'fix/terminal-flake', minutesAgo: 45 },
+	{ id: 'sdk', title: 'Hello world sample for the SDK', workspace: 'copilot-sdk', minutesAgo: 60 },
+	{ id: 'guide', title: 'Update the setup guide', workspace: 'vscode-docs', repository: 'microsoft/vscode-docs', pullRequest: { number: 4242, title: 'Document macOS terminal setup' }, minutesAgo: 90 },
+];
+/** Sessions in two `microsoft` repositories, one with a done chat that shows on its own row, and a session in a fork. */
+const REPOSITORY_SEARCH_SESSIONS: readonly ISessionsListFixtureSession[] = [
+	{
+		id: 'auth',
+		title: 'Fix authentication redirect loop',
+		workspace: 'vscode',
+		repository: 'microsoft/vscode',
+		minutesAgo: 10,
+		chats: [{ id: 'notes', title: 'Draft the release notes', isArchived: true, canArchive: true }],
+	},
+	{ id: 'guide', title: 'Refresh the getting started guide', workspace: 'vscode-docs', repository: 'microsoft/vscode-docs', minutesAgo: 40 },
+	{ id: 'fork', title: 'Port the release notes fix', workspace: 'vscode-fork', repository: 'contoso/vscode', minutesAgo: 70 },
+];
 
 //#endregion
 
@@ -165,6 +294,49 @@ const CONTEXT_MENU_FRAME = { width: 480, height: 320 };
 //#endregion
 
 export default defineThemedFixtureGroup({ path: 'sessions/' }, {
+	SessionsList_Bakeoff: defineSessionsListFixture({
+		sessions: BAKEOFF_SESSIONS,
+		groups: [{ id: 'bakeoff', name: BAKEOFF_COMPARISON.title, sessions: BAKEOFF_SESSIONS.map(session => session.id) }],
+		comparisons: [BAKEOFF_COMPARISON],
+		view: { grouping: SessionsGrouping.Date, reducedMotion: false },
+	}, { virtualTime: { enabled: false }, additionalThemes: ['darkHighContrast', 'lightHighContrast'] }),
+	SessionsList_Bakeoff_MixedHarnesses: defineSessionsListFixture({
+		sessions: BAKEOFF_SESSIONS,
+		groups: [{ id: 'bakeoff', name: BAKEOFF_COMPARISON.title, sessions: BAKEOFF_SESSIONS.map(session => session.id) }],
+		comparisons: [{
+			...BAKEOFF_COMPARISON,
+			participants: BAKEOFF_COMPARISON.participants.map((participant, index) => index === 0 ? participant : {
+				...participant,
+				harness: { ...participant.harness, sessionTypeId: 'claude', label: 'Claude' },
+			}),
+		}],
+		view: { grouping: SessionsGrouping.Date, reducedMotion: false },
+	}, { virtualTime: { enabled: false }, additionalThemes: ['darkHighContrast', 'lightHighContrast'] }),
+	SessionsList_Bakeoff_IndentItems: defineSessionsListFixture({
+		sessions: BAKEOFF_SESSIONS,
+		groups: [{ id: 'bakeoff', name: BAKEOFF_COMPARISON.title, sessions: BAKEOFF_SESSIONS.map(session => session.id) }],
+		comparisons: [BAKEOFF_COMPARISON],
+		view: { grouping: SessionsGrouping.Date, reducedMotion: false },
+		settings: { [SESSIONS_LIST_INDENT_ITEMS_SETTING]: true },
+	}, {
+		labels: { kind: 'screenshot' },
+		virtualTime: { enabled: false },
+		expectedVisualDescriptions: ['With indented items, the comparison header and its attempts start one level to the right of the Recent section header, and the guide from the comparison header connects to each attempt.'],
+	}),
+	SessionsList_Bakeoff_InGroup_IndentItems: defineSessionsListFixture({
+		sessions: BAKEOFF_SESSIONS,
+		groups: [
+			{ id: 'release', name: 'Release work' },
+			{ id: 'bakeoff', name: BAKEOFF_COMPARISON.title, sessions: BAKEOFF_SESSIONS.map(session => session.id), parent: 'release' },
+		],
+		comparisons: [BAKEOFF_COMPARISON],
+		view: { reducedMotion: false },
+		settings: { [SESSIONS_LIST_INDENT_ITEMS_SETTING]: true },
+	}, {
+		labels: { kind: 'screenshot' },
+		virtualTime: { enabled: false },
+		expectedVisualDescriptions: ['With indented items, the comparison inside Release work starts one level to the right of the Release work header, like a session in that group would. Its attempts line up with the comparison header, and the guide from the comparison header connects to each attempt.'],
+	}),
 
 	//#region Sections and placement
 
@@ -183,6 +355,110 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		view: { height: 340 },
 		settings: { [SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING]: false, [ChatSessionArchiveActionWordingSettingId]: ChatSessionArchiveActionWording.MarkAsDone },
 	}, { labels: { kind: 'screenshot' } }),
+	SessionsList_ExternalApplicationBadge: defineSessionsListFixture({
+		sessions: EXTERNAL_SESSIONS.filter(session => !session.isArchived),
+		view: { height: 270 },
+		settings: {
+			[SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING]: false,
+			[SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING]: ExternalSessionApplicationBadgeMode.Title,
+		},
+	}, {
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['External sessions are mixed with the regular session and show a rounded application badge after the title.'],
+	}),
+	SessionsList_ExternalApplicationBadgeDetails: defineSessionsListFixture({
+		sessions: EXTERNAL_SESSIONS.filter(session => !session.isArchived),
+		view: { height: 270 },
+		settings: {
+			[SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING]: false,
+			[SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING]: ExternalSessionApplicationBadgeMode.Details,
+		},
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['External sessions are mixed with the regular session and show a rounded application badge as the first item in the details row.'],
+	}),
+	SessionsList_ExternalApplicationBadgeQuickChat: defineSessionsListFixture({
+		sessions: EXTERNAL_QUICK_CHAT_SESSIONS,
+		view: { height: 220, expanded: [{ section: 'quickchats' }] },
+		settings: {
+			[SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING]: false,
+			[SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING]: ExternalSessionApplicationBadgeMode.Title,
+		},
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['External chats without a workspace render as compact single-line rows and show a rounded application badge after the title. The regular chat has no badge.'],
+	}),
+	SessionsList_ExternalApplicationBadgeQuickChatDetails: defineSessionsListFixture({
+		sessions: EXTERNAL_QUICK_CHAT_SESSIONS,
+		view: { height: 220, expanded: [{ section: 'quickchats' }] },
+		settings: {
+			[SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING]: false,
+			[SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING]: ExternalSessionApplicationBadgeMode.Details,
+		},
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['External chats without a workspace have no details row, so they show a rounded application badge after the title. The regular chat has no badge.'],
+	}),
+	SessionsList_ExternalApplicationBadgeWithFrom: defineSessionsListFixture({
+		sessions: EXTERNAL_SESSIONS.filter(session => !session.isArchived),
+		view: { height: 270 },
+		settings: {
+			[SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING]: false,
+			[SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING]: ExternalSessionApplicationBadgeMode.Title,
+			[SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING]: true,
+		},
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['External sessions show a rounded "From [application]" badge after the title.'],
+	}),
+	SessionsList_ExternalApplicationBadgeLongLabel: defineSessionsListFixture({
+		sessions: [
+			EXTERNAL_SESSIONS[0],
+			{
+				...EXTERNAL_SESSIONS[1],
+				application: 'external_tool_with_an_exceptionally_long_application_name',
+			},
+		],
+		view: { height: 220, width: 260 },
+		settings: {
+			[SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING]: false,
+			[SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING]: ExternalSessionApplicationBadgeMode.Title,
+		},
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The long external application badge is capped and ellipsized so the session title remains visible in the narrow list.'],
+	}),
+	SessionsList_ExternalApplicationBadgeHovered: defineSessionsListFixture({
+		sessions: EXTERNAL_SESSIONS.filter(session => !session.isArchived),
+		view: { height: 270 },
+		settings: {
+			[SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING]: false,
+			[SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING]: ExternalSessionApplicationBadgeMode.Title,
+		},
+	}, {
+		labels: { kind: 'screenshot' },
+		afterRender: fixture => {
+			const row = fixture.list.getItemRow(fixture.resolve({ session: 'external-repo' }));
+			if (!row) {
+				throw new Error('Expected the external session row to render.');
+			}
+			row.classList.add('hovered');
+		},
+		expectedVisualDescriptions: ['The hovered external session shows its row actions and hides its application badge without changing the row content height. The other external session retains its badge.'],
+	}),
+	SessionsList_ExternalApplicationBadgeFocused: defineSessionsListFixture({
+		sessions: EXTERNAL_SESSIONS.filter(session => !session.isArchived),
+		view: { height: 270 },
+		settings: {
+			[SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING]: false,
+			[SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING]: ExternalSessionApplicationBadgeMode.Title,
+		},
+		interaction: { focused: { session: 'external-repo' } },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The keyboard-focused external session shows its row actions and hides its application badge without changing the row content height. The other external session retains its badge.'],
+	}),
 	SessionsList_WorkspaceSection: defineSessionsListFixture({
 		sessions: [{ id: 'c', title: 'Update onboarding copy', workspace: 'vscode-docs', minutesAgo: 180 }],
 	}),
@@ -226,7 +502,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	}, {
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['All sections are collapsed. Orange ring pixel spinners replace the icons for Release work and vscode-docs, taking priority over unread indicators. The vscode section retains its folder icon because its needs-input session appears only in Release work.'],
+		expectedVisualDescriptions: ['All sections are collapsed. Orange report-question icons replace the icons for Release work and vscode-docs, taking priority over unread indicators. The vscode section retains its folder icon because its needs-attention session appears only in Release work.'],
 	}),
 	SessionsList_CollapsedNeedsInputSections_Disabled: defineSessionsListFixture({
 		sessions: COLLAPSED_NEEDS_INPUT_SESSIONS,
@@ -295,6 +571,46 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		additionalThemes: ['darkHighContrast'],
 		expectedVisualDescriptions: ['Three custom groups render in their listed order, Release work, Triage, then Docs refresh, above the vscode-docs workspace section that holds the one ungrouped session. Completed grouped session rows show a workspace badge, the in-progress Triage session shows its status instead, and connectors link the two Release work sessions.'],
 	}),
+	SessionsList_StickyShowLess: defineSessionsListFixture({
+		sessions: [...STICKY_SHOW_LESS_SESSIONS, { id: 'pinned', title: 'Prepare release notes', workspace: 'vscode', pinned: true }],
+		groups: [{ id: 'release', name: 'Release work', sessions: STICKY_SHOW_LESS_SESSIONS.map(session => session.id) }],
+		view: { height: 360 },
+	}, {
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast'],
+		expectedVisualDescriptions: ['The Pinned section sits above an expanded Release work project. Without scrolling, Show less appears at the bottom with the same inset separator lines and label spacing as its normal tree row, with no button border or fill.'],
+		afterRender: ({ list, container }) => {
+			const footer = container.querySelector('.sessions-list-sticky-show-more:not([hidden])');
+			if (list.scrollTop !== 0 || !footer || footer.getBoundingClientRect().bottom !== container.getBoundingClientRect().bottom) {
+				throw new Error('Expected the expanded project to show its sticky Show less control.');
+			}
+		},
+	}),
+	SessionsList_StickyShowMore: defineSessionsListFixture({
+		sessions: [
+			{
+				...NESTED_CHAT_SESSION,
+				workspace: 'vscode',
+				chats: [
+					{ id: 'research', title: 'Investigate current behavior' },
+					{ id: 'implementation', title: 'Implement the fix' },
+					{ id: 'tests', title: 'Add regression coverage' },
+				],
+			},
+			...GROUP_SESSIONS.map(session => ({ ...session, workspace: 'vscode', minutesAgo: (session.minutesAgo ?? 0) + 10 })),
+		],
+		view: { height: 360 },
+	}, {
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast'],
+		expectedVisualDescriptions: ['A capped vscode project has an expanded session with nested chats. The +1 more footer stays at the bottom because the normal row is below the viewport, using the same label spacing and separator lines as Show less.'],
+		afterRender: ({ list, container }) => {
+			const footer = container.querySelector('.sessions-list-sticky-show-more:not([hidden])');
+			if (list.scrollTop !== 0 || footer?.textContent !== '+1 more' || footer.getBoundingClientRect().bottom !== container.getBoundingClientRect().bottom) {
+				throw new Error('Expected the capped project to show its sticky +1 more control.');
+			}
+		},
+	}),
 	SessionsList_Groups_Empty: defineSessionsListFixture({
 		sessions: GROUP_SESSIONS.filter(session => session.id !== 'flaky' && session.id !== 'guide'),
 		groups: [RELEASE_GROUP, EMPTY_GROUP],
@@ -302,14 +618,6 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	}, {
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['An empty Later group shows a muted "No session" placeholder row below its header, between the populated Release work group and the vscode-docs workspace section.'],
-	}),
-	SessionsList_Groups_EmptyHidden: defineSessionsListFixture({
-		sessions: GROUP_SESSIONS.filter(session => session.id !== 'flaky' && session.id !== 'guide'),
-		groups: [RELEASE_GROUP, EMPTY_GROUP],
-		view: { height: 300, showEmptyGroups: false },
-	}, {
-		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['With empty groups filtered out, only the populated Release work group and the vscode-docs workspace section are shown; the empty Later group is hidden.'],
 	}),
 	SessionsList_Groups_EmptyHoveredHeader: defineSessionsListFixture({
 		sessions: GROUP_SESSIONS.filter(session => session.id !== 'flaky' && session.id !== 'guide'),
@@ -355,6 +663,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		view: { height: 380 },
 		interaction: { focused: { group: 'release' } },
 	}, {
+		deferPaint: true,
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast'],
 		expectedVisualDescriptions: ['The Release work group header has keyboard focus, shown with a focus outline, a chevron in place of the group icon, and its New Session and Archive All actions.'],
@@ -389,6 +698,148 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 
 	//#endregion
 
+	//#region Nested custom groups
+
+	SessionsList_NestedGroups: defineSessionsListFixture({
+		sessions: NESTED_GROUP_SESSIONS,
+		groups: NESTED_GROUPS,
+		view: { height: 520 },
+	}, {
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast'],
+		expectedVisualDescriptions: ['Release work lists its subgroups Hotfixes and Docs, each stepped in one level, above its own session. Hotfixes lists its Urgent subgroup, stepped in another level, above its session, and each session lines up with its own group header. The empty Docs subgroup shows a stepped-in "No session" placeholder. Triage and the vscode-docs workspace section follow at the top level.'],
+	}),
+	SessionsList_NestedGroups_IndentItems: defineSessionsListFixture({
+		sessions: NESTED_GROUP_SESSIONS,
+		groups: NESTED_GROUPS,
+		view: { height: 520 },
+		settings: { [SESSIONS_LIST_INDENT_ITEMS_SETTING]: true },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['With indented items, every session and the "No session" placeholder starts one level to the right of its group or workspace section header. Subgroups Hotfixes and Docs start where the sessions of Release work start, and Urgent and its session step in one level further, so each level of the hierarchy is indented by the same amount.'],
+	}),
+	SessionsList_NestedChatHierarchies_IndentItems: defineSessionsListFixture({
+		sessions: NESTED_CHAT_HIERARCHY_SESSIONS,
+		view: { width: 340, height: 480 },
+		interaction: { hovered: 'pane' },
+		settings: { [SESSIONS_LIST_INDENT_ITEMS_SETTING]: true },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['With indented items, the sessions and their nested chats start one level to the right of the vscode-tools section header. The hierarchy guides still run from each session icon into the rounded branches to its nested chats.'],
+	}),
+	SessionsList_NestedGroups_DateGrouping: defineSessionsListFixture({
+		sessions: NESTED_GROUP_SESSIONS,
+		groups: NESTED_GROUPS,
+		view: { grouping: SessionsGrouping.Date, height: 520 },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['With date grouping, Release work with its nested Hotfixes, Urgent, and Docs subgroups and Triage form the block at the top, stepped in by nesting depth. The ungrouped session follows in the Recent section.'],
+	}),
+	SessionsList_NestedGroups_CollapsedSubgroup: defineSessionsListFixture({
+		sessions: NESTED_GROUP_SESSIONS,
+		groups: NESTED_GROUPS,
+		view: { height: 420, collapsed: [{ group: 'hotfixes' }] },
+		settings: { [SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING]: true },
+	}, {
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast'],
+		expectedVisualDescriptions: ['The Hotfixes subgroup is collapsed to its stepped-in header, and an orange report-question icon replaces its group icon because a session in its own Urgent subgroup needs input. Release work stays expanded with its Docs subgroup and session.'],
+	}),
+	SessionsList_NestedGroups_CreateSubgroup: defineSessionsListFixture({
+		sessions: NESTED_GROUP_SESSIONS,
+		groups: NESTED_GROUPS,
+		view: { height: 560 },
+		interaction: { createSubgroupIn: 'hotfixes' },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['A new subgroup shows its focused name editor, containing "New Group", as the first subgroup of Hotfixes, above Urgent and stepped in two levels, followed by a stepped-in "No session" placeholder.'],
+	}),
+	SessionsList_NestedGroups_HoveredSubgroupHeader: defineSessionsListFixture({
+		sessions: NESTED_GROUP_SESSIONS,
+		groups: NESTED_GROUPS,
+		view: { height: 520 },
+		interaction: { hovered: { group: 'hotfixes' } },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The pointer is over the stepped-in Hotfixes header. Its row shows the hover background, a chevron in place of its group icon, and its New Session and Archive All actions on the right.'],
+	}),
+	SessionsList_NestedGroups_ContextMenu: defineSessionsListFixture({
+		sessions: NESTED_GROUP_SESSIONS,
+		groups: NESTED_GROUPS,
+		view: { height: 520 },
+		frame: { ...CONTEXT_MENU_FRAME, height: 560 },
+		interaction: { contextMenu: { group: 'hotfixes' } },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The context menu of the Hotfixes subgroup is open, offering New Session, then Mark All as Read and Archive All, then Create Subgroup, then Change Icon..., Change Color..., Rename..., and Delete Group.'],
+	}),
+	SessionsList_NestedGroups_DragIntoGroup: defineSessionsListFixture({
+		sessions: NESTED_GROUP_SESSIONS,
+		groups: NESTED_GROUPS,
+		view: { height: 520 },
+		interaction: { dragging: { source: { group: 'triage' }, target: { group: 'hotfixes' }, at: 'middle' } },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['Triage is dragged over the middle of the Hotfixes header, which highlights as the group Triage will move into.'],
+	}),
+	SessionsList_NestedGroups_DragBeforeSubgroup: defineSessionsListFixture({
+		sessions: NESTED_GROUP_SESSIONS,
+		groups: NESTED_GROUPS,
+		view: { height: 520 },
+		interaction: { dragging: { source: { group: 'triage' }, target: { group: 'urgent' }, at: 'top' } },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['Triage is dragged over the top edge of the Urgent header. An insertion line between the Hotfixes and Urgent headers starts at Urgent\'s indent, showing that Triage will become a subgroup of Hotfixes above Urgent.'],
+	}),
+	SessionsList_NestedGroups_Deep: defineSessionsListFixture({
+		sessions: DEEP_GROUP_SESSIONS,
+		groups: DEEP_GROUPS,
+		view: { width: 300, height: 600 },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['Five groups are nested in each other, each header and its session stepping in one more level. Long group names and session titles truncate with an ellipsis instead of overflowing the narrow list.'],
+	}),
+	SessionsList_NestedGroups_Compact: defineSessionsListFixture({
+		sessions: NESTED_GROUP_SESSIONS,
+		groups: NESTED_GROUPS,
+		view: { compact: true, height: 360 },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['In the compact view, the single-line session rows of nested groups step in with their group headers, like in the regular view.'],
+	}),
+	SessionsList_NestedGroups_Phone: defineSessionsListFixture({
+		sessions: NESTED_GROUP_SESSIONS,
+		groups: NESTED_GROUPS,
+		view: { phone: true, width: 340, height: 600 },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['On a phone, nested groups and their sessions step in by nesting depth like on desktop.'],
+	}),
+
+	//#endregion
+
+	//#region Repository grouping
+
+	SessionsList_RepositoryGrouping: defineSessionsListFixture({
+		sessions: REPOSITORY_SESSIONS,
+		environments: REPOSITORY_ENVIRONMENTS,
+		view: { grouping: SessionsGrouping.Repository, height: 420 },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['Sections list sessions by repository, sorted by name: contoso/vscode and microsoft/vscode with repository icons, then the scratch workspace section with a folder icon, then vscode-docs with a repository icon. Both vscode repositories include their owner because they share a name. The microsoft/vscode section lists sessions from Cloud, this computer, and devbox; the Cloud and devbox rows show their environment as a badge, while the row from this computer shows none.'],
+	}),
+	SessionsList_RepositoryGrouping_HoveredHeader: defineSessionsListFixture({
+		sessions: REPOSITORY_SESSIONS,
+		environments: REPOSITORY_ENVIRONMENTS,
+		view: { grouping: SessionsGrouping.Repository, height: 420 },
+		interaction: { hovered: { section: 'repository:microsoft/vscode' } },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The pointer is over the microsoft/vscode repository header. It shows its hover background, a chevron in place of the repository icon, and on the right a New Session button with a dropdown arrow followed by an Archive All action.'],
+	}),
+
+	//#endregion
+
 	//#region Pointer and keyboard state
 
 	SessionsList_HoveredSession: defineSessionsListFixture({
@@ -414,7 +865,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		interaction: { hovered: { session: 'a', chat: 'task-b' } },
 	}, {
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The pointer is over the Task B chat row, which shows its hover background. Hovering a chat reveals its parent session hierarchy guides while the parent keeps its status icon.'],
+		expectedVisualDescriptions: ['The pointer is over the Task B chat row, which shows its hover background. With the pointer over the pane, the hierarchy guides show while the parent keeps its status icon.'],
 	}),
 	SessionsList_KeyboardFocusedSession: defineSessionsListFixture({
 		sessions: GROUPED_SESSIONS,
@@ -513,12 +964,12 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	}),
 	SessionsList_CompactNestedChats: defineSessionsListFixture({
 		sessions: [ARCHIVED_CHAT_SESSION],
-		view: { compact: true, showArchived: true, width: 340 },
+		view: { compact: true, showArchived: true, width: 340, expanded: [{ section: 'archived' }] },
 		interaction: { hovered: { session: 'nested-archive' } },
 		settings: { [ChatSessionArchiveActionWordingSettingId]: ChatSessionArchiveActionWording.MarkAsDone },
 	}, {
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['A compact expanded session shows an active child and a done child as indented leaves. Only the hovered parent shows Pin and Mark as Done actions and its collapse twistie. The done child retains its completed archive icon, and the hierarchy guides connect both children to the parent.'],
+		expectedVisualDescriptions: ['A compact expanded session shows its active child as an indented leaf connected to the parent by the hierarchy guide. Only the hovered parent shows Pin and Mark as Done actions and its collapse twistie. Its done child is not nested under it but is its own unindented row in the expanded Done section, with its completed archive icon and no hierarchy guide.'],
 	}),
 	SessionsList_CompactNestedChatsCollapsed: defineSessionsListFixture({
 		sessions: [ARCHIVED_CHAT_SESSION],
@@ -529,7 +980,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		labels: { kind: 'screenshot' },
 		deferPaint: true,
 		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['A keyboard-focused compact session shows its parent Pin and Mark as Done actions. Neither its active nor its done child is visible, and the parent remains a single compact row.'],
+		expectedVisualDescriptions: ['A keyboard-focused compact session shows its parent Pin and Mark as Done actions. Its active child is hidden, its done child is in the collapsed Done section, and the parent remains a single compact row.'],
 	}),
 	SessionsList_CompactNestedChatApprovals: defineSessionsListFixture({
 		sessions: [NESTED_CHAT_APPROVAL_SESSION],
@@ -546,20 +997,20 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	SessionsList_PeerChatInProgress: defineSessionsListFixture({
 		sessions: [{
 			id: 'a',
-			title: 'Single-pane details behavior',
+			title: 'Desktop details behavior',
 			workspace: 'vscode',
 			minutesAgo: 0,
 			status: SessionStatus.InProgress,
 			mainChatStatus: SessionStatus.Completed,
 			chats: [
-				{ id: 'layout', title: 'Fix single-pane details layout' },
+				{ id: 'layout', title: 'Fix desktop details layout' },
 				{ id: 'restore', title: 'Fix empty files restore', status: SessionStatus.InProgress },
 			],
 		}],
 		view: { width: 620 },
 	}, {
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['An expanded session has a completed main chat and two nested peer chat rows. The session row and the active "Fix empty files restore" peer chat row both show blue in-progress icons, while the completed "Fix single-pane details layout" peer chat shows an inactive dot. The session details say "Working...".'],
+		expectedVisualDescriptions: ['An expanded session has a completed main chat and two nested peer chat rows. The session row and the active "Fix empty files restore" peer chat row both show blue in-progress icons, while the completed "Fix desktop details layout" peer chat shows an inactive dot. The session details say "Working...".'],
 	}),
 	SessionsList_NestedChatApprovals: defineSessionsListFixture({
 		sessions: [NESTED_CHAT_APPROVAL_SESSION],
@@ -585,7 +1036,8 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		interaction: { hovered: { session: 'a' } },
 	}, {
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['A hovered, expanded session in its workspace section has two nested chat rows. Its twistie replaces the status icon, and rounded hierarchy connectors run continuously from the parent and stop before each child status icon.'],
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['A hovered, expanded session in its workspace section shows the main chat and each nested chat\'s own relative modified time. Its twistie replaces the status icon, and rounded hierarchy connectors run continuously from the parent and stop before each child status icon.'],
 	}),
 	SessionsList_NestedChats_PinnedView: defineSessionsListFixture({
 		sessions: [{ ...NESTED_CHAT_SESSION, sticky: true }],
@@ -603,49 +1055,90 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		labels: { kind: 'screenshot', blocksCi: true },
 		expectedVisualDescriptions: ['An expanded pinned and sticky session has two nested chat rows, and the pointer is over the Task A chat. Its compact blue sticky marker does not shift the session icon away from the hierarchy guide. A single high-contrast guide color runs continuously from the parent, through the hovered row, into rounded branches that stop short of each child status icon, without gaps or visible shade changes.'],
 	}),
+	SessionsList_NestedChatHierarchies: defineSessionsListFixture({
+		sessions: NESTED_CHAT_HIERARCHY_SESSIONS,
+		view: { width: 340, height: 480 },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['With the pointer outside the pane and nothing selected, two expanded sessions show their nested chats indented beneath them without hierarchy guides. The session without chats below them is unchanged.'],
+	}),
+	SessionsList_NestedChatHierarchies_PaneHovered: defineSessionsListFixture({
+		sessions: NESTED_CHAT_HIERARCHY_SESSIONS,
+		view: { width: 340, height: 480 },
+		interaction: { hovered: 'pane' },
+	}, {
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The pointer is over empty space in the Sessions pane, below the rows. Both expanded sessions show continuous hierarchy guides from the parent into rounded branches to each of their nested chats, and each guide ends at its own last chat. No row shows a hover background, twistie, or row actions, and the session without chats has no guide.'],
+	}),
+	SessionsList_NestedChatHierarchies_CompactPaneHovered: defineSessionsListFixture({
+		sessions: NESTED_CHAT_HIERARCHY_SESSIONS,
+		view: { width: 340, height: 420, compact: true },
+		interaction: { hovered: 'pane' },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['Both compact session hierarchies show their connectors while the pointer is in the pane without hovering any row. No row actions or collapse twisties are revealed.'],
+	}),
+	SessionsList_NestedChatHierarchies_HoveredRow: defineSessionsListFixture({
+		sessions: NESTED_CHAT_HIERARCHY_SESSIONS,
+		view: { width: 340, height: 480 },
+		interaction: { hovered: { session: 'b' } },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The pointer is over the Session Persistence Cleanup session row, and both expanded sessions show their hierarchy guides. Only the hovered row shows its hover background, its collapse twistie in place of its status icon, and its row actions; HTTP Client Retry Plan keeps its status icon and shows no actions.'],
+	}),
+	SessionsList_NestedChatHierarchies_Selected: defineSessionsListFixture({
+		sessions: NESTED_CHAT_HIERARCHY_SESSIONS,
+		view: { width: 340, height: 480 },
+		interaction: { selected: [{ session: 'b', chat: 'audit' }], listFocused: false },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['With the pointer outside the pane, the Audit stored state chat is selected without list focus. Only its own hierarchy, Session Persistence Cleanup, shows hierarchy guides; the HTTP Client Retry Plan chats are indented without guides.'],
+	}),
 
 	//#endregion
 
 	//#region Archived chats
 
 	SessionsList_NestedChatActions: defineSessionsListFixture({
-		sessions: [ARCHIVED_CHAT_SESSION],
+		sessions: [NEW_NESTED_CHAT_SESSION],
 		view: { showArchived: true, width: 400 },
-		interaction: { hovered: { session: 'nested-archive', chat: 'active' } },
+		interaction: { hovered: { session: 'nested-new', chat: 'new' } },
 		settings: { [ChatSessionArchiveActionWordingSettingId]: ChatSessionArchiveActionWording.MarkAsDone },
 	}, {
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The hovered active child shows Mark as Done, while its done sibling keeps its completed archive icon. The parent and done sibling do not show their row actions.'],
+		expectedVisualDescriptions: ['The hovered untitled child is labeled New Session and shows Delete instead of Mark as Done. The parent does not show its row actions.'],
 	}),
 	SessionsList_CompactNestedChatActions: defineSessionsListFixture({
-		sessions: [ARCHIVED_CHAT_SESSION],
+		sessions: [NEW_NESTED_CHAT_SESSION],
 		view: { compact: true, showArchived: true, width: 260 },
-		interaction: { hovered: { session: 'nested-archive', chat: 'active' } },
+		interaction: { hovered: { session: 'nested-new', chat: 'new' } },
 		settings: { [ChatSessionArchiveActionWordingSettingId]: ChatSessionArchiveActionWording.MarkAsDone },
 	}, {
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['In a narrow compact list, the hovered active child keeps its title clear of its Mark as Done action. Its done sibling remains an indented leaf, and neither child action nor hierarchy guide overlaps the title.'],
+		expectedVisualDescriptions: ['In a narrow compact list, the hovered untitled child is labeled New Session and keeps its title clear of its Delete action. The hierarchy guide does not overlap the title.'],
 	}),
 	SessionsList_ArchivedNestedChat: defineSessionsListFixture({
 		sessions: [ARCHIVED_CHAT_SESSION],
-		view: { showArchived: true, width: 400 },
+		view: { showArchived: true, width: 400, expanded: [{ section: 'archived' }] },
 		interaction: { focused: { session: 'nested-archive', chat: 'archived' } },
 		settings: { [ChatSessionArchiveActionWordingSettingId]: ChatSessionArchiveActionWording.MarkAsDone },
 	}, {
 		labels: { kind: 'screenshot', blocksCi: true },
+		deferPaint: true,
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['An expanded vscode session shows one active nested chat and one archived nested chat. The archived chat remains under its parent, uses the completed archive status icon, and shows Restore as its primary row action when focused.'],
+		expectedVisualDescriptions: ['An expanded vscode session shows its one active nested chat. Its archived nested chat is not under the parent but is its own unindented row in the expanded Done section; it uses the completed archive status icon and, when focused, shows Open Parent Session followed by Restore.'],
 	}),
 	SessionsList_CompactArchivedNestedChat: defineSessionsListFixture({
 		sessions: [ARCHIVED_CHAT_SESSION],
-		view: { compact: true, showArchived: true, width: 260 },
+		view: { compact: true, showArchived: true, width: 260, expanded: [{ section: 'archived' }] },
 		interaction: { selected: [{ session: 'nested-archive', chat: 'archived' }], focused: { session: 'nested-archive', chat: 'archived' } },
 		settings: { [ChatSessionArchiveActionWordingSettingId]: ChatSessionArchiveActionWording.MarkAsDone },
 	}, {
 		labels: { kind: 'screenshot', blocksCi: true },
 		deferPaint: true,
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['The done child is selected and keyboard-focused in a narrow compact list. Its completed archive icon, focus outline, and Restore action remain visible while its long title truncates; the active sibling and parent remain unselected.'],
+		expectedVisualDescriptions: ['The done child is selected and keyboard-focused as its own row in the Done section of a narrow compact list. Its completed archive icon, focus outline, and Open Parent Session and Restore actions remain visible while its long title truncates; the parent and its active child remain unselected.'],
 	}),
 	SessionsList_CompactArchivedSessionWithChats: defineSessionsListFixture({
 		sessions: [{ ...ARCHIVED_CHAT_SESSION, isArchived: true }],
@@ -659,13 +1152,13 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	}),
 	SessionsList_ArchivedNestedChatMenu: defineSessionsListFixture({
 		sessions: [ARCHIVED_CHAT_SESSION],
-		view: { showArchived: true, width: 400 },
+		view: { showArchived: true, width: 400, expanded: [{ section: 'archived' }] },
 		interaction: { contextMenu: { session: 'nested-archive', chat: 'archived' } },
 		settings: { [ChatSessionArchiveActionWordingSettingId]: ChatSessionArchiveActionWording.MarkAsDone },
 		frame: CONTEXT_MENU_FRAME,
 	}, {
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The done child has its own context menu with Restore instead of Mark as Done. Its parent remains active and both children remain nested beneath it.'],
+		expectedVisualDescriptions: ['The done child, listed as its own row in the Done section, has its own context menu with Open Parent Session and Restore instead of Mark as Done. Its parent remains active in its own section with only its active child nested beneath it.'],
 	}),
 	SessionsList_CompactNestedChatPrimaryAction: defineSessionsListFixture({
 		sessions: [COMPACT_NESTED_CHAT_PRIMARY_ACTION_SESSION],
@@ -674,7 +1167,8 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		settings: { [ChatSessionArchiveActionWordingSettingId]: ChatSessionArchiveActionWording.MarkAsDone },
 	}, {
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['An expanded compact multi-folder session shows a nested chat with its workspace badge beside the title and its Mark as Done primary action aligned to the trailing edge of the row.'],
+		deferPaint: true,
+		expectedVisualDescriptions: ['An expanded compact multi-folder session shows a committed nested chat with its workspace badge beside the title and its Mark as Done primary action aligned to the trailing edge of the row.'],
 	}),
 	//#endregion
 
@@ -709,75 +1203,82 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 
 	//#endregion
 
-	//#region Header
+	//#region Search
 
-	SessionsList_AutomationsNewBadge: defineSessionsListFixture({
-		sessions: [],
-		header: { automations: true },
-	}, {
-		labels: { kind: 'screenshot', blocksCi: true },
-		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['The Sessions header has an outlined New button. Directly below it, the Automations row has a smaller right-aligned outlined NEW capsule that reads as a non-interactive feature badge rather than a second button.'],
-	}),
-	SessionsList_AutomationsNewBadge_Accent: defineSessionsListFixture({
-		sessions: [],
-		header: { automations: true },
-		settings: { [AUTOMATIONS_NEW_BADGE_STYLE_SETTING]: 'accent' },
-	}, {
-		labels: { kind: 'screenshot', blocksCi: true },
-		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['The Automations row has a compact right-aligned NEW pill using the prominent activity badge colors, while the larger outlined New button remains visually distinct in the Sessions header.'],
-	}),
-	SessionsList_AutomationsNewBadge_Soft: defineSessionsListFixture({
-		sessions: [],
-		header: { automations: true },
-		settings: { [AUTOMATIONS_NEW_BADGE_STYLE_SETTING]: 'soft' },
-	}, {
-		labels: { kind: 'screenshot', blocksCi: true },
-		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['The Automations row has a compact right-aligned NEW pill with a subtle neutral fill, while the larger outlined New button remains visually distinct in the Sessions header.'],
-	}),
-	SessionsList_AutomationsNewBadge_Unread: defineSessionsListFixture({
-		sessions: [],
-		header: { automations: true },
-		settings: { [AUTOMATIONS_NEW_BADGE_STYLE_SETTING]: 'unread' },
-	}, {
-		labels: { kind: 'screenshot', blocksCi: true },
-		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['The Automations row uses the standard filled blue unread indicator in its leading icon slot to signal the new feature and does not show a trailing NEW capsule, while the Sessions header retains its outlined New button.'],
-	}),
-	SessionsList_AutomationsNewBadge_Narrow: defineSessionsListFixture({
-		sessions: [],
-		view: { width: 170 },
-		header: { automations: true },
-	}, {
-		labels: { kind: 'screenshot', blocksCi: true },
-		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['At the 170px minimum sidebar width, the Automations label remains readable and the outlined NEW capsule stays right-aligned without changing the row height.'],
-	}),
-	SessionsList_AutomationsNewBadge_Running: defineSessionsListFixture({
-		sessions: [],
-		header: { automations: true, automationRunStatus: 'running' },
-	}, {
-		labels: { kind: 'screenshot', blocksCi: true },
-		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['The Automations row shows its running status icon and the outlined NEW capsule together without overlap or layout shift.'],
-	}),
-	SessionsList_CustomizationsNavigationTreatment: defineSessionsListFixture({
-		sessions: [{ id: 'treatment', title: 'Validate the customizations experiment', workspace: 'vscode', minutesAgo: 5 }],
-		header: { navigationShortcuts: true, customizationsCount: 8 },
-		settings: { [AUTOMATIONS_NEW_BADGE_STYLE_SETTING]: 'outline' },
+	SessionsList_Search: defineSessionsListFixture({
+		sessions: SEARCH_SESSIONS,
+		header: {},
+		view: { height: 380, collapsed: [{ session: 'crash' }] },
+		interaction: { search: SEARCH_QUERY },
 	}, {
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['Automations and Customizations appear as two full-width navigation rows at the start of the scrollable Sessions tree. The Sessions header follows them and becomes sticky as they scroll away. Automations has a compact right-aligned NEW capsule, Customizations shows its count of 8, and the outlined New button remains in the Sessions header rather than becoming a list entry.'],
+		expectedVisualDescriptions: [
+			'The find widget replaces the label and actions of the Sessions header and holds the query "macos terminal". Searching moved the list focus to the first result, which shows its actions, while the input keeps focus.',
+			'Only sessions with both words show: three in the vscode section and one in the vscode-docs section. "Refactor websocket transport" and the copilot-sdk section are hidden.',
+			'"Fix flaky terminal tests on macOS" highlights both words, although the query has them in the other order.',
+			'The collapsed "Investigate macOS renderer crash" session is expanded to show its "Review the terminal crash dump" chat with "terminal" highlighted, but not its "Write a regression test" chat.',
+			'The details row of "Speed up the macOS build" names its branch fix/terminal-flake next to a branch icon, with "terminal" highlighted. The details row of "Update the setup guide" names pull request #4242 "Document macOS terminal setup" next to a pull request icon, with both words highlighted before an ellipsis truncates it.',
+		],
+	}),
+	SessionsList_Search_Compact: defineSessionsListFixture({
+		sessions: SEARCH_SESSIONS,
+		header: {},
+		view: { compact: true, height: 240, collapsed: [{ session: 'crash' }] },
+		interaction: { search: SEARCH_QUERY },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: [
+			'Compact rows show the same results as the default rows, with the searched words highlighted in titles and in the chat title.',
+			'Without a details row, "Speed up the macOS build" names its branch fix/terminal-flake next to its title, and "Update the setup guide" names pull request #4242 next to its title, truncated with an ellipsis. Each hint has an icon, uses a smaller and dimmer type role than the title, and is vertically centered on the title without growing its row.',
+		],
+	}),
+	SessionsList_Search_RepositoryHints: defineSessionsListFixture({
+		sessions: REPOSITORY_SEARCH_SESSIONS,
+		header: {},
+		view: { showArchived: true, height: 280 },
+		interaction: { search: 'microsoft' },
+		settings: { [ChatSessionArchiveActionWordingSettingId]: ChatSessionArchiveActionWording.MarkAsDone },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: [
+			'Searching "microsoft" shows the sessions in the microsoft/vscode and microsoft/vscode-docs repositories and hides the session in the contoso/vscode fork.',
+			'The details row of each shown session names its repository next to a repository icon, with "microsoft" highlighted. The Done section is expanded, and the done "Draft the release notes" chat on its own row names microsoft/vscode in its details row the same way.',
+		],
+	}),
+
+	//#endregion
+
+	//#region Header
+
+	SessionsList_CustomizationsNavigationTreatment: defineSessionsListFixture({
+		sessions: [{ id: 'treatment', title: 'Validate the customizations experiment', workspace: 'vscode', minutesAgo: 5 }],
+		header: { navigationShortcuts: true, customizationsCount: 8 },
+	}, {
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast'],
+		expectedVisualDescriptions: ['New Session, Automations, and Customizations appear as three inset navigation rows above the Sessions header. The hovered New Session row uses the same horizontal inset and rounded control-tier corners as the session row below. New Session has a plus icon and its platform keybinding aligned on the right, Automations has a calendar icon, and Customizations has no total-count badge.'],
+		afterRender: fixture => {
+			const newSessionRow = fixture.container.querySelector('.session-section-new-session')?.closest<HTMLElement>('.monaco-list-row');
+			if (!newSessionRow) {
+				throw new Error('Expected the New Session navigation row.');
+			}
+			newSessionRow.classList.add('hovered');
+		},
 	}),
 	SessionsList_CustomizationsMigrationsAvailable: defineSessionsListFixture({
 		sessions: [{ id: 'migrations', title: 'Move instructions into the new format', workspace: 'vscode', minutesAgo: 5 }],
 		header: { navigationShortcuts: true, customizationsCount: 8, customizationMigrationsAvailable: true },
 	}, {
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The Customizations navigation row shows a small warning dot right after its label, before the right-aligned count of 8.'],
+		expectedVisualDescriptions: ['The Customizations navigation row has no total-count badge and shows a small activity badge dot beside its label.'],
+	}),
+	SessionsList_CustomizationsExtensionSuggestionsAvailable: defineSessionsListFixture({
+		sessions: [{ id: 'suggestions', title: 'Review the generated diagrams', workspace: 'vscode', minutesAgo: 5 }],
+		header: { navigationShortcuts: true, customizationsCount: 8, customizationExtensionSuggestionsAvailable: true },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The Customizations navigation row has no total-count badge and shows a small activity badge dot, not a warning dot, beside its label.'],
 	}),
 	SessionsList_LightweightNewButton: defineSessionsListFixture({
 		sessions: [],

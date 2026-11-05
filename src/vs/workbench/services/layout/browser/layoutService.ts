@@ -53,8 +53,16 @@ export const enum LayoutSettings {
 	SHADOWS = 'workbench.shadows',
 	MODERN_UI = 'workbench.experimental.modernUI',
 	MODERN_UI_DENSITY = 'window.density.layout',
+	MODERN_UI_FROSTED_GLASS = 'workbench.modernUIFrostedGlass',
+	MODERN_UI_FROSTED_GLASS_OPACITY = 'workbench.modernUIFrostedGlassOpacity',
 	MODERN_UI_EDITOR_TAB_STYLE = 'workbench.experimental.modernUIEditorTabStyle',
 	MODERN_UI_UPPERCASE_VIEW_HEADERS = 'workbench.experimental.modernUIUppercaseViewHeaders'
+}
+
+export const enum ModernUIFrostedGlassOpacity {
+	Minimum = 50,
+	Maximum = 100,
+	Default = 80
 }
 
 export const enum ModernUIEditorTabStyle {
@@ -110,6 +118,20 @@ export const enum ActivityBarPosition {
 	TOP = 'top',
 	BOTTOM = 'bottom',
 	HIDDEN = 'hidden'
+}
+
+/**
+ * Whether the compact menu is owned by the title bar rather than the activity bar.
+ * This is the case when the activity bar is at the top or bottom, because the activity
+ * bar then lives in the side bar and disappears with the side bar. The title bar
+ * only owns the menu while the custom title bar is shown in the main window; otherwise
+ * the activity bar keeps it so that the menu remains reachable.
+ */
+export function isCompactMenuInTitlebar(configurationService: IConfigurationService): boolean {
+	const activityBarLocation = configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
+	return getMenuBarVisibility(configurationService) === 'compact'
+		&& (activityBarLocation === ActivityBarPosition.TOP || activityBarLocation === ActivityBarPosition.BOTTOM)
+		&& shouldShowCustomTitleBar(configurationService, mainWindow);
 }
 
 export const enum EditorTabsMode {

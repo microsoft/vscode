@@ -22,6 +22,9 @@ import { AICustomizationManagementSection, IAICustomizationWorkspaceService } fr
 import { ICustomizationSyncProvider, type IHarnessDescriptor, type ICustomizationItemAction } from '../../common/customizationHarnessService.js';
 import { AgentCustomizationItemProvider } from '../agentSessions/agentHost/agentCustomizationItemProvider.js';
 import { CustomizationType } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { Target } from '../../common/promptSyntax/promptTypes.js';
+import type { IObservable } from '../../../../../base/common/observable.js';
+import type { AgentModelCatalogStatus } from '../../../../../platform/agentHost/common/agentModelCatalogStatus.js';
 
 function customizationKey(customization: Customization): string {
 	return customization.uri;
@@ -103,6 +106,7 @@ export class RemoteAgentPluginController extends Disposable {
 			return;
 		}
 
+		// eslint-disable-next-line local/code-agent-host-uri-mapping -- unwraps a folder selected explicitly from this remote host's Agent Host filesystem provider
 		const original = fromAgentHostUri(selected);
 		const uriString = original.toString();
 		const newCustomization: Customization = {
@@ -138,15 +142,16 @@ export function createRemoteAgentHarnessDescriptor(
 	controller: RemoteAgentPluginController,
 	itemProvider: AgentCustomizationItemProvider,
 	syncProvider: ICustomizationSyncProvider,
+	customAgentTarget?: Target,
+	modelCatalogueStatus?: IObservable<AgentModelCatalogStatus | undefined>,
 ): IHarnessDescriptor {
 	return {
 		id: harnessId,
 		label: displayName,
 		icon: ThemeIcon.fromId(Codicon.remote.id),
-		hiddenSections: [
-			AICustomizationManagementSection.Models,
-			AICustomizationManagementSection.McpServers,
-		],
+		customAgentTarget,
+		modelCatalogueStatus,
+		hiddenSections: [AICustomizationManagementSection.Models],
 		hideGenerateButton: true,
 		itemProvider,
 		syncProvider,

@@ -1,86 +1,83 @@
 # SDK/Runtime Managed Setting
 
-Use this path when policy governs behavior implemented inside the Copilot runtime:
-
-- tools, shell, files, URLs, MCP, plugins, or subagents;
-- permissions, approvals, or sandboxing;
-- runtime-owned model, telemetry, or remote-agent behavior.
+For behavior executed inside the Copilot runtime: tools, shell, files, URLs, MCP, plugins, subagents, permissions, approvals, sandboxing, and runtime model/telemetry/remote-agent behavior.
 
 ## Contract
 
-The runtime owns:
-
-- managed-settings schema and rule grammar;
-- restrictive composition across enterprise sources;
-- enforcement immediately before side effects;
-- managed-ask one-time semantics;
-- effective-policy and enforcement events;
-- public SDK types when an integrator must supply or observe the control.
-
-Prefer runtime discovery of managed settings. Add a host-supplied SDK contract only when the host genuinely owns the value.
-
-Do not add a VS Code `policy:` merely to mirror runtime policy. Do not add a GitHub-token/account-policy field as a substitute for managed settings.
+The runtime owns the schema and rule grammar, restrictive composition across sources, enforcement immediately before side effects, managed-ask semantics, effective-policy events, and public SDK types. Prefer runtime discovery; add a host-supplied SDK field only when the host genuinely owns the value. Do not add a VS Code `policy:` or account-policy field to mirror a runtime setting.
 
 ## Permissions
 
-- Managed `deny` / `ask` / `allow` are runtime policy.
-- AHP `{ allow, deny }` contains tool-name client preferences; it is not the managed DSL.
-- New VS Code/AHP code transports managed rules opaquely and does not parse or match them.
-- `managedApprovalRequired` bypasses all automatic and persistent approval paths.
-- Managed approval is human-only and one-time-only.
-- Permission authorization never widens sandbox access.
-- Validate rule grammar through the real SDK/runtime boundary.
+- Managed `deny`/`ask`/`allow` are runtime policy. AHP `{ allow, deny }` holds client tool-name preferences, not the managed DSL. VS Code transports managed rules opaquely and never parses or matches them.
+- `managedApprovalRequired` forbids reusable grants and host auto-approval shortcuts. In Assisted mode, only an approving judge verdict from the current permission callback, on a derived `commands`/`read`/`write`/`url`/`workflow` prompt with the human requirement cleared, approves a managed ask once. Never reuse verdicts cached per tool call.
+- Authorization never widens sandbox access. Validate grammar through the real SDK boundary.
 
-## Host-Injection Lifecycle
+## Harness eligibility
 
-Host-injected managed settings are startup configuration:
+A non-empty managed `permissions.deny` or managed `sandbox.enabled: true` requires Copilot Agent Host (`requiresCopilotAgentHost` is the single routing decision). Empty deny arrays, other `permissions.*`/sandbox keys, legacy `ChatToolsAutoApprove`, and personal sandbox preferences do not. VS Code only checks deny-list emptiness.
 
-- supply them on local create and resume;
-- re-supply them because they are not persisted;
-- omission clears the previous injected layer;
-- refresh default and peer sessions before the next turn when policy changes;
-- reject unsupported cloud use instead of ignoring it.
+When Agent Host is required:
 
-Policy removal must survive real JSON/AHP serialization.
+- Resolve account policy before activating Local. New chats use Copilot, overriding explicit/remembered Local; an unavailable host is an actionable error, never a Local fallback (including virtual workspaces).
+- Displaying an existing Local chat moves its transcript and unsent draft to Copilot (no model/permission settings copied) and archives the original after the destination opens. On failure the original stays read-only with **Move to Copilot**; sends and queues stay blocked. Background history loads do not migrate.
+- Local stays visible but disabled in the picker with a policy explanation. Editor inline chat's limited read/edit flow is exempt.
+- Removing the requirement restores Local eligibility without rewriting preferences.
 
-Client-injected settings are strict: malformed or unsupported rules reject create/resume. Server/device discovery instead uses its defined cache and fail-open/fail-closed degradation behavior.
+Temporary managed-only controls (per-key MDM > server > file):
 
-### VS Code legacy-setting bridge
+- `vscode.temporaryAllowLocalHarness: false` prohibits Local and disables Claude/Codex, using the flow above. Only effective boolean `false` acts.
+- `vscode.temporaryDefaultToLocalHarness: true` projects to policy-only `chat.temporaryDefaultToLocalHarness`: keeps Local available and suppresses Copilot-default/preference rollout and managed-policy routing. Explicit choices and existing chats are unchanged; runtime rules still apply to Copilot sessions. `temporaryAllowLocalHarness: false` wins.
 
-VS Code has a narrow declarative bridge for settings whose explicitly configured values must contribute restrictions to `managedSettings.permissions`. This is a bounded compatibility path for pre-existing legacy settings, not an architecture for new controls. New runtime-owned controls belong directly in the managed-settings schema and public SDK contract, without introducing or translating a VS Code setting.
+`ChatEditorPreferCopilotHarness` is a preference, not a lock: `false` does not prohibit Copilot.
 
-Bridge invariants:
+## Approval modes
 
-- the bridge is guarded by its own false-by-default experimental compatibility setting;
-- add mappings only for legacy settings that already exist; never create a new setting for this bridge;
-- mappings select one VS Code setting and use a callback typed against the host-owned managed permissions DTO;
-- mappings contribute only fields that can be flattened restrictively (`disable`, `deny`, and `ask`); do not flatten independent `allow` lists in VS Code;
-- only explicit global layers participate, in policy, user, then application precedence;
-- registered defaults and workspace/folder values do not contribute;
-- contributions aggregate restrictively and are transported without parsing their rule grammar in VS Code;
-- the aggregate is supplied on SDK create and resume;
-- an empty aggregate is forwarded when settings are removed so stale restrictions clear across JSON/AHP serialization;
-- contributions use a typed, client-owned AHP extension notification and a dedicated Agent Host managed-settings service; do not route them through root configuration;
-- the host aggregates contributions by client and removes an owner's contribution after its disconnect grace expires;
-- changed contributions refresh local default and peer sessions at an idle boundary before the next turn.
+The Copilot host resolves native mode restrictions before the legacy `ChatToolsAutoApprove` fallback: an explicitly configured valid new-mode restriction replaces the legacy blanket restriction; `defaultMode` alone does not. Other bridged restrictions (per-tool bypass lock, terminal asks) still apply.
 
-Keep additional legacy mappings in the shared bridge table and cover their scope, removal, create/resume, and refresh behavior in the corresponding Agent Host unit tests.
+- The host publishes selectable modes and the starting mode, validates client writes, and reconciles runtime refusals. Desktop and remote hosts use the same path, but native settings resolve where the host runs.
+- Pickers show supported-but-withheld modes disabled. Show the managed-policy reason only when client-known policy explains it **and** the host is the same-machine desktop host; otherwise use a neutral reason. Hide modes absent from the schema enum. Never reapply the legacy clamp to host-reported choices.
+- Clients keep the legacy guard until a host advertises an approval-policy report. Normalize explicit/remembered preferences after schema discovery, before prewarming. Changed managed settings apply on restart.
+- Local offers Default, Allow All, and Autopilot (no Assisted); mode settings alone do not affect Local eligibility.
 
-The runtime composes managed sandbox floors. While sandbox configuration remains host-driven, verify that Agent Host applies the effective floor to session `sandboxConfig`; policy state and containment must not diverge.
+| # | Legacy policy | Managed settings | Allow All | Assisted | Manual |
+|---|---|---|:---:|:---:|:---:|
+| 1 | — | — | ✅ | ✅ | ✅ |
+| 2 | `ChatToolsAutoApprove: false` | — | ❌ | ❌ | ✅ |
+| 3 | — | `disableBypassPermissionsMode: "disable"` | ❌ | ✅ | ✅ |
+| 4 | `ChatToolsAutoApprove: false` | `disableBypassPermissionsMode: "disable"` | ❌ | ✅ | ✅ |
+| 5 | — | `disableAssistedPermissionsMode: true` | ✅ | ❌ | ✅ |
+| 6 ⚠️ | `ChatToolsAutoApprove: false` | `disableAssistedPermissionsMode: true` | ✅ | ❌ | ✅ |
+| 7 | `ChatToolsAutoApprove: false` | both of the above | ❌ | ❌ | ✅ |
+| 8 ⚠️ | `ChatToolsAutoApprove: false` | `disableBypassPermissionsMode: "enable"` | ✅ | ✅ | ✅ |
 
-Do not log raw enterprise rules or values.
+⚠️ Setting any new-mode restriction opts out of the legacy key, so unspecified modes are not restricted by it.
 
-## Tests
+## Host-injected settings
 
-- Runtime: schema, parsing, matching, composition, revalidation, and pre-side-effect deny.
-- SDK: create/resume serialization, events, handler safety, and cloud rejection.
-- Agent Host E2E: generated grammar, managed asks, removal/resume, and diagnostics.
+- Supply on local create **and** resume (not persisted). Omission clears the injected layer; removal must survive real JSON/AHP serialization.
+- Refresh default and peer sessions at an idle boundary before the next turn. Reject unsupported cloud use rather than ignoring it.
+- Client-injected rules are strict: malformed rules reject create/resume. Server/device discovery uses its own cache and fail-open/closed behavior.
 
-Start with:
+## Legacy-setting bridge
 
-- `github/copilot-agent-runtime/schema/managed-settings-schema.json`
-- `github/copilot-agent-runtime/src/runtime/src/permissions/managed.rs`
-- `github/copilot-agent-runtime/src/runtime/src/permissions/orchestrator.rs`
-- `github/copilot-sdk/nodejs/src/types.ts`
-- `microsoft/vscode/src/vs/platform/agentHost/common/agentHostManagedSettings.ts`
-- `microsoft/vscode/src/vs/platform/agentHost/node/copilot/copilotSessionLauncher.ts`
+A declarative table in Agent Host that turns **existing** VS Code settings into `managedSettings.permissions` restrictions. It is unconditional (the old `chat.agentHost.copilot.mapLegacySettingsToManagedSettings` gate is removed). Never add a setting for it.
+
+- Contribute only restrictions (`disable`, `deny`, `ask`, hostname `limitTo`); never flatten `allow` lists into grants. Aggregate restrictively without parsing grammar.
+- Approval mappings read only enterprise `policyValue`. Personal approval settings stay on the root-config path where Allow All overrides them. Admin terminal approval restrictions become managed asks that still prompt under Allow All/Assisted.
+- The network-domain composite keeps global precedence (policy, user, application) and registered defaults so an empty filter stays deny-all. Allow-lists become boundaries only when both filter and list are policy-owned; invalid entries are skipped individually. It governs runtime Domain operations only, not browser/client tools, terminal overrides, or extension/MCP networking.
+- Transport uses a typed, client-owned AHP notification and a dedicated managed-settings service, not root configuration. The host aggregates per client and drops a client's contribution after its disconnect grace. Supply on create/resume; forward an empty aggregate on removal.
+- `chat.tools.terminal.enableAutoApprove` has a policy; `chat.tools.terminal.autoApprove` does not, so per-command `policyValue` fixtures are synthetic. Test managed shell asks at the SDK boundary.
+
+Bridging is not full parity; remaining gaps are tracked in `agentHostPolicySupport.ts`.
+
+## Sandbox composition
+
+The runtime composes managed sandbox floors; verify Agent Host applies the effective floor to session `sandboxConfig`. Outbound access is deny-wins in both directions. Managed `addCurrentWorkingDirectory: false` overrides the host default; managed `true` never widens a host `false`. Present managed host/filesystem grant lists (including `[]`) replace local lists; block/denied lists combine. A present managed `readonlyPaths` suppresses host-generated read grants for attachments and shell init scripts.
+
+## Tests and sources
+
+Cover runtime schema/matching/composition and pre-side-effect deny; SDK create/resume serialization and cloud rejection; Agent Host E2E managed asks, removal/resume, and diagnostics.
+
+- `github/copilot-agent-runtime`: `schema/managed-settings-schema.json`, `src/runtime/src/permissions/managed.rs`, `orchestrator.rs`
+- `github/copilot-sdk`: `nodejs/src/types.ts`
+- VS Code: `src/vs/platform/agentHost/common/agentHostManagedSettings.ts`, `src/vs/platform/agentHost/node/copilot/copilotSessionLauncher.ts`

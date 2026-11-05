@@ -16,11 +16,12 @@ import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelSc
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AgentHostConnectionsService } from '../../../../../platform/agentHost/browser/agentHostConnectionsService.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { identityAgentHostResourceUriMapper } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentConnection, IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { buildOpenSessionLinkUri } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { AgentSubscriptionManager, IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { ActionType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
+import { chatTurnStarted } from '../../../../../platform/agentHost/test/common/chatActionBuilders.js';
 import { IStateSnapshot } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { buildChatUri, buildDefaultChatUri, ChatState, ComponentToState, createChatState, createSessionState, MessageKind, ResponsePartKind, SessionLifecycle, SessionState, SessionStatus, StateComponents, TurnState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -28,6 +29,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { TestPathService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { GetRemoteSessionTool } from '../../browser/getRemoteSessionTool.js';
@@ -43,6 +45,7 @@ class InspectionConnection extends mock<IAgentHostService>() {
 	override readonly clientId = 'window-client';
 	override readonly onAgentHostStart = Event.None;
 	override readonly onAgentHostExit = Event.None;
+	override readonly resourceUris = identityAgentHostResourceUriMapper;
 	readonly manager: AgentSubscriptionManager;
 	readonly snapshots = new Map<string, IStateSnapshot | Promise<IStateSnapshot>>();
 	readonly subscribed: string[] = [];
@@ -92,6 +95,10 @@ class InspectionConnection extends mock<IAgentHostService>() {
 
 	override get rootState() { return this.manager.rootState; }
 
+	override getSubscriptionUnmanaged<T extends StateComponents>(_kind: T, resource: URI): IAgentSubscription<ComponentToState[T]> | undefined {
+		return this.manager.getSubscriptionUnmanaged(resource);
+	}
+
 	override getSubscription<T extends StateComponents>(kind: T, resource: URI, owner: string): IReference<IAgentSubscription<ComponentToState[T]>> {
 		return this.manager.getSubscription(kind, resource, owner);
 	}
@@ -130,7 +137,7 @@ suite('RemoteSessionInspector', () => {
 			}
 			override getConnectionByAuthority(authority: string) { return this.getConnection(authority); }
 		}();
-		const connections = store.add(new AgentHostConnectionsService(local, remoteService));
+		const connections = store.add(new AgentHostConnectionsService(local, remoteService, new TestPathService(), new NullLogService()));
 		const providersService = new class extends mock<ISessionsProvidersService>() {
 			override getProviders() { return providers; }
 		}();
@@ -214,15 +221,16 @@ suite('RemoteSessionInspector', () => {
 		}, { status: 'unavailable', reason: true, subscriptions: [backendSession.toString()], remaining: [], warnings: 1 });
 	});
 
-	test('does not read a foreign backend session advertised as the requested peer', async () => {
+	test('reads the peer its backend session advertises whatever session its URI encodes', async () => {
 		const { inspect, first } = setup();
 		first.setState(backendSession.toString(), {
 			...createSessionState({ resource: backendSession.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle, createdAt: '', modifiedAt: '' }),
 			chats: [{ resource: buildChatUri('copilotcli:/other', 'peer'), title: 'Other', status: SessionStatus.Idle, modifiedAt: '' }],
 		});
 		const result = await inspect(resource.with({ fragment: 'peer' }).toString());
+		// The fixture has no state for the advertised chat, so inspection stops after subscribing to it.
 		assert.deepStrictEqual({ status: result.status, subscriptions: first.subscribed }, {
-			status: 'unavailable', subscriptions: [backendSession.toString()],
+			status: 'unavailable', subscriptions: [backendSession.toString(), buildChatUri('copilotcli:/other', 'peer')],
 		});
 	});
 
@@ -252,10 +260,7 @@ suite('RemoteSessionInspector', () => {
 		const chat = store.add(first.getSubscription(StateComponents.Chat, URI.parse(defaultChat), 'existing-owner'));
 		await readRemoteSessionState(session.object, CancellationToken.None);
 		const original = await readRemoteSessionState(chat.object, CancellationToken.None);
-		first.manager.dispatchOptimistic(defaultChat, {
-			type: ActionType.ChatTurnStarted, turnId: 'unconfirmed', startedAt: '2026-01-01T00:01:00.000Z',
-			message: { text: 'Not acknowledged yet', origin: { kind: MessageKind.User } },
-		});
+		first.manager.dispatchOptimistic(defaultChat, chatTurnStarted('unconfirmed', 'Not acknowledged yet', '2026-01-01T00:01:00.000Z'));
 		const before = first.manager.getActiveSubscriptions();
 		const result = await inspect();
 		assert.deepStrictEqual({

@@ -5,6 +5,7 @@
 
 import { FileAccess } from '../../../../../base/common/network.js';
 import type { IChatPetAccessory } from '../chatPetAchievements.js';
+import { ChatPetColor, getChatPetColoredSprite } from '../chatPetColors.js';
 import type { ChatPetState } from './chatPetWidget.js';
 import { ChatPetAccessoryRigPose, getChatPetAccessoryRigFrame, getChatPetAntennaeOcclusionBounds, getChatPetEyeAccessoryAnchor } from './chatPetAccessoryRig.js';
 
@@ -28,6 +29,13 @@ export interface IChatPetAccessoryImageSource {
 export interface IChatPetImageDimensions {
 	readonly naturalWidth: number;
 	readonly naturalHeight: number;
+}
+
+export interface IChatPetPropellerBounds {
+	readonly x: number;
+	readonly y: number;
+	readonly width: number;
+	readonly height: number;
 }
 
 export function getChatPetAccessoryImageSource(accessory: IChatPetAccessory): IChatPetAccessoryImageSource {
@@ -62,13 +70,16 @@ export function drawChatPetComposite(
 	includeEyeAccessory = true,
 	eyeAccessoryMirrorsWithFacing = true,
 	coversAntennae = false,
+	color?: ChatPetColor,
+	hasAnimatedPropeller = false,
 ): void {
 	context.clearRect(0, 0, frameWidth, frameHeight);
 	const sourceX = bodyFrameIndex * frameWidth;
+	const coloredBody = color ? getChatPetColoredSprite(bodyImage, color) : bodyImage;
 	const rigFrame = getChatPetAccessoryRigFrame(state, rigFrameIndex);
 	if (fixedOrientationDecorations !== undefined && facingDirection === 'left') {
-		drawMirroredChatPetLayer(context, bodyImage, sourceX, 0, frameWidth, frameHeight);
-		drawFixedOrientationDecorations(context, bodyImage, bodyFrameIndex, frameWidth, fixedOrientationDecorations);
+		drawMirroredChatPetLayer(context, coloredBody, sourceX, 0, frameWidth, frameHeight);
+		drawFixedOrientationDecorations(context, coloredBody, bodyFrameIndex, frameWidth, fixedOrientationDecorations);
 		if (accessoryImage) {
 			if (coversAntennae) {
 				clearChatPetAntennae(context, state, rigFrameIndex, frameWidth, true);
@@ -85,13 +96,16 @@ export function drawChatPetComposite(
 					drawEyeAccessory(context, accessoryImage, rigFrame, getChatPetEyeAccessoryAnchor(state, rigFrameIndex, 'left', false, frameWidth));
 				}
 			}
+			if (hasAnimatedPropeller) {
+				clearChatPetPropeller(context, state, rigFrameIndex, facingDirection, frameWidth);
+			}
 		}
 		return;
 	}
 	if (accessoryImage) {
 		drawTrackedAccessoryLayer(context, accessoryImage, rigFrame, 'back', frameWidth);
 	}
-	context.drawImage(bodyImage, sourceX, 0, frameWidth, frameHeight, 0, 0, frameWidth, frameHeight);
+	context.drawImage(coloredBody, sourceX, 0, frameWidth, frameHeight, 0, 0, frameWidth, frameHeight);
 	if (accessoryImage) {
 		if (coversAntennae) {
 			clearChatPetAntennae(context, state, rigFrameIndex, frameWidth, false);
@@ -105,6 +119,61 @@ export function drawChatPetComposite(
 			drawEyeAccessory(context, accessoryImage, rigFrame);
 		}
 	}
+	if (hasAnimatedPropeller) {
+		clearChatPetPropeller(context, state, rigFrameIndex, 'right', frameWidth);
+	}
+}
+
+export function getChatPetPropellerBounds(state: ChatPetState, frameIndex: number): IChatPetPropellerBounds | undefined {
+	const rigFrame = getChatPetAccessoryRigFrame(state, frameIndex);
+	if (!rigFrame.head) {
+		return undefined;
+	}
+	const [headPivotX, headPivotY] = wideHeadPivot[rigFrame.pose];
+	return {
+		x: rigFrame.head.x - headPivotX,
+		y: rigFrame.head.y - headPivotY + CHAT_PET_PROPELLER_ROTOR_SOURCE_Y,
+		width: CHAT_PET_WIDE_ACCESSORY_ATLAS_CELL_SIZE,
+		height: CHAT_PET_PROPELLER_ROTOR_HEIGHT,
+	};
+}
+
+export function drawChatPetPropeller(context: CanvasRenderingContext2D, accessoryImage: HTMLImageElement, state: ChatPetState, frameIndex: number): void {
+	context.clearRect(0, 0, context.canvas.width, context.canvas.height);
+	const bounds = getChatPetPropellerBounds(state, frameIndex);
+	if (!bounds) {
+		return;
+	}
+	const rigFrame = getChatPetAccessoryRigFrame(state, frameIndex);
+	const cellSize = getAtlasCellSize(accessoryImage);
+	context.save();
+	if (rigFrame.mirrorsHeadAccessory) {
+		context.translate(context.canvas.width, 0);
+		context.scale(-1, 1);
+	}
+	context.drawImage(
+		accessoryImage,
+		rigPoseColumn[rigFrame.pose] * cellSize,
+		cellSize + CHAT_PET_PROPELLER_ROTOR_SOURCE_Y,
+		cellSize,
+		CHAT_PET_PROPELLER_ROTOR_HEIGHT,
+		bounds.x,
+		bounds.y,
+		bounds.width,
+		bounds.height
+	);
+	context.restore();
+}
+
+function clearChatPetPropeller(context: CanvasRenderingContext2D, state: ChatPetState, frameIndex: number, facingDirection: 'left' | 'right', frameWidth: number): void {
+	const bounds = getChatPetPropellerBounds(state, frameIndex);
+	if (!bounds) {
+		return;
+	}
+	const rigFrame = getChatPetAccessoryRigFrame(state, frameIndex);
+	const mirrorsWithFacing = facingDirection === 'left' !== !!rigFrame.mirrorsHeadAccessory;
+	const x = mirrorsWithFacing ? frameWidth - bounds.x - bounds.width : bounds.x;
+	context.clearRect(x, bounds.y, bounds.width, bounds.height);
 }
 
 export function drawChatPetAccessory(context: CanvasRenderingContext2D, accessoryImage: HTMLImageElement, state: ChatPetState, frameIndex: number, facingDirection: 'left' | 'right'): void {
@@ -135,7 +204,7 @@ export function drawChatPetEyeAccessory(context: CanvasRenderingContext2D, acces
 	} : anchor);
 }
 
-function drawMirroredChatPetLayer(context: CanvasRenderingContext2D, image: HTMLImageElement, sourceX: number, sourceY: number, frameWidth: number, frameHeight: number): void {
+function drawMirroredChatPetLayer(context: CanvasRenderingContext2D, image: CanvasImageSource, sourceX: number, sourceY: number, frameWidth: number, frameHeight: number): void {
 	context.save();
 	context.translate(frameWidth, 0);
 	context.scale(-1, 1);
@@ -152,7 +221,7 @@ function clearChatPetAntennae(context: CanvasRenderingContext2D, state: ChatPetS
 	context.clearRect(x, bounds.y, bounds.width, bounds.height);
 }
 
-function drawFixedOrientationDecorations(context: CanvasRenderingContext2D, bodyImage: HTMLImageElement, frameIndex: number, frameWidth: number, decorations: readonly IChatPetFixedOrientationDecoration[]): void {
+function drawFixedOrientationDecorations(context: CanvasRenderingContext2D, bodyImage: CanvasImageSource, frameIndex: number, frameWidth: number, decorations: readonly IChatPetFixedOrientationDecoration[]): void {
 	for (const decoration of decorations) {
 		const currentBounds = decoration.frameBounds[frameIndex];
 		const canonicalBounds = decoration.frameBounds[decoration.sourceFrame];
@@ -200,6 +269,9 @@ const wideHeadPivot: Record<ChatPetAccessoryRigPose, readonly [number, number]> 
 	impact: [48, 40],
 	splat: [48, 80],
 };
+
+const CHAT_PET_PROPELLER_ROTOR_SOURCE_Y = 8;
+const CHAT_PET_PROPELLER_ROTOR_HEIGHT = 8;
 
 function getAtlasCellSize(atlasImage: HTMLImageElement): number {
 	return atlasImage.naturalWidth / 4;

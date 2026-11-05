@@ -221,12 +221,18 @@
 	display: flex;
 	align-items: center;
 	gap: 6px;
+	box-sizing: border-box;
 	margin: 4px 16px 10px;
 	padding: 0 10px;
 	height: 36px;
 	border-radius: var(--vscode-cornerRadius-circle);
 	background: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
 	flex-shrink: 0;
+}
+
+.mobile-picker-sheet-search:focus-within {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
 .mobile-picker-sheet-search-icon {
@@ -253,6 +259,10 @@
 	font-family: inherit;
 	font-size: 17px;
 	padding: 0;
+}
+
+.monaco-workbench .mobile-picker-sheet .mobile-picker-sheet-search-input[type="search"]:focus {
+	outline: none;
 }
 
 .mobile-picker-sheet-search-input::placeholder {

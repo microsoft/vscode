@@ -9,7 +9,7 @@ applyTo: src/vs/**/*.css
 
 VS Code ships a design-system **size** ramp. These tokens are registered in [baseSizes.ts](../../src/vs/platform/theme/common/sizes/baseSizes.ts) and emitted as `--vscode-*` CSS variables. **When generating or editing CSS, use the token variable instead of a raw `px` value** wherever a token exists for that value. This keeps new UI visually consistent with the design system.
 
-> Every `--vscode-*` size var you reference must already exist in [vscode-known-variables.json](../../build/lib/stylelint/vscode-known-variables.json) (`"sizes"` array, alphabetically sorted) or stylelint/hygiene fails. Adding a *new* token means adding it both in `baseSizes.ts` and that JSON file.
+> Every `var()` you reference, except product-icon `--vscode-icon-*-content` and `--vscode-icon-*-font-family` variables, must exist in [vscode-known-variables.json](../../build/lib/stylelint/vscode-known-variables.json) or stylelint/hygiene fails. After registering a *new* token in `baseSizes.ts`, run `./scripts/test-documentation.sh` to regenerate the `"sizes"` array; CSS-only custom properties belong in `"others"`.
 
 ## Spacing — padding, margin, gap
 

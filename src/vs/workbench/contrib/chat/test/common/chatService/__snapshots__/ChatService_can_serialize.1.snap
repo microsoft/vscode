@@ -98,8 +98,10 @@
         completedAt: undefined
       },
       vote: undefined,
+      lastCallCompletionTokens: undefined,
       modelTotals: undefined,
       sessionCopilotCredits: undefined,
+      sessionCopilotCreditsStatus: undefined,
       voteDownReason: undefined,
       slashCommand: undefined,
       usedContext: {
@@ -183,8 +185,10 @@
         completedAt: undefined
       },
       vote: undefined,
+      lastCallCompletionTokens: undefined,
       modelTotals: undefined,
       sessionCopilotCredits: undefined,
+      sessionCopilotCreditsStatus: undefined,
       voteDownReason: undefined,
       slashCommand: undefined,
       usedContext: undefined,

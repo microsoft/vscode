@@ -158,13 +158,13 @@ Reuse the existing spotlight presentation. Do not create a release-note-specific
 
 ## 10. Add release-note markup
 
-Use **Developer: Copy Feature Example Link** to produce the encoded link. Markdown contains only the stable ID:
+Use **Developer: Copy Feature Example Link** to produce the backtick-wrapped shorthand. The first argument is a registered tryout ID; the second is literal display text, not executable behavior:
 
 ```md
-<!-- %IF TRYOUTS %
-[Try My Feature](command:workbench.action.onboarding.tryFeature?%5B%22myFeature.guide%22%5D)
-%ENDIF % -->
+`try(myFeature.guide,Try My Feature)`
 ```
+
+Existing encoded links remain supported with their product-generated labels. See the contributor guide for the shorthand grammar and fallback behavior.
 
 The surrounding prose should explain:
 
@@ -207,9 +207,9 @@ Run:
 
 1. Focused unit tests.
 2. Scoped ESLint.
-3. `npm run valid-layers-check` when imports or ownership change.
-4. `npm run typecheck-client` when TypeScript scope warrants it.
-5. `npm run build-fast` whenever possible.
+3. `pnpm run valid-layers-check` when imports or ownership change.
+4. `pnpm run typecheck-client` when TypeScript scope warrants it.
+5. `pnpm run build-fast` whenever possible.
 6. A real UI flow for cross-window, scoped-target, or native-browser behavior.
 
 Clean temporary profiles, samples, logs, and processes.

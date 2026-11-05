@@ -13,11 +13,9 @@ import type { AccountInfo } from '@anthropic-ai/claude-agent-sdk';
 export type ClaudeTransportMode = 'proxy' | 'native';
 
 /**
- * The three precedence inputs {@link resolveClaudeTransportMode} decides over.
+ * The authentication inputs {@link resolveClaudeTransportMode} decides over.
  */
 export interface IClaudeTransportModeInputs {
-	/** Whether the experimentation flag enabling signed-out-when-usable is on. */
-	readonly allowSignedOutWhenUsable: boolean;
 	/** Whether a GitHub Copilot token has been captured (i.e. signed in). */
 	readonly hasGitHubToken: boolean;
 	/** Whether the SDK reported a Claude setup usable on the user's own credentials (see {@link isClaudeAccountSetUp}). */
@@ -28,10 +26,9 @@ export interface IClaudeTransportModeInputs {
  * Which transport should the Claude provider fall back to right now? Pure
  * decision; precedence, highest first:
  *
- *  1. Feature flag off means today's default behavior (always proxy).
- *  2. Signed in to GitHub prefers Copilot (proxy).
- *  3. Signed out but with the user's own Claude credentials uses native (no GitHub).
- *  4. Nothing usable still falls back to proxy — the safe end, since attempting
+ *  1. Signed in to GitHub prefers Copilot (proxy).
+ *  2. Signed out but with the user's own Claude credentials uses native (no GitHub).
+ *  3. Nothing usable still falls back to proxy — the safe end, since attempting
  *     native with no credential would fail inside the SDK rather than at a
  *     surface that can explain itself.
  *
@@ -47,7 +44,7 @@ export interface IClaudeTransportModeInputs {
  * unconditionally, so nothing decided here can raise a sign-in wall. What
  * separates `None` from `Unusable` downstream is the *model count*, published
  * from the same `accountInfo()` answer that feeds `hasExistingSetup` here — so
- * the two cannot disagree about one user. The proxy fallback of case 4 only
+ * the two cannot disagree about one user. The proxy fallback of case 3 only
  * bites at use time, when a model-less session materializes with no proxy handle
  * and `_ensureAuthenticated` raises `AHP_AUTH_REQUIRED`.
  *
@@ -60,10 +57,7 @@ export interface IClaudeTransportModeInputs {
  * concern — a default/sticky model — not a transport one.
  */
 export function resolveClaudeTransportMode(inputs: IClaudeTransportModeInputs): ClaudeTransportMode {
-	const { allowSignedOutWhenUsable, hasGitHubToken, hasExistingSetup } = inputs;
-	if (!allowSignedOutWhenUsable) {
-		return 'proxy';
-	}
+	const { hasGitHubToken, hasExistingSetup } = inputs;
 	if (hasGitHubToken) {
 		return 'proxy';
 	}

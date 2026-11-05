@@ -189,6 +189,7 @@
 		"statusBarItem.activeBackground": "#4B4C4D",
 		"statusBarItem.hoverBackground": "#323233",
 		"statusBarItem.focusBorder": "#3994BCB3",
+		"statusBarItem.errorHoverBackground": "#9F250C",
 		"statusBarItem.prominentBackground": "#3994BC",
 		"statusBarItem.prominentForeground": "#FFFFFF",
 		"statusBarItem.prominentHoverBackground": "#3994BC",
@@ -269,6 +270,12 @@
 		"charts.orange": "#CD861A",
 		"charts.green": "#86CF86",
 		"charts.purple": "#AD80D7",
+		"confetti.color1": "#F28B82",
+		"confetti.color2": "#F2B071",
+		"confetti.color3": "#E8D17A",
+		"confetti.color4": "#8FD19E",
+		"confetti.color5": "#7DB7F0",
+		"confetti.color6": "#BF9AE8",
 		"inlineChat.border": "#00000000",
 		"minimapSlider.background": "#A8A9AA85",
 		"minimapSlider.hoverBackground": "#A8A9AA90",
@@ -295,7 +302,6 @@
 		"agentsBadge.foreground": "#FFFFFF",
 		"agentsUnreadBadge.background": "#307E9F",
 		"agentsUnreadBadge.foreground": "#FFFFFF",
-		"agentsBottomPanel.border": "#00000000",
 	},
 	"tokenColors": [
 		{

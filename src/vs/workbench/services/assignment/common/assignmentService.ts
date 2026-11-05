@@ -31,6 +31,7 @@ import { Disposable, DisposableStore, toDisposable } from '../../../../base/comm
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { experimentsEnabled } from '../../telemetry/common/workbenchTelemetryUtils.js';
 import { CancellationError } from '../../../../base/common/errors.js';
+import { mapsStrictEqualIgnoreOrder } from '../../../../base/common/map.js';
 
 export interface IAssignmentFilter {
 	/**
@@ -127,6 +128,8 @@ class WorkbenchAssignmentServiceTelemetry extends Disposable implements IExperim
 
 	private _previousAssignmentContext: string | undefined;
 	private _lastAssignmentContext: string | undefined;
+	private readonly lastLoggedTreatments = new Map<string, { value: string | undefined; assignmentContext: string | undefined }>();
+	private lastLoggedAssignmentsValidation: { properties: Map<string, string>; assignmentContext: string | undefined } | undefined;
 	get assignmentContext(): string[] | undefined {
 		return this._lastAssignmentContext?.split(';');
 	}
@@ -166,7 +169,41 @@ class WorkbenchAssignmentServiceTelemetry extends Disposable implements IExperim
 		this.telemetryService.setExperimentProperty(name, value);
 	}
 
+	logTreatment(name: string, result: string | number | boolean | undefined): void {
+		const treatmentValue = JSON.stringify(result);
+		const previous = this.lastLoggedTreatments.get(name);
+		if (previous && previous.value === treatmentValue && previous.assignmentContext === this._lastAssignmentContext) {
+			return;
+		}
+		this.lastLoggedTreatments.set(name, { value: treatmentValue, assignmentContext: this._lastAssignmentContext });
+
+		type TASClientReadTreatmentData = {
+			treatmentName: string;
+			treatmentValue: string | undefined;
+		};
+
+		type TASClientReadTreatmentClassification = {
+			owner: 'sbatten';
+			comment: 'Logged on the first treatment read per window and when its value or telemetry assignment context changes';
+			treatmentValue: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The value of the read treatment' };
+			treatmentName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The name of the treatment that was read' };
+		};
+
+		this.telemetryService.publicLog2<TASClientReadTreatmentData, TASClientReadTreatmentClassification>('tasClientReadTreatmentComplete', {
+			treatmentName: name,
+			treatmentValue
+		});
+	}
+
 	postEvent(eventName: string, props: Map<string, string>): void {
+		if (eventName === 'assignments-validation') {
+			const previous = this.lastLoggedAssignmentsValidation;
+			if (previous && previous.assignmentContext === this._lastAssignmentContext && mapsStrictEqualIgnoreOrder(previous.properties, props)) {
+				return;
+			}
+			this.lastLoggedAssignmentsValidation = { properties: new Map(props), assignmentContext: this._lastAssignmentContext };
+		}
+
 		const data = toExperimentTelemetryData(props);
 
 		/* __GDPR__
@@ -179,7 +216,7 @@ class WorkbenchAssignmentServiceTelemetry extends Disposable implements IExperim
 		/* __GDPR__
 			"assignments-validation" : {
 				"owner": "sbatten",
-				"comment": "Validation data for the new TAS assignments endpoint, compared against the legacy endpoint",
+				"comment": "Validation data for the new TAS assignments endpoint, compared against the legacy endpoint. Logged on the first response per window and when the payload or telemetry assignment context changes.",
 				"FeatureVariableCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of feature variables returned by the new assignments endpoint" },
 				"AssignedVariantCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of assigned variants returned by the new assignments endpoint" },
 				"DataVersion": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Data version returned by the new assignments endpoint" },
@@ -281,7 +318,7 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 
 	async getTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined> {
 		const result = await this.doGetTreatment<T>(name);
-		this.logTreatment(name, result);
+		this.telemetry.logTreatment(name, result);
 		return result;
 	}
 
@@ -289,27 +326,8 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 		await this.overrideInitDelay;
 		const override = this.configurationService.getValue<T>(`experiments.override.${name}`);
 		const result = await resolveTreatmentWithAssignment(override, () => this.getAssignedTreatment<T>(name, true));
-		this.logTreatment(name, result.value);
+		this.telemetry.logTreatment(name, result.value);
 		return result;
-	}
-
-	private logTreatment(name: string, result: string | number | boolean | undefined): void {
-		type TASClientReadTreatmentData = {
-			treatmentName: string;
-			treatmentValue: string;
-		};
-
-		type TASClientReadTreatmentClassification = {
-			owner: 'sbatten';
-			comment: 'Logged when a treatment value is read from the experiment service';
-			treatmentValue: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The value of the read treatment' };
-			treatmentName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The name of the treatment that was read' };
-		};
-
-		this.telemetryService.publicLog2<TASClientReadTreatmentData, TASClientReadTreatmentClassification>('tasClientReadTreatmentComplete', {
-			treatmentName: name,
-			treatmentValue: JSON.stringify(result)
-		});
 	}
 
 	private async doGetTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined> {

@@ -20,7 +20,7 @@ import { AgentSession } from '../../../common/agent.js';
 import { IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
 import { ISessionDataService } from '../../../common/sessionDataService.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
-import { SessionStatus } from '../../../common/state/sessionState.js';
+import { buildDefaultChatUri, SessionStatus } from '../../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
 import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../../node/shared/worktreeIsolation.js';
 import { IAgentHostCustomizationEnablementService } from '../../../node/agentHostCustomizationEnablementService.js';
@@ -36,31 +36,7 @@ import { IAgentHostGitHubEndpointService } from '../../../node/agentHostGitHubEn
 import { IAgentHostProxyResolver } from '../../../node/agentHostProxyResolver.js';
 import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js';
 import { createTestAgentHostProxyResolver } from '../agentServiceTestUtils.js';
-
-/**
- * Records `emitSessionTitleChanged` invocations so the OTel title-span wiring
- * test can assert what the agent forwarded to the host telemetry pipeline. All
- * other {@link IAgentHostOTelService} members are inert no-ops.
- */
-class RecordingOTelService implements IAgentHostOTelService {
-	readonly _serviceBrand: undefined;
-	readonly diagnosticsEnabled = false;
-	emitTurnTiming(): void { }
-	emitFirstResponse(): void { }
-	emitUserInteraction(): void { }
-	readonly titleChanges: Array<{ conversationId: string; sessionUri: string; title: string }> = [];
-	async getSdkTelemetryConfig(): Promise<undefined> { return undefined; }
-	async getNativeSdkTelemetryConfig(): Promise<undefined> { return undefined; }
-	getSessionTraceContext(): undefined { return undefined; }
-	releaseSessionTraceContext(): void { }
-	withTraceContext<T>(_context: undefined, fn: () => T): T { return fn(); }
-	getCurrentTraceContext(): undefined { return undefined; }
-	getSpansDbPath(): undefined { return undefined; }
-	emitSessionTitleChanged(conversationId: string, sessionUri: string, title: string): void {
-		this.titleChanges.push({ conversationId, sessionUri, title });
-	}
-	async flush(): Promise<void> { }
-}
+import { RecordingOTelService } from '../../common/recordingOTelService.js';
 
 /**
  * Builds a Codex agent whose only host input is the narrow session-title seam,
@@ -79,6 +55,7 @@ function createTestContext(disposables: Pick<DisposableStore, 'add'>): { stateMa
 	instantiationService.stub(IAgentConfigurationService, {
 		_serviceBrand: undefined,
 		onDidRootConfigChange: Event.None,
+		onDidChatConfigChange: Event.None,
 		getRootValue: () => undefined,
 	});
 	instantiationService.stub(IAgentHostWorktreeIsolation, new NullAgentHostWorktreeIsolation());
@@ -94,8 +71,7 @@ function createTestContext(disposables: Pick<DisposableStore, 'add'>): { stateMa
 	instantiationService.stub(INativeEnvironmentService, { userHome: URI.file('/tmp') });
 	instantiationService.stub(ILogService, logService);
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
-	const agent = disposables.add(instantiationService.createInstance(CodexAgent));
-	agent['_probeAccountAtStartup'] = async () => { };
+	disposables.add(instantiationService.createInstance(CodexAgent));
 	return { stateManager, otelService };
 }
 
@@ -113,6 +89,7 @@ suite('CodexAgent — host OTel session-title spans', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
+			defaultChat: buildDefaultChatUri(sessionUri.toString()),
 		});
 
 		stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionTitleChanged, title: 'Renamed' });
@@ -130,6 +107,7 @@ suite('CodexAgent — host OTel session-title spans', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
+			defaultChat: buildDefaultChatUri(foreignUri.toString()),
 		});
 
 		stateManager.dispatchServerAction(foreignUri.toString(), { type: ActionType.SessionTitleChanged, title: 'Renamed' });

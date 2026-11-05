@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { CancellationError } from '../../../../../base/common/errors.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { derived, IObservable, observableSignalFromEvent } from '../../../../../base/common/observable.js';
 import { hasKey } from '../../../../../base/common/types.js';
@@ -30,6 +31,7 @@ import {
 	TUNNEL_GATEWAY_MIN_PROTOCOL_VERSION,
 	TUNNEL_MIN_PROTOCOL_VERSION,
 	TunnelAgentHostsSettingId,
+	TunnelAuthenticationRequiredError,
 	type ICachedTunnel,
 	type ITunnelAgentHostMainService,
 	type ITunnelConnectResult,
@@ -218,6 +220,11 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 				} else {
 					this._logService.warn(`${LOG_PREFIX} No auth token available for tunnel enumeration`);
 				}
+				const authProvider = options?.authProvider ?? this._lastAuthProvider
+					?? (['github', 'microsoft'] as const).find(provider => this._getScopesForProvider(provider).length > 0);
+				if (authProvider && this._getScopesForProvider(authProvider).length > 0) {
+					throw new TunnelAuthenticationRequiredError(authProvider);
+				}
 				throw new Error(localize('tunnelAgentHost.noAuthentication', "No authentication is available to enumerate tunnels."));
 			}
 			return auth;
@@ -264,12 +271,9 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 			protocolVersion: cachedTunnel?.protocolVersion ?? TUNNEL_MIN_PROTOCOL_VERSION,
 			hostConnectionCount: 0,
 		};
-		const connectOptions = this.getAutoConnectMode(tunnel) === 'prompt'
-			? { ...options, userInitiated: true }
-			: options;
 		const auth = authProvider
-			? await this._getTokenForProvider(authProvider, !connectOptions.userInitiated)
-			: await this._getToken(!connectOptions.userInitiated);
+			? await this._getTokenForProvider(authProvider, !options.userInitiated)
+			: await this._getToken(!options.userInitiated);
 		if (!auth) {
 			throw new NonReconnectableTransportError('No cached authentication available to connect the tunnel.');
 		}
@@ -284,7 +288,7 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 					hostLabel: tunnel.name,
 					productName: this._productService.nameShort,
 					inventory: session.inventory,
-					userInitiated: connectOptions.userInitiated,
+					userInitiated: options.userInitiated || this.getAutoConnectMode(tunnel) === 'prompt',
 				});
 				if (!selection) {
 					await this._mainService.cancelSelection(session.selectionId);
@@ -331,7 +335,7 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 			);
 			return {
 				connection,
-				transportDisposable: this._createTransportDisposable(result, connectOptions.userInitiated, editorFallback),
+				transportDisposable: this._createTransportDisposable(result, options.userInitiated, editorFallback),
 			};
 		} catch (err) {
 			this._mainService.disconnect(result.connectionId).catch(() => { /* best effort */ });
@@ -603,6 +607,27 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 	async getAuthProvider(options?: { silent?: boolean }): Promise<'github' | 'microsoft' | undefined> {
 		const result = await this._getToken(options?.silent ?? true);
 		return result?.provider;
+	}
+
+	async signIn(authProvider: 'github' | 'microsoft'): Promise<void> {
+		if (!this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)
+			|| this._configurationService.getValue<boolean>('chat.disableAIFeatures')) {
+			throw new Error(localize('tunnelAgentHost.disabled', "Remote agent hosts are disabled."));
+		}
+		const scopes = this._getScopesForProvider(authProvider);
+		if (!scopes.length) {
+			throw new Error(localize('tunnelAgentHost.authenticationUnsupported', "Tunnel sign-in is not supported by this application."));
+		}
+		try {
+			await this._authenticationService.createSession(authProvider, scopes, { activateImmediate: true });
+			this._lastAuthProvider = authProvider;
+		} catch (error) {
+			// GitHub Authentication documents this cancellation shape across the extension-host boundary.
+			if (authProvider === 'github' && (error === 'Cancelled' || error instanceof Error && error.message === 'Cancelled')) {
+				throw new CancellationError();
+			}
+			throw error;
+		}
 	}
 
 	getCachedTunnels(): ICachedTunnel[] {

@@ -7,7 +7,6 @@ import { IActionViewItemProvider } from '../../base/browser/ui/actionbar/actionb
 import { IActionViewItemOptions } from '../../base/browser/ui/actionbar/actionViewItems.js';
 import { ClickAnimation } from '../../base/browser/ui/animations/animations.js';
 import { IAccessibilityService } from '../../platform/accessibility/common/accessibility.js';
-import { AccessibilitySignal, IAccessibilitySignalService } from '../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IMenuEntryActionViewItemOptions, MenuEntryActionViewItem } from '../../platform/actions/browser/menuEntryActionViewItem.js';
 import { MenuItemAction } from '../../platform/actions/common/actions.js';
 import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../platform/chat/common/sessionArchiveActions.js';
@@ -20,17 +19,17 @@ import { INotificationService } from '../../platform/notification/common/notific
 import { logSettingExperimentTrigger } from '../../platform/telemetry/common/experimentTrigger.js';
 import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../platform/theme/common/themeService.js';
-import { ARCHIVE_SESSION_COMMAND_ID } from '../common/sessionCommands.js';
+import { ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSION_GROUP_COMMAND_ID } from '../common/sessionCommands.js';
 
-export function getSessionArchiveActionViewItemOptions(options: IActionViewItemOptions, configurationService: IConfigurationService, accessibilitySignalService: IAccessibilitySignalService): IMenuEntryActionViewItemOptions {
+export function getSessionArchiveActionViewItemOptions(options: IActionViewItemOptions, configurationService: IConfigurationService, shouldTriggerClickAnimation?: (context: unknown) => boolean): IMenuEntryActionViewItemOptions {
 	return {
 		...options,
+		shouldTriggerClickAnimation,
 		get onClickAnimation() {
 			return configurationService.getValue<boolean>(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING)
 				? ClickAnimation.Confetti
 				: undefined;
-		},
-		onDidTriggerClickAnimation: () => accessibilitySignalService.playSignal(AccessibilitySignal.confetti)
+		}
 	};
 }
 
@@ -60,10 +59,10 @@ export class SessionArchiveActionViewItem extends MenuEntryActionViewItem {
 	}
 }
 
-export function createSessionActionViewItemProvider(instantiationService: IInstantiationService, configurationService: IConfigurationService, accessibilitySignalService: IAccessibilitySignalService): IActionViewItemProvider {
+export function createSessionActionViewItemProvider(instantiationService: IInstantiationService, configurationService: IConfigurationService, shouldTriggerClickAnimation?: (context: unknown) => boolean): IActionViewItemProvider {
 	return (action, options) => {
-		if (action instanceof MenuItemAction && action.id === ARCHIVE_SESSION_COMMAND_ID) {
-			return instantiationService.createInstance(SessionArchiveActionViewItem, action, getSessionArchiveActionViewItemOptions(options, configurationService, accessibilitySignalService));
+		if (action instanceof MenuItemAction && (action.id === ARCHIVE_SESSION_COMMAND_ID || action.id === ARCHIVE_SESSION_GROUP_COMMAND_ID)) {
+			return instantiationService.createInstance(SessionArchiveActionViewItem, action, getSessionArchiveActionViewItemOptions(options, configurationService, shouldTriggerClickAnimation));
 		}
 		return undefined;
 	};

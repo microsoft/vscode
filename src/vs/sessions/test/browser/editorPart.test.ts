@@ -4,13 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { ScrollableElement } from '../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { mainWindow } from '../../../base/browser/window.js';
+import { toDisposable } from '../../../base/common/lifecycle.js';
+import { ScrollbarVisibility } from '../../../base/common/scrollable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 // eslint-disable-next-line local/code-import-patterns
 import { createBrowserWelcome } from '../../../workbench/contrib/browserView/browser/browserWelcome.js';
 import { renderSessionsEmptyState } from '../../browser/parts/sessionsEmptyState.js';
 import '../../browser/parts/media/editorPart.css';
 import '../../browser/media/workbench.css';
+import '../../browser/media/style.css';
 import '../../../workbench/browser/parts/editor/media/multieditortabscontrol.css';
 // eslint-disable-next-line local/code-import-patterns
 import '../../../workbench/contrib/modernUI/browser/media/tabs.css';
@@ -25,9 +29,125 @@ function appendElement(parent: HTMLElement, className: string): HTMLElement {
 }
 
 suite('Sessions - EditorPart', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('connected detail tabs join a single card frame without transparent corner gaps', () => {
+	test('only modern editor tabs change scrollbar placement and painted thickness', () => {
+		const workbench = appendElement(mainWindow.document.body, 'monaco-workbench agent-sessions-workbench modern-ui-tabs modern-ui-connected-editor-tabs');
+		workbench.style.cssText = '--vscode-cornerRadius-circle: 9999px; --vscode-scrollbarSlider-background: #123456;';
+		const group = appendElement(appendElement(appendElement(workbench, 'part editor'), 'content'), 'editor-group-container');
+		const title = appendElement(group, 'title tabs');
+		const row = appendElement(title, 'tabs-and-actions-container');
+		const breadcrumbs = appendElement(title, 'breadcrumbs-control');
+		const editorContent = appendElement(group, 'editor-container');
+		const results = [];
+		store.add(toDisposable(() => workbench.remove()));
+		for (const [mode, modern, connected] of [
+			['legacy', false, false],
+			['pill', true, false],
+			['connected', true, true],
+			['connected-without-modern', false, true],
+		] as const) {
+			workbench.classList.toggle('modern-ui-tabs', modern);
+			workbench.classList.toggle('modern-ui-connected-editor-tabs', connected);
+			for (const [surface, parent] of [['tabs', row], ['breadcrumbs', breadcrumbs], ['content', editorContent]] as const) {
+				for (const size of [3, 10]) {
+					const content = mainWindow.document.createElement('div');
+					content.style.cssText = 'width: 180px; height: 32px;';
+					const scrollable = store.add(new ScrollableElement(content, {
+						horizontal: ScrollbarVisibility.Visible,
+						horizontalScrollbarSize: size,
+						vertical: ScrollbarVisibility.Hidden,
+					}));
+					const viewport = scrollable.getDomNode();
+					parent.appendChild(viewport);
+					scrollable.setScrollDimensions({ width: 180, scrollWidth: 600, height: 32, scrollHeight: 32 });
+					const track = viewport.querySelector<HTMLElement>('.scrollbar.horizontal')!;
+					const slider = track.querySelector<HTMLElement>('.slider')!;
+					const paint = mainWindow.getComputedStyle(slider, '::before');
+					assert.strictEqual(paint.content, '""', 'The Agents stylesheet must generate the painted thumb');
+					results.push({
+						mode, surface, size,
+						hitHeight: slider.getBoundingClientRect().height,
+						paintHeight: paint.height,
+						insets: [paint.top, paint.right, paint.bottom, paint.left],
+						atTop: track.getBoundingClientRect().top === viewport.getBoundingClientRect().top,
+						atBottom: track.getBoundingClientRect().bottom === viewport.getBoundingClientRect().bottom,
+						radius: paint.borderRadius,
+						color: paint.backgroundColor,
+						sliderBackground: mainWindow.getComputedStyle(slider).backgroundColor,
+					});
+					viewport.remove();
+				}
+			}
+		}
+		assert.deepStrictEqual(results, results.map(result => {
+			const modernTabs = (result.mode === 'connected' || result.mode === 'pill') && result.surface === 'tabs';
+			return {
+				...result,
+				hitHeight: result.size,
+				paintHeight: `${result.size - (modernTabs ? 0 : 2)}px`,
+				insets: Array(4).fill(modernTabs ? '0px' : '1px'),
+				atTop: modernTabs,
+				atBottom: !modernTabs,
+				radius: '9999px',
+				color: 'rgb(18, 52, 86)',
+				sliderBackground: 'rgba(0, 0, 0, 0)',
+			};
+		}));
+	});
+
+	test('Connected panel rows match panel header height across hosts', () => {
+		const workbench = appendElement(mainWindow.document.body, 'monaco-workbench modern-ui-tabs modern-ui-connected-editor-tabs');
+		workbench.style.cssText = '--vscode-spacing-size20: 2px; --vscode-spacing-size40: 4px; --vscode-spacing-size60: 6px; --vscode-cornerRadius-small: 4px; --vscode-cornerRadius-medium: 6px; --vscode-strokeThickness: 1px;';
+		const editor = appendElement(workbench, 'part editor');
+		const group = appendElement(appendElement(editor, 'content'), 'editor-group-container');
+		const title = appendElement(group, 'title tabs');
+		const row = appendElement(title, 'tabs-and-actions-container');
+		const tabs = appendElement(appendElement(row, 'monaco-scrollable-element'), 'tabs-container');
+		const tab = appendElement(tabs, 'tab active');
+		appendElement(tab, 'tab-fill');
+		appendElement(tab, 'tab-connected-edge');
+		tab.style.width = '120px';
+		const inactive = appendElement(tabs, 'tab');
+		inactive.classList.add('hovered');
+		const inactiveFill = appendElement(inactive, 'tab-fill');
+		inactive.style.width = '120px';
+		const results = [];
+		store.add(toDisposable(() => workbench.remove()));
+		for (const theme of ['vs', 'vs-dark', 'hc-black', 'hc-light']) {
+			workbench.classList.add(theme);
+			for (const direction of ['ltr', 'rtl']) {
+				workbench.dir = direction;
+				for (const compact of [false, true]) {
+					title.classList.toggle('compact-height', compact);
+					for (const host of ['main', 'agents', 'modal']) {
+						workbench.classList.toggle('agent-sessions-workbench', host !== 'main');
+						editor.classList.toggle('modal-editor-part', host === 'modal');
+						const style = mainWindow.getComputedStyle(tab);
+						results.push({
+							theme, direction, compact, host,
+							rowHeight: row.getBoundingClientRect().height,
+							topInset: mainWindow.getComputedStyle(tab.firstElementChild!).top,
+							tabHeight: style.height,
+							capRadius: mainWindow.getComputedStyle(tab.firstElementChild!).borderTopRightRadius,
+							hoverInsets: [mainWindow.getComputedStyle(inactiveFill).top, mainWindow.getComputedStyle(inactiveFill).bottom],
+						});
+					}
+				}
+			}
+			workbench.classList.remove(theme);
+		}
+		assert.deepStrictEqual(results, results.map(result => ({
+			...result,
+			rowHeight: result.compact ? 28 : 32,
+			topInset: '0px',
+			tabHeight: `${result.compact ? 27 : 31}px`,
+			capRadius: '7px',
+			hoverInsets: ['0px', '-1px'],
+		})));
+	});
+
+	test('connected detail tabs keep rounded corners while sharing the single card frame', () => {
 		const workbench = appendElement(mainWindow.document.body, 'monaco-workbench agent-sessions-workbench modern-ui-tabs modern-ui-connected-editor-tabs dock-detail-panel');
 		for (const [name, value] of Object.entries({
 			'--vscode-spacing-size20': '2px',
@@ -42,6 +162,7 @@ suite('Sessions - EditorPart', () => {
 			'--vscode-agentsPanel-border': '#abcdef',
 			'--vscode-focusBorder': '#00ff00',
 			'--vscode-contrastBorder': '#ffffff',
+			'--vscode-tab-border': '#ffffff',
 		})) {
 			workbench.style.setProperty(name, value);
 		}
@@ -54,97 +175,99 @@ suite('Sessions - EditorPart', () => {
 		const row = appendElement(title, 'tabs-and-actions-container');
 		const scrollable = appendElement(row, 'monaco-scrollable-element');
 		const tabs = appendElement(scrollable, 'tabs-container');
-		const first = appendElement(tabs, 'tab active connected-tab-top-row');
+		const first = appendElement(tabs, 'tab active connected-tab-top-row first-in-row');
 		const firstFill = appendElement(first, 'tab-fill');
-		const second = appendElement(tabs, 'tab connected-tab-top-row');
+		const firstEdge = appendElement(first, 'tab-connected-edge');
+		const second = appendElement(tabs, 'tab connected-tab-top-row connected-tab-last');
 		const secondFill = appendElement(second, 'tab-fill');
+		const secondEdge = appendElement(second, 'tab-connected-edge');
 		first.style.width = second.style.width = '180px';
 		tabs.style.width = '358px';
 		appendElement(group, 'editor-container').style.height = '96px';
 
-		try {
-			for (const theme of ['vs', 'vs-dark', 'hc-black', 'hc-light']) {
-				workbench.classList.add(theme);
-				for (const active of [true, false]) {
-					group.classList.toggle('active', active);
-					const border = theme.startsWith('hc-') ? active ? 'rgb(0, 255, 0)' : 'rgb(255, 255, 255)' : 'rgb(68, 85, 102)';
-					for (const compact of [false, true]) {
-						title.classList.toggle('compact-height', compact);
-						for (const zoom of [0.8, 1, 1.25]) {
-							workbench.style.zoom = String(zoom);
-							for (const firstActive of [true, false]) {
-								first.classList.toggle('active', firstActive);
-								second.classList.toggle('active', !firstActive);
-								const fill = firstActive ? firstFill : secondFill;
-								const cap = mainWindow.getComputedStyle(fill);
-								const frame = mainWindow.getComputedStyle(group, '::after');
-								assert.deepStrictEqual({
-									outerBorder: mainWindow.getComputedStyle(card).borderTopColor,
-									frame: [frame.borderTopColor, frame.borderRightColor, frame.borderBottomColor, frame.borderLeftColor],
-									frameInsets: [frame.top, frame.right, frame.bottom, frame.left],
-									frameRadius: frame.borderRadius,
-									frameDeviceStroke: Math.round(parseFloat(frame.borderTopWidth) * zoom * mainWindow.devicePixelRatio),
-									framePointerEvents: frame.pointerEvents,
-									capTop: fill.getBoundingClientRect().top - group.getBoundingClientRect().top,
-									capBorder: cap.borderTopColor,
-									firstBackgroundClip: mainWindow.getComputedStyle(firstFill).backgroundClip,
-									firstLeftBorder: mainWindow.getComputedStyle(firstFill).borderLeftColor,
-								}, {
-									outerBorder: 'rgba(0, 0, 0, 0)',
-									frame: [border, border, border, border],
-									frameInsets: ['0px', '0px', '0px', '0px'],
-									frameRadius: '7px',
-									frameDeviceStroke: Math.max(1, Math.floor(zoom * mainWindow.devicePixelRatio)),
-									framePointerEvents: 'none',
-									capTop: 0,
-									capBorder: border,
-									firstBackgroundClip: 'border-box',
-									firstLeftBorder: 'rgba(0, 0, 0, 0)',
-								}, `${theme}, active: ${active}, compact: ${compact}, zoom: ${zoom}, first: ${firstActive}`);
-							}
+		store.add(toDisposable(() => workbench.remove()));
+		for (const theme of ['vs', 'vs-dark', 'hc-black', 'hc-light']) {
+			workbench.classList.add(theme);
+			for (const active of [true, false]) {
+				group.classList.toggle('active', active);
+				const frameBorder = theme.startsWith('hc-') ? 'rgb(171, 205, 239)' : 'rgb(68, 85, 102)';
+				for (const compact of [false, true]) {
+					title.classList.toggle('compact-height', compact);
+					for (const zoom of [0.8, 1, 1.25]) {
+						workbench.style.zoom = String(zoom);
+						for (const firstActive of [true, false]) {
+							first.classList.toggle('active', firstActive);
+							second.classList.toggle('active', !firstActive);
+							const fill = firstActive ? firstFill : secondFill;
+							const cap = mainWindow.getComputedStyle(firstActive ? firstEdge : secondEdge);
+							const frame = mainWindow.getComputedStyle(group, '::after');
+							assert.deepStrictEqual({
+								outerBorder: mainWindow.getComputedStyle(card).borderTopColor,
+								frame: [frame.borderTopColor, frame.borderRightColor, frame.borderBottomColor, frame.borderLeftColor],
+								frameInsets: [frame.top, frame.right, frame.bottom, frame.left],
+								frameRadius: frame.borderRadius,
+								frameDeviceStroke: Math.round(parseFloat(frame.borderTopWidth) * zoom * mainWindow.devicePixelRatio),
+								framePointerEvents: frame.pointerEvents,
+								capAlignedWithFrame: Math.abs(fill.getBoundingClientRect().top - group.getBoundingClientRect().top) < 1 / 32,
+								capBorder: cap.borderTopColor,
+								fillTopBorder: mainWindow.getComputedStyle(fill).borderTopColor,
+								firstBackgroundClip: mainWindow.getComputedStyle(firstFill).backgroundClip,
+								firstLeftBorder: mainWindow.getComputedStyle(firstFill).borderLeftColor,
+							}, {
+								outerBorder: 'rgba(0, 0, 0, 0)',
+								frame: [frameBorder, frameBorder, frameBorder, frameBorder],
+								frameInsets: ['0px', '0px', '0px', '0px'],
+								frameRadius: '7px',
+								frameDeviceStroke: Math.max(1, Math.floor(zoom * mainWindow.devicePixelRatio)),
+								framePointerEvents: 'none',
+								capAlignedWithFrame: true,
+								capBorder: theme.startsWith('hc-') ? active ? 'rgb(0, 255, 0)' : 'rgb(255, 255, 255)' : frameBorder,
+								fillTopBorder: 'rgba(0, 0, 0, 0)',
+								firstBackgroundClip: 'border-box',
+								firstLeftBorder: 'rgba(0, 0, 0, 0)',
+							}, `${theme}, active: ${active}, compact: ${compact}, zoom: ${zoom}, first: ${firstActive}`);
+						}
 
-							for (const wrapped of [true, false]) {
-								row.classList.toggle('wrapping', wrapped);
-								first.classList.toggle('last-in-row', wrapped);
-								first.classList.toggle('connected-tab-upper-row', wrapped);
-								second.classList.toggle('connected-tab-top-row', !wrapped);
-								const cap = mainWindow.getComputedStyle(secondFill);
-								assert.deepStrictEqual({
-									active: second.classList.contains('active'),
-									laterRow: second.offsetTop > first.offsetTop,
-									leadingEdge: second.getBoundingClientRect().left === first.getBoundingClientRect().left,
-									backgroundClip: cap.backgroundClip,
-									leftBorder: cap.borderLeftColor,
-									leftCorner: cap.borderTopLeftRadius,
-								}, {
-									active: true,
-									laterRow: wrapped,
-									leadingEdge: wrapped,
-									backgroundClip: wrapped ? 'border-box' : 'padding-box',
-									leftBorder: wrapped ? 'rgba(0, 0, 0, 0)' : border,
-									leftCorner: wrapped ? '0px' : '5px',
-								}, `${theme}, active: ${active}, compact: ${compact}, zoom: ${zoom}, wrapped: ${wrapped}`);
-							}
+						for (const wrapped of [true, false]) {
+							row.classList.toggle('wrapping', wrapped);
+							first.classList.toggle('last-in-row', wrapped);
+							first.classList.toggle('connected-tab-upper-row', wrapped);
+							second.classList.toggle('first-in-row', wrapped);
+							second.classList.toggle('connected-tab-top-row', !wrapped);
+							const cap = mainWindow.getComputedStyle(secondFill);
+							assert.deepStrictEqual({
+								active: second.classList.contains('active'),
+								laterRow: second.offsetTop > first.offsetTop,
+								leadingEdge: second.getBoundingClientRect().left === first.getBoundingClientRect().left,
+								backgroundClip: cap.backgroundClip,
+								leftBorder: cap.borderLeftColor,
+								leftCorner: cap.borderTopLeftRadius,
+							}, {
+								active: true,
+								laterRow: wrapped,
+								leadingEdge: wrapped,
+								backgroundClip: 'border-box',
+								leftBorder: 'rgba(0, 0, 0, 0)',
+								leftCorner: wrapped ? '0px' : '5px',
+							}, `${theme}, active: ${active}, compact: ${compact}, zoom: ${zoom}, wrapped: ${wrapped}`);
 						}
 					}
 				}
-				workbench.classList.remove(theme);
 			}
-
-			for (const excluded of ['phone-layout', 'modal-editor-part']) {
-				const target = excluded === 'phone-layout' ? workbench : card;
-				target.classList.add(excluded);
-				assert.strictEqual(mainWindow.getComputedStyle(group, '::after').content, 'none');
-				target.classList.remove(excluded);
-			}
-			workbench.classList.remove('modern-ui-connected-editor-tabs');
-			assert.deepStrictEqual({
-				frame: mainWindow.getComputedStyle(group, '::after').content,
-				outerBorder: mainWindow.getComputedStyle(card).borderTopColor,
-			}, { frame: 'none', outerBorder: 'rgb(171, 205, 239)' });
-		} finally {
-			workbench.remove();
+			workbench.classList.remove(theme);
 		}
+
+		for (const excluded of ['phone-layout', 'modal-editor-part']) {
+			const target = excluded === 'phone-layout' ? workbench : card;
+			target.classList.add(excluded);
+			assert.strictEqual(mainWindow.getComputedStyle(group, '::after').content, 'none');
+			target.classList.remove(excluded);
+		}
+		workbench.classList.remove('modern-ui-connected-editor-tabs');
+		assert.deepStrictEqual({
+			frame: mainWindow.getComputedStyle(group, '::after').content,
+			outerBorder: mainWindow.getComputedStyle(card).borderTopColor,
+		}, { frame: 'none', outerBorder: 'rgb(171, 205, 239)' });
 	});
 
 	test('constrains the Browser navbar to the editor header height', () => {
@@ -165,53 +288,47 @@ suite('Sessions - EditorPart', () => {
 		const urlContainer = appendElement(navbar, 'browser-url-container');
 		urlContainer.style.height = '25px';
 
-		try {
-			const defaultHeight = mainWindow.getComputedStyle(navbar).height;
-			editorGroupContainer.classList.add('editor-tabs-compact-height');
-			const compactHeight = mainWindow.getComputedStyle(navbar).height;
+		store.add(toDisposable(() => workbench.remove()));
+		const defaultHeight = mainWindow.getComputedStyle(navbar).height;
+		editorGroupContainer.classList.add('editor-tabs-compact-height');
+		const compactHeight = mainWindow.getComputedStyle(navbar).height;
 
-			assert.deepStrictEqual({ defaultHeight, compactHeight }, {
-				defaultHeight: '32px',
-				compactHeight: '28px',
-			});
-		} finally {
-			workbench.remove();
-		}
+		assert.deepStrictEqual({ defaultHeight, compactHeight }, {
+			defaultHeight: '32px',
+			compactHeight: '28px',
+		});
 	});
 
 	test('uses a semantic heading for shared empty states', () => {
 		const host = appendElement(mainWindow.document.body, 'agent-sessions-workbench');
 
-		try {
-			const container = renderSessionsEmptyState(host, 'Files', 'Select a file from the Files view');
-			const title = container.querySelector<HTMLElement>('.sessions-empty-state-title');
-			const description = container.querySelector<HTMLElement>('.sessions-empty-state-description');
-			assert.ok(title && description);
+		store.add(toDisposable(() => host.remove()));
+		const container = renderSessionsEmptyState(host, 'Files', 'Select a file from the Files view');
+		const title = container.querySelector<HTMLElement>('.sessions-empty-state-title');
+		const description = container.querySelector<HTMLElement>('.sessions-empty-state-description');
+		assert.ok(title && description);
 
-			assert.deepStrictEqual({
-				contentChildren: Array.from(container.children, element => element.className),
-				title: {
-					tagName: title.tagName,
-					textContent: title.textContent,
-					margin: mainWindow.getComputedStyle(title).margin,
-				},
-				description: {
-					textContent: description.textContent,
-				},
-			}, {
-				contentChildren: ['sessions-empty-state-title', 'sessions-empty-state-description'],
-				title: {
-					tagName: 'H2',
-					textContent: 'Files',
-					margin: '0px',
-				},
-				description: {
-					textContent: 'Select a file from the Files view',
-				},
-			});
-		} finally {
-			host.remove();
-		}
+		assert.deepStrictEqual({
+			contentChildren: Array.from(container.children, element => element.className),
+			title: {
+				tagName: title.tagName,
+				textContent: title.textContent,
+				margin: mainWindow.getComputedStyle(title).margin,
+			},
+			description: {
+				textContent: description.textContent,
+			},
+		}, {
+			contentChildren: ['sessions-empty-state-title', 'sessions-empty-state-description'],
+			title: {
+				tagName: 'H2',
+				textContent: 'Files',
+				margin: '0px',
+			},
+			description: {
+				textContent: 'Select a file from the Files view',
+			},
+		});
 	});
 
 	test('uses the shared empty-state hierarchy for Browser', () => {
@@ -226,68 +343,65 @@ suite('Sessions - EditorPart', () => {
 		const editorPart = appendElement(workbench, 'part editor');
 		const browserRoot = appendElement(editorPart, 'browser-root');
 
-		try {
-			const container = createBrowserWelcome('Browser', 'Use Add Element to Chat to reference UI elements in chat prompts.');
-			browserRoot.appendChild(container);
+		store.add(toDisposable(() => workbench.remove()));
+		const container = createBrowserWelcome('Browser', 'Use Add Element to Chat to reference UI elements in chat prompts.');
+		browserRoot.appendChild(container);
 
-			const content = container.querySelector<HTMLElement>('.browser-welcome-content');
-			const icon = content?.querySelector<HTMLElement>('.browser-welcome-icon');
-			const title = content?.querySelector<HTMLElement>('.browser-welcome-title');
-			const subtitle = content?.querySelector<HTMLElement>('.browser-welcome-subtitle');
-			assert.ok(content && icon && title && subtitle);
+		const content = container.querySelector<HTMLElement>('.browser-welcome-content');
+		const icon = content?.querySelector<HTMLElement>('.browser-welcome-icon');
+		const title = content?.querySelector<HTMLElement>('.browser-welcome-title');
+		const subtitle = content?.querySelector<HTMLElement>('.browser-welcome-subtitle');
+		assert.ok(content && icon && title && subtitle);
 
-			const contentStyle = mainWindow.getComputedStyle(content);
-			const titleStyle = mainWindow.getComputedStyle(title);
-			const subtitleStyle = mainWindow.getComputedStyle(subtitle);
+		const contentStyle = mainWindow.getComputedStyle(content);
+		const titleStyle = mainWindow.getComputedStyle(title);
+		const subtitleStyle = mainWindow.getComputedStyle(subtitle);
 
-			assert.deepStrictEqual({
-				containerChildren: Array.from(container.children, element => element.className),
-				contentChildren: Array.from(content.children, element => element.className),
-				gap: contentStyle.gap,
-				iconDisplay: mainWindow.getComputedStyle(icon).display,
-				title: {
-					tagName: title.tagName,
-					textContent: title.textContent,
-					color: titleStyle.color,
-					fontSize: titleStyle.fontSize,
-					fontWeight: titleStyle.fontWeight,
-					margin: titleStyle.margin,
-					padding: titleStyle.padding,
-				},
-				subtitle: {
-					textContent: subtitle.textContent,
-					color: subtitleStyle.color,
-					fontSize: subtitleStyle.fontSize,
-					fontWeight: subtitleStyle.fontWeight,
-					margin: subtitleStyle.margin,
-					padding: subtitleStyle.padding,
-				},
-			}, {
-				containerChildren: ['browser-welcome-content'],
-				contentChildren: ['browser-welcome-icon', 'browser-welcome-title', 'browser-welcome-subtitle'],
-				gap: '4px',
-				iconDisplay: 'none',
-				title: {
-					tagName: 'H2',
-					textContent: 'Browser',
-					color: 'rgb(204, 204, 204)',
-					fontSize: '13px',
-					fontWeight: '600',
-					margin: '0px',
-					padding: '0px',
-				},
-				subtitle: {
-					textContent: 'Use Add Element to Chat to reference UI elements in chat prompts.',
-					color: 'rgb(157, 157, 157)',
-					fontSize: '13px',
-					fontWeight: '400',
-					margin: '0px',
-					padding: '0px',
-				},
-			});
-		} finally {
-			workbench.remove();
-		}
+		assert.deepStrictEqual({
+			containerChildren: Array.from(container.children, element => element.className),
+			contentChildren: Array.from(content.children, element => element.className),
+			gap: contentStyle.gap,
+			iconDisplay: mainWindow.getComputedStyle(icon).display,
+			title: {
+				tagName: title.tagName,
+				textContent: title.textContent,
+				color: titleStyle.color,
+				fontSize: titleStyle.fontSize,
+				fontWeight: titleStyle.fontWeight,
+				margin: titleStyle.margin,
+				padding: titleStyle.padding,
+			},
+			subtitle: {
+				textContent: subtitle.textContent,
+				color: subtitleStyle.color,
+				fontSize: subtitleStyle.fontSize,
+				fontWeight: subtitleStyle.fontWeight,
+				margin: subtitleStyle.margin,
+				padding: subtitleStyle.padding,
+			},
+		}, {
+			containerChildren: ['browser-welcome-content'],
+			contentChildren: ['browser-welcome-icon', 'browser-welcome-title', 'browser-welcome-subtitle'],
+			gap: '4px',
+			iconDisplay: 'none',
+			title: {
+				tagName: 'H2',
+				textContent: 'Browser',
+				color: 'rgb(204, 204, 204)',
+				fontSize: '13px',
+				fontWeight: '600',
+				margin: '0px',
+				padding: '0px',
+			},
+			subtitle: {
+				textContent: 'Use Add Element to Chat to reference UI elements in chat prompts.',
+				color: 'rgb(157, 157, 157)',
+				fontSize: '13px',
+				fontWeight: '400',
+				margin: '0px',
+				padding: '0px',
+			},
+		});
 	});
 
 });

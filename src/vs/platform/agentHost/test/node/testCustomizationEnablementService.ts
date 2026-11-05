@@ -25,6 +25,7 @@ export function createNoopCustomizationEnablementService(): IAgentHostCustomizat
 		initializeSession: async () => { },
 		getWorkingDirectoryState: () => ({ kind: 'workspaceless' }),
 		resolve: () => resolution,
+		adoptMcpServerOwnership: () => { },
 		applyClientGlobalEnablement: () => resolution,
 		replaceEnablement: () => resolution,
 		setEnablement: () => resolution,

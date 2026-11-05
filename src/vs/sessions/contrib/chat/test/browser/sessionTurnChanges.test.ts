@@ -18,6 +18,7 @@ import { IActiveSession, ISessionsManagementService } from '../../../../services
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import { IChangesViewService } from '../../../changes/common/changesViewService.js';
 import { SessionsChatResponseFileChangesService } from '../../browser/sessionTurnChanges.js';
+import { focusedSessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('SessionTurnChanges', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -58,7 +59,7 @@ suite('SessionTurnChanges', () => {
 			}
 		}();
 		const sessionsService = new class extends mock<ISessionsService>() {
-			override readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+			readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
 			override async openChat(targetSession: ISession, chatResource: URI, options?: { preserveFocus?: boolean }): Promise<void> {
 				calls.push({ openChat: targetSession.resource.toString(), chatResource: chatResource.toString(), preserveFocus: options?.preserveFocus });
 				this.activeSession.set(session, undefined);
@@ -86,6 +87,7 @@ suite('SessionTurnChanges', () => {
 			new class extends mock<IEditorService>() { }(),
 			sessionsManagementService,
 			sessionsService,
+			focusedSessionHostServiceOf(sessionsService.activeSession),
 			sessionChangesService,
 			layoutService,
 			createChangesViewService(),
@@ -140,7 +142,7 @@ suite('SessionTurnChanges', () => {
 			}
 		}();
 		const sessionsService = new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable<IActiveSession | undefined>(session);
+			readonly activeSession = constObservable<IActiveSession | undefined>(session);
 		}();
 		const sessionChangesService = new class extends mock<ISessionChangesService>() {
 			override async openChangesEditor(sessionResource: URI, options?: ISessionChangesEditorOptions): Promise<undefined> {
@@ -174,6 +176,7 @@ suite('SessionTurnChanges', () => {
 			new class extends mock<IEditorService>() { }(),
 			sessionsManagementService,
 			sessionsService,
+			focusedSessionHostServiceOf(sessionsService.activeSession),
 			sessionChangesService,
 			layoutService,
 			createChangesViewService(),
@@ -258,7 +261,7 @@ suite('SessionTurnChanges', () => {
 			}
 		}();
 		const sessionsService = new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable<IActiveSession | undefined>(session);
+			readonly activeSession = constObservable<IActiveSession | undefined>(session);
 		}();
 		const sessionChangesService = new class extends mock<ISessionChangesService>() {
 			override async openChangesEditor(_sessionResource: URI, options?: ISessionChangesEditorOptions): Promise<undefined> {
@@ -276,6 +279,7 @@ suite('SessionTurnChanges', () => {
 			new class extends mock<IEditorService>() { }(),
 			sessionsManagementService,
 			sessionsService,
+			focusedSessionHostServiceOf(sessionsService.activeSession),
 			sessionChangesService,
 			layoutService,
 			createChangesViewService(),
@@ -331,8 +335,9 @@ suite('SessionTurnChanges', () => {
 				}
 			}(),
 			new class extends mock<ISessionsService>() {
-				override readonly activeSession = constObservable<IActiveSession | undefined>(session);
+				readonly activeSession = constObservable<IActiveSession | undefined>(session);
 			}(),
+			focusedSessionHostServiceOf(constObservable<IActiveSession | undefined>(session)),
 			new class extends mock<ISessionChangesService>() {
 				override async openChangesEditor(_sessionResource: URI, options?: ISessionChangesEditorOptions): Promise<undefined> {
 					const selection = options?.changesetSelection;
@@ -396,6 +401,7 @@ suite('SessionTurnChanges', () => {
 				}
 			}(),
 			new class extends mock<ISessionsService>() { }(),
+			focusedSessionHostServiceOf(constObservable(undefined)),
 			new class extends mock<ISessionChangesService>() { }(),
 			new class extends mock<IAgentWorkbenchLayoutService>() { }(),
 			createChangesViewService(),
@@ -449,6 +455,7 @@ suite('SessionTurnChanges', () => {
 				}
 			}(),
 			new class extends mock<ISessionsService>() { }(),
+			focusedSessionHostServiceOf(constObservable(undefined)),
 			new class extends mock<ISessionChangesService>() { }(),
 			new class extends mock<IAgentWorkbenchLayoutService>() { }(),
 			new class extends mock<IChangesViewService>() {
@@ -499,6 +506,7 @@ suite('SessionTurnChanges', () => {
 				}
 			}(),
 			new class extends mock<ISessionsService>() { }(),
+			focusedSessionHostServiceOf(constObservable(undefined)),
 			new class extends mock<ISessionChangesService>() { }(),
 			new class extends mock<IAgentWorkbenchLayoutService>() { }(),
 			changesViewService,
@@ -536,10 +544,10 @@ suite('SessionTurnChanges', () => {
 		});
 	});
 
-	test('falls back to request stats when another chat becomes most recent', () => {
+	test('uses request stats until chat timestamps resolve and when another chat is most recent', () => {
 		const chatResource = URI.parse('chat:session');
 		const chatUpdatedAt = observableValue('chatUpdatedAt', new Date('2026-08-13T10:00:00Z'));
-		const newerChatUpdatedAt = observableValue('newerChatUpdatedAt', new Date('2026-08-13T09:00:00Z'));
+		const newerChatUpdatedAt = observableValue<Date | undefined>('newerChatUpdatedAt', undefined);
 		const changeset = upcastPartial<ISessionChangeset>({
 			id: TURN_CHANGES_CHANGESET_ID,
 			isEnabled: constObservable(true),
@@ -573,6 +581,7 @@ suite('SessionTurnChanges', () => {
 				}
 			}(),
 			new class extends mock<ISessionsService>() { }(),
+			focusedSessionHostServiceOf(constObservable(undefined)),
 			new class extends mock<ISessionChangesService>() { }(),
 			new class extends mock<IAgentWorkbenchLayoutService>() { }(),
 			new class extends mock<IChangesViewService>() {
@@ -594,12 +603,15 @@ suite('SessionTurnChanges', () => {
 
 		const stats = service.getChangeStatsForRequest(chatResource, 'request', { isLastTurn: true });
 		const states = [stats?.get()];
+		newerChatUpdatedAt.set(new Date('2026-08-13T09:00:00Z'), undefined);
+		states.push(stats?.get());
 		newerChatUpdatedAt.set(new Date('2026-08-13T11:00:00Z'), undefined);
 		states.push(stats?.get());
 		chatUpdatedAt.set(new Date('2026-08-13T12:00:00Z'), undefined);
 		states.push(stats?.get());
 
 		assert.deepStrictEqual(states, [
+			{ files: 1, insertions: 2, deletions: 1 },
 			{ files: 1, insertions: 4, deletions: 2 },
 			{ files: 1, insertions: 2, deletions: 1 },
 			{ files: 1, insertions: 4, deletions: 2 },
@@ -639,6 +651,7 @@ suite('SessionTurnChanges', () => {
 				}
 			}(),
 			new class extends mock<ISessionsService>() { }(),
+			focusedSessionHostServiceOf(constObservable(undefined)),
 			new class extends mock<ISessionChangesService>() { }(),
 			new class extends mock<IAgentWorkbenchLayoutService>() { }(),
 			new class extends mock<IChangesViewService>() {

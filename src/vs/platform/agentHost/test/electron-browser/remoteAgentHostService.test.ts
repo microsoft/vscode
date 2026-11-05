@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { isCancellationError } from '../../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -13,22 +13,26 @@ import { runWithFakedTimers } from '../../../../base/test/common/timeTravelSched
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IEnvironmentService } from '../../../environment/common/environment.js';
 import { URI } from '../../../../base/common/uri.js';
+import { OperatingSystem } from '../../../../base/common/platform.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { IConfigurationService, type IConfigurationChangeEvent } from '../../../configuration/common/configuration.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILabelService, type ResourceLabelFormatter } from '../../../label/common/label.js';
 import { AgentsWindowRemoteAgentHostService, EditorWindowRemoteAgentHostService, RemoteAgentHostService } from '../../browser/remoteAgentHostServiceImpl.js';
 import { InitialAuthenticationError, type IAgentHostProtocolClientOptions } from '../../browser/agentHostProtocolClient.js';
-import { addSSHRemoteAgentHostEntry, addWebSocketRemoteAgentHostEntry, getEntryAddress, getEntryTypeConfig, parseRemoteAgentHostInput, removeWebSocketRemoteAgentHostEntry, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, type IRawRemoteAgentHostEntry, type IRemoteAgentHostConnectionFactory, type IRemoteAgentHostConnectOptions, type IRemoteAgentHostCreatedConnection, type IRemoteAgentHostEntry, type IRemoteAgentHostProtocolClient, type RemoteAgentHostConnectionObserver } from '../../common/remoteAgentHostService.js';
+import { addSSHRemoteAgentHostEntry, addWebSocketRemoteAgentHostEntry, getEntryAddress, getEntryTypeConfig, parseRemoteAgentHostInput, removeWebSocketRemoteAgentHostEntry, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, WorkspaceRemoteAgentHostsSettingId, type IRawRemoteAgentHostEntry, type IRemoteAgentHostConnectionFactory, type IRemoteAgentHostConnectOptions, type IRemoteAgentHostCreatedConnection, type IRemoteAgentHostEntry, type IRemoteAgentHostProtocolClient, type RemoteAgentHostConnectionObserver } from '../../common/remoteAgentHostService.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../common/agentHostUri.js';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../storage/common/storage.js';
 import type { StorageValue } from '../../../../base/parts/storage/common/storage.js';
 import type { Implementation } from '../../common/state/protocol/common/commands.js';
 import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo } from '../../common/agentHostClientInfo.js';
-import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
+import { AHP_UNSUPPORTED_PROTOCOL_VERSION, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { computeReconnectDelay } from '../../common/reconnectPolicy.js';
 import { AgentHostTransportFailureReason, NonReconnectableTransportError } from '../../common/state/sessionTransport.js';
+import { AgentHostAuthenticationPendingError, IAgentHostAdvertisedAuthenticationResolver } from '../../common/agentHostAdvertisedAuthentication.js';
+import type { AgentInfo } from '../../common/state/sessionState.js';
+import type { AuthenticateParams } from '../../common/agent.js';
 
 interface IRemoteAgentHostServiceTestAccess {
 	readonly _reconnectAttempts: Map<string, number>;
@@ -68,6 +72,12 @@ class MockProtocolClient extends Disposable {
 	readonly initializeResult = undefined;
 	readonly telemetryCapabilities = undefined;
 	readonly triggerVscodeUpgradeCalls: string[] = [];
+	operatingSystem = 'linux';
+	networkDiagnosticsError: Error | undefined;
+	networkDiagnosticsDeferred: DeferredPromise<void> | undefined;
+	networkDiagnosticsRequestCount = 0;
+	/** Completes when the first network diagnostics request (the host operating system lookup) is issued. */
+	readonly networkDiagnosticsRequested = new DeferredPromise<void>();
 	nextReconnectAt: number | undefined;
 	reconnectNowCalls = 0;
 	reconnectNowResult = false;
@@ -82,6 +92,10 @@ class MockProtocolClient extends Disposable {
 		return this.connectDeferred.p;
 	}
 
+	get isDisposed(): boolean {
+		return this._store.isDisposed;
+	}
+
 	reconnectNow(): boolean {
 		this.reconnectNowCalls++;
 		return this.reconnectNowResult;
@@ -90,6 +104,27 @@ class MockProtocolClient extends Disposable {
 	async triggerVscodeUpgrade(method: string) {
 		this.triggerVscodeUpgradeCalls.push(method);
 		return { ok: true, upgradeStarted: true };
+	}
+
+	async getNetworkDiagnosticsInfo() {
+		this.networkDiagnosticsRequestCount++;
+		this.networkDiagnosticsRequested.complete();
+		const deferred = this.networkDiagnosticsDeferred;
+		const error = this.networkDiagnosticsError;
+		if (deferred) {
+			await deferred.p;
+		}
+		if (error) {
+			throw error;
+		}
+		return {
+			version: '1.0.0',
+			os: this.operatingSystem,
+			arch: 'x64',
+			proxySettings: {},
+			proxyEnv: {},
+			endpoints: [],
+		};
 	}
 
 	fireClose(reason?: AgentHostTransportFailureReason): void {
@@ -124,6 +159,10 @@ class TestConnectionFactory extends Disposable implements IRemoteAgentHostConnec
 
 	publishEntry(entry: IRemoteAgentHostEntry): void {
 		this._entries.set([...this._entries.get(), entry], undefined);
+	}
+
+	withdrawEntry(entry: IRemoteAgentHostEntry): void {
+		this._entries.set(this._entries.get().filter(value => getEntryAddress(value) !== getEntryAddress(entry)), undefined);
 	}
 
 	getConnectionObserver(): RemoteAgentHostConnectionObserver {
@@ -176,6 +215,7 @@ class TestConfigurationService {
 	readonly onDidChangeConfiguration = this._onDidChangeConfiguration.event;
 
 	private _entries: IRawRemoteAgentHostEntry[] = [];
+	private _workspaceEntries: IRawRemoteAgentHostEntry[] = [];
 	private _enabled = true;
 	private _autoConnect = true;
 	updateValueCalls = 0;
@@ -186,6 +226,9 @@ class TestConfigurationService {
 		}
 		if (key === RemoteAgentHostAutoConnectSettingId) {
 			return this._autoConnect;
+		}
+		if (key === WorkspaceRemoteAgentHostsSettingId) {
+			return this._workspaceEntries;
 		}
 		return this._entries;
 	}
@@ -237,6 +280,13 @@ class TestConfigurationService {
 		});
 	}
 
+	setWorkspaceEntries(entries: IRawRemoteAgentHostEntry[]): void {
+		this._workspaceEntries = entries;
+		this._onDidChangeConfiguration.fire({
+			affectsConfiguration: (key: string) => key === WorkspaceRemoteAgentHostsSettingId,
+		});
+	}
+
 	dispose(): void {
 		this._onDidChangeConfiguration.dispose();
 	}
@@ -258,7 +308,7 @@ class TestStorageService extends InMemoryStorageService {
 
 suite('RemoteAgentHostService', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let configService: TestConfigurationService;
 	let createdClients: MockProtocolClient[];
 	let createdClientInfos: (Implementation | undefined)[];
@@ -266,6 +316,8 @@ suite('RemoteAgentHostService', () => {
 	let instantiationService: TestInstantiationService;
 	let service: RemoteAgentHostService;
 	let storageService: TestStorageService;
+	let resolveAuthentication: (address: string, agents: readonly AgentInfo[]) => Promise<readonly AuthenticateParams[]>;
+	let createdClientOptions: (IAgentHostProtocolClientOptions | undefined)[];
 
 	setup(() => {
 		configService = new TestConfigurationService();
@@ -273,11 +325,17 @@ suite('RemoteAgentHostService', () => {
 
 		createdClients = [];
 		createdClientInfos = [];
+		createdClientOptions = [];
+		resolveAuthentication = async () => [];
 
 		instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IEnvironmentService, { logsHome: URI.file('/logs') } as Partial<IEnvironmentService>);
 		instantiationService.stub(IConfigurationService, configService as Partial<IConfigurationService>);
+		instantiationService.stub(IAgentHostAdvertisedAuthenticationResolver, {
+			createResolver: address => ({ resolve: agents => resolveAuthentication(address, agents), dispose: () => { } }),
+			takePendingSessionRemovals: () => [],
+		});
 		storageService = disposables.add(new TestStorageService());
 		instantiationService.stub(IStorageService, storageService);
 		registeredFormatters = [];
@@ -304,8 +362,12 @@ suite('RemoteAgentHostService', () => {
 				if (ctorName === 'WebSocketClientTransport') {
 					return disposables.add(new MockTransport());
 				}
+				if (ctorName === 'WebSocketConnectionFactory') {
+					return instantiationService.createInstance(ctor as new (...args: unknown[]) => IRemoteAgentHostConnectionFactory, ...args);
+				}
 				const client = new MockProtocolClient(args[0] as string);
 				createdClientInfos.push((args[2] as IAgentHostProtocolClientOptions | undefined)?.clientInfo);
+				createdClientOptions.push(args[2] as IAgentHostProtocolClientOptions | undefined);
 				disposables.add(client);
 				createdClients.push(client);
 				return client;
@@ -314,6 +376,27 @@ suite('RemoteAgentHostService', () => {
 		instantiationService.stub(IInstantiationService, mockInstantiationService as Partial<IInstantiationService>);
 
 		service = disposables.add(instantiationService.createInstance(RemoteAgentHostService));
+	});
+
+	test('WebSocket connections resolve advertised credentials during their handshake', async () => {
+		const requests = [{ resource: 'https://api.example.com', token: 'existing-token' }];
+		const calls: { address: string; agents: readonly AgentInfo[] }[] = [];
+		resolveAuthentication = async (address, agents) => {
+			calls.push({ address, agents });
+			return requests;
+		};
+		configService.setEntries([{ name: 'Host', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'localhost:8080' } }]);
+		await timeout(0);
+		const agents: AgentInfo[] = [{ provider: 'copilot', displayName: 'Test', description: 'test', models: [] }];
+		assert.deepStrictEqual({
+			requests: await createdClientOptions[0]?.resolveAdvertisedAuthentication?.(agents),
+			calls,
+			incompatible: RemoteAgentHostConnectionStatus.fromConnectError(new AgentHostAuthenticationPendingError('https://api.example.com'), []),
+		}, {
+			requests,
+			calls: [{ address: 'localhost:8080', agents }],
+			incompatible: undefined,
+		});
 	});
 
 	test('round-trips persisted entry types through their configuration', () => {
@@ -328,8 +411,6 @@ suite('RemoteAgentHostService', () => {
 		}), entries);
 	});
 
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	/** Wait for a connection to reach Connected status. */
 	async function waitForConnected(): Promise<void> {
@@ -463,6 +544,32 @@ suite('RemoteAgentHostService', () => {
 		});
 	});
 
+	test('editor window dials WebSocket hosts listed in workspace settings', async () => {
+		service.dispose();
+		configService.setEntries([{ name: 'User host', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://user:8080' } }]);
+		service = disposables.add(instantiationService.createInstance(EditorWindowRemoteAgentHostService));
+		configService.setWorkspaceEntries([{ name: 'Workspace host', address: 'ws://workspace:8080', connectionToken: 'tkn' }]);
+		await waitForCreatedClients(1);
+		createdClients[0].connectDeferred.complete();
+		await waitForConnected();
+		const configuredEntries = service.configuredEntries;
+		const connected = service.connections.map(connection => connection.address);
+
+		configService.setWorkspaceEntries([]);
+
+		assert.deepStrictEqual({
+			configuredEntries,
+			connected,
+			afterRemoval: service.connections.map(connection => connection.address),
+			clientInfos: createdClientInfos,
+		}, {
+			configuredEntries: [{ name: 'Workspace host', connectionToken: 'tkn', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'workspace:8080' } }],
+			connected: ['workspace:8080'],
+			afterRemoval: [],
+			clientInfos: [editorWindowAgentHostClientInfo],
+		});
+	});
+
 	test('getConnection returns client after successful connect', async () => {
 		configService.setEntries([{ name: 'Host 1', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://host1:8080' } }]);
 		await waitForCreatedClients(1);
@@ -508,7 +615,7 @@ suite('RemoteAgentHostService', () => {
 		assert.deepStrictEqual(entry.status, RemoteAgentHostConnectionStatus.disconnected);
 	});
 
-	test('retains an unknown disconnected entry on connect failure', async () => {
+	test('retains a plain disconnected entry on automatic connect failure', async () => {
 		configService.setEntries([{ name: 'Bad', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://bad:9999' } }]);
 		await waitForCreatedClients(1);
 		assert.strictEqual(createdClients.length, 1);
@@ -605,7 +712,13 @@ suite('RemoteAgentHostService', () => {
 		createdClients[0].connectDeferred.complete();
 		const connection = await connectionPromise;
 
-		assert.deepStrictEqual(connection, {
+		assert.deepStrictEqual({
+			address: connection.address,
+			name: connection.name,
+			clientId: connection.clientId,
+			defaultDirectory: connection.defaultDirectory,
+			status: connection.status,
+		}, {
 			address: 'host1:8080',
 			name: 'Host 1',
 			clientId: createdClients[0].clientId,
@@ -633,7 +746,13 @@ suite('RemoteAgentHostService', () => {
 			name: 'Updated Host',
 			connectionToken: 'new-token',
 		}]);
-		assert.deepStrictEqual(connection, {
+		assert.deepStrictEqual({
+			address: connection.address,
+			name: connection.name,
+			clientId: connection.clientId,
+			defaultDirectory: connection.defaultDirectory,
+			status: connection.status,
+		}, {
 			address: 'host1:8080',
 			name: 'Updated Host',
 			clientId: createdClients[0].clientId,
@@ -797,6 +916,63 @@ suite('RemoteAgentHostService', () => {
 	});
 
 	suite('factory connections', () => {
+		function connectionState(address: string) {
+			const connection = service.connections.find(connection => connection.address === address);
+			return { status: connection?.status, lastConnectionError: connection?.lastConnectionError };
+		}
+
+		for (const outcome of ['removed', 'disabled', 'disposed', 'cancelled', 'incompatible'] as const) {
+			test(`clears separate error metadata after a ${outcome} retry`, async () => {
+				let pending = new DeferredPromise<IRemoteAgentHostCreatedConnection>();
+				let started = new DeferredPromise<void>();
+				const factory = disposables.add(new class extends TestConnectionFactory {
+					override createConnection(): Promise<IRemoteAgentHostCreatedConnection> {
+						void started.complete();
+						return pending.p;
+					}
+				}(RemoteAgentHostEntryType.CloudSandbox));
+				disposables.add(service.registerConnectionFactory(factory));
+				const entry = cloudSandboxEntry('Host', 'cloudsandbox:error-cleanup');
+				const address = getEntryAddress(entry);
+				factory.publishEntry(entry);
+				service.reconnect(address, true);
+				await started.p;
+				const firstFailure = assert.rejects(service.waitForConnection(address), /First failure/);
+				await pending.error(new NonReconnectableTransportError('First failure'));
+				await firstFailure;
+				pending = new DeferredPromise<IRemoteAgentHostCreatedConnection>();
+				started = new DeferredPromise<void>();
+				service.reconnect(address, false);
+				await started.p;
+				assert.strictEqual(connectionState(address).lastConnectionError, 'First failure');
+				if (outcome === 'incompatible') {
+					const client = disposables.add(new MockProtocolClient(address));
+					const changed = Event.toPromise(service.onDidChangeConnections);
+					await pending.complete({ connection: client as unknown as IRemoteAgentHostProtocolClient });
+					await changed;
+					const incompatible = assert.rejects(service.waitForConnection(address), /Unsupported protocol/);
+					await client.connectDeferred.error(new ProtocolError(AHP_UNSUPPORTED_PROTOCOL_VERSION, 'Unsupported protocol', { supportedVersions: ['2.0.0'] }));
+					await incompatible;
+					assert.strictEqual(connectionState(address).status?.kind, 'incompatible');
+				} else if (outcome === 'cancelled') {
+					const cancelled = assert.rejects(service.waitForConnection(address), isCancellationError);
+					await pending.error(new CancellationError());
+					await cancelled;
+				} else {
+					if (outcome === 'removed') {
+						await service.removeRemoteAgentHost(address);
+					} else if (outcome === 'disabled') {
+						configService.setEnabled(false);
+					} else {
+						service.dispose();
+					}
+					await pending.error(new Error('Late failure'));
+					await timeout(0);
+				}
+				assert.strictEqual(connectionState(address).lastConnectionError, undefined);
+			});
+		}
+
 		test('pending metadata honors factory-staged initiation without relabeling later automatic attempts', async () => {
 			let stagedInitiation: boolean | undefined = true;
 			let pending = new DeferredPromise<IRemoteAgentHostCreatedConnection>();
@@ -818,17 +994,110 @@ suite('RemoteAgentHostService', () => {
 			while (service.pendingConnections.length) {
 				await Event.toPromise(service.onDidChangePendingConnections);
 			}
+			const manualStatus = connectionState(getEntryAddress(entry));
 			pending = new DeferredPromise<IRemoteAgentHostCreatedConnection>();
 			started = new DeferredPromise<void>();
 			service.reconnect(getEntryAddress(entry), false);
 			await started.p;
 			const automatic = service.pendingConnections[0]?.userInitiated;
-			await pending.error(new NonReconnectableTransportError('setup failed'));
+			const duringRetry = connectionState(getEntryAddress(entry));
+			await pending.error(new NonReconnectableTransportError('retry failed'));
 			while (service.pendingConnections.length) {
 				await Event.toPromise(service.onDidChangePendingConnections);
 			}
-			assert.deepStrictEqual({ manual, automatic }, { manual: true, automatic: false });
+			assert.deepStrictEqual({ manual, automatic, manualStatus, duringRetry, automaticStatus: connectionState(getEntryAddress(entry)) }, {
+				manual: true, automatic: false,
+				manualStatus: { status: RemoteAgentHostConnectionStatus.disconnected, lastConnectionError: 'setup failed' },
+				duringRetry: { status: RemoteAgentHostConnectionStatus.connecting, lastConnectionError: 'setup failed' },
+				automaticStatus: { status: RemoteAgentHostConnectionStatus.disconnected, lastConnectionError: 'retry failed' },
+			});
 		});
+
+		for (const kind of [RemoteAgentHostEntryType.SSH, RemoteAgentHostEntryType.Tunnel]) {
+			for (const outcome of ['factoryFailure', 'handshakeFailure', 'success'] as const) {
+				test(`automatic ${kind} retries retain the warning until ${outcome}`, () => runWithFakedTimers({}, async () => {
+					let pending = new DeferredPromise<IRemoteAgentHostCreatedConnection>();
+					let started = new DeferredPromise<void>();
+					const factory = disposables.add(new class extends TestConnectionFactory {
+						override createConnection(): Promise<IRemoteAgentHostCreatedConnection> {
+							void started.complete();
+							return pending.p;
+						}
+					}(kind));
+					disposables.add(service.registerConnectionFactory(factory));
+					const entry: IRemoteAgentHostEntry = {
+						name: 'Host',
+						connection: kind === RemoteAgentHostEntryType.SSH
+							? { type: RemoteAgentHostEntryType.SSH, address: 'ssh:host', sshConfigHost: 'host', hostName: 'host' }
+							: { type: RemoteAgentHostEntryType.Tunnel, tunnelId: 'host', clusterId: 'test' },
+					};
+					const address = getEntryAddress(entry);
+					factory.publishEntry(entry);
+					service.reconnect(address, true);
+					await started.p;
+					const failed = assert.rejects(service.waitForConnection(address), /First failure/);
+					await pending.error(new Error('First failure'));
+					await failed;
+					while (service.pendingConnections.length) {
+						await Event.toPromise(service.onDidChangePendingConnections);
+					}
+					const observedErrors: (string | undefined)[] = [];
+					const observe = () => observedErrors.push(connectionState(address).lastConnectionError);
+					const observations = disposables.add(new DisposableStore());
+					observations.add(service.onDidChangeConnections(observe));
+					observations.add(service.onDidChangePendingConnections(observe));
+					pending = new DeferredPromise<IRemoteAgentHostCreatedConnection>();
+					started = new DeferredPromise<void>();
+					await timeout(1000);
+					await started.p;
+					const duringFactory = connectionState(address);
+					const automatic = service.pendingConnections.find(attempt => attempt.address === address)?.userInitiated;
+					let duringHandshake: ReturnType<typeof connectionState> | undefined;
+					let duringReconnect: ReturnType<typeof connectionState> | undefined;
+					if (outcome !== 'factoryFailure') {
+						const client = disposables.add(new MockProtocolClient(address));
+						const handshaking = Event.toPromise(service.onDidChangeConnections);
+						await pending.complete({ connection: client as unknown as IRemoteAgentHostProtocolClient });
+						await handshaking;
+						duringHandshake = connectionState(address);
+						if (outcome === 'success') {
+							client.fireConnectionState('reconnecting');
+							client.fireScheduleReconnect();
+							duringReconnect = connectionState(address);
+						}
+						observations.dispose();
+						const completion = service.waitForConnection(address);
+						if (outcome === 'success') {
+							await client.connectDeferred.complete();
+							await completion;
+						} else {
+							const rejected = assert.rejects(completion, /Handshake failure/);
+							await client.connectDeferred.error(new Error('Handshake failure'));
+							await rejected;
+						}
+					} else {
+						observations.dispose();
+						const rejected = assert.rejects(service.waitForConnection(address), /Factory failure/);
+						await pending.error(new Error('Factory failure'));
+						await rejected;
+					}
+					assert.deepStrictEqual({
+						automatic, duringFactory, duringHandshake, duringReconnect,
+						retainedThroughout: observedErrors.length > 0 && observedErrors.every(error => error === 'First failure'),
+						completed: connectionState(address),
+					}, {
+						automatic: false,
+						duringFactory: { status: RemoteAgentHostConnectionStatus.connecting, lastConnectionError: 'First failure' },
+						duringHandshake: outcome === 'factoryFailure' ? undefined : { status: RemoteAgentHostConnectionStatus.connecting, lastConnectionError: 'First failure' },
+						duringReconnect: outcome === 'success' ? { status: RemoteAgentHostConnectionStatus.reconnecting, lastConnectionError: 'First failure' } : undefined,
+						retainedThroughout: true,
+						completed: outcome === 'success' ? { status: RemoteAgentHostConnectionStatus.connected, lastConnectionError: undefined }
+							: { status: RemoteAgentHostConnectionStatus.disconnected, lastConnectionError: outcome === 'factoryFailure' ? 'Factory failure' : 'Handshake failure' },
+					});
+					service.dispose();
+				}));
+			}
+		}
 
 		for (const outcome of ['success', 'failure', 'removed', 'disabled', 'disposed'] as const) {
 			test(`exposes pending automatic setup before a client exists and clears it on ${outcome}`, async () => {
@@ -904,6 +1173,89 @@ suite('RemoteAgentHostService', () => {
 				disposable: { dispose: () => { disposed = true; } },
 				disposed: () => disposed,
 			};
+		}
+
+		for (const phase of ['factory', 'handshake'] as const) {
+			for (const cancelled of [false, true]) {
+				for (const userInitiated of [false, true]) {
+					test(`${phase} failure warnings require a user request and exclude cancellation (userInitiated=${userInitiated}, cancelled=${cancelled})`, async () => {
+						const factory = createFactory();
+						const entry = cloudSandboxEntry('Host', 'cloudsandbox:failed');
+						const address = getEntryAddress(entry);
+						const error = cancelled ? new CancellationError() : new Error('Connection refused');
+						let client: MockProtocolClient | undefined;
+						if (phase === 'factory') {
+							factory.stageFailure(entry, error);
+						} else {
+							client = disposables.add(new MockProtocolClient(address));
+							factory.stage(entry, client);
+						}
+						service.reconnect(address, userInitiated);
+						const rejected = assert.rejects(service.waitForConnection(address), error);
+						if (client) {
+							await waitForFactoryConnection(factory, 1);
+							client.connectDeferred.error(error);
+						}
+						await rejected;
+						const failedStatus = connectionState(address);
+						const replacement = disposables.add(new MockProtocolClient(address));
+						await reconnectStagedConnection(factory, entry, replacement);
+						assert.deepStrictEqual({
+							failed: failedStatus, recovered: connectionState(address),
+						}, {
+							failed: { status: RemoteAgentHostConnectionStatus.disconnected, lastConnectionError: userInitiated && !cancelled ? error.message : undefined },
+							recovered: { status: RemoteAgentHostConnectionStatus.connected, lastConnectionError: undefined },
+						});
+					});
+				}
+			}
+		}
+
+		for (const kind of [RemoteAgentHostEntryType.SSH, RemoteAgentHostEntryType.Tunnel]) {
+			test(`joining one automatic ${kind} attempt shows only that host's failure`, async () => {
+				const pending = new DeferredPromise<IRemoteAgentHostCreatedConnection>();
+				const started = new DeferredPromise<void>();
+				let calls = 0;
+				const factory = disposables.add(new class extends TestConnectionFactory {
+					override createConnection(): Promise<IRemoteAgentHostCreatedConnection> {
+						if (++calls === 2) {
+							void started.complete();
+						}
+						return pending.p;
+					}
+				}(kind));
+				disposables.add(service.registerConnectionFactory(factory));
+				const entries: IRemoteAgentHostEntry[] = ['selected', 'other'].map(name => ({
+					name,
+					connection: kind === RemoteAgentHostEntryType.SSH
+						? { type: RemoteAgentHostEntryType.SSH, address: `ssh:${name}`, sshConfigHost: name, hostName: name }
+						: { type: RemoteAgentHostEntryType.Tunnel, tunnelId: name, clusterId: 'test' },
+				}));
+				for (const entry of entries) {
+					factory.publishEntry(entry);
+				}
+				await started.p;
+				const selected = getEntryAddress(entries[0]);
+				service.reconnect(selected, true);
+				const error = new NonReconnectableTransportError('Connection refused');
+				const rejected = assert.rejects(service.waitForConnection(selected), error);
+				await pending.error(error);
+				await rejected;
+				while (service.pendingConnections.length) {
+					await Event.toPromise(service.onDidChangePendingConnections);
+				}
+				assert.deepStrictEqual({
+					calls, statuses: entries.map(entry => connectionState(getEntryAddress(entry))),
+					loggedFailures: service.getConnectionDiagnostics().filter(event => event.error?.message === error.message).length,
+				}, {
+					calls: 2,
+					statuses: [
+						{ status: RemoteAgentHostConnectionStatus.disconnected, lastConnectionError: error.message },
+						{ status: RemoteAgentHostConnectionStatus.disconnected, lastConnectionError: undefined },
+					],
+					loggedFailures: 2,
+				});
+			});
 		}
 
 		function createFactory(kind = RemoteAgentHostEntryType.CloudSandbox): TestConnectionFactory {
@@ -1089,6 +1441,36 @@ suite('RemoteAgentHostService', () => {
 			]);
 		}));
 
+		test('connection waits follow client-owned recovery beyond the idle wait timeout', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const factory = createFactory();
+			factory.reconnectManagedByClient = true;
+			const entry = cloudSandboxEntry('Environment', 'cloudsandbox:slow-recovery');
+			const address = getEntryAddress(entry);
+			const client = disposables.add(new MockProtocolClient(address));
+			await reconnectStagedConnection(factory, entry, client);
+			client.fireConnectionState('reconnecting');
+			const recovered = service.waitForConnection(address);
+			let settled = false;
+			void recovered.then(() => { settled = true; }, () => { settled = true; });
+			await timeout(15_000);
+			assert.strictEqual(settled, false);
+			client.fireConnectionState('connected');
+			assert.strictEqual((await recovered).address, address);
+		}));
+
+		test('authentication restoration failure rejects callers waiting for recovery', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const factory = createFactory();
+			const entry = cloudSandboxEntry('Environment', 'cloudsandbox:failed-auth-wait');
+			const address = getEntryAddress(entry);
+			const client = disposables.add(new MockProtocolClient(address));
+			await reconnectStagedConnection(factory, entry, client);
+			client.fireConnectionState('reconnecting');
+			const recovered = assert.rejects(service.waitForConnection(address), /Authentication failed/);
+			client.fireConnectionState('incompatible');
+			await recovered;
+			await assert.rejects(service.waitForConnection(address), /Authentication failed/);
+		}));
+
 		test('authentication restoration failure is terminal rather than an outer retry', () => runWithFakedTimers({}, async () => {
 			const factory = createFactory();
 			const entry = cloudSandboxEntry('Sandbox', 'cloudsandbox:auth');
@@ -1100,13 +1482,17 @@ suite('RemoteAgentHostService', () => {
 			client.fireConnectionState('incompatible');
 			await timeout(30_000);
 			const observations = factory.observations.slice();
+			const status = service.connections[0].status;
 			service.dispose();
-			assert.deepStrictEqual(observations, [
-				{ state: 'connecting', time: 0 },
-				{ state: 'connected', time: 0 },
-				{ state: 'reconnecting', time: 1000 },
-				{ state: 'failed', time: 3000 },
-			]);
+			assert.deepStrictEqual({ observations, status }, {
+				observations: [
+					{ state: 'connecting', time: 0 },
+					{ state: 'connected', time: 0 },
+					{ state: 'reconnecting', time: 1000 },
+					{ state: 'failed', time: 3000 },
+				],
+				status: RemoteAgentHostConnectionStatus.incompatible('Authentication failed during connection initialization.', ['1.0.0', '0.10.0', '0.9.0']),
+			});
 		}));
 
 		for (const initiallyConnected of [false, true]) {
@@ -1291,6 +1677,27 @@ suite('RemoteAgentHostService', () => {
 			});
 		});
 
+		test('withdrawing a permanently refused broker entry prevents the outer service from redialing cached credentials', () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+			const factory = createFactory();
+			const entry = cloudSandboxEntry('Missing brokered host', 'cloud:missing');
+			const client = new MockProtocolClient(getEntryAddress(entry));
+			factory.stage(entry, client);
+			service.reconnect(getEntryAddress(entry));
+			const connected = service.waitForConnection(getEntryAddress(entry));
+			await waitForFactoryConnection(factory, 1);
+			client.connectDeferred.complete();
+			await connected;
+			factory.withdrawEntry(entry);
+			client.fireClose(AgentHostTransportFailureReason.HostNotRunning);
+			await timeout(60_000);
+			assert.deepStrictEqual({
+				configured: service.configuredEntries.filter(value => getEntryAddress(value) === getEntryAddress(entry)).length,
+				creations: factory.createdConnectionCount,
+				connected: service.getConnection(getEntryAddress(entry)) !== undefined,
+			}, { configured: 0, creations: 1, connected: false });
+			service.dispose();
+		}));
+
 		test('falls back to a fresh dial when a retained entry has no client', async () => {
 			const factory = createFactory(RemoteAgentHostEntryType.WSL);
 			const entry: IRemoteAgentHostEntry = {
@@ -1313,33 +1720,41 @@ suite('RemoteAgentHostService', () => {
 			assert.strictEqual(factory.createdConnectionCount, 1);
 		});
 
-		test('keeps an incompatible factory connection addressable for server upgrade', async () => {
-			const factory = createFactory();
-			const entry = cloudSandboxEntry('Cloud Sandbox', 'cloud:incompatible');
-			const client = new MockProtocolClient('cloud:incompatible');
-			factory.stage(entry, client);
-			service.reconnect(getEntryAddress(entry));
-			const wait = service.waitForConnection(getEntryAddress(entry));
-			await waitForFactoryConnection(factory, 1);
-			const changed = Event.toPromise(service.onDidChangeConnections);
-			client.connectDeferred.error(new InitialAuthenticationError(new Error('Unsupported protocol version')));
-			await changed;
-			await assert.rejects(() => wait, /Initial authentication failed/);
+		for (const authenticationFailure of [false, true]) {
+			test(`keeps an incompatible factory connection addressable for server upgrade after ${authenticationFailure ? 'authentication' : 'protocol negotiation'} failure`, async () => {
+				const factory = createFactory();
+				const entry = cloudSandboxEntry('Cloud Sandbox', 'cloud:incompatible');
+				const client = new MockProtocolClient('cloud:incompatible');
+				factory.stage(entry, client);
+				service.reconnect(getEntryAddress(entry));
+				const wait = service.waitForConnection(getEntryAddress(entry));
+				await waitForFactoryConnection(factory, 1);
+				const changed = Event.toPromise(service.onDidChangeConnections);
+				const error = authenticationFailure
+					? new InitialAuthenticationError(new Error('Unsupported protocol version'))
+					: new ProtocolError(AHP_UNSUPPORTED_PROTOCOL_VERSION, 'Unsupported protocol version', { supportedVersions: ['2.0.0'] });
+				const originalFailure = assert.rejects(wait, rejected => rejected === error);
+				client.fireConnectionState('incompatible');
+				const joiningFailure = assert.rejects(service.waitForConnection(getEntryAddress(entry)), rejected => rejected === error);
+				client.connectDeferred.error(error);
+				await changed;
+				await Promise.all([originalFailure, joiningFailure]);
 
-			const upgradeResult = await service.triggerServerUpgrade('cloud:incompatible', '_vscodeUpgrade');
+				const upgradeResult = await service.triggerServerUpgrade('cloud:incompatible', '_vscodeUpgrade');
 
-			assert.deepStrictEqual({
-				status: service.connections[0].status,
-				connectedConnection: service.getConnection('cloud:incompatible'),
-				upgradeCalls: client.triggerVscodeUpgradeCalls,
-				upgradeResult,
-			}, {
-				status: RemoteAgentHostConnectionStatus.incompatible('Initial authentication failed: Unsupported protocol version', [PROTOCOL_VERSION]),
-				connectedConnection: undefined,
-				upgradeCalls: ['_vscodeUpgrade'],
-				upgradeResult: { ok: true, upgradeStarted: true },
+				assert.deepStrictEqual({
+					status: service.connections[0].status,
+					connectedConnection: service.getConnection('cloud:incompatible'),
+					upgradeCalls: client.triggerVscodeUpgradeCalls,
+					upgradeResult,
+				}, {
+					status: RemoteAgentHostConnectionStatus.incompatible(error.message, ['1.0.0', '0.10.0', '0.9.0'], authenticationFailure ? undefined : ['2.0.0']),
+					connectedConnection: undefined,
+					upgradeCalls: ['_vscodeUpgrade'],
+					upgradeResult: { ok: true, upgradeStarted: true },
+				});
 			});
-		});
+		}
 
 		test('records factory and setup stages before an entry exists and preserves failure evidence', async () => {
 			const pending = new DeferredPromise<IRemoteAgentHostCreatedConnection>();
@@ -1498,6 +1913,87 @@ suite('RemoteAgentHostService', () => {
 			assert.strictEqual(t2.disposed(), true, 'new transport disposable runs on full removal');
 		});
 
+		test('releases the retained transport owner when an explicit replacement fails', async () => {
+			const factory = createFactory();
+			const entry = cloudSandboxEntry('Cloud Sandbox', 'cloud:failed-replacement');
+			const transport = makeTransportDisposable();
+			const client = new MockProtocolClient('cloud:failed-replacement');
+			await reconnectStagedConnection(factory, entry, client, transport.disposable, true);
+
+			factory.stageFailure(entry, new Error('replacement failed'));
+			service.reconnect('cloud:failed-replacement');
+			await assert.rejects(() => service.waitForConnection('cloud:failed-replacement'), /replacement failed/);
+
+			assert.deepStrictEqual({
+				clientDisposed: client.isDisposed,
+				transportDisposed: transport.disposed(),
+				connection: service.getConnection('cloud:failed-replacement'),
+			}, {
+				clientDisposed: true,
+				transportDisposed: true,
+				connection: undefined,
+			});
+		});
+
+		for (const outcome of ['success', 'failure'] as const) {
+			test(`an abandoned factory ${outcome} does not release a newer reconnect owner`, async () => {
+				const address = 'cloud:retained-replacement';
+				const entry = cloudSandboxEntry('Sandbox', address);
+				const abandoned = disposables.add(new MockProtocolClient(address));
+				const retained = disposables.add(new MockProtocolClient(address));
+				const replacement = disposables.add(new MockProtocolClient(address));
+				const abandonedGate = new DeferredPromise<void>();
+				const replacementGate = new DeferredPromise<void>();
+				const transport = makeTransportDisposable();
+				const factory = disposables.add(new class extends TestConnectionFactory {
+					override async createConnection(entry: IRemoteAgentHostEntry): Promise<IRemoteAgentHostCreatedConnection> {
+						const created = await super.createConnection(entry);
+						try {
+							if (created.connection.clientId === abandoned.clientId) {
+								await abandonedGate.p;
+							} else if (created.connection.clientId === replacement.clientId) {
+								await replacementGate.p;
+							}
+						} catch (error) {
+							created.connection.dispose();
+							throw error;
+						}
+						return created;
+					}
+				}(RemoteAgentHostEntryType.CloudSandbox));
+				disposables.add(service.registerConnectionFactory(factory));
+				factory.stage(entry, abandoned);
+				service.reconnect(address);
+				await waitForFactoryConnection(factory, 1);
+				await service.removeRemoteAgentHost(address);
+				await reconnectStagedConnection(factory, entry, retained, transport.disposable, true);
+
+				factory.stage(entry, replacement);
+				service.reconnect(address);
+				await waitForFactoryConnection(factory, 3);
+				if (outcome === 'success') {
+					await abandonedGate.complete();
+				} else {
+					await abandonedGate.error(new Error('abandoned factory failed'));
+				}
+				await timeout(0);
+				const retainedBeforeAcquisition = !retained.isDisposed && !transport.disposed();
+				await replacementGate.complete();
+				await replacement.connectDeferred.complete();
+				await service.waitForConnection(address);
+
+				assert.deepStrictEqual({
+					retainedBeforeAcquisition,
+					retainedDisposed: retained.isDisposed,
+					clientId: service.getConnection(address)?.clientId,
+				}, {
+					retainedBeforeAcquisition: true,
+					retainedDisposed: true,
+					clientId: replacement.clientId,
+				});
+			});
+		}
+
 		test('disposes transportDisposable when service itself is disposed', async () => {
 			const factory = createFactory();
 			const t = makeTransportDisposable();
@@ -1586,7 +2082,151 @@ suite('RemoteAgentHostService', () => {
 		});
 	});
 
+	suite('host operating system', () => {
+		async function waitForOperatingSystem(address: string, operatingSystem: OperatingSystem): Promise<void> {
+			while (service.connections.find(connection => connection.address === address)?.operatingSystem !== operatingSystem) {
+				await Event.toPromise(service.onDidChangeConnections);
+			}
+		}
+
+		test('resolves mixed authority operating systems independently', async () => {
+			configService.setEntries([
+				{ name: 'Windows', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://windows:8080' } },
+				{ name: 'Linux', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://linux:8080' } },
+			]);
+			await waitForCreatedClients(2);
+			createdClients[0].operatingSystem = 'win32';
+			createdClients[1].operatingSystem = 'linux';
+			createdClients[0].connectDeferred.complete();
+			createdClients[1].connectDeferred.complete();
+			await Promise.all([
+				waitForOperatingSystem('windows:8080', OperatingSystem.Windows),
+				waitForOperatingSystem('linux:8080', OperatingSystem.Linux),
+			]);
+
+			assert.deepStrictEqual(service.connections.map(connection => ({
+				address: connection.address,
+				operatingSystem: connection.operatingSystem,
+			})), [
+				{ address: 'windows:8080', operatingSystem: OperatingSystem.Windows },
+				{ address: 'linux:8080', operatingSystem: OperatingSystem.Linux },
+			]);
+		});
+
+		test('retries operating system lookup after a soft reconnect', async () => {
+			configService.setEntries([{ name: 'Windows', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://windows:8080' } }]);
+			await waitForCreatedClients(1);
+			createdClients[0].operatingSystem = 'win32';
+			createdClients[0].networkDiagnosticsError = new Error('transport closed');
+			createdClients[0].connectDeferred.complete();
+			await waitForConnected();
+			await createdClients[0].networkDiagnosticsRequested.p;
+			// Let the rejected lookup finish (microtasks only), so the reconnect starts a new lookup instead of retrying an in-flight one.
+			await timeout(0);
+			createdClients[0].networkDiagnosticsError = undefined;
+
+			createdClients[0].fireConnectionState('reconnecting');
+			createdClients[0].fireConnectionState('connected');
+			await waitForOperatingSystem('windows:8080', OperatingSystem.Windows);
+
+			assert.deepStrictEqual({
+				operatingSystem: service.connections[0]?.operatingSystem,
+				networkDiagnosticsRequestCount: createdClients[0].networkDiagnosticsRequestCount,
+			}, {
+				operatingSystem: OperatingSystem.Windows,
+				networkDiagnosticsRequestCount: 2,
+			});
+		});
+
+		test('retries an in-flight operating system lookup after a soft reconnect', async () => {
+			configService.setEntries([{ name: 'Windows', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://windows:8080' } }]);
+			await waitForCreatedClients(1);
+			createdClients[0].operatingSystem = 'win32';
+			createdClients[0].networkDiagnosticsError = new Error('transport closed');
+			const initialRequest = createdClients[0].networkDiagnosticsDeferred = new DeferredPromise<void>();
+			createdClients[0].connectDeferred.complete();
+			await waitForConnected();
+			await createdClients[0].networkDiagnosticsRequested.p;
+
+			createdClients[0].fireConnectionState('reconnecting');
+			createdClients[0].fireConnectionState('connected');
+			createdClients[0].networkDiagnosticsDeferred = undefined;
+			createdClients[0].networkDiagnosticsError = undefined;
+			initialRequest.complete();
+			await waitForOperatingSystem('windows:8080', OperatingSystem.Windows);
+
+			assert.strictEqual(createdClients[0].networkDiagnosticsRequestCount, 2);
+		});
+
+		test('retains the last known operating system while redialing and refreshes replacement connections', async () => {
+			configService.setEntries([{ name: 'Host', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://host:8080' } }]);
+			await waitForCreatedClients(1);
+			createdClients[0].operatingSystem = 'win32';
+			createdClients[0].connectDeferred.complete();
+			await waitForOperatingSystem('host:8080', OperatingSystem.Windows);
+
+			service.reconnect('host:8080');
+			await waitForCreatedClients(2);
+			const whileRedialing = service.connections[0]?.operatingSystem;
+			createdClients[1].operatingSystem = 'linux';
+			createdClients[1].connectDeferred.complete();
+			await waitForOperatingSystem('host:8080', OperatingSystem.Linux);
+
+			assert.deepStrictEqual({
+				whileRedialing,
+				afterReplacement: service.connections[0]?.operatingSystem,
+			}, {
+				whileRedialing: OperatingSystem.Windows,
+				afterReplacement: OperatingSystem.Linux,
+			});
+		});
+
+		test('clears operating system state on removal and disablement', async () => {
+			const entry: IRemoteAgentHostEntry = { name: 'Host', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://host:8080' } };
+			configService.setEntries([entry]);
+			await waitForCreatedClients(1);
+			createdClients[0].operatingSystem = 'win32';
+			createdClients[0].connectDeferred.complete();
+			await waitForOperatingSystem('host:8080', OperatingSystem.Windows);
+
+			configService.setEntries([]);
+			configService.setEntries([entry]);
+			await waitForCreatedClients(2);
+			const afterRemoval = service.connections[0]?.operatingSystem;
+			createdClients[1].operatingSystem = 'linux';
+			createdClients[1].connectDeferred.complete();
+			await waitForOperatingSystem('host:8080', OperatingSystem.Linux);
+
+			configService.setEnabled(false);
+			configService.setEnabled(true);
+			await waitForCreatedClients(3);
+			const afterDisablement = service.connections[0]?.operatingSystem;
+
+			assert.deepStrictEqual({
+				afterRemoval,
+				afterDisablement,
+			}, {
+				afterRemoval: undefined,
+				afterDisablement: undefined,
+			});
+		});
+	});
+
 	suite('display names', () => {
+		test('delegates inventory-owned labels without writing global overrides or connecting', () => {
+			const name = observableValue<string | undefined>('name', undefined);
+			const registration = disposables.add(service.registerDisplayName('cloudsandbox:environment', name, value => name.set(value, undefined)));
+			service.setDisplayName('cloudsandbox:environment', '  Profile Label  ');
+			const renamed = service.getDisplayNameOverride('cloudsandbox:environment');
+			service.setDisplayName('cloudsandbox:environment', '');
+			const restored = service.getDisplayNameOverride('cloudsandbox:environment');
+			registration.dispose();
+			assert.deepStrictEqual({
+				renamed, restored, removed: service.getDisplayNameOverride('cloudsandbox:environment'),
+				machineKeys: storageService.keys(StorageScope.APPLICATION, StorageTarget.MACHINE), createdClients: createdClients.length,
+			}, { renamed: 'Profile Label', restored: undefined, removed: undefined, machineKeys: [], createdClients: 0 });
+		});
+
 		test('persists normalized overrides only in this client without changing connection settings', () => {
 			const addresses = ['ws://host:8080', 'wss://host:8080', 'ssh:my-host', 'me@host:22', 'tunnel:my-tunnel', 'wsl:Ubuntu', 'devcontainer:repo'];
 			for (const address of addresses) {
@@ -1744,12 +2384,34 @@ suite('RemoteAgentHostService', () => {
 			return registeredFormatters.find(f => f.scheme === AGENT_HOST_SCHEME && f.authority === authority);
 		}
 
+		async function waitForFormatter(address: string, predicate: (formatter: ResourceLabelFormatter | undefined) => boolean): Promise<ResourceLabelFormatter> {
+			while (!predicate(formatterFor(address))) {
+				await Event.toPromise(service.onDidChangeConnections);
+			}
+			return formatterFor(address)!;
+		}
+
 		test('registers formatter when an entry is added', async () => {
 			configService.setEntries([{ name: 'Host 1', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://host1:8080' } }]);
 
 			const formatter = formatterFor('host1:8080');
 			assert.ok(formatter, 'formatter is registered');
 			assert.strictEqual(formatter.formatting.workspaceSuffix, 'Host 1');
+		});
+
+		test('updates formatter with native Windows path formatting after connecting', async () => {
+			configService.setEntries([{ name: 'Host 1', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://host1:8080' } }]);
+			await waitForCreatedClients(1);
+			createdClients[0].operatingSystem = 'win32';
+			createdClients[0].connectDeferred.complete();
+
+			const formatter = await waitForFormatter('host1:8080', candidate => candidate?.formatting.separator === '\\');
+			assert.deepStrictEqual(formatter.formatting, {
+				label: '${path}',
+				separator: '\\',
+				normalizeDriveLetter: true,
+				workspaceSuffix: 'Host 1',
+			});
 		});
 
 		test('refreshes formatter when an entry name changes', async () => {

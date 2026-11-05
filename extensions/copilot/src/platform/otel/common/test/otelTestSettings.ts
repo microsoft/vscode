@@ -9,13 +9,14 @@ import { IOTelSettingsReader, OTEL_SETTING_DEFAULTS } from '../otelConfigResolut
 export class TestOTelSettings implements IOTelSettingsReader {
 	user: Record<string, unknown> = {};
 	policy: Record<string, unknown> = {};
+	policySlotDefaults: Record<string, unknown> = {};
 	private readonly _defaults: Record<string, unknown> = OTEL_SETTING_DEFAULTS;
 
 	get<T>(key: string): T | undefined {
-		return (this.policy[key] ?? this.user[key] ?? this._defaults[key]) as T | undefined;
+		return (this.policy[key] ?? this.user[key] ?? this.policySlotDefaults[key] ?? this._defaults[key]) as T | undefined;
 	}
 
 	inspect<T>(key: string): { defaultValue?: T } {
-		return { defaultValue: (this.policy[key] ?? this._defaults[key]) as T | undefined };
+		return { defaultValue: (this.policy[key] ?? this.policySlotDefaults[key] ?? this._defaults[key]) as T | undefined };
 	}
 }

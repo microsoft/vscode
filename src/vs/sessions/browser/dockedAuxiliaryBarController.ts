@@ -27,10 +27,10 @@ export interface IDockedAuxiliaryBarHost {
 }
 
 /**
- * Owns the single-pane "docked detail panel" behaviour: reparenting the auxiliary
+ * Owns the desktop "docked detail panel" behaviour: reparenting the auxiliary
  * bar into the editor part as an absolutely-positioned overlay on the right (below
  * the editor tab strip), sizing it, insetting the editor content, and the draggable
- * resize sash. Created by the workbench only in single-pane mode; the standard
+ * resize sash. Created by the workbench only in desktop mode; the standard
  * layout never constructs it.
  */
 export class DockedAuxiliaryBarController extends Disposable {

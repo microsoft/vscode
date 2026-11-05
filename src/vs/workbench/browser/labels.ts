@@ -77,6 +77,12 @@ export interface IResourceLabelOptions extends IIconLabelValueOptions {
 	 * Uses the provided icon instead of deriving a resource icon.
 	 */
 	readonly icon?: ThemeIcon | URI;
+
+	/**
+	 * Leaves the label without a hover of its own, for hosts that show their
+	 * own hover for the resource. Nested managed hovers would otherwise compete.
+	 */
+	readonly hideHover?: boolean;
 }
 
 export interface IFileLabelOptions extends IResourceLabelOptions {
@@ -724,6 +730,10 @@ class ResourceLabelWidget extends IconLabel {
 			iconLabelOptions.suffix = this.label.range.startLineNumber !== this.label.range.endLineNumber ?
 				`:${this.label.range.startLineNumber}-${this.label.range.endLineNumber}` :
 				`:${this.label.range.startLineNumber}`;
+		}
+
+		if (this.options?.hideHover) {
+			iconLabelOptions.title = undefined;
 		}
 
 		this.setLabel(this.label.name ?? '', this.label.description, iconLabelOptions);

@@ -38,6 +38,8 @@ import { IChatModel } from '../../../../contrib/chat/common/model/chatModel.js';
 import { IAgentSessionsService } from '../../../../contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IAgentSession, IAgentSessionsModel } from '../../../../contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
+// eslint-disable-next-line local/code-import-patterns
+import { stubSessionHosts } from '../../../../../sessions/services/sessions/test/browser/sessionHostTestUtils.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 
 // The blocked-sessions list reuses the shared session-row styles.
@@ -122,6 +124,9 @@ function createBlockedSession(options: IBlockedSessionOptions, approvals?: Map<s
 	const sessionResource = URI.parse(`vscode-session://session/${Math.random().toString(36).slice(2)}`);
 	const mainChat = new class extends mock<IChat>() {
 		override readonly resource = sessionResource.with({ path: `${sessionResource.path}/chat/main` });
+		override readonly updatedAt: IObservable<Date> = constObservable(updatedAt);
+		override readonly status: IObservable<SessionStatus> = constObservable(options.status);
+		override readonly isRead: IObservable<boolean> = constObservable(true);
 		override readonly changes: IObservable<readonly ISessionFileChange[]> = constObservable<readonly ISessionFileChange[]>([]);
 		override readonly changesets: IObservable<readonly ISessionChangeset[]> = constObservable([]);
 	}();
@@ -277,6 +282,7 @@ function renderBlockedList(ctx: ComponentFixtureContext, sessions: readonly ISes
 			}());
 		},
 	});
+	stubSessionHosts(instantiationService, disposableStore);
 
 	// Render terminal-approval labels as real (monospace) code blocks — otherwise
 	// the markdown renderer emits empty code-block spans and the command is blank.

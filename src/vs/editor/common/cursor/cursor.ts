@@ -389,6 +389,10 @@ export class CursorsController extends Disposable {
 		if (opResult.shouldPushStackElementAfter) {
 			this._model.pushStackElement();
 		}
+
+		if (result && opResult.followUp) {
+			this._executeEditOperation(opResult.followUp(this.getSelections()), editReason);
+		}
 	}
 
 	private _interpretCommandResult(cursorState: Selection[] | null): void {
@@ -602,11 +606,11 @@ export class CursorsController extends Disposable {
 		}, eventsCollector, source);
 	}
 
-	public paste(eventsCollector: ViewModelEventsCollector, text: string, pasteOnNewLine: boolean, multicursorText?: string[] | null | undefined, source?: string | null | undefined): void {
+	public paste(eventsCollector: ViewModelEventsCollector, text: string, pasteOnNewLine: boolean, multicursorText?: string[] | null | undefined, source?: string | null | undefined, isBlock: boolean = false): void {
 		const reason = EditSources.cursor({ kind: 'paste', detailedSource: source });
 
 		this._executeEdit(() => {
-			this._executeEditOperation(TypeOperations.paste(this.context.cursorConfig, this._model, this.getSelections(), text, pasteOnNewLine, multicursorText || []), reason);
+			this._executeEditOperation(TypeOperations.paste(this.context.cursorConfig, this._model, this.getSelections(), text, pasteOnNewLine, multicursorText || [], isBlock), reason);
 		}, eventsCollector, source, CursorChangeReason.Paste);
 	}
 

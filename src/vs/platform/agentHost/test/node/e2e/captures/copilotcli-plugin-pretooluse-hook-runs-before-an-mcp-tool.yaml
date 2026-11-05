@@ -6,6 +6,22 @@ exchanges:
       system: ${system}
       messages:
         - role: user
+          content: Reply exactly "MCP_READY". Do not call tools.
+    response:
+      content: MCP_READY
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "MCP_READY". Do not call tools.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: text
+              text: MCP_READY
+        - role: user
           content: Call customization_probe exactly once, then reply with only its exact result.
     response:
       content:
@@ -18,6 +34,13 @@ exchanges:
       model: claude-sonnet-5
       system: ${system}
       messages:
+        - role: user
+          content: Reply exactly "MCP_READY". Do not call tools.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: text
+              text: MCP_READY
         - role: user
           content: Call customization_probe exactly once, then reply with only its exact result.
         - role: assistant

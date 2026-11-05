@@ -11,6 +11,7 @@ import { l10n, workspace, window, Uri, ProgressLocation, commands } from 'vscode
 import { RepositoryCache, RepositoryCacheInfo } from './repositoryCache';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { Model } from './model';
+import { getSafeNotificationMessage } from './notification';
 
 type ApiPostCloneAction = 'none';
 enum PostCloneAction { Open, OpenNewWindow, AddToWorkspace, None }
@@ -91,7 +92,10 @@ export class CloneManager {
 		try {
 			const opts = {
 				location: ProgressLocation.Notification,
-				title: l10n.t('Cloning git repository "{0}"...', url),
+				title: getSafeNotificationMessage(
+					l10n.t('Cloning git repository "{0}"...', url),
+					l10n.t('Cloning git repository...'),
+				),
 				cancellable: true
 			};
 

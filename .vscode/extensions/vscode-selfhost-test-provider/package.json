@@ -74,7 +74,7 @@
   "scripts": {
     "compile": "gulp compile-extension:vscode-selfhost-test-provider",
     "watch": "gulp watch-extension:vscode-selfhost-test-provider",
-    "test": "npx mocha --ui tdd 'out/*.test.js'"
+    "test": "pnpm exec mocha --ui tdd 'out/*.test.js'"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.6",

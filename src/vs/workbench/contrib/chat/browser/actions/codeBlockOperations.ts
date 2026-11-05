@@ -36,8 +36,10 @@ import { CellKind, ICellEditOperation, NOTEBOOK_EDITOR_ID } from '../../../noteb
 import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { ICodeMapperCodeBlock, ICodeMapperRequest, ICodeMapperResponse, ICodeMapperService } from '../../common/editing/chatCodeMapperService.js';
 import { ChatUserAction, IChatService } from '../../common/chatService/chatService.js';
-import { isAgentHostSessionResource } from '../../common/chatSessionsService.js';
-import { chatSessionResourceToId } from '../../common/model/chatUri.js';
+import { getAgentHostProviderForTelemetry, IChatSessionsService, isAgentHostSessionResource } from '../../common/chatSessionsService.js';
+import { getChatSessionType } from '../../common/model/chatUri.js';
+import { getChatSessionTelemetryIds } from '../../common/chatService/chatServiceTelemetry.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IChatRequestViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { ICodeBlockActionContext } from '../widget/chatContentParts/codeBlockPart.js';
 
@@ -51,6 +53,8 @@ export class InsertCodeBlockOperation {
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IAiEditTelemetryService private readonly aiEditTelemetryService: IAiEditTelemetryService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@IAgentHostConnectionsService private readonly agentHostConnectionsService: IAgentHostConnectionsService,
 	) {
 	}
 
@@ -94,8 +98,9 @@ export class InsertCodeBlockOperation {
 				applyCodeBlockSuggestionId: undefined,
 				source: undefined,
 				sourceRequestId: requestId,
-				chatSessionId: chatSessionResourceToId(context.element.sessionResource),
+				...getChatSessionTelemetryIds(context.element.sessionResource, this.agentHostConnectionsService),
 				isAgentHostSession: isAgentHostSessionResource(context.element.sessionResource),
+				provider: getAgentHostProviderForTelemetry(getChatSessionType(context.element.sessionResource), this.chatSessionsService),
 			});
 		}
 	}

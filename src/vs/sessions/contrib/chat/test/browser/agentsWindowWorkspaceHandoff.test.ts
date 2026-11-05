@@ -34,6 +34,7 @@ import { InMemoryStorageService, IStorageService } from '../../../../../platform
 import { IChatDraft, reviveChatDraft, serializeChatDraft } from '../../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
 import { toFileVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { writeNewChatDraftState } from '../../common/newChatDraftState.js';
+import { ITestSessionsService, stubFocusedSessionHostFromSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Agents Window workspace handoff', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -66,7 +67,7 @@ suite('Agents Window workspace handoff', () => {
 		let input: IChatDraft = { inputText: '', attachments: [] };
 		let inputReady = true;
 		let draftReady = Promise.resolve();
-		const sessionsService = upcastPartial<ISessionsService>({
+		const sessionsService = upcastPartial<ITestSessionsService>({
 			activeSession,
 			initialRestoreComplete,
 			navigationRequest,
@@ -81,6 +82,7 @@ suite('Agents Window workspace handoff', () => {
 			},
 		});
 		instantiationService.stub(ISessionsService, sessionsService);
+		stubFocusedSessionHostFromSessionsService(instantiationService);
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
 			onWillSendRequest: onWillSend.event,
 			resolveWorkspace: folder => {
@@ -210,8 +212,41 @@ suite('Agents Window workspace handoff', () => {
 					state: harness.states.at(-1), openings: harness.openingOptions, selections: harness.selections, drafts: harness.drafts,
 				}, { state: 'preservedSession', openings: [], selections: [], drafts: [] });
 			});
+
+			for (const transferDraft of [false, true]) {
+				test(`explicitly reveals the ${restored ? 'hidden restored' : 'mounted'} composer without replacing its ${content.inputText ? 'text' : 'attachments'} (incoming draft: ${transferDraft})`, async () => {
+					const harness = createHarness();
+					if (restored) {
+						harness.inputReady = false;
+						writeNewChatDraftState(harness.storage, content);
+					} else {
+						harness.edit(content);
+					}
+					await harness.handoff.selectWorkspace({
+						folderUri, preferDevContainer: false, isDefault: false, revealNewSession: true,
+						draft: transferDraft ? serializeChatDraft({ inputText: 'Incoming', attachments: [] }) : undefined,
+					}, state => harness.states.push(state));
+					assert.deepStrictEqual({
+						state: harness.states.at(-1), openings: harness.openingOptions, selections: harness.selections, drafts: harness.drafts,
+					}, { state: 'preservedSession', openings: [true], selections: [], drafts: [] });
+				});
+			}
 		}
 	}
+
+	test('explicit new-session reveal opens a composer even with an inferred workspace default', async () => {
+		const harness = createHarness();
+		harness.initialRestoreComplete.set(false, undefined);
+		await harness.handoff.selectWorkspace({
+			folderUri, preferDevContainer: false, isDefault: true, revealNewSession: true,
+		}, state => harness.states.push(state));
+		assert.deepStrictEqual({
+			state: harness.states.at(-1), openings: harness.openingOptions, selections: harness.selections,
+		}, {
+			state: 'applied', openings: [true],
+			selections: [{ folder: folderUri, options: { providerId: 'local', preferDevContainer: false, selectionOrigin: WorkspaceSelectionOrigin.WindowContext, isDefault: true } }],
+		});
+	});
 
 	test('applies a draft after setup, provider and view readiness without sending', async () => {
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {

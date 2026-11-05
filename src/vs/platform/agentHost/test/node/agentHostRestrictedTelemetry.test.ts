@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as zlib from 'zlib';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ICommonProperties } from '../../../telemetry/common/telemetry.js';
-import { AgentHostRestrictedTelemetrySender, type IAgentHostInternalTelemetryContext, type IAgentHostInternalTelemetrySink, type TelemetryMeasurements, type TelemetryProps } from '../../node/agentHostRestrictedTelemetry.js';
+import { AgentHostRestrictedTelemetrySender, type IAgentHostInternalTelemetryContext, type IAgentHostInternalTelemetrySink, multiplexProperties, type TelemetryMeasurements, type TelemetryProps } from '../../node/agentHostRestrictedTelemetry.js';
 
 /** The enhanced/restricted iKey (`copilot_v0_restricted_copilot_event`). */
 const GH_ENHANCED_IKEY = '3fdd7f28-937a-48c8-9a21-ba337db23bd1';
@@ -46,6 +47,35 @@ class TestInternalSink implements IAgentHostInternalTelemetrySink {
 		this.events.push({ eventName, properties, measurements });
 	}
 }
+
+suite('AgentHost restricted telemetry chunking', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const key of ['messageText', 'prompt']) {
+		for (const length of [0, 100, 8192, 8193, 20000]) {
+			test(`always compresses ${key} of length ${length}`, async () => {
+				const value = 'x'.repeat(length);
+				const properties = await multiplexProperties({ [key]: value });
+				assert.deepStrictEqual(properties, {
+					[key]: value.slice(0, 8192),
+					[`${key}Chunk`]: zlib.gzipSync(Buffer.from(value, 'utf8')).toString('base64'),
+				});
+			});
+		}
+	}
+
+	test('preserves Unicode across the raw prefix boundary', async () => {
+		const messageText = 'x'.repeat(8191) + '\u{1F600}\u4F60\u597D';
+		const properties = await multiplexProperties({ messageText });
+		assert.deepStrictEqual({
+			prefix: properties.messageText,
+			reconstructed: zlib.gunzipSync(Buffer.from(properties.messageTextChunk!, 'base64')).toString('utf8'),
+		}, {
+			prefix: messageText.slice(0, 8192),
+			reconstructed: messageText,
+		});
+	});
+});
 
 suite('AgentHostRestrictedTelemetrySender', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

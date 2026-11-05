@@ -7,6 +7,7 @@ import { Event } from '../../../base/common/event.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import type { IObservable } from '../../../base/common/observable.js';
 import { connectionTokenQueryName } from '../../../base/common/network.js';
+import type { OperatingSystem } from '../../../base/common/platform.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ConfigurationTarget, type IConfigurationService } from '../../configuration/common/configuration.js';
 import { StorageScope, StorageTarget, type IStorageService } from '../../storage/common/storage.js';
@@ -21,6 +22,7 @@ import { normalizeRemoteAgentHostAddress } from './agentHostUri.js';
 import { getGlobalConfigurationValue } from './agentHostConfigurationSync.js';
 import type { SSHAgentHostLifecycle } from './sshRemoteAgentHost.js';
 import type { AgentHostServerType } from './agentHostEndpointRegistry.js';
+import type { IDevContainerRepository } from './devContainerSamples.js';
 import type { ConnectionDiagnosticObserver, IConnectionDiagnosticEvent, IRemoteConnectionDiagnosticEvent } from './connectionDiagnostics.js';
 
 /**
@@ -130,6 +132,13 @@ export namespace RemoteAgentHostConnectionStatus {
 /** Configuration key for the list of WebSocket remote agent host addresses. */
 export const RemoteAgentHostsSettingId = 'chat.remoteAgentHosts';
 
+/**
+ * Configuration key for the WebSocket remote agent hosts an editor window connects to
+ * while its workspace is open. Editor windows use it instead of {@link RemoteAgentHostsSettingId},
+ * which belongs to the Agents window. Only honored in trusted workspaces.
+ */
+export const WorkspaceRemoteAgentHostsSettingId = 'chat.workspaceRemoteAgentHosts';
+
 /** Configuration key to enable remote agent host connections. */
 export const RemoteAgentHostsEnabledSettingId = 'chat.remoteAgentHostsEnabled';
 
@@ -218,6 +227,8 @@ export interface IRemoteAgentHostWSLConnection {
  * on demand with freshly-minted, short-lived credentials.
  */
 export interface IRemoteAgentHostCloudSandboxConnection {
+	/** User-local environments use the same MC transport but not sandbox-specific providers. */
+	readonly environmentKind?: 'user-local';
 	readonly type: RemoteAgentHostEntryType.CloudSandbox;
 	/** Synthesized display address: `cloudsandbox:<environmentId>`. */
 	readonly address: string;
@@ -231,15 +242,13 @@ export interface IRemoteAgentHostCloudSandboxConnection {
  * A runtime-only connection to an agent host running inside a Dev Container.
  * The Dev Container integration stages its transport for its connection factory.
  */
-export interface IRemoteAgentHostDevContainerConnection {
+export type IRemoteAgentHostDevContainerConnection = {
 	readonly type: RemoteAgentHostEntryType.DevContainer;
 	/** Stable address for the container connection. */
 	readonly address: string;
-	/** Source folder on the parent host containing the Dev Container configuration. */
-	readonly hostPath: string;
 	/** VS Code SSH, tunnel, or WSL authority of the source host, absent for local containers. */
 	readonly hostAuthority?: string;
-}
+} & ({ readonly hostPath: string; readonly repository?: never } | { readonly repository: IDevContainerRepository; readonly hostPath?: never });
 
 export type RemoteAgentHostConnection = IRemoteAgentHostWebSocketConnection | IRemoteAgentHostSSHConnection | IRemoteAgentHostWSLConnection | IRemoteAgentHostTunnelConnection | IRemoteAgentHostCloudSandboxConnection | IRemoteAgentHostDevContainerConnection;
 
@@ -665,6 +674,23 @@ export function getEntryAddress(entry: IRemoteAgentHostEntry): string {
 	return getEntryTypeConfig(entry.connection.type).address(entry.connection);
 }
 
+/** Parses a raw WebSocket remote agent host setting value, skipping malformed and legacy SSH entries. */
+export function parseWebSocketRemoteAgentHostEntries(raw: unknown): IRemoteAgentHostEntry[] {
+	if (!Array.isArray(raw)) {
+		return [];
+	}
+	return raw
+		.filter(isRawRemoteAgentHostEntry)
+		.filter(entry => !isLegacySshRawEntry(entry))
+		.map(entry => WEBSOCKET_ENTRY_TYPE_CONFIG.fromRaw(entry));
+}
+
+/** Normalized addresses of the hosts configured in {@link WorkspaceRemoteAgentHostsSettingId}. */
+export function getWorkspaceRemoteAgentHostAddresses(configurationService: IConfigurationService): ReadonlySet<string> {
+	const entries = parseWebSocketRemoteAgentHostEntries(configurationService.getValue(WorkspaceRemoteAgentHostsSettingId));
+	return new Set(entries.map(entry => normalizeRemoteAgentHostAddress(getEntryAddress(entry))));
+}
+
 export function remoteAgentHostLogOutputChannelId(address: string): string {
 	return `agentHost.otlp.${address}`;
 }
@@ -717,6 +743,9 @@ export interface IRemoteAgentHostService {
 
 	/** Sets a machine-local display-name override. An empty or undefined name restores the default. */
 	setDisplayName(address: string, name: string | undefined): void;
+
+	/** Delegates local labels to an inventory owner with its own account/profile persistence. */
+	registerDisplayName(address: string, name: IObservable<string | undefined>, setName: (name: string | undefined) => void): IDisposable;
 
 	/**
 	 * Known remote addresses with metadata. This is a status catalog, not a
@@ -821,6 +850,10 @@ export interface IRemoteAgentHostConnectionInfo {
 	readonly clientId?: string;
 	readonly defaultDirectory?: string;
 	readonly status: RemoteAgentHostConnectionStatus;
+	/** Last user-visible failure; automatic retries retain it until they fail or succeed. */
+	readonly lastConnectionError?: string;
+	/** Last operating system successfully reported by this host. */
+	readonly operatingSystem?: OperatingSystem;
 }
 
 export interface IRemoteAgentHostPendingConnection {
@@ -842,6 +875,9 @@ export class NullRemoteAgentHostService implements IRemoteAgentHostService {
 	readonly onDidChangeConfiguredEntries = Event.None;
 	getDisplayNameOverride(): string | undefined { return undefined; }
 	setDisplayName(): void {
+		throw new Error('Remote agent host display names are not supported in this environment.');
+	}
+	registerDisplayName(): IDisposable {
 		throw new Error('Remote agent host display names are not supported in this environment.');
 	}
 	registerConnectionFactory(): IDisposable {

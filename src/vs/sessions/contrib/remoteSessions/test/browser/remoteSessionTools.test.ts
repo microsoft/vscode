@@ -6,16 +6,65 @@
 import assert from 'assert';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { isEqual } from '../../../../../base/common/resources.js';
+import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { buildOpenSessionLinkUri } from '../../../../../platform/agentHost/common/openSessionLink.js';
+import { IAgentConnection, IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IToolInvocation } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { CreateRemoteSessionTool, ListAgentHostsTool } from '../../browser/remoteSessionTools.js';
+import { resolveRemoteSessionReference } from '../../browser/remoteSessionSource.js';
 import { ICreatedRemoteSession, ICreateRemoteSessionOptions, IRemoteSessionHost, IRemoteSessionService, RemoteSessionToolsEnabledSettingId } from '../../common/remoteSessions.js';
 
 suite('RemoteSessionTools', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('opaque scoped references require exact advertised identity instead of a reconstructed neighbor', async () => {
+		const backend = URI.parse('session-store://tenant/root?revision=2');
+		const frontend = backend.with({ scheme: 'remote-other-host-claude' });
+		const connections = new class extends mock<IAgentHostConnectionsService>() {
+			override findSessionResource(resource: URI, authority?: string): URI | undefined {
+				return authority === 'other-host' && isEqual(resource, backend) ? frontend : undefined;
+			}
+			override resolveSessionResource() { return undefined; }
+			override resolveSessionResourceIdentity(resource: URI) {
+				return isEqual(resource, frontend) ? { backendSession: backend, backendSessionIsAdvertised: true as const, connectionAuthority: 'other-host' }
+					: { backendSession: resource.with({ scheme: 'claude' }), connectionAuthority: 'other-host' };
+			}
+		}();
+		const resolved = await resolveRemoteSessionReference(buildOpenSessionLinkUri(backend, 'peer', undefined, 'other-host'), connections);
+		assert.deepStrictEqual([resolved.resource.toString(), resolved.identity.backendSession.toString()], [frontend.with({ fragment: 'peer' }).toString(), backend.toString()]);
+		await assert.rejects(resolveRemoteSessionReference(frontend.with({ query: 'revision=3' }).toString(), connections), /host-qualified/);
+	});
+
+	for (const [name, defaultChat, peerChat, defaultId] of [
+		['shaped', 'ahp-chat://default/c2Vzc2lvbi0x', 'ahp-chat://peer-1/c2Vzc2lvbi0x', 'ahp-chat://default/c2Vzc2lvbi0x'],
+		['opaque', 'ahp-chat:/11111111-1111-4111-8111-111111111111', 'ahp-chat:/22222222-2222-4222-8222-222222222222', '11111111-1111-4111-8111-111111111111'],
+	]) {
+		test(`a reference to the ${name} default chat of an unsubscribed listed session resolves to the session`, async () => {
+			const backend = URI.parse('copilotcli:/s1');
+			const frontend = URI.parse('remote-h-copilotcli:/s1');
+			const connections = new class extends mock<IAgentHostConnectionsService>() {
+				override findSessionResource() { return frontend; }
+				override resolveSessionResourceIdentity() { return { backendSession: backend, backendSessionIsAdvertised: true as const, connectionAuthority: 'h' }; }
+				override resolveSessionResource() {
+					return upcastPartial<IAgentHostSessionResolution>({
+						backendSession: backend,
+						connection: upcastPartial<IAgentConnection>({
+							getSubscriptionUnmanaged: () => undefined,
+							listSessions: async () => [upcastPartial<IAgentSessionMetadata>({ session: backend, chats: [{ chat: URI.parse(defaultChat), kind: 'default' }, { chat: URI.parse(peerChat), kind: 'peer' }] })],
+						}),
+					});
+				}
+			}();
+			const resolved = await Promise.all([defaultId, defaultChat, peerChat].map(chat => resolveRemoteSessionReference(buildOpenSessionLinkUri(backend, chat, undefined, 'h'), connections)));
+			assert.deepStrictEqual(resolved.map(r => r.resource.toString()), [frontend.toString(), frontend.toString(), frontend.with({ fragment: peerChat }).toString()]);
+		});
+	}
+
 	const source = URI.parse('agent-host-copilot:/source#peer');
 	const progress = { report: () => { } };
 	const result: ICreatedRemoteSession = {

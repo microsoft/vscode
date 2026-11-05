@@ -5,14 +5,66 @@
 
 import { IObservable } from '../../../../../base/common/observable.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { stableStringify } from '../../../../../base/common/objects.js';
 import { localize } from '../../../../../nls.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
+import type { AutomationTriggerDefinition } from '../../../../../platform/github/common/missionControl/automations.js';
 import { ChatPermissionLevel } from '../constants.js';
-import { IAutomationDescriptor, IAutomationRun, IAutomationSchedule, IAutomationSessionTemplate, AutomationTarget } from './automation.js';
+import { IAutomationCloudTrigger, IAutomationDescriptor, IAutomationRun, IAutomationSchedule, IAutomationSessionTemplate, AutomationTarget } from './automation.js';
 
 export const IAutomationService = createDecorator<IAutomationService>('automationService');
 export const ConfigureAutomationToolReferenceName = 'configureAutomation';
+
+/** Provider-owned cloud configuration consumed by the Automation dialog and tools. */
+export interface IAutomationProviderConfiguration {
+	readonly sessionTypes: readonly string[];
+	readonly description: string;
+	readonly timeZone: 'UTC';
+	readonly targetChangeDisabledReason: string;
+	/** The provider's selectable tools; loaded on demand by {@link loadTools} and cached by the provider. */
+	readonly tools: IObservable<AutomationToolCatalog>;
+	/** Starts loading the tool catalog if it is not loaded or loading, retrying after a failure. */
+	loadTools(): void;
+	readonly triggers?: IObservable<AutomationTriggerCatalog>;
+	loadTriggers?(): void;
+	pickWorkspace(token: CancellationToken): Promise<URI | undefined>;
+	getWorkspaceTarget(workspace: URI | undefined): IObservable<IAutomationWorkspaceTarget>;
+}
+
+export interface IAutomationTool {
+	readonly id: string;
+	readonly label: string;
+	readonly description?: string;
+}
+
+/** A provider-defined group of tools, in the provider's order. */
+export interface IAutomationToolGroup {
+	readonly id: string;
+	readonly label: string;
+	readonly tools: readonly IAutomationTool[];
+}
+
+export type AutomationToolCatalog =
+	| { readonly kind: 'loading' }
+	| { readonly kind: 'ready'; readonly groups: readonly IAutomationToolGroup[] }
+	| { readonly kind: 'error'; readonly message: string };
+
+export type AutomationTriggerCatalog =
+	| { readonly kind: 'loading' }
+	| { readonly kind: 'ready'; readonly definitions: readonly AutomationTriggerDefinition[] }
+	| { readonly kind: 'error'; readonly message: string };
+
+/** A checked canonical workspace, or an explanation while checking or unavailable. */
+export interface IAutomationWorkspaceTarget {
+	readonly workspace?: URI;
+	readonly repositoryLabel?: string;
+	readonly disabledReason?: string;
+	readonly pending?: boolean;
+	readonly isRepository?: boolean;
+	readonly isPrivateRepository?: boolean;
+	readonly allowReadAccessTriggers?: boolean;
+}
 
 /** Catalogue completeness; only `ready` makes an empty snapshot authoritative. */
 export type AutomationCatalogueState = 'loading' | 'ready' | 'unavailable' | 'error';
@@ -38,6 +90,12 @@ export type AutomationMutationGuard = () => void;
 
 /** The selected Automation authority cannot currently accept the operation. */
 export class AutomationUnavailableError extends Error { }
+
+/** Repository ownership is unavailable for the selected Automation target. */
+export class AutomationRepositoryOwnershipUnavailableError extends Error { }
+
+/** The provider may have accepted a mutation; reconcile its outcome before retrying. */
+export class AutomationMutationUncertainError extends Error { }
 
 /** Rejects ownership changes because AHP has no history-preserving cross-host transfer operation. */
 export function assertAutomationTargetAuthority(current: IAutomationDescriptor, target: AutomationTarget | undefined): void {
@@ -67,9 +125,11 @@ export function assertAutomationSessionTemplateAuthority(current: IAutomationDes
  * `nextRunAt`.
  */
 export interface ICreateAutomationOptions {
+	readonly ownership?: 'user' | 'repository';
 	readonly name: string;
 	readonly prompt: string;
 	readonly schedule: IAutomationSchedule;
+	readonly cloudTrigger?: IAutomationCloudTrigger;
 	readonly target: AutomationTarget;
 	readonly sessionTemplate?: IAutomationSessionTemplate;
 	/** @deprecated Compatibility input translated into {@link sessionTemplate}. */
@@ -79,6 +139,25 @@ export interface ICreateAutomationOptions {
 	/** @deprecated Compatibility input translated into {@link sessionTemplate}. */
 	readonly permissionLevel?: string;
 	readonly enabled?: boolean;
+	/**
+	 * Ids of the {@link IAutomationCustomizationChoice | customizations} to sync.
+	 * Absent means the provider's default: every customization enabled for the target.
+	 */
+	readonly customizationIds?: readonly string[];
+}
+
+/**
+ * A customization an automation can sync, as offered by
+ * {@link IAutomationStore.getCustomizationChoices}.
+ */
+export interface IAutomationCustomizationChoice {
+	readonly id: string;
+	readonly label: string;
+	readonly description?: string;
+	/** Initially selected: enabled for the target when creating, saved in the definition when editing. */
+	readonly selected: boolean;
+	/** Saved in the definition but changed locally since; saving the automation refreshes it. */
+	readonly outdated: boolean;
 }
 
 /**
@@ -89,6 +168,7 @@ export interface IUpdateAutomationOptions {
 	readonly name?: string;
 	readonly prompt?: string;
 	readonly schedule?: IAutomationSchedule;
+	readonly cloudTrigger?: IAutomationCloudTrigger;
 	readonly target?: AutomationTarget;
 	readonly sessionTemplate?: IAutomationSessionTemplate | null;
 	/** @deprecated Compatibility input translated into {@link sessionTemplate}. */
@@ -98,6 +178,11 @@ export interface IUpdateAutomationOptions {
 	/** @deprecated Compatibility input translated into {@link sessionTemplate}. */
 	readonly permissionLevel?: string | null;
 	readonly enabled?: boolean;
+	/**
+	 * Ids of the customizations to sync. Selected entries that are outdated are refreshed.
+	 * Absent keeps the saved customizations unless the target changes.
+	 */
+	readonly customizationIds?: readonly string[];
 }
 
 /**
@@ -134,9 +219,12 @@ export function serializeAutomationEditableState(automation: IAutomationDescript
 		prompt: automation.prompt,
 		schedule: {
 			interval: automation.schedule.interval,
+			cronExpression: automation.schedule.cronExpression,
+			cronTimeZone: automation.schedule.cronTimeZone,
 			scheduleHour: automation.schedule.scheduleHour,
 			scheduleMinute: automation.schedule.scheduleMinute,
 			scheduleDay: automation.schedule.scheduleDay,
+			timeZone: automation.schedule.timeZone,
 		},
 		target,
 		sessionTemplate: automation.sessionTemplate,
@@ -144,11 +232,14 @@ export function serializeAutomationEditableState(automation: IAutomationDescript
 		mode: automation.mode,
 		permissionLevel: automation.permissionLevel ?? ChatPermissionLevel.Default,
 		enabled: automation.enabled,
+		cloudTrigger: automation.cloudTrigger,
 	});
 }
 
 /** Result of requesting a manual run from its host, never a claim authorizing client-side execution. */
 export type IAutomationRunRequestResult =
+	/** The provider accepted dispatch without returning a correlated run. */
+	| { readonly kind: 'accepted' }
 	/** An existing run already occupies this Automation's active-run slot. */
 	| { readonly kind: 'alreadyRunning'; readonly run: IAutomationRun }
 	| {
@@ -161,11 +252,27 @@ export type IAutomationRunRequestResult =
 		cancel?(): void;
 	};
 
+export interface IAutomationRefreshOptions {
+	/** Reload catalogue data without invalidating workspace eligibility used by open drafts. */
+	readonly background?: boolean;
+}
+
+export interface IDeleteAutomationOptions {
+	readonly deleteHistory: boolean;
+}
+
+export type AutomationHistoryState = 'retained' | 'deleting' | 'interrupted';
+
 /**
  * Provider-neutral catalogue and command contract shared by individual providers and the aggregate service.
  * Reads projected state and requests host mutations; it does not grant browser persistence or execution authority.
  */
 export interface IAutomationStore {
+	refresh?(options?: IAutomationRefreshOptions): Promise<void>;
+	/** Full catalogue refresh activity, including its history read but excluding independent history polling. */
+	readonly isRefreshing?: IObservable<boolean>;
+	/** History refresh completeness, independent of definition mutation readiness. */
+	readonly historyState?: IObservable<AutomationCatalogueState>;
 	/** Completeness of the Automation catalogue, independent of individual providers' operation availability. */
 	readonly catalogueState: IObservable<AutomationCatalogueState>;
 
@@ -189,11 +296,28 @@ export interface IAutomationStore {
 	 * Runtime timestamps may change without conflicting, so reviewed edits preserve scheduler progress.
 	 */
 	updateAutomationIfUnchanged(id: string, patch: IUpdateAutomationOptions, expected: IAutomationDescriptor, mutationGuard?: AutomationMutationGuard): Promise<IGuardedAutomationUpdateResult>;
-	/** Deletes an automation and its retained run history; missing IDs are ignored. */
-	deleteAutomation(id: string, mutationGuard?: AutomationMutationGuard): Promise<void>;
+	/** Deletes an automation and, by default, its retained history. Explicit history options require provider support; missing IDs are ignored. */
+	deleteAutomation(id: string, mutationGuard?: AutomationMutationGuard, options?: IDeleteAutomationOptions): Promise<void>;
+	/** Whether this provider supports an explicit keep/delete history policy. */
+	supportsDeleteHistoryChoice?(id: string): boolean;
+	/** Includes removed definitions whose run history is retained. */
+	getAutomationHistoryName?(id: string): string | undefined;
+	/** State of a removed definition's retained history. */
+	getAutomationHistoryState?(id: string): AutomationHistoryState | undefined;
+	/** Permanently deletes retained history or retries an interrupted deletion. */
+	deleteAutomationHistory?(id: string): Promise<void>;
+	canDeleteAutomationHistory?(id: string): boolean;
+	/**
+	 * Lists the customizations an automation targeting `target` can sync, including
+	 * those saved in automation `existingId`. Resolves `undefined` when the provider
+	 * does not support choosing customizations for that target.
+	 */
+	getCustomizationChoices?(target: AutomationTarget, existingId: string | undefined, token: CancellationToken): Promise<readonly IAutomationCustomizationChoice[] | undefined>;
 
 	/** Requests a manual run, forwarding supported cancellation after admission even while session creation is pending. */
 	runAutomation(automationId: string, token?: CancellationToken): Promise<IAutomationRunRequestResult>;
+	stopRun?(run: IAutomationRun): Promise<void>;
+	canStopRun?(run: IAutomationRun): boolean;
 
 	/** Most recent `pending`/`running` run for an automation, or `undefined`. */
 	getActiveRunFor(automationId: string): IAutomationRun | undefined;
@@ -215,6 +339,7 @@ export interface IAutomationService extends IAutomationStore {
 	readonly availableProviders: IObservable<readonly IAutomationProviderDescriptor[]>;
 	/** Whether the specified provider currently accepts new definitions. */
 	canCreateAutomation(providerId: string | undefined): boolean;
+	getProviderConfiguration?(providerId: string | undefined): IAutomationProviderConfiguration | undefined;
 }
 
 export type AutomationUnavailableReasonCode = 'disconnected' | 'initializing' | 'disabled' | 'unsupported' | 'incompatible';
@@ -227,4 +352,6 @@ export interface IAutomationProviderDescriptor {
 	readonly unavailableReasonCode?: AutomationUnavailableReasonCode;
 	/** A provider-specific explanation, absent when none applies. */
 	readonly unavailableReason?: string;
+	/** A complete provider-supplied sentence shown instead of the generic per-provider unavailability message. */
+	readonly unavailableMessage?: string;
 }

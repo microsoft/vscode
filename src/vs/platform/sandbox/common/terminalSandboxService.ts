@@ -12,6 +12,11 @@ import { TerminalCapability } from '../../terminal/common/capabilities/capabilit
 
 export const ITerminalSandboxService = createDecorator<ITerminalSandboxService>('terminalSandboxService');
 
+export function getSandboxTempDir(userHome: URI, dataFolderName: string, windowId?: number): URI {
+	const sandboxRoot = URI.joinPath(userHome, dataFolderName, 'tmp');
+	return typeof windowId === 'number' ? URI.joinPath(sandboxRoot, `tmp_vscode_${windowId}`) : sandboxRoot;
+}
+
 export interface ITerminalSandboxResolvedNetworkDomains {
 	allowedDomains: string[];
 	deniedDomains: string[];

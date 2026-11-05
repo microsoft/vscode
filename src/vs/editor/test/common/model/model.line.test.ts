@@ -198,299 +198,63 @@ suite('ModelLinesTokens', () => {
 		d.dispose();
 	}
 
-	test('single delete 1', () => {
-		testApplyEdits(
-			[{
-				text: 'hello world',
-				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
-			}],
-			[{ range: new Range(1, 1, 1, 2), text: '' }],
-			[{
-				text: 'ello world',
-				tokens: [new TestToken(0, 1), new TestToken(4, 2), new TestToken(5, 3)]
-			}]
-		);
-	});
-
-	test('single delete 2', () => {
-		testApplyEdits(
-			[{
-				text: 'helloworld',
-				tokens: [new TestToken(0, 1), new TestToken(5, 2)]
-			}],
-			[{ range: new Range(1, 3, 1, 8), text: '' }],
-			[{
-				text: 'herld',
-				tokens: [new TestToken(0, 1), new TestToken(2, 2)]
-			}]
-		);
-	});
-
-	test('single delete 3', () => {
-		testApplyEdits(
-			[{
-				text: 'hello world',
-				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
-			}],
-			[{ range: new Range(1, 1, 1, 6), text: '' }],
-			[{
-				text: ' world',
-				tokens: [new TestToken(0, 2), new TestToken(1, 3)]
-			}]
-		);
-	});
-
-	test('single delete 4', () => {
-		testApplyEdits(
-			[{
-				text: 'hello world',
-				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
-			}],
-			[{ range: new Range(1, 2, 1, 7), text: '' }],
-			[{
-				text: 'hworld',
-				tokens: [new TestToken(0, 1), new TestToken(1, 3)]
-			}]
-		);
-	});
-
-	test('single delete 5', () => {
-		testApplyEdits(
-			[{
-				text: 'hello world',
-				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
-			}],
-			[{ range: new Range(1, 1, 1, 12), text: '' }],
-			[{
-				text: '',
-				tokens: [new TestToken(0, 1)]
-			}]
-		);
-	});
-
-	test('multi delete 6', () => {
-		testApplyEdits(
-			[{
-				text: 'hello world',
-				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
-			}, {
-				text: 'hello world',
-				tokens: [new TestToken(0, 4), new TestToken(5, 5), new TestToken(6, 6)]
-			}, {
-				text: 'hello world',
-				tokens: [new TestToken(0, 7), new TestToken(5, 8), new TestToken(6, 9)]
-			}],
-			[{ range: new Range(1, 6, 3, 6), text: '' }],
-			[{
-				text: 'hello world',
-				tokens: [new TestToken(0, 1), new TestToken(5, 8), new TestToken(6, 9)]
-			}]
-		);
-	});
-
-	test('multi delete 7', () => {
-		testApplyEdits(
-			[{
-				text: 'hello world',
-				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
-			}, {
-				text: 'hello world',
-				tokens: [new TestToken(0, 4), new TestToken(5, 5), new TestToken(6, 6)]
-			}, {
-				text: 'hello world',
-				tokens: [new TestToken(0, 7), new TestToken(5, 8), new TestToken(6, 9)]
-			}],
-			[{ range: new Range(1, 12, 3, 12), text: '' }],
-			[{
-				text: 'hello world',
-				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
-			}]
-		);
-	});
-
-	test('multi delete 8', () => {
-		testApplyEdits(
-			[{
-				text: 'hello world',
-				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
-			}, {
-				text: 'hello world',
-				tokens: [new TestToken(0, 4), new TestToken(5, 5), new TestToken(6, 6)]
-			}, {
-				text: 'hello world',
-				tokens: [new TestToken(0, 7), new TestToken(5, 8), new TestToken(6, 9)]
-			}],
-			[{ range: new Range(1, 1, 3, 1), text: '' }],
-			[{
-				text: 'hello world',
-				tokens: [new TestToken(0, 7), new TestToken(5, 8), new TestToken(6, 9)]
-			}]
-		);
-	});
-
-	test('multi delete 9', () => {
-		testApplyEdits(
-			[{
-				text: 'hello world',
-				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
-			}, {
-				text: 'hello world',
-				tokens: [new TestToken(0, 4), new TestToken(5, 5), new TestToken(6, 6)]
-			}, {
-				text: 'hello world',
-				tokens: [new TestToken(0, 7), new TestToken(5, 8), new TestToken(6, 9)]
-			}],
-			[{ range: new Range(1, 12, 3, 1), text: '' }],
-			[{
-				text: 'hello worldhello world',
-				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3), new TestToken(11, 7), new TestToken(16, 8), new TestToken(17, 9)]
-			}]
-		);
-	});
-
-	test('single insert 1', () => {
-		testApplyEdits(
-			[{
-				text: 'hello world',
-				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
-			}],
-			[{ range: new Range(1, 1, 1, 1), text: 'xx' }],
-			[{
-				text: 'xxhello world',
-				tokens: [new TestToken(0, 1), new TestToken(7, 2), new TestToken(8, 3)]
-			}]
-		);
-	});
-
-	test('single insert 2', () => {
-		testApplyEdits(
-			[{
-				text: 'hello world',
-				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
-			}],
-			[{ range: new Range(1, 2, 1, 2), text: 'xx' }],
-			[{
-				text: 'hxxello world',
-				tokens: [new TestToken(0, 1), new TestToken(7, 2), new TestToken(8, 3)]
-			}]
-		);
-	});
-
-	test('single insert 3', () => {
-		testApplyEdits(
-			[{
-				text: 'hello world',
-				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
-			}],
-			[{ range: new Range(1, 6, 1, 6), text: 'xx' }],
-			[{
-				text: 'helloxx world',
-				tokens: [new TestToken(0, 1), new TestToken(7, 2), new TestToken(8, 3)]
-			}]
-		);
-	});
-
-	test('single insert 4', () => {
-		testApplyEdits(
-			[{
-				text: 'hello world',
-				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
-			}],
-			[{ range: new Range(1, 7, 1, 7), text: 'xx' }],
-			[{
-				text: 'hello xxworld',
-				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(8, 3)]
-			}]
-		);
-	});
-
-	test('single insert 5', () => {
-		testApplyEdits(
-			[{
-				text: 'hello world',
-				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
-			}],
-			[{ range: new Range(1, 12, 1, 12), text: 'xx' }],
-			[{
-				text: 'hello worldxx',
-				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
-			}]
-		);
-	});
-
-	test('multi insert 6', () => {
-		testApplyEdits(
-			[{
-				text: 'hello world',
-				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
-			}],
-			[{ range: new Range(1, 1, 1, 1), text: '\n' }],
-			[{
-				text: '',
-				tokens: [new TestToken(0, 1)]
-			}, {
-				text: 'hello world',
-				tokens: [new TestToken(0, 1)]
-			}]
-		);
-	});
-
-	test('multi insert 7', () => {
-		testApplyEdits(
-			[{
-				text: 'hello world',
-				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
-			}],
-			[{ range: new Range(1, 12, 1, 12), text: '\n' }],
-			[{
-				text: 'hello world',
-				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
-			}, {
-				text: '',
-				tokens: [new TestToken(0, 1)]
-			}]
-		);
-	});
-
-	test('multi insert 8', () => {
-		testApplyEdits(
-			[{
-				text: 'hello world',
-				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
-			}],
-			[{ range: new Range(1, 7, 1, 7), text: '\n' }],
-			[{
-				text: 'hello ',
-				tokens: [new TestToken(0, 1), new TestToken(5, 2)]
-			}, {
-				text: 'world',
-				tokens: [new TestToken(0, 1)]
-			}]
-		);
-	});
-
-	test('multi insert 9', () => {
-		testApplyEdits(
-			[{
-				text: 'hello world',
-				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
-			}, {
-				text: 'hello world',
-				tokens: [new TestToken(0, 4), new TestToken(5, 5), new TestToken(6, 6)]
-			}],
-			[{ range: new Range(1, 7, 1, 7), text: 'xx\nyy' }],
-			[{
-				text: 'hello xx',
-				tokens: [new TestToken(0, 1), new TestToken(5, 2)]
-			}, {
-				text: 'yyworld',
-				tokens: [new TestToken(0, 1)]
-			}, {
-				text: 'hello world',
-				tokens: [new TestToken(0, 4), new TestToken(5, 5), new TestToken(6, 6)]
-			}]
-		);
-	});
+	const applyEditsCases: [name: string, initial: IBufferLineState[], edits: IEdit[], expected: IBufferLineState[]][] = [
+		['single delete 1', [{ text: 'hello world', tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)] }], [{ range: new Range(1, 1, 1, 2), text: '' }], [{ text: 'ello world', tokens: [new TestToken(0, 1), new TestToken(4, 2), new TestToken(5, 3)] }]],
+		['single delete 2', [{ text: 'helloworld', tokens: [new TestToken(0, 1), new TestToken(5, 2)] }], [{ range: new Range(1, 3, 1, 8), text: '' }], [{ text: 'herld', tokens: [new TestToken(0, 1), new TestToken(2, 2)] }]],
+		['single delete 3', [{ text: 'hello world', tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)] }], [{ range: new Range(1, 1, 1, 6), text: '' }], [{ text: ' world', tokens: [new TestToken(0, 2), new TestToken(1, 3)] }]],
+		['single delete 4', [{ text: 'hello world', tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)] }], [{ range: new Range(1, 2, 1, 7), text: '' }], [{ text: 'hworld', tokens: [new TestToken(0, 1), new TestToken(1, 3)] }]],
+		['single delete 5', [{ text: 'hello world', tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)] }], [{ range: new Range(1, 1, 1, 12), text: '' }], [{ text: '', tokens: [new TestToken(0, 1)] }]],
+		['multi delete 6', [
+			{ text: 'hello world', tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)] },
+			{ text: 'hello world', tokens: [new TestToken(0, 4), new TestToken(5, 5), new TestToken(6, 6)] },
+			{ text: 'hello world', tokens: [new TestToken(0, 7), new TestToken(5, 8), new TestToken(6, 9)] }
+		], [{ range: new Range(1, 6, 3, 6), text: '' }], [{ text: 'hello world', tokens: [new TestToken(0, 1), new TestToken(5, 8), new TestToken(6, 9)] }]],
+		['multi delete 7', [
+			{ text: 'hello world', tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)] },
+			{ text: 'hello world', tokens: [new TestToken(0, 4), new TestToken(5, 5), new TestToken(6, 6)] },
+			{ text: 'hello world', tokens: [new TestToken(0, 7), new TestToken(5, 8), new TestToken(6, 9)] }
+		], [{ range: new Range(1, 12, 3, 12), text: '' }], [{ text: 'hello world', tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)] }]],
+		['multi delete 8', [
+			{ text: 'hello world', tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)] },
+			{ text: 'hello world', tokens: [new TestToken(0, 4), new TestToken(5, 5), new TestToken(6, 6)] },
+			{ text: 'hello world', tokens: [new TestToken(0, 7), new TestToken(5, 8), new TestToken(6, 9)] }
+		], [{ range: new Range(1, 1, 3, 1), text: '' }], [{ text: 'hello world', tokens: [new TestToken(0, 7), new TestToken(5, 8), new TestToken(6, 9)] }]],
+		['multi delete 9', [
+			{ text: 'hello world', tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)] },
+			{ text: 'hello world', tokens: [new TestToken(0, 4), new TestToken(5, 5), new TestToken(6, 6)] },
+			{ text: 'hello world', tokens: [new TestToken(0, 7), new TestToken(5, 8), new TestToken(6, 9)] }
+		], [{ range: new Range(1, 12, 3, 1), text: '' }], [{ text: 'hello worldhello world', tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3), new TestToken(11, 7), new TestToken(16, 8), new TestToken(17, 9)] }]],
+		['single insert 1', [{ text: 'hello world', tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)] }], [{ range: new Range(1, 1, 1, 1), text: 'xx' }], [{ text: 'xxhello world', tokens: [new TestToken(0, 1), new TestToken(7, 2), new TestToken(8, 3)] }]],
+		['single insert 2', [{ text: 'hello world', tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)] }], [{ range: new Range(1, 2, 1, 2), text: 'xx' }], [{ text: 'hxxello world', tokens: [new TestToken(0, 1), new TestToken(7, 2), new TestToken(8, 3)] }]],
+		['single insert 3', [{ text: 'hello world', tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)] }], [{ range: new Range(1, 6, 1, 6), text: 'xx' }], [{ text: 'helloxx world', tokens: [new TestToken(0, 1), new TestToken(7, 2), new TestToken(8, 3)] }]],
+		['single insert 4', [{ text: 'hello world', tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)] }], [{ range: new Range(1, 7, 1, 7), text: 'xx' }], [{ text: 'hello xxworld', tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(8, 3)] }]],
+		['single insert 5', [{ text: 'hello world', tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)] }], [{ range: new Range(1, 12, 1, 12), text: 'xx' }], [{ text: 'hello worldxx', tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)] }]],
+		['multi insert 6', [{ text: 'hello world', tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)] }], [{ range: new Range(1, 1, 1, 1), text: '\n' }], [
+			{ text: '', tokens: [new TestToken(0, 1)] },
+			{ text: 'hello world', tokens: [new TestToken(0, 1)] }
+		]],
+		['multi insert 7', [{ text: 'hello world', tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)] }], [{ range: new Range(1, 12, 1, 12), text: '\n' }], [
+			{ text: 'hello world', tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)] },
+			{ text: '', tokens: [new TestToken(0, 1)] }
+		]],
+		['multi insert 8', [{ text: 'hello world', tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)] }], [{ range: new Range(1, 7, 1, 7), text: '\n' }], [
+			{ text: 'hello ', tokens: [new TestToken(0, 1), new TestToken(5, 2)] },
+			{ text: 'world', tokens: [new TestToken(0, 1)] }
+		]],
+		['multi insert 9', [
+			{ text: 'hello world', tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)] },
+			{ text: 'hello world', tokens: [new TestToken(0, 4), new TestToken(5, 5), new TestToken(6, 6)] }
+		], [{ range: new Range(1, 7, 1, 7), text: 'xx\nyy' }], [
+				{ text: 'hello xx', tokens: [new TestToken(0, 1), new TestToken(5, 2)] },
+				{ text: 'yyworld', tokens: [new TestToken(0, 1)] },
+				{ text: 'hello world', tokens: [new TestToken(0, 4), new TestToken(5, 5), new TestToken(6, 6)] }
+			]],
+	];
+	for (const [name, initial, edits, expected] of applyEditsCases) {
+		test(name, () => {
+			testApplyEdits(initial, edits, expected);
+		});
+	}
 
 	function testLineEditTokens(initialText: string, initialTokens: TestToken[], edits: ILineEdit[], expectedText: string, expectedTokens: TestToken[]): void {
 		testApplyEdits(
@@ -537,527 +301,37 @@ suite('ModelLinesTokens', () => {
 		d.dispose();
 	});
 
-	test('updates tokens on insertion 1', () => {
-		testLineEditTokens(
-			'abcd efgh',
-			[
-				new TestToken(0, 1),
-				new TestToken(4, 2),
-				new TestToken(5, 3)
-			],
-			[{
-				startColumn: 1,
-				endColumn: 1,
-				text: 'a',
-			}],
-			'aabcd efgh',
-			[
-				new TestToken(0, 1),
-				new TestToken(5, 2),
-				new TestToken(6, 3)
-			]
-		);
-	});
-
-	test('updates tokens on insertion 2', () => {
-		testLineEditTokens(
-			'aabcd efgh',
-			[
-				new TestToken(0, 1),
-				new TestToken(5, 2),
-				new TestToken(6, 3)
-			],
-			[{
-				startColumn: 2,
-				endColumn: 2,
-				text: 'x',
-			}],
-			'axabcd efgh',
-			[
-				new TestToken(0, 1),
-				new TestToken(6, 2),
-				new TestToken(7, 3)
-			]
-		);
-	});
-
-	test('updates tokens on insertion 3', () => {
-		testLineEditTokens(
-			'axabcd efgh',
-			[
-				new TestToken(0, 1),
-				new TestToken(6, 2),
-				new TestToken(7, 3)
-			],
-			[{
-				startColumn: 3,
-				endColumn: 3,
-				text: 'stu',
-			}],
-			'axstuabcd efgh',
-			[
-				new TestToken(0, 1),
-				new TestToken(9, 2),
-				new TestToken(10, 3)
-			]
-		);
-	});
-
-	test('updates tokens on insertion 4', () => {
-		testLineEditTokens(
-			'axstuabcd efgh',
-			[
-				new TestToken(0, 1),
-				new TestToken(9, 2),
-				new TestToken(10, 3)
-			],
-			[{
-				startColumn: 10,
-				endColumn: 10,
-				text: '\t',
-			}],
-			'axstuabcd\t efgh',
-			[
-				new TestToken(0, 1),
-				new TestToken(10, 2),
-				new TestToken(11, 3)
-			]
-		);
-	});
-
-	test('updates tokens on insertion 5', () => {
-		testLineEditTokens(
-			'axstuabcd\t efgh',
-			[
-				new TestToken(0, 1),
-				new TestToken(10, 2),
-				new TestToken(11, 3)
-			],
-			[{
-				startColumn: 12,
-				endColumn: 12,
-				text: 'dd',
-			}],
-			'axstuabcd\t ddefgh',
-			[
-				new TestToken(0, 1),
-				new TestToken(10, 2),
-				new TestToken(13, 3)
-			]
-		);
-	});
-
-	test('updates tokens on insertion 6', () => {
-		testLineEditTokens(
-			'axstuabcd\t ddefgh',
-			[
-				new TestToken(0, 1),
-				new TestToken(10, 2),
-				new TestToken(13, 3)
-			],
-			[{
-				startColumn: 18,
-				endColumn: 18,
-				text: 'xyz',
-			}],
-			'axstuabcd\t ddefghxyz',
-			[
-				new TestToken(0, 1),
-				new TestToken(10, 2),
-				new TestToken(13, 3)
-			]
-		);
-	});
-
-	test('updates tokens on insertion 7', () => {
-		testLineEditTokens(
-			'axstuabcd\t ddefghxyz',
-			[
-				new TestToken(0, 1),
-				new TestToken(10, 2),
-				new TestToken(13, 3)
-			],
-			[{
-				startColumn: 1,
-				endColumn: 1,
-				text: 'x',
-			}],
-			'xaxstuabcd\t ddefghxyz',
-			[
-				new TestToken(0, 1),
-				new TestToken(11, 2),
-				new TestToken(14, 3)
-			]
-		);
-	});
-
-	test('updates tokens on insertion 8', () => {
-		testLineEditTokens(
-			'xaxstuabcd\t ddefghxyz',
-			[
-				new TestToken(0, 1),
-				new TestToken(11, 2),
-				new TestToken(14, 3)
-			],
-			[{
-				startColumn: 22,
-				endColumn: 22,
-				text: 'x',
-			}],
-			'xaxstuabcd\t ddefghxyzx',
-			[
-				new TestToken(0, 1),
-				new TestToken(11, 2),
-				new TestToken(14, 3)
-			]
-		);
-	});
-
-	test('updates tokens on insertion 9', () => {
-		testLineEditTokens(
-			'xaxstuabcd\t ddefghxyzx',
-			[
-				new TestToken(0, 1),
-				new TestToken(11, 2),
-				new TestToken(14, 3)
-			],
-			[{
-				startColumn: 2,
-				endColumn: 2,
-				text: '',
-			}],
-			'xaxstuabcd\t ddefghxyzx',
-			[
-				new TestToken(0, 1),
-				new TestToken(11, 2),
-				new TestToken(14, 3)
-			]
-		);
-	});
-
-	test('updates tokens on insertion 10', () => {
-		testLineEditTokens(
-			'',
-			[],
-			[{
-				startColumn: 1,
-				endColumn: 1,
-				text: 'a',
-			}],
-			'a',
-			[
-				new TestToken(0, 1)
-			]
-		);
-	});
-
-	test('delete second token 2', () => {
-		testLineEditTokens(
-			'abcdefghij',
-			[
-				new TestToken(0, 1),
-				new TestToken(3, 2),
-				new TestToken(6, 3)
-			],
-			[{
-				startColumn: 4,
-				endColumn: 7,
-				text: '',
-			}],
-			'abcghij',
-			[
-				new TestToken(0, 1),
-				new TestToken(3, 3)
-			]
-		);
-	});
-
-	test('insert right before second token', () => {
-		testLineEditTokens(
-			'abcdefghij',
-			[
-				new TestToken(0, 1),
-				new TestToken(3, 2),
-				new TestToken(6, 3)
-			],
-			[{
-				startColumn: 4,
-				endColumn: 4,
-				text: 'hello',
-			}],
-			'abchellodefghij',
-			[
-				new TestToken(0, 1),
-				new TestToken(8, 2),
-				new TestToken(11, 3)
-			]
-		);
-	});
-
-	test('delete first char', () => {
-		testLineEditTokens(
-			'abcd efgh',
-			[
-				new TestToken(0, 1),
-				new TestToken(4, 2),
-				new TestToken(5, 3)
-			],
-			[{
-				startColumn: 1,
-				endColumn: 2,
-				text: '',
-			}],
-			'bcd efgh',
-			[
-				new TestToken(0, 1),
-				new TestToken(3, 2),
-				new TestToken(4, 3)
-			]
-		);
-	});
-
-	test('delete 2nd and 3rd chars', () => {
-		testLineEditTokens(
-			'abcd efgh',
-			[
-				new TestToken(0, 1),
-				new TestToken(4, 2),
-				new TestToken(5, 3)
-			],
-			[{
-				startColumn: 2,
-				endColumn: 4,
-				text: '',
-			}],
-			'ad efgh',
-			[
-				new TestToken(0, 1),
-				new TestToken(2, 2),
-				new TestToken(3, 3)
-			]
-		);
-	});
-
-	test('delete first token', () => {
-		testLineEditTokens(
-			'abcd efgh',
-			[
-				new TestToken(0, 1),
-				new TestToken(4, 2),
-				new TestToken(5, 3)
-			],
-			[{
-				startColumn: 1,
-				endColumn: 5,
-				text: '',
-			}],
-			' efgh',
-			[
-				new TestToken(0, 2),
-				new TestToken(1, 3)
-			]
-		);
-	});
-
-	test('delete second token', () => {
-		testLineEditTokens(
-			'abcd efgh',
-			[
-				new TestToken(0, 1),
-				new TestToken(4, 2),
-				new TestToken(5, 3)
-			],
-			[{
-				startColumn: 5,
-				endColumn: 6,
-				text: '',
-			}],
-			'abcdefgh',
-			[
-				new TestToken(0, 1),
-				new TestToken(4, 3)
-			]
-		);
-	});
-
-	test('delete second token + a bit of the third one', () => {
-		testLineEditTokens(
-			'abcd efgh',
-			[
-				new TestToken(0, 1),
-				new TestToken(4, 2),
-				new TestToken(5, 3)
-			],
-			[{
-				startColumn: 5,
-				endColumn: 7,
-				text: '',
-			}],
-			'abcdfgh',
-			[
-				new TestToken(0, 1),
-				new TestToken(4, 3)
-			]
-		);
-	});
-
-	test('delete second and third token', () => {
-		testLineEditTokens(
-			'abcd efgh',
-			[
-				new TestToken(0, 1),
-				new TestToken(4, 2),
-				new TestToken(5, 3)
-			],
-			[{
-				startColumn: 5,
-				endColumn: 10,
-				text: '',
-			}],
-			'abcd',
-			[
-				new TestToken(0, 1)
-			]
-		);
-	});
-
-	test('delete everything', () => {
-		testLineEditTokens(
-			'abcd efgh',
-			[
-				new TestToken(0, 1),
-				new TestToken(4, 2),
-				new TestToken(5, 3)
-			],
-			[{
-				startColumn: 1,
-				endColumn: 10,
-				text: '',
-			}],
-			'',
-			[
-				new TestToken(0, 1)
-			]
-		);
-	});
-
-	test('noop', () => {
-		testLineEditTokens(
-			'abcd efgh',
-			[
-				new TestToken(0, 1),
-				new TestToken(4, 2),
-				new TestToken(5, 3)
-			],
-			[{
-				startColumn: 1,
-				endColumn: 1,
-				text: '',
-			}],
-			'abcd efgh',
-			[
-				new TestToken(0, 1),
-				new TestToken(4, 2),
-				new TestToken(5, 3)
-			]
-		);
-	});
-
-	test('equivalent to deleting first two chars', () => {
-		testLineEditTokens(
-			'abcd efgh',
-			[
-				new TestToken(0, 1),
-				new TestToken(4, 2),
-				new TestToken(5, 3)
-			],
-			[{
-				startColumn: 1,
-				endColumn: 3,
-				text: '',
-			}],
-			'cd efgh',
-			[
-				new TestToken(0, 1),
-				new TestToken(2, 2),
-				new TestToken(3, 3)
-			]
-		);
-	});
-
-	test('equivalent to deleting from 5 to the end', () => {
-		testLineEditTokens(
-			'abcd efgh',
-			[
-				new TestToken(0, 1),
-				new TestToken(4, 2),
-				new TestToken(5, 3)
-			],
-			[{
-				startColumn: 5,
-				endColumn: 10,
-				text: '',
-			}],
-			'abcd',
-			[
-				new TestToken(0, 1)
-			]
-		);
-	});
-
-	test('updates tokens on replace 1', () => {
-		testLineEditTokens(
-			'Hello world, ciao',
-			[
-				new TestToken(0, 1),
-				new TestToken(5, 0),
-				new TestToken(6, 2),
-				new TestToken(11, 0),
-				new TestToken(13, 0)
-			],
-			[{
-				startColumn: 1,
-				endColumn: 6,
-				text: 'Hi',
-			}],
-			'Hi world, ciao',
-			[
-				new TestToken(0, 0),
-				new TestToken(3, 2),
-				new TestToken(8, 0),
-				new TestToken(10, 0),
-			]
-		);
-	});
-
-	test('updates tokens on replace 2', () => {
-		testLineEditTokens(
-			'Hello world, ciao',
-			[
-				new TestToken(0, 1),
-				new TestToken(5, 0),
-				new TestToken(6, 2),
-				new TestToken(11, 0),
-				new TestToken(13, 0),
-			],
-			[{
-				startColumn: 1,
-				endColumn: 6,
-				text: 'Hi',
-			}, {
-				startColumn: 8,
-				endColumn: 12,
-				text: 'my friends',
-			}],
-			'Hi wmy friends, ciao',
-			[
-				new TestToken(0, 0),
-				new TestToken(3, 2),
-				new TestToken(14, 0),
-				new TestToken(16, 0),
-			]
-		);
-	});
+	const lineEditCases: [name: string, initialText: string, initialTokens: TestToken[], edits: ILineEdit[], expectedText: string, expectedTokens: TestToken[]][] = [
+		['updates tokens on insertion 1', 'abcd efgh', [new TestToken(0, 1), new TestToken(4, 2), new TestToken(5, 3)], [{ startColumn: 1, endColumn: 1, text: 'a' }], 'aabcd efgh', [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]],
+		['updates tokens on insertion 2', 'aabcd efgh', [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)], [{ startColumn: 2, endColumn: 2, text: 'x' }], 'axabcd efgh', [new TestToken(0, 1), new TestToken(6, 2), new TestToken(7, 3)]],
+		['updates tokens on insertion 3', 'axabcd efgh', [new TestToken(0, 1), new TestToken(6, 2), new TestToken(7, 3)], [{ startColumn: 3, endColumn: 3, text: 'stu' }], 'axstuabcd efgh', [new TestToken(0, 1), new TestToken(9, 2), new TestToken(10, 3)]],
+		['updates tokens on insertion 4', 'axstuabcd efgh', [new TestToken(0, 1), new TestToken(9, 2), new TestToken(10, 3)], [{ startColumn: 10, endColumn: 10, text: '\t' }], 'axstuabcd\t efgh', [new TestToken(0, 1), new TestToken(10, 2), new TestToken(11, 3)]],
+		['updates tokens on insertion 5', 'axstuabcd\t efgh', [new TestToken(0, 1), new TestToken(10, 2), new TestToken(11, 3)], [{ startColumn: 12, endColumn: 12, text: 'dd' }], 'axstuabcd\t ddefgh', [new TestToken(0, 1), new TestToken(10, 2), new TestToken(13, 3)]],
+		['updates tokens on insertion 6', 'axstuabcd\t ddefgh', [new TestToken(0, 1), new TestToken(10, 2), new TestToken(13, 3)], [{ startColumn: 18, endColumn: 18, text: 'xyz' }], 'axstuabcd\t ddefghxyz', [new TestToken(0, 1), new TestToken(10, 2), new TestToken(13, 3)]],
+		['updates tokens on insertion 7', 'axstuabcd\t ddefghxyz', [new TestToken(0, 1), new TestToken(10, 2), new TestToken(13, 3)], [{ startColumn: 1, endColumn: 1, text: 'x' }], 'xaxstuabcd\t ddefghxyz', [new TestToken(0, 1), new TestToken(11, 2), new TestToken(14, 3)]],
+		['updates tokens on insertion 8', 'xaxstuabcd\t ddefghxyz', [new TestToken(0, 1), new TestToken(11, 2), new TestToken(14, 3)], [{ startColumn: 22, endColumn: 22, text: 'x' }], 'xaxstuabcd\t ddefghxyzx', [new TestToken(0, 1), new TestToken(11, 2), new TestToken(14, 3)]],
+		['updates tokens on insertion 9', 'xaxstuabcd\t ddefghxyzx', [new TestToken(0, 1), new TestToken(11, 2), new TestToken(14, 3)], [{ startColumn: 2, endColumn: 2, text: '' }], 'xaxstuabcd\t ddefghxyzx', [new TestToken(0, 1), new TestToken(11, 2), new TestToken(14, 3)]],
+		['updates tokens on insertion 10', '', [], [{ startColumn: 1, endColumn: 1, text: 'a' }], 'a', [new TestToken(0, 1)]],
+		['delete second token 2', 'abcdefghij', [new TestToken(0, 1), new TestToken(3, 2), new TestToken(6, 3)], [{ startColumn: 4, endColumn: 7, text: '' }], 'abcghij', [new TestToken(0, 1), new TestToken(3, 3)]],
+		['insert right before second token', 'abcdefghij', [new TestToken(0, 1), new TestToken(3, 2), new TestToken(6, 3)], [{ startColumn: 4, endColumn: 4, text: 'hello' }], 'abchellodefghij', [new TestToken(0, 1), new TestToken(8, 2), new TestToken(11, 3)]],
+		['delete first char', 'abcd efgh', [new TestToken(0, 1), new TestToken(4, 2), new TestToken(5, 3)], [{ startColumn: 1, endColumn: 2, text: '' }], 'bcd efgh', [new TestToken(0, 1), new TestToken(3, 2), new TestToken(4, 3)]],
+		['delete 2nd and 3rd chars', 'abcd efgh', [new TestToken(0, 1), new TestToken(4, 2), new TestToken(5, 3)], [{ startColumn: 2, endColumn: 4, text: '' }], 'ad efgh', [new TestToken(0, 1), new TestToken(2, 2), new TestToken(3, 3)]],
+		['delete first token', 'abcd efgh', [new TestToken(0, 1), new TestToken(4, 2), new TestToken(5, 3)], [{ startColumn: 1, endColumn: 5, text: '' }], ' efgh', [new TestToken(0, 2), new TestToken(1, 3)]],
+		['delete second token', 'abcd efgh', [new TestToken(0, 1), new TestToken(4, 2), new TestToken(5, 3)], [{ startColumn: 5, endColumn: 6, text: '' }], 'abcdefgh', [new TestToken(0, 1), new TestToken(4, 3)]],
+		['delete second token + a bit of the third one', 'abcd efgh', [new TestToken(0, 1), new TestToken(4, 2), new TestToken(5, 3)], [{ startColumn: 5, endColumn: 7, text: '' }], 'abcdfgh', [new TestToken(0, 1), new TestToken(4, 3)]],
+		['delete second and third token', 'abcd efgh', [new TestToken(0, 1), new TestToken(4, 2), new TestToken(5, 3)], [{ startColumn: 5, endColumn: 10, text: '' }], 'abcd', [new TestToken(0, 1)]],
+		['delete everything', 'abcd efgh', [new TestToken(0, 1), new TestToken(4, 2), new TestToken(5, 3)], [{ startColumn: 1, endColumn: 10, text: '' }], '', [new TestToken(0, 1)]],
+		['noop', 'abcd efgh', [new TestToken(0, 1), new TestToken(4, 2), new TestToken(5, 3)], [{ startColumn: 1, endColumn: 1, text: '' }], 'abcd efgh', [new TestToken(0, 1), new TestToken(4, 2), new TestToken(5, 3)]],
+		['equivalent to deleting first two chars', 'abcd efgh', [new TestToken(0, 1), new TestToken(4, 2), new TestToken(5, 3)], [{ startColumn: 1, endColumn: 3, text: '' }], 'cd efgh', [new TestToken(0, 1), new TestToken(2, 2), new TestToken(3, 3)]],
+		['equivalent to deleting from 5 to the end', 'abcd efgh', [new TestToken(0, 1), new TestToken(4, 2), new TestToken(5, 3)], [{ startColumn: 5, endColumn: 10, text: '' }], 'abcd', [new TestToken(0, 1)]],
+		['updates tokens on replace 1', 'Hello world, ciao', [new TestToken(0, 1), new TestToken(5, 0), new TestToken(6, 2), new TestToken(11, 0), new TestToken(13, 0)], [{ startColumn: 1, endColumn: 6, text: 'Hi' }], 'Hi world, ciao', [new TestToken(0, 0), new TestToken(3, 2), new TestToken(8, 0), new TestToken(10, 0)]],
+		['updates tokens on replace 2', 'Hello world, ciao', [new TestToken(0, 1), new TestToken(5, 0), new TestToken(6, 2), new TestToken(11, 0), new TestToken(13, 0)], [{ startColumn: 1, endColumn: 6, text: 'Hi' }, { startColumn: 8, endColumn: 12, text: 'my friends' }], 'Hi wmy friends, ciao', [new TestToken(0, 0), new TestToken(3, 2), new TestToken(14, 0), new TestToken(16, 0)]],
+	];
+	for (const [name, initialText, initialTokens, edits, expectedText, expectedTokens] of lineEditCases) {
+		test(name, () => {
+			testLineEditTokens(initialText, initialTokens, edits, expectedText, expectedTokens);
+		});
+	}
 
 	function testLineSplitTokens(initialText: string, initialTokens: TestToken[], splitColumn: number, expectedText1: string, expectedText2: string, expectedTokens: TestToken[]): void {
 		testApplyEdits(
@@ -1079,76 +353,17 @@ suite('ModelLinesTokens', () => {
 		);
 	}
 
-	test('split at the beginning', () => {
-		testLineSplitTokens(
-			'abcd efgh',
-			[
-				new TestToken(0, 1),
-				new TestToken(4, 2),
-				new TestToken(5, 3)
-			],
-			1,
-			'',
-			'abcd efgh',
-			[
-				new TestToken(0, 1),
-			]
-		);
-	});
-
-	test('split at the end', () => {
-		testLineSplitTokens(
-			'abcd efgh',
-			[
-				new TestToken(0, 1),
-				new TestToken(4, 2),
-				new TestToken(5, 3)
-			],
-			10,
-			'abcd efgh',
-			'',
-			[
-				new TestToken(0, 1),
-				new TestToken(4, 2),
-				new TestToken(5, 3)
-			]
-		);
-	});
-
-	test('split inthe middle 1', () => {
-		testLineSplitTokens(
-			'abcd efgh',
-			[
-				new TestToken(0, 1),
-				new TestToken(4, 2),
-				new TestToken(5, 3)
-			],
-			5,
-			'abcd',
-			' efgh',
-			[
-				new TestToken(0, 1)
-			]
-		);
-	});
-
-	test('split inthe middle 2', () => {
-		testLineSplitTokens(
-			'abcd efgh',
-			[
-				new TestToken(0, 1),
-				new TestToken(4, 2),
-				new TestToken(5, 3)
-			],
-			6,
-			'abcd ',
-			'efgh',
-			[
-				new TestToken(0, 1),
-				new TestToken(4, 2)
-			]
-		);
-	});
+	const lineSplitCases: [name: string, splitColumn: number, expectedText1: string, expectedText2: string, expectedTokens: TestToken[]][] = [
+		['split at the beginning', 1, '', 'abcd efgh', [new TestToken(0, 1)]],
+		['split at the end', 10, 'abcd efgh', '', [new TestToken(0, 1), new TestToken(4, 2), new TestToken(5, 3)]],
+		['split inthe middle 1', 5, 'abcd', ' efgh', [new TestToken(0, 1)]],
+		['split inthe middle 2', 6, 'abcd ', 'efgh', [new TestToken(0, 1), new TestToken(4, 2)]],
+	];
+	for (const [name, splitColumn, expectedText1, expectedText2, expectedTokens] of lineSplitCases) {
+		test(name, () => {
+			testLineSplitTokens('abcd efgh', [new TestToken(0, 1), new TestToken(4, 2), new TestToken(5, 3)], splitColumn, expectedText1, expectedText2, expectedTokens);
+		});
+	}
 
 	function testLineAppendTokens(aText: string, aTokens: TestToken[], bText: string, bTokens: TestToken[], expectedText: string, expectedTokens: TestToken[]): void {
 		testApplyEdits(
@@ -1170,107 +385,16 @@ suite('ModelLinesTokens', () => {
 		);
 	}
 
-	test('append empty 1', () => {
-		testLineAppendTokens(
-			'abcd efgh',
-			[
-				new TestToken(0, 1),
-				new TestToken(4, 2),
-				new TestToken(5, 3)
-			],
-			'',
-			[],
-			'abcd efgh',
-			[
-				new TestToken(0, 1),
-				new TestToken(4, 2),
-				new TestToken(5, 3)
-			]
-		);
-	});
-
-	test('append empty 2', () => {
-		testLineAppendTokens(
-			'',
-			[],
-			'abcd efgh',
-			[
-				new TestToken(0, 1),
-				new TestToken(4, 2),
-				new TestToken(5, 3)
-			],
-			'abcd efgh',
-			[
-				new TestToken(0, 1),
-				new TestToken(4, 2),
-				new TestToken(5, 3)
-			]
-		);
-	});
-
-	test('append 1', () => {
-		testLineAppendTokens(
-			'abcd efgh',
-			[
-				new TestToken(0, 1),
-				new TestToken(4, 2),
-				new TestToken(5, 3)
-			],
-			'abcd efgh',
-			[
-				new TestToken(0, 4),
-				new TestToken(4, 5),
-				new TestToken(5, 6)
-			],
-			'abcd efghabcd efgh',
-			[
-				new TestToken(0, 1),
-				new TestToken(4, 2),
-				new TestToken(5, 3),
-				new TestToken(9, 4),
-				new TestToken(13, 5),
-				new TestToken(14, 6)
-			]
-		);
-	});
-
-	test('append 2', () => {
-		testLineAppendTokens(
-			'abcd ',
-			[
-				new TestToken(0, 1),
-				new TestToken(4, 2)
-			],
-			'efgh',
-			[
-				new TestToken(0, 3)
-			],
-			'abcd efgh',
-			[
-				new TestToken(0, 1),
-				new TestToken(4, 2),
-				new TestToken(5, 3)
-			]
-		);
-	});
-
-	test('append 3', () => {
-		testLineAppendTokens(
-			'abcd',
-			[
-				new TestToken(0, 1),
-			],
-			' efgh',
-			[
-				new TestToken(0, 2),
-				new TestToken(1, 3)
-			],
-			'abcd efgh',
-			[
-				new TestToken(0, 1),
-				new TestToken(4, 2),
-				new TestToken(5, 3)
-			]
-		);
-	});
+	const lineAppendCases: [name: string, aText: string, aTokens: TestToken[], bText: string, bTokens: TestToken[], expectedText: string, expectedTokens: TestToken[]][] = [
+		['append empty 1', 'abcd efgh', [new TestToken(0, 1), new TestToken(4, 2), new TestToken(5, 3)], '', [], 'abcd efgh', [new TestToken(0, 1), new TestToken(4, 2), new TestToken(5, 3)]],
+		['append empty 2', '', [], 'abcd efgh', [new TestToken(0, 1), new TestToken(4, 2), new TestToken(5, 3)], 'abcd efgh', [new TestToken(0, 1), new TestToken(4, 2), new TestToken(5, 3)]],
+		['append 1', 'abcd efgh', [new TestToken(0, 1), new TestToken(4, 2), new TestToken(5, 3)], 'abcd efgh', [new TestToken(0, 4), new TestToken(4, 5), new TestToken(5, 6)], 'abcd efghabcd efgh', [new TestToken(0, 1), new TestToken(4, 2), new TestToken(5, 3), new TestToken(9, 4), new TestToken(13, 5), new TestToken(14, 6)]],
+		['append 2', 'abcd ', [new TestToken(0, 1), new TestToken(4, 2)], 'efgh', [new TestToken(0, 3)], 'abcd efgh', [new TestToken(0, 1), new TestToken(4, 2), new TestToken(5, 3)]],
+		['append 3', 'abcd', [new TestToken(0, 1)], ' efgh', [new TestToken(0, 2), new TestToken(1, 3)], 'abcd efgh', [new TestToken(0, 1), new TestToken(4, 2), new TestToken(5, 3)]],
+	];
+	for (const [name, aText, aTokens, bText, bTokens, expectedText, expectedTokens] of lineAppendCases) {
+		test(name, () => {
+			testLineAppendTokens(aText, aTokens, bText, bTokens, expectedText, expectedTokens);
+		});
+	}
 });
