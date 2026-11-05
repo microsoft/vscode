@@ -83,10 +83,9 @@ suite('ExtHostTask', () => {
 			requested.complete();
 			return id.p;
 		});
-		let settled = false;
-		const result = service.$provideTasks(0, { test: true }).then(value => { settled = true; return value; });
+		const result = service.$provideTasks(0, { test: true });
 		await requested.p;
-		assert.strictEqual(settled, false);
+		assert.strictEqual(await raceTimeout(result, 0), undefined);
 		await id.complete('task-id');
 		assert.strictEqual((await result).tasks.length, 1);
 	});
