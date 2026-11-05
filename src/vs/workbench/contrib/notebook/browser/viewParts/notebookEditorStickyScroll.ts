@@ -214,6 +214,9 @@ export class NotebookStickyScroll extends Disposable {
 
 		// Ensure symbols are computed first
 		await notebookCellOutline.computeFullSymbols(CancellationToken.None);
+		if (this._store.isDisposed) {
+			return;
+		}
 
 		// Initial content update
 		const computed = computeContent(this.notebookEditor, this.notebookCellList, notebookCellOutline.entries, this.getCurrentStickyHeight());

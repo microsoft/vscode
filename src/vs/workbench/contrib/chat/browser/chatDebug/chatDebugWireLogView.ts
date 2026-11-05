@@ -322,6 +322,9 @@ export class ChatDebugWireLogView extends Disposable {
 		}
 
 		const allSources = await enumerateAgentHostLogSources(this.logSourceServices, this.currentSessionResource);
+		if (this._store.isDisposed) {
+			return;
+		}
 		this.sources = allSources.filter(source => source.kind === AgentHostLogSourceKind.WireLog);
 		if (this.sources.length === 0) {
 			this.renderMessage(missionControl

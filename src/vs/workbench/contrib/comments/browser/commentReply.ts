@@ -97,6 +97,10 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		}
 
 		const model = await this.textModelService.createModelReference(resource);
+		if (this._store.isDisposed) {
+			model.dispose();
+			return;
+		}
 		model.object.textEditorModel.setValue(this._pendingComment?.body || '');
 
 		this._register(model);

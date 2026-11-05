@@ -135,6 +135,9 @@ export class ChatDebugDetailPanel extends Disposable {
 		this.currentDetailEventId = event.id;
 
 		const resolved = event.id ? await this.chatDebugService.resolveEvent(event.id) : undefined;
+		if (this._store.isDisposed) {
+			return;
+		}
 
 		DOM.show(this.element);
 		this.sash.state = SashState.Enabled;
@@ -187,7 +190,7 @@ export class ChatDebugDetailPanel extends Disposable {
 		} else if (resolved && resolved.kind === 'toolCall') {
 			this.currentDetailText = toolCallContentToPlainText(resolved);
 			const { element: contentEl, disposables: contentDisposables } = await renderToolCallContent(resolved, this.languageService, this.clipboardService, this.scrollable);
-			if (this.currentDetailEventId !== event.id) {
+			if (this._store.isDisposed || this.currentDetailEventId !== event.id) {
 				// Another event was selected while we were rendering
 				contentDisposables.dispose();
 				return;
@@ -197,7 +200,7 @@ export class ChatDebugDetailPanel extends Disposable {
 		} else if (resolved && resolved.kind === 'message') {
 			this.currentDetailText = resolvedMessageToPlainText(resolved);
 			const { element: contentEl, disposables: contentDisposables } = await renderResolvedMessageContent(resolved, this.languageService, this.clipboardService, this.scrollable);
-			if (this.currentDetailEventId !== event.id) {
+			if (this._store.isDisposed || this.currentDetailEventId !== event.id) {
 				contentDisposables.dispose();
 				return;
 			}
@@ -206,7 +209,7 @@ export class ChatDebugDetailPanel extends Disposable {
 		} else if (resolved && resolved.kind === 'modelTurn') {
 			this.currentDetailText = modelTurnContentToPlainText(resolved);
 			const { element: contentEl, disposables: contentDisposables } = await renderModelTurnContent(resolved, this.languageService, this.clipboardService, this.scrollable);
-			if (this.currentDetailEventId !== event.id) {
+			if (this._store.isDisposed || this.currentDetailEventId !== event.id) {
 				// Another event was selected while we were rendering
 				contentDisposables.dispose();
 				return;
@@ -216,7 +219,7 @@ export class ChatDebugDetailPanel extends Disposable {
 		} else if (resolved && resolved.kind === 'hook') {
 			this.currentDetailText = hookContentToPlainText(resolved);
 			const { element: contentEl, disposables: contentDisposables } = await renderHookContent(resolved, this.languageService, this.clipboardService, this.scrollable);
-			if (this.currentDetailEventId !== event.id) {
+			if (this._store.isDisposed || this.currentDetailEventId !== event.id) {
 				// Another event was selected while we were rendering
 				contentDisposables.dispose();
 				return;
@@ -226,7 +229,7 @@ export class ChatDebugDetailPanel extends Disposable {
 		} else if (event.kind === 'userMessage') {
 			this.currentDetailText = messageEventToPlainText(event);
 			const { element: contentEl, disposables: contentDisposables } = await renderUserMessageContent(event, this.languageService, this.clipboardService, this.scrollable);
-			if (this.currentDetailEventId !== event.id) {
+			if (this._store.isDisposed || this.currentDetailEventId !== event.id) {
 				contentDisposables.dispose();
 				return;
 			}
@@ -235,7 +238,7 @@ export class ChatDebugDetailPanel extends Disposable {
 		} else if (event.kind === 'agentResponse') {
 			this.currentDetailText = messageEventToPlainText(event);
 			const { element: contentEl, disposables: contentDisposables } = await renderAgentResponseContent(event, this.languageService, this.clipboardService, this.scrollable);
-			if (this.currentDetailEventId !== event.id) {
+			if (this._store.isDisposed || this.currentDetailEventId !== event.id) {
 				contentDisposables.dispose();
 				return;
 			}

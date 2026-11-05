@@ -18,7 +18,7 @@ import { IProductService } from '../../../product/common/productService.js';
 import { SaveStrategy, StateService } from '../../../state/node/stateService.js';
 import { IS_NEW_KEY, StorageScope } from '../../common/storage.js';
 import { IBaseSerializableStorageRequest, ISerializableCompareAndSwapRequest, ISerializableCompareAndSwapResult, ISerializableUpdateRequest } from '../../common/storageIpc.js';
-import { IStorageChangeEvent, IStorageMain, IStorageMainOptions } from '../../electron-main/storageMain.js';
+import { IStorageChangeEvent, IStorageMain, IStorageMainOptions, InMemoryStorageMain } from '../../electron-main/storageMain.js';
 import { StorageDatabaseChannel } from '../../electron-main/storageIpc.js';
 import { StorageMainService } from '../../electron-main/storageMainService.js';
 import { currentSessionDateStorageKey, firstSessionDateStorageKey } from '../../../telemetry/common/telemetry.js';
@@ -27,6 +27,7 @@ import { IUserDataProfile } from '../../../userDataProfile/common/userDataProfil
 import { UserDataProfilesMainService } from '../../../userDataProfile/electron-main/userDataProfile.js';
 import { TestLifecycleMainService } from '../../../test/electron-main/workbenchTestServices.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { interruptAtEveryStep } from '../../../../base/test/common/interruptAtEveryStep.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 
 suite('StorageMainService', function () {
@@ -390,6 +391,13 @@ suite('StorageMainService', function () {
 
 		await Promise.all([applicationStorage.init(), applicationSharedStorage.init()]);
 		await Promise.all([applicationStorage.whenInit, applicationSharedStorage.whenInit]);
+	});
+
+	test('storage init does not leak when the storage is disposed at any step', function () {
+		return interruptAtEveryStep(store => {
+			const storage = store.add(new InMemoryStorageMain(new NullLogService(), store.add(new FileService(new NullLogService()))));
+			return { promise: storage.init(), interrupt: () => storage.dispose() };
+		});
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

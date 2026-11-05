@@ -229,6 +229,9 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		this._header.updateHeight(headHeight);
 
 		await this._body.display();
+		if (this._store.isDisposed) {
+			return;
+		}
 
 		// create comment thread only when it supports reply
 		if (this._commentThread.canReply) {
