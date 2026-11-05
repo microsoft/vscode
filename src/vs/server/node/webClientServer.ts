@@ -189,7 +189,7 @@ export class WebClientServer {
 	async handle(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: URL, pathname: string): Promise<void> {
 		try {
 			if (pathname === `${STATIC_PATH}${MANIFEST_PATH}`) {
-				return this._handleManifest(req, res);
+				return await this._handleManifest(req, res);
 			}
 			if (pathname.startsWith(STATIC_PATH) && pathname.charCodeAt(STATIC_PATH.length) === CharCode.Slash) {
 				return this._handleStatic(req, res, pathname.substring(STATIC_PATH.length));
