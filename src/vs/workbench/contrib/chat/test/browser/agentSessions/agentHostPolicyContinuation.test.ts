@@ -15,6 +15,7 @@ import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentCreateSessionConfig } from '../../../../../../platform/agentHost/common/agent.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { identityAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentHostSavedChatWorkspace, IAgentHostSavedChat, IAgentHostSavedChatContinuation } from '../../../../../../platform/agentHost/common/agentHostSavedChat.js';
 import { AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { INotification, NotificationType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -116,6 +117,7 @@ suite('Agent Host policy continuation', () => {
 		const created: IAgentCreateSessionConfig[] = [];
 		const completions: (IAgentHostSavedChatContinuation & { opened: boolean; draft: string | undefined })[] = [];
 		services.stub(IAgentHostService, {
+			resourceUris: identityAgentHostResourceUriMapper,
 			initializeResult: constObservable({ protocolVersion: '0.9.0', serverSeq: 0, snapshots: [], _meta: { 'vscode.completeSavedChatContinuation': options.completionSupported !== false } }),
 			completeSavedChatContinuation: async request => {
 				completions.push({ ...request, opened: state.opened, draft: state.draft?.inputText });

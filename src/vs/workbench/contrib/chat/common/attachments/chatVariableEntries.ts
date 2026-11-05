@@ -15,6 +15,7 @@ import { isLocation, Location, SymbolKind } from '../../../../../editor/common/l
 import { localize } from '../../../../../nls.js';
 import { MarkerSeverity, IMarker } from '../../../../../platform/markers/common/markers.js';
 import type { IFeedbackPullRequest } from '../../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
+import { hasSessionContextAttachmentMeta, withSessionContextAttachmentMeta } from '../../../../../platform/agentHost/common/meta/attachmentMeta.js';
 import { ISCMHistoryItem } from '../../../scm/common/history.js';
 import { IChatContentReference } from '../chatService/chatService.js';
 import { IChatRequestVariableValue } from './chatVariables.js';
@@ -595,6 +596,8 @@ export function isBrowserViewVariableEntry(entry: IChatRequestVariableEntry): en
  */
 export interface IChatRequestChatReferenceVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'chatReference';
+	/** Client-only source host for a session-context pick, rebound when restored from a host. */
+	readonly sessionContextSourceAuthority?: string;
 	/**
 	 * The referenced chat's **opaque backend chat URI** — the exact value carried
 	 * on `MessageChatAttachment.resource` on the wire. It is provider-defined and
@@ -620,6 +623,30 @@ export interface IChatRequestChatReferenceVariableEntry extends IBaseChatRequest
  */
 export function isChatReferenceVariableEntry(entry: IChatRequestVariableEntry): entry is IChatRequestChatReferenceVariableEntry {
 	return entry.kind === 'chatReference';
+}
+
+/** Scope client-side deduplication to the source host, independently of unscoped chat references. */
+export function withSessionContextSource(entry: IChatRequestChatReferenceVariableEntry, authority: string): IChatRequestChatReferenceVariableEntry {
+	return withSessionContextAttachmentMeta({
+		...entry,
+		id: `agent-host-session-context:${JSON.stringify([authority, chatReferenceVariableEntryId(entry.value, entry.endTurn)])}`,
+		sessionContextSourceAuthority: authority,
+	});
+}
+
+export function restoreSessionContextSource(entry: IChatRequestChatReferenceVariableEntry, authority: string): IChatRequestChatReferenceVariableEntry {
+	return hasSessionContextAttachmentMeta(entry) ? withSessionContextSource(entry, authority) : entry;
+}
+
+export function getSessionContextSourceAuthority(entry: IChatRequestVariableEntry): string | undefined {
+	return entry.kind === 'chatReference' ? entry.sessionContextSourceAuthority : undefined;
+}
+
+export function hasIncompatibleSessionContext(entries: readonly IChatRequestVariableEntry[], authority: string | undefined): boolean {
+	return entries.some(entry => {
+		const source = getSessionContextSourceAuthority(entry);
+		return source !== undefined && source !== authority;
+	});
 }
 
 /**

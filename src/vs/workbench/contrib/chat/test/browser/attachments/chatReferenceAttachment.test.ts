@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { AgentSession, IAgentHostService, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostConnectionsService } from '../../../../../../platform/agentHost/browser/agentHostConnectionsService.js';
 import type { IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
-import { agentHostAuthority, identityAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { agentHostAuthority, createEditorRemoteAgentHostResourceUriMapper, IAgentHostResourceUriMapper, identityAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
@@ -19,7 +19,7 @@ import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { buildChatUri, buildDefaultChatUri, SessionStatus, StateComponents, type ComponentToState, type SessionState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ChatAttachmentWidgetRegistry, IChatAttachmentWidgetInstance } from '../../../browser/attachments/chatAttachmentWidgetRegistry.js';
-import { createChatReferenceVariableEntry, IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import { createChatReferenceVariableEntry, hasIncompatibleSessionContext, IChatRequestVariableEntry, restoreSessionContextSource, withSessionContextSource } from '../../../common/attachments/chatVariableEntries.js';
 import { timeout } from '../../../../../../base/common/async.js';
 import { IOpener, IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../../../browser/labels.js';
@@ -34,6 +34,10 @@ import { ISessionSummaryHoverService } from '../../../browser/agentSessions/sess
 import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
 import { ChatRequestOriginService } from '../../../common/chatRequestOrigin.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { ChatAttachmentModel } from '../../../browser/attachments/chatAttachmentModel.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { ISharedWebContentExtractorService } from '../../../../../../platform/webContentExtractor/common/webContentExtractor.js';
+import { IChatAttachmentResolveService } from '../../../browser/attachments/chatAttachmentResolveService.js';
 
 suite('ChatReferenceAttachment', () => {
 
@@ -74,6 +78,57 @@ suite('ChatReferenceAttachment', () => {
 		);
 
 		disposable.dispose();
+	});
+
+	suite('session context identity', () => {
+		function createAttachmentModel(): ChatAttachmentModel {
+			return store.add(new ChatAttachmentModel(
+				new class extends mock<IFileService>() { },
+				new class extends mock<ISharedWebContentExtractorService>() { },
+				new class extends mock<IChatAttachmentResolveService>() { },
+			));
+		}
+
+		test('keeps same-URI context from different hosts and unscoped references independently removable', () => {
+			const attachments = createAttachmentModel();
+			const local = withSessionContextSource(createChatReferenceVariableEntry(backendDefaultChat, undefined, 'Local'), 'local');
+			const remote = withSessionContextSource(createChatReferenceVariableEntry(backendDefaultChat, undefined, 'Remote'), 'remote');
+			const unscoped = createChatReferenceVariableEntry(backendDefaultChat, undefined, 'Unscoped');
+			attachments.addContext(local);
+			attachments.addContext(remote);
+			attachments.addContext(unscoped);
+			attachments.addContext(withSessionContextSource({ ...remote, name: 'Selected again' }, 'remote'));
+			const before = attachments.attachments.map(entry => entry.name);
+			const blockedBefore = hasIncompatibleSessionContext(attachments.attachments, 'remote');
+
+			attachments.delete(local.id);
+
+			assert.deepStrictEqual({
+				before,
+				blockedBefore,
+				after: attachments.attachments.map(entry => entry.name),
+				blockedAfter: hasIncompatibleSessionContext(attachments.attachments, 'remote'),
+			}, {
+				before: ['Local', 'Remote', 'Unscoped'],
+				blockedBefore: true,
+				after: ['Remote', 'Unscoped'],
+				blockedAfter: false,
+			});
+		});
+
+		test('restored context deduplicates with new picks on its current host while preserving pinned turns', () => {
+			const attachments = createAttachmentModel();
+			const original = withSessionContextSource(createChatReferenceVariableEntry(backendDefaultChat, 'turn-1', 'Original'), 'previous-client');
+			const restored = restoreSessionContextSource(original, 'current-client');
+			const unpinned = withSessionContextSource(createChatReferenceVariableEntry(backendDefaultChat, undefined, 'Unpinned'), 'current-client');
+			attachments.addContext(original);
+			attachments.addContext(restored);
+			attachments.addContext(withSessionContextSource(createChatReferenceVariableEntry(backendDefaultChat, 'turn-1', 'Selected again'), 'current-client'));
+			attachments.addContext(restoreSessionContextSource(restored, 'current-client'));
+			attachments.addContext(unpinned);
+
+			assert.deepStrictEqual(attachments.attachments, [original, restored, unpinned]);
+		});
 	});
 
 	suite('resolveAgentHostChatOwner', () => {
@@ -151,7 +206,7 @@ suite('ChatReferenceAttachment', () => {
 
 	suite('chip', () => {
 		const shared = 'copilotcli:/shared';
-		const sharedDefault = buildDefaultChatUri(shared);
+		const sharedDefault = 'ahp-chat:/same-on-every-host';
 		const sharedPeer = buildChatUri(shared, 'peer');
 		const remoteAddress = 'remote.example:1';
 		const remoteAuthority = agentHostAuthority(remoteAddress);
@@ -162,7 +217,9 @@ suite('ChatReferenceAttachment', () => {
 		class Host extends mock<IAgentConnection>() {
 			readonly onAgentHostStart = Event.None;
 			readonly onAgentHostExit = Event.None;
-			override readonly resourceUris = identityAgentHostResourceUriMapper;
+			constructor(override readonly resourceUris: IAgentHostResourceUriMapper = identityAgentHostResourceUriMapper) {
+				super();
+			}
 			override getActiveSubscriptions(): readonly IActiveSubscriptionInfo[] { return []; }
 			override getSubscriptionUnmanaged<T extends StateComponents>(): IAgentSubscription<ComponentToState[T]> | undefined { return undefined; }
 			override async listSessions(): Promise<IAgentSessionMetadata[]> {
@@ -176,10 +233,10 @@ suite('ChatReferenceAttachment', () => {
 		 * the link it hands to the opener and the client session the editor
 		 * window's link opener opens for it.
 		 */
-		async function click(chat: string, sessionResource: URI | undefined): Promise<{ links: string[]; opened: string[] }> {
+		async function click(chat: string, sessionResource: URI | undefined, sourceAuthority?: string, ambientMapper = identityAgentHostResourceUriMapper): Promise<{ links: string[]; opened: string[] }> {
 			const instantiationService = workbenchInstantiationService(undefined, store);
 			const remote = new Host();
-			instantiationService.stub(IAgentHostService, upcastPartial<IAgentHostService>(new Host()));
+			instantiationService.stub(IAgentHostService, upcastPartial<IAgentHostService>(new Host(ambientMapper)));
 			instantiationService.stub(IRemoteAgentHostService, upcastPartial<IRemoteAgentHostService>({
 				onDidChangeConnections: Event.None,
 				connections: [{ address: remoteAddress, name: 'remote', clientId: 'remote', status: RemoteAgentHostConnectionStatus.connected }],
@@ -215,7 +272,8 @@ suite('ChatReferenceAttachment', () => {
 				},
 			}));
 			const labels = store.add(instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
-			const widget = store.add(instantiationService.createInstance(ChatReferenceAttachmentWidget, createChatReferenceVariableEntry(URI.parse(chat), 'turn-1', 'Chat'), sessionResource, undefined, { shouldFocusClearButton: false, supportsDeletion: false }, document.createElement('div'), labels));
+			const entry = createChatReferenceVariableEntry(URI.parse(chat), 'turn-1', 'Chat');
+			const widget = store.add(instantiationService.createInstance(ChatReferenceAttachmentWidget, sourceAuthority === undefined ? entry : withSessionContextSource(entry, sourceAuthority), sessionResource, undefined, { shouldFocusClearButton: false, supportsDeletion: false }, document.createElement('div'), labels));
 			widget.element.click();
 			await timeout(0);
 			return { links, opened };
@@ -252,6 +310,30 @@ suite('ChatReferenceAttachment', () => {
 				disconnectedRemote: { links: [], opened: [] },
 				noSession: { links: [], opened: [] },
 			});
+		});
+
+		test('opens on the recorded source host after rebinding, including before a target model exists', async () => {
+			const editorAuthority = agentHostAuthority('vscode-remote://wsl+Ubuntu');
+			const editorMapper = createEditorRemoteAgentHostResourceUriMapper('wsl+Ubuntu', editorAuthority);
+			assert.deepStrictEqual({
+				localSource: await click(sharedDefault, remoteSessionResource, 'local'),
+				remoteSource: await click(sharedDefault, localSessionResource, remoteAuthority),
+				noTarget: await click(sharedDefault, undefined, remoteAuthority),
+				editorRemoteSource: await click(sharedDefault, remoteSessionResource, editorAuthority, editorMapper),
+			}, {
+				localSource: { links: ['agent-host-session://copilotcli/shared?connectionAuthority=local'], opened: ['agent-host-copilotcli:/shared'] },
+				remoteSource: { links: [`agent-host-session://copilotcli/shared?connectionAuthority=${remoteAuthority}`], opened: [`remote-${remoteAuthority}-copilotcli:/shared`] },
+				noTarget: { links: [`agent-host-session://copilotcli/shared?connectionAuthority=${remoteAuthority}`], opened: [`remote-${remoteAuthority}-copilotcli:/shared`] },
+				editorRemoteSource: { links: ['agent-host-session://copilotcli/shared?connectionAuthority=local'], opened: ['agent-host-copilotcli:/shared'] },
+			});
+		});
+
+		test('does not fall back to a colliding target chat when the recorded source is unavailable', async () => {
+			const editorAuthority = agentHostAuthority('vscode-remote://wsl+Ubuntu');
+			assert.deepStrictEqual({
+				disconnected: await click(sharedDefault, localSessionResource, 'gone.example__1'),
+				clientLocalInRemoteWindow: await click(sharedDefault, localSessionResource, 'local', createEditorRemoteAgentHostResourceUriMapper('wsl+Ubuntu', editorAuthority)),
+			}, { disconnected: { links: [], opened: [] }, clientLocalInRemoteWindow: { links: [], opened: [] } });
 		});
 
 		test('opens the session for the advertised default chat and addresses a default-id peer by its full chat URI', async () => {

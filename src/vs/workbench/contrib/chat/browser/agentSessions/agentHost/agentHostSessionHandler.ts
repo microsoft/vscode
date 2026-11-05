@@ -106,6 +106,7 @@ import {
 	AgentHostCompletionReferenceKind,
 	ChatTranscriptContextAttachmentDisplayKind,
 	getAgentHostCompletionReferenceKind,
+	hasIncompatibleSessionContext,
 	isAgentFeedbackVariableEntry,
 	isBrowserViewVariableEntry,
 	isChatReferenceVariableEntry,
@@ -2208,6 +2209,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		progress: (parts: IChatProgress[]) => void,
 		cancellationToken: CancellationToken,
 	): Promise<IChatAgentResult> {
+		if (hasIncompatibleSessionContext(request.variables.variables, this._config.connectionAuthority)) {
+			return { errorDetails: { message: localize('agentHost.sessionContextUnavailable', "An attached session is not available on this agent host. Remove it or switch back to its host before sending.") } };
+		}
 		const firstResponse = new AgentHostFirstResponseTiming();
 		const connectionKind = agentHostClientConnectionKindValidator.validate(this._config.connection.clientConnectionKind).content ?? AgentHostClientConnectionKind.Unknown;
 		let outcome: AgentHostFirstResponseOutcome = 'notDispatched';
@@ -8067,6 +8071,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	private _convertVariableToAttachment(v: IChatRequestVariableEntry, sessionResource: URI, messageText: string | undefined, materializePastes = true): MessageAttachment | MessageAttachment[] | undefined {
+		if (hasIncompatibleSessionContext([v], this._config.connectionAuthority)) {
+			this._logService.warn('[AgentHost] Skipping session context from another host during attachment synchronization.');
+			return undefined;
+		}
 		const referenceRange = this._toAttachmentReferenceRange(messageText, v.range);
 		// Copilot agents and Codex can't read unsaved content from disk, so inline the live buffer; drop unreadable schemes.
 		if ((v.kind === 'file' || v.kind === 'implicit') && this._backendInlinesUnsavedEditors()) {

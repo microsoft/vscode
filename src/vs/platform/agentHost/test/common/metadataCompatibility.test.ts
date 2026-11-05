@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { readAttachmentDetail, withAttachmentDetail } from '../../common/meta/attachmentMeta.js';
+import { hasSessionContextAttachmentMeta, readAttachmentDetail, withAttachmentDetail, withSessionContextAttachmentMeta } from '../../common/meta/attachmentMeta.js';
 import { isPolicyResolutionErrorData, readErrorDetail, toPolicyResolutionErrorData } from '../../common/meta/errorMeta.js';
 import { readAgentMessagePresentation, withMessageHiddenFromTranscript, withMessageRequestHiddenFromTranscript } from '../../common/meta/agentMessageMeta.js';
 import { readAgentModelCallDetail } from '../../common/meta/agentModelCallMeta.js';
@@ -91,6 +91,25 @@ suite('Metadata compatibility', () => {
 		{ name: 'other attachment metadata does not hide Copilot detail', meta: { 'copilot.attachmentDetail': attachment, browserView: null }, expected: attachmentDetail },
 		{ name: 'malformed detail', meta: { 'copilot.attachmentDetail': { type: 1 } }, expected: undefined },
 	]);
+	readerMatrix('session context attachment', meta => hasSessionContextAttachmentMeta({ _meta: meta }), false, [
+		{ name: 'explicit marker', meta: { 'vscode.agentHost.sessionContext': true }, expected: true },
+		{ name: 'explicit false', meta: { 'vscode.agentHost.sessionContext': false }, expected: false },
+		{ name: 'string marker', meta: { 'vscode.agentHost.sessionContext': 'true' }, expected: false },
+		{ name: 'object marker', meta: { 'vscode.agentHost.sessionContext': { enabled: true } }, expected: false },
+	]);
+	test('session context metadata preserves unrelated fields across JSON without mutating its source', () => {
+		const original = { type: MessageAttachmentKind.Chat, resource: 'ahp-chat:/opaque', _meta: { future: false, count: 0 } };
+		const restored: typeof original = JSON.parse(JSON.stringify(withSessionContextAttachmentMeta(original)));
+		assert.deepStrictEqual({
+			originalMetadata: original._meta,
+			restored,
+			marked: hasSessionContextAttachmentMeta(restored),
+		}, {
+			originalMetadata: { future: false, count: 0 },
+			restored: { type: MessageAttachmentKind.Chat, resource: 'ahp-chat:/opaque', _meta: { future: false, count: 0, 'vscode.agentHost.sessionContext': true } },
+			marked: true,
+		});
+	});
 	const forwarded = { fetchError: { type: 'failed', requestId: 'vscode' } };
 	readerMatrix('error detail', meta => readErrorDetail({ _meta: meta }), undefined, [
 		{ name: 'VS Code', meta: { chatError: forwarded }, expected: { kind: 'fetch', value: forwarded } },

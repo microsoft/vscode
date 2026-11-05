@@ -17,7 +17,7 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { ChatDynamicVariableModel } from '../../../../../workbench/contrib/chat/browser/attachments/chatDynamicVariables.js';
 import { IChatAgentService } from '../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
 import { IChatVariablesService, IDynamicVariable } from '../../../../../workbench/contrib/chat/common/attachments/chatVariables.js';
-import { IChatRequestVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { createChatReferenceVariableEntry, IChatRequestVariableEntry, toPasteVariableEntry, withSessionContextSource } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IModelPickerComparison } from '../../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerComparison.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { IChatSlashCommandService, IChatSlashData } from '../../../../../workbench/contrib/chat/common/participants/chatSlashCommands.js';
@@ -34,7 +34,7 @@ suite('SharedChatInputComposer', () => {
 	const context = toPasteVariableEntry('Context', 'Pasted context', { id: 'context' });
 
 	/** A composer over a fake chat widget, recording what the host is asked to send and the commands it runs. */
-	function createComposer(options: { sendResult?: boolean | Error; disposeDuringSend?: boolean; canSendRequest?: boolean; text?: string; attachments?: IChatRequestVariableEntry[]; references?: IDynamicVariable[]; confirmSend?: DeferredPromise<boolean>; focused?: boolean; preserveInputFocusOnSend?: boolean } = {}) {
+	function createComposer(options: { sendResult?: boolean | Error; disposeDuringSend?: boolean; canSendRequest?: boolean; text?: string; attachments?: IChatRequestVariableEntry[]; references?: IDynamicVariable[]; confirmSend?: DeferredPromise<boolean>; focused?: boolean; preserveInputFocusOnSend?: boolean; sessionResource?: URI; onAcceptInput?: () => void } = {}) {
 		let text = options.text ?? 'Build it';
 		let attachments: IChatRequestVariableEntry[] = options.attachments ?? [context];
 		let references = options.references ?? [];
@@ -45,6 +45,10 @@ suite('SharedChatInputComposer', () => {
 		let draftModelState: object | undefined;
 		const requests: { query: string; attachments: string[]; background: boolean }[] = [];
 		const commands: { command: string; prompt: string }[] = [];
+		const warnings: string[] = [];
+		const toSession = (resource: URI) => upcastPartial<IActiveSession>({ resource, activeChat: constObservable(upcastPartial<IChat>({ resource })) });
+		const target = observableValue<IActiveSession | undefined>('target', options.sessionResource ? toSession(options.sessionResource) : undefined);
+		const canSend = observableValue('canSend', options.canSendRequest ?? true);
 		const slashCommands = new class extends mock<IChatSlashCommandService>() {
 			override getCommands(): IChatSlashData[] {
 				return [{ command: 'models', detail: '', locations: [ChatAgentLocation.Chat], silent: true, executeImmediately: true }];
@@ -86,6 +90,7 @@ suite('SharedChatInputComposer', () => {
 					text = '';
 					attachments = [];
 					references = [];
+					options.onAcceptInput?.();
 				},
 			},
 		};
@@ -94,10 +99,10 @@ suite('SharedChatInputComposer', () => {
 			_sending: observableValue('sending', false),
 			_confirmingSend: observableValue('confirmingSend', false),
 			_userInteractionSource: store.add(new MutableDisposable()),
-			_canSendRequest: constObservable(options.canSendRequest ?? true),
+			_canSendRequest: canSend,
 			_modelRef: { value: { object: { inputModel: { setState: (state: object) => { draftModelState = state; } } } } },
 			options: {
-				session: constObservable(undefined),
+				session: target,
 				confirmSend: options.confirmSend && (() => options.confirmSend!.p),
 				preserveInputFocusOnSend: options.preserveInputFocusOnSend,
 				sendRequest: async (request: INewChatInputSendRequest) => {
@@ -114,10 +119,12 @@ suite('SharedChatInputComposer', () => {
 			},
 			storageService: { store: () => { } },
 			logService: new NullLogService(),
+			notificationService: { warn: (message: string) => warnings.push(message) },
+			chatSubmitRequestHandlerService: { tryHandle: async () => false },
 			chatSlashCommandService: slashCommands,
 			instantiationService: { createInstance: (ctor: unknown) => ctor === ChatRequestParser ? parser : { cancel: () => { }, disposeSource: () => { } } },
 		});
-		return { composer, inputTransitions, state: () => ({ requests, commands, restoredReferences, input: { text, attachments: attachments.map(entry => entry.id), enabled: inputEnabled }, draftModelState, focusRestored }) };
+		return { composer, inputTransitions, canSend, setTarget: (resource: URI) => target.set(toSession(resource), undefined), state: () => ({ requests, commands, warnings, restoredReferences, input: { text, attachments: attachments.map(entry => entry.id), enabled: inputEnabled }, draftModelState, focusRestored }) };
 	}
 
 	for (const preserveInputFocusOnSend of [undefined, true]) {
@@ -195,6 +202,63 @@ suite('SharedChatInputComposer', () => {
 		const { composer, state } = createComposer({ canSendRequest: false });
 		const sent = await composer.submit(true);
 		assert.deepStrictEqual({ sent, requests: state().requests }, { sent: false, requests: [] });
+	});
+
+	for (const sendResult of [true, false]) {
+		test(`transfers session context on first send and preserves it when canceled (${sendResult})`, async () => {
+			const attachment = withSessionContextSource(createChatReferenceVariableEntry(URI.parse('ahp-chat:/opaque-source'), undefined, 'Source'), 'local');
+			const { composer, state } = createComposer({
+				sessionResource: URI.parse('agent-host-copilotcli:/draft'),
+				attachments: [attachment],
+				sendResult,
+			});
+			const sent = await composer.submit(false);
+			assert.deepStrictEqual({ sent, requests: state().requests, input: state().input }, {
+				sent: sendResult,
+				requests: [{ query: 'Build it', attachments: [attachment.id], background: false }],
+				input: { text: sendResult ? '' : 'Build it', attachments: sendResult ? [] : [attachment.id], enabled: true },
+			});
+		});
+	}
+
+	for (const change of ['target', 'canSend']) {
+		test(`retains session context when ${change} changes during background-send confirmation`, async () => {
+			const attachment = withSessionContextSource(createChatReferenceVariableEntry(URI.parse('ahp-chat:/opaque-source'), undefined, 'Source'), 'local');
+			const confirmation = new DeferredPromise<boolean>();
+			const { composer, state, setTarget, canSend } = createComposer({
+				sessionResource: URI.parse('agent-host-copilotcli:/draft'),
+				attachments: [attachment], confirmSend: confirmation,
+			});
+			const sending = composer.submit(true);
+			await timeout(0);
+			if (change === 'target') {
+				setTarget(URI.parse('remote-other-copilotcli:/draft'));
+			} else {
+				canSend.set(false, undefined);
+			}
+			confirmation.complete(true);
+			const sent = await sending;
+			assert.deepStrictEqual({ sent, requests: state().requests, input: state().input, warnings: state().warnings.length }, {
+				sent: false,
+				requests: [],
+				input: { text: 'Build it', attachments: [attachment.id], enabled: true },
+				warnings: change === 'target' ? 1 : 0,
+			});
+		});
+	}
+
+	test('restores session context if accepting the input races a target change', async () => {
+		const attachment = withSessionContextSource(createChatReferenceVariableEntry(URI.parse('ahp-chat:/opaque-source'), undefined, 'Source'), 'local');
+		const fixture = createComposer({
+			sessionResource: URI.parse('agent-host-copilotcli:/draft'),
+			attachments: [attachment],
+			onAcceptInput: () => fixture.setTarget(URI.parse('remote-other-copilotcli:/draft')),
+		});
+		const sent = await fixture.composer.submit(false);
+		assert.deepStrictEqual({ sent, requests: fixture.state().requests, input: fixture.state().input }, {
+			sent: false, requests: [],
+			input: { text: 'Build it', attachments: [attachment.id], enabled: true },
+		});
 	});
 
 	for (const background of [false, true]) {

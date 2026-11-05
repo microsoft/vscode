@@ -28,6 +28,7 @@ import { ProtectedResourceMetadata } from '../../../../../../platform/agentHost/
 import { RootStateSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { buildDefaultChatUri } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { identityAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentHostSavedChat } from '../../../../../../platform/agentHost/common/agentHostSavedChat.js';
 import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 import { ICloudSandboxApiService } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
@@ -426,6 +427,7 @@ suite('ChatSessionsService - policy history activation', () => {
 		instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: options.isSessionsWindow ?? false });
 		const backend = URI.from({ scheme: provider, path: '/saved' });
 		instantiationService.stub(IAgentHostService, new class extends mock<IAgentHostService>() {
+			override readonly resourceUris = identityAgentHostResourceUriMapper;
 			override readonly rootState = subscription;
 			override readonly onAgentHostExit = Event.None;
 			override async listSessions() { return [{ session: backend, provider, startTime: 1, modifiedTime: 1 }]; }
