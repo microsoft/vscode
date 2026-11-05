@@ -630,7 +630,7 @@ suite('Mission Control host integration', () => {
 		});
 	}
 
-	test('does not advertise or forward host-wide diagnostic logs on Mission Control ingress', () => {
+	test('enables host extension methods without forwarding the host diagnostic log stream', () => {
 		const instantiation = store.add(new TestInstantiationService());
 		const creations = sinon.spy(instantiation, 'createInstance');
 		store.add(toDisposable(() => creations.restore()));
@@ -657,7 +657,7 @@ suite('Mission Control host integration', () => {
 			externalVisible: config.sessionSummaryFilter?.({ ...summary, _meta: withSessionExternal(undefined, true) }),
 			adoptedVisible: config.sessionSummaryFilter?.({ ...summary, _meta: withSessionExternal(undefined, false) }),
 			internalVisible: config.sessionSummaryFilter?.(summary),
-		}, { hostManagement: false, diagnosticLogs: undefined, modelProviders: ['copilotcli'], ahpLogDirectory: 'file:///mission-control-test-logs/ahp', sessionConfig: true, sessionList: true, externalVisible: false, adoptedVisible: true, internalVisible: true });
+		}, { hostManagement: true, diagnosticLogs: undefined, modelProviders: ['copilotcli'], ahpLogDirectory: 'file:///mission-control-test-logs/ahp', sessionConfig: true, sessionList: true, externalVisible: false, adoptedVisible: true, internalVisible: true });
 	});
 
 	test('keeps the browsing default and recent project catalogue separate from filesystem grants', () => {
