@@ -43,6 +43,7 @@ export async function createAndSendSideChat(
 	turnId: string,
 	requestOptions: ISendRequestOptions,
 	selection?: ISideChatSelection,
+	includeSourceContext?: boolean,
 ): Promise<IChat> {
 	const navigationRequest = sessionsService.navigationRequest.get();
 	const activeSession = sessionsService.activeSession.get();
@@ -57,7 +58,7 @@ export async function createAndSendSideChat(
 	});
 	let sideChat: IChat;
 	try {
-		sideChat = await sessionsManagementService.createSideChatInSession(session, sourceChat, turnId, selection);
+		sideChat = await sessionsManagementService.createSideChatInSession(session, sourceChat, turnId, selection, includeSourceContext);
 	} finally {
 		navigationObserver.dispose();
 	}

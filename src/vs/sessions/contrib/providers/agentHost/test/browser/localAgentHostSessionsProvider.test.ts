@@ -14276,6 +14276,38 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 		}));
 
+		test('createSideChat can keep an opaque peer model and harness without copying its conversation', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			agentHost.setAgents([
+				{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { sideChat: true } } },
+				{ provider: 'claude', displayName: 'Claude', description: '', models: [], capabilities: { multipleChats: { sideChat: true } } },
+			]);
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'fresh-side-chat');
+			const defaultChat = 'ahp-chat:/host-selected/main';
+			const peerChat = 'ahp-chat:/host-selected/peer';
+			const peerSummary = { ...makeChatSummary(peerChat, 'Peer'), provider: 'claude' };
+			agentHost.setSessionState('fresh-side-chat', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, ''), peerSummary,
+			], { defaultChat }));
+			const model = { id: 'peer-model', config: { thinking: 'high' } };
+			agentHost.setChatState(peerChat, {
+				...peerSummary, turns: [],
+				draft: { text: '', origin: { kind: MessageKind.User }, model },
+			});
+			const peer = session.chats.get().find(chat => chat.title.get() === 'Peer');
+			assert.ok(peer);
+
+			const fresh = await provider.createSideChat(session.sessionId, peer.resource, 'turn-1', undefined, false);
+
+			assert.deepStrictEqual({
+				options: agentHost.createdChats.at(-1)?.options,
+				inCatalog: session.chats.get().includes(fresh),
+			}, {
+				options: { model, provider: 'claude' },
+				inCatalog: true,
+			});
+		}));
+
 		for (const opaque of [true, false]) {
 			test(`forkChat of an unknown peer source ${opaque ? 'fails on an opaque default session' : 'rebuilds the shaped peer URI on a shaped default session'}`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 				const provider = createProvider(disposables, agentHost);

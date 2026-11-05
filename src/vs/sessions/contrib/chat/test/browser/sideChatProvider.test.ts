@@ -86,6 +86,7 @@ suite('SessionsSideChatProviderContribution', () => {
 
 		const callOrder: string[] = [];
 		const requests: ISendRequestOptions[] = [];
+		const sourceContextOptions: (boolean | undefined)[] = [];
 		const sendRequest: ISessionsManagementService['sendRequest'] = async (_session, chat, requestOptions) => {
 			callOrder.push(`send:${chat.resource.toString()}:${requestOptions.query}`);
 			requests.push(requestOptions);
@@ -98,8 +99,9 @@ suite('SessionsSideChatProviderContribution', () => {
 				const resolvedChat = [chat, parentChat].find(candidate => extUri.isEqual(candidate.resource, resource));
 				return resolvedChat ? { session, chat: resolvedChat } : undefined;
 			},
-			createSideChatInSession: async (_session, _sourceChat, turnId, selection) => {
+			createSideChatInSession: async (_session, _sourceChat, turnId, selection, includeSourceContext) => {
 				callOrder.push(`create:${turnId}:${selection?.text ?? ''}`);
+				sourceContextOptions.push(includeSourceContext);
 				if (options.fail === 'create') {
 					throw new Error('Create failed');
 				}
@@ -135,7 +137,7 @@ suite('SessionsSideChatProviderContribution', () => {
 		}));
 
 		store.add(instantiationService.createInstance(SessionsSideChatProviderContribution));
-		return { provider: () => registered, callOrder, requests, activeSession, activeChat, navigationRequest, session };
+		return { provider: () => registered, callOrder, requests, sourceContextOptions, activeSession, activeChat, navigationRequest, session };
 	}
 
 	test('registers a provider that branches, opens, then sends on the side chat', async () => {
@@ -266,6 +268,20 @@ suite('SessionsSideChatProviderContribution', () => {
 		const harness = setup({ sourceTurnIds: ['older-turn', 'latest-turn'] });
 		await harness.provider()!.askInSideChat(sourceChat.resource, 'Explain this', { text: 'Older response' }, { sourceTurnId: 'older-turn' });
 		assert.deepStrictEqual(harness.callOrder[0], 'create:older-turn:Older response');
+	});
+
+	test('opens a fresh side chat without source context when requested', async () => {
+		const harness = setup();
+		const attachedContext = [toPasteVariableEntry('Terminal Command', 'echo example')];
+		await harness.provider()!.askInSideChat(sourceChat.resource, 'Explain this', undefined, { includeSourceContext: false, attachedContext });
+
+		assert.deepStrictEqual({
+			callOrder: harness.callOrder, sourceContextOptions: harness.sourceContextOptions, requests: harness.requests,
+		}, {
+			callOrder: ['create:turn-1:', `open:${sideChat.resource.toString()}`, `split:${sideChat.resource.toString()}`, `send:${sideChat.resource.toString()}:Explain this`],
+			sourceContextOptions: [false],
+			requests: [{ query: 'Explain this', attachedContext }],
+		});
 	});
 
 	test('rejects a missing selected turn rather than branching from the latest turn', async () => {

@@ -933,11 +933,11 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 			}
 			return this._forkSession(request, token, options);
 		};
-		this._createSideChatIfWritable = (turnId, token, selection) => {
+		this._createSideChatIfWritable = (turnId, token, selection, includeSourceContext) => {
 			if (this.isReadOnly.get()) {
 				throw new Error('Session is read-only');
 			}
-			return this._createSideChat(turnId, token, selection);
+			return this._createSideChat(turnId, token, selection, includeSourceContext);
 		};
 		this.renameSession = (title, token) => {
 			if (this.isReadOnly.get()) {
@@ -2096,8 +2096,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					const agent = this._getRootState()?.agents.find(agent => agent.provider === this._config.provider);
 					return agent?.capabilities?.multipleChats?.fork === true;
 				},
-				(turnId: string, token: CancellationToken, selection?: IChatSideChatSelection) =>
-					this._createSideChat(sessionResource, resolvedSession, turnId, token, selection),
+				(turnId, token, selection, includeSourceContext) =>
+					this._createSideChat(sessionResource, resolvedSession, turnId, token, selection, includeSourceContext),
 				() => {
 					const agent = this._getRootState()?.agents.find(agent => agent.provider === this._config.provider);
 					return agent?.capabilities?.multipleChats?.sideChat === true;
@@ -6831,7 +6831,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return this._connectionsService.findSessionResource(legacy, authority) ? legacy : undefined;
 	}
 
-	private async _createSideChat(sessionResource: URI, backendSession: URI, turnId: string, token: CancellationToken, selection?: IChatSideChatSelection): Promise<IChatSessionItem> {
+	private async _createSideChat(sessionResource: URI, backendSession: URI, turnId: string, token: CancellationToken, selection?: IChatSideChatSelection, includeSourceContext = true): Promise<IChatSessionItem> {
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
@@ -6850,9 +6850,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			throw new Error(`Cannot create side chat: turn ${turnId} not found`);
 		}
 		const chat = URI.parse(newAgentHostChatUri(sessionUri, rawState.defaultChat, this._config.connection.initializeResult.get()));
+		const sourceProvider = rawState.chats.find(summary => summary.resource === sourceChat)?.provider;
 		await this._config.connection.createChat(backendSession, chat, {
 			model: lastTurnModelSelection(sourceState),
-			sideChat: { source: URI.parse(sourceChat), turnId, ...(selection ? { selection } : {}) },
+			...(includeSourceContext
+				? { sideChat: { source: URI.parse(sourceChat), turnId, ...(selection ? { selection } : {}) } }
+				: sourceProvider ? { provider: sourceProvider } : {}),
 		});
 		const subscription = this._ensureSessionSubscription(sessionUri);
 		const summary = await waitForState(

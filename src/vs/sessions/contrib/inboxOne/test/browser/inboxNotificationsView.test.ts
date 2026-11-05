@@ -2995,7 +2995,7 @@ suite('InboxNotificationsView', () => {
 			labels: ['Allow Once', 'Skip', 'Explain'],
 			menu: ['', 'Allow in Session', '', 'Always Allow'],
 			submissionsAfterExplain: 0, submittedIndex: 2, submittedId: 'session',
-			explanation: [part.chatResource, 'Explain what this terminal command will do.', { text: part.commandLine }, { sourceTurnId: part.requestId }],
+			explanation: [part.chatResource, 'Explain what this terminal command will do. Do not run it or make changes.', { text: part.commandLine }, { sourceTurnId: part.requestId, includeSourceContext: false }],
 			titleCount: 2, codeLanguage: true, radius: '6px', border: 'solid',
 		});
 	});

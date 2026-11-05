@@ -524,16 +524,10 @@ export interface ISessionsManagementService {
 	forkChatInSession(session: ISession, sourceChat: URI, turnId: string, options?: IForkChatOptions): Promise<IChat>;
 
 	/**
-	 * Create a side chat from an existing chat's turn, inheriting the source
-	 * chat's model/agent selection. Used by the `/btw` command. Throws if the
-	 * session's provider does not support side chats
-	 * ({@link ISessionCapabilities.supportsSideChat}).
-	 *
-	 * @param session The session containing the source chat.
-	 * @param sourceChat The resource URI of the chat to branch from.
-	 * @param turnId The ID of the turn to branch from.
+	 * Creates a side chat inheriting the source model/agent, but not its conversation when includeSourceContext is false.
+	 * Throws if the provider does not support side chats.
 	 */
-	createSideChatInSession(session: ISession, sourceChat: URI, turnId: string, selection?: ISideChatSelection): Promise<IChat>;
+	createSideChatInSession(session: ISession, sourceChat: URI, turnId: string, selection?: ISideChatSelection, includeSourceContext?: boolean): Promise<IChat>;
 
 	/**
 	 * Discard the in-progress new session, disposing it through its provider to

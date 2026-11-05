@@ -15341,13 +15341,17 @@ suite('ChatListRenderer', () => {
 
 		/** Routes Explain to a side chat provider that records each question and answers when `response` completes. */
 		function stubSideChat(context: ReturnType<typeof createConfirmationRenderer>, supported: boolean) {
-			const asked: { sessionResource: string; query: string; selection: IChatSideChatSelection | undefined; sourceTurnId: string | undefined }[] = [];
+			const asked: { sessionResource: string; query: string; selection: IChatSideChatSelection | undefined; sourceTurnId: string | undefined; includeSourceContext: boolean | undefined; attachedText: string[] }[] = [];
 			const response = new DeferredPromise<void>();
 			const sideChatService = context.disposables.add(new ChatSideChatService());
 			context.disposables.add(sideChatService.registerProvider({
 				canAskInSideChat: () => supported,
 				askInSideChat: (sessionResource, query, selection, options) => {
-					asked.push({ sessionResource: sessionResource.toString(), query, selection, sourceTurnId: options?.sourceTurnId });
+					asked.push({
+						sessionResource: sessionResource.toString(), query, selection, sourceTurnId: options?.sourceTurnId,
+						includeSourceContext: options?.includeSourceContext,
+						attachedText: options?.attachedContext?.map(entry => String(entry.value)) ?? [],
+					});
 					return response.p;
 				},
 				observeSideChatOrigin: () => constObservable(undefined),
@@ -15413,9 +15417,11 @@ suite('ChatListRenderer', () => {
 						labels: sideChatSupported ? ['Allow Once', 'Skip', 'Explain'] : ['Allow Once', 'Skip'],
 						asked: sideChatSupported ? [{
 							sessionResource: context.model.sessionResource.toString(),
-							query: 'Explain what this terminal command will do.',
-							selection: { text: command },
+							query: 'Explain what this terminal command will do. Do not run it or make changes.',
+							selection: undefined,
 							sourceTurnId: context.request.id,
+							includeSourceContext: false,
+							attachedText: [command],
 						}] : [],
 						disabledWhileAsking: sideChatSupported ? true : undefined,
 						disabledAfterAsking: sideChatSupported ? false : undefined,
@@ -15446,7 +15452,7 @@ suite('ChatListRenderer', () => {
 			await timeout(0);
 
 			assert.deepStrictEqual({
-				explained: sideChat.asked.map(call => call.selection?.text),
+				explained: sideChat.asked.flatMap(call => call.attachedText),
 				state: tool.state.get().type,
 			}, {
 				explained: ['cd packages/server && npm ci'],

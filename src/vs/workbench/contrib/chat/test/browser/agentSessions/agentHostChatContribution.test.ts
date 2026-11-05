@@ -7373,7 +7373,7 @@ suite('AgentHostChatContribution', () => {
 	});
 
 	suite('side chats', () => {
-		async function setupSideChat(options?: { peer?: boolean; opaque?: boolean; active?: boolean; noTurn?: boolean; readOnly?: boolean; restored?: boolean; missingSourceSummary?: boolean }) {
+		async function setupSideChat(options?: { peer?: boolean; opaque?: boolean; active?: boolean; noTurn?: boolean; readOnly?: boolean; restored?: boolean; missingSourceSummary?: boolean; provider?: string }) {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 			const backend = AgentSession.uri('copilot', 'side-source');
 			const defaultChat = options?.opaque ? 'ahp-chat:/host-selected/default' : buildDefaultChatUri(backend);
@@ -7391,7 +7391,11 @@ suite('AgentHostChatContribution', () => {
 				activeSessions: 1,
 			});
 			setSupport(true);
-			const sourceSummary = { ...createDefaultChatSummary(summary, sourceChat), ...(options?.readOnly ? { interactivity: ChatInteractivity.ReadOnly } : {}) };
+			const sourceSummary = {
+				...createDefaultChatSummary(summary, sourceChat),
+				...(options?.readOnly ? { interactivity: ChatInteractivity.ReadOnly } : {}),
+				...(options?.provider ? { provider: options.provider } : {}),
+			};
 			const message = { text: 'Source request', origin: { kind: MessageKind.User }, model: { id: 'source-model', config: { thinking: 'high' } } };
 			const sourceState: ChatState = {
 				...createChatState(sourceSummary),
@@ -7493,6 +7497,28 @@ suite('AgentHostChatContribution', () => {
 					},
 					target: fixture.resource.with({ fragment: getAgentHostChatId(call.chat.toString()) }),
 					fork: undefined,
+				});
+			});
+		}
+
+		for (const options of [{}, { peer: true, opaque: true, active: true, provider: 'claude' }]) {
+			test(`creates a fresh peer without source history ${JSON.stringify(options)}`, async () => {
+				const fixture = await setupSideChat(options);
+				assert.ok(fixture.session.createSideChat);
+				const target = await fixture.session.createSideChat('source-turn', CancellationToken.None, undefined, false);
+				const call = fixture.agentHostService.createChatCalls[0];
+				assert.deepStrictEqual({
+					calls: fixture.agentHostService.createChatCalls.map(({ session, options }) => ({ session, options })),
+					target: target.resource,
+				}, {
+					calls: [{
+						session: fixture.backend,
+						options: {
+							model: { id: 'source-model', config: { thinking: 'high' } },
+							...(options.provider ? { provider: options.provider } : {}),
+						},
+					}],
+					target: fixture.resource.with({ fragment: getAgentHostChatId(call.chat.toString()) }),
 				});
 			});
 		}

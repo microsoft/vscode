@@ -49,9 +49,9 @@ export class ChatTerminalToolExplanation extends Disposable {
 		try {
 			await this.sideChatService.askInSideChat(
 				this.sessionResource,
-				localize('tool.explain.query', "Explain what this terminal command will do."),
+				localize('tool.explain.query', "Explain what this terminal command will do. Do not run it or make changes."),
 				{ text: this.getCommand().trim() },
-				{ sourceTurnId: this.sourceTurnId },
+				{ sourceTurnId: this.sourceTurnId, includeSourceContext: false },
 			);
 		} catch (error) {
 			this.notificationService.error(localize('tool.explain.failed', "The side chat could not be started: {0}", toErrorMessage(error)));

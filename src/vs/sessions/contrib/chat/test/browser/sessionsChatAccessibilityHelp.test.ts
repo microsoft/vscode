@@ -220,7 +220,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 
 		assert.deepStrictEqual({
 			description: content.includes('the confirmation title includes that description, such as Run in terminal: followed by the description'),
-			explain: content.includes('use Tab to reach Explain and press Enter or Space to open a side chat'),
+			explain: content.includes('use Tab to reach Explain and press Enter or Space to open a fresh side chat with the command, without the conversation history'),
 			pending: content.includes('The confirmation stays pending until you allow or skip it'),
 		}, { description: true, explain: true, pending: true });
 	});
