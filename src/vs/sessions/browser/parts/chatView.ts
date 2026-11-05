@@ -97,6 +97,8 @@ export interface ISelectWorkspaceOptions {
 export interface ISelectNoWorkspaceOptions {
 	readonly userSelection?: boolean;
 	readonly preserveNavigation?: boolean;
+	/** Only replace an automatic default in a fresh, empty composer. */
+	readonly isDefault?: boolean;
 }
 
 export type WorkspaceSelectionResult = 'applied' | 'notReady' | 'preserved';
@@ -228,8 +230,12 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 		return Promise.resolve('notReady');
 	}
 
-	selectNoWorkspace(_options?: ISelectNoWorkspaceOptions): void {
-		// no-op by default
+	/**
+	 * Start without a workspace, acknowledging application or preservation of an existing choice.
+	 * Views without a ready workspace picker return notReady.
+	 */
+	selectNoWorkspace(_options?: ISelectNoWorkspaceOptions): WorkspaceSelectionResult {
+		return 'notReady';
 	}
 
 	/**

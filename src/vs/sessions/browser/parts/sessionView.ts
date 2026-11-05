@@ -489,9 +489,9 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 		return this._standaloneView.get()?.applyDraft(draft, folderUri, options, token) ?? Promise.resolve('notReady');
 	}
 
-	selectNoWorkspace(options?: ISelectNoWorkspaceOptions): void {
+	selectNoWorkspace(options?: ISelectNoWorkspaceOptions): WorkspaceSelectionResult {
 		const standaloneView = this._visibleStandaloneView;
-		standaloneView ? standaloneView.selectNoWorkspace(options) : this._groupsView.selectNoWorkspace(options);
+		return standaloneView ? standaloneView.selectNoWorkspace(options) : this._groupsView.selectNoWorkspace(options);
 	}
 
 	/** Opens the given chat beside a reference chat, or the active group ("open to the side"). */
