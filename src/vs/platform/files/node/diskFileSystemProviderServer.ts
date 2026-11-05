@@ -12,7 +12,7 @@ import { IURITransformer } from '../../../base/common/uriIpc.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { ReadableStreamEventPayload, listenStream } from '../../../base/common/stream.js';
-import { IStat, IFileReadStreamOptions, IFileWriteOptions, IFileOpenOptions, IFileDeleteOptions, IFileOverwriteOptions, IFileChange, IWatchOptions, FileType, IFileAtomicReadOptions } from '../common/files.js';
+import { IStat, IFileReadStreamOptions, IFileWriteOptions, IFileOpenOptions, IFileDeleteOptions, IFileOverwriteOptions, IFileChange, IWatchOptions, FileType, IFileAtomicReadOptions, IFileRealpathOptions } from '../common/files.js';
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
 import { IRecursiveWatcherOptions } from '../common/watcher.js';
@@ -38,7 +38,7 @@ export abstract class AbstractDiskFileSystemProviderChannel<T> extends Disposabl
 
 		switch (command) {
 			case 'stat': return this.stat(uriTransformer, args[0] as UriComponents) as Promise<TResult>;
-			case 'realpath': return this.realpath(uriTransformer, args[0] as UriComponents) as Promise<TResult>;
+			case 'realpath': return this.realpath(uriTransformer, args[0] as UriComponents, args[1] as IFileRealpathOptions | undefined) as Promise<TResult>;
 			case 'readdir': return this.readdir(uriTransformer, args[0] as UriComponents) as Promise<TResult>;
 			case 'open': return this.open(uriTransformer, args[0] as UriComponents, args[1] as IFileOpenOptions) as Promise<TResult>;
 			case 'close': return this.close(args[0] as number) as Promise<TResult>;
@@ -82,10 +82,10 @@ export abstract class AbstractDiskFileSystemProviderChannel<T> extends Disposabl
 		return this.provider.stat(resource);
 	}
 
-	private realpath(uriTransformer: IURITransformer, _resource: UriComponents): Promise<string> {
+	private realpath(uriTransformer: IURITransformer, _resource: UriComponents, options: IFileRealpathOptions | undefined): Promise<string> {
 		const resource = this.transformIncoming(uriTransformer, _resource, true);
 
-		return this.provider.realpath(resource);
+		return this.provider.realpath(resource, options);
 	}
 
 	private readdir(uriTransformer: IURITransformer, _resource: UriComponents): Promise<[string, FileType][]> {

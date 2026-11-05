@@ -741,8 +741,17 @@ export function hasFileCloneCapability(provider: IFileSystemProvider): provider 
 	return !!(provider.capabilities & FileSystemProviderCapabilities.FileClone);
 }
 
+export interface IFileRealpathOptions {
+
+	/**
+	 * Report a failure to resolve links as an error, instead of returning a
+	 * path that may still contain links.
+	 */
+	readonly strict?: boolean;
+}
+
 export interface IFileSystemProviderWithFileRealpathCapability extends IFileSystemProvider {
-	realpath(resource: URI): Promise<string>;
+	realpath(resource: URI, options?: IFileRealpathOptions): Promise<string>;
 }
 
 export function hasFileRealpathCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithFileRealpathCapability {
