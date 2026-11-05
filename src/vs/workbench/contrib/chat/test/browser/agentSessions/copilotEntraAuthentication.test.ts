@@ -10,10 +10,10 @@ import type { IDefaultAccount } from '../../../../../../base/common/defaultAccou
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { copilotEntraAuthorizationServer, copilotEntraClientId, copilotEntraDiscoveryResource } from '../../../../../../platform/agentHost/common/copilotEntraAuthentication.js';
-import { authenticationAccountMeta } from '../../../../../../platform/agentHost/common/meta/agentAuthenticationAccount.js';
-import { AuthRequiredReason } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { copilotEntraAuthorizationServer, copilotEntraClientId, copilotEntraDiscoveryResource, copilotEntraM365Audience, copilotEntraResources } from '../../../../../../platform/agentHost/common/copilotEntraAuthentication.js';
+import { authenticationAccountId, authenticationAccountMeta } from '../../../../../../platform/agentHost/common/meta/agentAuthenticationAccount.js';
 import type { ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { AuthRequiredReason } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -224,6 +224,39 @@ suite('Agent Host Microsoft credential acquisition', () => {
 		}]);
 	});
 
+	for (const defaultProvider of ['none', 'github'] as const) {
+		test(`preserves the host-selected M365 account on a later token request with ${defaultProvider} as the window default`, async () => {
+			const f = fixture();
+			f.defaults.currentDefaultAccount = defaultProvider === 'none' ? null : {
+				authenticationProvider: { id: 'github', name: 'GitHub', enterprise: false },
+				sessionId: 'unrelated-window-session', accountName: 'Other account', enterprise: false,
+			};
+			const m365Resource: ProtectedResourceMetadata = {
+				resource: copilotEntraResources.get(copilotEntraM365Audience)!,
+				authorization_servers: [copilotEntraAuthorizationServer],
+				scopes_supported: [`${copilotEntraM365Audience}/.default`],
+			};
+			const m365Session = { ...selected, id: 'm365-scoped-session', scopes: m365Resource.scopes_supported!, accessToken: 'synthetic-m365-token' };
+			f.authentication.sessions = [selected, m365Session];
+			const cache = new AgentHostAuthTokenCache();
+			await cache.authenticate(m365Resource.resource, m365Resource.scopes_supported, m365Session.accessToken, async () => { },
+				authenticationAccountId({ providerId: 'microsoft', accountId: selected.account.id }), undefined, undefined, { sessionId: m365Session.id, accountId: selected.account.id });
+			const forwarded: IAgentHostAuthenticateRequest[] = [];
+			const options = {
+				logPrefix: '[test]', microsoftAccountId: selected.account.id, authTokenCache: cache,
+				authenticate: async (request: IAgentHostAuthenticateRequest) => { forwarded.push(request); },
+			};
+			const recovery = f.instantiation.createInstance(AgentHostAuthenticationRecovery);
+			await f.instantiation.invokeFunction(accessor => recovery.recover(accessor, m365Resource, options));
+			await f.instantiation.invokeFunction(revokeAuthenticationForRemovedSessions,
+				[{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], protectedResources: [m365Resource] }],
+				'microsoft', [{ id: m365Session.id, scopes: [] }], options);
+			assert.deepStrictEqual({ tokens: forwarded.map(request => request.token), interactive: f.authentication.created }, {
+				tokens: [m365Session.accessToken, ''], interactive: [],
+			});
+		});
+	}
+
 	test('keeps cumulative-resource clients unchanged while explicit account setup waits for selection', async () => {
 		const f = fixture();
 		const forwarded: string[] = [];
@@ -234,6 +267,33 @@ suite('Agent Host Microsoft credential acquisition', () => {
 			});
 		}
 		assert.deepStrictEqual(forwarded, [copilotEntraDiscoveryResource]);
+	});
+
+	test('reuses the pinned credential for repeated required requests but refreshes an expired credential', async () => {
+		const f = fixture();
+		f.defaults.currentDefaultAccount = null;
+		const scopes = [`${copilotEntraM365Audience}/.default`];
+		const m365Resource = { resource: copilotEntraResources.get(copilotEntraM365Audience)!, authorization_servers: [copilotEntraAuthorizationServer], scopes_supported: scopes };
+		const m365Session = { ...selected, id: 'm365-scoped', scopes, accessToken: 'valid-m365-token' };
+		f.authentication.sessions = [selected, m365Session];
+		f.authentication.interactiveResult = { ...m365Session, accessToken: 'renewed-m365-token' };
+		const tokens: string[] = [];
+		const options = {
+			logPrefix: '[test]', microsoftAccountId: selected.account.id, authTokenCache: new AgentHostAuthTokenCache(),
+			challengeReason: AuthRequiredReason.Required,
+			authenticate: async (request: IAgentHostAuthenticateRequest) => { tokens.push(request.token); },
+		};
+		const recovery = f.instantiation.createInstance(AgentHostAuthenticationRecovery);
+		await f.instantiation.invokeFunction(accessor => recovery.recover(accessor, m365Resource, options));
+		await f.instantiation.invokeFunction(accessor => recovery.recover(accessor, m365Resource, options));
+		const afterRequired = { tokens: [...tokens], interactiveCount: f.authentication.created.length };
+		const expiredOptions = { ...options, challengeReason: AuthRequiredReason.Expired };
+		await f.instantiation.invokeFunction(accessor => recovery.recover(accessor, m365Resource, expiredOptions));
+		assert.deepStrictEqual({ afterRequired, tokens, interactiveAccounts: f.authentication.created.map(([, , options]) => options?.account) }, {
+			afterRequired: { tokens: ['valid-m365-token', 'valid-m365-token'], interactiveCount: 0 },
+			tokens: ['valid-m365-token', 'valid-m365-token', 'renewed-m365-token'],
+			interactiveAccounts: [selected.account],
+		});
 	});
 
 	test('same-token deduplication retains the replacement session identity for sign-out', async () => {

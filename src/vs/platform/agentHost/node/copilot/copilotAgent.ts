@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../../common/agentHostSessionStateStore.js';
-import { CopilotClient, RuntimeConnection, type CopilotClientOptions, type GitHubTelemetryNotification, type SessionMetadata, type SessionMode as CopilotSdkMode } from '@github/copilot-sdk';
+import { CopilotClient, RuntimeConnection, type CopilotClientOptions, type CopilotSession, type GitHubTelemetryNotification, type SessionMetadata, type SessionMode as CopilotSdkMode } from '@github/copilot-sdk';
 import { constants as fsConstants } from 'fs';
 import * as fs from 'fs/promises';
 import * as os from 'os';
@@ -26,6 +26,7 @@ import { generateUuid, isUUID } from '../../../../base/common/uuid.js';
 import { parse as parseYaml, type YamlParseError } from '../../../../base/common/yaml.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { CopilotForkTiming } from './copilotForkTiming.js';
+import { toCopilotAccountModelCatalog } from './copilotAccountModelCatalog.js';
 import { rgDiskPath } from '../../../../base/node/ripgrep.js';
 import { detectLibcSync } from '../../../../base/node/libc.js';
 import { localize } from '../../../../nls.js';
@@ -3692,11 +3693,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	isReadyForAutomation(model: ModelSelection | undefined, reader?: IReader): boolean {
-		const accountReady = this._entraAuthentication ? this._accountService.state.read(reader).kind === 'ready' : this._automationAuthenticationReady.read(reader);
-		const authenticated = accountReady && this.authenticationRequired.read(reader) === undefined;
 		if (this._entraAuthentication) {
-			return authenticated;
+			return false;
 		}
+		const authenticated = this._automationAuthenticationReady.read(reader) && this.authenticationRequired.read(reader) === undefined;
 		if (authenticated) {
 			return true;
 		}
@@ -4279,8 +4279,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		try {
 			const client = await this._ensureClient();
-			const catalog = await this._listModels(client, undefined, [], context.choice.selectionId);
-			const modelPolicy = await this._managedSettingsResolver.resolve(client.rpc.managedSettings, { selectionId: context.choice.selectionId });
+			const session = await this._accountService.getSession(context);
+			const catalog = await this._listModels(client, undefined, [], session);
+			const modelPolicy = await this._managedSettingsResolver.resolve(session.rpc.managedSettings, undefined);
+			await this._accountService.verifySessionContext(session, context);
 			if (this._accountService.state.get() !== context || this._shutdownPromise) {
 				return;
 			}
@@ -5973,9 +5975,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/** Returns the tier metadata with the models, so the caller applies both under one ownership check. */
-	private async _listModels(client: CopilotClient, gitHubToken: string | undefined, previousModels = this._capiModels, selectionId?: string): Promise<ICopilotModelCatalog> {
+	private async _listModels(client: CopilotClient, gitHubToken: string | undefined, previousModels = this._capiModels, session?: CopilotSession): Promise<ICopilotModelCatalog> {
 		this._logService.info('[Copilot] Listing models...');
-		const { models, auto } = await client.rpc.models.list(selectionId ? { selectionId } : this._getEnterpriseHost() ? {} : { gitHubToken });
+		const { models, auto } = session
+			? toCopilotAccountModelCatalog(await session.rpc.model.list())
+			: await client.rpc.models.list(this._getEnterpriseHost() ? {} : { gitHubToken });
 		const promotions = auto ? collectAutoTierPromotions(auto.tiers) : [];
 		// Empty SDK results can also mean discovery failed, so do not replace an already loaded catalog.
 		if (!models.length && previousModels.some(model => !this._fallbackAutoModels.has(model))) {

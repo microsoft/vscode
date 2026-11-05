@@ -657,6 +657,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			authTokenCache: connState.authTokenCache,
 			challengeReason: reason,
 			microsoftAccountId: this._copilotAccountContext(connection)?.entraAccountId,
+			challengeReason: reason,
 			logPrefix: '[RemoteAgentHost]',
 			isCurrent: () => this._connections.get(address) === connState,
 			renewAuthentication: renewAuthentication ? async resource => {

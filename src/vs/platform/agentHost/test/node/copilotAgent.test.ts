@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { CopilotClient, CopilotClientOptions, CopilotSession, GitHubTelemetryNotification, PermissionMode, PermissionRequest, ResumeSessionConfig, SessionConfig, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, TypedSessionEventHandler } from '@github/copilot-sdk';
-import { mock } from '../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
@@ -9606,6 +9606,22 @@ suite('CopilotAgent', () => {
 		assert.deepStrictEqual({ initial, whileApplying, authenticated, revoked, restored: agent.isReadyForAutomation(undefined) }, {
 			initial: false, whileApplying: false, authenticated: true, revoked: false, restored: true,
 		});
+	});
+
+	test('Microsoft discovery readiness does not enable automation execution', () => {
+		const { agent, instantiationService } = createTestAgentContext(disposables, {
+			copilotClient: new TestCopilotClient([], []),
+			rootConfig: { [CopilotCliConfigKey.M365Enabled]: true },
+		});
+		afterTest(() => disposeAgent(agent));
+		const accountService = instantiationService.invokeFunction(accessor => accessor.get(ICopilotAccountService));
+		const context = upcastPartial<ReturnType<ICopilotAccountService['requireReady']>>({ kind: 'ready' });
+		const read = stub(accountService.state, 'read').returns(context);
+		try {
+			assert.strictEqual(agent.isReadyForAutomation(undefined), false);
+		} finally {
+			read.restore();
+		}
 	});
 
 	test('keeps the requirement raised when a second revocation arrives while tokenless', async () => {

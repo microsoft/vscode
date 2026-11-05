@@ -971,6 +971,10 @@ function canRevokeCopilotEntraAuthentication(resource: ProtectedResourceMetadata
 }
 
 async function revokeChangedCopilotEntraAccount(authenticationService: IAuthenticationService, defaultAccountService: IDefaultAccountService, resource: ProtectedResourceMetadata, options: IAgentHostAuthenticationOptions): Promise<boolean> {
+	// The shared account choice is independent of this window's default account.
+	if (options.microsoftAccountId) {
+		return false;
+	}
 	const forwardedAccount = options.authTokenCache?.getAccountId(resource.resource, resource.scopes_supported);
 	if (!isCopilotEntraResource(resource) || forwardedAccount === undefined) {
 		return false;

@@ -15,16 +15,44 @@ import { normalizeManagedModelId } from '../../../policy/common/copilotManagedSe
 
 type ResolvedManagedSettings = Awaited<ReturnType<CopilotClient['rpc']['managedSettings']['resolve']>>;
 /** `layers` carries each source's delivered document, which distinguishes a configured `fusionTier` from the runtime's legacy alias. */
-export type CopilotManagedModelPolicy = Pick<ResolvedManagedSettings, 'values' | 'meta'> & { readonly layers?: ResolvedManagedSettings['layers'] };
+export type CopilotManagedModelPolicy = Pick<ResolvedManagedSettings, 'values' | 'meta'> & { readonly layers?: ResolvedManagedSettings['layers']; readonly resolved?: ResolvedManagedSettings['resolved'] };
 
 const modelOptionKeys = ['thinkingLevel', 'contextSize', 'tier'] as const;
 
 /** The managed default model as a catalog id, with Copilot Fusion read as `auto`. */
 function getManagedModelId(policy: CopilotManagedModelPolicy): string | undefined {
-	return normalizeManagedModelId(policy.values?.model);
+	return normalizeManagedModelId(getManagedModelValues(policy)?.model);
 }
 
 const fusionTierKey = 'fusionTier';
+
+function getManagedModelValues(policy: CopilotManagedModelPolicy) {
+	if (policy.values) {
+		return policy.values;
+	}
+	const settings = policy.resolved?.settings;
+	if (!settings || typeof settings !== 'object' || Array.isArray(settings)) {
+		return undefined;
+	}
+	return {
+		model: readModelSetting(settings.model),
+		effortLevel: readModelSetting(settings.effortLevel),
+		contextTier: readModelSetting(settings.contextTier),
+		autoTier: readModelSetting(settings.autoTier),
+		fusionTier: readModelSetting(settings.fusionTier),
+	};
+}
+
+function readModelSetting(value: ResolvedManagedSettings['resolved']['settings']): string | undefined {
+	if (value === undefined) {
+		return undefined;
+	}
+	const setting = value && typeof value === 'object' && !Array.isArray(value) ? value.overridable : value;
+	if (typeof setting !== 'string') {
+		throw new Error('The runtime returned an invalid effective model setting.');
+	}
+	return setting;
+}
 
 /**
  * The runtime's managed Fusion bindings (github/copilot-agent-runtime#27725), most specific first. High falls back to
@@ -43,14 +71,15 @@ const fusionTierRoutingIds: Readonly<Record<string, readonly string[]>> = {
  * effective value: an older runtime that drops the key keeps applying legacy `autoTier`.
  */
 function getManagedAutoPolicy(policy: CopilotManagedModelPolicy): { readonly kind: 'fusion' | 'legacy'; readonly tier: string } | undefined {
-	const fusionTier = policy.values?.fusionTier;
+	const values = getManagedModelValues(policy);
+	const fusionTier = values?.fusionTier;
 	const configured = policy.layers
 		? policy.layers.some(({ settings }) => typeof settings === 'object' && settings !== null && !Array.isArray(settings) && Object.hasOwn(settings, fusionTierKey))
-		: fusionTier !== undefined && policy.values?.autoTier === undefined;
+		: fusionTier !== undefined && (!policy.values || values?.autoTier === undefined);
 	if (configured && fusionTier !== undefined) {
 		return Object.hasOwn(fusionTierRoutingIds, fusionTier) ? { kind: 'fusion', tier: fusionTier } : undefined;
 	}
-	const autoTier = policy.values?.autoTier;
+	const autoTier = values?.autoTier;
 	return autoTier ? { kind: 'legacy', tier: autoTier } : undefined;
 }
 
@@ -137,7 +166,7 @@ export function projectCopilotManagedModelConfiguration(model: IAgentModelInfo, 
 		return managedModel ? { ...model, _meta: withAgentManagedModelDefaults(model._meta, { model: true, keys: [] }) } : model;
 	}
 	const properties = { ...schema.properties };
-	const values = policy.values;
+	const values = getManagedModelValues(policy);
 	const concreteModel = !!values && managedModelId === model.id && model.id !== 'auto';
 	const autoPreference = model.id === 'auto' ? getCopilotManagedAutoPreference(policy, model) : undefined;
 	const entries = [
@@ -179,7 +208,7 @@ export function omitCopilotManagedModelDefaults(model: ModelSelection | undefine
 	if (!model?.config) {
 		return model;
 	}
-	const values = policy.values;
+	const values = getManagedModelValues(policy);
 	const concreteModel = !!values && getManagedModelId(policy) === model.id && model.id !== 'auto';
 	const options = [
 		['thinkingLevel', concreteModel && values.effortLevel !== undefined],
