@@ -216,6 +216,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 			'Each Marketplace row shows the extension icon, name, publisher, compact install count and star rating, and description. Pylance and Black Formatter show a verified publisher badge before the publisher name; the others do not.',
 			'Pylance shows a prominent Install Pre-Release button with a dropdown arrow on the right. Python Snippets shows a prominent Install button without one. Both are the same height as the Restart Extensions button on the Python row. Black Formatter shows an Installing label instead.',
 			'Python Indent shows a small warning icon after its rating, and its Install button is disabled.',
+			'In every row, the extension name, publisher name, install count, and rating sit on one shared text baseline, including Pylance and Black Formatter, whose verified publisher badge is vertically centered on the publisher name.',
 		],
 		render: async ctx => {
 			renderWidget(ctx, { extensions: fixtureExtensions, searchQuery: 'python', marketplaceExtensions: fixtureMarketplaceExtensions });

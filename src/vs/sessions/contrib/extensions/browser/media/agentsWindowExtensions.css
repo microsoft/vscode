@@ -186,9 +186,14 @@
 /* Rows reuse the Extensions view's publisher, install count, and rating widgets, sized like the rest of the row. */
 .agents-window-extension-row .agents-window-extension-publisher > .publisher {
 	display: flex;
-	align-items: center;
+	/* Aligns the publisher's name with the other text of the row, rather than the verified publisher badge before it. */
+	align-items: baseline;
 	gap: var(--vscode-spacing-size20);
 	min-width: 0;
+}
+
+.agents-window-extension-row .agents-window-extension-publisher .verified-publisher {
+	align-self: center;
 }
 
 .agents-window-extension-row .agents-window-extension-publisher .publisher-name {
@@ -196,16 +201,21 @@
 	text-overflow: ellipsis;
 }
 
+/* Align their counts with the other text of the row, and center their icons. */
 .agents-window-extension-row .agents-window-extension-name-row > .agents-window-extension-install-count,
 .agents-window-extension-row .agents-window-extension-name-row > .agents-window-extension-rating {
 	display: flex;
 	flex-shrink: 0;
-	align-self: center;
-	align-items: center;
+	align-items: baseline;
 	gap: var(--vscode-spacing-size20);
 	font-size: var(--vscode-fontSize-body2);
 	line-height: 16px;
 	color: var(--vscode-descriptionForeground);
+}
+
+.agents-window-extension-row .agents-window-extension-name-row > .agents-window-extension-install-count > .codicon,
+.agents-window-extension-row .agents-window-extension-name-row > .agents-window-extension-rating > .codicon {
+	align-self: center;
 }
 
 /* Outranks the workbench's generic codicon size. */
