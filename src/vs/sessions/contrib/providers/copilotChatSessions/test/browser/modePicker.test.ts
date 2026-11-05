@@ -8,12 +8,14 @@ import { Event } from '../../../../../../base/common/event.js';
 import { hash } from '../../../../../../base/common/hash.js';
 import { IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
+import { hasKey } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IActionListDelegate, IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestTelemetryService } from '../../../../../../platform/telemetry/test/common/testTelemetryService.js';
 import { IChatModeService, IChatModes, ChatMode, CustomChatMode } from '../../../../../../workbench/contrib/chat/common/chatModes.js';
@@ -27,6 +29,7 @@ import { IChat, ISession } from '../../../../../services/sessions/common/session
 import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { ModePicker, ModePickerModel, ScopedModePickerModelCache } from '../../browser/modePicker.js';
 import { sessionChatSourceOf } from '../../../../../services/sessions/browser/sessionHost.js';
+import { IEditorService } from '../../../../../../workbench/services/editor/common/editorService.js';
 
 suite('ScopedModePickerModelCache', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -161,6 +164,68 @@ suite('ScopedModePickerModelCache', () => {
 suite('ModePicker', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	for (const { source, resource, actionLabel } of [
+		{ source: { storage: PromptsStorage.local }, resource: URI.file('/workspace/reviewer.agent.md'), actionLabel: 'Edit Reviewer agent' },
+		{ source: { storage: PromptsStorage.extension, extensionId: new ExtensionIdentifier('test.agents') }, resource: URI.file('/extensions/reviewer.agent.md'), actionLabel: 'View Reviewer agent' },
+		{ source: { storage: PromptsStorage.local }, resource: URI.parse('vscode-agent-host://remote/workspace/reviewer.agent.md'), actionLabel: 'Edit Reviewer agent' },
+	] as const) {
+		test(`opens the ${source.storage} agent file without selecting it (${resource.scheme})`, async () => {
+			const customAgent = new CustomChatMode({
+				id: 'reviewer', uri: resource, name: 'Reviewer',
+				source,
+				agentInstructions: { content: '', toolReferences: [] }, target: Target.Undefined,
+				visibility: { userInvocable: true, agentInvocable: true }, enabled: true,
+			});
+			const model = upcastPartial<ModePickerModel>({
+				onDidChange: Event.None,
+				selectedMode: ChatMode.Agent,
+				getAvailableModes: () => [ChatMode.Agent, customAgent, ChatMode.Ask],
+			});
+			let items: readonly Pick<IActionListItem<never>, 'label' | 'toolbarActions'>[] = [];
+			let keyboardActions = false;
+			const calls: string[] = [];
+			const picker = store.add(new ModePicker(
+				model, sessionChatSourceOf(observableValue<IActiveSession | undefined>('session', undefined)),
+				upcastPartial<IActionWidgetService>({
+					isVisible: false,
+					hide: () => calls.push('hide'),
+					show: (_id, _preview, rows, _delegate, _anchor, _container, _actions, _accessibility, options) => {
+						items = rows;
+						keyboardActions = options?.tabThroughItemActions === true;
+					},
+				}),
+				upcastPartial<ICommandService>({}), new TestTelemetryService(),
+				upcastPartial<IChatService>({}), new MockChatSessionsService(),
+				upcastPartial<IEditorService>({
+					openEditor: async editor => {
+						assert.ok(hasKey(editor, { resource: true }));
+						calls.push(`open:${editor.resource?.toString()}`);
+						return undefined;
+					},
+				}),
+			));
+			store.add(picker.onDidSelect(mode => calls.push(`select:${mode.id}`)));
+			picker.showPicker(document.createElement('button'));
+			const agentAction = items.find(item => item.label === 'Reviewer')?.toolbarActions?.[0];
+			assert.ok(agentAction);
+			await agentAction.run();
+
+			assert.deepStrictEqual({
+				actionLabel: agentAction.label,
+				rowsWithActions: items.filter(item => item.toolbarActions?.length).map(item => item.label),
+				keyboardActions,
+				calls,
+				selected: model.selectedMode.id,
+			}, {
+				actionLabel,
+				rowsWithActions: ['Reviewer'],
+				keyboardActions: true,
+				calls: ['hide', `open:${resource.toString()}`],
+				selected: ChatMode.Agent.id,
+			});
+		});
+	}
+
 	test('distinguishes duplicate labels visibly and accessibly without changing selection IDs', () => {
 		const custom = ['VS Code', 'Plugin: review-tools', 'VS Code'].map((source, index) => new CustomChatMode({
 			id: `client-agent:/${index}`, uri: URI.parse(`client-agent:/${index}`),
@@ -200,6 +265,7 @@ suite('ModePicker', () => {
 			}),
 			upcastPartial<ICommandService>({}), new TestTelemetryService(),
 			upcastPartial<IChatService>({}), new MockChatSessionsService(),
+			upcastPartial<IEditorService>({}),
 		));
 		const container = document.createElement('div');
 		document.body.appendChild(container);
@@ -306,6 +372,7 @@ suite('ModePicker', () => {
 				}
 			}(),
 			chatSessionsService,
+			upcastPartial<IEditorService>({}),
 		));
 		const container = document.createElement('div');
 		document.body.appendChild(container);
