@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
+import { errorHandler, setUnexpectedErrorHandler } from '../../../../base/common/errors.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { Position } from '../../../common/core/position.js';
@@ -12,7 +13,9 @@ import { IRange, Range } from '../../../common/core/range.js';
 import { TextEdit } from '../../../common/languages.js';
 import { DefaultLinesDiffComputer } from '../../../common/diff/defaultLinesDiffComputer/defaultLinesDiffComputer.js';
 import { StringEdit } from '../../../common/core/edits/stringEdit.js';
-import { EditorWorker } from '../../../common/services/editorWebWorker.js';
+import { ILinesDiffComputer, LinesDiff } from '../../../common/diff/linesDiffComputer.js';
+import { computeLinesDiffWithFallback, EditorWorker } from '../../../common/services/editorWebWorker.js';
+import { DiffAlgorithmName } from '../../../common/services/editorWorker.js';
 import { ICommonModel } from '../../../common/services/textModelSync/textModelSync.impl.js';
 import { createTextModel } from '../testTextModel.js';
 
@@ -55,6 +58,50 @@ suite('EditorWebWorker', () => {
 			}, { isCoarse: hitTimeout, after: 'AAA\nzzz' });
 		});
 	}
+
+	suite('diff fallback to the built-in algorithm', () => {
+		const original = ['a', 'b', 'c'];
+		const modified = ['a', 'B', 'c'];
+		const options = { ignoreTrimWhitespace: false, maxComputationTimeMs: 0, computeMoves: false };
+		const builtinDiff = new DefaultLinesDiffComputer().computeDiff(original, modified, options);
+		const invalidDiff = new LinesDiff([], [], false);
+		const fakeComputer = (computeDiff: () => LinesDiff): ILinesDiffComputer => ({ computeDiff });
+		const run = async (algorithm: DiffAlgorithmName, computer: ILinesDiffComputer, verify: boolean) => {
+			const { result, validity, fallback } = await computeLinesDiffWithFallback(original, modified, options, algorithm, verify, () => computer);
+			return { usesBuiltin: JSON.stringify(result) === JSON.stringify(builtinDiff), validity, fallback };
+		};
+
+		test('falls back when the package throws', async () => {
+			const errors: unknown[] = [];
+			const previousHandler = errorHandler.getUnexpectedErrorHandler();
+			setUnexpectedErrorHandler(e => errors.push(e));
+			try {
+				const result = await run('advanced-wasm', fakeComputer(() => { throw new Error('wasm failed'); }), false);
+				assert.deepStrictEqual({ result, errors: errors.map(e => (e as Error).message) }, {
+					result: { usesBuiltin: true, validity: undefined, fallback: 'error' },
+					errors: ['wasm failed'],
+				});
+			} finally {
+				setUnexpectedErrorHandler(previousHandler);
+			}
+		});
+
+		test('falls back when a verified package diff is invalid, but only checks when verifying', async () => {
+			const computer = fakeComputer(() => invalidDiff);
+			assert.deepStrictEqual([
+				await run('advanced-external', computer, true),
+				await run('advanced-external', computer, false),
+			], [
+				{ usesBuiltin: true, validity: 'valid', fallback: 'invalid' },
+				{ usesBuiltin: false, validity: undefined, fallback: undefined },
+			]);
+		});
+
+		test('never falls back for the built-in algorithms', async () => {
+			await assert.rejects(run('advanced', fakeComputer(() => { throw new Error('built-in failed'); }), true), /built-in failed/);
+			assert.deepStrictEqual(await run('advanced', fakeComputer(() => invalidDiff), true), { usesBuiltin: false, validity: 'invalid', fallback: undefined });
+		});
+	});
 
 	setup(() => {
 		worker = new WorkerWithModels();

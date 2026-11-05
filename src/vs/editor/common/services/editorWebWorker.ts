@@ -20,12 +20,12 @@ import { createMonacoBaseAPI } from './editorBaseApi.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { UnicodeTextModelHighlighter, UnicodeHighlighterOptions } from './unicodeTextModelHighlighter.js';
 import { DiffComputer, IChange } from '../diff/legacyLinesDiffComputer.js';
-import { ILinesDiffComputer, ILinesDiffComputerOptions } from '../diff/linesDiffComputer.js';
+import { ILinesDiffComputer, ILinesDiffComputerOptions, LinesDiff } from '../diff/linesDiffComputer.js';
 import { DetailedLineRangeMapping } from '../diff/rangeMapping.js';
 import { linesDiffComputers } from '../diff/linesDiffComputers.js';
-import { IDocumentDiffProviderOptions } from '../diff/documentDiffProvider.js';
-import { verifyLinesDiff } from '../diff/verifyLinesDiff.js';
-import { BugIndicatingError } from '../../../base/common/errors.js';
+import { DiffFallbackReason, IDocumentDiffProviderOptions } from '../diff/documentDiffProvider.js';
+import { LinesDiffValidity, verifyLinesDiff } from '../diff/verifyLinesDiff.js';
+import { BugIndicatingError, onUnexpectedError } from '../../../base/common/errors.js';
 import { computeDefaultDocumentColors } from '../languages/defaultDocumentColorsComputer.js';
 import { FindSectionHeaderOptions, SectionHeader, findSectionHeaders } from './findSectionHeaders.js';
 import { IRawModelData, IWorkerTextModelSyncChannelServer } from './textModelSync/textModelSync.protocol.js';
@@ -130,18 +130,14 @@ export class EditorWorker implements IDisposable, IWorkerTextModelSyncChannelSer
 			return null;
 		}
 
-		const diffAlgorithm = await resolveLinesDiffComputer(algorithm);
-		const result = EditorWorker.computeDiff(original, modified, options, diffAlgorithm, verify);
-		return result;
+		const originalLines = original.getLinesContent();
+		const modifiedLines = modified.getLinesContent();
+		const computed = await computeLinesDiffWithFallback(originalLines, modifiedLines, options, algorithm, verify);
+		return EditorWorker.toDiffComputationResult(original, modified, computed);
 	}
 
-	private static computeDiff(originalTextModel: ICommonModel | ITextModel, modifiedTextModel: ICommonModel | ITextModel, options: IDocumentDiffProviderOptions, diffAlgorithm: ILinesDiffComputer, verify: boolean): IDiffComputationResult {
-
-		const originalLines = originalTextModel.getLinesContent();
-		const modifiedLines = modifiedTextModel.getLinesContent();
-
-		const result = diffAlgorithm.computeDiff(originalLines, modifiedLines, options);
-		const validity = verify ? verifyLinesDiff(result, originalLines, modifiedLines, options.ignoreTrimWhitespace) : undefined;
+	private static toDiffComputationResult(originalTextModel: ICommonModel | ITextModel, modifiedTextModel: ICommonModel | ITextModel, computed: ILinesDiffWithFallback): IDiffComputationResult {
+		const { result, validity, fallback } = computed;
 
 		const identical = (result.changes.length > 0 ? false : this._modelsAreIdentical(originalTextModel, modifiedTextModel));
 
@@ -162,6 +158,7 @@ export class EditorWorker implements IDisposable, IWorkerTextModelSyncChannelSer
 			identical,
 			quitEarly: result.hitTimeout,
 			validity,
+			fallback,
 			changes: getLineChanges(result.changes),
 			moves: result.moves.map(m => ([
 				m.lineRangeMapping.original.startLineNumber,
@@ -557,6 +554,45 @@ declare function importScripts(...urls: string[]): void;
 if (typeof importScripts === 'function') {
 	// Running in a web worker
 	globalThis.monaco = createMonacoBaseAPI();
+}
+
+interface ILinesDiffWithFallback {
+	readonly result: LinesDiff;
+	readonly validity: LinesDiffValidity | undefined;
+	readonly fallback: DiffFallbackReason | undefined;
+}
+
+/**
+ * Computes a diff with the requested algorithm. Diffs from `@vscode/diff` are replaced by the built-in
+ * algorithm's diff if the package throws, or if `verify` is set and the diff turns out to be invalid.
+ * Verification is linear in the document size, so it only happens for sampled diffs.
+ * The built-in algorithms are used as is.
+ * @internal
+ */
+export async function computeLinesDiffWithFallback(originalLines: string[], modifiedLines: string[], options: ILinesDiffComputerOptions, algorithm: DiffAlgorithmName, verify: boolean, resolve = resolveLinesDiffComputer): Promise<ILinesDiffWithFallback> {
+	const verifyDiff = (diff: LinesDiff) => verify ? verifyLinesDiff(diff, originalLines, modifiedLines, options.ignoreTrimWhitespace) : undefined;
+	const computeBuiltin = (fallback: DiffFallbackReason) => {
+		const result = linesDiffComputers.getDefault().computeDiff(originalLines, modifiedLines, options);
+		return { result, validity: verifyDiff(result), fallback };
+	};
+
+	const isPackage = algorithm === 'advanced-external' || algorithm === 'advanced-wasm';
+	let result: LinesDiff;
+	try {
+		result = (await resolve(algorithm)).computeDiff(originalLines, modifiedLines, options);
+	} catch (e) {
+		if (!isPackage) {
+			throw e;
+		}
+		onUnexpectedError(e);
+		return computeBuiltin('error');
+	}
+
+	const validity = verifyDiff(result);
+	if (isPackage && validity === 'invalid') {
+		return computeBuiltin('invalid');
+	}
+	return { result, validity, fallback: undefined };
 }
 
 function resolveLinesDiffComputer(algorithm: DiffAlgorithmName): ILinesDiffComputer | Promise<ILinesDiffComputer> {
