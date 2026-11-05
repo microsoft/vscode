@@ -39,7 +39,7 @@ import { IGitHubService } from '../../../github/browser/githubService.js';
 import { GitHubPullRequestCIModel } from '../../../github/browser/models/githubPullRequestCIModel.js';
 import { SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from '../../../../browser/parts/sessionActivityBarHost.js';
 import { AGENTS_CHAT_WINDOW_CLASS } from '../../browser/chatWindowTitleDoubleClick.js';
-import { alignChatWindowHeaderActions, CHAT_WINDOW_MAIN_PART_GROUP_VIEW_OPTIONS, focusChatWindowUnlessFocused, getChatWindowMainPartOptions, getChatWindowTitleHeight, isChatWindowStripInColumn, reserveChatWindowControls, SessionsChatWindowContent, SessionsChatWindowProvider } from '../../browser/sessionsChatWindowProvider.js';
+import { alignChatWindowHeaderActions, CHAT_WINDOW_MAIN_PART_GROUP_VIEW_OPTIONS, focusChatWindowUnlessFocused, getChatWindowMainPartOptions, getChatWindowTitleHeight, isChatWindowStripInColumn, setChatWindowTitleInChatColumn, SessionsChatWindowContent, SessionsChatWindowProvider } from '../../browser/sessionsChatWindowProvider.js';
 import { DesktopMainEditorPart } from '../../../../browser/parts/desktopEditorPart.js';
 import { IEditorGroupViewOptions } from '../../../../../workbench/browser/parts/editor/editor.js';
 import { EditorInputCapabilities, GroupModelChangeKind } from '../../../../../workbench/common/editor.js';
@@ -186,7 +186,8 @@ suite('Sessions chat window provider', () => {
 			override readonly onDidMoveGroup = Event.None;
 		}();
 		override readonly layoutMode = constObservable(ChatWindowLayoutMode.SideBySide);
-		override readonly chatLeads = constObservable(true);
+		override readonly titleMerged = constObservable(true);
+		override readonly titleInChatColumn = constObservable(false);
 		override readonly onDidClose = Event.None;
 		override readonly chat = activeChat;
 		override readonly chats = derived(reader => [activeChat.read(reader)]);
@@ -492,22 +493,24 @@ suite('Sessions chat window provider', () => {
 		// The window controls at the right, as on Windows and Linux.
 		const controls = append(titlebar, $('div'));
 		controls.style.cssText = 'display: block; width: 138px; height: 30px;';
+		let inChatColumn = false;
 		const reserved = (windowControls: HTMLElement | undefined) => {
-			reserveChatWindowControls(titlebar, windowControls);
+			setChatWindowTitleInChatColumn(titlebar, windowControls, inChatColumn);
 			return chatWindow.style.getPropertyValue('--chat-window-controls-right-width') || 'none';
 		};
 
 		const inTitleRow = reserved(controls);
 		// Side by Side: the chat's own title, over its column only, leaves its window controls at the top right of the window.
-		titlebar.classList.add('header-chat-column');
+		inChatColumn = true;
 		const overChatColumn = reserved(controls);
+		const classOn = titlebar.classList.contains('header-chat-column');
 		controls.style.display = 'none';
 		const fullScreen = reserved(controls);
 		controls.style.display = 'block';
 		const leftAsOnMacOS = reserved(undefined);
 		const windowedAgain = reserved(controls);
 
-		assert.deepStrictEqual({ inTitleRow, overChatColumn, fullScreen, leftAsOnMacOS, windowedAgain }, { inTitleRow: 'none', overChatColumn: '138px', fullScreen: 'none', leftAsOnMacOS: 'none', windowedAgain: '138px' });
+		assert.deepStrictEqual({ inTitleRow, classOn, overChatColumn, fullScreen, leftAsOnMacOS, windowedAgain }, { inTitleRow: 'none', classOn: true, overChatColumn: '138px', fullScreen: 'none', leftAsOnMacOS: 'none', windowedAgain: '138px' });
 	});
 
 	test('the cards keep the main window\'s gaps: between them and to the edges of the window but its top, where the title row is', () => {
