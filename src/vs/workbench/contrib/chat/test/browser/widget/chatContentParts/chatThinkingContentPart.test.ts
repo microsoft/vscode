@@ -1896,30 +1896,40 @@ suite('ChatThinkingContentPart', () => {
 			});
 		});
 
-		test('shows individual run durations instead of a grouped total', async () => {
-			const first = createThinkingPart('Consider how to update the progress renderer.', 'first');
-			first.reasoningStartedAt = 1000;
-			first.reasoningDurationMs = 400;
-			const part = createPersistentReasoning(first);
-			const second = createThinkingPart('Then check the tests.', 'second');
-			second.reasoningStartedAt = 2500;
-			second.reasoningDurationMs = 2000;
-			part.setupThinkingContainer(second);
+		for (const { name, generatedTitle, secondDuration } of [
+			{ name: 'a fallback title', generatedTitle: undefined, secondDuration: 2000 },
+			{ name: 'a generated title and partial timing', generatedTitle: 'Reviewed results', secondDuration: undefined },
+		]) {
+			test(`never shows inline reasoning durations with ${name}`, async () => {
+				const first = createThinkingPart('Consider how to update the progress renderer.', 'first');
+				first.reasoningTimingSource = 'provider';
+				first.reasoningDurationMs = 400;
+				first.generatedTitle = generatedTitle;
+				const part = createPersistentReasoning(first);
+				const second = createThinkingPart('Then check the tests.', 'second');
+				second.reasoningTimingSource = 'provider';
+				second.reasoningDurationMs = secondDuration;
+				second.generatedTitle = generatedTitle;
+				part.setupThinkingContainer(second);
+				const streamingDurationRows = part.domNode.querySelectorAll('.chat-thinking-run-duration').length;
 
-			part.finalizeTitleIfDefault();
-			await timeout(0);
-			part.expandContent();
+				part.finalizeTitleIfDefault();
+				await timeout(0);
+				part.expandContent();
 
-			assert.deepStrictEqual({
-				title: snapshot(part).title,
-				ariaLabel: snapshot(part).ariaLabel,
-				runs: Array.from(part.domNode.querySelectorAll('.chat-thinking-run-duration'), label => label.textContent),
-			}, {
-				title: 'Finished thinking',
-				ariaLabel: 'Finished thinking',
-				runs: ['Thought for 1s', 'Thought for 2s'],
+				assert.deepStrictEqual({
+					...snapshot(part),
+					streamingDurationRows,
+					completedDurationRows: part.domNode.querySelectorAll('.chat-thinking-run-duration').length,
+				}, {
+					title: generatedTitle ?? 'Finished thinking',
+					ariaLabel: generatedTitle ?? 'Finished thinking',
+					body: ['Consider how to update the progress renderer.', 'Then check the tests.'],
+					streamingDurationRows: 0,
+					completedDurationRows: 0,
+				});
 			});
-		});
+		}
 	});
 
 	suite('Conversation sections', () => {
@@ -2485,10 +2495,10 @@ suite('ChatThinkingContentPart', () => {
 		test('generated titles use only complete provider-recorded reasoning durations', () => {
 			const cases = [
 				{ name: 'recorded runs', provider: true, durations: [1200, 1800], title: 'Reviewed results - 3s', labels: [] },
-				{ name: 'partially recorded runs', provider: true, durations: [1200, undefined], title: 'Reviewed results', labels: ['Thought for 2s'] },
+				{ name: 'partially recorded runs', provider: true, durations: [1200, undefined], title: 'Reviewed results', labels: [] },
 				{ name: 'invalid timing', provider: true, durations: [NaN], title: 'Reviewed results', labels: [] },
 				{ name: 'untimed BYOK', provider: false, durations: [undefined], title: 'Reviewed results', labels: [] },
-				{ name: 'unattributed saved timing', provider: false, durations: [2500], title: 'Reviewed results', labels: ['Thought for 3s'] },
+				{ name: 'unattributed saved timing', provider: false, durations: [2500], title: 'Reviewed results', labels: [] },
 			];
 			const actual = cases.map(({ name, provider, durations }) => {
 				const [first, ...rest] = durations.map((duration, index): IChatThinkingPart => ({
