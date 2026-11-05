@@ -9173,6 +9173,42 @@ suite('CopilotAgent', () => {
 		assert.deepStrictEqual(calls.sort(), ['default:mail', 'default:reconciled', 'peer:mail', 'peer:reconciled']);
 	});
 
+	test('routes permission responses to sessions while they initialize before registration', async () => {
+		const { agent } = createTestAgentContext(disposables, { copilotClient: new TestCopilotClient([]) });
+		const initializeStarted = new DeferredPromise<void>();
+		const initializeGate = new DeferredPromise<void>();
+		const calls: Parameters<CopilotAgentSession['respondToPermissionRequest']>[] = [];
+		let extensionLaunchAdmission: IDisposable | undefined;
+		const session = {
+			sessionId: 'initializing-permission-session',
+			extensionLaunchDirectories: [],
+			onDidChangeRuntimePlugins: Event.None,
+			setExtensionLaunchAdmission(admission: IDisposable) { extensionLaunchAdmission = admission; },
+			async initializeSession() {
+				initializeStarted.complete();
+				await initializeGate.p;
+			},
+			respondToPermissionRequest(...args: Parameters<CopilotAgentSession['respondToPermissionRequest']>) {
+				calls.push(args);
+				return true;
+			},
+			dispose() { extensionLaunchAdmission?.dispose(); },
+		};
+		const initialization = (agent as unknown as {
+			_initializeAndRegisterSession(session: CopilotAgentSession, register: () => void): Promise<void>;
+		})._initializeAndRegisterSession(session as unknown as CopilotAgentSession, () => { });
+		try {
+			await initializeStarted.p;
+			agent.respondToPermissionRequest('startup-permission', true, { decisionSource: 'human_response', selectedOptionId: 'allow-session' });
+			assert.deepStrictEqual(calls, [['startup-permission', true, { decisionSource: 'human_response', selectedOptionId: 'allow-session' }]]);
+		} finally {
+			initializeGate.complete();
+			await initialization;
+			session.dispose();
+			await disposeAgent(agent);
+		}
+	});
+
 	test('marks sessions when a Connector changes while they initialize', async () => {
 		const { agent } = createTestAgentContext(disposables, {
 			copilotClient: new TestCopilotClient([]),

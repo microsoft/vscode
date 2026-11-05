@@ -312,12 +312,16 @@ export default defineThemedFixtureGroup({ path: 'chat/input/' }, {
 	AllCopilotIntroductionVariants: defineComponentFixture({
 		render: renderCopilotIntroductionComparison,
 	}),
-	// A run of three: notice, todo list, then the input. Covers a notice docking
-	// to a widget rather than straight to the input.
 	WithExtensionPermissionConfirmation: defineComponentFixture({
 		render: context => renderChatInput(context, { notification: extensionPermissionNotification })
 	}),
 
+	WithExtensionPermissionConfirmationNarrow: defineComponentFixture({
+		render: context => renderChatInput(context, { notification: extensionPermissionNotification, width: 240 })
+	}),
+
+	// A run of three: notice, todo list, then the input. Covers a notice docking
+	// to a widget rather than straight to the input.
 	WithNotificationAndTodos: defineComponentFixture({
 		render: context => renderChatInput(context, { notification: sampleNotification, todos: sampleTodos })
 	}),

@@ -96,6 +96,7 @@ import { ActiveClientToolSet, structuralToolsEqual } from '../activeClientState.
 import { AgentHostTelemetryReporter, toInitiatorTelemetry, type IAgentHostEventClassification, type IAgentHostEventTelemetry, type ICanvasExtensionsReadyEvent } from '../agentHostTelemetryReporter.js';
 import { AgentHostRepoInfoTelemetry, resolveRepoInfoRemote } from '../agentHostRepoInfoTelemetry.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
+import { IAgentHostClientConnectionService } from '../agentHostClientConnectionService.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { buildCopilotSystemNotification, getCopilotSubagentDisplayNames } from './copilotSystemNotification.js';
 import { parseLeadingSlashCommand } from '../../common/agentHostSlashCommand.js';
@@ -2195,6 +2196,7 @@ export class CopilotAgentSession extends Disposable {
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@IAgentHostGitHubEndpointService private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService,
+		@IAgentHostClientConnectionService private readonly _clientConnections: IAgentHostClientConnectionService,
 	) {
 		super();
 		this._register(toDisposable(() => {
@@ -8464,11 +8466,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
-	/**
-	 * Asks a person whether an extension may use privileged capabilities. The runtime raises this
-	 * while the extension joins the session, outside any tool call, so it is surfaced on the session
-	 * and stays pending until a client answers or the session is disposed.
-	 */
+	/** Requests session-owned extension consent, expiring only when no capable client can answer. */
 	private async _handleSessionExtensionPermissionRequest(request: Extract<PermissionRequest, { kind: 'extension-permission-access' }>): Promise<PermissionRequestResult | AttributedPermissionResult> {
 		// Extensions join before the first turn applies modes to the runtime, so fall back to the configured ones.
 		const permissionMode = this._lastAppliedPermissionMode ?? this._approvalPolicy.resolveSelection(this._getApprovalInputs()).mode;
@@ -8495,7 +8493,13 @@ export class CopilotAgentSession extends Disposable {
 				{ id: EXTENSION_PERMISSION_DENY_OPTION_ID, label: localize('extensionPermissionDeny', "Deny"), kind: ConfirmationOptionKind.Deny, group: 1 },
 			],
 		});
+		const availability = new DisposableStore();
 		try {
+			availability.add(this._clientConnections.watchSessionPermissionClient(session.toString(), () => {
+				if (this._pendingPermissions.respond(requestId, { kind: 'decision', result: { kind: 'user-not-available' }, source: 'unattended_fallback' })) {
+					this._logService.warn(`[Copilot:${this.sessionId}] Canvas extension '${request.extensionName}' could not finish loading because no connected client could answer its permission request. Reconnect with an updated client and reload the session to retry.`);
+				}
+			}));
 			const result = await pendingPermission;
 			if (result.kind === 'grant-sandbox-path') {
 				this._logService.warn(`[Copilot:${this.sessionId}] Rejecting invalid sandbox grant for session permission request: ${requestId}`);
@@ -8504,6 +8508,7 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.info(`[Copilot:${this.sessionId}] Session permission response: requestId=${requestId}, result=${result.result.kind}`);
 			return attributePermissionResult(result.result, result.source, result.userFeedback);
 		} finally {
+			availability.dispose();
 			this._pendingSessionPermissionCount--;
 			this._emitProgress({
 				kind: 'session_permission_completed',

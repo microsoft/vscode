@@ -9802,7 +9802,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	respondToPermissionRequest(requestId: string, approved: boolean, context?: IAgentPermissionResponseContext): void {
-		for (const chat of this._allLiveSessions()) {
+		// Extensions can request permission during initializeSession, before registration.
+		for (const chat of [...this._allLiveSessions(), ...this._sessionsPendingRegistration]) {
 			if (chat.respondToPermissionRequest(requestId, approved, context)) {
 				return;
 			}

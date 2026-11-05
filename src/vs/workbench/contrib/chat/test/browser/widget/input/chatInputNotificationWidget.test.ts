@@ -801,11 +801,12 @@ suite('ChatInputNotificationWidget', () => {
 		});
 	});
 
-	test('renders a confirmation as a standalone card and returns to a docked banner without one', () => {
-		const { notificationService, widget } = createWidget();
+	test('renders a confirmation as a standalone card and returns to a docked banner without one', async () => {
+		const commandService = new TestCommandService();
+		const { notificationService, widget } = createWidget({ commandService });
 		const slot = dom.$('div');
 		widget.attachTo(slot);
-		const command = (label: string, primary: boolean) => ({ kind: ChatInputNotificationActionKind.Command as const, label, commandId: `test.${label}`, primary });
+		const command = (label: string, primary: boolean) => ({ kind: ChatInputNotificationActionKind.Command as const, label, commandId: `test.${label}`, primary, keepOpen: true });
 		showNotification(notificationService, {
 			id: 'permission',
 			severity: ChatInputNotificationSeverity.Warning,
@@ -829,9 +830,14 @@ suite('ChatInputNotificationWidget', () => {
 			})),
 			bannerTitle: widget.domNode.querySelector('.chat-input-notification-title') !== null,
 		};
+		widget.domNode.querySelector<HTMLElement>('.chat-input-notification-card-buttons .monaco-button.secondary')?.click();
+		await Promise.resolve();
+		await Promise.resolve();
 		showNotification(notificationService, { id: 'permission', message: 'Plain banner', actions: [] });
 		assert.deepStrictEqual({
 			card,
+			executed: commandService.executed,
+			dismissed: notificationService.dismissed,
 			banner: {
 				slot: { docked: slot.classList.contains('chat-input-stack-docked'), standalone: slot.classList.contains('chat-input-stack-standalone') },
 				confirmation: widget.domNode.classList.contains('chat-input-notification-confirmation'),
@@ -851,6 +857,8 @@ suite('ChatInputNotificationWidget', () => {
 				],
 				bannerTitle: false,
 			},
+			executed: [{ id: 'test.Allow for Session', args: [] }],
+			dismissed: [],
 			banner: { slot: { docked: true, standalone: false }, confirmation: false, card: false },
 		});
 	});

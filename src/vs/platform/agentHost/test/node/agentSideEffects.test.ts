@@ -8909,6 +8909,8 @@ suite('AgentSideEffects', () => {
 			} as const;
 			stateManager.dispatchClientAction(sessionUri.toString(), response, { clientId: 'test', clientSeq: 1 });
 			sideEffects.handleAction(sessionUri.toString(), response);
+			// The provider need not emit completion synchronously for its routing entry to be released.
+			sideEffects.handleAction(sessionUri.toString(), response);
 
 			assert.deepStrictEqual({
 				responses,
@@ -8917,6 +8919,28 @@ suite('AgentSideEffects', () => {
 				responses: [{ agent: 'codex', args: ['extension-permission-1', true, { decisionSource: 'human_response', selectedOptionId: 'allow-once' }] }],
 				remaining: undefined,
 			});
+		});
+
+		test('releases pending session permission routing when its session is removed', () => {
+			setupSession();
+			disposables.add(sideEffects.registerProgressListener(agent));
+			const responses: string[] = [];
+			agent.respondToPermissionRequest = requestId => { responses.push(requestId); };
+			agent.fireProgress({
+				kind: 'session_permission_requested',
+				session: sessionUri,
+				requestId: 'permission',
+				extensionName: 'example-extension',
+				capabilities: ['register hooks'],
+				options: extensionPermissionOptions,
+			});
+			stateManager.removeSession(sessionUri.toString());
+			sideEffects.handleAction(sessionUri.toString(), {
+				type: ActionType.SessionPermissionResponded,
+				requestId: 'permission',
+				approved: true,
+			});
+			assert.deepStrictEqual(responses, []);
 		});
 
 		test('live sampling tool parts route their custom approval without granting ordinary tool permissions', () => {

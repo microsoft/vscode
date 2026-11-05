@@ -225,12 +225,7 @@
 
 /* --- Confirmation card --- */
 
-/*
- * A decision is drawn as the card a tool approval uses rather than as a banner:
- * the notice frame steps aside so the large card's own border, radius and
- * surface show, and the card sits clear of the input as the tool card does. The
- * spacing and type below follow that card's header, message and button row.
- */
+/* Confirmation cards use shared chat-card-large chrome instead of the notice frame. */
 .chat-input-notice.chat-input-notification-widget.chat-input-notification-confirmation {
 	gap: 0;
 	padding: 0;

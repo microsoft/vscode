@@ -3,11 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, toDisposable, type IDisposable } from '../../../base/common/lifecycle.js';
+import { RunOnceScheduler } from '../../../base/common/async.js';
+import { Emitter, type Event } from '../../../base/common/event.js';
+import { Disposable, DisposableMap, DisposableStore, toDisposable, type IDisposable } from '../../../base/common/lifecycle.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { IAgentHostMcpAuthenticationRequest, IAgentHostWorkspaceTrustRequest } from '../common/agentHostExtensionProtocol.js';
 
-export const AGENT_HOST_CLIENT_CONNECTION_HISTORY_RETENTION = 30_000 * 10;
+export const AGENT_HOST_CLIENT_RECONNECT_GRACE_PERIOD = 30_000;
+export const AGENT_HOST_CLIENT_CONNECTION_HISTORY_RETENTION = AGENT_HOST_CLIENT_RECONNECT_GRACE_PERIOD * 10;
 
 export interface IAgentHostClientConnectionCounts {
 	readonly connectedClientCount: number;
@@ -16,6 +19,8 @@ export interface IAgentHostClientConnectionCounts {
 }
 
 export interface IAgentHostClientConnectionSource {
+	readonly onDidChangeSessionPermissionClients?: Event<void>;
+	hasSessionPermissionClient?(session: string): boolean;
 	hasSeenClient(clientId: string): boolean;
 	isClientConnected(clientId: string): boolean;
 	/** Whether an active connection is local and uses the server's MessagePort transport. */
@@ -35,6 +40,8 @@ export const IAgentHostClientConnectionService = createDecorator<IAgentHostClien
 export interface IAgentHostClientConnectionService {
 	readonly _serviceBrand: undefined;
 	registerSource(source: IAgentHostClientConnectionSource): IDisposable;
+	/** Watches client availability, not the time taken by a connected user to decide. */
+	watchSessionPermissionClient(session: string, onUnavailable: () => void): IDisposable;
 	hasSeenClient(clientId: string): boolean;
 	isClientConnected(clientId: string): boolean;
 	/** Whether any source has an active local MessagePort connection for this client. */
@@ -49,23 +56,44 @@ export interface IAgentHostClientConnectionService {
 
 export class AgentHostClientConnectionService extends Disposable implements IAgentHostClientConnectionService {
 	declare readonly _serviceBrand: undefined;
-	private readonly _sources = new Set<IAgentHostClientConnectionSource>();
-
-	constructor() {
-		super();
-		this._register(toDisposable(() => this._sources.clear()));
-	}
+	private readonly _sources = this._register(new DisposableMap<IAgentHostClientConnectionSource, IDisposable>());
+	private readonly _onDidChangeSessionPermissionClients = this._register(new Emitter<void>());
 
 	registerSource(source: IAgentHostClientConnectionSource): IDisposable {
 		if (this._sources.has(source)) {
 			throw new Error('Agent Host client connection source is already registered');
 		}
-		this._sources.add(source);
-		return toDisposable(() => this._sources.delete(source));
+		this._sources.set(source, source.onDidChangeSessionPermissionClients?.(() => this._onDidChangeSessionPermissionClients.fire()) ?? Disposable.None);
+		this._onDidChangeSessionPermissionClients.fire();
+		return toDisposable(() => {
+			this._sources.deleteAndDispose(source);
+			this._onDidChangeSessionPermissionClients.fire();
+		});
+	}
+
+	watchSessionPermissionClient(session: string, onUnavailable: () => void): IDisposable {
+		const store = new DisposableStore();
+		const hasClient = () => [...this._sources.keys()].some(source => source.hasSessionPermissionClient?.(session) === true);
+		const timer = store.add(new RunOnceScheduler(() => {
+			if (!hasClient()) {
+				store.dispose();
+				onUnavailable();
+			}
+		}, AGENT_HOST_CLIENT_RECONNECT_GRACE_PERIOD));
+		const update = () => {
+			if (hasClient()) {
+				timer.cancel();
+			} else if (!timer.isScheduled()) {
+				timer.schedule();
+			}
+		};
+		store.add(this._onDidChangeSessionPermissionClients.event(update));
+		update();
+		return store;
 	}
 
 	hasSeenClient(clientId: string): boolean {
-		for (const source of this._sources) {
+		for (const source of this._sources.keys()) {
 			if (source.hasSeenClient(clientId)) {
 				return true;
 			}
@@ -74,7 +102,7 @@ export class AgentHostClientConnectionService extends Disposable implements IAge
 	}
 
 	isClientConnected(clientId: string): boolean {
-		for (const source of this._sources) {
+		for (const source of this._sources.keys()) {
 			if (source.isClientConnected(clientId)) {
 				return true;
 			}
@@ -83,7 +111,7 @@ export class AgentHostClientConnectionService extends Disposable implements IAge
 	}
 
 	isLocalClient(clientId: string): boolean {
-		for (const source of this._sources) {
+		for (const source of this._sources.keys()) {
 			if (source.isLocalClient(clientId)) {
 				return true;
 			}
@@ -95,7 +123,7 @@ export class AgentHostClientConnectionService extends Disposable implements IAge
 		const connectedClients = new Set<string>();
 		let connectedTransportCount = 0;
 		let clientTransportCount = 0;
-		for (const source of this._sources) {
+		for (const source of this._sources.keys()) {
 			for (const [connectedClientId, transportCount] of source.getConnectedClientTransportCounts()) {
 				connectedClients.add(connectedClientId);
 				connectedTransportCount += transportCount;
@@ -112,15 +140,15 @@ export class AgentHostClientConnectionService extends Disposable implements IAge
 	}
 
 	usesLegacySessionUris(clientId: string): boolean {
-		return [...this._sources].some(source => source.usesLegacySessionUris?.(clientId) === true);
+		return [...this._sources.keys()].some(source => source.usesLegacySessionUris?.(clientId) === true);
 	}
 
 	usesLegacyChatUris(clientId: string): boolean {
-		return [...this._sources].some(source => source.usesLegacyChatUris(clientId));
+		return [...this._sources.keys()].some(source => source.usesLegacyChatUris(clientId));
 	}
 
 	async requestMcpAuthentication(request: IAgentHostMcpAuthenticationRequest): Promise<boolean> {
-		for (const source of this._sources) {
+		for (const source of this._sources.keys()) {
 			if (await source.requestMcpAuthentication(request)) {
 				return true;
 			}
@@ -129,7 +157,7 @@ export class AgentHostClientConnectionService extends Disposable implements IAge
 	}
 
 	requestWorkspaceTrust(clientId: string, request: IAgentHostWorkspaceTrustRequest): Promise<boolean> {
-		for (const source of this._sources) {
+		for (const source of this._sources.keys()) {
 			if (source.isClientConnected(clientId)) {
 				return source.requestWorkspaceTrust(clientId, request);
 			}

@@ -117,7 +117,7 @@ import {
 import { isFileResourceRead } from '../common/resourceReadLogging.js';
 import { getAgentHostAhpLogDirectoryMeta } from '../common/meta/agentHostDebugLogsMeta.js';
 import type { ClientCapabilities, Implementation, SubscribeParams } from '../common/state/protocol/common/commands.js';
-import { AGENT_HOST_CLIENT_CONNECTION_HISTORY_RETENTION, IAgentHostClientConnectionService, type IAgentHostClientConnectionSource } from './agentHostClientConnectionService.js';
+import { AGENT_HOST_CLIENT_CONNECTION_HISTORY_RETENTION, AGENT_HOST_CLIENT_RECONNECT_GRACE_PERIOD, IAgentHostClientConnectionService, type IAgentHostClientConnectionSource } from './agentHostClientConnectionService.js';
 import { AgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
 import { isAgentHostTelemetryService } from './agentHostTelemetryService.js';
 import { IDevContainerAgentHostMainService } from '../common/devContainerAgentHost.js';
@@ -133,8 +133,6 @@ import { ClientArtifactIntegrationEndpoint } from './artifactIntegrations/client
 
 /** Default capacity of the server-side action replay buffer. */
 const REPLAY_BUFFER_CAPACITY = 1000;
-
-const CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT = 30_000;
 
 const CLIENT_ACTION_ACKNOWLEDGEMENT_TIMEOUT = 30_000;
 
@@ -734,6 +732,8 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 
 	/** Fires with the current client count whenever a client connects or disconnects. */
 	readonly onDidChangeConnectionCount = this._onDidChangeConnectionCount.event;
+	private readonly _onDidChangeSessionPermissionClients = this._register(new Emitter<void>());
+	readonly onDidChangeSessionPermissionClients = this._onDidChangeSessionPermissionClients.event;
 
 	constructor(
 		private readonly _agentService: IAgentService,
@@ -983,6 +983,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 						});
 						this._handleClientDisconnected(client.clientId);
 						this._onDidChangeConnectionCount.fire(this._connectedClientCount);
+						this._onDidChangeSessionPermissionClients.fire();
 					}
 					this._reportClientDisconnected(client, subscriptionCount);
 				}
@@ -1113,6 +1114,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				previousRecord.disconnectTimeouts.dispose();
 			}
 			this._onDidChangeConnectionCount.fire(this._connectedClientCount);
+			this._onDidChangeSessionPermissionClients.fire();
 
 			const response: IAgentHostExtensionInitializeResult = {
 				protocolVersion: negotiated,
@@ -1460,6 +1462,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				existingRecord.disconnectTimeouts.dispose();
 			}
 			this._onDidChangeConnectionCount.fire(this._connectedClientCount);
+			this._onDidChangeSessionPermissionClients.fire();
 
 			return { client, responsePromise };
 		} catch (error) {
@@ -1713,7 +1716,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			record.disconnectTimeouts.set('managed-settings', disposableTimeout(() => {
 				record.disconnectTimeouts.deleteAndDispose('managed-settings');
 				this._managedSettingsService.removeClient(this._managedSettingsContributionId(clientId));
-			}, Math.max(0, CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT - (Date.now() - record.lastSeenAt))));
+			}, Math.max(0, AGENT_HOST_CLIENT_RECONNECT_GRACE_PERIOD - (Date.now() - record.lastSeenAt))));
 		}
 		for (const session of this._stateManager.getSessionUris()) {
 			const state = this._stateManager.getSessionState(session);
@@ -1824,7 +1827,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		}
 		record.disconnectTimeouts.deleteAndDispose(chatChannel);
 		const elapsed = Date.now() - record.lastSeenAt;
-		const delay = Math.max(0, CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT - elapsed);
+		const delay = Math.max(0, AGENT_HOST_CLIENT_RECONNECT_GRACE_PERIOD - elapsed);
 		record.disconnectTimeouts.set(chatChannel, disposableTimeout(() => {
 			this._releaseActiveClientForSession(session, clientId, chatChannel);
 		}, delay));
@@ -1952,6 +1955,24 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			}
 		}
 		client.pendingAuthenticationSubscriptions.clear();
+		this._onDidChangeSessionPermissionClients.fire();
+	}
+
+	hasSessionPermissionClient(session: string): boolean {
+		if (this._config.relayRoots) {
+			return false;
+		}
+		for (const record of this._clients.values()) {
+			const client = this._getActiveClientFromRecord(record);
+			if (client?.telemetryConnectionActive
+				&& this._supportsSessionExtensionPermission(client)
+				&& !client.transport.relayPassive
+				&& client.transport.relayAuthentication?.authenticated !== false
+				&& this._isSessionVisible(client, session)) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private _hasSubscriptionInOtherConnection(record: IClientRecord, client: IConnectedClient, uri: string): boolean {

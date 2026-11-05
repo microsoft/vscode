@@ -95,7 +95,7 @@ import type { IAgentHostClientConnectionEvent } from '../../node/agentHostTeleme
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type IAgentHostClientTelemetryContext, type IAgentHostSessionSubscribeTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { iterateOtlpLogRecords, OtlpLogEmitter } from '../../common/otlp/otlpLogEmitter.js';
 import { MessagePortProtocolServer } from '../../node/messagePortProtocolServer.js';
-import { AGENT_HOST_CLIENT_CONNECTION_HISTORY_RETENTION, AgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
+import { AGENT_HOST_CLIENT_CONNECTION_HISTORY_RETENTION, AGENT_HOST_CLIENT_RECONNECT_GRACE_PERIOD, AgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
@@ -9307,6 +9307,80 @@ suite('ProtocolServerHandler', () => {
 				incapableResponseActions: [],
 			});
 		});
+
+		test('extension permission availability requires a capable writable connection, not a focused session', async () => {
+			const session = 'vendor-session://host/opaque-session?key=one';
+			stateManager.createSession(makeSessionSummary(session));
+			stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
+			const available: boolean[] = [];
+			for (const [index, options] of [
+				{ capable: false, subscription: session },
+				{ capable: true, subscription: ROOT_STATE_URI },
+				{ capable: true, subscription: sessionUri },
+				{ capable: true, subscription: session, passive: true },
+				{ capable: true, subscription: session, authenticated: false },
+				{ capable: true, subscription: session },
+			].entries()) {
+				const clientId = `permission-availability-${index}`;
+				const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, clientId, options.passive));
+				transport.relayAuthenticated = options.authenticated;
+				server.simulateConnection(transport);
+				const response = waitForResponse(transport, 1);
+				transport.simulateMessage(request(1, 'initialize', {
+					protocolVersions: [PROTOCOL_VERSION], clientId,
+					initialSubscriptions: [options.subscription],
+					capabilities: options.capable ? { extensionPermissions: {} } : undefined,
+				}));
+				await response;
+				available.push(handler.hasSessionPermissionClient(session));
+				transport.simulateClose();
+			}
+			assert.deepStrictEqual(available, [false, true, true, false, false, true]);
+		});
+
+		test('extension permission grace survives navigation and reconnect without timing out decisions', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			stateManager.createSession(makeSessionSummary());
+			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady });
+			let unavailable = 0;
+			disposables.add(clientConnections.watchSessionPermissionClient(sessionUri, () => unavailable++));
+			const transport = disposables.add(new MockProtocolTransport());
+			server.simulateConnection(transport);
+			const initialized = waitForResponse(transport, 1);
+			transport.simulateMessage(request(1, 'initialize', {
+				protocolVersions: [PROTOCOL_VERSION], clientId: 'permission-reconnect',
+				initialSubscriptions: [sessionUri], capabilities: { extensionPermissions: {} },
+			}));
+			await initialized;
+			await timeout(AGENT_HOST_CLIENT_RECONNECT_GRACE_PERIOD * 2);
+			const whileDeciding = unavailable;
+
+			transport.simulateMessage(notification('unsubscribe', { channel: sessionUri }));
+			await timeout(AGENT_HOST_CLIENT_RECONNECT_GRACE_PERIOD * 2);
+			const subscribed = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, 'subscribe', { channel: sessionUri }));
+			await subscribed;
+			await timeout(AGENT_HOST_CLIENT_RECONNECT_GRACE_PERIOD * 2);
+			const afterResubscribe = unavailable;
+
+			transport.simulateClose();
+			await timeout(20_000);
+			const reconnected = disposables.add(new MockProtocolTransport());
+			server.simulateConnection(reconnected);
+			const restored = waitForResponse(reconnected, 3);
+			reconnected.simulateMessage(request(3, 'reconnect', {
+				clientId: 'permission-reconnect', lastSeenServerSeq: -1, subscriptions: [sessionUri],
+			}));
+			await restored;
+			await timeout(AGENT_HOST_CLIENT_RECONNECT_GRACE_PERIOD * 2);
+			const afterReconnect = unavailable;
+			reconnected.simulateClose();
+			await timeout(AGENT_HOST_CLIENT_RECONNECT_GRACE_PERIOD - 1);
+			const beforeDeadline = unavailable;
+			await timeout(1);
+			assert.deepStrictEqual({ whileDeciding, afterResubscribe, afterReconnect, beforeDeadline, afterDeadline: unavailable }, {
+				whileDeciding: 0, afterResubscribe: 0, afterReconnect: 0, beforeDeadline: 0, afterDeadline: 1,
+			});
+		}));
 
 		test('advertises multipleChatProviders only behind the setting and from protocol 1.1.0', () => {
 			const capability = (clientId: string, protocolVersions: readonly string[]) => {

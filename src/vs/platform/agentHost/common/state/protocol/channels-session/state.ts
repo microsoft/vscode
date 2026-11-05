@@ -493,8 +493,8 @@ export interface ProjectInfo {
  *   `Error` — bits 0–4) from the
  *   {@link SessionState.defaultChat | default chat} when present, else from
  *   the most recently modified chat. **Promote** `InputNeeded` whenever any
- *   chat in the session needs input, and **promote** `Error` whenever any
- *   chat is in an error state — both override the default-chat bits. The
+ *   chat in the session needs input, else **promote** `InProgress` whenever
+ *   any chat is running. Peer errors do not override the default-chat bits. The
  *   orthogonal flag bits (`IsRead`, `IsArchived`) remain session-scoped.
  * - `activity`: mirror the activity string of the default chat, or of the
  *   chat currently driving the promoted status bits when a non-default chat

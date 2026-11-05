@@ -75,7 +75,6 @@ const severityToIcon: Record<ChatInputNotificationSeverity, ThemeIcon> = {
 
 const emptyModelState: IChatInputNotificationModelState = { currentModel: undefined, models: [] };
 
-/** Marks a notification rendered as a confirmation card rather than a banner. */
 const confirmationClass = 'chat-input-notification-confirmation';
 
 /** The text that names a notification and its actions for assistive technology: a confirmation's question, otherwise its message. */
@@ -128,11 +127,7 @@ export interface IChatInputNotificationDelegate {
 	readonly focusInput?: () => void;
 }
 
-/**
- * Widget that renders a single notification banner above the chat input area.
- * Subscribes to {@link IChatInputNotificationService} and shows the highest-severity
- * active notification with severity-colored borders, action buttons, and a dismiss button.
- */
+/** Renders the highest-priority applicable input notification as a banner or confirmation card. */
 export class ChatInputNotificationWidget extends Disposable implements IChatInputNoticeFocusTarget {
 
 	private readonly _notice: ChatInputNoticeWidget;
@@ -391,7 +386,6 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 		setChatInputStackSlot(slot, this._getSlotState());
 	}
 
-	/** A banner joins the input below it; a confirmation card closes its own box, as tool approvals do. */
 	private _getSlotState(): ChatInputStackSlot {
 		if (!this._visible) {
 			return ChatInputStackSlot.Empty;
@@ -433,7 +427,6 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 		}
 	}
 
-	/** A banner docked to the input: severity icon, message, then description and actions on one row. */
 	private _renderBanner(notification: IChatInputNotification, body: IChatInputNotificationBody, actions: readonly IChatInputNotificationAction[], ariaTitle: string): void {
 		const container = this.domNode;
 		container.classList.add(severityToClass[notification.severity]);
@@ -500,11 +493,6 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 		}
 	}
 
-	/**
-	 * A decision the user has to make, drawn as the card a tool approval uses: the
-	 * question in a header, the message under it, and the choices as small
-	 * buttons along the bottom. It closes its own box rather than joining the input.
-	 */
 	private _renderConfirmation(notification: IChatInputNotification, confirmation: IChatInputNotificationConfirmation, body: IChatInputNotificationBody, actions: readonly IChatInputNotificationAction[], ariaTitle: string): void {
 		this.domNode.classList.add(confirmationClass);
 		const card = dom.append(this.domNode, $(`.${CHAT_CARD_LARGE_CLASS}.chat-input-notification-card`));

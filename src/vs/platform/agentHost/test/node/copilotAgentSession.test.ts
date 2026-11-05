@@ -112,7 +112,7 @@ import { CopilotSessionWrapper, type ICopilotByokSessionConfig } from '../../nod
 import { CopilotMcpToolRoutingCache, getMcpRoutingCacheKey, getMcpRoutingProxyName, type ICopilotMcpRoutingServer } from '../../node/copilot/copilotMcpToolRoutingCache.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostFileEditCoordinator, describeDiscardedFileEdits, IAgentHostFileEditCoordinator } from '../../node/agentHostFileEditCoordinator.js';
-import { AgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
+import { AGENT_HOST_CLIENT_RECONNECT_GRACE_PERIOD, AgentHostClientConnectionService, IAgentHostClientConnectionService, type IAgentHostClientConnectionSource } from '../../node/agentHostClientConnectionService.js';
 import { AgentHostTelemetryReporter, type ICanvasExtensionsReadyEvent } from '../../node/agentHostTelemetryReporter.js';
 import { AgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
 import { MockAgent } from './mockAgent.js';
@@ -1509,6 +1509,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 }): Promise<{
 	session: CopilotAgentSession;
 	runtime: TestCopilotSessionRuntime;
+	clientConnections: AgentHostClientConnectionService;
 	mockSession: MockCopilotSession;
 	signals: AgentSignal[];
 	onProgress: Event<AgentSignal>;
@@ -1629,6 +1630,8 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 
 	const services = new ServiceCollection();
 	services.set(ILogService, logService);
+	const clientConnections = disposables.add(new AgentHostClientConnectionService());
+	services.set(IAgentHostClientConnectionService, clientConnections);
 	const storageService = disposables.add(new AgentHostStorageService(undefined, logService));
 	services.set(IAgentHostStorageService, storageService);
 	services.set(ITelemetryService, options?.telemetryService ?? new NullTelemetryServiceShape());
@@ -1942,6 +1945,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	return {
 		session,
 		runtime,
+		clientConnections,
 		mockSession,
 		signals,
 		onProgress: progressEmitter.event,
@@ -12233,6 +12237,77 @@ suite('CopilotAgentSession', () => {
 				unavailable: { kind: 'attributed', result: { kind: 'user-not-available' }, decisionContext: { source: 'unattended_fallback', surface: 'sdk', outcome: 'autopilot_denied' } },
 			});
 		});
+
+		test('aborting the SDK chat denies its pending session extension permission and releases the idle hold', async () => {
+			const { session, runtime, signals, waitForSignal } = await createAgentSession(disposables);
+			const pending = runtime.handleAttributedPermissionRequest(extensionPermissionRequest);
+			const request = await waitForSignal(signal => signal.kind === 'session_permission_requested');
+			assert.strictEqual(session.hasPendingSessionPermissions, true);
+			await session.abort();
+			const result = await pending;
+			assert.deepStrictEqual({
+				result,
+				pending: session.hasPendingSessionPermissions,
+				completed: signals.filter(signal => signal.kind === 'session_permission_completed').map(signal => signal.requestId),
+			}, {
+				result: { kind: 'attributed', result: { kind: 'reject' }, decisionContext: { source: 'unattended_fallback', surface: 'sdk', outcome: 'autopilot_denied' } },
+				pending: false,
+				completed: request.kind === 'session_permission_requested' ? [request.requestId] : [],
+			});
+		});
+
+		test('completes extension permission as unavailable after the client grace and releases the idle hold', () => runWithFakedTimers({}, async () => {
+			const logService = new CapturingLogService();
+			const { session, runtime, signals, waitForSignal } = await createAgentSession(disposables, { logService });
+			const pending = runtime.handleAttributedPermissionRequest(extensionPermissionRequest);
+			const request = await waitForSignal(signal => signal.kind === 'session_permission_requested');
+			await timeout(AGENT_HOST_CLIENT_RECONNECT_GRACE_PERIOD - 1);
+			const beforeDeadline = session.hasPendingSessionPermissions;
+			const result = await pending;
+			assert.deepStrictEqual({
+				beforeDeadline,
+				result,
+				pending: session.hasPendingSessionPermissions,
+				completed: signals.filter(signal => signal.kind === 'session_permission_completed').map(signal => signal.requestId),
+				retryExplained: logService.warnings.some(warning => warning.message.includes('no connected client') && warning.message.includes('reload the session to retry')),
+			}, {
+				beforeDeadline: true,
+				result: { kind: 'attributed', result: { kind: 'user-not-available' }, decisionContext: { source: 'unattended_fallback', surface: 'sdk', outcome: 'autopilot_denied' } },
+				pending: false,
+				completed: request.kind === 'session_permission_requested' ? [request.requestId] : [],
+				retryExplained: true,
+			});
+		}));
+
+		test('keeps extension permission answerable beyond the grace while a capable client is present', () => runWithFakedTimers({}, async () => {
+			const sessionUri = URI.parse('vendor-session://host/opaque-session?key=one');
+			const logService = new CapturingLogService();
+			const { session, runtime, clientConnections, waitForSignal } = await createAgentSession(disposables, { sessionUri, logService });
+			const source = disposables.add(clientConnections.registerSource(new class extends mock<IAgentHostClientConnectionSource>() {
+				override hasSessionPermissionClient(session: string): boolean { return session === sessionUri.toString(); }
+			}));
+			const pending = runtime.handleAttributedPermissionRequest(extensionPermissionRequest);
+			const request = await waitForSignal(signal => signal.kind === 'session_permission_requested');
+			if (request.kind !== 'session_permission_requested') {
+				throw new Error('Expected a session permission request');
+			}
+			await timeout(AGENT_HOST_CLIENT_RECONNECT_GRACE_PERIOD * 2);
+			const stillPending = session.hasPendingSessionPermissions;
+			session.respondToPermissionRequest(request.requestId, true, { decisionSource: 'human_response' });
+			const result = await pending;
+			source.dispose();
+			await timeout(AGENT_HOST_CLIENT_RECONNECT_GRACE_PERIOD * 2);
+			assert.deepStrictEqual({
+				stillPending, result,
+				pending: session.hasPendingSessionPermissions,
+				unavailableWarnings: logService.warnings.filter(warning => warning.message.includes('no connected client')).length,
+			}, {
+				stillPending: true,
+				result: { kind: 'attributed', result: { kind: 'approve-once' }, decisionContext: { source: 'human_response', surface: 'sdk', outcome: 'prompted_user', responseCapability: 'interactive' } },
+				pending: false,
+				unavailableWarnings: 0,
+			});
+		}));
 
 		test('honors the runtime approve recommendation for MCP tools unless managed approval or the judge outranks it', async () => {
 			const { session, runtime, waitForSignal } = await createAgentSession(disposables);

@@ -51,7 +51,7 @@ function withInputNeededStatus(status: SessionStatus, inputNeeded: readonly Sess
 
 /**
  * Activity implied by the session's chats, following the chat aggregation
- * rule: promote `InputNeeded`, then `Error`, from any chat; otherwise use the
+ * rule: promote `InputNeeded`, then `InProgress`, from any chat; otherwise use the
  * default chat, else the most recently modified chat (UTC ISO 8601 timestamps
  * compare lexicographically). Used when a session-owned request resolves: it
  * may have promoted an idle session to `InputNeeded`, so the activity cannot be
@@ -62,8 +62,8 @@ function activityFromChats(state: SessionState): SessionStatus {
 	if (chats.some(chat => (chat.status & SessionStatus.InputNeeded) === SessionStatus.InputNeeded)) {
 		return SessionStatus.InputNeeded;
 	}
-	if (chats.some(chat => (chat.status & SessionStatus.Error) !== 0)) {
-		return SessionStatus.Error;
+	if (chats.some(chat => (chat.status & SessionStatus.InProgress) !== 0)) {
+		return SessionStatus.InProgress;
 	}
 	let source = chats.find(chat => chat.resource === state.defaultChat);
 	if (!source) {

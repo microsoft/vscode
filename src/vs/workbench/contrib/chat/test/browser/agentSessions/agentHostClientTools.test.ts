@@ -1677,6 +1677,44 @@ suite('AgentHostClientTools', () => {
 			});
 		});
 
+		test('isolates extension permission responses when hosts advertise the same session and request IDs', async () => {
+			const hosts = [createHandlerWithMocks(disposables, []), createHandlerWithMocks(disposables, [])];
+			const backendSession = URI.parse('vendor-session://host/opaque-session?key=same');
+			const sessions = await Promise.all(hosts.map(host => host.handler.provideChatSessionContent(
+				host.connectionsService.registerSessionResource(backendSession, 'local', 'copilot'),
+				CancellationToken.None,
+			)));
+			for (const host of hosts) {
+				host.connection.applySessionAction(backendSession, {
+					type: ActionType.SessionInputNeededSet,
+					request: { id: 'same-request', kind: SessionInputRequestKind.ExtensionPermission, extensionName: 'extension', capabilities: ['register hooks'] },
+				});
+			}
+			const notifications = hosts.map(host => [...host.inputNotifications.values()][0]);
+			for (const [index, host] of hosts.entries()) {
+				const action = notifications[index].actions[0];
+				assert.ok(action.kind === ChatInputNotificationActionKind.Command);
+				host.instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(action.commandId)?.handler(accessor, ...action.commandArgs ?? []));
+				sessions[index].dispose();
+			}
+			assert.deepStrictEqual({
+				distinctIds: notifications[0].id !== notifications[1].id,
+				containsBackend: notifications.some(notification => notification.id.includes(backendSession.toString())),
+				keepOpen: notifications.every(notification => notification.actions.every(action => action.keepOpen)),
+				responses: hosts.map(host => host.connection.dispatchedActions.flatMap(entry => entry.action.type === ActionType.SessionPermissionResponded
+					? [{ channel: entry.channel, requestId: entry.action.requestId, approved: entry.action.approved }]
+					: [])),
+			}, {
+				distinctIds: true,
+				containsBackend: false,
+				keepOpen: true,
+				responses: [
+					[{ channel: backendSession.toString(), requestId: 'same-request', approved: true }],
+					[{ channel: backendSession.toString(), requestId: 'same-request', approved: true }],
+				],
+			});
+		});
+
 		test('invokes an owned client tool when reconnecting to an active turn', async () => {
 			const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool]);
 			const sessionResource = URI.parse('agent-host-copilot:/session-1');

@@ -198,7 +198,6 @@ const CUSTOMIZATION_ENABLEMENT_PROTOCOL_VERSION = '0.8.0';
 
 export const UNOBSERVED_CLIENT_TOOL_GRACE_MS = 5000;
 
-/** Answers an extension permission request shown above the chat input; the arguments name the notification, the request and the chosen option. */
 const RESPOND_TO_EXTENSION_PERMISSION_COMMAND_ID = '_agentHost.extensionPermission.respond';
 const pendingExtensionPermissionResponses = new Map<string, (requestId: string, choiceIndex: number) => void>();
 CommandsRegistry.registerCommand(RESPOND_TO_EXTENSION_PERMISSION_COMMAND_ID, (_accessor, notificationId: unknown, requestId: unknown, choiceIndex: unknown) => {
@@ -3334,16 +3333,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}));
 	}
 
-	/**
-	 * Asks the user to answer extensions' session-scoped permission requests
-	 * above the chat input of every chat open for the backend session. Requests
-	 * are shown one at a time, oldest first, so a newly raised request never
-	 * replaces the one the user is reading. Each request is a security decision,
-	 * so the notice cannot be dismissed; it is removed once none is pending.
-	 */
+	/** Shows session-owned permission requests oldest first, shared by every open chat in the session. */
 	private _showSessionExtensionPermissionRequests(backendSession: URI, requests: IObservable<readonly ObservedSessionInputRequest[]>): IDisposable {
 		const sessionKey = backendSession.toString();
-		const notificationId = `agentHost.extensionPermission/${sessionKey}`;
+		const notificationId = `agentHost.extensionPermission/${generateUuid()}`;
 		const store = new DisposableStore();
 		const responded = new Set<string>();
 		let shown: { readonly request: SessionExtensionPermissionRequest; readonly choices: readonly { readonly label: string; readonly approved: boolean; readonly selectedOptionId?: string }[] } | undefined;
@@ -3415,6 +3408,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					commandArgs: [notificationId, request.id, index],
 					telemetryActionId: choice.approved ? 'approve' : 'deny',
 					primary: index === primaryIndex,
+					keepOpen: true,
 				})),
 				when: context => !!context.sessionResource && !!this._inputNeededWatchers.get(sessionKey)?.refs.has(context.sessionResource.toString()),
 				dismissible: false,

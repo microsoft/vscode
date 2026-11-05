@@ -2526,6 +2526,23 @@ suite('AgentHostStateManager', () => {
 			});
 		});
 
+		test('resolving a session permission preserves running-peer precedence over the idle default chat', () => {
+			manager.createSession(makeSessionSummary());
+			manager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat, buildDefaultChatUri(sessionUri)), { title: 'Peer' });
+			manager.dispatchServerAction(peerChat, chatTurnStarted('turn', 'hello', '2025-01-01T00:00:00.000Z'));
+			manager.dispatchServerAction(sessionUri, {
+				type: ActionType.SessionInputNeededSet,
+				request: {
+					id: 'permission',
+					kind: SessionInputRequestKind.ExtensionPermission,
+					extensionName: 'example-extension',
+					capabilities: ['register hooks'],
+				},
+			});
+			manager.dispatchClientAction(sessionUri, { type: ActionType.SessionPermissionResponded, requestId: 'permission', approved: false }, { clientId: 'client', clientSeq: 1 });
+			assert.strictEqual(manager.getSessionState(sessionUri)!.status, SessionStatus.InProgress);
+		});
+
 		test('a running peer chat forwards its own status to the session catalog so its tab can show progress', () => {
 			manager.createSession(makeSessionSummary());
 			manager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat, buildDefaultChatUri(sessionUri)), { title: 'Peer' });

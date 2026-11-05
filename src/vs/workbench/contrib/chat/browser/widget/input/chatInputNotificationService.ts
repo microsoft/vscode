@@ -119,12 +119,8 @@ export interface IChatInputNotificationGroup {
 	readonly priority: number;
 }
 
-/**
- * Presents a notification as a question the user answers, in the large card that chat uses for
- * tool approvals, rather than as a severity-tinted banner.
- */
+/** Presents a notification using chat's large confirmation card. */
 export interface IChatInputNotificationConfirmation {
-	/** The question heading the card, e.g. "Allow canvas extension 'x'?". The message explains it. */
 	readonly title: string;
 }
 
@@ -179,11 +175,7 @@ export interface IChatInputNotification {
 	readonly announcementKey?: string;
 	/** Defers this notification to higher-priority members of the same group. */
 	readonly group?: IChatInputNotificationGroup;
-	/**
-	 * Renders the notification as a confirmation card, set apart from the input, with the title as
-	 * its header and the actions beneath the message. Severity still ranks it among notifications,
-	 * but neither it nor the icon is shown.
-	 */
+	/** Renders a standalone confirmation card with actions beneath the message. Severity still determines priority but does not affect its appearance. */
 	readonly confirmation?: IChatInputNotificationConfirmation;
 }
 

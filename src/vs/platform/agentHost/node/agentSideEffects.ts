@@ -269,7 +269,7 @@ export class AgentSideEffects extends Disposable {
 	/** Maps tool call IDs to the agent that owns them, for routing confirmations. */
 	private readonly _toolCallAgents = new Map<string, string>();
 	/** Maps session-scoped permission requests to the agent that raised them, since a session can host several providers. */
-	private readonly _sessionPermissionAgents = new Map<string, string>();
+	private readonly _sessionPermissionAgents = new NKeyMap<string, [ProtocolURI, string]>();
 	/** Managed confirmations are human-only and must never seed host-side session permissions. */
 	private readonly _managedApprovalToolCalls = new Set<string>();
 	/** Tool entries created for a real permission request before the provider publishes its start. */
@@ -412,6 +412,7 @@ export class AgentSideEffects extends Disposable {
 		}));
 
 		this._register(this._stateManager.onDidRemoveSession(session => {
+			this._sessionPermissionAgents.deleteAll(session);
 			for (const [chat, owner] of [...this._recordedChatOwners]) {
 				if (owner === session) {
 					this._recordedChatOwners.delete(chat);
@@ -763,7 +764,7 @@ export class AgentSideEffects extends Disposable {
 			return;
 		}
 		if (signal.kind === 'session_permission_requested') {
-			this._sessionPermissionAgents.set(`${signal.session.toString()}:${signal.requestId}`, agent.id);
+			this._sessionPermissionAgents.set(agent.id, signal.session.toString(), signal.requestId);
 			this._stateManager.dispatchServerAction(signal.session.toString(), {
 				type: ActionType.SessionInputNeededSet,
 				request: {
@@ -777,7 +778,7 @@ export class AgentSideEffects extends Disposable {
 			return;
 		}
 		if (signal.kind === 'session_permission_completed') {
-			this._sessionPermissionAgents.delete(`${signal.session.toString()}:${signal.requestId}`);
+			this._sessionPermissionAgents.delete(signal.session.toString(), signal.requestId);
 			this._stateManager.dispatchServerAction(signal.session.toString(), {
 				type: ActionType.SessionInputNeededRemoved,
 				id: signal.requestId,
@@ -1959,7 +1960,8 @@ export class AgentSideEffects extends Disposable {
 				break;
 			}
 			case ActionType.SessionPermissionResponded: {
-				const agentId = this._sessionPermissionAgents.get(`${sessionChannel}:${action.requestId}`);
+				const agentId = this._sessionPermissionAgents.get(sessionChannel, action.requestId);
+				this._sessionPermissionAgents.delete(sessionChannel, action.requestId);
 				const agent = agentId !== undefined ? this._options.agents.get().find(a => a.id === agentId) : undefined;
 				if (agent) {
 					agent.respondToPermissionRequest(action.requestId, action.approved, { decisionSource: 'human_response', selectedOptionId: action.selectedOptionId });
@@ -2549,6 +2551,7 @@ export class AgentSideEffects extends Disposable {
 		}
 		this._pendingMcpServerStarts.clear();
 		this._toolCallAgents.clear();
+		this._sessionPermissionAgents.clear();
 		this._managedApprovalToolCalls.clear();
 		this._toolCallTracker.clear();
 		this._inputRequestTracker.clear();
