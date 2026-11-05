@@ -290,7 +290,6 @@ suite('ModelPickerTelemetry', () => {
 		instantiationService.stub(ILanguageModelsService, new class extends NullLanguageModelsService {
 			override getLanguageModelIds() { return models.map(model => model.identifier); }
 			override getModelsControlManifest() { return controlManifest; }
-			override getRecentlyUsedModelIds() { return [model.identifier]; }
 			override getPinnedModelIds() { return [...pinnedModelIds]; }
 			// The real service reports pin changes; record what the picker passes it instead.
 			override pinModel(id: string, telemetry?: IModelPinTelemetryContext) {
