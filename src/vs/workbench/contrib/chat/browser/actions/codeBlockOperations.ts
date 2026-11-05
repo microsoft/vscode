@@ -16,6 +16,7 @@ import { ICodeEditorService } from '../../../../../editor/browser/services/codeE
 import { Range } from '../../../../../editor/common/core/range.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
+import { PLAINTEXT_LANGUAGE_ID } from '../../../../../editor/common/languages/modesRegistry.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { EditDeltaInfo, EditSuggestionId } from '../../../../../editor/common/textModelEditSource.js';
 import { localize } from '../../../../../nls.js';
@@ -154,13 +155,14 @@ export class ApplyCodeBlockOperation {
 		@ILabelService private readonly labelService: ILabelService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@INotebookService private readonly notebookService: INotebookService,
+		@ILanguageService private readonly languageService: ILanguageService,
 	) {
 	}
 
 	public async run(context: ICodeBlockActionContext): Promise<void> {
 		let activeEditorControl = getEditableActiveCodeEditor(this.editorService);
 
-		const codemapperUri = await this.evaluateURIToUse(context.codemapperUri, activeEditorControl);
+		const codemapperUri = await this.evaluateURIToUse(context.codemapperUri, activeEditorControl, context.languageId);
 		if (!codemapperUri) {
 			return;
 		}
@@ -221,7 +223,7 @@ export class ApplyCodeBlockOperation {
 		}
 	}
 
-	private async evaluateURIToUse(resource: URI | undefined, activeEditorControl: IActiveCodeEditor | undefined): Promise<URI | undefined> {
+	private async evaluateURIToUse(resource: URI | undefined, activeEditorControl: IActiveCodeEditor | undefined, languageId: string | undefined): Promise<URI | undefined> {
 		if (resource && await this.fileService.exists(resource)) {
 			return resource;
 		}
@@ -258,8 +260,16 @@ export class ApplyCodeBlockOperation {
 						}
 					}
 					return resource;
-				case 'newUntitledFile':
-					return URI.from({ scheme: 'untitled', path: resource ? resource.path : 'Untitled-1' });
+				case 'newUntitledFile': {
+					let preferredLanguageId = resource ? this.languageService.guessLanguageIdByFilepathOrFirstLine(resource) : undefined;
+					if (!preferredLanguageId || !this.languageService.isRegisteredLanguageId(preferredLanguageId)) {
+						preferredLanguageId = languageId && (this.languageService.isRegisteredLanguageId(languageId) ? languageId : this.languageService.getLanguageIdByLanguageName(languageId));
+						if (preferredLanguageId === PLAINTEXT_LANGUAGE_ID) {
+							preferredLanguageId = undefined;
+						}
+					}
+					return this.textFileService.untitled.create({ languageId: preferredLanguageId || undefined }).resource;
+				}
 				case 'activeEditor':
 					return activeEditorControl?.getModel().uri;
 			}
