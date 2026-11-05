@@ -198,12 +198,12 @@ const CUSTOMIZATION_ENABLEMENT_PROTOCOL_VERSION = '0.8.0';
 
 export const UNOBSERVED_CLIENT_TOOL_GRACE_MS = 5000;
 
-/** Answers an extension permission request shown above the chat input; the arguments name the notification and the chosen option. */
+/** Answers an extension permission request shown above the chat input; the arguments name the notification, the request and the chosen option. */
 const RESPOND_TO_EXTENSION_PERMISSION_COMMAND_ID = '_agentHost.extensionPermission.respond';
-const pendingExtensionPermissionResponses = new Map<string, (choiceIndex: number) => void>();
-CommandsRegistry.registerCommand(RESPOND_TO_EXTENSION_PERMISSION_COMMAND_ID, (_accessor, notificationId: unknown, choiceIndex: unknown) => {
-	if (typeof notificationId === 'string' && typeof choiceIndex === 'number') {
-		pendingExtensionPermissionResponses.get(notificationId)?.(choiceIndex);
+const pendingExtensionPermissionResponses = new Map<string, (requestId: string, choiceIndex: number) => void>();
+CommandsRegistry.registerCommand(RESPOND_TO_EXTENSION_PERMISSION_COMMAND_ID, (_accessor, notificationId: unknown, requestId: unknown, choiceIndex: unknown) => {
+	if (typeof notificationId === 'string' && typeof requestId === 'string' && typeof choiceIndex === 'number') {
+		pendingExtensionPermissionResponses.get(notificationId)?.(requestId, choiceIndex);
 	}
 });
 
@@ -3185,6 +3185,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			})
 		);
 
+		store.add(this._showSessionExtensionPermissionRequests(backendSession, requests));
+
 		const startedClientToolCalls = new Set<string>();
 		const clientToolExecutions = new Map<string, { readonly source: CancellationTokenSource; readonly retain: IDisposable; activeAttempts: number }>();
 		const releaseClientToolExecution = (key: string, execution: { readonly source: CancellationTokenSource; readonly retain: IDisposable; activeAttempts: number }) => {
@@ -3212,7 +3214,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		store.add(autorunPerKeyedItem(requests, request => request.id, (_requestId, request$, itemStore) => {
 			const initial = request$.get();
 			if (initial.kind === SessionInputRequestKind.ExtensionPermission) {
-				itemStore.add(this._showSessionExtensionPermissionRequest(backendSession, initial));
 				return;
 			}
 			const chatURI = initial.chat.toString();
@@ -3334,64 +3335,94 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	/**
-	 * Asks the user to answer an extension's session-scoped permission request
-	 * above the chat input of every chat open for the backend session. The
-	 * request is a security decision, so the notice cannot be dismissed; it is
-	 * removed when the host removes the request.
+	 * Asks the user to answer extensions' session-scoped permission requests
+	 * above the chat input of every chat open for the backend session. Requests
+	 * are shown one at a time, oldest first, so a newly raised request never
+	 * replaces the one the user is reading. Each request is a security decision,
+	 * so the notice cannot be dismissed; it is removed once none is pending.
 	 */
-	private _showSessionExtensionPermissionRequest(backendSession: URI, request: SessionExtensionPermissionRequest): IDisposable {
+	private _showSessionExtensionPermissionRequests(backendSession: URI, requests: IObservable<readonly ObservedSessionInputRequest[]>): IDisposable {
 		const sessionKey = backendSession.toString();
-		const notificationId = `agentHost.extensionPermission/${sessionKey}/${request.id}`;
-		const choices: readonly { readonly label: string; readonly approved: boolean; readonly selectedOptionId?: string }[] = request.options?.length
-			? request.options.map(option => ({ label: option.label, approved: option.kind === ConfirmationOptionKind.Approve, selectedOptionId: option.id }))
-			: [
-				{ label: localize('agentHost.extensionPermission.allow', "Allow"), approved: true },
-				{ label: localize('agentHost.extensionPermission.deny', "Deny"), approved: false },
-			];
+		const notificationId = `agentHost.extensionPermission/${sessionKey}`;
+		const store = new DisposableStore();
+		const responded = new Set<string>();
+		let shown: { readonly request: SessionExtensionPermissionRequest; readonly choices: readonly { readonly label: string; readonly approved: boolean; readonly selectedOptionId?: string }[] } | undefined;
 
-		let responded = false;
-		pendingExtensionPermissionResponses.set(notificationId, choiceIndex => {
-			const choice = choices[choiceIndex];
-			if (!choice || responded) {
+		pendingExtensionPermissionResponses.set(notificationId, (requestId, choiceIndex) => {
+			const choice = shown?.request.id === requestId ? shown.choices[choiceIndex] : undefined;
+			if (!choice || responded.has(requestId)) {
 				return;
 			}
-			responded = true;
+			responded.add(requestId);
 			this._dispatchAction(backendSession, {
 				type: ActionType.SessionPermissionResponded,
-				requestId: request.id,
+				requestId,
 				approved: choice.approved,
 				selectedOptionId: choice.selectedOptionId,
 			});
 		});
-
-		this._chatInputNotificationService.setNotification({
-			id: notificationId,
-			telemetryId: 'agentHost.extensionPermission',
-			severity: ChatInputNotificationSeverity.Warning,
-			message: localize(
-				'agentHost.extensionPermissionRequest',
-				"Extension \"{0}\" requests permission to: {1}",
-				request.extensionName,
-				request.capabilities.join(', ')
-			),
-			description: undefined,
-			actions: choices.map((choice, index) => ({
-				kind: ChatInputNotificationActionKind.Command,
-				label: choice.label,
-				commandId: RESPOND_TO_EXTENSION_PERMISSION_COMMAND_ID,
-				commandArgs: [notificationId, index],
-				telemetryActionId: choice.approved ? 'approve' : 'deny',
-			})),
-			when: context => !!context.sessionResource && !!this._inputNeededWatchers.get(sessionKey)?.refs.has(context.sessionResource.toString()),
-			dismissible: false,
-			autoDismissOnMessage: false,
-		});
-		this._signalToolConfirmation();
-
-		return toDisposable(() => {
+		store.add(toDisposable(() => {
 			pendingExtensionPermissionResponses.delete(notificationId);
 			this._chatInputNotificationService.deleteNotification(notificationId);
-		});
+		}));
+
+		store.add(autorun(reader => {
+			const pending = requests.read(reader).filter((request): request is SessionExtensionPermissionRequest => request.kind === SessionInputRequestKind.ExtensionPermission);
+			for (const id of responded) {
+				if (!pending.some(request => request.id === id)) {
+					responded.delete(id);
+				}
+			}
+			const request = pending.at(0);
+			if (!request) {
+				shown = undefined;
+				this._chatInputNotificationService.deleteNotification(notificationId);
+				return;
+			}
+			const isNewRequest = shown?.request.id !== request.id;
+			const choices = request.options?.length
+				? request.options.map(option => ({ label: option.label, approved: option.kind === ConfirmationOptionKind.Approve, selectedOptionId: option.id }))
+				: [
+					{ label: localize('agentHost.extensionPermission.allow', "Allow"), approved: true },
+					{ label: localize('agentHost.extensionPermission.deny', "Deny"), approved: false },
+				];
+			shown = { request, choices };
+			const primaryIndex = choices.findIndex(choice => choice.approved);
+			const waiting = pending.length - 1;
+
+			this._chatInputNotificationService.setNotification({
+				id: notificationId,
+				telemetryId: 'agentHost.extensionPermission',
+				severity: ChatInputNotificationSeverity.Warning,
+				message: localize(
+					'agentHost.extensionPermissionRequest',
+					"Extension \"{0}\" requests permission to: {1}",
+					request.extensionName,
+					request.capabilities.join(', ')
+				),
+				description: waiting === 0
+					? undefined
+					: waiting === 1
+						? localize('agentHost.extensionPermission.oneMore', "1 more extension permission request is waiting.")
+						: localize('agentHost.extensionPermission.more', "{0} more extension permission requests are waiting.", waiting),
+				actions: choices.map((choice, index) => ({
+					kind: ChatInputNotificationActionKind.Command,
+					label: choice.label,
+					commandId: RESPOND_TO_EXTENSION_PERMISSION_COMMAND_ID,
+					commandArgs: [notificationId, request.id, index],
+					telemetryActionId: choice.approved ? 'approve' : 'deny',
+					primary: index === primaryIndex,
+				})),
+				when: context => !!context.sessionResource && !!this._inputNeededWatchers.get(sessionKey)?.refs.has(context.sessionResource.toString()),
+				dismissible: false,
+				autoDismissOnMessage: false,
+			});
+			if (isNewRequest) {
+				this._signalToolConfirmation();
+			}
+		}));
+
+		return store;
 	}
 
 	private _isOwnedClientToolRequest(request: ObservedSessionInputRequest): request is ClientToolExecutionRequest {

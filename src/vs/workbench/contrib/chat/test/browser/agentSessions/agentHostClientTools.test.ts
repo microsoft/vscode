@@ -21,6 +21,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -85,7 +86,7 @@ import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/ag
 import { IBeginToolCallOptions, ILanguageModelToolsService, IToolData, IToolInvocation, IToolResult, IToolSet, ToolAndToolSetEnablementMap, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { IChatWidgetService } from '../../../browser/chat.js';
-import { IChatInputNotification, IChatInputNotificationService } from '../../../browser/widget/input/chatInputNotificationService.js';
+import { ChatInputNotificationActionKind, IChatInputNotification, IChatInputNotificationService } from '../../../browser/widget/input/chatInputNotificationService.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
@@ -1614,6 +1615,62 @@ suite('AgentHostClientTools', () => {
 					sessions: [sessionResource.toString()],
 				}],
 				remaining: 0,
+			});
+		});
+
+		test('shows extension permission requests one at a time, oldest first, and answers the shown request', async () => {
+			const { handler, connection, inputNotifications, instantiationService } = createHandlerWithMocks(disposables, []);
+			const sessionResource = URI.parse('agent-host-copilot:/session-1');
+			const backendSession = AgentSession.uri('copilot', 'session-1');
+			const session = await handler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			const options = [
+				{ id: 'allow-once', label: 'Allow', kind: ConfirmationOptionKind.Approve },
+				{ id: 'allow-session', label: 'Allow for Session', kind: ConfirmationOptionKind.Approve },
+				{ id: 'deny', label: 'Deny', kind: ConfirmationOptionKind.Deny },
+			];
+			for (const id of ['first', 'second']) {
+				connection.applySessionAction(backendSession, {
+					type: ActionType.SessionInputNeededSet,
+					request: { id, kind: SessionInputRequestKind.ExtensionPermission, extensionName: `${id}-extension`, capabilities: ['register hooks'], options },
+				});
+			}
+			const snapshot = () => [...inputNotifications.values()].map(notification => ({
+				message: notification.message,
+				description: notification.description,
+				actions: notification.actions.map(action => `${action.label}${action.primary ? ' (primary)' : ''}`),
+			}));
+			const click = (label: string) => {
+				const action = [...inputNotifications.values()][0].actions.find(candidate => candidate.label === label);
+				assert.ok(action?.kind === ChatInputNotificationActionKind.Command);
+				return () => instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(action.commandId)?.handler(accessor, ...action.commandArgs ?? []));
+			};
+			const responses = () => connection.dispatchedActions.flatMap(entry => entry.action.type === ActionType.SessionPermissionResponded ? [{ requestId: entry.action.requestId, approved: entry.action.approved, selectedOptionId: entry.action.selectedOptionId }] : []);
+
+			const initial = snapshot();
+			const allowFirst = click('Allow for Session');
+			allowFirst();
+			const afterFirst = snapshot();
+			allowFirst();
+			click('Deny')();
+			const afterSecond = snapshot();
+			session.dispose();
+
+			assert.deepStrictEqual({ initial, afterFirst, afterSecond, responses: responses() }, {
+				initial: [{
+					message: 'Extension "first-extension" requests permission to: register hooks',
+					description: '1 more extension permission request is waiting.',
+					actions: ['Allow (primary)', 'Allow for Session', 'Deny'],
+				}],
+				afterFirst: [{
+					message: 'Extension "second-extension" requests permission to: register hooks',
+					description: undefined,
+					actions: ['Allow (primary)', 'Allow for Session', 'Deny'],
+				}],
+				afterSecond: [],
+				responses: [
+					{ requestId: 'first', approved: true, selectedOptionId: 'allow-session' },
+					{ requestId: 'second', approved: false, selectedOptionId: 'deny' },
+				],
 			});
 		});
 

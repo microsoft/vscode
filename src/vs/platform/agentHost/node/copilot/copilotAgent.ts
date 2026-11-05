@@ -9129,6 +9129,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (target.hasActiveTurn) {
 			return false;
 		}
+		if (target.hasPendingSessionPermissions) {
+			this._logService.info(`[Copilot:${target.sessionId}] Deferring idle release while an extension permission request is pending`);
+			return false;
+		}
 		if (await target.hasRunningDetachedShells()) {
 			this._logService.info(`[Copilot:${target.sessionId}] Deferring idle release while a detached shell is running`);
 			return false;

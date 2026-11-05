@@ -1323,6 +1323,7 @@ export class CopilotAgentSession extends Disposable {
 		readonly acceptsFeedback?: true;
 		readonly mcpSkillConsent?: { readonly serverIdentity: string; readonly turn: CopilotTurn };
 	}>();
+	private _pendingSessionPermissionCount = 0;
 	private readonly _mcpSkillSessionApprovals = new Set<string>();
 	private readonly _pendingMcpSkillConsents = new Map<string, DeferredPromise<boolean>>();
 	/** Cancels callbacks that began before or during an SDK abort. */
@@ -1417,6 +1418,8 @@ export class CopilotAgentSession extends Disposable {
 	 * non-destructive idle release to avoid disconnecting mid-turn.
 	 */
 	get hasActiveTurn(): boolean { return this._currentTurn.value !== undefined; }
+	/** Whether an extension permission request is awaiting an answer, which idle release would deny. */
+	get hasPendingSessionPermissions(): boolean { return this._pendingSessionPermissionCount > 0; }
 	get hasCompletedTurn(): boolean { return this._hasCompletedTurn; }
 	/** Reuses persisted history to distinguish restored chats from a chat's first turn. */
 	get completedTurnHistory(): Promise<boolean> | undefined {
@@ -8467,17 +8470,22 @@ export class CopilotAgentSession extends Disposable {
 	 * and stays pending until a client answers or the session is disposed.
 	 */
 	private async _handleSessionExtensionPermissionRequest(request: Extract<PermissionRequest, { kind: 'extension-permission-access' }>): Promise<PermissionRequestResult | AttributedPermissionResult> {
-		if (this._isUnattendedAssistedAutopilot()) {
+		// Extensions join before the first turn applies modes to the runtime, so fall back to the configured ones.
+		const permissionMode = this._lastAppliedPermissionMode ?? this._approvalPolicy.resolveSelection(this._getApprovalInputs()).mode;
+		const agentMode = this._lastAppliedMode ?? this._getConfiguredAgentMode();
+		if (permissionMode === 'assisted' && agentMode === 'autopilot') {
 			return attributePermissionResult({ kind: 'user-not-available' }, 'unattended_fallback');
 		}
+		const session = this._ownerSessionUri;
 		const requestId = generateUuid();
 		const pendingPermission = this._pendingPermissions.register(requestId, {
 			managedApprovalRequired: false,
 			extensionPermissionName: request.extensionName,
 		});
+		this._pendingSessionPermissionCount++;
 		this._emitProgress({
 			kind: 'session_permission_requested',
-			session: this._ownerSessionUri,
+			session,
 			requestId,
 			extensionName: request.extensionName,
 			capabilities: request.capabilities,
@@ -8496,9 +8504,10 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.info(`[Copilot:${this.sessionId}] Session permission response: requestId=${requestId}, result=${result.result.kind}`);
 			return attributePermissionResult(result.result, result.source, result.userFeedback);
 		} finally {
+			this._pendingSessionPermissionCount--;
 			this._emitProgress({
 				kind: 'session_permission_completed',
-				session: this._ownerSessionUri,
+				session,
 				requestId,
 			});
 		}

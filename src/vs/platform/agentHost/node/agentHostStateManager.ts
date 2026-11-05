@@ -19,7 +19,7 @@ import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
 import { buildAnnotationsUri, isAnnotationsUri, parseAnnotationsUri } from '../common/annotationsUri.js';
 import { AgentHostChangesetStateCache, type IAgentHostChangesetStateRetentionOptions } from './agentHostChangesetStateCache.js';
-import { ChangesSummary, ChatInteractivity, type ChatOrigin, type SessionChatSummary } from '../common/state/protocol/state.js';
+import { ChangesSummary, ChatInteractivity, SessionInputRequestKind, type ChatOrigin, type SessionChatSummary } from '../common/state/protocol/state.js';
 import { arrayEquals, structuralEquals } from '../../../base/common/equals.js';
 import { canvasReducer } from '../common/state/protocol/channels-canvas/reducer.js';
 import type { SessionConfigSchema } from '../common/state/protocol/commands.js';
@@ -3317,7 +3317,11 @@ export class AgentHostStateManager extends Disposable {
 		}
 		const sessionState = entry.state;
 		const aggregate = this._aggregateChatSummaries(chats, sessionState.defaultChat);
-		const newStatus = aggregate.status !== undefined ? this._mergeSessionStatus(sessionState.status, aggregate.status) : sessionState.status;
+		// A pending extension permission blocks the session itself, not any chat.
+		const aggregateStatus = aggregate.status !== undefined && sessionState.inputNeeded?.some(request => request.kind === SessionInputRequestKind.ExtensionPermission)
+			? SessionStatus.InputNeeded
+			: aggregate.status;
+		const newStatus = aggregateStatus !== undefined ? this._mergeSessionStatus(sessionState.status, aggregateStatus) : sessionState.status;
 		const statusChanged = newStatus !== sessionState.status;
 		const activityChanged = aggregate.activity !== sessionState.activity;
 		entry.state = {

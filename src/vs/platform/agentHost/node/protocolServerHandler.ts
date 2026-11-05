@@ -2476,7 +2476,8 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			let prepared = this._stateManager.prepareSessionSummariesForListing(items)
 				.filter(item => this._isSessionVisible(client, item.resource, item.defaultChat))
 				.filter(summary => !this._config.sessionSummaryFilter || this._config.sessionSummaryFilter(summary))
-				.map(item => item.chats ? { ...item, chats: [...this._filterVisibleChats(client, item.resource, item.chats, chat => chat.resource)] } : item);
+				.map(item => item.chats ? { ...item, chats: [...this._filterVisibleChats(client, item.resource, item.chats, chat => chat.resource)] } : item)
+				.map(item => this._projectSessionExtensionPermissionSummary(client, item));
 			if (this._config.relayRoots) {
 				const granted = await Promise.all(prepared.map(async item => {
 					if (!item.workingDirectories?.length || !(await Promise.all(item.workingDirectories.map(directory => this._isGrantedRelayDirectory(directory)))).every(Boolean)) {
@@ -4459,8 +4460,8 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	 */
 	private _projectActionForClient(client: IConnectedClient, envelope: ActionEnvelope): ActionEnvelope | undefined {
 		if (!this._supportsSessionExtensionPermission(client)
-			&& envelope.action.type === ActionType.SessionInputNeededSet
-			&& envelope.action.request.kind === SessionInputRequestKind.ExtensionPermission) {
+			&& (envelope.action.type === ActionType.SessionPermissionResponded
+				|| envelope.action.type === ActionType.SessionInputNeededSet && envelope.action.request.kind === SessionInputRequestKind.ExtensionPermission)) {
 			return undefined;
 		}
 		const vscode = getAgentHostClientType(client.clientInfo) !== AgentHostClientType.Unknown;

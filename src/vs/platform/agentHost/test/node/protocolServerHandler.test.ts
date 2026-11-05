@@ -9271,6 +9271,19 @@ suite('ProtocolServerHandler', () => {
 			reconnected.simulateMessage(request(2, 'reconnect', { clientId: 'permission-capable', lastSeenServerSeq: -1, subscriptions: [sessionUri] }));
 			const reconnectResult = (await reconnectResponse as { result: ReconnectResult }).result;
 
+			agentService.listedSessions.push({ session: URI.parse(sessionUri), startTime: 1000, modifiedTime: 1000 });
+			const listedStatus = async (transport: MockProtocolTransport) => {
+				const response = waitForResponse(transport, 3);
+				transport.simulateMessage(request(3, 'listSessions', {}));
+				const listed = (await response as { result: ListSessionsResult }).result;
+				return listed.items.find(item => item.resource === sessionUri)?.status;
+			};
+			const capableListed = await listedStatus(reconnected);
+			const incapableListed = await listedStatus(incapable.transport);
+
+			reconnected.sent.length = 0;
+			stateManager.dispatchClientAction(sessionUri, { type: ActionType.SessionPermissionResponded, requestId: permissionRequest.id, approved: true }, { clientId: 'permission-capable', clientSeq: 1 });
+
 			const visible = { inputNeeded: [permissionRequest], status: SessionStatus.InputNeeded };
 			assert.deepStrictEqual({
 				capableActions: actionTypes(capable.transport),
@@ -9278,12 +9291,20 @@ suite('ProtocolServerHandler', () => {
 				capableSnapshot: summarize(capableSnapshot.initialized.snapshots),
 				incapableSnapshot: summarize(incapableSnapshot.initialized.snapshots),
 				reconnectSnapshot: reconnectResult.type === 'snapshot' ? summarize(reconnectResult.snapshots) : reconnectResult.type,
+				capableListed,
+				incapableListed,
+				capableResponseActions: actionTypes(reconnected),
+				incapableResponseActions: actionTypes(incapable.transport),
 			}, {
 				capableActions: [ActionType.SessionInputNeededSet],
 				incapableActions: [],
 				capableSnapshot: visible,
 				incapableSnapshot: { inputNeeded: undefined, status: SessionStatus.Idle },
 				reconnectSnapshot: visible,
+				capableListed: SessionStatus.InputNeeded,
+				incapableListed: SessionStatus.Idle,
+				capableResponseActions: [ActionType.SessionPermissionResponded],
+				incapableResponseActions: [],
 			});
 		});
 

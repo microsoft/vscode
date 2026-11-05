@@ -13,7 +13,7 @@ import { ActionType, NotificationType, type ActionEnvelope, type INotification }
 import { chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
 import { ChangesetStatus, ChatInputQuestionKind, ChatInputResponseKind, ChatInteractivity, ChatOriginKind, MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, buildSubagentSessionUriPrefix, createErrorResponsePart, isSessionStatusRead, isSubagentSession, mergeSessionWithDefaultChat, parseSubagentSessionUri, readHostBuildInfo, readSessionEhcliAdoptable, withSessionEhcliAdoptable, withSessionGitHubState, withSessionGitState, type ChatState, type MarkdownResponsePart, type SessionState, type Turn } from '../../common/state/sessionState.js';
 import { type SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
-import { SessionOriginKind } from '../../common/state/protocol/state.js';
+import { ConfirmationOptionKind, SessionInputRequestKind, SessionOriginKind } from '../../common/state/protocol/state.js';
 import { BackgroundWorkKind, type BackgroundShellWork } from '../../common/state/protocol/channels-chat/state.js';
 import { AgentHostStateManager, ChatRemovalReason, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { deriveLegacyDefaultChat } from '../../common/agentHostLegacyDefaultChat.js';
@@ -2496,6 +2496,35 @@ suite('AgentHostStateManager', () => {
 				});
 			});
 		}
+
+		test('a pending extension permission keeps the session waiting while chats change status', () => {
+			manager.createSession(makeSessionSummary());
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const status = () => manager.getSessionState(sessionUri)!.status;
+			manager.dispatchServerAction(sessionUri, {
+				type: ActionType.SessionInputNeededSet,
+				request: {
+					id: 'permission',
+					kind: SessionInputRequestKind.ExtensionPermission,
+					extensionName: 'project:hooked-greeter',
+					capabilities: ['register hooks'],
+					options: [{ id: 'deny', label: 'Deny', kind: ConfirmationOptionKind.Deny }],
+				},
+			});
+			const pending = status();
+			manager.dispatchServerAction(defaultChat, chatTurnStarted('turn', 'hello', '2025-01-01T00:00:00.000Z'));
+			const whileRunning = status();
+			manager.dispatchServerAction(defaultChat, chatTurnComplete('turn', 1000));
+			const afterComplete = status();
+			manager.dispatchClientAction(sessionUri, { type: ActionType.SessionPermissionResponded, requestId: 'permission', approved: false, selectedOptionId: 'deny' }, { clientId: 'client', clientSeq: 1 });
+
+			assert.deepStrictEqual({ pending, whileRunning, afterComplete, afterResponse: status() }, {
+				pending: SessionStatus.InputNeeded,
+				whileRunning: SessionStatus.InputNeeded,
+				afterComplete: SessionStatus.InputNeeded,
+				afterResponse: SessionStatus.Idle,
+			});
+		});
 
 		test('a running peer chat forwards its own status to the session catalog so its tab can show progress', () => {
 			manager.createSession(makeSessionSummary());

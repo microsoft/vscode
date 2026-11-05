@@ -8883,12 +8883,17 @@ suite('AgentSideEffects', () => {
 			});
 		});
 
-		test('routes accepted session extension permission responses with the chosen option to the owning agent', () => {
+		test('routes accepted session extension permission responses with the chosen option to the agent that raised them', () => {
 			setupSession();
+			const requestingAgent = new MockAgent('codex');
+			disposables.add(toDisposable(() => requestingAgent.dispose()));
+			agentList.set([agent, requestingAgent], undefined);
 			disposables.add(sideEffects.registerProgressListener(agent));
-			const responses: Parameters<IAgent['respondToPermissionRequest']>[] = [];
-			agent.respondToPermissionRequest = (...args) => { responses.push(args); };
-			agent.fireProgress({
+			disposables.add(sideEffects.registerProgressListener(requestingAgent));
+			const responses: { agent: string; args: Parameters<IAgent['respondToPermissionRequest']> }[] = [];
+			agent.respondToPermissionRequest = (...args) => { responses.push({ agent: agent.id, args }); };
+			requestingAgent.respondToPermissionRequest = (...args) => { responses.push({ agent: requestingAgent.id, args }); };
+			requestingAgent.fireProgress({
 				kind: 'session_permission_requested',
 				session: sessionUri,
 				requestId: 'extension-permission-1',
@@ -8909,7 +8914,7 @@ suite('AgentSideEffects', () => {
 				responses,
 				remaining: stateManager.getSessionState(sessionUri.toString())?.inputNeeded,
 			}, {
-				responses: [['extension-permission-1', true, { decisionSource: 'human_response', selectedOptionId: 'allow-once' }]],
+				responses: [{ agent: 'codex', args: ['extension-permission-1', true, { decisionSource: 'human_response', selectedOptionId: 'allow-once' }] }],
 				remaining: undefined,
 			});
 		});

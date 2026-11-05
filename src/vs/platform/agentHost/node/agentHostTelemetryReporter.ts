@@ -716,6 +716,7 @@ const turnActivityKindsByActionType = {
 	[ActionType.ChatTurnsLoaded]: 'chat.turnsLoaded',
 	[ActionType.SessionInputNeededSet]: 'session.inputNeededSet',
 	[ActionType.SessionInputNeededRemoved]: 'session.inputNeededRemoved',
+	[ActionType.SessionPermissionResponded]: 'session.permissionResponded',
 } as const;
 
 export type AgentHostTurnActivityTelemetryKind = 'none' | 'other' | typeof turnActivityKindsByActionType[keyof typeof turnActivityKindsByActionType];
