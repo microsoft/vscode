@@ -35,7 +35,7 @@ import { IConfigurationService } from '../../../platform/configuration/common/co
 import { Extensions } from '../../../workbench/browser/panecomposite.js';
 import { isPhoneLayout } from '../../../workbench/contrib/sessions/browser/mobileLayout.js';
 import { mainWindow } from '../../../base/browser/window.js';
-import { getSessionsPartFrameInset } from './agentsPartCard.js';
+import { getSessionsPartFrameInset } from '../../../workbench/contrib/sessions/browser/parts/agentsPartCard.js';
 import { EditorHeaderControl } from '../../../workbench/browser/parts/editor/editorHeaderControl.js';
 
 function getPanelTabBarHeight(showLabels: boolean, compact: boolean): number | undefined {

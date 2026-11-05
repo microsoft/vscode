@@ -8,8 +8,8 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
-import { SessionsEmptyStateActions } from '../../../browser/parts/sessionsEmptyStateActions.js';
-import { SessionsEmptyStateLayout } from '../../../browser/parts/sessionsEmptyStateLayout.js';
+import { SessionsEmptyStateActions } from '../../../../workbench/contrib/sessions/browser/parts/sessionsEmptyStateActions.js';
+import { SessionsEmptyStateLayout } from '../../../../workbench/contrib/sessions/browser/parts/sessionsEmptyStateLayout.js';
 
 export class ChangesEmptyState extends Disposable {
 	private readonly emptyStateLayout: SessionsEmptyStateLayout;

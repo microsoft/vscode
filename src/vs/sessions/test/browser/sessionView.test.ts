@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { $, append, EventType } from '../../../base/browser/dom.js';
-import { SessionView } from '../../browser/parts/sessionView.js';
+import { SessionView } from '../../../workbench/contrib/sessions/browser/parts/sessionView.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { constObservable, disposableObservableValue, observableValue } from '../../../base/common/observable.js';
@@ -13,14 +13,14 @@ import { mock } from '../../../base/test/common/mock.js';
 import { IActiveSession } from '../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionPreparationProgress } from '../../../workbench/contrib/sessions/common/session.js';
 import { ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../workbench/contrib/sessions/common/workspaceSelection.js';
-import { AbstractChatView, ChatViewKind, IChatViewOptions } from '../../browser/parts/chatView.js';
+import { AbstractChatView, ChatViewKind, IChatViewOptions } from '../../../workbench/contrib/sessions/browser/parts/chatView.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
-import { ChatGroupView } from '../../browser/parts/chatGroupView.js';
-import { ChatGroupsView } from '../../browser/parts/chatGroupsView.js';
+import { ChatGroupView } from '../../../workbench/contrib/sessions/browser/parts/chatGroupView.js';
+import { ChatGroupsView } from '../../../workbench/contrib/sessions/browser/parts/chatGroupsView.js';
 import { GRID_GAP_SASH_CLASS } from '../../../workbench/browser/parts/partGrid/partGridGap.js';
 import { URI } from '../../../base/common/uri.js';
 import { ConfigurationTarget } from '../../../platform/configuration/common/configuration.js';
-import { ISessionActivityBarActivityService, SessionActivityBarActivityService } from '../../services/activity/common/sessionActivityBarActivityService.js';
+import { ISessionActivityBarActivityService, SessionActivityBarActivityService } from '../../../workbench/contrib/sessions/common/sessionActivityBarActivityService.js';
 import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { createSessionViewTestServices, createTestActiveSession } from './sessionViewTestUtils.js';
@@ -33,7 +33,7 @@ import { IContextKeyService } from '../../../platform/contextkey/common/contextk
 import { Menus } from '../../../workbench/contrib/sessions/browser/menus.js';
 import { LocalSelectionTransfer } from '../../../platform/dnd/browser/dnd.js';
 import { DraggedSessionIdentifier, SessionsDataTransfers } from '../../../workbench/contrib/sessions/browser/dnd.js';
-import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
+import { IChatViewFactory } from '../../../workbench/contrib/sessions/browser/chatViewFactory.js';
 import { stubSessionsHostLayout } from './sessionsHostLayoutTestUtils.js';
 
 suite('Sessions - Session View', () => {

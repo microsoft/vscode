@@ -19,14 +19,14 @@ import { TestInstantiationService } from '../../../platform/instantiation/test/c
 import { DEFAULT_EDITOR_PART_OPTIONS } from '../../../workbench/browser/parts/editor/editor.js';
 import { IEditorGroupsService } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
-import { AbstractChatView, ChatViewKind, IChatViewOptions } from '../../browser/parts/chatView.js';
-import { SessionsPart } from '../../browser/parts/sessionsPart.js';
+import { AbstractChatView, ChatViewKind, IChatViewOptions } from '../../../workbench/contrib/sessions/browser/parts/chatView.js';
+import { SessionsPart } from '../../../workbench/contrib/sessions/browser/parts/sessionsPart.js';
 import { IAgentWorkbenchLayoutService } from '../../browser/workbench.js';
 import { ISessionsHostLayoutService } from '../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
 import { SessionBranchPickerVisibleContext, SessionEnvironmentPickerVisibleContext, SessionHarnessPickerVisibleContext, SessionIsolationPickerVisibleContext, SessionSyncActionVisibleContext, SessionWorkspacePickerVisibleContext, SessionWorktreePickerVisibleContext } from '../../../workbench/contrib/sessions/common/contextkeys.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { ISessionsChatBackground, ISessionsChatBackgroundService } from '../../../workbench/contrib/sessions/browser/chatBackgroundService.js';
-import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
+import { IChatViewFactory } from '../../../workbench/contrib/sessions/browser/chatViewFactory.js';
 import { ISessionsListModelService } from '../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { ISessionsPartService } from '../../../workbench/contrib/sessions/browser/sessionsPartService.js';
 import { ISessionsProvidersService } from '../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';

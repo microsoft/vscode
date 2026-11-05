@@ -37,7 +37,7 @@ import { getFlatContextMenuActions } from '../../../platform/actions/browser/men
 import { IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { Extensions } from '../../../workbench/browser/panecomposite.js';
 import { mainWindow } from '../../../base/browser/window.js';
-import { getSidePaneBottomFrameInset } from './agentsPartCard.js';
+import { getSidePaneBottomFrameInset } from '../../../workbench/contrib/sessions/browser/parts/agentsPartCard.js';
 
 /**
  * Auxiliary bar part specifically for agent sessions workbench.

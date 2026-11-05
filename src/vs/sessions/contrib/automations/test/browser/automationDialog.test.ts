@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
-import { IChatViewFactory } from '../../../../services/chatView/browser/chatViewFactory.js';
+import { IChatViewFactory } from '../../../../../workbench/contrib/sessions/browser/chatViewFactory.js';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';

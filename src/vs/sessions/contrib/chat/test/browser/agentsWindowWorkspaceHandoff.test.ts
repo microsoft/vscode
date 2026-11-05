@@ -19,7 +19,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { INotificationService, IPromptChoice, IPromptChoiceWithMenu, NoOpNotification } from '../../../../../platform/notification/common/notification.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
-import { SessionView } from '../../../../browser/parts/sessionView.js';
+import { SessionView } from '../../../../../workbench/contrib/sessions/browser/parts/sessionView.js';
 import { ISessionsSetUpService } from '../../../../browser/sessionsSetUpService.js';
 import { WorkspaceSelectionOrigin, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../../../workbench/contrib/sessions/common/workspaceSelection.js';
 import { ISession } from '../../../../../workbench/contrib/sessions/common/session.js';

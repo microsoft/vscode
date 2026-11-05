@@ -55,7 +55,7 @@ import { AccessibilityVerbositySettingId } from '../../../../../workbench/contri
 import { AgentsWindowUsage } from '../../../../../workbench/contrib/chat/common/agentsWindowUsage.js';
 import { SessionComparisonModelSelection } from '../../browser/sessionComparisonModelSelection.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
-import { SessionView } from '../../../../browser/parts/sessionView.js';
+import { SessionView } from '../../../../../workbench/contrib/sessions/browser/parts/sessionView.js';
 import { createSessionViewTestServices, createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
 import { getDefaultSessionCreationEnvironment, getSessionCreationEnvironments, ISessionCreationEnvironment } from '../../browser/sessionEnvironmentPicker.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';

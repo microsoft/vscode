@@ -25,8 +25,8 @@ import { ContentPart } from '../../../workbench/browser/parts/editor/contentPart
 import { addAuxiliaryWindowContainers, ISidePaneState, ISidePaneToggleEvent, Workbench } from '../../browser/workbench.js';
 import { AgentWorkbenchLayout } from '../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
 import { DesktopWorkbench, DockedEditorSizeMemento } from '../../browser/desktopWorkbench.js';
-import { AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS } from '../../browser/parts/agentsPartCard.js';
-import { SessionActivityBarColumn } from '../../browser/parts/sessionActivityBarHost.js';
+import { AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS } from '../../../workbench/contrib/sessions/browser/parts/agentsPartCard.js';
+import { SessionActivityBarColumn } from '../../../workbench/contrib/sessions/browser/parts/sessionActivityBarHost.js';
 import { DesktopMainEditorPart } from '../../browser/parts/desktopEditorPart.js';
 import { MainEditorPart } from '../../browser/parts/editorPart.js';
 import { EditorParts } from '../../browser/parts/editorParts.js';
@@ -38,7 +38,7 @@ import { Menus } from '../../../workbench/contrib/sessions/browser/menus.js';
 import { DEFAULT_NOTIFICATION_ROW_HEIGHT, onDidChangeNotificationRowHeight, setNotificationRowHeight } from '../../../workbench/browser/parts/notifications/notificationsViewer.js';
 import { DEFAULT_EDITOR_PART_OPTIONS, IEditorGroupViewOptions } from '../../../workbench/browser/parts/editor/editor.js';
 import { EditorInput } from '../../../workbench/common/editor/editorInput.js';
-import '../../browser/parts/media/chatCompositeBar.css';
+import '../../../workbench/contrib/sessions/browser/parts/media/chatCompositeBar.css';
 import { TestDataTelemetryService } from '../../../platform/telemetry/test/common/testTelemetryService.js';
 
 interface IViewSize { width: number; height: number }

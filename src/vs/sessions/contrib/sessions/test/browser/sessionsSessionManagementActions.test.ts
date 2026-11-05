@@ -35,7 +35,7 @@ import { ARCHIVE_SESSION_COMMAND_ID, HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_I
 import { SessionActiveChatIsDeletableContext, SessionFocusedChatIsRenameTargetContext, SessionIsArchivedContext, SessionSupportsRenameContext, SessionsFocusContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ISessionsPartService } from '../../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
 import { ISessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
-import { SessionView } from '../../../../browser/parts/sessionView.js';
+import { SessionView } from '../../../../../workbench/contrib/sessions/browser/parts/sessionView.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';

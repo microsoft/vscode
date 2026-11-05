@@ -7,7 +7,7 @@ import { Event } from '../../../../base/common/event.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../base/common/observable.js';
-import { IChatViewOptions } from '../../../browser/parts/chatView.js';
+import { IChatViewOptions } from '../../../../workbench/contrib/sessions/browser/parts/chatView.js';
 import * as dom from '../../../../base/browser/dom.js';
 import { localize } from '../../../../nls.js';
 import { IChatInputPickerResponsiveLayoutItem } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerResponsiveLayout.js';

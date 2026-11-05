@@ -20,26 +20,20 @@ import { ChatInteractivity, ChatOriginKind, IChat, ISessionCapabilities, Session
 import { IActiveSession, ISessionsManagementService } from '../../../../contrib/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../../contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsListModelService } from '../../../../contrib/sessions/browser/sessionsListModelService.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ChatCompositeBar, IChatCompositeBarDelegate } from '../../../../../sessions/browser/parts/chatCompositeBar.js';
-// eslint-disable-next-line local/code-import-patterns
-import { applySessionViewThemeColors } from '../../../../../sessions/browser/parts/sessionBarStyles.js';
-// eslint-disable-next-line local/code-import-patterns
-import { applyAgentsPartCardStyles } from '../../../../../sessions/browser/parts/agentsPartCard.js';
+import { ChatCompositeBar, IChatCompositeBarDelegate } from '../../../../contrib/sessions/browser/parts/chatCompositeBar.js';
+import { applySessionViewThemeColors } from '../../../../contrib/sessions/browser/parts/sessionBarStyles.js';
+import { applyAgentsPartCardStyles } from '../../../../contrib/sessions/browser/parts/agentsPartCard.js';
 import { Menus } from '../../../../contrib/sessions/browser/menus.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 import { IChatWidgetFixtureHandle, renderChatWidget } from '../chat/chatWidget.fixture.js';
 
 import '../../../../contrib/modernUI/browser/media/tabs.css';
 import '../../../../contrib/modernUI/browser/connectedEditorTabs.js';
-// eslint-disable-next-line local/code-import-patterns
-import '../../../../../sessions/browser/parts/media/chatCompositeBar.css';
+import '../../../../contrib/sessions/browser/parts/media/chatCompositeBar.css';
 // eslint-disable-next-line local/code-import-patterns
 import '../../../../../sessions/browser/media/workbench.css';
-// eslint-disable-next-line local/code-import-patterns
-import '../../../../../sessions/browser/parts/media/sessionsPart.css';
-// eslint-disable-next-line local/code-import-patterns
-import '../../../../../sessions/browser/parts/media/chatGroupsView.css';
+import '../../../../contrib/sessions/browser/parts/media/sessionsPart.css';
+import '../../../../contrib/sessions/browser/parts/media/chatGroupsView.css';
 
 // ============================================================================
 // Mock helpers

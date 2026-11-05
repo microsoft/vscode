@@ -37,7 +37,7 @@ import { SessionChangesetOperationsContext } from '../../../changes/browser/chan
 import { ActiveSessionState, IChangesSessionObservables, IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { IGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
 import { GitHubPullRequestCIModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
-import { SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from '../../../../browser/parts/sessionActivityBarHost.js';
+import { SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from '../../../../../workbench/contrib/sessions/browser/parts/sessionActivityBarHost.js';
 import { AGENTS_CHAT_WINDOW_CLASS } from '../../browser/chatWindowTitleDoubleClick.js';
 import { alignChatWindowHeaderActions, CHAT_WINDOW_MAIN_PART_GROUP_VIEW_OPTIONS, focusChatWindowUnlessFocused, getChatWindowMainPartOptions, getChatWindowTitleHeight, isChatWindowStripInColumn, setChatWindowTitleInChatColumn, SessionsChatWindowContent, SessionsChatWindowProvider } from '../../browser/sessionsChatWindowProvider.js';
 import { DesktopMainEditorPart } from '../../../../browser/parts/desktopEditorPart.js';

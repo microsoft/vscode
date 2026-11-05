@@ -4,6 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { ISessionActivityBarActivityService, SessionActivityBarActivityService } from './sessionActivityBarActivityService.js';
+import { ISessionActivityBarActivityService, SessionActivityBarActivityService } from '../../../../workbench/contrib/sessions/common/sessionActivityBarActivityService.js';
 
 registerSingleton(ISessionActivityBarActivityService, SessionActivityBarActivityService, InstantiationType.Delayed);

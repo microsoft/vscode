@@ -70,8 +70,8 @@ import { ConfirmationOptionKind } from '../../../../platform/agentHost/common/st
 import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../platform/chat/common/sessionArchiveActions.js';
 import { isAgentHostProviderId } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { IWindowCanvas } from '../../../../workbench/contrib/sessions/browser/windowCanvas.js';
-import { AbstractChatView, IChatViewRequestOutcome } from '../../../browser/parts/chatView.js';
-import { IChatViewFactory } from '../../../services/chatView/browser/chatViewFactory.js';
+import { AbstractChatView, IChatViewRequestOutcome } from '../../../../workbench/contrib/sessions/browser/parts/chatView.js';
+import { IChatViewFactory } from '../../../../workbench/contrib/sessions/browser/chatViewFactory.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { WelcomeName } from '../../chat/browser/welcomeName.js';

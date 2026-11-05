@@ -15,9 +15,9 @@ import { ISessionChangesStatsCache } from '../../../../workbench/contrib/session
 import { setActiveSessionContextKeys } from '../../../../workbench/contrib/sessions/common/sessionContextKeys.js';
 import { SessionInChatEditorContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { IActiveSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { ChatGroupView, IChatGroupContext } from '../../../browser/parts/chatGroupView.js';
-import { AbstractChatView, ISessionViewHostOptions } from '../../../browser/parts/chatView.js';
-import { SessionHeader } from '../../../browser/parts/sessionHeader.js';
+import { ChatGroupView, IChatGroupContext } from '../../../../workbench/contrib/sessions/browser/parts/chatGroupView.js';
+import { AbstractChatView, ISessionViewHostOptions } from '../../../../workbench/contrib/sessions/browser/parts/chatView.js';
+import { SessionHeader } from '../../../../workbench/contrib/sessions/browser/parts/sessionHeader.js';
 
 /**
  * What a chat editor shows of one chat: the header of its session above the chat, with its Session Activity Bar, as a

@@ -28,7 +28,7 @@ import { IWorkbenchLayoutService } from '../../../../../workbench/services/layou
 import { ISessionsHostLayoutService } from '../../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ARCHIVE_SESSION_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
-import { SessionView } from '../../../../browser/parts/sessionView.js';
+import { SessionView } from '../../../../../workbench/contrib/sessions/browser/parts/sessionView.js';
 import { IAgentHostFilterService } from '../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
 import { ISessionsListPresentation, SessionNameKind } from '../../../../../workbench/contrib/sessions/browser/sessionsListPresentation.js';
 import { ISessionGroupsService } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';

@@ -44,7 +44,7 @@ import { workbenchInstantiationService } from '../../../../../workbench/test/bro
 import { IWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/common/assignmentService.js';
 import { Menus, SessionHeaderMenus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { SESSION_CONVERSATION_SIDE_CHATS_GROUP } from '../../../../../workbench/contrib/sessions/browser/sessionConversationGroups.js';
-import { SessionView } from '../../../../browser/parts/sessionView.js';
+import { SessionView } from '../../../../../workbench/contrib/sessions/browser/parts/sessionView.js';
 import { createSessionsPartTestHarness, createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
 import { ISessionsPartService } from '../../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';

@@ -36,7 +36,7 @@ import { ISessionsService } from '../../../../../../workbench/contrib/sessions/b
 import { ISessionsPartService } from '../../../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
 import { IAgentHostSessionsProvider } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { IActiveSession } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { SessionView } from '../../../../../browser/parts/sessionView.js';
+import { SessionView } from '../../../../../../workbench/contrib/sessions/browser/parts/sessionView.js';
 import { ISessionWorkspace, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../../../workbench/contrib/sessions/common/session.js';
 import { SessionWorkspacePickerGroupContext } from '../../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ConnectMissionControlEnvironmentCommand } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/missionControlEnvironmentActions.js';

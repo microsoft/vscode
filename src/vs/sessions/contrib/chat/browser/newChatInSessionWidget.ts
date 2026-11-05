@@ -38,7 +38,7 @@ import { SharedChatInputComposer } from './sharedChatInputComposer.js';
 import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING } from '../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { getStoredSessionOptionsExpanded, SessionOptionsRow } from './sessionOptionsRow.js';
 import { NewChatUserInteraction } from './newChatUserInteraction.js';
-import { IChatViewOptions } from '../../../browser/parts/chatView.js';
+import { IChatViewOptions } from '../../../../workbench/contrib/sessions/browser/parts/chatView.js';
 import { ISessionsChatViewStateService } from './chatViewStateService.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ChatInputNoticeLane } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeHost.js';

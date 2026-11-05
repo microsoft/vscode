@@ -40,7 +40,7 @@ import { getSessionChatItemHorizontalPadding } from '../../browser/chatView.js';
 
 import '../../../../browser/media/style.css';
 import '../../../../browser/parts/mobile/mobileChatShell.css';
-import '../../../../browser/parts/media/sessionView.css';
+import '../../../../../workbench/contrib/sessions/browser/parts/media/sessionView.css';
 import '../../browser/media/chatView.css';
 
 const fixtureWidth = 800;

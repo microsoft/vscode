@@ -28,7 +28,7 @@ import '../../../workbench/contrib/modernUI/browser/media/titlebar.css';
 // eslint-disable-next-line local/code-import-patterns -- Use the rendered command center's sizing and border.
 import '../../contrib/sessions/browser/media/sessionsTitleBarWidget.css';
 import { IconLabel } from '../../../base/browser/ui/iconLabel/iconLabel.js';
-import '../../browser/parts/media/chatCompositeBar.css';
+import '../../../workbench/contrib/sessions/browser/parts/media/chatCompositeBar.css';
 import '../../browser/media/workbench.css';
 import '../../browser/media/openInVSCode.css';
 

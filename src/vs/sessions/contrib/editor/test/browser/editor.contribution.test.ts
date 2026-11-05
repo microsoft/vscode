@@ -84,7 +84,7 @@ import { DesktopChangesTabAvailableContext, DesktopChangesTabMissingContext, Des
 import { SessionsTabStyleContribution } from '../../browser/editor.contribution.js';
 import '../../../../../workbench/contrib/search/browser/searchQuickAccess.contribution.js';
 import '../../../../browser/media/workbench.css';
-import '../../../../browser/parts/media/chatCompositeBar.css';
+import '../../../../../workbench/contrib/sessions/browser/parts/media/chatCompositeBar.css';
 import '../../../../browser/parts/media/editorPart.css';
 import { stubSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 

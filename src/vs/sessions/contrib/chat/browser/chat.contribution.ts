@@ -49,7 +49,7 @@ import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { SessionsAICustomizationWorkspaceService } from './aiCustomizationWorkspaceService.js';
 import { SessionsCustomizationHarnessService } from './customizationHarnessService.js';
-import { IChatViewFactory } from '../../../services/chatView/browser/chatViewFactory.js';
+import { IChatViewFactory } from '../../../../workbench/contrib/sessions/browser/chatViewFactory.js';
 import { ChatViewFactory } from './chatView.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';

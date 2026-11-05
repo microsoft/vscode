@@ -42,7 +42,7 @@ import { ISessionsPartService } from '../../../../../workbench/contrib/sessions/
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
-import type { SessionView } from '../../../../browser/parts/sessionView.js';
+import type { SessionView } from '../../../../../workbench/contrib/sessions/browser/parts/sessionView.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { SessionsGrouping, SessionsList, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { SessionsArchiveActionsContribution } from '../../browser/views/sessionsViewActions.js';

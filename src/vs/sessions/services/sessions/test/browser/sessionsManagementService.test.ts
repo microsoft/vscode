@@ -70,10 +70,10 @@ import { ISessionsProvidersChangeEvent, ISessionsProvidersService, SessionsProvi
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { SessionsHasClosedItemContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { COPILOT_CLI_EH_SCHEME, COPILOT_CLI_LOCAL_AH_SCHEME } from '../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
-import type { SessionView } from '../../../../browser/parts/sessionView.js';
+import type { SessionView } from '../../../../../workbench/contrib/sessions/browser/parts/sessionView.js';
 import { Direction } from '../../../../../base/browser/ui/grid/grid.js';
-import { SessionsPart } from '../../../../browser/parts/sessionsPart.js';
-import { SessionGridLayout } from '../../../../browser/parts/sessionGridLayout.js';
+import { SessionsPart } from '../../../../../workbench/contrib/sessions/browser/parts/sessionsPart.js';
+import { SessionGridLayout } from '../../../../../workbench/contrib/sessions/browser/parts/sessionGridLayout.js';
 import { createSessionsPartTestHarness } from '../../../../test/browser/sessionViewTestUtils.js';
 import { getChatLayoutOwnerAfterReplacement } from '../../../../common/chatLayout.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';

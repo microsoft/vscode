@@ -110,7 +110,7 @@ import { ISessionChangesService } from '../../../changes/browser/sessionChangesS
 import { AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY } from '../../../../../platform/chat/common/agentsWindowInvitation.js';
 
 import '../../../../browser/media/style.css';
-import '../../../../browser/parts/media/sessionView.css';
+import '../../../../../workbench/contrib/sessions/browser/parts/media/sessionView.css';
 import '../../../../browser/parts/mobile/mobileChatShell.css';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatModelReference, IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';

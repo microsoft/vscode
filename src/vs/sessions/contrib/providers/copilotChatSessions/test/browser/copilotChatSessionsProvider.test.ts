@@ -56,7 +56,7 @@ import { IProgress } from '../../../../../../platform/progress/common/progress.j
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
-import { SessionView } from '../../../../../browser/parts/sessionView.js';
+import { SessionView } from '../../../../../../workbench/contrib/sessions/browser/parts/sessionView.js';
 import { createSessionViewTestServices, createTestActiveSession } from '../../../../../test/browser/sessionViewTestUtils.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IPathService } from '../../../../../../workbench/services/path/common/pathService.js';

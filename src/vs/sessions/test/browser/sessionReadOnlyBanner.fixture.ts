@@ -9,7 +9,7 @@ import { mock } from '../../../base/test/common/mock.js';
 import { ChatSessionArchiveActionWording } from '../../../platform/chat/common/sessionArchiveActions.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
-import { getArchivedChatBannerContent, ISessionReadOnlyBannerContent, SessionReadOnlyBanner } from '../../browser/parts/sessionReadOnlyBanner.js';
+import { getArchivedChatBannerContent, ISessionReadOnlyBannerContent, SessionReadOnlyBanner } from '../../../workbench/contrib/sessions/browser/parts/sessionReadOnlyBanner.js';
 import { IChat, ISession } from '../../../workbench/contrib/sessions/common/session.js';
 
 export default defineThemedFixtureGroup({ path: 'sessions/readOnlyBanner/' }, {

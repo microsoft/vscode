@@ -29,7 +29,7 @@ import { DEFAULT_EDITOR_PART_OPTIONS } from '../../../workbench/browser/parts/ed
 import { IEditorPartOptions, IEditorPartOptionsChangeEvent } from '../../../workbench/common/editor.js';
 import { IEditorGroupsService } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
-import { ChatCompositeBar, IChatCompositeBarDelegate } from '../../browser/parts/chatCompositeBar.js';
+import { ChatCompositeBar, IChatCompositeBarDelegate } from '../../../workbench/contrib/sessions/browser/parts/chatCompositeBar.js';
 import { Menus } from '../../../workbench/contrib/sessions/browser/menus.js';
 import { getSessionChatDragData, isSessionChatDrag, registerSessionChatDragEndHandler } from '../../../workbench/contrib/sessions/browser/dnd.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
@@ -41,9 +41,9 @@ import { ISessionsService } from '../../../workbench/contrib/sessions/browser/se
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionCapabilities, SessionStatus } from '../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../workbench/contrib/sessions/common/sessionsProvider.js';
-import '../../browser/parts/media/chatGroupsView.css';
-import '../../browser/parts/media/sessionsPart.css';
-import '../../browser/parts/media/sessionView.css';
+import '../../../workbench/contrib/sessions/browser/parts/media/chatGroupsView.css';
+import '../../../workbench/contrib/sessions/browser/parts/media/sessionsPart.css';
+import '../../../workbench/contrib/sessions/browser/parts/media/sessionView.css';
 import '../../browser/media/workbench.css';
 import '../../../workbench/contrib/sessions/browser/media/chatBackground.css';
 // eslint-disable-next-line local/code-import-patterns -- Test the presentation supplied by the editor contribution.

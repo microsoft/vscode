@@ -29,8 +29,8 @@ import { IConfigurationChangeEvent, IConfigurationService } from '../../../platf
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextMenuMenuDelegate, IContextMenuService, IContextViewService } from '../../../platform/contextview/browser/contextView.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
-import { ChatViewSessionActivityBar, SessionActivityBar } from '../../browser/parts/sessionActivityBar.js';
-import { registerSessionActivityBarExternalHost, SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from '../../browser/parts/sessionActivityBarHost.js';
+import { ChatViewSessionActivityBar, SessionActivityBar } from '../../../workbench/contrib/sessions/browser/parts/sessionActivityBar.js';
+import { registerSessionActivityBarExternalHost, SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from '../../../workbench/contrib/sessions/browser/parts/sessionActivityBarHost.js';
 import { Menus, SessionActivityBarGroup } from '../../../workbench/contrib/sessions/browser/menus.js';
 import { TogglePanelAction } from '../../../workbench/browser/parts/panel/panelActions.js';
 import { IAgentWorkbenchLayoutService } from '../../browser/workbench.js';
@@ -38,11 +38,11 @@ import { AgentWorkbenchLayout } from '../../../workbench/contrib/sessions/browse
 import { SESSION_ACTIVITY_BAR_SETTING } from '../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { TOGGLE_SIDE_PANEL_COMMAND_ID } from '../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { sessionActivityBarChatActionContext } from '../../../workbench/contrib/sessions/common/contextkeys.js';
-import { ISessionActivityBarActivityService, SessionActivityBarActivityService } from '../../services/activity/common/sessionActivityBarActivityService.js';
+import { ISessionActivityBarActivityService, SessionActivityBarActivityService } from '../../../workbench/contrib/sessions/common/sessionActivityBarActivityService.js';
 import { IconBadge, NumberBadge } from '../../../workbench/services/activity/common/activity.js';
 import { TestContextViewService } from './testContextViewService.js';
 import '../../../base/browser/ui/tree/media/tree.css';
-import '../../browser/parts/media/sessionView.css';
+import '../../../workbench/contrib/sessions/browser/parts/media/sessionView.css';
 import { LayoutModeContext } from '../../../workbench/common/contextkeys.js';
 import { IWindowCommandContext } from '../../../workbench/common/windowCommandContext.js';
 import { stubSessionsHostLayout } from './sessionsHostLayoutTestUtils.js';

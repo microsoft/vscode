@@ -45,7 +45,7 @@ import { RemoteSessionToolsEnabledSettingId } from '../../../remoteSessions/comm
 import { DevContainerAgentHostEnabledSettingId, DevContainerSamplesEnabledSettingId } from '../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { getCloudSandboxPreparationAccessibilityHelp } from '../../../../../workbench/contrib/chat/browser/actions/chatAccessibilityHelp.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../../../chatWindow/common/chatWindows.js';
-import type { SessionView } from '../../../../browser/parts/sessionView.js';
+import type { SessionView } from '../../../../../workbench/contrib/sessions/browser/parts/sessionView.js';
 suite('SessionsChatAccessibilityHelp', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 

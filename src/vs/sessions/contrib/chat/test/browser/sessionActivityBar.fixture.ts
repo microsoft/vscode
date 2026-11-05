@@ -21,13 +21,13 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { PromptTimelineRulerRail } from '../../../../../workbench/contrib/chat/browser/promptTimeline/promptTimelineRulerRail.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureCondition } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import type { IChatWidgetFixtureHandle, IFixtureMessage } from '../../../../../workbench/test/browser/componentFixtures/chat/chatWidget.fixture.js';
-import { AbstractChatView } from '../../../../browser/parts/chatView.js';
-import { ChatViewSessionActivityBar } from '../../../../browser/parts/sessionActivityBar.js';
+import { AbstractChatView } from '../../../../../workbench/contrib/sessions/browser/parts/chatView.js';
+import { ChatViewSessionActivityBar } from '../../../../../workbench/contrib/sessions/browser/parts/sessionActivityBar.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { AgentWorkbenchLayout } from '../../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../../../../workbench/contrib/sessions/common/layoutConstants.js';
 import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
-import { ISessionActivityBarActivityService, SessionActivityBarActivityService } from '../../../../services/activity/common/sessionActivityBarActivityService.js';
+import { ISessionActivityBarActivityService, SessionActivityBarActivityService } from '../../../../../workbench/contrib/sessions/common/sessionActivityBarActivityService.js';
 import { ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IconBadge } from '../../../../../workbench/services/activity/common/activity.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -36,10 +36,10 @@ import { SessionActivityBarGroup } from '../../../../../workbench/contrib/sessio
 import { OPEN_PULL_REQUEST_ACTION_ID } from '../../../../../workbench/contrib/sessions/common/github/types.js';
 import { ExternalSessionBanner } from '../../browser/externalSessionBanner.js';
 import '../../browser/media/chatView.css';
-import '../../../../browser/parts/media/chatCompositeBar.css';
-import '../../../../browser/parts/media/chatGroupsView.css';
-import '../../../../browser/parts/media/sessionView.css';
-import '../../../../browser/parts/media/sessionsPart.css';
+import '../../../../../workbench/contrib/sessions/browser/parts/media/chatCompositeBar.css';
+import '../../../../../workbench/contrib/sessions/browser/parts/media/chatGroupsView.css';
+import '../../../../../workbench/contrib/sessions/browser/parts/media/sessionView.css';
+import '../../../../../workbench/contrib/sessions/browser/parts/media/sessionsPart.css';
 
 interface IFixtureOptions {
 	readonly entries?: readonly IFixtureEntry[];

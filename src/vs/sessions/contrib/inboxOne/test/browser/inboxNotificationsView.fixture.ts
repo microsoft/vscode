@@ -25,10 +25,10 @@ import { ChatMarkdownAnchorService, IChatMarkdownAnchorService } from '../../../
 import { ITerminalChatService } from '../../../../../workbench/contrib/terminal/browser/terminal.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureCondition } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { fixtureResourceUri, readFixtureBinaryResource } from '../../../../../workbench/test/browser/componentFixtures/fixtureResourceLoader.js';
-import { AbstractChatView } from '../../../../browser/parts/chatView.js';
+import { AbstractChatView } from '../../../../../workbench/contrib/sessions/browser/parts/chatView.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { IChat, ISession, SessionArtifactKind } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { IChatViewFactory } from '../../../../services/chatView/browser/chatViewFactory.js';
+import { IChatViewFactory } from '../../../../../workbench/contrib/sessions/browser/chatViewFactory.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';

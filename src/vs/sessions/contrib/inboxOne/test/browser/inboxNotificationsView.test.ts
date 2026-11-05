@@ -66,8 +66,8 @@ import { ISessionNavigationRequest, ISessionsService } from '../../../../../work
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { IChatViewFactory } from '../../../../services/chatView/browser/chatViewFactory.js';
-import { AbstractChatView, IChatViewOptions, IChatViewRequestOutcome, IChatViewRequestSubmission } from '../../../../browser/parts/chatView.js';
+import { IChatViewFactory } from '../../../../../workbench/contrib/sessions/browser/chatViewFactory.js';
+import { AbstractChatView, IChatViewOptions, IChatViewRequestOutcome, IChatViewRequestSubmission } from '../../../../../workbench/contrib/sessions/browser/parts/chatView.js';
 import { getChatRequestOutcome } from '../../../chat/browser/chatView.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { WelcomeName } from '../../../chat/browser/welcomeName.js';

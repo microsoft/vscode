@@ -33,8 +33,8 @@ import { ComponentFixtureContext, createEditorServices, registerWorkbenchService
 import { TestProductService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { OpenInVSCodeAction, OpenInVSCodeWidgetContribution } from '../../../../browser/actions/vscodeActions.js';
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
-import { AGENTS_CARD_SURFACE_CLASS, AGENTS_PART_CARD_CLASS, AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS } from '../../../../browser/parts/agentsPartCard.js';
-import { SessionsPart } from '../../../../browser/parts/sessionsPart.js';
+import { AGENTS_CARD_SURFACE_CLASS, AGENTS_PART_CARD_CLASS, AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS } from '../../../../../workbench/contrib/sessions/browser/parts/agentsPartCard.js';
+import { SessionsPart } from '../../../../../workbench/contrib/sessions/browser/parts/sessionsPart.js';
 import { TitlebarPart } from '../../../../browser/parts/titlebarPart.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionsHostLayoutService } from '../../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';

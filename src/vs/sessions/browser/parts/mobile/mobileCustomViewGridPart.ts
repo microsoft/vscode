@@ -5,7 +5,7 @@
 
 import { Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { Part } from '../../../../workbench/browser/part.js';
-import { clearAgentsPartCardStyles } from '../agentsPartCard.js';
+import { clearAgentsPartCardStyles } from '../../../../workbench/contrib/sessions/browser/parts/agentsPartCard.js';
 import { CustomViewGridPart } from '../customViewGridPart.js';
 import { isPhoneLayout } from '../../../../workbench/contrib/sessions/browser/mobileLayout.js';
 

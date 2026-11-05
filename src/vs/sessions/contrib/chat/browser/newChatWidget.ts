@@ -55,7 +55,7 @@ import { getDefaultSessionCreationEnvironment, getEnvironmentWorkspaceProvider, 
 import { NoAgentHostEmptyState } from './noAgentHostEmptyState.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IAgentHostFilterService } from '../../../../workbench/contrib/sessions/common/agentHostFilter.js';
-import { IChatViewOptions } from '../../../browser/parts/chatView.js';
+import { IChatViewOptions } from '../../../../workbench/contrib/sessions/browser/parts/chatView.js';
 import { NewChatUserInteraction } from './newChatUserInteraction.js';
 import { WorkspaceSelectionOrigin, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../../workbench/contrib/sessions/common/workspaceSelection.js';
 import { ISessionPickerFocusOptions, ISessionPickerVisibility, noSessionPickerVisibility } from '../../../../workbench/contrib/sessions/common/sessionPickerVisibility.js';

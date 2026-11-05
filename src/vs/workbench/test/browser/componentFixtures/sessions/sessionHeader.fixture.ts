@@ -9,15 +9,13 @@ import { constObservable, IObservable } from '../../../../../base/common/observa
 import { ThemeIcon, themeColorFromId } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
-// eslint-disable-next-line local/code-import-patterns
-import { SessionHeader } from '../../../../../sessions/browser/parts/sessionHeader.js';
+import { SessionHeader } from '../../../../contrib/sessions/browser/parts/sessionHeader.js';
 import { ISessionsListModelService } from '../../../../contrib/sessions/browser/sessionsListModelService.js';
 import { IChat, ISessionCapabilities, SessionStatus } from '../../../../contrib/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../contrib/sessions/common/sessionsManagement.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 
-// eslint-disable-next-line local/code-import-patterns
-import '../../../../../sessions/browser/parts/media/chatCompositeBar.css';
+import '../../../../contrib/sessions/browser/parts/media/chatCompositeBar.css';
 
 interface IMockSessionOptions {
 	readonly title: string;

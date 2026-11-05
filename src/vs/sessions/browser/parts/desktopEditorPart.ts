@@ -23,11 +23,11 @@ import { DockedAuxiliaryBarController } from '../dockedAuxiliaryBarController.js
 import { Menus } from '../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../agentsWindowMenus.js';
 import { IAgentWorkbenchLayoutService } from '../workbench.js';
-import { AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS } from './agentsPartCard.js';
+import { AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS } from '../../../workbench/contrib/sessions/browser/parts/agentsPartCard.js';
 import { MainEditorPart } from './editorPart.js';
 import { DesktopAuxiliaryBarPart } from './desktopAuxiliaryBarPart.js';
 import { applySingleGroupEditorStateInPlace } from './editorGroupStateInPlace.js';
-import { EmptyEditorGroupAddTab } from './emptyEditorGroupAddTab.js';
+import { EmptyEditorGroupAddTab } from '../../../workbench/contrib/sessions/browser/parts/emptyEditorGroupAddTab.js';
 
 /**
  * Desktop editor part: owns the docked auxiliary bar so "tab bar + editor
