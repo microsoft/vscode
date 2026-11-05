@@ -13,10 +13,12 @@ export const enum TerminalTypeAheadSettingId {
 	LocalEchoLatencyThreshold = 'terminal.integrated.localEchoLatencyThreshold',
 	LocalEchoEnabled = 'terminal.integrated.localEchoEnabled',
 	LocalEchoExcludePrograms = 'terminal.integrated.localEchoExcludePrograms',
+	LocalEchoOverlay = 'terminal.integrated.localEchoOverlay',
 	LocalEchoStyle = 'terminal.integrated.localEchoStyle',
 }
 
 export interface ITerminalTypeAheadConfiguration {
+	localEchoOverlay: boolean;
 	localEchoLatencyThreshold: number;
 	localEchoExcludePrograms: ReadonlyArray<string>;
 	localEchoEnabled: 'auto' | 'on' | 'off';
@@ -24,6 +26,12 @@ export interface ITerminalTypeAheadConfiguration {
 }
 
 export const terminalTypeAheadConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
+	[TerminalTypeAheadSettingId.LocalEchoOverlay]: {
+		markdownDescription: localize('terminal.integrated.localEchoOverlay', "Draw local echo over the terminal at render time instead of writing it into the terminal buffer. Requires {0} to be enabled.", '`#terminal.integrated.localEchoEnabled#`'),
+		type: 'boolean',
+		default: false,
+		tags: ['experimental'],
+	},
 	[TerminalTypeAheadSettingId.LocalEchoLatencyThreshold]: {
 		description: localize('terminal.integrated.localEchoLatencyThreshold', "Length of network delay, in milliseconds, where local edits will be echoed on the terminal without waiting for server acknowledgement. If '0', local echo will always be on, and if '-1' it will be disabled."),
 		type: 'integer',

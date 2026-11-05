@@ -5,7 +5,7 @@
 
 import { disposableTimeout, RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Color, RGBA } from '../../../../../base/common/color.js';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, type Event } from '../../../../../base/common/event.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { escapeRegExpCharacters } from '../../../../../base/common/strings.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -939,7 +939,7 @@ class CursorMovePrediction implements IPrediction {
 export class PredictionStats extends Disposable {
 	private readonly _stats: [latency: number, correct: boolean][] = [];
 	private _index = 0;
-	private readonly _addedAtTime = new WeakMap<IPrediction, number>();
+	private readonly _addedAtTime = new WeakMap<object, number>();
 	private readonly _changeEmitter = this._register(new Emitter<void>());
 	readonly onChange = this._changeEmitter.event;
 
@@ -992,14 +992,14 @@ export class PredictionStats extends Disposable {
 		return max;
 	}
 
-	constructor(timeline: PredictionTimeline) {
+	constructor(timeline: { onPredictionAdded: Event<object>; onPredictionSucceeded: Event<object>; onPredictionFailed: Event<object> }) {
 		super();
 		this._register(timeline.onPredictionAdded(p => this._addedAtTime.set(p, Date.now())));
 		this._register(timeline.onPredictionSucceeded(this._pushStat.bind(this, true)));
 		this._register(timeline.onPredictionFailed(this._pushStat.bind(this, false)));
 	}
 
-	private _pushStat(correct: boolean, prediction: IPrediction) {
+	private _pushStat(correct: boolean, prediction: object) {
 		const started = this._addedAtTime.get(prediction)!;
 		this._stats[this._index] = [Date.now() - started, correct];
 		this._index = (this._index + 1) % StatsConstants.StatsBufferSize;
@@ -1708,8 +1708,9 @@ class TypeAheadStyle {
 	}
 }
 
-const compileExcludeRegexp = (programs = DEFAULT_LOCAL_ECHO_EXCLUDE) =>
-	new RegExp(`\\b(${programs.map(escapeRegExpCharacters).join('|')})\\b`, 'i');
+export function compileExcludeRegexp(programs = DEFAULT_LOCAL_ECHO_EXCLUDE): RegExp {
+	return new RegExp(`\\b(${programs.map(escapeRegExpCharacters).join('|')})\\b`, 'i');
+}
 
 export const enum CharPredictState {
 	/** No characters typed on this line yet */
@@ -1834,37 +1835,14 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 	}
 
 	protected _reevaluatePredictorStateNow(stats: PredictionStats, timeline: PredictionTimeline) {
-		if (this._excludeProgramRe.test(this._terminalTitle)) {
-			timeline.setShowPredictions(false);
-		} else if (this._typeaheadThreshold < 0) {
-			timeline.setShowPredictions(false);
-		} else if (this._typeaheadThreshold === 0) {
-			timeline.setShowPredictions(true);
-		} else if (stats.sampleSize > StatsConstants.StatsMinSamplesToTurnOn && stats.accuracy > StatsConstants.StatsMinAccuracyToTurnOn) {
-			const latency = stats.latency.median;
-			if (latency >= this._typeaheadThreshold) {
-				timeline.setShowPredictions(true);
-			} else if (latency < this._typeaheadThreshold * StatsConstants.StatsToggleOffThreshold) {
-				timeline.setShowPredictions(false);
-			}
+		const enabled = getTypeAheadEnabled(stats, this._typeaheadThreshold, this._excludeProgramRe.test(this._terminalTitle));
+		if (enabled !== undefined) {
+			timeline.setShowPredictions(enabled);
 		}
 	}
 
 	private _sendLatencyStats(stats: PredictionStats) {
-		/* __GDPR__
-			"terminalLatencyStats" : {
-				"owner": "anthonykim1",
-				"min" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-				"max" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-				"median" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-				"count" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-				"predictionAccuracy" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
-			}
-		 */
-		this._telemetryService.publicLog('terminalLatencyStats', {
-			...stats.latency,
-			predictionAccuracy: stats.accuracy,
-		});
+		sendLatencyStats(stats, this._telemetryService);
 	}
 
 	private _onUserData(data: string): void {
@@ -2024,4 +2002,40 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 
 		this._deferClearingPredictions();
 	}
+}
+
+export function getTypeAheadEnabled(stats: PredictionStats, threshold: number, excluded: boolean): boolean | undefined {
+	if (excluded || threshold < 0) {
+		return false;
+	}
+	if (threshold === 0) {
+		return true;
+	}
+	if (stats.sampleSize > StatsConstants.StatsMinSamplesToTurnOn && stats.accuracy > StatsConstants.StatsMinAccuracyToTurnOn) {
+		const latency = stats.latency.median;
+		if (latency >= threshold) {
+			return true;
+		}
+		if (latency < threshold * StatsConstants.StatsToggleOffThreshold) {
+			return false;
+		}
+	}
+	return undefined;
+}
+
+export function sendLatencyStats(stats: PredictionStats, telemetryService: ITelemetryService): void {
+	/* __GDPR__
+		"terminalLatencyStats" : {
+			"owner": "anthonykim1",
+			"min" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+			"max" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+			"median" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+			"count" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+			"predictionAccuracy" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
+		}
+	 */
+	telemetryService.publicLog('terminalLatencyStats', {
+		...stats.latency,
+		predictionAccuracy: stats.accuracy,
+	});
 }

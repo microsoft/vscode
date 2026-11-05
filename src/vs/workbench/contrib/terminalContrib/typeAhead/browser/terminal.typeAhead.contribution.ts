@@ -12,6 +12,7 @@ import { registerTerminalContribution, type ITerminalContributionContext } from 
 import { TERMINAL_CONFIG_SECTION } from '../../../terminal/common/terminal.js';
 import { TerminalTypeAheadSettingId, type ITerminalTypeAheadConfiguration } from '../common/terminalTypeAheadConfiguration.js';
 import { TypeAheadAddon } from './terminalTypeAheadAddon.js';
+import { OverlayTypeAheadAddon } from './terminalTypeAheadOverlayAddon.js';
 
 class TerminalTypeAheadContribution extends DisposableStore implements ITerminalContribution {
 	static readonly ID = 'terminal.typeAhead';
@@ -20,7 +21,7 @@ class TerminalTypeAheadContribution extends DisposableStore implements ITerminal
 		return instance.getContribution<TerminalTypeAheadContribution>(TerminalTypeAheadContribution.ID);
 	}
 
-	private _addon: TypeAheadAddon | undefined;
+	private _addon: TypeAheadAddon | OverlayTypeAheadAddon | undefined;
 
 	constructor(
 		private readonly _ctx: ITerminalContributionContext,
@@ -34,7 +35,7 @@ class TerminalTypeAheadContribution extends DisposableStore implements ITerminal
 	xtermReady(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
 		this._loadTypeAheadAddon(xterm.raw);
 		this.add(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(TerminalTypeAheadSettingId.LocalEchoEnabled)) {
+			if (e.affectsConfiguration(TerminalTypeAheadSettingId.LocalEchoEnabled) || e.affectsConfiguration(TerminalTypeAheadSettingId.LocalEchoOverlay)) {
 				this._loadTypeAheadAddon(xterm.raw);
 			}
 		}));
@@ -46,18 +47,18 @@ class TerminalTypeAheadContribution extends DisposableStore implements ITerminal
 	}
 
 	private _loadTypeAheadAddon(xterm: RawXtermTerminal): void {
-		const enabled = this._configurationService.getValue<ITerminalTypeAheadConfiguration>(TERMINAL_CONFIG_SECTION).localEchoEnabled;
+		this._addon?.dispose();
+		this._addon = undefined;
+		const config = this._configurationService.getValue<ITerminalTypeAheadConfiguration>(TERMINAL_CONFIG_SECTION);
+		const enabled = config.localEchoEnabled;
 		const isRemote = !!this._ctx.processManager.remoteAuthority;
 		if (enabled === 'off' || enabled === 'auto' && !isRemote) {
-			this._addon?.dispose();
-			this._addon = undefined;
-			return;
-		}
-		if (this._addon) {
 			return;
 		}
 		if (enabled === 'on' || (enabled === 'auto' && isRemote)) {
-			this._addon = this._instantiationService.createInstance(TypeAheadAddon, this._ctx.processManager);
+			this._addon = config.localEchoOverlay
+				? this._instantiationService.createInstance(OverlayTypeAheadAddon, this._ctx.processManager)
+				: this._instantiationService.createInstance(TypeAheadAddon, this._ctx.processManager);
 			xterm.loadAddon(this._addon);
 		}
 	}
