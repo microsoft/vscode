@@ -259,6 +259,16 @@ export class MinimapLayout {
 	 * The minimap renders every line with the default line height and does not render view zones.
 	 * Compute the editor `scrollTop` in that coordinate system from the first line in the viewport, without looking at the view zones themselves.
 	 * Inside a view zone, the first line in the viewport is the line after the view zone, so the result stays at that line until the view zone has scrolled by.
+	 *
+	 * ```
+	 * editor scrollTop                            zone-free scrollTop
+	 * [top(k), top(k) + lineHeight)   line k     -> [zf(k), zf(k+1))      moves with scrollTop
+	 * [top(k) + lineHeight, top(k+1)) view zone  -> zf(k+1)               stays still
+	 * [top(k+1), top(k+2))            line k+1   -> [zf(k+1), zf(k+2))    moves with scrollTop
+	 *
+	 * top(n) = viewLayout.getVerticalOffsetForLineNumber(n)
+	 * zf(n)  = (n - 1) * lineHeight + paddingTop
+	 * ```
 	 */
 	public static getZoneFreeScrollTop(viewLayout: Pick<IViewLayout, 'getVerticalOffsetForLineNumber'>, lineHeight: number, paddingTop: number, viewportStartLineNumber: number, scrollTop: number): number {
 		if (scrollTop < paddingTop) {
