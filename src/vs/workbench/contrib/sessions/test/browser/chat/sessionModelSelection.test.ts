@@ -36,6 +36,7 @@ import { restoreReasonForSource, SessionModelSelection } from '../../../browser/
 import { AutomationModelConfiguration } from '../../../browser/automationModelConfiguration.js';
 import { modelConfigurationSourceKey } from '../../../../../../platform/agentHost/common/agentModelConfiguration.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { sessionChatSourceOf } from '../../../browser/sessionHost.js';
 
 function model(identifier: string): ILanguageModelChatMetadataAndIdentifier {
 	return {
@@ -226,7 +227,7 @@ function runConformanceScenario(
 		storeSelectedModel(storage, ChatAgentLocation.Chat, modelTarget, models.get(rememberedModel)!.identifier);
 	}
 	const selection = register(new SessionModelSelection(
-		observableValue<IActiveSession | undefined>('conformanceSession', testSession.session),
+		sessionChatSourceOf(observableValue<IActiveSession | undefined>('conformanceSession', testSession.session)),
 		{},
 		createProvidersService([provider]),
 		storage,
@@ -313,7 +314,7 @@ suite('SessionModelSelection', () => {
 				};
 			};
 			const selection = disposables.add(new SessionModelSelection(
-				observableValue<IActiveSession | undefined>('session', session),
+				sessionChatSourceOf(observableValue<IActiveSession | undefined>('session', session)),
 				{},
 				createProvidersService([provider]),
 				disposables.add(new InMemoryStorageService()),
@@ -395,7 +396,7 @@ suite('SessionModelSelection', () => {
 				const storage = disposables.add(new InMemoryStorageService());
 				storeSelectedModel(storage, ChatAgentLocation.Chat, modelTarget, first.identifier);
 				const selection = disposables.add(new SessionModelSelection(
-					observableValue<IActiveSession | undefined>('session', session.session),
+					sessionChatSourceOf(observableValue<IActiveSession | undefined>('session', session.session)),
 					{ modelConfiguration: true }, createProvidersService([provider]), storage,
 					createConfigurationService(first.metadata.id), disposables.add(new NullLogService()),
 				));
@@ -608,7 +609,7 @@ suite('SessionModelSelection', () => {
 			const provider = disposables.add(createProvider('provider'));
 			provider.getAutomationModelConfiguration = () => draft;
 			const selection = disposables.add(new SessionModelSelection(
-				observableValue<IActiveSession | undefined>('session', session.session),
+				sessionChatSourceOf(observableValue<IActiveSession | undefined>('session', session.session)),
 				{ modelConfiguration: true, fallbackModelConfiguration: service },
 				createProvidersService([provider]), disposables.add(new InMemoryStorageService()),
 				createConfigurationService(), disposables.add(new NullLogService()),
@@ -682,8 +683,8 @@ suite('SessionModelSelection', () => {
 			provider.getAutomationModelConfiguration = sessionId => sessionId === firstSession.session.sessionId ? firstConfiguration : secondConfiguration;
 			const providers = createProvidersService([provider]);
 			const storage = disposables.add(new InMemoryStorageService());
-			const selection = disposables.add(new SessionModelSelection(activeSession, { modelConfiguration: true }, providers, storage, createConfigurationService(), disposables.add(new NullLogService())));
-			const normalSelection = disposables.add(new SessionModelSelection(activeSession, {}, providers, storage, createConfigurationService(), disposables.add(new NullLogService())));
+			const selection = disposables.add(new SessionModelSelection(sessionChatSourceOf(activeSession), { modelConfiguration: true }, providers, storage, createConfigurationService(), disposables.add(new NullLogService())));
+			const normalSelection = disposables.add(new SessionModelSelection(sessionChatSourceOf(activeSession), {}, providers, storage, createConfigurationService(), disposables.add(new NullLogService())));
 			const access = selection.modelConfiguration!;
 			const values = [access.getModelConfiguration(first.identifier)];
 			const writesAfterOpening = [...languageModelsService.writes];
@@ -764,7 +765,7 @@ suite('SessionModelSelection', () => {
 			const provider = disposables.add(createProvider('provider', (identifier, source) => session.modelId.set(identifier, undefined, source)));
 			provider.getAutomationModelConfiguration = () => configuration;
 			const selection = disposables.add(new SessionModelSelection(
-				observableValue<IActiveSession | undefined>('automation', session.session),
+				sessionChatSourceOf(observableValue<IActiveSession | undefined>('automation', session.session)),
 				{ modelConfiguration: true },
 				createProvidersService([provider]),
 				disposables.add(new InMemoryStorageService()),
@@ -849,7 +850,7 @@ suite('SessionModelSelection', () => {
 		provider.models = [copilotModel, chatGPTModel];
 		provider.modelTarget = codexModelTarget;
 		const draftSelection = disposables.add(new SessionModelSelection(
-			observableValue<IActiveSession | undefined>('draftSession', draft.session),
+			sessionChatSourceOf(observableValue<IActiveSession | undefined>('draftSession', draft.session)),
 			{},
 			createProvidersService([provider]),
 			storage,
@@ -868,7 +869,7 @@ suite('SessionModelSelection', () => {
 		nextProvider.models = [chatGPTModel, copilotModel];
 		nextProvider.modelTarget = codexModelTarget;
 		const nextSelection = disposables.add(new SessionModelSelection(
-			observableValue<IActiveSession | undefined>('nextDraftSession', nextDraft.session),
+			sessionChatSourceOf(observableValue<IActiveSession | undefined>('nextDraftSession', nextDraft.session)),
 			{},
 			createProvidersService([nextProvider]),
 			storage,
@@ -888,7 +889,7 @@ suite('SessionModelSelection', () => {
 		const storage = disposables.add(new InMemoryStorageService());
 		storage.store(legacyModelPickerStorageKey('provider', 'type'), second.identifier, StorageScope.PROFILE, StorageTarget.MACHINE);
 		const selection = disposables.add(new SessionModelSelection(
-			observableValue<IActiveSession | undefined>('session', testSession.session),
+			sessionChatSourceOf(observableValue<IActiveSession | undefined>('session', testSession.session)),
 			{},
 			createProvidersService([provider]),
 			storage,
@@ -915,11 +916,34 @@ suite('SessionModelSelection', () => {
 		});
 	});
 
+	test('selects the model of the source\'s chat, not of the session\'s active chat, and follows the chat the source switches to', () => {
+		const testSession = createSession('provider', SessionStatus.Completed, first.identifier);
+		const provider = disposables.add(createProvider('provider'));
+		// A composer bound to a chat other than the one its session shows elsewhere.
+		const bound = observableValue<IChat | undefined>('bound', createChat('chat:/provider/bound', second.identifier, ChatModelSource.Chosen, SessionStatus.Completed));
+		const selection = disposables.add(new SessionModelSelection(
+			{ session: constObservable(testSession.session), chat: bound },
+			{},
+			createProvidersService([provider]),
+			disposables.add(new InMemoryStorageService()),
+			createConfigurationService(),
+			disposables.add(new NullLogService()),
+		));
+		const boundModel = selection.state.get().currentModel?.identifier;
+		bound.set(testSession.activeChat.get(), undefined);
+
+		assert.deepStrictEqual({ boundModel, afterSwitch: selection.state.get().currentModel?.identifier, writes: provider.writes }, {
+			boundModel: second.identifier,
+			afterSwitch: first.identifier,
+			writes: [],
+		});
+	});
+
 	test('restores an existing session without writing to its provider', () => {
 		const testSession = createSession('provider', SessionStatus.Completed, second.identifier);
 		const provider = disposables.add(createProvider('provider'));
 		const selection = disposables.add(new SessionModelSelection(
-			observableValue<IActiveSession | undefined>('session', testSession.session),
+			sessionChatSourceOf(observableValue<IActiveSession | undefined>('session', testSession.session)),
 			{},
 			createProvidersService([provider]),
 			disposables.add(new InMemoryStorageService()),
@@ -939,7 +963,7 @@ suite('SessionModelSelection', () => {
 		const storage = disposables.add(new InMemoryStorageService());
 		storeSelectedModel(storage, ChatAgentLocation.Chat, modelTarget, second.identifier);
 		const selection = disposables.add(new SessionModelSelection(
-			observableValue<IActiveSession | undefined>('session', testSession.session),
+			sessionChatSourceOf(observableValue<IActiveSession | undefined>('session', testSession.session)),
 			{},
 			createProvidersService([provider]),
 			storage,
@@ -965,7 +989,7 @@ suite('SessionModelSelection', () => {
 		const secondProvider = disposables.add(createProvider('secondProvider'));
 		const session = observableValue<IActiveSession | undefined>('session', firstSession.session);
 		const selection = disposables.add(new SessionModelSelection(
-			session,
+			sessionChatSourceOf(session),
 			{},
 			createProvidersService([firstProvider, secondProvider]),
 			disposables.add(new InMemoryStorageService()),
@@ -997,7 +1021,7 @@ suite('SessionModelSelection', () => {
 		const provider = disposables.add(createProvider('provider'));
 		const storage = disposables.add(new InMemoryStorageService());
 		const selection = disposables.add(new SessionModelSelection(
-			observableValue<IActiveSession | undefined>('session', testSession.session),
+			sessionChatSourceOf(observableValue<IActiveSession | undefined>('session', testSession.session)),
 			{},
 			createProvidersService([provider]),
 			storage,
@@ -1032,7 +1056,7 @@ suite('SessionModelSelection', () => {
 		const provider = disposables.add(createProvider('provider', (_modelIdentifier, source) => sources.push(source)));
 		const storage = disposables.add(new InMemoryStorageService());
 		const selection = disposables.add(new SessionModelSelection(
-			observableValue<IActiveSession | undefined>('session', testSession.session),
+			sessionChatSourceOf(observableValue<IActiveSession | undefined>('session', testSession.session)),
 			{},
 			createProvidersService([provider]),
 			storage,
@@ -1063,7 +1087,7 @@ suite('SessionModelSelection', () => {
 		provider.modelsResolved = false;
 		const storage = disposables.add(new InMemoryStorageService());
 		const selection = disposables.add(new SessionModelSelection(
-			observableValue<IActiveSession | undefined>('session', testSession.session),
+			sessionChatSourceOf(observableValue<IActiveSession | undefined>('session', testSession.session)),
 			{},
 			createProvidersService([provider]),
 			storage,
@@ -1091,7 +1115,7 @@ suite('SessionModelSelection', () => {
 		const provider = disposables.add(createProvider('provider', () => { throw new Error('rejected'); }));
 		const logService = disposables.add(new TestLogService());
 		const selection = disposables.add(new SessionModelSelection(
-			observableValue<IActiveSession | undefined>('session', testSession.session),
+			sessionChatSourceOf(observableValue<IActiveSession | undefined>('session', testSession.session)),
 			{},
 			createProvidersService([provider]),
 			storage,
@@ -1122,7 +1146,7 @@ suite('SessionModelSelection', () => {
 		const provider = disposables.add(createProvider('provider', () => { throw new Error('rejected'); }));
 		provider.models = [];
 		const selection = disposables.add(new SessionModelSelection(
-			observableValue<IActiveSession | undefined>('session', testSession.session),
+			sessionChatSourceOf(observableValue<IActiveSession | undefined>('session', testSession.session)),
 			{},
 			createProvidersService([provider]),
 			storage,
@@ -1145,7 +1169,7 @@ suite('SessionModelSelection', () => {
 		const testSession = createSession('provider', SessionStatus.Untitled);
 		const provider = disposables.add(createProvider('provider', (identifier, source) => testSession.modelId.set(identifier, undefined, source)));
 		const selection = disposables.add(new SessionModelSelection(
-			observableValue<IActiveSession | undefined>('session', testSession.session),
+			sessionChatSourceOf(observableValue<IActiveSession | undefined>('session', testSession.session)),
 			{},
 			createProvidersService([provider]),
 			disposables.add(new InMemoryStorageService()),
@@ -1164,7 +1188,7 @@ suite('SessionModelSelection', () => {
 	test('publishes empty state when the session has no provider', () => {
 		const testSession = createSession('missing', SessionStatus.Untitled);
 		const selection = disposables.add(new SessionModelSelection(
-			observableValue<IActiveSession | undefined>('session', testSession.session),
+			sessionChatSourceOf(observableValue<IActiveSession | undefined>('session', testSession.session)),
 			{},
 			createProvidersService([]),
 			disposables.add(new InMemoryStorageService()),
@@ -1191,7 +1215,7 @@ suite('SessionModelSelection', () => {
 		const storage = disposables.add(new InMemoryStorageService());
 		storeSelectedModel(storage, ChatAgentLocation.Chat, modelTarget, second.identifier);
 		const selection = disposables.add(new SessionModelSelection(
-			observableValue<IActiveSession | undefined>('session', testSession.session),
+			sessionChatSourceOf(observableValue<IActiveSession | undefined>('session', testSession.session)),
 			{},
 			createProvidersService([provider]),
 			storage,
@@ -1219,7 +1243,7 @@ suite('SessionModelSelection', () => {
 		const storage = disposables.add(new InMemoryStorageService());
 		storeSelectedModel(storage, ChatAgentLocation.Chat, modelTarget, second.identifier);
 		const selection = disposables.add(new SessionModelSelection(
-			observableValue<IActiveSession | undefined>('session', testSession.session),
+			sessionChatSourceOf(observableValue<IActiveSession | undefined>('session', testSession.session)),
 			{},
 			createProvidersService([provider]),
 			storage,
@@ -1271,7 +1295,7 @@ suite('SessionModelSelection', () => {
 		provider.modelsResolved = false;
 		const storage = disposables.add(new InMemoryStorageService());
 		const selection = disposables.add(new SessionModelSelection(
-			observableValue<IActiveSession | undefined>('session', testSession.session),
+			sessionChatSourceOf(observableValue<IActiveSession | undefined>('session', testSession.session)),
 			{},
 			createProvidersService([provider]),
 			storage,
@@ -1298,7 +1322,7 @@ suite('SessionModelSelection', () => {
 		const testSession = createSession('provider', SessionStatus.Untitled);
 		const provider = disposables.add(createProvider('provider', (identifier, source) => testSession.modelId.set(identifier, undefined, source)));
 		const selection = disposables.add(new SessionModelSelection(
-			observableValue<IActiveSession | undefined>('session', testSession.session),
+			sessionChatSourceOf(observableValue<IActiveSession | undefined>('session', testSession.session)),
 			{},
 			createProvidersService([provider]),
 			disposables.add(new InMemoryStorageService()),
@@ -1337,7 +1361,7 @@ suite('SessionModelSelection', () => {
 		const storage = disposables.add(new InMemoryStorageService());
 		storeSelectedModel(storage, ChatAgentLocation.Chat, modelTarget, second.identifier);
 		const selection = disposables.add(new SessionModelSelection(
-			observableValue<IActiveSession | undefined>('session', testSession.session),
+			sessionChatSourceOf(observableValue<IActiveSession | undefined>('session', testSession.session)),
 			{},
 			createProvidersService([provider]),
 			storage,
@@ -1370,7 +1394,7 @@ suite('SessionModelSelection', () => {
 		const provider = disposables.add(createProvider('provider', (identifier, source) => testSession.modelId.set(identifier, undefined, source)));
 		const storage = disposables.add(new InMemoryStorageService());
 		const selection = disposables.add(new SessionModelSelection(
-			observableValue<IActiveSession | undefined>('session', testSession.session),
+			sessionChatSourceOf(observableValue<IActiveSession | undefined>('session', testSession.session)),
 			{},
 			createProvidersService([provider]),
 			storage,
@@ -1399,7 +1423,7 @@ suite('SessionModelSelection', () => {
 		const testSession = createSession('provider', SessionStatus.Untitled, first.identifier);
 		const provider = disposables.add(createProvider('provider', (identifier, source) => testSession.modelId.set(identifier, undefined, source)));
 		const selection = disposables.add(new SessionModelSelection(
-			observableValue<IActiveSession | undefined>('session', testSession.session),
+			sessionChatSourceOf(observableValue<IActiveSession | undefined>('session', testSession.session)),
 			{},
 			createProvidersService([provider]),
 			disposables.add(new InMemoryStorageService()),
@@ -1421,7 +1445,7 @@ suite('SessionModelSelection', () => {
 		const provider = disposables.add(createProvider('provider'));
 		const session = observableValue<IActiveSession | undefined>('session', firstSession.session);
 		const selection = disposables.add(new SessionModelSelection(
-			session,
+			sessionChatSourceOf(session),
 			{},
 			createProvidersService([provider]),
 			disposables.add(new InMemoryStorageService()),
@@ -1449,7 +1473,7 @@ suite('SessionModelSelection', () => {
 		storeSelectedModel(storage, ChatAgentLocation.Chat, modelTarget, first.identifier);
 		testSession.activeChat.set(chatOne, undefined);
 		const selection = disposables.add(new SessionModelSelection(
-			observableValue<IActiveSession | undefined>('session', testSession.session),
+			sessionChatSourceOf(observableValue<IActiveSession | undefined>('session', testSession.session)),
 			{},
 			createProvidersService([provider]),
 			storage,
@@ -1486,7 +1510,7 @@ suite('SessionModelSelection', () => {
 		provider.models = [first];
 		const storage = disposables.add(new InMemoryStorageService());
 		const selection = disposables.add(new SessionModelSelection(
-			observableValue<IActiveSession | undefined>('session', testSession.session),
+			sessionChatSourceOf(observableValue<IActiveSession | undefined>('session', testSession.session)),
 			{},
 			createProvidersService([provider]),
 			storage,
@@ -1521,7 +1545,7 @@ suite('SessionModelSelection', () => {
 		const storage = disposables.add(new InMemoryStorageService());
 		storeSelectedModel(storage, ChatAgentLocation.Chat, modelTarget, second.identifier);
 		const selection = disposables.add(new SessionModelSelection(
-			observableValue<IActiveSession | undefined>('session', testSession.session),
+			sessionChatSourceOf(observableValue<IActiveSession | undefined>('session', testSession.session)),
 			{},
 			createProvidersService([provider]),
 			storage,
@@ -1554,7 +1578,7 @@ suite('SessionModelSelection', () => {
 		const storage = disposables.add(new InMemoryStorageService());
 		storeSelectedModel(storage, ChatAgentLocation.Chat, modelTarget, second.identifier);
 		const selection = disposables.add(new SessionModelSelection(
-			observableValue<IActiveSession | undefined>('session', testSession.session),
+			sessionChatSourceOf(observableValue<IActiveSession | undefined>('session', testSession.session)),
 			{},
 			createProvidersService([provider]),
 			storage,
@@ -1580,7 +1604,7 @@ suite('SessionModelSelection', () => {
 		const provider = disposables.add(createProvider('provider', (identifier, source) => testSession.modelId.set(identifier, undefined, source)));
 		const storage = disposables.add(new InMemoryStorageService());
 		const selection = disposables.add(new SessionModelSelection(
-			observableValue<IActiveSession | undefined>('session', testSession.session),
+			sessionChatSourceOf(observableValue<IActiveSession | undefined>('session', testSession.session)),
 			{},
 			createProvidersService([provider]),
 			storage,
@@ -1619,7 +1643,7 @@ suite('SessionModelSelection', () => {
 		const otherProvider = disposables.add(createProvider('other'));
 		const session = observableValue<IActiveSession | undefined>('session', testSession.session);
 		const selection = disposables.add(new SessionModelSelection(
-			session,
+			sessionChatSourceOf(session),
 			{},
 			createProvidersService([provider, otherProvider]),
 			disposables.add(new InMemoryStorageService()),
@@ -1662,7 +1686,7 @@ suite('SessionModelSelection', () => {
 		const storage = disposables.add(new InMemoryStorageService());
 		storeSelectedModel(storage, ChatAgentLocation.Chat, modelTarget, first.identifier);
 		const selection = disposables.add(new SessionModelSelection(
-			observableValue<IActiveSession | undefined>('session', testSession.session),
+			sessionChatSourceOf(observableValue<IActiveSession | undefined>('session', testSession.session)),
 			{},
 			createProvidersService([provider]),
 			storage,
@@ -1693,7 +1717,7 @@ suite('SessionModelSelection', () => {
 		const storage = disposables.add(new InMemoryStorageService());
 		storeSelectedModel(storage, ChatAgentLocation.Chat, modelTarget, gone);
 		const selection = disposables.add(new SessionModelSelection(
-			observableValue<IActiveSession | undefined>('session', testSession.session),
+			sessionChatSourceOf(observableValue<IActiveSession | undefined>('session', testSession.session)),
 			{},
 			createProvidersService([provider]),
 			storage,
@@ -1717,7 +1741,7 @@ suite('SessionModelSelection', () => {
 		const provider = disposables.add(createProvider('provider', (identifier, source) => testSession.modelId.set(identifier, undefined, source)));
 		const configuration = createConfigurationService(first.metadata.id);
 		const selection = disposables.add(new SessionModelSelection(
-			observableValue<IActiveSession | undefined>('session', testSession.session),
+			sessionChatSourceOf(observableValue<IActiveSession | undefined>('session', testSession.session)),
 			{},
 			createProvidersService([provider]),
 			disposables.add(new InMemoryStorageService()),
@@ -1750,7 +1774,7 @@ suite('SessionModelSelection', () => {
 		provider.models = [first, canonical];
 		provider.resolveDesired = desiredModelId => desiredModelId === second.identifier ? canonical : undefined;
 		const selection = disposables.add(new SessionModelSelection(
-			observableValue<IActiveSession | undefined>('session', testSession.session),
+			sessionChatSourceOf(observableValue<IActiveSession | undefined>('session', testSession.session)),
 			{},
 			createProvidersService([provider]),
 			disposables.add(new InMemoryStorageService()),
@@ -1775,7 +1799,7 @@ suite('SessionModelSelection', () => {
 		const storage = disposables.add(new InMemoryStorageService());
 		storeSelectedModel(storage, ChatAgentLocation.Chat, modelTarget, opus.identifier);
 		const selection = disposables.add(new SessionModelSelection(
-			observableValue<IActiveSession | undefined>('session', testSession.session),
+			sessionChatSourceOf(observableValue<IActiveSession | undefined>('session', testSession.session)),
 			{},
 			createProvidersService([provider]),
 			storage,
@@ -1807,7 +1831,7 @@ suite('SessionModelSelection', () => {
 		provider.models = [picked, configured];
 		const storage = disposables.add(new InMemoryStorageService());
 		const selection = disposables.add(new SessionModelSelection(
-			observableValue<IActiveSession | undefined>('session', testSession.session),
+			sessionChatSourceOf(observableValue<IActiveSession | undefined>('session', testSession.session)),
 			{},
 			createProvidersService([provider]),
 			storage,
@@ -1837,7 +1861,7 @@ suite('SessionModelSelection', () => {
 		const storage = disposables.add(new InMemoryStorageService());
 		storeSelectedModel(storage, ChatAgentLocation.Chat, modelTarget, opus.identifier);
 		const selection = disposables.add(new SessionModelSelection(
-			observableValue<IActiveSession | undefined>('session', testSession.session),
+			sessionChatSourceOf(observableValue<IActiveSession | undefined>('session', testSession.session)),
 			{},
 			createProvidersService([provider]),
 			storage,
@@ -1889,7 +1913,7 @@ suite('SessionModelSelection', () => {
 		const storage = disposables.add(new InMemoryStorageService());
 		storeSelectedModel(storage, ChatAgentLocation.Chat, modelTarget, opus.identifier);
 		const selection = disposables.add(new SessionModelSelection(
-			observableValue<IActiveSession | undefined>('session', testSession.session),
+			sessionChatSourceOf(observableValue<IActiveSession | undefined>('session', testSession.session)),
 			{},
 			createProvidersService([provider]),
 			storage,
@@ -1926,7 +1950,7 @@ suite('SessionModelSelection', () => {
 		provider.resolveDesired = desiredModelId => desiredModelId === second.identifier ? canonical : undefined;
 		testSession.activeChat.set(createChat('chat:/provider/one', second.identifier, ChatModelSource.Chosen, SessionStatus.Untitled), undefined);
 		const selection = disposables.add(new SessionModelSelection(
-			observableValue<IActiveSession | undefined>('session', testSession.session),
+			sessionChatSourceOf(observableValue<IActiveSession | undefined>('session', testSession.session)),
 			{},
 			createProvidersService([provider]),
 			disposables.add(new InMemoryStorageService()),
@@ -1954,7 +1978,7 @@ suite('SessionModelSelection', () => {
 		const testSession = createSession('provider', SessionStatus.Untitled);
 		const provider = disposables.add(createProvider('provider', (identifier, source) => testSession.modelId.set(identifier, undefined, source)));
 		const selection = disposables.add(new SessionModelSelection(
-			observableValue<IActiveSession | undefined>('session', testSession.session),
+			sessionChatSourceOf(observableValue<IActiveSession | undefined>('session', testSession.session)),
 			{},
 			createProvidersService([provider]),
 			disposables.add(new InMemoryStorageService()),
@@ -1988,7 +2012,7 @@ suite('SessionModelSelection', () => {
 		const provider = disposables.add(createProvider('provider', (identifier, source) => testSession.modelId.set(identifier, undefined, source)));
 		provider.models = [first];
 		const selection = disposables.add(new SessionModelSelection(
-			observableValue<IActiveSession | undefined>('session', testSession.session),
+			sessionChatSourceOf(observableValue<IActiveSession | undefined>('session', testSession.session)),
 			{},
 			createProvidersService([provider]),
 			disposables.add(new InMemoryStorageService()),
@@ -2021,7 +2045,7 @@ suite('SessionModelSelection', () => {
 		const testSession = createSession('provider', SessionStatus.Untitled, first.identifier);
 		const provider = disposables.add(createProvider('provider', (identifier, source) => testSession.modelId.set(identifier, undefined, source)));
 		const selection = disposables.add(new SessionModelSelection(
-			observableValue<IActiveSession | undefined>('session', testSession.session),
+			sessionChatSourceOf(observableValue<IActiveSession | undefined>('session', testSession.session)),
 			{},
 			createProvidersService([provider]),
 			disposables.add(new InMemoryStorageService()),
@@ -2055,7 +2079,7 @@ suite('SessionModelSelection', () => {
 		const provider = disposables.add(createProvider('provider', (identifier, source) => testSession.modelId.set(identifier, undefined, source)));
 		provider.models = [first, second, missing];
 		const selection = disposables.add(new SessionModelSelection(
-			observableValue<IActiveSession | undefined>('session', testSession.session),
+			sessionChatSourceOf(observableValue<IActiveSession | undefined>('session', testSession.session)),
 			{},
 			createProvidersService([provider]),
 			disposables.add(new InMemoryStorageService()),
@@ -2097,7 +2121,7 @@ suite('SessionModelSelection', () => {
 		const provider = disposables.add(createProvider('provider', (identifier, source) => secondSession.modelId.set(identifier, undefined, source)));
 		const session = observableValue<IActiveSession | undefined>('session', firstSession.session);
 		const selection = disposables.add(new SessionModelSelection(
-			session,
+			sessionChatSourceOf(session),
 			{},
 			createProvidersService([provider]),
 			disposables.add(new InMemoryStorageService()),
@@ -2130,7 +2154,7 @@ suite('SessionModelSelection', () => {
 		const testSession = createSession('provider', SessionStatus.Completed, first.identifier);
 		const provider = disposables.add(createProvider('provider', (identifier, source) => testSession.modelId.set(identifier, undefined, source)));
 		const selection = disposables.add(new SessionModelSelection(
-			observableValue<IActiveSession | undefined>('session', testSession.session),
+			sessionChatSourceOf(observableValue<IActiveSession | undefined>('session', testSession.session)),
 			{},
 			createProvidersService([provider]),
 			disposables.add(new InMemoryStorageService()),
@@ -2155,7 +2179,7 @@ suite('SessionModelSelection', () => {
 		const testSession = createSession('provider', SessionStatus.Untitled);
 		const provider = disposables.add(createProvider('provider', (identifier, source) => testSession.modelId.set(identifier, undefined, source)));
 		const selection = disposables.add(new SessionModelSelection(
-			observableValue<IActiveSession | undefined>('session', testSession.session),
+			sessionChatSourceOf(observableValue<IActiveSession | undefined>('session', testSession.session)),
 			{},
 			createProvidersService([provider]),
 			disposables.add(new InMemoryStorageService()),
@@ -2187,7 +2211,7 @@ suite('SessionModelSelection', () => {
 		const storage = disposables.add(new InMemoryStorageService());
 		const logService = disposables.add(new TestLogService());
 		const selection = disposables.add(new SessionModelSelection(
-			observableValue<IActiveSession | undefined>('session', testSession.session),
+			sessionChatSourceOf(observableValue<IActiveSession | undefined>('session', testSession.session)),
 			{},
 			createProvidersService([provider]),
 			storage,
@@ -2217,7 +2241,7 @@ suite('SessionModelSelection', () => {
 		const provider = disposables.add(createProvider('provider'));
 		const logService = disposables.add(new TestLogService());
 		const selection = disposables.add(new SessionModelSelection(
-			observableValue<IActiveSession | undefined>('session', testSession.session),
+			sessionChatSourceOf(observableValue<IActiveSession | undefined>('session', testSession.session)),
 			{},
 			createProvidersService([provider]),
 			disposables.add(new InMemoryStorageService()),

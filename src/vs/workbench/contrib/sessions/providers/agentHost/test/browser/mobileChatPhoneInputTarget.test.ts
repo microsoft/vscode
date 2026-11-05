@@ -19,8 +19,7 @@ function session(providerId: string, sessionId: string, chatResource: string): I
 		providerId,
 		sessionId,
 		sessionType: 'test',
-		activeChat: observableValue<IChat>('activeChat', { resource: URI.parse(chatResource) } as IChat),
-		modelId: observableValue<string | undefined>('modelId', undefined),
+		activeChat: observableValue<IChat>('activeChat', { resource: URI.parse(chatResource), modelId: observableValue<string | undefined>('modelId', undefined) } as unknown as IChat),
 	} as unknown as IActiveSession;
 }
 

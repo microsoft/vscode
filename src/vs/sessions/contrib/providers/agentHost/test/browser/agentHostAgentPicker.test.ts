@@ -229,6 +229,8 @@ suite('agentHostAgentPicker', () => {
 						providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
 						status: constObservable(status),
 						mode,
+						// The picker reads the agent of the chat the host shows.
+						activeChat: constObservable(upcastPartial<IChat>({ mode })),
 					});
 					return { session, mode };
 				};

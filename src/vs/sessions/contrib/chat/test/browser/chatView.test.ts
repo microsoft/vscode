@@ -5278,7 +5278,7 @@ suite('Sessions - Chat View', () => {
 		const preparationModel = disposables.add(new MutableDisposable<ChatModel>());
 		const progressCalls: Parameters<ChatWidget['setTranscriptProgress']>[] = [];
 		const view: {
-			_showPreparationInput(input: Pick<ISendRequestOptions, 'query' | 'attachedContext'>, session: ISession): void;
+			_showPreparationInput(input: Pick<ISendRequestOptions, 'query' | 'attachedContext'>, session: ISession, chat: IChat): void;
 			_setupTranscriptPreparationProgress(model: IObservable<IChatModel | undefined>): void;
 			_saveCurrentViewState(): void;
 		} = Object.assign(Object.create(ChatView.prototype), {
@@ -5296,7 +5296,7 @@ suite('Sessions - Chat View', () => {
 		});
 		view._setupTranscriptPreparationProgress(chatModel);
 		const attachment = { kind: 'file' as const, id: 'readme', name: 'README.md', value: URI.file('/workspace/README.md') };
-		view._showPreparationInput({ query: 'Review this file\nand explain it.', attachedContext: [attachment] }, session);
+		view._showPreparationInput({ query: 'Review this file\nand explain it.', attachedContext: [attachment] }, session, upcastPartial<IChat>({ modelId: constObservable(undefined) }));
 		const model = preparationModel.value!;
 		const request = model.getRequests()[0];
 		preparationProgress.set({ message: 'Starting Dev Container', cancel: () => { } }, undefined);
@@ -5369,7 +5369,7 @@ suite('Sessions - Chat View', () => {
 				getIntentHolder: () => preparationModel.value!.inputModel,
 				applyModel: () => { },
 			}));
-			const view: { _showPreparationInput(input: Pick<ISendRequestOptions, 'query' | 'attachedContext'>, session: ISession): void } = Object.assign(Object.create(ChatView.prototype), {
+			const view: { _showPreparationInput(input: Pick<ISendRequestOptions, 'query' | 'attachedContext'>, session: ISession, chat: IChat): void } = Object.assign(Object.create(ChatView.prototype), {
 				instantiationService,
 				sessionsProvidersService: { getProvider: () => provider },
 				_preparationModel: preparationModel,
@@ -5385,7 +5385,8 @@ suite('Sessions - Chat View', () => {
 				},
 			});
 
-			view._showPreparationInput({ query: 'Hi' }, session);
+			// The preparation shows the model of the chat being prepared.
+			view._showPreparationInput({ query: 'Hi' }, session, upcastPartial<IChat>({ modelId: session.modelId }));
 			const beforeRefresh = controller.currentModel.get()?.identifier;
 			controller.reconcileModelListChange(filterModelsForSession(models, getChatSessionType(preparationModel.value!.sessionResource), ChatModeKind.Ask, ChatAgentLocation.Chat));
 			assert.deepStrictEqual({

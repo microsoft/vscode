@@ -218,7 +218,12 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		this.pickerHoverDelegate = this._register(this.instantiationService.createInstance(WorkbenchHoverDelegate, 'element', { instantHover: true }, { style: HoverStyle.Pointer }));
 		this.pickerVisibility = this._register(new SessionInputPickerVisibility());
 		this.sessionResource = derived(this, reader => this.options.session.read(reader)?.resource);
-		this._modelSelection = this._register(this.instantiationService.createInstance(SessionModelSelection, this.options.session, {
+		// The model of the chat the input binds to, not of the session's active chat elsewhere.
+		const modelSource = {
+			session: this.options.session,
+			chat: derived(this, reader => this.options.chat?.read(reader) ?? this.options.session.read(reader)?.activeChat.read(reader)),
+		};
+		this._modelSelection = this._register(this.instantiationService.createInstance(SessionModelSelection, modelSource, {
 			comparison: this.options.modelPickerComparison,
 			comparisonBusy: this._sending,
 			modelConfiguration: true,

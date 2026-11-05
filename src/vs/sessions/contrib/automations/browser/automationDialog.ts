@@ -83,7 +83,7 @@ import { AutomationCronInput } from './automationCronInput.js';
 import { NewChatModelPickerService, INewChatModelPickerService } from '../../../../workbench/contrib/sessions/browser/chat/newChatModelPicker.js';
 import { createNewSessionControlToolbar } from '../../chat/browser/newSessionConfigToolbars.js';
 import { ISessionModelSelection, SessionModelSelection } from '../../../../workbench/contrib/sessions/browser/chat/sessionModelSelection.js';
-import { ActiveSessionHost, createSessionHostServices, getMainWindowHost, ISessionHostService, SessionHostKind } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ActiveSessionHost, createSessionHostServices, getMainWindowHost, ISessionHostService, sessionChatSourceOf, SessionHostKind } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { VisibleSession } from '../../../../workbench/contrib/sessions/browser/visibleSessions.js';
 import { setActiveSessionContextKeys } from '../../../../workbench/contrib/sessions/common/sessionContextKeys.js';
 import { SessionUsesCombinedConfigPickerContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
@@ -1757,7 +1757,7 @@ export function renderForm(
 	ChatContextKeys.inChatSession.bindTo(scopedContextKeyService).set(true);
 	ChatContextKeys.inAutomationsDialog.bindTo(scopedContextKeyService).set(true);
 	const newChatModelPickerService = new NewChatModelPickerService();
-	const sessionModelSelection = disposables.add(instantiationService.createInstance(SessionModelSelection, activeAutomationSession, { modelConfiguration: true }));
+	const sessionModelSelection = disposables.add(instantiationService.createInstance(SessionModelSelection, sessionChatSourceOf(activeAutomationSession), { modelConfiguration: true }));
 	// The dialog drafts in the host of the window it shows in: the window of its form.
 	const automationHost = instantiationService.invokeFunction(accessor => {
 		const sessionHostService = accessor.get(ISessionHostService);
