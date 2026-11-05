@@ -3394,17 +3394,20 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				id: notificationId,
 				telemetryId: 'agentHost.extensionPermission',
 				severity: ChatInputNotificationSeverity.Warning,
+				// "Canvas extension" so it is not mistaken for a VS Code extension.
+				confirmation: {
+					title: localize('agentHost.extensionPermission.title', "Allow canvas extension '{0}'?", request.extensionName),
+				},
 				message: localize(
 					'agentHost.extensionPermissionRequest',
-					"Extension \"{0}\" requests permission to: {1}",
-					request.extensionName,
+					"This canvas extension requests permission to: {0}",
 					request.capabilities.join(', ')
 				),
 				description: waiting === 0
 					? undefined
 					: waiting === 1
-						? localize('agentHost.extensionPermission.oneMore', "1 more extension permission request is waiting.")
-						: localize('agentHost.extensionPermission.more', "{0} more extension permission requests are waiting.", waiting),
+						? localize('agentHost.extensionPermission.oneMore', "1 more canvas extension permission request is waiting.")
+						: localize('agentHost.extensionPermission.more', "{0} more canvas extension permission requests are waiting.", waiting),
 				actions: choices.map((choice, index) => ({
 					kind: ChatInputNotificationActionKind.Command,
 					label: choice.label,

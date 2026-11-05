@@ -222,3 +222,74 @@
 }
 
 /* Dismiss + mute icon buttons are styled by `.chat-input-notice-action`. */
+
+/* --- Confirmation card --- */
+
+/*
+ * A decision is drawn as the card a tool approval uses rather than as a banner:
+ * the notice frame steps aside so the large card's own border, radius and
+ * surface show, and the card sits clear of the input as the tool card does. The
+ * spacing and type below follow that card's header, message and button row.
+ */
+.chat-input-notice.chat-input-notification-widget.chat-input-notification-confirmation {
+	gap: 0;
+	padding: 0;
+	border: none;
+	border-radius: 0;
+	background: none;
+	margin-bottom: var(--vscode-spacing-size40);
+	/* Undo the banner's smaller type so the card's own sizes resolve as the tool card's do. */
+	font-size: var(--vscode-chat-font-size-body-m);
+	color: var(--vscode-foreground);
+}
+
+.chat-input-notification-widget .chat-input-notification-card-header {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size100) var(--vscode-spacing-size60) var(--vscode-spacing-size120);
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-chat-requestBorder, var(--vscode-input-border, transparent));
+}
+
+/* Keep the tool card's header height, set by its icon buttons, even when no action is shown. */
+.chat-input-notification-widget .chat-input-notification-card-header .chat-card-header-actions {
+	min-height: 22px;
+}
+
+.chat-input-notification-widget .chat-input-notification-card-title {
+	flex: 1 1 auto;
+	min-width: 0;
+	font-size: var(--vscode-chat-font-size-body-s);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	overflow-wrap: anywhere;
+}
+
+.chat-input-notification-widget .chat-input-notification-card-message,
+.chat-input-notification-widget .chat-input-notification-card-description {
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size120) 0;
+	min-width: 0;
+	overflow-wrap: anywhere;
+	user-select: text;
+	-webkit-user-select: text;
+}
+
+.chat-input-notification-widget .chat-input-notification-card-description {
+	padding-top: var(--vscode-spacing-size20);
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-input-notification-widget .chat-input-notification-card .chat-input-notification-progress {
+	margin: var(--vscode-spacing-size60) var(--vscode-spacing-size120) 0;
+}
+
+.chat-input-notification-widget .chat-input-notification-card-buttons {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size40);
+	padding: var(--vscode-spacing-size100) var(--vscode-spacing-size80) var(--vscode-spacing-size40);
+}
+
+.chat-input-notification-widget .chat-input-notification-card-button {
+	width: auto;
+	min-width: 60px;
+}

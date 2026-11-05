@@ -801,6 +801,60 @@ suite('ChatInputNotificationWidget', () => {
 		});
 	});
 
+	test('renders a confirmation as a standalone card and returns to a docked banner without one', () => {
+		const { notificationService, widget } = createWidget();
+		const slot = dom.$('div');
+		widget.attachTo(slot);
+		const command = (label: string, primary: boolean) => ({ kind: ChatInputNotificationActionKind.Command as const, label, commandId: `test.${label}`, primary });
+		showNotification(notificationService, {
+			id: 'permission',
+			severity: ChatInputNotificationSeverity.Warning,
+			confirmation: { title: 'Allow canvas extension \'grove\'?' },
+			message: 'This canvas extension requests permission to: register hooks',
+			description: '1 more canvas extension permission request is waiting.',
+			dismissible: false,
+			actions: [command('Allow', true), command('Allow for Session', false), command('Deny', false)],
+		});
+		const text = (selector: string) => widget.domNode.querySelector(selector)?.textContent;
+		const card = {
+			slot: { docked: slot.classList.contains('chat-input-stack-docked'), standalone: slot.classList.contains('chat-input-stack-standalone') },
+			ariaLabel: widget.domNode.getAttribute('aria-label'),
+			title: text('.chat-card-large .chat-input-notification-card-header .chat-input-notification-card-title'),
+			message: text('.chat-input-notification-card-message'),
+			description: text('.chat-input-notification-card-description'),
+			buttons: [...widget.domNode.querySelectorAll<HTMLElement>('.chat-input-notification-card-buttons .monaco-button')].map(button => ({
+				label: button.textContent,
+				secondary: button.classList.contains('secondary'),
+				ariaLabel: button.ariaLabel,
+			})),
+			bannerTitle: widget.domNode.querySelector('.chat-input-notification-title') !== null,
+		};
+		showNotification(notificationService, { id: 'permission', message: 'Plain banner', actions: [] });
+		assert.deepStrictEqual({
+			card,
+			banner: {
+				slot: { docked: slot.classList.contains('chat-input-stack-docked'), standalone: slot.classList.contains('chat-input-stack-standalone') },
+				confirmation: widget.domNode.classList.contains('chat-input-notification-confirmation'),
+				card: widget.domNode.querySelector('.chat-card-large') !== null,
+			},
+		}, {
+			card: {
+				slot: { docked: false, standalone: true },
+				ariaLabel: 'Allow canvas extension \'grove\'?',
+				title: 'Allow canvas extension \'grove\'?',
+				message: 'This canvas extension requests permission to: register hooks',
+				description: '1 more canvas extension permission request is waiting.',
+				buttons: [
+					{ label: 'Allow', secondary: false, ariaLabel: 'Allow canvas extension \'grove\'? Allow' },
+					{ label: 'Allow for Session', secondary: true, ariaLabel: 'Allow canvas extension \'grove\'? Allow for Session' },
+					{ label: 'Deny', secondary: true, ariaLabel: 'Allow canvas extension \'grove\'? Deny' },
+				],
+				bannerTitle: false,
+			},
+			banner: { slot: { docked: true, standalone: false }, confirmation: false, card: false },
+		});
+	});
+
 	for (const leading of [false, true]) {
 		test(`renders ${leading ? 'split' : 'grouped'} filled actions with a header dismiss button`, () => {
 			const { notificationService, widget } = createWidget();

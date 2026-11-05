@@ -19,7 +19,7 @@ import { IChatTodo } from '../../../../contrib/chat/common/tools/chatTodoListSer
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../contrib/chat/common/languageModels.js';
 import { ChatAgentLocation } from '../../../../contrib/chat/common/constants.js';
 import { SessionType } from '../../../../contrib/chat/common/chatSessionsService.js';
-import { ChatInputNotificationSeverity, IChatInputNotification } from '../../../../contrib/chat/browser/widget/input/chatInputNotificationService.js';
+import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification } from '../../../../contrib/chat/browser/widget/input/chatInputNotificationService.js';
 import { ChatInputNotificationWidget } from '../../../../contrib/chat/browser/widget/input/chatInputNotificationWidget.js';
 import { CopilotHarnessIntroductionButtonVariant, copilotHarnessIntroductionButtonVariants, CopilotHarnessIntroductionCopyVariant, copilotHarnessIntroductionCopyVariants, getCopilotHarnessIntroductionContent } from '../../../../contrib/chat/browser/agentSessions/copilotHarnessIntroduction.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
@@ -127,6 +127,21 @@ const sampleNotification: IChatInputNotification = {
 	description: undefined,
 	actions: [],
 	dismissible: true,
+	autoDismissOnMessage: false,
+};
+
+const extensionPermissionNotification: IChatInputNotification = {
+	id: 'fixture.extensionPermission',
+	severity: ChatInputNotificationSeverity.Warning,
+	confirmation: { title: 'Allow canvas extension \'grove-agent-monitor\'?' },
+	message: 'This canvas extension requests permission to: register hooks',
+	description: '1 more canvas extension permission request is waiting.',
+	actions: [
+		{ kind: ChatInputNotificationActionKind.Command, label: 'Allow', commandId: 'fixture.allow', primary: true },
+		{ kind: ChatInputNotificationActionKind.Command, label: 'Allow for Session', commandId: 'fixture.allowForSession', primary: false },
+		{ kind: ChatInputNotificationActionKind.Command, label: 'Deny', commandId: 'fixture.deny', primary: false },
+	],
+	dismissible: false,
 	autoDismissOnMessage: false,
 };
 
@@ -299,6 +314,10 @@ export default defineThemedFixtureGroup({ path: 'chat/input/' }, {
 	}),
 	// A run of three: notice, todo list, then the input. Covers a notice docking
 	// to a widget rather than straight to the input.
+	WithExtensionPermissionConfirmation: defineComponentFixture({
+		render: context => renderChatInput(context, { notification: extensionPermissionNotification })
+	}),
+
 	WithNotificationAndTodos: defineComponentFixture({
 		render: context => renderChatInput(context, { notification: sampleNotification, todos: sampleTodos })
 	}),

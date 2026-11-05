@@ -1635,6 +1635,7 @@ suite('AgentHostClientTools', () => {
 				});
 			}
 			const snapshot = () => [...inputNotifications.values()].map(notification => ({
+				title: notification.confirmation?.title,
 				message: notification.message,
 				description: notification.description,
 				actions: notification.actions.map(action => `${action.label}${action.primary ? ' (primary)' : ''}`),
@@ -1657,12 +1658,14 @@ suite('AgentHostClientTools', () => {
 
 			assert.deepStrictEqual({ initial, afterFirst, afterSecond, responses: responses() }, {
 				initial: [{
-					message: 'Extension "first-extension" requests permission to: register hooks',
-					description: '1 more extension permission request is waiting.',
+					title: 'Allow canvas extension \'first-extension\'?',
+					message: 'This canvas extension requests permission to: register hooks',
+					description: '1 more canvas extension permission request is waiting.',
 					actions: ['Allow (primary)', 'Allow for Session', 'Deny'],
 				}],
 				afterFirst: [{
-					message: 'Extension "second-extension" requests permission to: register hooks',
+					title: 'Allow canvas extension \'second-extension\'?',
+					message: 'This canvas extension requests permission to: register hooks',
 					description: undefined,
 					actions: ['Allow (primary)', 'Allow for Session', 'Deny'],
 				}],

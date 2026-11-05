@@ -119,6 +119,15 @@ export interface IChatInputNotificationGroup {
 	readonly priority: number;
 }
 
+/**
+ * Presents a notification as a question the user answers, in the large card that chat uses for
+ * tool approvals, rather than as a severity-tinted banner.
+ */
+export interface IChatInputNotificationConfirmation {
+	/** The question heading the card, e.g. "Allow canvas extension 'x'?". The message explains it. */
+	readonly title: string;
+}
+
 export interface IChatInputNotificationSetOptions {
 	/** Updates the content of a set notification (e.g. progress) without moving it in front of newer ones or undoing a dismissal; sets it as usual otherwise. */
 	readonly inPlace?: boolean;
@@ -170,6 +179,12 @@ export interface IChatInputNotification {
 	readonly announcementKey?: string;
 	/** Defers this notification to higher-priority members of the same group. */
 	readonly group?: IChatInputNotificationGroup;
+	/**
+	 * Renders the notification as a confirmation card, set apart from the input, with the title as
+	 * its header and the actions beneath the message. Severity still ranks it among notifications,
+	 * but neither it nor the icon is shown.
+	 */
+	readonly confirmation?: IChatInputNotificationConfirmation;
 }
 
 /** Creates a matcher for a fixed model identifier. */
@@ -219,7 +234,7 @@ export function getChatInputNotificationAnnouncementSignature(notification: ICha
 	}
 	const message = typeof notification.message === 'string' ? notification.message : notification.message.value;
 	const description = typeof body.description === 'string' ? body.description : body.description?.value ?? '';
-	return `${notification.id}\u0000${message}\u0000${description}`;
+	return `${notification.id}\u0000${notification.confirmation?.title ?? ''}\u0000${message}\u0000${description}`;
 }
 
 /** Returns whether a notification applies to the concrete model-target session type. */
@@ -452,8 +467,9 @@ class ChatInputNotificationService extends Disposable implements IChatInputNotif
 		// targets, etc. verbatim. Done after the de-dupe check so we don't pay
 		// the parse cost on unrelated re-renders.
 		const message = notification.ariaMessage ?? renderAsPlaintext(notification.message);
+		const heading = notification.confirmation ? `${notification.confirmation.title} ${message}` : message;
 		const description = resolvedBody.description ? renderAsPlaintext(resolvedBody.description) : '';
-		const text = description ? `${message}. ${description}` : message;
+		const text = description ? `${heading}. ${description}` : heading;
 		status(text);
 	}
 }

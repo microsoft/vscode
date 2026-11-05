@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../base/browser/dom.js';
-import { Button } from '../../../../../../base/browser/ui/button/button.js';
+import { Button, IButtonOptions } from '../../../../../../base/browser/ui/button/button.js';
 import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { createPixelSpinner, IPixelSpinner } from '../../../../../../base/browser/ui/pixelSpinner/pixelSpinner.js';
 import { ProgressBar } from '../../../../../../base/browser/ui/progressbar/progressbar.js';
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { IStringDictionary } from '../../../../../../base/common/collections.js';
-import { isMarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { IMarkdownString, isMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
@@ -25,11 +25,12 @@ import { IMarkdownRendererService } from '../../../../../../platform/markdown/br
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles, defaultProgressBarStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
 import { IChatInputNoticeFocusTarget } from './chatInputNoticeHost.js';
+import { CHAT_CARD_HEADER_ACTIONS_CLASS, CHAT_CARD_LARGE_CLASS } from '../chatCard.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
 import { filterConfigurationToSchema } from './chatModelConfigurationLogic.js';
 import { ChatInputNoticeVariant, ChatInputNoticeWidget } from './chatInputNoticeWidget.js';
 import { ChatInputStackSlot, setChatInputStackSlot } from './chatInputStack.js';
-import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, getChatInputNotificationAnnouncementSignature, IChatInputNotification, IChatInputNotificationAction, IChatInputNotificationBody, IChatInputNotificationCommandAction, IChatInputNotificationContext, IChatInputNotificationModelState, IChatInputNotificationProgress, IChatInputNotificationService, IChatInputNotificationSwitchToModelAction, resolveChatInputNotificationBody } from './chatInputNotificationService.js';
+import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, getChatInputNotificationAnnouncementSignature, IChatInputNotification, IChatInputNotificationAction, IChatInputNotificationBody, IChatInputNotificationCommandAction, IChatInputNotificationConfirmation, IChatInputNotificationContext, IChatInputNotificationModelState, IChatInputNotificationProgress, IChatInputNotificationService, IChatInputNotificationSwitchToModelAction, resolveChatInputNotificationBody } from './chatInputNotificationService.js';
 import './media/chatInputNotificationWidget.css';
 
 const $ = dom.$;
@@ -74,9 +75,12 @@ const severityToIcon: Record<ChatInputNotificationSeverity, ThemeIcon> = {
 
 const emptyModelState: IChatInputNotificationModelState = { currentModel: undefined, models: [] };
 
-/** The text of a notification's message, which names it and its actions for assistive technology. */
+/** Marks a notification rendered as a confirmation card rather than a banner. */
+const confirmationClass = 'chat-input-notification-confirmation';
+
+/** The text that names a notification and its actions for assistive technology: a confirmation's question, otherwise its message. */
 function getAriaTitle(notification: IChatInputNotification): string {
-	return notification.ariaMessage ?? (isMarkdownString(notification.message) ? notification.message.value : notification.message);
+	return notification.confirmation?.title ?? notification.ariaMessage ?? (isMarkdownString(notification.message) ? notification.message.value : notification.message);
 }
 
 /** The notification on screen and the parts a progress update changes in place. */
@@ -225,7 +229,7 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 		this._contentDisposables.clear();
 		this._rendered = undefined;
 		dom.clearNode(this.domNode);
-		this.domNode.classList.remove(...Object.values(severityToClass));
+		this.domNode.classList.remove(...Object.values(severityToClass), confirmationClass);
 
 		this._currentNotification = body ? notification : undefined;
 		this._setVisible(!!notification && !!body);
@@ -239,7 +243,7 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 			return;
 		}
 
-		setChatInputStackSlot(this._slot, ChatInputStackSlot.Docked);
+		setChatInputStackSlot(this._slot, this._getSlotState());
 		this._renderNotification(notification, body);
 		this._handleShown(notification);
 		if (hadFocus) {
@@ -289,6 +293,7 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 	/** What a rendered notification looks like apart from what changes in place: its message, progress, and action labels and states. */
 	private _getLayoutKey(notification: IChatInputNotification, body: IChatInputNotificationBody, actions: readonly IChatInputNotificationAction[]): string {
 		return JSON.stringify([
+			notification.confirmation?.title,
 			notification.severity,
 			notification.icon?.id,
 			notification.busy === true,
@@ -383,7 +388,15 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 	attachTo(slot: HTMLElement): void {
 		this._slot = slot;
 		slot.appendChild(this.domNode);
-		setChatInputStackSlot(slot, this._visible ? ChatInputStackSlot.Docked : ChatInputStackSlot.Empty);
+		setChatInputStackSlot(slot, this._getSlotState());
+	}
+
+	/** A banner joins the input below it; a confirmation card closes its own box, as tool approvals do. */
+	private _getSlotState(): ChatInputStackSlot {
+		if (!this._visible) {
+			return ChatInputStackSlot.Empty;
+		}
+		return this._currentNotification?.confirmation ? ChatInputStackSlot.Standalone : ChatInputStackSlot.Docked;
 	}
 
 	focus(): void {
@@ -408,9 +421,22 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 	}
 
 	private _renderNotification(notification: IChatInputNotification, body: IChatInputNotificationBody): void {
+		const actions = body.actions.filter(action => this._supportsAction(action));
+		const ariaTitle = getAriaTitle(notification);
+		// Names the focusable region: `aria-roledescription` alone would have focus
+		// land on something announced only as "notification".
+		this._notice.setAriaLabel(ariaTitle);
+		if (notification.confirmation) {
+			this._renderConfirmation(notification, notification.confirmation, body, actions, ariaTitle);
+		} else {
+			this._renderBanner(notification, body, actions, ariaTitle);
+		}
+	}
+
+	/** A banner docked to the input: severity icon, message, then description and actions on one row. */
+	private _renderBanner(notification: IChatInputNotification, body: IChatInputNotificationBody, actions: readonly IChatInputNotificationAction[], ariaTitle: string): void {
 		const container = this.domNode;
 		container.classList.add(severityToClass[notification.severity]);
-		const actions = body.actions.filter(action => this._supportsAction(action));
 
 		// Header row: icon + title + mute + dismiss
 		const headerRow = dom.append(container, $('.chat-input-notification-header'));
@@ -425,30 +451,118 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 
 		// Title
 		const titleElement = dom.append(headerRow, $('.chat-input-notification-title'));
-		if (isMarkdownString(notification.message)) {
-			const rendered = this._contentDisposables.add(this._markdownRendererService.render(notification.message));
-			rendered.element.classList.add('chat-input-notification-title-markdown');
-			titleElement.appendChild(rendered.element);
-		} else {
-			titleElement.textContent = notification.message;
-		}
-		const ariaTitle = getAriaTitle(notification);
-		// Names the focusable region: `aria-roledescription` alone would have focus
-		// land on something announced only as "notification".
-		this._notice.setAriaLabel(ariaTitle);
+		this._renderText(titleElement, notification.message, 'chat-input-notification-title-markdown');
 
-		// Handlers read the notification from here: a progress update replaces it in place.
+		const rendered = this._createRendered(notification, body, actions, titleElement);
+		this._renderHeaderActions(rendered, headerRow);
+		this._renderProgress(rendered, container, ariaTitle);
+
+		// Body row: description + actions on the same line
+		const hasBody = body.description || actions.length > 0;
+		if (hasBody) {
+			const bodyRow = dom.append(container, $('.chat-input-notification-body'));
+
+			if (body.description) {
+				const descriptionElement = dom.append(bodyRow, $('.chat-input-notification-description'));
+				this._renderText(descriptionElement, body.description, 'chat-input-notification-description-markdown');
+			}
+
+			if (actions.length > 0) {
+				const actionsContainer = dom.append(bodyRow, $('.chat-input-notification-actions'));
+				actionsContainer.classList.toggle('compact', actions.some(action => action.iconOnly));
+				actionsContainer.classList.toggle('split', actions.some(action => action.leading));
+
+				for (let i = 0; i < actions.length; i++) {
+					const action = actions[i];
+					const isPrimary = action.primary ?? i === actions.length - 1;
+
+					const button = this._addActionButton(rendered, actionsContainer, i, ariaTitle, {
+						...defaultButtonStyles,
+						...(!isPrimary && !action.filled ? {
+							buttonBackground: undefined,
+							buttonHoverBackground: undefined,
+							buttonForeground: undefined,
+							buttonSecondaryBackground: undefined,
+							buttonSecondaryHoverBackground: undefined,
+							buttonSecondaryForeground: undefined,
+							buttonSecondaryBorder: undefined,
+						} : {}),
+						supportIcons: true,
+						secondary: !isPrimary,
+					});
+					button.element.classList.add('chat-input-notification-action-button');
+					button.element.classList.toggle('icon-only', action.iconOnly === true);
+					button.element.classList.toggle('leading', action.leading === true);
+					button.element.classList.toggle('filled', action.filled === true);
+					button.element.classList.toggle('outlined', action.outlined === true);
+				}
+			}
+		}
+	}
+
+	/**
+	 * A decision the user has to make, drawn as the card a tool approval uses: the
+	 * question in a header, the message under it, and the choices as small
+	 * buttons along the bottom. It closes its own box rather than joining the input.
+	 */
+	private _renderConfirmation(notification: IChatInputNotification, confirmation: IChatInputNotificationConfirmation, body: IChatInputNotificationBody, actions: readonly IChatInputNotificationAction[], ariaTitle: string): void {
+		this.domNode.classList.add(confirmationClass);
+		const card = dom.append(this.domNode, $(`.${CHAT_CARD_LARGE_CLASS}.chat-input-notification-card`));
+
+		const header = dom.append(card, $('.chat-input-notification-card-header'));
+		const titleElement = dom.append(header, $('.chat-input-notification-card-title'));
+		titleElement.textContent = confirmation.title;
+		const headerActions = dom.append(header, $(`.${CHAT_CARD_HEADER_ACTIONS_CLASS}`));
+
+		const messageElement = dom.append(card, $('.chat-input-notification-card-message'));
+		this._renderText(messageElement, notification.message, 'chat-input-notification-title-markdown');
+
+		const rendered = this._createRendered(notification, body, actions, messageElement);
+		this._renderHeaderActions(rendered, headerActions);
+		this._renderProgress(rendered, card, ariaTitle);
+
+		if (body.description) {
+			const descriptionElement = dom.append(card, $('.chat-input-notification-card-description'));
+			this._renderText(descriptionElement, body.description, 'chat-input-notification-description-markdown');
+		}
+
+		if (actions.length > 0) {
+			const buttons = dom.append(card, $('.chat-input-notification-card-buttons'));
+			for (let i = 0; i < actions.length; i++) {
+				const isPrimary = actions[i].primary ?? i === actions.length - 1;
+				const button = this._addActionButton(rendered, buttons, i, ariaTitle, { ...defaultButtonStyles, small: true, supportIcons: true, secondary: !isPrimary });
+				button.element.classList.add('chat-input-notification-card-button');
+			}
+		}
+	}
+
+	/** Handlers read the notification from here: a progress update replaces it in place. */
+	private _createRendered(notification: IChatInputNotification, body: IChatInputNotificationBody, actions: readonly IChatInputNotificationAction[], title: HTMLElement): IRenderedNotification {
 		const rendered: IRenderedNotification = {
 			notification,
 			actions,
 			layout: this._getLayoutKey(notification, body, actions),
-			title: titleElement,
+			title,
 			buttons: [],
 			progressBar: undefined,
 			indeterminate: undefined,
 		};
 		this._rendered = rendered;
+		return rendered;
+	}
 
+	private _renderText(element: HTMLElement, value: string | IMarkdownString, markdownClass: string): void {
+		if (isMarkdownString(value)) {
+			const rendered = this._contentDisposables.add(this._markdownRendererService.render(value));
+			rendered.element.classList.add(markdownClass);
+			element.appendChild(rendered.element);
+		} else {
+			element.textContent = value;
+		}
+	}
+
+	private _renderHeaderActions(rendered: IRenderedNotification, parent: HTMLElement): void {
+		const notification = rendered.notification;
 		if (notification.mute) {
 			// Defer to a microtask for the same reason as the dismiss button:
 			// the command synchronously tears down the notification, and the
@@ -456,7 +570,7 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 			const muteButton = this._notice.addAction({
 				ariaLabel: notification.mute.tooltip,
 				icon: Codicon.bellSlash,
-				parent: headerRow,
+				parent,
 				store: this._contentDisposables,
 				onActivate: () => queueMicrotask(() => {
 					const mute = rendered.notification.mute;
@@ -483,7 +597,7 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 			this._notice.addDismissAction({
 				className: 'chat-input-notification-dismiss',
 				ariaLabel: localize('dismissNotification', "Dismiss notification"),
-				parent: headerRow,
+				parent,
 				store: this._contentDisposables,
 				onActivate: () => queueMicrotask(() => {
 					const current = rendered.notification;
@@ -492,70 +606,30 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 				}),
 			});
 		}
+	}
 
-		// The standard progress bar under the title, labelled by it.
-		if (notification.progress) {
-			const progressContainer = dom.append(container, $('.chat-input-notification-progress'));
+	/** The standard progress bar under the title, labelled by it. */
+	private _renderProgress(rendered: IRenderedNotification, parent: HTMLElement, ariaTitle: string): void {
+		const progress = rendered.notification.progress;
+		if (progress) {
+			const progressContainer = dom.append(parent, $('.chat-input-notification-progress'));
 			rendered.progressBar = this._contentDisposables.add(new ProgressBar(progressContainer, { ...defaultProgressBarStyles, ariaLabel: ariaTitle }));
-			this._updateProgress(rendered, notification.progress, ariaTitle);
+			this._updateProgress(rendered, progress, ariaTitle);
 		}
+	}
 
-		// Body row: description + actions on the same line
-		const hasBody = body.description || actions.length > 0;
-		if (hasBody) {
-			const bodyRow = dom.append(container, $('.chat-input-notification-body'));
-
-			if (body.description) {
-				const descriptionElement = dom.append(bodyRow, $('.chat-input-notification-description'));
-				if (isMarkdownString(body.description)) {
-					const rendered = this._contentDisposables.add(this._markdownRendererService.render(body.description));
-					rendered.element.classList.add('chat-input-notification-description-markdown');
-					descriptionElement.appendChild(rendered.element);
-				} else {
-					descriptionElement.textContent = body.description;
-				}
-			}
-
-			if (actions.length > 0) {
-				const actionsContainer = dom.append(bodyRow, $('.chat-input-notification-actions'));
-				actionsContainer.classList.toggle('compact', actions.some(action => action.iconOnly));
-				actionsContainer.classList.toggle('split', actions.some(action => action.leading));
-
-				for (let i = 0; i < actions.length; i++) {
-					const action = actions[i];
-					const isPrimary = action.primary ?? i === actions.length - 1;
-
-					const button = this._contentDisposables.add(new Button(actionsContainer, {
-						...defaultButtonStyles,
-						...(!isPrimary && !action.filled ? {
-							buttonBackground: undefined,
-							buttonHoverBackground: undefined,
-							buttonForeground: undefined,
-							buttonSecondaryBackground: undefined,
-							buttonSecondaryHoverBackground: undefined,
-							buttonSecondaryForeground: undefined,
-							buttonSecondaryBorder: undefined,
-						} : {}),
-						supportIcons: true,
-						secondary: !isPrimary,
-					}));
-					button.element.classList.add('chat-input-notification-action-button');
-					button.element.classList.toggle('icon-only', action.iconOnly === true);
-					button.element.classList.toggle('leading', action.leading === true);
-					button.element.classList.toggle('filled', action.filled === true);
-					button.element.classList.toggle('outlined', action.outlined === true);
-					this._updateButton(button, action, ariaTitle);
-					if (action.tooltip) {
-						this._contentDisposables.add(this._hoverService.setupManagedHover(getDefaultHoverDelegate('element'), button.element, action.tooltip));
-					}
-
-					this._contentDisposables.add(button.onDidClick(() => {
-						void this._executeAction(rendered.notification, rendered.actions[i] ?? action);
-					}));
-					rendered.buttons.push(button);
-				}
-			}
+	private _addActionButton(rendered: IRenderedNotification, parent: HTMLElement, index: number, ariaTitle: string, options: IButtonOptions): Button {
+		const action = rendered.actions[index];
+		const button = this._contentDisposables.add(new Button(parent, options));
+		this._updateButton(button, action, ariaTitle);
+		if (action.tooltip) {
+			this._contentDisposables.add(this._hoverService.setupManagedHover(getDefaultHoverDelegate('element'), button.element, action.tooltip));
 		}
+		this._contentDisposables.add(button.onDidClick(() => {
+			void this._executeAction(rendered.notification, rendered.actions[index] ?? action);
+		}));
+		rendered.buttons.push(button);
+		return button;
 	}
 
 	private _supportsAction(action: IChatInputNotificationAction): boolean {
