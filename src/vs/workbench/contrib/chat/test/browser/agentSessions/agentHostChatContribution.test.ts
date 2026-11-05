@@ -18751,78 +18751,78 @@ suite('AgentHostChatContribution', () => {
 		for (const publication of ['beforeFailure', 'afterFailure', 'beforeRequest'] as const) {
 			for (const quotaExceeded of [false, true]) {
 				test(`reconnected failures use structured error details (quota=${quotaExceeded}, publication=${publication})`, async () => {
-				const { sessionHandler, agentHostService, chatService, instantiationService } = createContribution(disposables, { backendSessionScheme: 'unused-allocation-scheme' });
-				const backendSession = URI.parse('ahp-session:/reconnected-failure');
-				const chatUri = 'ahp-chat:/host-assigned-failure-chat';
-				const resource = URI.parse('agent-host-copilot:/reconnected-failure');
-				const turnId = 'turn-active';
-				const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, {
-					initialLocation: ChatAgentLocation.Chat, canUseTools: false, resource, disableBackgroundKeepAlive: true,
-				}));
-				const addRequest = () => {
-					const request = model.addRequest({ text: 'Continue working', parts: [] }, { variables: [] }, 0,
-						undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, turnId);
-					request.response?.setResult({ metadata: { existing: true } });
-					return request;
-				};
-				let request = publication !== 'beforeRequest' ? addRequest() : undefined;
-				if (publication === 'beforeFailure') {
-					chatService.setSession(resource, model);
-				}
-
-				const state = makeSessionStateWithActiveTurn(backendSession.toString());
-				agentHostService.seedSessionMetadata(backendSession, 'copilot');
-				agentHostService.sessionStates.set(backendSession.toString(), {
-					...state,
-					defaultChat: chatUri,
-					chats: [{ resource: chatUri, title: state.title, status: SessionStatus.InProgress, modifiedAt: '2025-01-01T00:00:00.000Z', origin: { kind: ChatOriginKind.User } }],
-					turns: [],
-					activeTurn: { ...state.activeTurn!, id: turnId },
-				});
-				const session = disposables.add(await sessionHandler.provideChatSessionContent(resource, CancellationToken.None));
-				assert.ok(session.isCompleteObs);
-				const completed = waitForState(session.isCompleteObs, complete => complete);
-				agentHostService.fireAction({
-					channel: chatUri,
-					action: {
-						type: ActionType.ChatError, turnId, duration: 1000,
-						part: {
-							kind: ResponsePartKind.Error,
-							error: quotaExceeded
-								? { errorType: 'quota', message: 'Quota exceeded', _meta: { chatError: { fetchError: { type: 'quotaExceeded' } } } }
-								: { errorType: 'query', message: 'Model temporarily unavailable' },
-							...(!quotaExceeded ? { resumable: true } : {}),
-						},
-					},
-					serverSeq: 100, origin: undefined,
-				});
-				await completed;
-				if (publication !== 'beforeFailure') {
-					chatService.setSession(resource, model);
-					await timeout(0);
-					if (publication === 'beforeRequest') {
-						request = addRequest();
-						await timeout(0);
+					const { sessionHandler, agentHostService, chatService, instantiationService } = createContribution(disposables, { backendSessionScheme: 'unused-allocation-scheme' });
+					const backendSession = URI.parse('ahp-session:/reconnected-failure');
+					const chatUri = 'ahp-chat:/host-assigned-failure-chat';
+					const resource = URI.parse('agent-host-copilot:/reconnected-failure');
+					const turnId = 'turn-active';
+					const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, {
+						initialLocation: ChatAgentLocation.Chat, canUseTools: false, resource, disableBackgroundKeepAlive: true,
+					}));
+					const addRequest = () => {
+						const request = model.addRequest({ text: 'Continue working', parts: [] }, { variables: [] }, 0,
+							undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, turnId);
+						request.response?.setResult({ metadata: { existing: true } });
+						return request;
+					};
+					let request = publication !== 'beforeRequest' ? addRequest() : undefined;
+					if (publication === 'beforeFailure') {
+						chatService.setSession(resource, model);
 					}
-				}
-				assert.ok(request?.response);
 
-				assert.deepStrictEqual({
-					errorDetails: request.response.result?.errorDetails,
-					existingMetadata: request.response.result?.metadata?.existing,
-					markdown: session.progressObs?.get().filter(part => part.kind === 'markdownContent').map(part => part.content.value),
-					complete: session.isCompleteObs.get(),
-				}, {
-					errorDetails: quotaExceeded
-						? { code: 'quotaExceeded', message: 'Quota Exceeded', isQuotaExceeded: true }
-						: {
-							message: 'Error: (query) Model temporarily unavailable',
-							confirmationButtons: [{ label: 'Try Again', data: { agentHostResumeTurn: true }, resend: true, preserveRequestId: true }],
+					const state = makeSessionStateWithActiveTurn(backendSession.toString());
+					agentHostService.seedSessionMetadata(backendSession, 'copilot');
+					agentHostService.sessionStates.set(backendSession.toString(), {
+						...state,
+						defaultChat: chatUri,
+						chats: [{ resource: chatUri, title: state.title, status: SessionStatus.InProgress, modifiedAt: '2025-01-01T00:00:00.000Z', origin: { kind: ChatOriginKind.User } }],
+						turns: [],
+						activeTurn: { ...state.activeTurn!, id: turnId },
+					});
+					const session = disposables.add(await sessionHandler.provideChatSessionContent(resource, CancellationToken.None));
+					assert.ok(session.isCompleteObs);
+					const completed = waitForState(session.isCompleteObs, complete => complete);
+					agentHostService.fireAction({
+						channel: chatUri,
+						action: {
+							type: ActionType.ChatError, turnId, duration: 1000,
+							part: {
+								kind: ResponsePartKind.Error,
+								error: quotaExceeded
+									? { errorType: 'quota', message: 'Quota exceeded', _meta: { chatError: { fetchError: { type: 'quotaExceeded' } } } }
+									: { errorType: 'query', message: 'Model temporarily unavailable' },
+								...(!quotaExceeded ? { resumable: true } : {}),
+							},
 						},
-					existingMetadata: true,
-					markdown: ['Partial response so far'],
-					complete: true,
-				});
+						serverSeq: 100, origin: undefined,
+					});
+					await completed;
+					if (publication !== 'beforeFailure') {
+						chatService.setSession(resource, model);
+						await timeout(0);
+						if (publication === 'beforeRequest') {
+							request = addRequest();
+							await timeout(0);
+						}
+					}
+					assert.ok(request?.response);
+
+					assert.deepStrictEqual({
+						errorDetails: request.response.result?.errorDetails,
+						existingMetadata: request.response.result?.metadata?.existing,
+						markdown: session.progressObs?.get().filter(part => part.kind === 'markdownContent').map(part => part.content.value),
+						complete: session.isCompleteObs.get(),
+					}, {
+						errorDetails: quotaExceeded
+							? { code: 'quotaExceeded', message: 'Quota Exceeded', isQuotaExceeded: true }
+							: {
+								message: 'Error: (query) Model temporarily unavailable',
+								confirmationButtons: [{ label: 'Try Again', data: { agentHostResumeTurn: true }, resend: true, preserveRequestId: true }],
+							},
+						existingMetadata: true,
+						markdown: ['Partial response so far'],
+						complete: true,
+					});
 				});
 			}
 		}
