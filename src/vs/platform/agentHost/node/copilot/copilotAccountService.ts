@@ -9,6 +9,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, observableValue, type IObservable, type IReader } from '../../../../base/common/observable.js';
+import { localize } from '../../../../nls.js';
 import { ICopilotHomeService } from '../../../environment/common/copilotHome.js';
 import { createDecorator, IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
@@ -43,6 +44,7 @@ export interface ICopilotAccountService {
 	getProtectedResources(reader?: IReader): ProtectedResourceMetadata[];
 	authenticate(client: Promise<CopilotClient>, params: AuthenticateParams, connection: CancellationToken): Promise<void>;
 	requireReady(): Extract<CopilotAccountContext, { kind: 'ready' }>;
+	getSession(context: Extract<CopilotAccountContext, { kind: 'ready' }>): Promise<CopilotSession>;
 	isAuthenticationSession(sessionId: string): boolean;
 	verifySessionContext(session: CopilotSession, expectedContext: CopilotAccountContext | undefined): Promise<void>;
 	reset(): Promise<void>;
@@ -141,6 +143,15 @@ export class CopilotAccountService extends Disposable implements ICopilotAccount
 		return this._attempt?.session?.sessionId === sessionId;
 	}
 
+	async getSession(context: Extract<CopilotAccountContext, { kind: 'ready' }>): Promise<CopilotSession> {
+		const session = this._attempt?.session;
+		if (!session) {
+			throw new ProtocolError(AhpErrorCodes.AuthRequired, localize('copilot.accountUnavailable', "The selected Copilot account is no longer available."));
+		}
+		await this.verifySessionContext(session, context);
+		return session;
+	}
+
 	async verifySessionContext(session: CopilotSession, expectedContext: CopilotAccountContext | undefined): Promise<void> {
 		if (!this.authentication) {
 			return;
@@ -177,6 +188,7 @@ export class CopilotAccountService extends Disposable implements ICopilotAccount
 				clientName: AGENT_HOST_COPILOT_CLIENT_NAME,
 				configDirectory: this._home.home.fsPath,
 				enableConfigDiscovery: false, enableSessionStore: false,
+				enableManagedSettings: true,
 				availableTools: [], disabledMcpServers: ['github-mcp-server'],
 				requestExtensions: false, requestCanvasRenderer: false,
 				enableSessionTelemetry: false, enableHostGitOperations: false,

@@ -547,6 +547,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		this._instantiationService.invokeFunction(accessor => this._authRecovery.recover(accessor, protectedResource, {
 			authTokenCache: this._authTokenCache,
 			microsoftAccountId: this._copilotAccountContext()?.entraAccountId,
+			challengeReason: reason,
 			logPrefix: '[AgentHost]',
 			isCurrent: () => this._isAuthenticationCurrent(generation),
 			authenticate: request => this._authenticateIfCurrent(request, generation),

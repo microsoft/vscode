@@ -54,6 +54,21 @@ suite('Copilot managed model configuration', () => {
 		}, new NullLogService()).configSchema), [model.configSchema, model.configSchema, model.configSchema]);
 	});
 
+	test('projects effective session policy without inventing account or source metadata', () => {
+		const projected = projectCopilotManagedModelConfiguration(model, {
+			resolved: {
+				source: 'mixed', serverManaged: true, deviceManaged: true, failClosed: false,
+				bypassPermissionsDisabled: false, managedKeys: ['model', 'effortLevel', 'contextTier'],
+				settings: { model: 'gpt-5', effortLevel: { overridable: 'high' }, contextTier: 'long_context' },
+			},
+		}, new NullLogService());
+		assert.deepStrictEqual({
+			effort: projected.configSchema?.properties.thinkingLevel.default,
+			context: projected.configSchema?.properties.contextSize.default,
+			managed: readAgentManagedModelDefaults(projected),
+		}, { effort: 'high', context: 1_000_000, managed: { model: true, keys: ['thinkingLevel', 'contextSize'] } });
+	});
+
 	test('a managed Copilot Fusion model marks Auto as the managed default', () => {
 		const auto: IAgentModelInfo = {
 			provider: 'copilotcli', id: 'auto', name: 'Auto', supportsVision: false,

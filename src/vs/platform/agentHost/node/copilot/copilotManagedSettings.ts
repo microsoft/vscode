@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotClient } from '@github/copilot-sdk';
+import type { CopilotClient, CopilotSession } from '@github/copilot-sdk';
 import { disposableTimeout, raceCancellationError, raceTimeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError, getErrorMessage, isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
+import { hasKey } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../log/common/log.js';
 import { AgentPolicyError } from '../../common/agent.js';
@@ -18,9 +19,10 @@ export const AGENT_HOST_COPILOT_CLIENT_NAME = 'vscode-agent-host';
 const COPILOT_MANAGED_SETTINGS_PROGRESS_DELAY_MS = 3500;
 const COPILOT_MANAGED_SETTINGS_TIMEOUT_MS = 30_000;
 
-type ManagedSettingsRpc = Pick<CopilotClient['rpc']['managedSettings'], 'resolve'>;
-type ManagedSettingsResult = Awaited<ReturnType<ManagedSettingsRpc['resolve']>>;
-type ManagedSettingsAuthentication = string | { readonly selectionId: string } | undefined;
+type ManagedSettingsRpc = Pick<CopilotClient['rpc']['managedSettings'], 'resolve'> | Pick<CopilotSession['rpc']['managedSettings'], 'get'>;
+type GlobalManagedSettingsResult = Awaited<ReturnType<CopilotClient['rpc']['managedSettings']['resolve']>>;
+type ManagedSettingsResult = Pick<GlobalManagedSettingsResult, 'resolved' | 'values' | 'meta'> & Partial<Pick<GlobalManagedSettingsResult, 'layers'>>;
+type ManagedSettingsAuthentication = string | undefined;
 
 /**
  * Receives the localized activity to show while a caller is still waiting on a
@@ -150,6 +152,20 @@ export class CopilotManagedSettingsResolver extends Disposable {
 }
 
 /** Resolves policy through the runtime without independently composing or validating model options. */
+export function resolveCopilotManagedSettings(
+	managedSettings: Pick<CopilotClient['rpc']['managedSettings'], 'resolve'>,
+	authentication: ManagedSettingsAuthentication,
+	timeoutMs: number,
+	workingDirectory?: string,
+	cancellationToken?: CancellationToken,
+): Promise<GlobalManagedSettingsResult>;
+export function resolveCopilotManagedSettings(
+	managedSettings: ManagedSettingsRpc,
+	authentication: ManagedSettingsAuthentication,
+	timeoutMs: number,
+	workingDirectory?: string,
+	cancellationToken?: CancellationToken,
+): Promise<ManagedSettingsResult>;
 export async function resolveCopilotManagedSettings(
 	managedSettings: ManagedSettingsRpc,
 	authentication: ManagedSettingsAuthentication,
@@ -161,11 +177,14 @@ export async function resolveCopilotManagedSettings(
 		throw new CancellationError();
 	}
 	try {
-		const result = await raceCancellationError(raceTimeout(managedSettings.resolve({
-			clientName: AGENT_HOST_COPILOT_CLIENT_NAME,
-			...(typeof authentication === 'object' ? authentication : authentication ? { gitHubToken: authentication } : {}),
-			...(workingDirectory ? { workingDirectory } : {}),
-		}), timeoutMs), cancellationToken);
+		const query = hasKey(managedSettings, { get: true })
+			? managedSettings.get().then(resolved => ({ resolved }))
+			: managedSettings.resolve({
+				clientName: AGENT_HOST_COPILOT_CLIENT_NAME,
+				...(authentication ? { gitHubToken: authentication } : {}),
+				...(workingDirectory ? { workingDirectory } : {}),
+			});
+		const result = await raceCancellationError(raceTimeout(query, timeoutMs), cancellationToken);
 		if (!result) {
 			throw new AgentPolicyError(localize('copilot.managedSettings.timeout', "Loading your organization's managed settings took longer than {0} seconds. Please try again.", timeoutMs / 1000));
 		}

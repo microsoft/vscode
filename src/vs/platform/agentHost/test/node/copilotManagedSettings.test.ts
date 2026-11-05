@@ -39,24 +39,23 @@ suite('Copilot managed settings resolution', () => {
 		assert.deepStrictEqual(requests, [{ clientName: 'vscode-agent-host' }]);
 	});
 
-	test('resolves policy for the explicit runtime account without a GitHub token', async () => {
+	test('reads the authenticated session policy without a global account lookup', async () => {
 		const rpc = createUnmanagedCopilotSettings();
 		const result = await rpc.resolve({ clientName: 'vscode-agent-host' });
-		const gate = new DeferredPromise<typeof result>();
-		const requests: Parameters<typeof rpc.resolve>[0][] = [];
-		rpc.resolve = params => { requests.push(params); return gate.p; };
+		const gate = new DeferredPromise<typeof result.resolved>();
+		let calls = 0;
+		const sessionPolicy = { get: () => { calls++; return gate.p; } };
 		const resolver = disposables.add(new CopilotManagedSettingsResolver(new NullLogService()));
 		const pending = [
-			resolver.resolve(rpc, { selectionId: 'm365' }),
-			resolver.resolve(rpc, { selectionId: 'm365' }),
-			resolver.resolve(rpc, { selectionId: 'emu' }),
+			resolver.resolve(sessionPolicy, undefined),
+			resolver.resolve(sessionPolicy, undefined),
 		];
-		gate.complete(result);
-		await Promise.all(pending);
-		assert.deepStrictEqual(requests, [
-			{ clientName: 'vscode-agent-host', selectionId: 'm365' },
-			{ clientName: 'vscode-agent-host', selectionId: 'emu' },
-		]);
+		gate.complete({ ...result.resolved, failClosed: true, serverManaged: true, source: 'server' });
+		const results = await Promise.all(pending);
+		assert.deepStrictEqual({ calls, snapshots: results.map(value => value.resolved) }, {
+			calls: 1,
+			snapshots: [await gate.p, await gate.p],
+		});
 	});
 
 	test('preserves composed model options without treating them as catalog-validated selections', async () => {

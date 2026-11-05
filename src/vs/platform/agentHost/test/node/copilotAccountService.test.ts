@@ -369,6 +369,16 @@ suite('Copilot account context', () => {
 		await assert.rejects(f.context.verifySessionContext(f.session, original));
 	});
 
+	test('does not expose the setup session after its account changes', async () => {
+		const f = fixture();
+		await f.discover();
+		await f.select('m365');
+		const context = f.context.requireReady();
+		assert.strictEqual(await f.context.getSession(context), f.session);
+		f.state.activeSelection = 'opaque-emu';
+		await assert.rejects(f.context.getSession(context), /intended Copilot account/);
+	});
+
 	test('gate-off exposes no Microsoft bridge and rejects programmatic setup', async () => {
 		const f = fixture(false);
 		await assert.rejects(f.discover(), /unavailable/);

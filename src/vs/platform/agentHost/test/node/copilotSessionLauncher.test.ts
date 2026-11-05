@@ -52,6 +52,7 @@ import { resolveCopilotMcpServerInfo, type ICopilotPluginInfo } from '../../node
 import { CopilotGitHubCredentials, CopilotGitHubSessionCredentials } from '../../node/copilot/copilotGitHubCredentials.js';
 import { CopilotExtensionsReloadToolName } from '../../node/copilot/copilotExtensionTools.js';
 import { CopilotManagedSettingsResolver } from '../../node/copilot/copilotManagedSettings.js';
+import type { ICopilotAccountService } from '../../node/copilot/copilotAccountService.js';
 import { buildCopilotBuiltinAgents } from '../../node/copilot/copilotBuiltinAgents.js';
 import type { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import type { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
@@ -416,6 +417,32 @@ suite('CopilotSessionLauncher agent catalog readiness', () => {
 				}
 			});
 		}
+	}
+});
+
+suite('CopilotSessionLauncher discovery-only boundary', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const kind of ['create', 'resume'] as const) {
+		test(`${kind} does not treat account discovery as conversation authentication`, async () => {
+			const accountService = upcastPartial<ICopilotAccountService>({
+				requireReady: () => upcastPartial<ReturnType<ICopilotAccountService['requireReady']>>({ kind: 'ready' }),
+			});
+			const launcher = createTestLauncher(undefined, undefined, undefined, undefined,
+				upcastPartial<IAgentConfigurationService>({ copilotM365EnabledAtStartup: true }),
+				undefined, undefined, accountService);
+			const base = {
+				client: new class extends mock<CopilotClient>() { }(), sessionId: 'discovery-only',
+				workingDirectory: testWorkingDirectory, resolvedAgentName: undefined,
+				snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
+				activeClientToolSet: new ActiveClientToolSet(), shellManager: undefined,
+				githubCredentials: CopilotGitHubSessionCredentials.fromClientAuthentication(undefined),
+			};
+			const plan: CopilotSessionLaunchPlan = kind === 'create'
+				? { ...base, kind, model: undefined }
+				: { ...base, kind, fallback: { model: undefined } };
+			await assert.rejects(launcher.launch(plan, testRuntime), /conversation authentication is not yet available/);
+		});
 	}
 });
 
