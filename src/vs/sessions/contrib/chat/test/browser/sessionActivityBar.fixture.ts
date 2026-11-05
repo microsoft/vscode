@@ -53,8 +53,6 @@ interface IFixtureOptions {
 	/** Shows the external-session banner above the chat. */
 	readonly externalBanner?: boolean;
 	readonly openSubmenu?: boolean;
-	/** Drags the strip down by this many pixels. */
-	readonly dragBy?: number;
 	/** Badges the Changes entry, as new changes do. */
 	readonly newChanges?: boolean;
 	readonly githubReferenceCount?: number;
@@ -93,8 +91,6 @@ export default defineThemedFixtureGroup({ path: 'sessions/sessionActivityBar/' }
 	ExternalSessionBannerWide: activityBarFixture({ width: 1280, externalBanner: true }),
 	ChatWithoutWorkspace: activityBarFixture({ entries: [fixtureToggleSidePanel, ...sidePanelGroup([fixtureBrowser, fixtureCanvas]), fixtureTerminal, fixtureTogglePanel] }),
 	WithoutLayoutActions: activityBarFixture({ entries: [...sidePanelGroup([fixtureChanges, fixtureFiles, fixtureBrowser, fixtureCanvas]), fixtureTerminal] }),
-	Moved: activityBarFixture({ dragBy: 60 }),
-	AtBottom: activityBarFixture({ dragBy: 2000 }),
 	SubmenuOpen: activityBarFixture({ openSubmenu: true }, highContrastThemes),
 	NewChanges: activityBarFixture({ newChanges: true }, highContrastThemes),
 	GitHubReferences: activityBarFixture({ githubReferenceCount: 1 }, highContrastThemes),
@@ -202,7 +198,7 @@ async function renderActivityBar(context: ComponentFixtureContext, options: IFix
 		checked: options.githubChecked,
 		run: () => { },
 	}))));
-	activityBar.layout(HEADER_HEIGHT, areaHeight);
+	activityBar.layout(HEADER_HEIGHT);
 	// As the chat group lays it out: to the left of the strip's column.
 	const chatWidth = Math.max(0, width - activityBar.reservedWidth.get());
 
@@ -265,14 +261,6 @@ async function renderActivityBar(context: ComponentFixtureContext, options: IFix
 	}
 	activityBar.setActive(true);
 	const element = activityBar.element!;
-
-	if (options.dragBy) {
-		const handle = element.querySelector<HTMLElement>('.session-activity-bar-drag-handle')!;
-		const pointer = { pointerId: 1, button: 0, buttons: 1, bubbles: true, clientX: 0 };
-		handle.dispatchEvent(new PointerEvent('pointerdown', { ...pointer, clientY: 0 }));
-		handle.dispatchEvent(new PointerEvent('pointermove', { ...pointer, clientY: options.dragBy }));
-		handle.dispatchEvent(new PointerEvent('pointerup', { ...pointer, buttons: 0, clientY: options.dragBy }));
-	}
 
 	if (options.openSubmenu) {
 		const submenuEntry = element.querySelector<HTMLElement>('.action-label[aria-haspopup="menu"]');

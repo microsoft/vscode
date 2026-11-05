@@ -161,7 +161,7 @@ suite('InboxNotificationsView', () => {
 			submitPlanReviewPart(item: IInboxNotificationItem, part: IInboxNotificationPlanReviewPart, review: ChatPlanReviewData, result: IChatPlanReviewResult): void;
 			classifyCarouselAnswers(answers: Map<string, IChatQuestionAnswerValue>): { answerKind: string; answerCharCount: number };
 			runMergedSessionCleanupAction(item: IInboxNotificationItem, kind: InboxNotificationActionKind.ArchiveSession | InboxNotificationActionKind.DeleteSession, enableAlways: boolean): Promise<string>;
-			runAction(item: IInboxNotificationItem, action: IInboxNotificationItem['actions'][number], sourceElement?: HTMLElement, enableAlways?: boolean): Promise<void>;
+			runAction(item: IInboxNotificationItem, action: IInboxNotificationItem['actions'][number], sourceElement?: HTMLElement, enableAlways?: boolean): Promise<string>;
 			getSessionChatModel(item: IInboxNotificationItem): IChatModel | undefined;
 			setCategoryVisible(category: 'now' | 'next' | 'later', visible: boolean): void;
 			runInboxPullRequestAction(item: IInboxNotificationItem, kind: InboxNotificationActionKind.AgentMergeFixCI | InboxNotificationActionKind.AgentMergeAddressReviews | InboxNotificationActionKind.AgentMergeMergePullRequest): Promise<string>;
@@ -475,6 +475,7 @@ suite('InboxNotificationsView', () => {
 			composerAriaLabel: composer.getAttribute('aria-label'),
 			options: newChatOptions.map(({ hostVisible, ...options }) => ({ ...options, hostVisible: hostVisible?.get() })),
 			requests: openNewSession.args, draft: input.value, focused: mainWindow.document.activeElement === input,
+			highlighted: composer.classList.contains('highlight'),
 			belowNotifications: composer.parentElement?.previousElementSibling === notifications,
 			inputAtTop: input.getBoundingClientRect().top - composer.getBoundingClientRect().top < 40,
 		};
@@ -484,7 +485,7 @@ suite('InboxNotificationsView', () => {
 			hasDuplicateNewSessionButton: false,
 			composerLabel: '', composerAriaLabel: 'New session',
 			requests: Array.from({ length: 3 }, () => [{ preserveCustomView: true, cancelRestore: true }]),
-			draft: 'My new session draft', focused: true, belowNotifications: true, inputAtTop: true, disposed: true,
+			draft: 'My new session draft', focused: true, highlighted: true, belowNotifications: true, inputAtTop: true, disposed: true,
 		});
 	});
 
@@ -795,7 +796,7 @@ suite('InboxNotificationsView', () => {
 		[InboxNotificationActionKind.AgentMergeMergePullRequest, 'Merge Pull Request'],
 		[InboxNotificationActionKind.Command, 'Extension Action'],
 	] as const) {
-		test(`${label} precedes Open Session in the evidence header`, () => {
+		test(`${label} is not duplicated in evidence when offered inline`, () => {
 			const { view, container } = createView(constObservable([{
 				id: 'item', kind: InboxNotificationKind.ReviewComments, priority: InboxNotificationPriority.Next,
 				title: 'Review comments', description: '', timestamp: 1, sessionResource: URI.parse('test:///session'),
@@ -812,7 +813,7 @@ suite('InboxNotificationsView', () => {
 				labels: [...container.querySelectorAll('.inbox-notifications-evidence-actions > .monaco-button')].map(button => button.textContent),
 				notificationActions: container.querySelectorAll('.inbox-notifications-notification .inbox-notifications-item-actions').length,
 			}, {
-				labels: [label, 'Open Session', 'Mark Session as Done', ''],
+				labels: [...(kind === InboxNotificationActionKind.Command ? [label] : []), 'Open Session', 'Mark Session as Done', ''],
 				notificationActions: 0,
 			});
 		});
@@ -933,7 +934,7 @@ suite('InboxNotificationsView', () => {
 			tab: InboxTab.ReadyForYou, notifications: items, hasImages: false, actions: [],
 		}));
 		const { view, container } = createView(constObservable([...notifications, merged]), { rows: constObservable(rows) });
-		const pending = new DeferredPromise<void>();
+		const pending = new DeferredPromise<string>();
 		const run = stub(accessView(view), 'runAction').returns(pending.p);
 		view.render(container);
 		const firstCard = container.querySelector<HTMLElement>('.inbox-notifications-item')!;
@@ -949,7 +950,7 @@ suite('InboxNotificationsView', () => {
 			selected: firstCard.classList.contains('selected'), disabled: buttons[0].getAttribute('aria-disabled'),
 			spinning: !!buttons[0].querySelector('.codicon-modifier-spin'),
 		};
-		await pending.complete();
+		await pending.complete('skipped');
 		await timeout(0);
 		firstCard.click();
 		assert.deepStrictEqual({
@@ -994,6 +995,85 @@ suite('InboxNotificationsView', () => {
 			sources: items.map(item => [item, item.actions[0]]),
 		});
 	});
+
+	test('clicking an inline action label does not open evidence and retains success feedback before removal', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const item: IInboxNotificationItem = {
+			id: 'fix', kind: InboxNotificationKind.FailingCI, priority: InboxNotificationPriority.Now,
+			title: 'CI failed', description: '', timestamp: 1,
+			actions: [{ id: 'fix', label: 'Fix CI', kind: InboxNotificationActionKind.AgentMergeFixCI }],
+		};
+		const items = observableValue<readonly IInboxNotificationItem[]>('items', [item]);
+		const { view, container } = createView(items);
+		const pending = new DeferredPromise<string>();
+		stub(accessView(view), 'runInboxPullRequestAction').returns(pending.p);
+		view.render(container);
+		container.querySelector<HTMLElement>('.inbox-notifications-row-inline-actions .monaco-button > span')!.click();
+		const expandedOnClick = !!container.querySelector('.inbox-notifications-item.selected');
+		items.set([], undefined);
+		const retainedWhileRunning = !!container.querySelector('.inbox-notifications-item');
+		await pending.complete('success');
+		await timeout(0);
+		const feedback = container.querySelector('.inbox-notifications-row-action-status')?.textContent;
+		await timeout(1499);
+		const retainedBeforeTimeout = !!container.querySelector('.inbox-notifications-item');
+		await timeout(1);
+		const afterTimeout = container.querySelector('.inbox-notifications-item');
+		view.dispose();
+		assert.deepStrictEqual({ expandedOnClick, retainedWhileRunning, feedback, retainedBeforeTimeout, afterTimeout }, {
+			expandedOnClick: false, retainedWhileRunning: true, feedback: 'Action taken', retainedBeforeTimeout: true, afterTimeout: null,
+		});
+	}));
+
+	test('failed inline actions restore the button without showing success feedback or opening evidence', async () => {
+		const item: IInboxNotificationItem = {
+			id: 'fix', kind: InboxNotificationKind.FailingCI, priority: InboxNotificationPriority.Now,
+			title: 'CI failed', description: '', timestamp: 1,
+			actions: [{ id: 'fix', label: 'Fix CI', kind: InboxNotificationActionKind.AgentMergeFixCI }],
+		};
+		const { view, container, instantiationService } = createView(constObservable([item]));
+		stub(accessView(view), 'runInboxPullRequestAction').resolves('failure');
+		instantiationService.stub(INotificationService, 'error', () => { });
+		view.render(container);
+		container.querySelector<HTMLElement>('.inbox-notifications-row-inline-actions .monaco-button > span')!.click();
+		await timeout(0);
+		const button = container.querySelector('.inbox-notifications-row-inline-actions .monaco-button');
+		assert.deepStrictEqual({
+			expanded: !!container.querySelector('.inbox-notifications-item.selected'),
+			feedback: container.querySelector('.inbox-notifications-row-action-status'),
+			label: button?.textContent, disabled: button?.getAttribute('aria-disabled'),
+		}, { expanded: false, feedback: null, label: 'Fix CI', disabled: 'false' });
+	});
+
+	test('action feedback follows a session without retaining it in a different workflow tab', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const item: IInboxNotificationItem = {
+			id: 'fix', kind: InboxNotificationKind.FailingCI, priority: InboxNotificationPriority.Now,
+			title: 'CI failed', description: '', timestamp: 1,
+			actions: [{ id: 'fix', label: 'Fix CI', kind: InboxNotificationActionKind.AgentMergeFixCI }],
+		};
+		const row: IInboxSessionRow = { ...item, tab: InboxTab.ReadyForYou, sessionTitle: 'Session', occurrence: 'ci', hasImages: false, notifications: [item] };
+		const rows = observableValue<readonly IInboxSessionRow[]>('rows', [row]);
+		const { view, container } = createView(constObservable([]), { rows });
+		const pending = new DeferredPromise<string>();
+		stub(accessView(view), 'runInboxPullRequestAction').returns(pending.p);
+		view.render(container);
+		container.querySelector<HTMLElement>('.inbox-notifications-row-inline-actions .monaco-button > span')!.click();
+		rows.set([{ ...row, tab: InboxTab.Working, notifications: [], actions: [] }], undefined);
+		const tabs = container.querySelectorAll<HTMLElement>('[role="tab"]');
+		tabs[1].click();
+		tabs[0].click();
+		await pending.complete('success');
+		await timeout(0);
+		const readyCount = container.querySelectorAll('.inbox-notifications-item').length;
+		tabs[1].click();
+		const workingFeedback = container.querySelector('.inbox-notifications-row-action-status')?.textContent;
+		await timeout(1500);
+		const workingCount = container.querySelectorAll('.inbox-notifications-item').length;
+		const expiredFeedback = container.querySelector('.inbox-notifications-row-action-status');
+		view.dispose();
+		assert.deepStrictEqual({ readyCount, workingFeedback, workingCount, expiredFeedback }, {
+			readyCount: 0, workingFeedback: 'Action taken', workingCount: 1, expiredFeedback: null,
+		});
+	}));
 
 	test('Working and Done rows without notifications retain repository metadata in evidence', () => {
 		const results = [InboxTab.Working, InboxTab.Done].map(tab => {
@@ -1717,7 +1797,82 @@ suite('InboxNotificationsView', () => {
 		});
 	}
 
-	test('closes a resumed session detail pane and preserves its reply draft', () => {
+	for (const initialTab of [InboxTab.Working, InboxTab.ReadyForYou]) {
+		test(`retains an actively composed reply across a passive workflow move from ${initialTab} until explicit navigation`, () => {
+			const targetTab = initialTab === InboxTab.Working ? InboxTab.ReadyForYou : InboxTab.Working;
+			const chat = upcastPartial<IChat>({ resource: URI.parse('test:///chat') });
+			const session = upcastPartial<ISession>({ sessionId: 'session', mainChat: constObservable(chat), chats: constObservable([chat]) });
+			const row: IInboxSessionRow = {
+				id: 'session', tab: initialTab, kind: InboxNotificationKind.Completed, priority: InboxNotificationPriority.Later,
+				title: 'Review changes', description: '', timestamp: 1, actions: [], sessionResource: URI.parse('test:///session'),
+				sessionTitle: 'Session', occurrence: 'completed', notifications: [], hasImages: false,
+			};
+			const rows = observableValue<readonly IInboxSessionRow[]>('rows', [row]);
+			const { view, container, instantiationService, chatViews, newChatViews } = createView(constObservable([]), { rows });
+			instantiationService.stub(ISessionsManagementService, 'getSession', () => session);
+			view.render(container);
+			const tabs = container.querySelectorAll<HTMLElement>('[role="tab"]');
+			tabs[initialTab === InboxTab.Working ? 1 : 0].click();
+			container.querySelector<HTMLElement>('.inbox-notifications-item')!.click();
+			const input = chatViews[0].input;
+			input.value = 'Keep composing';
+			input.focus();
+			rows.set([{ ...row, tab: targetTab }], undefined);
+			const retained = {
+				selected: !!container.querySelector('.inbox-notifications-item.selected'),
+				focused: document.activeElement === input,
+				status: container.querySelector('.inbox-notifications-row-workflow-status')?.textContent,
+				counts: [...tabs].slice(0, 2).map(tab => tab.textContent),
+			};
+			const outside = container.appendChild(document.createElement('button'));
+			outside.focus();
+			rows.set([{ ...row, tab: targetTab, description: 'Updated again' }], undefined);
+			const afterBlur = !!container.querySelector('.inbox-notifications-item.selected');
+			tabs[targetTab === InboxTab.Working ? 1 : 0].click();
+			const navigated = {
+				selected: !!container.querySelector('.inbox-notifications-item.selected'),
+				status: container.querySelector('.inbox-notifications-row-workflow-status'),
+			};
+			container.querySelector<HTMLElement>('.inbox-notifications-item')!.click();
+			input.focus();
+			rows.set([], undefined);
+			assert.deepStrictEqual({ retained, afterBlur, navigated, draft: input.value, removed: container.querySelectorAll('.inbox-notifications-item').length, restoredFocus: document.activeElement === newChatViews[0].input }, {
+				retained: {
+					selected: true, focused: true,
+					status: targetTab === InboxTab.Working ? 'Working' : 'Ready for you',
+					counts: targetTab === InboxTab.Working ? ['Ready for you 0', 'Working 1'] : ['Ready for you 1', 'Working 0'],
+				},
+				afterBlur: true, navigated: { selected: false, status: null }, draft: 'Keep composing', removed: 0, restoredFocus: true,
+			});
+		});
+	}
+
+	test('Show Inbox Updates releases a retained reply and applies the current workflow placement', () => {
+		const chat = upcastPartial<IChat>({ resource: URI.parse('test:///chat') });
+		const session = upcastPartial<ISession>({ sessionId: 'session', mainChat: constObservable(chat), chats: constObservable([chat]) });
+		const row: IInboxSessionRow = {
+			id: 'session', tab: InboxTab.Working, kind: InboxNotificationKind.Completed, priority: InboxNotificationPriority.Later,
+			title: 'Review changes', description: '', timestamp: 1, actions: [], sessionResource: URI.parse('test:///session'),
+			sessionTitle: 'Session', occurrence: 'completed', notifications: [], hasImages: false,
+		};
+		const rows = observableValue<readonly IInboxSessionRow[]>('rows', [row]);
+		const { view, container, instantiationService, chatViews } = createView(constObservable([]), { rows });
+		instantiationService.stub(ISessionsManagementService, 'getSession', () => session);
+		view.render(container);
+		container.querySelectorAll<HTMLElement>('[role="tab"]')[1].click();
+		container.querySelector<HTMLElement>('.inbox-notifications-item')!.click();
+		chatViews[0].input.value = 'Keep this draft';
+		chatViews[0].input.focus();
+		rows.set([{ ...row, tab: InboxTab.ReadyForYou }, { ...row, id: 'new' }], undefined);
+		container.querySelector<HTMLElement>('.inbox-notifications-deferred-updates .monaco-button')!.click();
+		assert.deepStrictEqual({
+			rows: [...container.querySelectorAll<HTMLElement>('.inbox-notifications-item')].map(card => card.dataset.notificationId),
+			selected: !!container.querySelector('.inbox-notifications-item.selected'),
+			draft: chatViews[0].input.value,
+		}, { rows: ['new'], selected: false, draft: 'Keep this draft' });
+	});
+
+	test('closes a resumed session detail pane when its reply composer is not focused and preserves its draft', () => {
 		const chat = upcastPartial<IChat>({ resource: URI.parse('test:///chat') });
 		const session = upcastPartial<ISession>({ sessionId: 'session', mainChat: constObservable(chat), chats: constObservable([chat]) });
 		const row: IInboxSessionRow = {
@@ -1726,12 +1881,11 @@ suite('InboxNotificationsView', () => {
 			sessionTitle: 'Session', occurrence: 'completed', notifications: [], hasImages: false,
 		};
 		const rows = observableValue<readonly IInboxSessionRow[]>('rows', [row]);
-		const { view, container, instantiationService, chatViews, newChatViews } = createView(constObservable([]), { rows });
+		const { view, container, instantiationService, chatViews } = createView(constObservable([]), { rows });
 		instantiationService.stub(ISessionsManagementService, 'getSession', () => session);
 		view.render(container);
 		container.querySelector<HTMLElement>('.inbox-notifications-item')!.click();
 		chatViews[0].input.value = 'Follow-up draft';
-		chatViews[0].input.focus();
 		rows.set([{ ...row, tab: InboxTab.Working, occurrence: 'working' }], undefined);
 		const tabs = [...container.querySelectorAll<HTMLElement>('[role="tab"]')];
 		const resumed = {
@@ -1739,12 +1893,11 @@ suite('InboxNotificationsView', () => {
 			details: !!container.querySelector('.inbox-notifications-detail-evidence'),
 			activeTab: tabs.findIndex(tab => tab.getAttribute('aria-selected') === 'true'),
 			counts: tabs.slice(0, 2).map(tab => tab.textContent),
-			focused: document.activeElement === newChatViews[0].input,
 		};
 		tabs[1].click();
 		container.querySelector<HTMLElement>('.inbox-notifications-item')!.click();
 		assert.deepStrictEqual({ resumed, draft: chatViews[0].input.value, views: chatViews.length }, {
-			resumed: { cards: 0, details: false, activeTab: 0, counts: ['Ready for you 0', 'Working 1'], focused: true },
+			resumed: { cards: 0, details: false, activeTab: 0, counts: ['Ready for you 0', 'Working 1'] },
 			draft: 'Follow-up draft', views: 1,
 		});
 	});
@@ -2621,10 +2774,12 @@ suite('InboxNotificationsView', () => {
 	for (const width of [360, 560, 1000]) {
 		test(`feedback stays at the top right alongside filters with evidence open at width ${width}`, () => {
 			const telemetry: { event: string; data: { interaction?: string } }[] = [];
-			const { view, container } = createView(constObservable([{
+			const { view, container, instantiationService } = createView(constObservable([{
 				id: 'item', kind: InboxNotificationKind.Completed, priority: InboxNotificationPriority.Later,
 				title: 'Review', description: '', timestamp: 1, actions: [],
 			}]), { telemetry });
+			const executeCommand = stub().resolves();
+			instantiationService.stub(ICommandService, 'executeCommand', executeCommand);
 			container.style.width = `${width}px`;
 			view.render(container);
 			view.setVisible(true);
@@ -2643,16 +2798,21 @@ suite('InboxNotificationsView', () => {
 				rightAligned: Math.abs(feedbackBounds.right - toolbarBounds.right) <= 1,
 				contained: feedbackBounds.left >= toolbarBounds.left && feedbackBounds.bottom <= toolbarBounds.bottom,
 				aligned: width >= 560 ? aligned : true,
-				sent: feedback.textContent, disabled: feedback.getAttribute('aria-disabled'),
-				events: telemetry.filter(event => event.data.interaction === 'feedback.useful').length,
-			}, { rightAligned: true, contained: true, aligned: true, sent: 'Feedback Sent', disabled: 'true', events: 1 });
+				label: feedback.textContent, disabled: feedback.getAttribute('aria-disabled'),
+				commands: executeCommand.args,
+				positiveFeedbackEvents: telemetry.filter(event => event.data.interaction === 'feedback.useful').length,
+			}, {
+				rightAligned: true, contained: true, aligned: true, label: 'Send Feedback', disabled: 'false',
+				commands: [['workbench.action.openIssueReporter', { issueTitle: 'Agents Window Inbox feedback' }]],
+				positiveFeedbackEvents: 0,
+			});
 		});
 	}
 
 	test('toolbar accessible names include their visible labels', () => {
 		const { view, container } = createView(constObservable([]));
 		view.render(container);
-		for (const label of ['Recent', 'Send Positive Feedback']) {
+		for (const label of ['Recent', 'Send Feedback']) {
 			const button = Array.from(container.querySelectorAll<HTMLElement>('.monaco-button')).find(button => button.textContent === label);
 			assert.ok(button?.getAttribute('aria-label')?.startsWith(label), label);
 		}
