@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { basename } from '../../../../base/common/resources.js';
-import { disposableTimeout, raceCancellationError } from '../../../../base/common/async.js';
+import { disposableTimeout, Limiter, raceCancellationError, RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { CancellationError, isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { parse, ParseError } from '../../../../base/common/json.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -29,10 +29,10 @@ const STORAGE_KEY_RECENT_WORKSPACES = 'sessions.recentlyPickedWorkspaces';
 const STORAGE_KEY_NO_WORKSPACE_CHECKED = 'sessions.noWorkspaceChecked';
 const STORAGE_KEY_EXCLUDED_VSCODE_FOLDERS = 'sessions.excludedVSCodeRecentFolders';
 const STORAGE_KEY_DISMISSED_WORKSPACES = 'sessions.dismissedWorkspaces';
-const MAX_RECENT_WORKSPACES = 10;
-const MAX_VSCODE_RECENT_WORKSPACES = 10;
-const MAX_RECENT_WORKSPACE_FILES = 10;
+const MAX_RECENT_WORKSPACES = 500;
+const RECENT_WORKSPACES_LIMIT = 10;
 const MAX_WORKSPACE_FILE_SIZE = 1024 * 1024;
+const WORKSPACE_FILE_TIMEOUT_MS = 1_000;
 const HISTORY_LOAD_TIMEOUT_MS = 5_000;
 
 export function isWorktreeWorkspaceUri(uri: URI): boolean {
@@ -83,16 +83,11 @@ export interface ISessionsRecentWorkspacesService {
 	/** Whether VS Code's recent-folder and workspace-file history has loaded; Agents-owned history is synchronous. */
 	readonly historyLoadState: IObservable<WorkspaceHistoryLoadState>;
 
-	/**
-	 * The recently used folders, resolved and most recent first: own history
-	 * first, then (when `includeVSCodeRecents` is `true`, the default) VS
-	 * Code's recently opened folders and workspace-file folders (deduplicated against own history).
-	 *
-	 * Pass `false` to restrict to the sessions' own recently-picked history
-	 * only. The new-session workspace picker checks this history before
-	 * considering VS Code's recently opened folders.
-	 */
+	/** Resolves the first ten own entries and, by default, the first ten imported entries, deduplicated against own history. */
 	getRecentWorkspaces(includeVSCodeRecents?: boolean, collapseWorktrees?: boolean): IRecentWorkspace[];
+
+	/** Resolves the full retained history for search without starting repository metadata discovery. */
+	getWorkspaceCatalog(collapseWorktrees?: boolean): IRecentWorkspace[];
 
 	/** Records `folderUri` as most-recently used; `checked` un-checks every other entry. */
 	addRecentWorkspace(folderUri: URI, providerId: string | undefined, checked: boolean): void;
@@ -148,14 +143,23 @@ export class SessionsRecentWorkspacesService extends Disposable implements ISess
 	}
 
 	getRecentWorkspaces(includeVSCodeRecents = true, collapseWorktrees = false): IRecentWorkspace[] {
-		const storedOwn = this._getStoredRecentWorkspaces().map(entry => this._canonicalizeStoredRecentWorkspace(entry));
+		return this._getWorkspaces(includeVSCodeRecents, collapseWorktrees, RECENT_WORKSPACES_LIMIT);
+	}
+
+	getWorkspaceCatalog(collapseWorktrees = false): IRecentWorkspace[] {
+		return this._getWorkspaces(true, collapseWorktrees, undefined, false);
+	}
+
+	private _getWorkspaces(includeVSCodeRecents: boolean, collapseWorktrees: boolean, limit?: number, resolveMetadata = true): IRecentWorkspace[] {
+		const storedOwn = this._getStoredRecentWorkspaces().slice(0, limit).map(entry => this._canonicalizeStoredRecentWorkspace(entry, resolveMetadata));
 		if (!includeVSCodeRecents) {
-			return this._resolveStored(storedOwn, 'agents');
+			return this._resolveStored(storedOwn, 'agents', resolveMetadata);
 		}
+		const imported = this._vsCodeRecentFolders.slice(0, limit);
 
 		const availableUris = new Set([
 			...storedOwn.map(entry => URI.revive(entry.uri)),
-			...this._vsCodeRecentFolders.map(entry => entry.folderUri),
+			...imported.map(entry => entry.folderUri),
 		].map(uri => this.uriIdentityService.extUri.getComparisonKey(uri)));
 		const seenOwnUris = new Set<string>();
 		const own = storedOwn.flatMap(entry => {
@@ -172,28 +176,28 @@ export class SessionsRecentWorkspacesService extends Disposable implements ISess
 			return [{ ...entry, uri: displayUri.toJSON() }];
 		});
 		const ownUris = new Set(own.map(o => this.uriIdentityService.extUri.getComparisonKey(URI.revive(o.uri))));
-		const vsCode = this._vsCodeRecentFolders
+		const vsCode = imported
 			.filter(entry => !ownUris.has(this.uriIdentityService.extUri.getComparisonKey(entry.folderUri)))
-			.flatMap(entry => this._resolveStored([{ uri: entry.folderUri.toJSON(), checked: false }], entry.source));
+			.flatMap(entry => this._resolveStored([{ uri: entry.folderUri.toJSON(), checked: false }], entry.source, resolveMetadata));
 
-		return [...this._resolveStored(own, 'agents'), ...vsCode];
+		return [...this._resolveStored(own, 'agents', resolveMetadata), ...vsCode];
 	}
 
-	private _canonicalizeStoredRecentWorkspace(entry: IStoredRecentWorkspace): IStoredRecentWorkspace {
+	private _canonicalizeStoredRecentWorkspace(entry: IStoredRecentWorkspace, resolveMetadata: boolean): IStoredRecentWorkspace {
 		const provider = entry.providerId ? this.sessionsProvidersService.getProvider(entry.providerId) : undefined;
 		const canonicalUri = provider?.canonicalizeWorkspaceUri?.(URI.revive(entry.uri));
 		if (!canonicalUri) {
 			return entry;
 		}
-		const source = this._resolveWorkspace(canonicalUri);
+		const source = this._resolveWorkspace(canonicalUri, undefined, resolveMetadata);
 		return source ? { ...entry, uri: source.workspace.uri.toJSON(), providerId: source.providerId } : entry;
 	}
 
-	private _resolveStored(stored: readonly IStoredRecentWorkspace[], source: IRecentWorkspace['source']): IRecentWorkspace[] {
+	private _resolveStored(stored: readonly IStoredRecentWorkspace[], source: IRecentWorkspace['source'], resolveMetadata: boolean): IRecentWorkspace[] {
 		const recents: IRecentWorkspace[] = [];
 		for (const entry of stored) {
 			const folderUri = URI.revive(entry.uri);
-			const resolved = this._resolveWorkspace(folderUri, entry.providerId);
+			const resolved = this._resolveWorkspace(folderUri, entry.providerId, resolveMetadata);
 			if (resolved && !this.isWorkspaceDismissed(resolved.workspace.folders[0]?.root ?? resolved.workspace.uri)) {
 				recents.push({ workspace: resolved.workspace, providerId: resolved.providerId, checked: entry.checked, source });
 			}
@@ -293,16 +297,17 @@ export class SessionsRecentWorkspacesService extends Disposable implements ISess
 	}
 
 	/** Resolves `folderUri` to its workspace, trying `preferredProviderId` first if given. */
-	private _resolveWorkspace(folderUri: URI, preferredProviderId?: string): { providerId: string; workspace: ISessionWorkspace } | undefined {
+	private _resolveWorkspace(folderUri: URI, preferredProviderId?: string, resolveMetadata = true): { providerId: string; workspace: ISessionWorkspace } | undefined {
+		const options = resolveMetadata ? undefined : { resolveMetadata: false };
 		if (preferredProviderId) {
 			const preferred = this.sessionsProvidersService.getProvider(preferredProviderId);
-			const workspace = preferred?.resolveWorkspace(folderUri);
+			const workspace = preferred?.resolveWorkspace(folderUri, options);
 			if (workspace) {
 				return { providerId: preferredProviderId, workspace };
 			}
 		}
 		for (const provider of this.sessionsProvidersService.getProviders()) {
-			const workspace = provider.resolveWorkspace(folderUri);
+			const workspace = provider.resolveWorkspace(folderUri, options);
 			if (workspace) {
 				return { providerId: provider.id, workspace };
 			}
@@ -315,6 +320,7 @@ export class SessionsRecentWorkspacesService extends Disposable implements ISess
 		this._historyRefresh.value = refresh;
 		const cancellation = new CancellationTokenSource();
 		refresh.add(toDisposable(() => cancellation.dispose(true)));
+		const workspaceFileReads = refresh.add(new Limiter<{ folders: URI[]; hasErrors: boolean }>(4));
 		let timedOut = false;
 		refresh.add(disposableTimeout(() => {
 			timedOut = true;
@@ -326,57 +332,73 @@ export class SessionsRecentWorkspacesService extends Disposable implements ISess
 			if (refresh.isDisposed) {
 				return;
 			}
-			const results: Promise<{ folders: IVSCodeRecentFolder[]; hasErrors: boolean }>[] = [];
-			const directFolders = new Set<string>();
-			let workspaceFiles = 0;
-			for (const entry of recentlyOpened.workspaces) {
-				if (isRecentFolder(entry)) {
-					results.push(Promise.resolve({ folders: [{ folderUri: entry.folderUri, source: 'vscode' }], hasErrors: false }));
-					if (this._includeVSCodeFolder(entry.folderUri)) {
-						directFolders.add(this.uriIdentityService.extUri.getComparisonKey(entry.folderUri));
-					}
-					if (directFolders.size >= MAX_VSCODE_RECENT_WORKSPACES) {
-						break;
-					}
-				} else if (workspaceFiles++ < MAX_RECENT_WORKSPACE_FILES) {
-					results.push((async () => {
-						try {
-							const result = await this._readWorkspaceFolders(entry, cancellation.token);
-							return { folders: result.folders.map(folderUri => ({ folderUri, source: 'vscodeWorkspace' as const })), hasErrors: result.hasErrors };
-						} catch (error) {
-							if (!cancellation.token.isCancellationRequested) {
-								this.logService.warn('[SessionsRecentWorkspaces] Could not read recent workspace folders', error);
-							}
-							return { folders: [], hasErrors: true };
-						}
-					})());
+			const loaded: { folders: IVSCodeRecentFolder[]; hasErrors: boolean }[] = recentlyOpened.workspaces.map(entry => ({
+				folders: isRecentFolder(entry) ? [{ folderUri: entry.folderUri, source: 'vscode' }] : [],
+				hasErrors: false,
+			}));
+			const publish = (state?: WorkspaceHistoryLoadState) => {
+				if (refresh.isDisposed) {
+					return;
 				}
+				const excluded = new Set(this.storageService.getObject<string[]>(STORAGE_KEY_EXCLUDED_VSCODE_FOLDERS, StorageScope.PROFILE, []));
+				const seen = new Set<string>();
+				this._vsCodeRecentFolders = loaded.flatMap(result => result.folders).filter(entry => {
+					const key = this.uriIdentityService.extUri.getComparisonKey(entry.folderUri);
+					if (seen.has(key) || (entry.source === 'vscodeWorkspace' && excluded.has(key)) || !this._includeVSCodeFolder(entry.folderUri)) {
+						return false;
+					}
+					seen.add(key);
+					return true;
+				});
+				if (state) {
+					this._historyLoadState.set(state, undefined);
+				}
+				if (!refresh.isDisposed) {
+					this._onDidChangeRecentWorkspaces.fire();
+				}
+			};
+			const publication = refresh.add(new RunOnceScheduler(publish, 0));
+			if (loaded.some(result => result.folders.length) || this._vsCodeRecentFolders.length) {
+				publish();
 			}
-			const loaded = await Promise.all(results);
+			const results: Promise<void>[] = [];
+			for (const [index, entry] of recentlyOpened.workspaces.entries()) {
+				if (isRecentFolder(entry)) {
+					continue;
+				}
+				if (refresh.isDisposed) {
+					return;
+				}
+				results.push((async () => {
+					try {
+						const result = await raceCancellationError(workspaceFileReads.queue(() => this._readWorkspaceFolders(entry, cancellation.token)), cancellation.token);
+						loaded[index] = { folders: result.folders.map(folderUri => ({ folderUri, source: 'vscodeWorkspace' })), hasErrors: result.hasErrors };
+					} catch (error) {
+						if (!cancellation.token.isCancellationRequested) {
+							this.logService.warn('[SessionsRecentWorkspaces] Could not read recent workspace folders', error);
+						}
+						loaded[index] = { folders: [], hasErrors: true };
+					}
+					if (!refresh.isDisposed) {
+						publication.schedule();
+					}
+				})());
+			}
+			await Promise.all(results);
 			if (refresh.isDisposed) {
 				return;
 			}
-			const excluded = new Set(this.storageService.getObject<string[]>(STORAGE_KEY_EXCLUDED_VSCODE_FOLDERS, StorageScope.PROFILE, []));
-			const seen = new Set<string>();
-			this._vsCodeRecentFolders = loaded.flatMap(result => result.folders).filter(entry => {
-				const key = this.uriIdentityService.extUri.getComparisonKey(entry.folderUri);
-				if (seen.has(key) || (entry.source === 'vscodeWorkspace' && excluded.has(key)) || !this._includeVSCodeFolder(entry.folderUri)) {
-					return false;
-				}
-				seen.add(key);
-				return true;
-			}).slice(0, MAX_VSCODE_RECENT_WORKSPACES);
 			if (timedOut) {
 				this.logService.warn('[SessionsRecentWorkspaces] Timed out reading recent workspace folders');
 			}
-			this._historyLoadState.set(timedOut || loaded.some(result => result.hasErrors) ? 'error' : 'loaded', undefined);
-			this._onDidChangeRecentWorkspaces.fire();
+			publication.cancel();
+			publish(timedOut || loaded.some(result => result.hasErrors) ? 'error' : 'loaded');
 		} catch (error) {
 			if (!refresh.isDisposed) {
 				this._historyLoadState.set('error', undefined);
 				if (timedOut) {
 					this.logService.warn('[SessionsRecentWorkspaces] Timed out loading workspace history');
-				} else {
+				} else if (!isCancellationError(error)) {
 					onUnexpectedError(error);
 				}
 			}
@@ -392,6 +414,31 @@ export class SessionsRecentWorkspacesService extends Disposable implements ISess
 	}
 
 	private async _readWorkspaceFolders(recent: IRecentWorkspaceFile, token: CancellationToken): Promise<{ folders: URI[]; hasErrors: boolean }> {
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		const read = new DisposableStore();
+		const cancellation = new CancellationTokenSource(token);
+		read.add(toDisposable(() => cancellation.dispose(true)));
+		let timedOut = false;
+		read.add(disposableTimeout(() => {
+			timedOut = true;
+			cancellation.cancel();
+		}, WORKSPACE_FILE_TIMEOUT_MS));
+		try {
+			return await this._readWorkspaceFile(recent, cancellation.token);
+		} catch (error) {
+			if (timedOut && !token.isCancellationRequested) {
+				this.logService.warn('[SessionsRecentWorkspaces] Timed out reading a recent workspace file');
+				return { folders: [], hasErrors: true };
+			}
+			throw error;
+		} finally {
+			read.dispose();
+		}
+	}
+
+	private async _readWorkspaceFile(recent: IRecentWorkspaceFile, token: CancellationToken): Promise<{ folders: URI[]; hasErrors: boolean }> {
 		const configPath = recent.workspace.configPath;
 		if (!this.fileService.hasProvider(configPath)) {
 			throw new Error('No file system provider for the recent workspace file');

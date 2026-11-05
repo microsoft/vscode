@@ -19,6 +19,7 @@ import { QuickInputController, IQuickInputControllerHost } from '../../../../pla
 import { QuickInputService } from '../../../../platform/quickinput/browser/quickInputService.js';
 import { createSingleCallFunction } from '../../../../base/common/functional.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 
 class EditorScopedQuickInputService extends QuickInputService {
 
@@ -31,6 +32,7 @@ class EditorScopedQuickInputService extends QuickInputService {
 		@IThemeService themeService: IThemeService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IOpenerService openerService: IOpenerService,
 	) {
 		super(
 			instantiationService,
@@ -38,6 +40,7 @@ class EditorScopedQuickInputService extends QuickInputService {
 			themeService,
 			new EditorScopedLayoutService(editor.getContainerDomNode(), codeEditorService),
 			configurationService,
+			openerService,
 		);
 
 		// Use the passed in code editor as host for the quick input widget

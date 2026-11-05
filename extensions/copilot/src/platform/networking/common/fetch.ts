@@ -400,6 +400,12 @@ export interface OptionalChatRequestParams {
 	/** The maximum number of tokens to return for a completion request */
 	max_tokens?: number;
 
+	/** The maximum completion token budget, including reasoning tokens. Replaces max_tokens. */
+	max_completion_tokens?: number;
+
+	/** Reasoning effort requested from the model. */
+	reasoning_effort?: string;
+
 	/** Likelihood of specified tokens appearing in the completion. */
 	logit_bias?: number;
 

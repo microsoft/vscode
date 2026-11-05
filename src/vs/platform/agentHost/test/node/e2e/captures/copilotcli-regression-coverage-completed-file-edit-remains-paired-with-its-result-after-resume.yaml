@@ -1,0 +1,67 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use your file editing tool exactly once to replace PAIR_BEFORE with PAIR_AFTER in paired.txt. Do not inspect or search for files and do not run a shell command. Then reply exactly "EDIT_DONE".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: edit
+          input:
+            path: ${workdir}/paired.txt
+            old_str: PAIR_BEFORE
+            new_str: PAIR_AFTER
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use your file editing tool exactly once to replace PAIR_BEFORE with PAIR_AFTER in paired.txt. Do not inspect or search for files and do not run a shell command. Then reply exactly "EDIT_DONE".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: edit
+              input:
+                path: ${workdir}/paired.txt
+                old_str: PAIR_BEFORE
+                new_str: PAIR_AFTER
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: File ${workdir}/paired.txt updated with changes.
+    response:
+      content: EDIT_DONE
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use your file editing tool exactly once to replace PAIR_BEFORE with PAIR_AFTER in paired.txt. Do not inspect or search for files and do not run a shell command. Then reply exactly "EDIT_DONE".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: edit
+              input:
+                path: ${workdir}/paired.txt
+                old_str: PAIR_BEFORE
+                new_str: PAIR_AFTER
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: File ${workdir}/paired.txt updated with changes.
+        - role: assistant
+          content: EDIT_DONE
+        - role: user
+          content: Reply exactly "HISTORY_READY". Do not use tools.
+    response:
+      content: HISTORY_READY
+      stopReason: end_turn

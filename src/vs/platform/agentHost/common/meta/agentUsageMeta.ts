@@ -4,9 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { SessionState, UsageInfo } from '../state/protocol/state.js';
+import { LOCAL_MODEL_META_KEY } from '../localModel.js';
 import { hasAgentMetadata } from './metadata.js';
 import { readUsageInfoMeta as readVSCodeUsage, type UsageInfoMeta as VSCodeUsage } from './vscode/agentUsageMeta.js';
 import { readCopilotContextUsage, readCopilotUsageDetail } from './copilotd/copilotdMetadataReader.js';
+
+export { compactAutoModeResolved, compactContextAttribution, createLocalModelTurnExecutionMeta, isAiCreditsStatus, readChatUsage, readLocalModelTurnExecution, withChatUsage, type AiCreditsStatus, type IAgentChatUsage } from './vscode/agentUsageMeta.js';
 
 export interface IAgentLatestModelCall {
 	readonly cost?: number;
@@ -40,7 +43,7 @@ export interface IAgentContextUsage {
 	readonly toolDefinitionsTokens?: number;
 }
 
-const vscodeUsageKeys = ['cost', 'autoModeResolved', 'copilotUsage', 'quotaSnapshots', 'contextAttribution', 'turnTokenTotals', 'directTurnTokenTotals', 'directCopilotUsage', 'vscode.modelCall'] as const;
+const vscodeUsageKeys = ['cost', 'autoModeResolved', 'copilotUsage', 'quotaSnapshots', 'contextAttribution', 'turnTokenTotals', 'directTurnTokenTotals', 'directCopilotUsage', 'vscode.modelCall', LOCAL_MODEL_META_KEY] as const;
 
 export function readUsageInfoMeta(usage: UsageInfo | undefined): UsageInfoMeta {
 	if (hasAgentMetadata(usage, vscodeUsageKeys)) {

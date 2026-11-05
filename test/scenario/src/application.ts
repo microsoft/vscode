@@ -14,7 +14,7 @@ import { opts } from './options';
 
 export type JSONValue = string | number | boolean | null | JSONValue[] | { [key: string]: JSONValue };
 
-type ApplicationLaunchOptions = { recordVideo?: boolean; workspacePath?: string; userSettings?: Record<string, JSONValue>; extraArgs?: string[] };
+type ApplicationLaunchOptions = { recordVideo?: boolean; workspacePath?: string; userSettings?: Record<string, JSONValue>; extraArgs?: string[]; extraEnv?: Readonly<Record<string, string | undefined>> };
 
 const rootPath = path.join(__dirname, '..', '..', '..');
 const logsRootPath = path.join(rootPath, '.build', 'vscode-playwright-mcp', 'logs');
@@ -273,7 +273,7 @@ export function assertNoProfileOverrides(extraArgs: string[] | undefined): void 
 	}
 }
 
-export async function getApplication({ recordVideo, workspacePath, userSettings, extraArgs }: { recordVideo?: boolean; workspacePath?: string; userSettings?: Record<string, JSONValue>; extraArgs?: string[] } = {}) {
+export async function getApplication({ recordVideo, workspacePath, userSettings, extraArgs, extraEnv }: ApplicationLaunchOptions = {}) {
 	if (opts.web && extraArgs?.length) {
 		throw new Error('Per-run extraArgs are not supported by the web automation launcher.');
 	}
@@ -309,9 +309,11 @@ export async function getApplication({ recordVideo, workspacePath, userSettings,
 			...(extraArgs ?? [])
 		],
 		extensionDevelopmentPath: opts.extensionDevelopmentPath,
+		extraEnv,
 	});
 	try {
-		await preseedUserData(application.userDataPath, userSettings, !!opts.web);
+		await preseedUserData(application.userDataPath, userSettings, !!opts.web,
+			[...(extraArgs ?? []), ...(opts.electronArgs ?? '').split(' ')].includes('--agents'));
 		await application.start();
 		return application;
 	} catch (error) {
@@ -338,7 +340,7 @@ async function removeProfileData(userDataPath: string | undefined): Promise<void
 	}
 }
 
-async function preseedUserData(userDataDir: string | undefined, userSettings: Record<string, JSONValue> | undefined, web: boolean): Promise<void> {
+async function preseedUserData(userDataDir: string | undefined, userSettings: Record<string, JSONValue> | undefined, web: boolean, agents: boolean): Promise<void> {
 	if (!userDataDir) {
 		throw new Error('Cannot pre-seed the isolated test profile without a user data directory.');
 	}
@@ -347,6 +349,11 @@ async function preseedUserData(userDataDir: string | undefined, userSettings: Re
 	fs.mkdirSync(userDir, { recursive: true });
 	if (userSettings) {
 		fs.writeFileSync(path.join(userDir, 'settings.json'), JSON.stringify(userSettings, undefined, 2));
+		if (agents && !web) {
+			const agentsUserDir = path.join(userDir, 'profiles', 'builtin', 'agents');
+			fs.mkdirSync(agentsUserDir, { recursive: true });
+			fs.writeFileSync(path.join(agentsUserDir, 'settings.json'), JSON.stringify(userSettings, undefined, 2));
+		}
 	}
 
 	const globalStorageDir = path.join(userDir, 'globalStorage');
@@ -368,7 +375,20 @@ function launchOptionsEqual(first: ApplicationLaunchOptions, second: Application
 	return !!first.recordVideo === !!second.recordVideo
 		&& first.workspacePath === second.workspacePath
 		&& jsonValueEqual(first.userSettings, second.userSettings)
-		&& jsonValueEqual(first.extraArgs, second.extraArgs);
+		&& jsonValueEqual(first.extraArgs, second.extraArgs)
+		&& launchEnvironmentEqual(first.extraEnv, second.extraEnv);
+}
+
+function launchEnvironmentEqual(first: ApplicationLaunchOptions['extraEnv'], second: ApplicationLaunchOptions['extraEnv']): boolean {
+	if (first === second) {
+		return true;
+	}
+	if (!first || !second) {
+		return false;
+	}
+	const keys = Object.keys(first);
+	return keys.length === Object.keys(second).length
+		&& keys.every(key => Object.hasOwn(second, key) && first[key] === second[key]);
 }
 
 function jsonValueEqual(first: JSONValue | Record<string, JSONValue> | undefined, second: JSONValue | Record<string, JSONValue> | undefined): boolean {

@@ -15,7 +15,6 @@ export type PullRequestRequestStrategy =
 	| 'unavailable';
 
 export interface PullRequestRequestPlan {
-	readonly fragment: PullRequestFragment;
 	readonly strategy: PullRequestRequestStrategy;
 	readonly priority: RequestPriority;
 	readonly completeWhenSuccessful: boolean;
@@ -29,22 +28,19 @@ export class PullRequestRequestPlanner {
 			case 'core':
 			case 'topLevelComments':
 			case 'submittedReviews':
-			case 'inlineComments':
-				return { fragment, strategy: 'rest', priority: requestPriority, completeWhenSuccessful: true };
+				return { strategy: 'rest', priority: requestPriority, completeWhenSuccessful: true };
 			case 'reviewThreads':
 				return capabilities.graphql && capabilities.reviewThreads
-					? { fragment, strategy: 'graphql', priority: requestPriority, completeWhenSuccessful: true }
-					: { fragment, strategy: 'unavailable', priority: requestPriority, completeWhenSuccessful: false };
+					? { strategy: 'graphql', priority: requestPriority, completeWhenSuccessful: true }
+					: { strategy: 'unavailable', priority: requestPriority, completeWhenSuccessful: false };
 			case 'checks':
 				return capabilities.graphql
-					? { fragment, strategy: 'graphql', priority: requestPriority, completeWhenSuccessful: capabilities.checkContextRequiredness }
-					: { fragment, strategy: 'restChecksFallback', priority: requestPriority, completeWhenSuccessful: false };
+					? { strategy: 'graphql', priority: requestPriority, completeWhenSuccessful: capabilities.checkContextRequiredness }
+					: { strategy: 'restChecksFallback', priority: requestPriority, completeWhenSuccessful: false };
 			case 'mergeability':
 				return capabilities.graphql
-					? { fragment, strategy: 'graphql', priority: requestPriority, completeWhenSuccessful: true }
-					: { fragment, strategy: 'restMergeabilityFallback', priority: requestPriority, completeWhenSuccessful: false };
-			case 'participants':
-				return { fragment, strategy: 'rest', priority: requestPriority, completeWhenSuccessful: true };
+					? { strategy: 'graphql', priority: requestPriority, completeWhenSuccessful: true }
+					: { strategy: 'restMergeabilityFallback', priority: requestPriority, completeWhenSuccessful: false };
 		}
 	}
 }

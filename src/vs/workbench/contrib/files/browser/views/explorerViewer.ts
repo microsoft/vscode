@@ -8,7 +8,7 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import * as glob from '../../../../../base/common/glob.js';
 import { IListVirtualDelegate, ListDragOverEffectPosition, ListDragOverEffectType } from '../../../../../base/browser/ui/list/list.js';
 import { IProgressService, ProgressLocation, } from '../../../../../platform/progress/common/progress.js';
-import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IFileService, FileKind, FileOperationError, FileOperationResult, FileChangeType, FileSystemProviderCapabilities } from '../../../../../platform/files/common/files.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
@@ -16,14 +16,11 @@ import { IDisposable, Disposable, dispose, toDisposable, DisposableStore } from 
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { IFileLabelOptions, IResourceLabel, ResourceLabels } from '../../../../browser/labels.js';
 import { ITreeNode, ITreeFilter, TreeVisibility, IAsyncDataSource, ITreeSorter, ITreeDragAndDrop, ITreeDragOverReaction, TreeDragOverBubble } from '../../../../../base/browser/ui/tree/tree.js';
-import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ExplorerFindProviderActive, IFilesConfiguration, UndoConfirmLevel } from '../../common/files.js';
 import { dirname, joinPath, distinctParents, relativePath } from '../../../../../base/common/resources.js';
-import { InputBox, MessageType } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { localize } from '../../../../../nls.js';
-import { createSingleCallFunction } from '../../../../../base/common/functional.js';
 import { IKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { equals, deepClone } from '../../../../../base/common/objects.js';
 import * as path from '../../../../../base/common/path.js';
@@ -50,6 +47,7 @@ import { ICompressedTreeNode } from '../../../../../base/browser/ui/tree/compres
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { isNumber } from '../../../../../base/common/types.js';
 import { IEditableData } from '../../../../common/views.js';
+import { InlineEditInputBox } from '../../../../browser/parts/views/inlineEditInputBox.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ResourceFileEdit } from '../../../../../editor/browser/services/bulkEditService.js';
@@ -60,8 +58,7 @@ import { WebFileSystemAccess } from '../../../../../platform/files/browser/webFi
 import { IgnoreFile } from '../../../../services/search/common/ignoreFile.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { TernarySearchTree } from '../../../../../base/common/ternarySearchTree.js';
-import { defaultCountBadgeStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
-import { timeout } from '../../../../../base/common/async.js';
+import { defaultCountBadgeStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { IExplorerFileContribution, explorerFileContribRegistry } from '../explorerFileContrib.js';
@@ -837,13 +834,11 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		private labels: ResourceLabels,
 		private highlightTree: IExplorerFindHighlightTree,
 		private updateWidth: (stat: ExplorerItem) => void,
-		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExplorerService private readonly explorerService: IExplorerService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		this.config = this.configurationService.getValue<IFilesConfiguration>();
@@ -1030,9 +1025,11 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 	}
 
 	private renderInputBox(container: HTMLElement, stat: ExplorerItem, editableData: IEditableData): IDisposable {
+		const disposables = new DisposableStore();
 
 		// Use a file label only for the icon next to the input box
-		const label = this.labels.create(container);
+		const label = disposables.add(this.labels.create(container));
+		disposables.add(toDisposable(() => label.element.remove()));
 		const extraClasses = ['explorer-item', 'explorer-item-edited'];
 		const fileKind = stat.isRoot ? FileKind.ROOT_FOLDER : stat.isDirectory ? FileKind.FOLDER : FileKind.FILE;
 
@@ -1057,114 +1054,45 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		(label.element.firstElementChild as HTMLElement).style.display = 'none';
 
 		// Input field for name
-		const inputBox = new InputBox(label.element, this.contextViewService, {
-			validationOptions: {
-				validation: (value) => {
-					const message = editableData.validationMessage(value);
-					if (!message || message.severity !== Severity.Error) {
-						return null;
-					}
-
-					return {
-						content: message.content,
-						formatContent: true,
-						type: MessageType.ERROR
-					};
-				}
-			},
-			ariaLabel: localize('fileInputAriaLabel', "Type file name. Press Enter to confirm or Escape to cancel."),
-			inputBoxStyles: defaultInputBoxStyles,
-		});
-
 		const lastDot = value.lastIndexOf('.');
+		const inputBox = disposables.add(this.instantiationService.createInstance(InlineEditInputBox, label.element, {
+			...editableData,
+			onFinish: (value, success) => {
+				// Remove the file icon together with the input box
+				disposables.dispose();
+				return editableData.onFinish(value, success);
+			}
+		}, {
+			value,
+			ariaLabel: localize('fileInputAriaLabel', "Type file name. Press Enter to confirm or Escape to cancel."),
+			selection: { start: 0, end: lastDot > 0 && !stat.isDirectory ? lastDot : value.length }
+		})).inputBox;
+
 		let currentSelectionState = 'prefix';
 
-		inputBox.value = value;
-		inputBox.focus();
-		inputBox.select({ start: 0, end: lastDot > 0 && !stat.isDirectory ? lastDot : value.length });
-
-		const done = createSingleCallFunction((success: boolean, finishEditing: boolean) => {
-			label.element.style.display = 'none';
-			const value = inputBox.value;
-			dispose(toDispose);
-			label.element.remove();
-			if (finishEditing) {
-				editableData.onFinish(value, success);
-			}
-		});
-
-		const showInputBoxNotification = () => {
-			if (inputBox.isInputValid()) {
-				const message = editableData.validationMessage(inputBox.value);
-				if (message) {
-					inputBox.showMessage({
-						content: message.content,
-						formatContent: true,
-						type: message.severity === Severity.Info ? MessageType.INFO : message.severity === Severity.Warning ? MessageType.WARNING : MessageType.ERROR
-					});
+		disposables.add(inputBox.onDidChange(value => {
+			label.setFile(joinPath(parent, value || ' '), labelOptions); // update label icon while typing!
+		}));
+		disposables.add(DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
+			if (e.equals(KeyCode.F2)) {
+				const dotIndex = inputBox.value.lastIndexOf('.');
+				if (stat.isDirectory || dotIndex === -1) {
+					return;
+				}
+				if (currentSelectionState === 'prefix') {
+					currentSelectionState = 'all';
+					inputBox.select({ start: 0, end: inputBox.value.length });
+				} else if (currentSelectionState === 'all') {
+					currentSelectionState = 'suffix';
+					inputBox.select({ start: dotIndex + 1, end: inputBox.value.length });
 				} else {
-					inputBox.hideMessage();
+					currentSelectionState = 'prefix';
+					inputBox.select({ start: 0, end: dotIndex });
 				}
 			}
-		};
-		showInputBoxNotification();
+		}));
 
-		const toDispose = [
-			inputBox,
-			inputBox.onDidChange(value => {
-				label.setFile(joinPath(parent, value || ' '), labelOptions); // update label icon while typing!
-			}),
-			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
-				if (e.equals(KeyCode.F2)) {
-					const dotIndex = inputBox.value.lastIndexOf('.');
-					if (stat.isDirectory || dotIndex === -1) {
-						return;
-					}
-					if (currentSelectionState === 'prefix') {
-						currentSelectionState = 'all';
-						inputBox.select({ start: 0, end: inputBox.value.length });
-					} else if (currentSelectionState === 'all') {
-						currentSelectionState = 'suffix';
-						inputBox.select({ start: dotIndex + 1, end: inputBox.value.length });
-					} else {
-						currentSelectionState = 'prefix';
-						inputBox.select({ start: 0, end: dotIndex });
-					}
-				} else if (e.equals(KeyCode.Enter)) {
-					if (!inputBox.validate()) {
-						done(true, true);
-					}
-				} else if (e.equals(KeyCode.Escape)) {
-					done(false, true);
-				}
-			}),
-			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_UP, (e: IKeyboardEvent) => {
-				showInputBoxNotification();
-			}),
-			DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.BLUR, async () => {
-				while (true) {
-					await timeout(0);
-
-					const ownerDocument = inputBox.inputElement.ownerDocument;
-					if (!ownerDocument.hasFocus()) {
-						break;
-					} if (DOM.isActiveElement(inputBox.inputElement)) {
-						return;
-					} else if (DOM.isHTMLElement(ownerDocument.activeElement) && DOM.hasParentWithClass(ownerDocument.activeElement, 'context-view')) {
-						await Event.toPromise(this.contextMenuService.onDidHideContextMenu);
-					} else {
-						break;
-					}
-				}
-
-				done(inputBox.isInputValid(), true);
-			}),
-			label
-		];
-
-		return toDisposable(() => {
-			done(false, false);
-		});
+		return disposables;
 	}
 
 	disposeElement(element: ITreeNode<ExplorerItem, FuzzyScore>, index: number, templateData: IFileTemplateData): void {
@@ -1218,8 +1146,10 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 
 interface CachedParsedExpression {
 	original: glob.IExpression;
-	parsed: glob.ParsedExpression;
+	parsed: glob.IParsedExcludeExpression;
 }
+
+const NO_EXCLUDES = glob.parseExcludeExpression(glob.getEmptyExpression());
 
 /**
  * Respects files.exclude setting in filtering out content from the explorer.
@@ -1227,6 +1157,8 @@ interface CachedParsedExpression {
  */
 export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 	private hiddenExpressionPerRoot = new Map<string, CachedParsedExpression>();
+	// Excluded folders that are shown because an exclude exception could match beneath them
+	private readonly foldersLeadingToExceptions = new WeakSet<ExplorerItem>();
 	private editorsAffectingFilter = new Set<EditorInput>();
 	private _onDidChange = new Emitter<void>();
 	private toDispose: IDisposable[] = [];
@@ -1333,7 +1265,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 
 			const excludesConfigCopy = deepClone(excludesConfig); // do not keep the config, as it gets mutated under our hoods
 
-			this.hiddenExpressionPerRoot.set(folder.uri.toString(), { original: excludesConfigCopy, parsed: glob.parse(excludesConfigCopy) });
+			this.hiddenExpressionPerRoot.set(folder.uri.toString(), { original: excludesConfigCopy, parsed: glob.parseExcludeExpression(excludesConfigCopy) });
 		});
 
 		if (shouldFire || updatedGitIgnoreSetting) {
@@ -1395,6 +1327,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 
 	private isVisible(stat: ExplorerItem, parentVisibility: TreeVisibility): boolean {
 		stat.isExcluded = false;
+		this.foldersLeadingToExceptions.delete(stat);
 		if (parentVisibility === TreeVisibility.Hidden) {
 			stat.isExcluded = true;
 			return false;
@@ -1403,27 +1336,50 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 			return true; // always visible
 		}
 
-		// Hide those that match Hidden Patterns
-		const cached = this.hiddenExpressionPerRoot.get(stat.root.resource.toString());
-		const globMatch = cached?.parsed(path.relative(stat.root.resource.path, stat.resource.path), stat.name, name => !!(stat.parent?.getChild(name)));
-		// Small optimization to only run isHiddenResource (traverse gitIgnore) if the globMatch from fileExclude returned nothing
-		const isHiddenResource = globMatch ? true : this.isIgnored(stat.resource, stat.root.resource, stat.isDirectory);
-		if (isHiddenResource || stat.parent?.isExcluded) {
-			stat.isExcluded = true;
-			const editors = this.editorService.visibleEditors;
-			const editor = editors.find(e => e.resource && this.uriIdentityService.extUri.isEqualOrParent(e.resource, stat.resource));
-			if (editor && stat.root === this.explorerService.findClosestRoot(stat.resource)) {
-				this.editorsAffectingFilter.add(editor);
-				return true; // Show all opened files and their parents
-			}
-
-			return false; // hidden through pattern
+		const parent = stat.parent;
+		const { isExcluded, isVisited } = glob.evaluateExcludeTreeEntry(this.hiddenExpressionPerRoot.get(stat.root.resource.toString())?.parsed ?? NO_EXCLUDES, {
+			path: path.relative(stat.root.resource.path, stat.resource.path),
+			basename: stat.name,
+			isDirectory: stat.isDirectory,
+			isParentExcluded: !!parent && (parent.isExcluded || this.foldersLeadingToExceptions.has(parent)),
+			isHidden: () => this.isGitIgnored(stat.resource, stat.root.resource, stat.isDirectory),
+			hasSibling: name => !!parent?.getChild(name),
+		});
+		if (!isExcluded) {
+			return true;
 		}
 
-		return true;
+		if (isVisited) {
+			this.foldersLeadingToExceptions.add(stat);
+			return true;
+		}
+
+		stat.isExcluded = true;
+		const editors = this.editorService.visibleEditors;
+		const editor = editors.find(e => e.resource && this.uriIdentityService.extUri.isEqualOrParent(e.resource, stat.resource));
+		if (editor && stat.root === this.explorerService.findClosestRoot(stat.resource)) {
+			this.editorsAffectingFilter.add(editor);
+			return true; // Show all opened files and their parents
+		}
+
+		return false; // hidden through pattern
 	}
 
+	/**
+	 * Whether the resource is hidden by `.gitignore` and not shown again by an exclude exception,
+	 * either because an exception matches it or, for a folder, because it leads to an exception.
+	 */
 	isIgnored(resource: URI, rootResource: URI, isDirectory: boolean): boolean {
+		if (!this.isGitIgnored(resource, rootResource, isDirectory)) {
+			return false;
+		}
+
+		const relativePath = path.relative(rootResource.path, resource.path);
+		const parsed = this.hiddenExpressionPerRoot.get(rootResource.toString())?.parsed;
+		return !parsed?.isExcepted(relativePath) && !(isDirectory && parsed?.couldExceptionMatchBeneath(relativePath));
+	}
+
+	private isGitIgnored(resource: URI, rootResource: URI, isDirectory: boolean): boolean {
 		const ignoreFile = this.ignoreTreesPerRoot.get(rootResource.toString())?.findSubstr(resource);
 		const isIncludedInTraversal = ignoreFile?.isPathIncludedInTraversal(resource.path, isDirectory);
 

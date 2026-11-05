@@ -6,6 +6,7 @@ parameters:
       - unit-node
       - unit-browser-chromium
       - unit-browser-webkit
+      - integration-agent-host-e2e
       - integration-electron
       - integration-browser-chromium
       - integration-browser-firefox
@@ -14,6 +15,7 @@ parameters:
       - smoke-electron
       - smoke-agents-pac-proxy
       - smoke-agents-kerberos-pac-proxy
+      - smoke-wsl-kerberos-proxy
       - smoke-browser-chromium
       - smoke-remote
       - copilot-extension

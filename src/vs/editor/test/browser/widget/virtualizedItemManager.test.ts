@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../base/common/async.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../base/common/errors.js';
-import { constObservable, IObservable, observableValue } from '../../../../base/common/observable.js';
+import { autorun, constObservable, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
 import { ICompressedVirtualizedScrollViewContext } from '../../../browser/widget/multiDiffEditor/compressedVirtualizedScrollView.js';
@@ -80,6 +81,98 @@ suite('VirtualizedItemManager', () => {
 		}
 
 		assert.deepStrictEqual(createdTemplateIds, ['text', 'image']);
+	});
+
+	test('preserves a new binding when unbinding triggers synchronous template reuse', () => {
+		const template = disposables.add(new TestTemplate());
+		const context = { initialSize: 100, runWithScrollAnchor: () => { } };
+		const bindingA = template.bind(new TestItem('a', 100), context);
+		let bindingB: TestBinding | undefined;
+		disposables.add(autorun(reader => {
+			if (!template.currentBinding.read(reader) && !bindingB) {
+				bindingB = template.bind(new TestItem('b', 100), context);
+			}
+		}));
+		bindingA.dispose();
+		const currentItem = template.currentBinding.get()?.item.id;
+		bindingA.dispose();
+		bindingB!.dispose();
+
+		assert.deepStrictEqual({
+			currentItem,
+			firstDisposed: bindingA.didDispose,
+			secondDisposed: bindingB!.didDispose,
+			currentBinding: template.currentBinding.get(),
+		}, {
+			currentItem: 'b',
+			firstDisposed: true,
+			secondDisposed: true,
+			currentBinding: undefined,
+		});
+	});
+
+	test('manager disposal releases both active and idle templates', () => {
+		const templates: TestTemplate[] = [];
+		const manager = disposables.add(new VirtualizedItemManager<TestItem, TestBinding, TestTemplate>(
+			constObservable([new TestItem('a', 100), new TestItem('b', 100)]), createContext(), {
+			getId: item => item.id,
+			getTemplateId: () => 'test',
+			getUnboundSize: item => item.size,
+			createTemplate: () => {
+				const template = new TestTemplate();
+				templates.push(template);
+				return template;
+			},
+		}));
+		const [itemA, itemB] = manager.virtualizedItems.get();
+		const range = new OffsetRange(0, 100);
+		itemA.render(range, 0, 800, range);
+		itemB.render(range, 0, 800, range);
+		const bindings = [itemA.binding.get()!, itemB.binding.get()!];
+		itemA.hide();
+		manager.dispose();
+		manager.dispose();
+
+		assert.deepStrictEqual({
+			bindingsDisposed: bindings.map(binding => binding.didDispose),
+			templates: templates.map(template => ({
+				disposed: template.isDisposed,
+				currentBinding: template.currentBinding.get(),
+			})),
+		}, {
+			bindingsDisposed: [true, true],
+			templates: [
+				{ disposed: true, currentBinding: undefined },
+				{ disposed: true, currentBinding: undefined },
+			],
+		});
+	});
+
+	function captureDisposedBinding(template: TestTemplate) {
+		const item = new TestItem('a', 100);
+		const binding = template.bind(item, { initialSize: 100, runWithScrollAnchor: () => { } });
+		binding.dispose();
+		return { item: new WeakRef(item), binding: new WeakRef(binding) };
+	}
+
+	test('idle templates allow previous bindings and items to be collected after repeated reuse', async function () {
+		if (typeof globalThis.gc !== 'function') {
+			this.skip();
+		}
+		const template = disposables.add(new TestTemplate());
+		const captured = Array.from({ length: 20 }, () => captureDisposedBinding(template));
+		await timeout(0);
+		await globalThis.gc!({ type: 'major', execution: 'async' });
+
+		assert.deepStrictEqual({
+			currentBinding: template.currentBinding.get(),
+			retainedBindings: captured.filter(ref => ref.binding.deref() !== undefined).length,
+			retainedItems: captured.filter(ref => ref.item.deref() !== undefined).length,
+		}, {
+			currentBinding: undefined,
+			retainedBindings: 0,
+			retainedItems: 0,
+		});
 	});
 
 	test('isolates a failed binding without changing cached layout state', () => {
@@ -161,6 +254,10 @@ class TestBinding extends VirtualizedItemBinding<TestItem> {
 }
 
 class TestTemplate extends VirtualizedItemTemplate<TestItem, TestBinding> {
+	get isDisposed(): boolean {
+		return this._store.isDisposed;
+	}
+
 	constructor(
 		private readonly _bindingAttempts?: string[],
 		private readonly _itemToFail?: string,

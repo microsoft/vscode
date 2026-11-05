@@ -5,6 +5,7 @@
 
 import '../../browser/media/sessionChangesEditor.css';
 import '../../../agentFeedback/browser/media/agentFeedbackEditorInput.css';
+import '../../../../../workbench/browser/media/feedbackInputWidget.css';
 import '../../../../../base/browser/ui/codicons/codiconStyles.js';
 import { $, Dimension, getWindow } from '../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -302,7 +303,7 @@ async function renderAgentsDiffEditor({ container, disposableStore, disposableSt
 		renderDockedDetailPanel(editorPart);
 		const input = disposableStackStore.add(new TestEditorInput(OVERLAY_RESOURCE, 'fixture.agentsDiff'));
 		const group = new FixtureOverlayEditorGroup(editorPane, input);
-		disposableStackStore.add(instantiationService.createInstance(AgentFeedbackOverlayController, group));
+		disposableStackStore.add(instantiationService.createInstance(AgentFeedbackOverlayController, group, undefined));
 		return;
 	}
 

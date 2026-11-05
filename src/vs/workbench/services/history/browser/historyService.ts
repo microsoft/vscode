@@ -28,7 +28,7 @@ import { addDisposableListener, EventType, EventHelper, WindowIdleValue } from '
 import { IWorkspacesService } from '../../../../platform/workspaces/common/workspaces.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
-import { ResourceGlobMatcher } from '../../../common/resources.js';
+import { ExcludeResourceGlobMatcher } from '../../../common/resources.js';
 import { IPathService } from '../../path/common/pathService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ILifecycleService, LifecyclePhase } from '../../lifecycle/common/lifecycle.js';
@@ -860,7 +860,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	private readonly resourceExcludeMatcher = this._register(new WindowIdleValue(mainWindow, () => {
 		const matcher = this._register(this.instantiationService.createInstance(
-			ResourceGlobMatcher,
+			ExcludeResourceGlobMatcher,
 			root => getExcludes(root ? this.configurationService.getValue<ISearchConfiguration>({ resource: root }) : this.configurationService.getValue<ISearchConfiguration>()) || Object.create(null),
 			event => event.affectsConfiguration(FILES_EXCLUDE_CONFIG) || event.affectsConfiguration(SEARCH_EXCLUDE_CONFIG)
 		));

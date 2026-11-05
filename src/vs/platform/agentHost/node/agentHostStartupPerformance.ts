@@ -38,7 +38,6 @@ export interface IAgentHostStartupMetrics {
 	stateFallbackCount?: number;
 	databaseOpenCount?: number;
 	databaseStatCount?: number;
-	catalogEnabled?: boolean;
 	externalSessionsMode?: AgentHostExternalSessionsMode;
 	synchronizedSessionCount?: number;
 	skippedSessionCount?: number;
@@ -169,7 +168,6 @@ type StartupMarkClassification = {
 	stateFallbackCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Rows added from live host state rather than persisted registrations.' };
 	databaseOpenCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Process-wide session database opens during this operation, including overlapping work.' };
 	databaseStatCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Process-wide session database stats during this operation, including overlapping work.' };
-	catalogEnabled?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether session listing used the central catalog.' };
 	externalSessionsMode?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Bounded external-session visibility mode used by the listing.' };
 	synchronizedSessionCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Migration candidates synchronized into the central catalog.' };
 	skippedSessionCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Migration candidates already current.' };

@@ -386,7 +386,7 @@ export class ChatSetupController extends Disposable {
 					}
 					if (parsed.kind === GheParseResultKind.Invalid) {
 						return {
-							content: localize('invalidEnterpriseInstance', "Enter a GHE.com instance name or HTTPS URL."),
+							content: localize('invalidEnterpriseInstance2', "Enter a GHE.com instance name or HTTPS URL."),
 							severity: Severity.Error
 						};
 					}
@@ -399,7 +399,7 @@ export class ChatSetupController extends Disposable {
 			}
 			const parsed = parseGheInstanceInput(result);
 			if (parsed.kind === GheParseResultKind.Empty || parsed.kind === GheParseResultKind.Invalid) {
-				throw new Error(localize('invalidEnterpriseInstance', "Enter a GHE.com instance name or HTTPS URL."));
+				throw new Error(localize('invalidEnterpriseInstance2', "Enter a GHE.com instance name or HTTPS URL."));
 			}
 			await addGitHubEnterpriseUri(this.configurationService, parsed.resolvedUri, this.workspaceTrustManagementService.isWorkspaceTrusted(), defaultChat.providerUriSetting, invalidUri);
 		}

@@ -126,6 +126,36 @@ suite('NotificationRenderer', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('primary buttons expose and track disabled actions without invoking or closing the notification', () => {
+		const container = document.createElement('div');
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const renderer = instantiationService.createInstance(NotificationRenderer, store.add(new ActionRunner()));
+		const template = renderer.renderTemplate(container);
+		store.add(toDisposable(() => renderer.disposeTemplate(template)));
+		let invoked = 0;
+		let closed = false;
+		const action = store.add(new Action('cancel', 'Cancel', undefined, false, () => { invoked++; }));
+		const notification = NotificationViewItem.create({
+			severity: Severity.Info, message: 'Exporting', actions: { primary: [action] },
+		}, { global: NotificationsFilter.OFF, sources: new Map() })!;
+		store.add(toDisposable(() => notification.close()));
+		store.add(notification.onDidClose(() => { closed = true; }));
+		notification.expand();
+		renderer.renderElement(notification, 0, template);
+		const button = template.buttonsContainer.querySelector<HTMLElement>('.monaco-button');
+		assert.ok(button);
+		const initialDisabled = button.getAttribute('aria-disabled');
+		action.enabled = true;
+		const enabled = button.getAttribute('aria-disabled');
+		action.enabled = false;
+		button.click();
+		button.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+		assert.deepStrictEqual({
+			initialDisabled, enabled, finalDisabled: button.getAttribute('aria-disabled'),
+			invoked, closed,
+		}, { initialDisabled: 'true', enabled: 'false', finalDisabled: 'true', invoked: 0, closed: false });
+	});
+
 	const filename = 'README.md [Open](command:unexpected "Open README")';
 	for (const { name, message, legacy, expectedText, expectedLinks } of [
 		{ name: 'literal', message: filename, legacy: false, expectedText: filename, expectedLinks: [] },

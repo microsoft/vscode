@@ -12,7 +12,7 @@ import { IEditorGroup } from '../../../services/editor/common/editorGroupsServic
 import { ImageCarouselEditor } from '../../../contrib/imageCarousel/browser/imageCarouselEditor.js';
 import { ImageCarouselEditorInput } from '../../../contrib/imageCarousel/browser/imageCarouselEditorInput.js';
 import { ICarouselImage, IImageCarouselCollection } from '../../../contrib/imageCarousel/browser/imageCarouselTypes.js';
-import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from './fixtureUtils.js';
+import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from './fixtureUtils.js';
 import '../../../contrib/imageCarousel/browser/media/imageCarousel.css';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { NullFileSystemProvider } from '../../../../platform/files/test/common/nullFileSystemProvider.js';
@@ -20,6 +20,9 @@ import { FileService } from '../../../../platform/files/common/fileService.js';
 import { NullLogService } from '../../../../platform/log/common/log.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IWebviewService } from '../../../contrib/webview/browser/webview.js';
+import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { ISharedWebContentExtractorService, NullSharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
+import { IWebWorkerService } from '../../../../platform/webWorker/browser/webWorkerService.js';
 
 function createSolidPng(r: number, g: number, b: number, width: number = 64, height: number = 64): VSBuffer {
 	const canvas = mainWindow.document.createElement('canvas');
@@ -58,12 +61,17 @@ async function renderCarousel(context: ComponentFixtureContext, collection: IIma
 
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: theme,
-		additionalServices: ({ defineInstance }) => {
+		additionalServices: registration => {
+			registerWorkbenchServices(registration);
+			const { defineInstance } = registration;
 			const fileService = new FileService(new NullLogService());
 			disposableStore.add(fileService.registerProvider(Schemas.file, new NullFileSystemProvider()));
 			disposableStore.add(fileService);
 			defineInstance(IFileService, fileService);
 			defineInstance(IWebviewService, new class extends mock<IWebviewService>() { }());
+			defineInstance(IFileDialogService, new class extends mock<IFileDialogService>() { }());
+			defineInstance(ISharedWebContentExtractorService, new NullSharedWebContentExtractorService());
+			defineInstance(IWebWorkerService, new class extends mock<IWebWorkerService>() { }());
 		},
 	});
 

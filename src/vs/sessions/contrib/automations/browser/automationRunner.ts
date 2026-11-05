@@ -11,7 +11,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IAutomationDescriptor } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationRunDispatch, IAutomationRunner, IAutomationRunOperation } from '../../../../workbench/contrib/chat/common/automations/automationRunner.js';
-import { AutomationUnavailableError, IAutomationService } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationMutationUncertainError, AutomationUnavailableError, IAutomationService } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 
 /**
@@ -52,6 +52,10 @@ export class AutomationRunner implements IAutomationRunner {
 				throw new AutomationUnavailableError(localize('automationRunUnavailable', "The automation's Agent Host is not ready to run it."));
 			}
 			const result = await this.automationService.runAutomation(automation.id, token);
+			if (result.kind === 'accepted') {
+				await dispatched.complete({ kind: 'accepted' });
+				return;
+			}
 			if (result.kind === 'alreadyRunning') {
 				await dispatched.complete({ kind: 'alreadyRunning', activeRun: result.run });
 				return;
@@ -86,6 +90,12 @@ export class AutomationRunner implements IAutomationRunner {
 				cancellationListener?.dispose();
 			}
 		} catch (error) {
+			if (error instanceof AutomationMutationUncertainError) {
+				this.logService.warn(`[AutomationRunner] Run request outcome unknown for ${automation.id}`, error);
+				this.notificationService.warn(error.message);
+				await dispatched.complete({ kind: 'uncertain', message: error.message });
+				return;
+			}
 			if (token.isCancellationRequested && isCancellationError(error)) {
 				await dispatched.complete({ kind: 'notStarted', reason: 'cancelled' });
 				return;
@@ -107,6 +117,9 @@ export class AutomationRunner implements IAutomationRunner {
 		const store = provider.automations;
 		if (store === undefined) {
 			throw new AutomationUnavailableError(localize('automationProviderUnsupported', "{0} does not support automations. Use an Agent Host that supports automations.", provider.label));
+		}
+		if (store.enabled?.get() === false) {
+			throw new AutomationUnavailableError(localize('automationProviderDisabled', "Automations from {0} are disabled.", provider.label));
 		}
 		switch (store.catalogueState.get()) {
 			case 'ready':

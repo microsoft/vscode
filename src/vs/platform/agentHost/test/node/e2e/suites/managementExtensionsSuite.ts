@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { writeFileSync, mkdtempSync } from 'fs';
+import { writeFileSync } from 'fs';
 import type { AddressInfo } from 'net';
 import { tmpdir } from 'os';
 import { retry } from '../../../../../../base/common/async.js';
@@ -22,6 +22,7 @@ import { createRealSession, driveTurnToCompletion } from '../harness/agentHostE2
 import { vscodeAgentHostTarget } from '../harness/agentHostTarget.js';
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import { conformanceTest, providerHostOnlyTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 type DebugLogsArtifactResult = IAgentHostExtensionCommandMap[typeof CollectAgentHostDebugLogsExtensionMethod]['result'];
 type DebugLogsChunkResult = IAgentHostExtensionCommandMap[typeof ReadAgentHostDebugLogsChunkExtensionMethod]['result'];
@@ -224,7 +225,7 @@ export function defineManagementExtensionTests(context: IAgentHostE2ETestContext
 	});
 
 	conformanceTest(context, 'debug artifact reads reject a foreign file', async function () {
-		const directory = mkdtempSync(join(tmpdir(), 'ahp-debug-foreign-'));
+		const directory = createTestDirectory(join(tmpdir(), 'ahp-debug-foreign-'));
 		tempDirs.push(directory);
 		const file = join(directory, 'foreign.log');
 		writeFileSync(file, 'must not be readable');
@@ -269,7 +270,7 @@ export function defineManagementExtensionTests(context: IAgentHostE2ETestContext
 	});
 
 	conformanceTest(context, 'unmaterialized session debug collection contains only host logs', async function () {
-		const workspace = mkdtempSync(join(tmpdir(), 'ahp-debug-unmaterialized-'));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-debug-unmaterialized-'));
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `debug-unmaterialized-${config.provider}`, createdSessions, URI.file(workspace));
 		const artifact = await collectPopulatedDebugLogs('directory', sessionUri);
@@ -286,7 +287,7 @@ export function defineManagementExtensionTests(context: IAgentHostE2ETestContext
 	});
 
 	conformanceTest(context, 'unmaterialized session has no provider state file', async function () {
-		const workspace = mkdtempSync(join(tmpdir(), 'ahp-state-file-unmaterialized-'));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-state-file-unmaterialized-'));
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `state-file-unmaterialized-${config.provider}`, createdSessions, URI.file(workspace));
 
@@ -460,7 +461,7 @@ export function defineManagementExtensionTests(context: IAgentHostE2ETestContext
 	if (context.tier === 'parity') {
 		test('materialized provider exposes its supported management artifacts', async function () {
 			this.timeout(180_000);
-			const workspace = mkdtempSync(join(tmpdir(), 'ahp-provider-management-'));
+			const workspace = createTestDirectory(join(tmpdir(), 'ahp-provider-management-'));
 			tempDirs.push(workspace);
 			const sessionUri = await createRealSession(context.client, config, `provider-management-${config.provider}`, createdSessions, URI.file(workspace));
 			await driveTurnToCompletion(context.client, sessionUri, 'turn-provider-management', 'Reply exactly "ready".', 1);
@@ -487,7 +488,7 @@ export function defineManagementExtensionTests(context: IAgentHostE2ETestContext
 
 		if (config.provider === 'copilotcli') {
 			providerHostOnlyTest(context, 'materialized Copilot debug collection includes process log', async function () {
-				const workspace = mkdtempSync(join(tmpdir(), 'ahp-copilot-debug-logs-'));
+				const workspace = createTestDirectory(join(tmpdir(), 'ahp-copilot-debug-logs-'));
 				tempDirs.push(workspace);
 				const sessionUri = await createRealSession(context.client, config, 'copilot-debug-logs', createdSessions, URI.file(workspace));
 

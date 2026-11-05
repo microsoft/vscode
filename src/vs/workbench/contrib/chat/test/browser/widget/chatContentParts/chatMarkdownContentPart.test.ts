@@ -4,41 +4,59 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { spy } from 'sinon';
+import { spy, stub } from 'sinon';
 import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
-import { addDisposableListener } from '../../../../../../../base/browser/dom.js';
+import { decodeBase64, encodeBase64, VSBuffer } from '../../../../../../../base/common/buffer.js';
+import { addDisposableListener, scheduleAtNextAnimationFrame } from '../../../../../../../base/browser/dom.js';
+import { DomScrollableElement } from '../../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Event } from '../../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
+import { OffsetRange } from '../../../../../../../editor/common/core/ranges/offsetRange.js';
+import { resolvePath } from '../../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
-import { mock } from '../../../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../../../base/test/common/mock.js';
+import { IMenuService, MenuId } from '../../../../../../../platform/actions/common/actions.js';
+import { IContextMenuService } from '../../../../../../../platform/contextview/browser/contextView.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { SymbolKind, SymbolTag } from '../../../../../../../editor/common/languages.js';
 import { ILinkPresentation, ILinkPresentationService } from '../../../../../../../platform/dataChannel/common/dataChannel.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
+import { IMarkdownRenderer, MarkdownRendererService } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
+import { BrowserResourceService } from '../../../../../../../platform/files/browser/browserResourceService.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
-import { toAgentHostUri } from '../../../../../../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../../../../../platform/agentHost/common/agentHostUri.js';
+import { AgentHostFileSystemProvider, IRemoteFilesystemConnection } from '../../../../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
+import { ContentEncoding, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceType } from '../../../../../../../platform/agentHost/common/state/protocol/commands.js';
+import { IFileService } from '../../../../../../../platform/files/common/files.js';
+import { FileService } from '../../../../../../../platform/files/common/fileService.js';
+import { createInMemoryFileService } from '../../../../../../../platform/files/test/common/inMemoryFileService.js';
+import { NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { IChatContentPartRenderContext } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
-import { ChatMarkdownContentPart } from '../../../../browser/widget/chatContentParts/chatMarkdownContentPart.js';
+import { ChatMarkdownContentPart, IChatMarkdownContentPartOptions } from '../../../../browser/widget/chatContentParts/chatMarkdownContentPart.js';
 import { ChatMarkdownDecorationsRenderer } from '../../../../browser/widget/chatContentParts/chatMarkdownDecorationsRenderer.js';
 import { ChatMarkdownAnchorService, IChatMarkdownAnchorService } from '../../../../browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { IChatPetService } from '../../../../browser/chatPetService.js';
+import { IChatImageCarouselService } from '../../../../browser/chatImageCarouselService.js';
 import { ChatContentMarkdownRenderer } from '../../../../browser/widget/chatContentMarkdownRenderer.js';
 import { EditorPool, DiffEditorPool } from '../../../../browser/widget/chatContentParts/chatContentCodePools.js';
 import { CodeBlockPart, ICodeBlockData } from '../../../../browser/widget/chatContentParts/codeBlockPart.js';
 import { IChatOutputRendererService, type RenderedOutputPart } from '../../../../browser/chatOutputItemRenderer.js';
 import { IChatOutputPartStateCache, IOutputPartState } from '../../../../browser/widget/chatContentParts/chatOutputPartStateCache.js';
-import { IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
+import { IChatRequestViewModel, IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
 import { IChatContentInlineReference } from '../../../../common/chatService/chatService.js';
+import { getChatMarkdownImageId } from '../../../../common/chatImageExtraction.js';
 import { IChatSessionsService } from '../../../../common/chatSessionsService.js';
+import { ChatRequestSlashPromptPart } from '../../../../common/requestParser/chatParserTypes.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
+import { MarkedKatexSupport } from '../../../../../markdown/browser/markedKatexSupport.js';
 import { rewriteAgentHostLinkTarget } from '../../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { IAiEditTelemetryService } from '../../../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { IViewDescriptorService } from '../../../../../../common/views.js';
@@ -117,11 +135,11 @@ suite('ChatMarkdownContentPart', () => {
 		};
 	}
 
-	function createMarkdownPart(markdownText: string, context?: IChatContentPartRenderContext, fillInIncompleteTokens = false): ChatMarkdownContentPart {
+	function createMarkdownPart(markdown: string | MarkdownString, context?: IChatContentPartRenderContext, fillInIncompleteTokens = false, supportHtml = false, rendererOptions: IChatMarkdownContentPartOptions = {}): ChatMarkdownContentPart {
 		const ctx = context ?? createRenderContext();
 		return store.add(instantiationService.createInstance(
 			ChatMarkdownContentPart,
-			{ kind: 'markdownContent', content: new MarkdownString(markdownText) },
+			{ kind: 'markdownContent', content: typeof markdown === 'string' ? new MarkdownString(markdown, { supportHtml }) : markdown },
 			ctx,
 			editorPool,
 			fillInIncompleteTokens,
@@ -129,7 +147,7 @@ suite('ChatMarkdownContentPart', () => {
 			renderer,
 			undefined, // markdownRenderOptions
 			() => ctx.currentWidth.get(),
-			{}, // rendererOptions
+			rendererOptions,
 		));
 	}
 
@@ -190,17 +208,7 @@ suite('ChatMarkdownContentPart', () => {
 		});
 
 		// Stub hover service
-		instantiationService.stub(IHoverService, {
-			_serviceBrand: undefined,
-			showDelayedHover: () => undefined,
-			setupDelayedHover: () => ({ dispose: () => { } }),
-			setupDelayedHoverAtMouse: () => ({ dispose: () => { } }),
-			showInstantHover: () => undefined,
-			hideHover: () => { },
-			showAndFocusLastHover: () => { },
-			setupManagedHover: () => ({ dispose: () => { }, show: () => { }, hide: () => { }, update: () => { } }),
-			showManagedHover: () => { },
-		});
+		instantiationService.stub(IHoverService, { ...NullHoverService });
 
 		// Stub AI edit telemetry service
 		instantiationService.stub(IAiEditTelemetryService, {
@@ -251,6 +259,39 @@ suite('ChatMarkdownContentPart', () => {
 
 	teardown(() => {
 		disposables.dispose();
+	});
+
+	test('preserves Unicode prompt names and Markdown delimiters in request decorations', () => {
+		const decorationsRenderer = disposables.add(instantiationService.createInstance(ChatMarkdownDecorationsRenderer));
+		const names = [
+			// allow-any-unicode-next-line
+			'龩胤𬭳獫㰜〒６0D狛龫龨截茎疄盷㓝㏄ΩFe佨勵)エ㈱㑺惊龬㈨γ8傐𬨎',
+			'prompt)',
+			'prompt(',
+			'prompt[link]',
+			'prompt[',
+			'prompt\\]',
+			'prompt*bold*',
+			'prompt_code_',
+			'prompt`code`',
+			'prompt<tag>',
+			'prompt&copy;',
+		];
+		const actual = names.map(name => {
+			const text = `/${name}`;
+			const part = new ChatRequestSlashPromptPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), name);
+			const markdown = decorationsRenderer.convertParsedRequestToMarkdown(URI.parse('chat-session://test/session1'), { text, parts: [part] });
+			const rendered = disposables.add(renderer.render(new MarkdownString(markdown)));
+			const anchor = rendered.element.querySelector('a');
+			const href = anchor?.getAttribute('data-href');
+			disposables.add(decorationsRenderer.walkTreeAndAnnotateReferenceLinks({ kind: 'markdownContent', content: new MarkdownString(markdown) }, rendered.element));
+			return {
+				text: rendered.element.textContent,
+				decorationCount: rendered.element.querySelectorAll('.chat-resource-widget').length,
+				href: href && decodeURIComponent(href),
+			};
+		});
+		assert.deepStrictEqual(actual, names.map(name => ({ text: `/${name}`, decorationCount: 1, href: `http://_vscodedecoration_?${JSON.stringify({ title: name })}` })));
 	});
 
 	test('decorates a response with 1000 ordinary links and one preview link in a single anchor scan', () => {
@@ -383,8 +424,16 @@ suite('ChatMarkdownContentPart', () => {
 					{ text: 'session', href: 'agent-host-session://copilotcli/session-1' },
 					{ text: 'chat', href: 'agent-host-session://copilotcli/session-1?chat=chat-2' },
 				],
-				imageSource: null,
+				imageSource: toAgentHostUri(URI.file('/remote/image.png'), 'my-host').toString(true),
 			},
+		);
+	});
+
+	test('preserves browser-normalized links without parsing them as file resources', () => {
+		const part = createMarkdownPart('[Web](https:////example.com) [Source](file:///workspace/file.ts)');
+		assert.deepStrictEqual(
+			Array.from(part.domNode.querySelectorAll('a'), anchor => ({ text: anchor.textContent, href: anchor.getAttribute('data-href') })),
+			[{ text: 'Web', href: 'https:////example.com' }, { text: 'Source', href: 'file:///workspace/file.ts' }],
 		);
 	});
 
@@ -407,6 +456,321 @@ suite('ChatMarkdownContentPart', () => {
 		);
 	});
 
+	suite('Agent Host file images', () => {
+		const imageBytes = decodeBase64('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a79cAAAAASUVORK5CYII=');
+		const directory = URI.file('/remote/my project');
+		const resource = toAgentHostUri(URI.file('/remote/my project/image.png'), 'sandbox');
+		let fileService: FileService;
+		let browserResources: BrowserResourceService;
+		let resolveImage: ((href: string) => string) | undefined;
+
+		function useFileService(service: FileService): void {
+			browserResources?.dispose();
+			browserResources = disposables.add(new BrowserResourceService(undefined, service));
+			disposables.add(browserResources.registerScheme(AGENT_HOST_SCHEME));
+			instantiationService.stub(IFileService, service);
+			renderer = instantiationService.createInstance(ChatContentMarkdownRenderer);
+		}
+
+		setup(async () => {
+			resolveImage = undefined;
+			fileService = createInMemoryFileService(disposables, AGENT_HOST_SCHEME);
+			useFileService(fileService);
+			disposables.add(chatSessionsService.registerChatSessionContentProvider('chat-session', {
+				provideChatSessionContent: async () => { throw new Error('Unexpected session resolution'); },
+				resolveChatResponseUri: (_resource, href, kind) => kind === 'image' && resolveImage ? resolveImage(href) : rewriteAgentHostLinkTarget(href, 'sandbox', undefined, kind === 'image' ? directory : undefined),
+			}));
+			await fileService.createFolder(toAgentHostUri(directory, 'sandbox'));
+			await fileService.writeFile(resource, imageBytes);
+		});
+
+		async function waitForImage(part: ChatMarkdownContentPart): Promise<HTMLImageElement> {
+			const image = part.domNode.querySelector('img')!;
+			if (image.complete && image.naturalWidth > 0) {
+				return image;
+			}
+
+			const loaded = new DeferredPromise<void>();
+			disposables.add(addDisposableListener(image, 'load', () => loaded.complete()));
+			disposables.add(addDisposableListener(image, 'error', () => loaded.error(new Error('Image failed to decode'))));
+			await loaded.p;
+			return image;
+		}
+
+		test('renders a tool-result snapshot without reading the inaccessible sandbox file', async () => {
+			resolveImage = () => `data:image/png;base64,${encodeBase64(imageBytes)}`;
+			const read = spy(fileService, 'readFile');
+			disposables.add(toDisposable(() => read.restore()));
+			const part = createMarkdownPart('![Screenshot](/tmp/unavailable.png)');
+			const image = await waitForImage(part);
+			assert.deepStrictEqual({
+				bytes: new Uint8Array(await (await fetch(image.src)).arrayBuffer()), alt: image.alt, reads: read.callCount,
+			}, { bytes: new Uint8Array(imageBytes.buffer), alt: 'Screenshot', reads: 0 });
+		});
+
+		for (const target of ['file:///remote/my%20project/image.png', '/remote/my%20project/image.png', './image.png', toAgentHostUri(URI.file('/remote/my project/image.png'), 'sandbox').toString()]) {
+			test(`loads ${target} through the owning file provider`, async () => {
+				const read = spy(fileService, 'readFile');
+				disposables.add(toDisposable(() => read.restore()));
+				const part = createMarkdownPart(`![Robot](<${target}|width=12,height=8> "Test image")`);
+				const initialSource = part.domNode.querySelector('img')?.getAttribute('src');
+				const image = await waitForImage(part);
+				const bytes = new Uint8Array(await (await fetch(image.src)).arrayBuffer());
+
+				assert.deepStrictEqual({
+					initialSource,
+					resource: read.firstCall.args[0].toString(),
+					blob: image.src.startsWith('blob:'),
+					alt: image.alt,
+					title: image.title,
+					width: image.width,
+					height: image.height,
+					bytes,
+				}, {
+					initialSource: null,
+					resource: resource.toString(),
+					blob: true,
+					alt: 'Robot',
+					title: 'Test image',
+					width: 12,
+					height: 8,
+					bytes: new Uint8Array(imageBytes.buffer),
+				});
+			});
+		}
+
+		test('reads the host-local URI as binary through the Agent Host filesystem provider', async () => {
+			const reads: { uri: string; encoding?: ContentEncoding }[] = [];
+			const resolves: string[] = [];
+			const provider = disposables.add(new AgentHostFileSystemProvider());
+			disposables.add(provider.registerAuthority('sandbox', new class extends mock<IRemoteFilesystemConnection>() {
+				override async resourceResolve(params: ResourceResolveParams): Promise<ResourceResolveResult> {
+					resolves.push(params.uri);
+					return { uri: params.uri, type: ResourceType.File, size: imageBytes.byteLength };
+				}
+				override async resourceRead(uri: URI, encoding?: ContentEncoding): Promise<ResourceReadResult> {
+					reads.push({ uri: uri.toString(), encoding });
+					return { data: encodeBase64(imageBytes), encoding: ContentEncoding.Base64 };
+				}
+			}()));
+			const service = disposables.add(new FileService(new NullLogService()));
+			disposables.add(service.registerProvider(AGENT_HOST_SCHEME, provider));
+			useFileService(service);
+			const part = createMarkdownPart('![Robot](./image.png)');
+			const image = await waitForImage(part);
+			const bytes = new Uint8Array(await (await fetch(image.src)).arrayBuffer());
+
+			assert.deepStrictEqual({ reads, resolves, bytes }, {
+				reads: [{ uri: 'file:///remote/my%20project/image.png', encoding: ContentEncoding.Base64 }],
+				resolves: ['file:///remote/my%20project/image.png'],
+				bytes: new Uint8Array(imageBytes.buffer),
+			});
+		});
+
+		test('supports JPEG files using the existing raster image formats', async () => {
+			const canvas = mainWindow.document.createElement('canvas');
+			canvas.width = canvas.height = 1;
+			const jpegBytes = decodeBase64(canvas.toDataURL('image/jpeg').split(',')[1]);
+			await fileService.writeFile(toAgentHostUri(URI.file('/remote/my project/image.jpg'), 'sandbox'), jpegBytes);
+			const part = createMarkdownPart('![Robot](./image.jpg)');
+			const image = await waitForImage(part);
+			const blob = await (await fetch(image.src)).blob();
+
+			assert.deepStrictEqual({ mime: blob.type, width: image.naturalWidth, height: image.naturalHeight }, { mime: 'image/jpg', width: 1, height: 1 });
+		});
+
+		test('reuses image bytes during streaming and revokes blob URLs on disposal', async () => {
+			(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ChatConfiguration.IncrementalRendering, true);
+			const read = spy(fileService, 'readFile');
+			disposables.add(toDisposable(() => read.restore()));
+			const part = createMarkdownPart('![Robot](./image.png)', createRenderContext(false), true);
+			const first = await waitForImage(part);
+			const source = first.src;
+			const drained = Event.toPromise(part.onDidFinishRendering);
+			const changed = part.tryIncrementalUpdate({ kind: 'markdownContent', content: new MarkdownString('![Robot](./image.png)\n\nMore text.') });
+			part.updateStreamRate(100, true);
+			await drained;
+			await waitForImage(part);
+			assert.deepStrictEqual({ changed, reads: read.callCount, source: part.domNode.querySelector('img')?.src }, { changed: true, reads: 1, source });
+			part.dispose();
+			await timeout(0);
+			await assert.rejects(fetch(source));
+		});
+
+		test('does not activate a pending image after disposal', async () => {
+			const content = await fileService.readFile(resource);
+			const pending = new DeferredPromise<typeof content>();
+			const read = stub(fileService, 'readFile').returns(pending.p);
+			disposables.add(toDisposable(() => read.restore()));
+			const part = createMarkdownPart('![Robot](./image.png)');
+			const image = part.domNode.querySelector('img')!;
+			part.dispose();
+			await pending.complete(content);
+			await timeout(0);
+			assert.strictEqual(image.getAttribute('src'), null);
+		});
+
+		test('rejects SVG before reading or activating its content', async () => {
+			const svg = toAgentHostUri(URI.file('/remote/my project/diagram.svg'), 'sandbox');
+			await fileService.writeFile(svg, VSBuffer.fromString('<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="10" height="10" fill="red"/></svg>'));
+			const read = spy(fileService, 'readFile');
+			disposables.add(toDisposable(() => read.restore()));
+			const part = createMarkdownPart('![Diagram](./diagram.svg)');
+			await timeout(0);
+			assert.deepStrictEqual({
+				source: part.domNode.querySelector('img')?.getAttribute('src'),
+				reads: read.callCount,
+			}, { source: undefined, reads: 0 });
+		});
+
+		test('verifies ownership using the actual file, not a synthetic root URI', async () => {
+			const resolve = spy(chatSessionsService, 'resolveChatResponseUri');
+			disposables.add(toDisposable(() => resolve.restore()));
+			const part = createMarkdownPart('![Robot](./image.png)');
+			await waitForImage(part);
+			assert.deepStrictEqual(resolve.getCalls().map(call => call.args.slice(1)), [
+				['./image.png', 'image'],
+				['file:///remote/my%20project/image.png', 'image'],
+			]);
+		});
+
+		test('preserves embedded data images without reading a sandbox resource', async () => {
+			const read = spy(fileService, 'readFile');
+			disposables.add(toDisposable(() => read.restore()));
+			const source = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a79cAAAAASUVORK5CYII=';
+			const part = createMarkdownPart(`![Embedded](${source})`);
+			const image = await waitForImage(part);
+			assert.deepStrictEqual({ source: image.src, alt: image.alt, reads: read.callCount }, { source, alt: 'Embedded', reads: 0 });
+		});
+
+		test('does not activate HTTP, network-file, or other-host images', async () => {
+			const read = spy(fileService, 'readFile');
+			disposables.add(toDisposable(() => read.restore()));
+			const targets = [
+				'https://github.com/example/repo/image.png?secret=value',
+				'http://example.com/image.png',
+				'//server/share/image.png',
+				'file://server/share/image.png',
+				'vscode-remote://ssh-remote+host/remote/image.png',
+				'vscode-managed-remote-resource://window:1/remote/image.png?authority=host',
+				toAgentHostUri(URI.file('/remote/image.png'), 'another-sandbox').toString(),
+				toAgentHostUri(URI.parse('https://example.com/image.png'), 'sandbox').toString(),
+				resource.with({ query: '_ah=invalid' }).toString(),
+			];
+			const part = createMarkdownPart(targets.map(target => `![Blocked](<${target}>)`).join('\n'));
+			await timeout(0);
+			assert.deepStrictEqual({
+				reads: read.callCount,
+				sources: Array.from(part.domNode.querySelectorAll('img[src]'), image => image.getAttribute('src')),
+			}, { reads: 0, sources: [] });
+		});
+
+		test('does not load raw HTML images through the Markdown file-image extension', async () => {
+			const read = spy(fileService, 'readFile');
+			disposables.add(toDisposable(() => read.restore()));
+			const part = createMarkdownPart(`<img src="${resource.toString()}"><img src="https://github.com/example/image.png">`, undefined, false, true);
+			await timeout(0);
+			assert.deepStrictEqual({
+				reads: read.callCount,
+				sources: Array.from(part.domNode.querySelectorAll('img[src]'), image => image.getAttribute('src')),
+			}, { reads: 0, sources: [] });
+		});
+
+		test('preserves alternative text when the browser cannot decode the image', async () => {
+			await fileService.writeFile(resource, VSBuffer.fromString('not an image'));
+			const part = createMarkdownPart('![Robot](./image.png)');
+			const image = part.domNode.querySelector('img')!;
+			const failed = new DeferredPromise<void>();
+			disposables.add(addDisposableListener(image, 'error', () => failed.complete()));
+			await failed.p;
+			assert.deepStrictEqual({ alt: image.alt, width: image.naturalWidth }, { alt: 'Robot', width: 0 });
+		});
+
+		test('opens file images, but not linked or remote images, in the conversation image carousel', () => {
+			(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ChatConfiguration.ImageCarouselEnabled, true);
+			const opened: Parameters<IChatImageCarouselService['openCarouselAtResource']>[] = [];
+			instantiationService.stub(IChatImageCarouselService, upcastPartial<IChatImageCarouselService>({ openCarouselAtResource: async (...args) => { opened.push(args); } }));
+			const part = createMarkdownPart('![Robot](./image.png) [![Linked](./image.png)](https://example.com) ![Remote](https://github.com/user-attachments/assets/image.png)');
+			const images = Array.from(part.domNode.querySelectorAll('img'));
+
+			images[0].click();
+			images[0].dispatchEvent(new mainWindow.KeyboardEvent('keydown', { keyCode: 13, bubbles: true, cancelable: true }));
+
+			assert.deepStrictEqual({
+				images: images.map(image => ({ alt: image.alt, role: image.getAttribute('role'), tabIndex: image.tabIndex, label: image.getAttribute('aria-label') })),
+				opened: opened.map(([openedResource, data, options]) => ({ resource: openedResource.toString(), data, sessionResource: options?.sessionResource?.toString(), imageId: options?.imageId })),
+			}, {
+				images: [
+					{ alt: 'Robot', role: 'button', tabIndex: 0, label: 'Open image Robot' },
+					{ alt: 'Linked', role: null, tabIndex: 0, label: null },
+					{ alt: 'Remote', role: null, tabIndex: 0, label: null },
+				],
+				opened: [0, 1].map(() => ({ resource: resource.toString(), data: undefined, sessionResource: 'chat-session://test/session1', imageId: getChatMarkdownImageId('test-response-id', resource) })),
+			});
+		});
+
+		test('drags file images as their resource instead of the browser transport URL', () => {
+			const part = createMarkdownPart('![Robot](./image.png)');
+			const dataTransfer = new DataTransfer();
+			dataTransfer.setData('text/uri-list', 'blob:vscode-file://vscode-app/image');
+
+			part.domNode.querySelector('img')!.dispatchEvent(new DragEvent('dragstart', { dataTransfer, bubbles: true, cancelable: true }));
+
+			assert.deepStrictEqual({
+				types: [...dataTransfer.types].sort(),
+				uriList: dataTransfer.getData('text/uri-list'),
+			}, {
+				types: ['application/vnd.code.uri-list', 'codeeditors', 'resourceurls', 'text/plain', 'text/uri-list'],
+				uriList: resource.toString(),
+			});
+		});
+	});
+
+	test('makes response images interactive at the resource that the renderer loads', () => {
+		(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ChatConfiguration.ImageCarouselEnabled, true);
+		const opened: Parameters<IChatImageCarouselService['openCarouselAtResource']>[] = [];
+		instantiationService.stub(IChatImageCarouselService, upcastPartial<IChatImageCarouselService>({ openCarouselAtResource: async (...args) => { opened.push(args); } }));
+		const relative = new MarkdownString('![Relative](images/relative.png)');
+		relative.baseUri = URI.file('/workspace/README.md');
+		const local = 'file:///workspace/mapped.png';
+		const mapped = new MarkdownString(`![Mapped](${local})`);
+		mapped.uris = { [local]: URI.parse('vscode-remote://ssh-remote+host/workspace/mapped.png') };
+
+		for (const markdown of [relative, mapped]) {
+			createMarkdownPart(markdown).domNode.querySelector('img')!.click();
+		}
+
+		assert.deepStrictEqual(
+			opened.map(([openedResource, , options]) => ({ resource: openedResource.toString(), imageId: options?.imageId })),
+			// Like the renderer, relative resolution adds the current drive on Windows.
+			[resolvePath(URI.file('/workspace'), 'images/relative.png'), URI.parse('vscode-remote://ssh-remote+host/workspace/mapped.png')].map(target => ({
+				resource: target.toString(),
+				imageId: getChatMarkdownImageId('test-response-id', target),
+			})),
+		);
+	});
+
+	test('uses the image menu rather than editor and Explorer navigation for file images', async () => {
+		const requestedMenus: MenuId[] = [];
+		const actionLabels: string[][] = [];
+		instantiationService.stub(IMenuService, upcastPartial<IMenuService>({
+			getMenuActions: menuId => {
+				requestedMenus.push(menuId);
+				return [];
+			}
+		}));
+		instantiationService.stub(IContextMenuService, upcastPartial<IContextMenuService>({
+			showContextMenu: delegate => { actionLabels.push(delegate.getActions?.().map(action => action.label) ?? []); }
+		}));
+		const part = createMarkdownPart('![File](file:///workspace/image.png)');
+		part.domNode.querySelector('img')!.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+		await Promise.resolve();
+		assert.deepStrictEqual({ requestedMenus, actionLabels }, {
+			requestedMenus: [MenuId.ChatImageContext],
+			actionLabels: [['Copy Image', 'Copy Image Path']],
+		});
+	});
+
 	test('renders plain markdown without code blocks', () => {
 		const part = createMarkdownPart('Hello, world!');
 
@@ -414,6 +778,121 @@ suite('ChatMarkdownContentPart', () => {
 		assert.strictEqual(part.codeblocks.length, 0);
 		assert.strictEqual(renderedCodeBlocks.length, 0);
 		assert.ok(part.domNode.textContent?.includes('Hello, world!'));
+	});
+
+	suite('Math', () => {
+		setup(async () => {
+			(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ChatConfiguration.EnableMath, true);
+			await MarkedKatexSupport.loadExtension(mainWindow);
+			// Confirmation widgets render with the general Markdown renderer, which keeps raw spans in trusted Markdown.
+			renderer = instantiationService.createInstance(MarkdownRendererService);
+		});
+
+		teardown(() => {
+			// Loading KaTeX adds its stylesheet, whose rules cannot be read in unit tests.
+			for (const element of [...mainWindow.document.head.children]) {
+				if (element.classList.contains('katex')) {
+					element.remove();
+				}
+			}
+		});
+
+		test('applies math rules only when all HTML comes from the renderer', () => {
+			const span = '<span class="monaco-button" style="position: relative; top: -40px">fake</span>';
+			const render = (markdown: MarkdownString) => {
+				const domNode = createMarkdownPart(markdown).domNode;
+				return {
+					math: !!domNode.querySelector('.katex-html [style]'),
+					span: [...domNode.querySelectorAll('span')].find(e => e.textContent === 'fake')?.outerHTML,
+					video: !!domNode.querySelector('video'),
+				};
+			};
+			const results = {
+				untrusted: render(new MarkdownString(`${span} $x^2$`)),
+				trustedWithSpan: render(new MarkdownString(`${span} $x^2$`, { isTrusted: true })),
+				trustedWithoutSpan: render(new MarkdownString('text $x^2$', { isTrusted: true })),
+				supportHtml: render(new MarkdownString(`${span} <video autoplay muted src="data:video/mp4;base64,AA=="></video> $x^2$`, { supportHtml: true })),
+			};
+			(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ChatConfiguration.EnableMath, false);
+			assert.deepStrictEqual({ ...results, mathDisabled: render(new MarkdownString('text $x^2$')) }, {
+				untrusted: { math: true, span: undefined, video: false },
+				trustedWithSpan: { math: false, span: '<span>fake</span>', video: false },
+				trustedWithoutSpan: { math: true, span: undefined, video: false },
+				supportHtml: { math: false, span: '<span>fake</span>', video: false },
+				mathDisabled: { math: false, span: undefined, video: false },
+			});
+		});
+
+		test('theme icons do not change the math source attribute', () => {
+			const domNode = createMarkdownPart(new MarkdownString('$$\n\\verb|$(check)|\n$$', { supportThemeIcons: true })).domNode;
+			assert.deepStrictEqual({
+				latex: domNode.querySelector('.vscode-katex-container')?.getAttribute('data-latex'),
+				math: !!domNode.querySelector('.katex-html [style]'),
+			}, { latex: '\\verb|$(check)|', math: true });
+		});
+	});
+
+	test('re-measures every table scrollbar in one animation frame when the part is resized', async () => {
+		let resize: (() => void) | undefined;
+		class TestResizeObserver implements ResizeObserver {
+			constructor(callback: ResizeObserverCallback) {
+				resize = () => callback([], this);
+			}
+			observe(): void { }
+			unobserve(): void { }
+			disconnect(): void { }
+		}
+		/** Resolves after the table scrollbars measured at the next animation frame have been updated. */
+		const afterNextAnimationFrame = () => new Promise<void>(resolve => scheduleAtNextAnimationFrame(mainWindow, resolve, -20000 /* after dom.modify */));
+
+		const tableCount = 4;
+		const markdown = Array.from({ length: tableCount }, (_, i) => `| Column ${i} | Value |\n| --- | --- |\n| ${'x'.repeat(i * 40)} | ${i} |`).join('\n\n');
+		const ctx = createRenderContext();
+		const part = createMarkdownPart(markdown, ctx, false, false, { resizeObserverCtor: TestResizeObserver });
+		ctx.container.style.width = '200px';
+		ctx.container.appendChild(part.domNode);
+		mainWindow.document.body.appendChild(ctx.container);
+		disposables.add(toDisposable(() => ctx.container.remove()));
+		await afterNextAnimationFrame();
+
+		// A layout read that follows a scrollbar update forces a synchronous layout of the whole transcript.
+		const log: ('read' | 'write')[] = [];
+		const tableContainers = Array.from(part.domNode.querySelectorAll('table'), table => table.parentElement!);
+		for (const tableContainer of tableContainers) {
+			for (const name of ['clientWidth', 'scrollWidth', 'clientHeight', 'scrollHeight', 'scrollLeft', 'scrollTop'] as const) {
+				const descriptor = Object.getOwnPropertyDescriptor(Element.prototype, name)!;
+				Object.defineProperty(tableContainer, name, {
+					configurable: true,
+					get: () => {
+						log.push('read');
+						return descriptor.get!.call(tableContainer);
+					},
+					set: descriptor.set && (value => descriptor.set!.call(tableContainer, value)),
+				});
+			}
+		}
+		const setScrollDimensions = stub(DomScrollableElement.prototype, 'setScrollDimensions').callsFake(function (this: DomScrollableElement, dimensions) {
+			log.push('write');
+			setScrollDimensions.wrappedMethod.call(this, dimensions);
+		});
+		disposables.add(toDisposable(() => setScrollDimensions.restore()));
+
+		ctx.container.style.width = '300px';
+		resize!();
+		const layoutReadsInResizeCallback = log.filter(entry => entry === 'read').length;
+		await afterNextAnimationFrame();
+
+		assert.deepStrictEqual({
+			tables: tableContainers.length,
+			layoutReadsInResizeCallback,
+			scrollbarUpdatesAfterOneFrame: setScrollDimensions.callCount,
+			layoutReadsAfterFirstScrollbarUpdate: log.slice(log.indexOf('write')).filter(entry => entry === 'read').length,
+		}, {
+			tables: tableCount,
+			layoutReadsInResizeCallback: 0,
+			scrollbarUpdatesAfterOneFrame: tableCount,
+			layoutReadsAfterFirstScrollbarUpdate: 0,
+		});
 	});
 
 	test('always renders Agent Host session links as rich links', () => {
@@ -908,6 +1387,30 @@ suite('ChatMarkdownContentPart', () => {
 		assert.ok(!renderedCodeBlocks[0].text.includes('<vscode_codeblock_uri'));
 		assert.strictEqual(renderedCodeBlocks[0].codemapperUri?.toString(), 'file:///test.ts');
 	});
+
+	for (const marker of [
+		'<vscode_codeblock_uri isEdit subAgentInvocationId="agent%2Fone">file:///example.ts</vscode_codeblock_uri>',
+		'<vscode_codeblock_uri isEdit subAgentInvocationId="agent%2',
+	]) {
+		test(`request code preserves literal marker text: ${marker}`, () => {
+			const context = {
+				...createRenderContext(),
+				element: upcastPartial<IChatRequestViewModel>({
+					id: 'literal-request',
+					sessionResource: URI.parse('chat-session://test/session1'),
+					message: { text: marker, parts: [] },
+					contentReferences: [],
+				}),
+			};
+			const markdown = new MarkdownString(`\`\`\`html\n${marker}\n\`\`\``);
+			createMarkdownPart(markdown, context);
+			createMarkdownPart(JSON.parse(JSON.stringify(markdown)), context);
+			assert.deepStrictEqual(renderedCodeBlocks.map(block => ({ text: block.text, resource: block.codemapperUri })), [
+				{ text: marker, resource: undefined },
+				{ text: marker, resource: undefined },
+			]);
+		});
+	}
 
 	test('code block toolbar context is set correctly with code text', () => {
 		// Simulates the scenario in #255290: the copy button should have

@@ -1,0 +1,148 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember DEFAULT_FORK_EXCLUDED. Reply exactly "DEFAULT_READY".
+    response:
+      content: DEFAULT_READY
+      stopReason: end_turn
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember PEER_FORK_INCLUDED. Reply exactly "PEER_READY".
+    response:
+      content: PEER_READY
+      stopReason: end_turn
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember PEER_FORK_INCLUDED. Reply exactly "PEER_READY".
+        - role: assistant
+          content: PEER_READY
+        - role: user
+          content: Remember PEER_LATER_EXCLUDED. Reply exactly "PEER_LATER_READY".
+    response:
+      content: PEER_LATER_READY
+      stopReason: end_turn
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember PEER_FORK_INCLUDED. Reply exactly "PEER_READY".
+        - role: assistant
+          content: PEER_READY
+        - role: user
+          content: Reply exactly "FORK_CONTINUED". Do not use tools.
+    response:
+      content: FORK_CONTINUED
+      stopReason: end_turn
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember PEER_FORK_INCLUDED. Reply exactly "PEER_READY".
+        - role: assistant
+          content: PEER_READY
+        - role: user
+          content: Remember PEER_LATER_EXCLUDED. Reply exactly "PEER_LATER_READY".
+        - role: assistant
+          content: PEER_LATER_READY
+        - role: user
+          content: |-
+            Call exec_command exactly once with this exact command, without modifying or wrapping it:
+            ```sh
+            apply_patch <<'PATCH'
+            *** Begin Patch
+            *** Update File: source-continues.txt
+            @@
+            -SOURCE_BEFORE
+            +SOURCE_AFTER
+            *** End Patch
+            PATCH
+            ```
+            Do not inspect or search for files, and do not run any other command. After the patch succeeds, reply exactly "EDIT_DONE".
+    response:
+      content:
+        - type: text
+          text: Applying the exact patch command now.
+        - type: tool_use
+          id: toolcall_0
+          name: exec_command
+          input:
+            cmd: |
+              apply_patch <<'PATCH'
+              *** Begin Patch
+              *** Update File: source-continues.txt
+              @@
+              -SOURCE_BEFORE
+              +SOURCE_AFTER
+              *** End Patch
+              PATCH
+      stopReason: tool_use
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember PEER_FORK_INCLUDED. Reply exactly "PEER_READY".
+        - role: assistant
+          content: PEER_READY
+        - role: user
+          content: Remember PEER_LATER_EXCLUDED. Reply exactly "PEER_LATER_READY".
+        - role: assistant
+          content: PEER_LATER_READY
+        - role: user
+          content: |-
+            Call exec_command exactly once with this exact command, without modifying or wrapping it:
+            ```sh
+            apply_patch <<'PATCH'
+            *** Begin Patch
+            *** Update File: source-continues.txt
+            @@
+            -SOURCE_BEFORE
+            +SOURCE_AFTER
+            *** End Patch
+            PATCH
+            ```
+            Do not inspect or search for files, and do not run any other command. After the patch succeeds, reply exactly "EDIT_DONE".
+        - role: assistant
+          content: Applying the exact patch command now.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: exec_command
+              input:
+                cmd: |
+                  apply_patch <<'PATCH'
+                  *** Begin Patch
+                  *** Update File: source-continues.txt
+                  @@
+                  -SOURCE_BEFORE
+                  +SOURCE_AFTER
+                  *** End Patch
+                  PATCH
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Wall time: 0.0000 seconds
+                Output:
+                Exit code: 0
+                Wall time: 0 seconds
+                Output:
+                Success. Updated the following files:
+                M source-continues.txt
+    response:
+      content: EDIT_DONE
+      stopReason: end_turn

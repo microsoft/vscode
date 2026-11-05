@@ -185,6 +185,11 @@
 		overflow: hidden;
 	}
 
+	/* Lays out top notices as items of the sessions content, so they can size against it. */
+	.agent-sessions-top-notices {
+		display: contents;
+	}
+
 	.agent-sessions-storage-cleanup-notice {
 		display: none;
 		flex-shrink: 0;
@@ -244,6 +249,13 @@
 		display: flex;
 		flex-wrap: wrap;
 		gap: var(--vscode-spacing-size40);
+	}
+
+	.agent-sessions-storage-cleanup-notice-actions > .monaco-button {
+		width: auto;
+		min-width: 0;
+		max-width: 100%;
+		overflow-wrap: anywhere;
 	}
 
 	.agent-sessions-customizations-section {

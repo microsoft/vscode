@@ -100,6 +100,20 @@ export const sessionCustomizationsPillOptions: IChatDropdownPillOptions = {
 	singleEntry: ChatPillSingleEntry.Summary,
 };
 
+/** Shared presentation of the canvases pill. */
+export const sessionCanvasesPillOptions: IChatDropdownPillOptions = {
+	widgetId: 'sessionCanvases',
+	icon: Codicon.preview,
+	title: localize('sessionCanvases.title', "Canvases"),
+	summaryLabel: count => count === 1
+		? localize('sessionCanvases.countSingle', "1 Canvas")
+		: localize('sessionCanvases.count', "{0} Canvases", count),
+	summaryAriaLabel: count => count === 1
+		? localize('sessionCanvases.showSingle', "Show 1 canvas")
+		: localize('sessionCanvases.show', "Show {0} canvases", count),
+	promotedActionIcon: Codicon.closeCompact,
+};
+
 /** Shared presentation of the subagents pill. */
 export const sessionSubagentsPillOptions: IChatDropdownPillOptions = {
 	widgetId: 'sessionSubagents',
@@ -111,6 +125,7 @@ export const sessionSubagentsPillOptions: IChatDropdownPillOptions = {
 	summaryAriaLabel: count => count === 1
 		? localize('sessionSubagents.showSingle', "Show 1 subagent")
 		: localize('sessionSubagents.show', "Show {0} subagents", count),
+	singleEntry: ChatPillSingleEntry.Summary,
 };
 
 /** Background shells always open a list, including when only one is active. */

@@ -195,6 +195,8 @@ Use:
 
 Spotlights are keyboard operable, dismissible with Escape, and keep interactive targets available when requested. Important state changes remain the responsibility of the owning feature.
 
+For a selection-driven step, `primaryAction` can offer the same action through a labeled callout button. It runs only on an explicit button click and does not advance the tour itself: use `advanceOnTargetSelection` or `advanceWhen` to confirm the outcome. The button is disabled after activation, and the action's cancellation token is cancelled when the step ends or its target is replaced. Check that token after asynchronous preparation and before changing state. End Tour remains available even on the final action step.
+
 ## Own and scope spotlight targets
 
 Feature-owned adapters can register target providers that resolve controls through their owner's API:
@@ -207,6 +209,10 @@ this._register(registerOnboardingTargetProvider(MY_FEATURE_ONBOARDING_TARGET, sc
 	return control && element ? { element, open: () => control.open() } : undefined;
 }));
 ```
+
+A target can also return `additionalElements` to highlight other elements together with it, such as a menu that `open` shows outside the target. The spotlight reads them on every layout, covers the target and every visible element in the hole, and places the callout beside them all. While focus is inside one of them, clicking the callout leaves focus there, so elements that close on blur stay open across steps, and Escape is left to the element. Because focus can move into them, the step is also announced to screen readers. Set `allowTargetInteraction` on the step to keep them interactive.
+
+Return `close` with `open` when what `open` shows must not outlive its steps. The spotlight keeps it open while consecutive steps target the same element, and calls `close` before it shows a step for another element and when the tour ends, before focus returns to the workbench.
 
 The shared resolver validates the element's document and visibility. A registered provider is authoritative: returning `undefined` does not fall back to marked DOM elements. In particular, an unknown or expired scope must not fall back to the feature's active owner.
 
@@ -344,7 +350,7 @@ At minimum:
 6. Test setup actions without executing them automatically.
 7. For cross-window examples, test cancellation, supersession, destination validation, and one-shot delivery.
 8. For native browser targets, verify the real `WebContentsView` is hidden behind overlays.
-9. Run the smallest relevant unit suites, layer validation for import changes, and `npm run build-fast` when broad product validation is appropriate.
+9. Run the smallest relevant unit suites, layer validation for import changes, and `pnpm run build-fast` when broad product validation is appropriate.
 10. Test that the feature's normal controls, commands, and automatic-tour targets work without registering its tryout adapter.
 11. Test broken availability providers, overlapping automatic tours, cancellation while waiting for presentation, and registration without initializing execution services.
 

@@ -12,7 +12,8 @@ import { IDefaultAccountService } from '../../../../platform/defaultAccount/comm
 import { IGitHubClient } from '../../../../platform/github/common/githubService.js';
 import { IWorkbenchGitHubService } from '../../../services/github/common/githubService.js';
 import { GitHubHydratableResourceRef, GitHubIssue, GitHubIssueRef, GitHubRepository } from '../../../../platform/github/common/githubQueryService.js';
-import { FragmentState, PullRequestCheck, PullRequestCore, PullRequestRef, PullRequestSnapshot } from '../../../../platform/github/common/githubPullRequestService.js';
+import { FragmentState, PullRequestChecks, PullRequestCore, PullRequestRef, PullRequestSnapshot } from '../../../../platform/github/common/githubPullRequestService.js';
+import { getRequiredPullRequestChecksStatus } from '../../../../platform/github/common/pullRequestRequiredChecks.js';
 import { GitHubRequestError } from '../../../../platform/github/common/githubTransport.js';
 import { AccountHandle, RequestErrorKind } from '../../../../platform/github/common/types.js';
 import { GitHubLinkTarget, parseGitHubLinkTarget } from '../../../../platform/github/common/githubUrls.js';
@@ -285,7 +286,7 @@ class GitHubLinkPresentationWatcher extends Disposable implements ILinkPresentat
 					const subscription = store.add(client.pullRequests.subscribePullRequest(ref, {
 						priority: 'visible',
 						core: true,
-						checks: { includeOptional: true },
+						checks: { required: true, includeOptional: true },
 					}));
 					store.add(autorun(reader => {
 						const snapshot = subscription.resource.snapshot.read(reader);
@@ -358,7 +359,7 @@ function pullRequestPresentation(target: Extract<GitHubLinkTarget, { kind: 'pull
 	}
 	const status = pullRequestStatus(core.value);
 	const checksStatus = status.kind === 'open' || status.kind === 'draft'
-		? pullRequestChecksStatus(snapshot.checks.value?.checks)
+		? pullRequestChecksStatus(snapshot.checks.value)
 		: undefined;
 	return {
 		kind: 'pullRequest',
@@ -387,33 +388,26 @@ function pullRequestStatus(pullRequest: PullRequestCore): ILinkPresentationStatu
 	if (pullRequest.state === 'merged') {
 		return { kind: 'merged', label: localize('github.status.merged', "Merged") };
 	}
-	if (pullRequest.draft) {
-		return { kind: 'draft', label: localize('github.status.draft', "Draft") };
+	if (pullRequest.state === 'closed') {
+		return { kind: 'closed', label: localize('github.status.closed', "Closed") };
 	}
-	return pullRequest.state === 'closed'
-		? { kind: 'closed', label: localize('github.status.closed', "Closed") }
+	return pullRequest.draft
+		? { kind: 'draft', label: localize('github.status.draft', "Draft") }
 		: { kind: 'open', label: localize('github.status.open', "Open") };
 }
 
-function pullRequestChecksStatus(checks: readonly PullRequestCheck[] | undefined): ILinkPresentationStatus | undefined {
-	if (!checks?.length) {
-		return undefined;
+/** Presents the checks that count; see {@link getRequiredPullRequestChecksStatus}. */
+function pullRequestChecksStatus(checks: PullRequestChecks | undefined): ILinkPresentationStatus | undefined {
+	switch (checks ? getRequiredPullRequestChecksStatus(checks) : undefined) {
+		case 'failure':
+			return { kind: 'error', label: localize('github.checks.failed', "Checks failed") };
+		case 'pending':
+			return { kind: 'pending', label: localize('github.checks.running', "Checks running") };
+		case 'success':
+			return { kind: 'success', label: localize('github.checks.passed', "Checks passed") };
+		default:
+			return undefined;
 	}
-	if (checks.some(check => check.type === 'checkRun'
-		? check.status !== 'COMPLETED'
-		: check.status === 'PENDING' || check.status === 'EXPECTED')) {
-		return { kind: 'pending', label: localize('github.checks.running', "Checks running") };
-	}
-	if (checks.some(check => check.type === 'checkRun'
-		? check.conclusion === 'FAILURE'
-		|| check.conclusion === 'TIMED_OUT'
-		|| check.conclusion === 'CANCELLED'
-		|| check.conclusion === 'ACTION_REQUIRED'
-		|| check.conclusion === 'STARTUP_FAILURE'
-		: check.status === 'FAILURE' || check.status === 'ERROR')) {
-		return { kind: 'error', label: localize('github.checks.failed', "Checks failed") };
-	}
-	return { kind: 'success', label: localize('github.checks.passed', "Checks passed") };
 }
 
 function failurePresentation(kind: LinkPresentationKind, errorKind: RequestErrorKind | undefined): ILinkPresentation {

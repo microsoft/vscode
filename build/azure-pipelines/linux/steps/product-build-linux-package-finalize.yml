@@ -1,5 +1,5 @@
 steps:
-  - script: npx deemon --attach node build/azure-pipelines/linux/codesign.ts
+  - script: pnpm exec deemon --attach node build/azure-pipelines/linux/codesign.ts
     condition: succeededOrFailed()
     displayName: "✍️ Post-job: Codesign deb & rpm"
 

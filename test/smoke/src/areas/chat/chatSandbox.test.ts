@@ -212,8 +212,9 @@ export function setup(logger: Logger): void {
 
 		before(async function () {
 			const app = this.app as Application;
+			const previousSessionResource = await app.workbench.chat.getChatViewSessionResource();
 			await app.workbench.quickaccess.runCommand('smoketest.openLocalChat');
-			await app.workbench.chat.waitForChatView();
+			await app.workbench.chat.waitForNewLocalChatViewSession(previousSessionResource, 600);
 			await warmUpChat(app.workbench.chat, mockServer, logger);
 		});
 

@@ -41,6 +41,7 @@ export const COPILOT_CONFIG: IAgentHostE2EProviderConfig = {
 	supportsSideChatsE2E: true,
 	planModeStyle: 'session-state',
 	supportsMultipleChats: true,
+	supportsInitialTitle: true,
 	supportsChatFork: true,
 	supportsChatForkE2E: true,
 };

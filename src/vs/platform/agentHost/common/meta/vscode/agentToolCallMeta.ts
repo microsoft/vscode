@@ -5,6 +5,11 @@
 
 import type { Mutable } from '../../../../../base/common/types.js';
 import { hasAgentMetadata } from '../metadata.js';
+import { imageGenerationToolMetaKey, readImageGenerationToolMetadata, type IImageGenerationToolMetadata } from './agentImageGenerationMeta.js';
+import { ISandboxNetworkRestrictions, isSandboxNetworkRestrictions } from '../../../../sandbox/common/sandboxSettingsResolutionHelper.js';
+import { isSandboxPathGrant, type ISandboxPathGrant } from '../../sandboxPathGrant.js';
+
+export const copilotCliToolInputContract = 'copilot-cli-v1';
 
 /** Anything carrying a tool call's `_meta` bag (persisted state or wire actions). */
 interface IHasToolCallMeta {
@@ -18,7 +23,19 @@ interface IHasToolCallMeta {
  * wrong-typed values.
  */
 export interface IToolCallMeta {
+	readonly [imageGenerationToolMetaKey]?: IImageGenerationToolMetadata;
+	/** Provider-measured execution duration for display, in milliseconds. */
+	readonly 'vscode.toolCallDurationMs'?: number;
+	/** Declares the input schema of a native tool, never a client- or MCP-contributed implementation. */
+	readonly 'vscode.toolInputContract'?: typeof copilotCliToolInputContract;
+	/** Trusted Copilot host snapshot for integrated-browser client tools. Absent for other tools and harnesses. */
+	readonly 'vscode.copilotSandboxNetworkRestrictions'?: ISandboxNetworkRestrictions;
 	readonly 'agentHost.sandboxBypass'?: boolean;
+	readonly 'vscode.sandboxPathGrant'?: ISandboxPathGrant;
+	/** Why Assisted permissions left this confirmation to the user without a judge verdict to show, when it excluded or failed to review it. */
+	readonly 'vscode.assistedApprovalNotice'?: string;
+	/** The host accepts optional feedback about this Assisted permissions prompt with the user's decision. */
+	readonly 'vscode.assistedApprovalFeedbackAccepted'?: true;
 	/**
 	 * VS Code rendering hint. `terminal` routes the call to the command/output
 	 * renderer, `subagent` to the subagent UI, `search` to the search renderer,
@@ -47,8 +64,6 @@ export interface IToolCallMeta {
 	 * explicit user action), so the client can render it as setting-driven.
 	 */
 	readonly autoApproveBySetting?: boolean;
-	/** Whether adding a persistent terminal auto-approve rule can suppress future prompts for this confirmation. */
-	readonly autoApproveRuleResolvable?: boolean;
 	/** Transient runtime corpus for the local client tool-search invocation. */
 	readonly toolSearchCandidates?: readonly IToolSearchCandidate[];
 	/** Latest progress message from a running tool; transient, meaningful only while Running. */
@@ -62,8 +77,15 @@ export type AgentFusionPhaseStatus = typeof fusionPhaseStatuses[number];
 const knownFusionPhaseStatuses: ReadonlySet<string> = new Set(fusionPhaseStatuses);
 
 const toolCallMetaKeys = [
+	imageGenerationToolMetaKey,
+	'vscode.toolCallDurationMs',
+	'vscode.toolInputContract',
+	'vscode.copilotSandboxNetworkRestrictions',
+	'vscode.sandboxPathGrant',
+	'vscode.assistedApprovalNotice',
+	'vscode.assistedApprovalFeedbackAccepted',
 	'agentHost.sandboxBypass', 'toolKind', 'language', 'subagentDescription', 'subagentAgentName', 'subagentChatUri',
-	'mcpServerName', 'mcpToolName', 'autoApproveBySetting', 'autoApproveRuleResolvable', 'toolSearchCandidates', 'progressMessage', 'fusionPhase',
+	'mcpServerName', 'mcpToolName', 'autoApproveBySetting', 'toolSearchCandidates', 'progressMessage', 'fusionPhase',
 ] as const;
 
 export function hasVSCodeToolCallMeta(source: IHasToolCallMeta): boolean {
@@ -167,7 +189,22 @@ export function readToolCallMeta(source: IHasToolCallMeta): IToolCallMeta {
 		return {};
 	}
 	const result: Mutable<IToolCallMeta> = {};
+	const durationMs = meta['vscode.toolCallDurationMs'];
+	if (typeof durationMs === 'number' && Number.isFinite(durationMs) && durationMs >= 0) {
+		result['vscode.toolCallDurationMs'] = durationMs;
+	}
+	if (meta['vscode.toolInputContract'] === copilotCliToolInputContract) {
+		result['vscode.toolInputContract'] = copilotCliToolInputContract;
+	}
+	const networkRestrictions = meta['vscode.copilotSandboxNetworkRestrictions'];
+	if (isSandboxNetworkRestrictions(networkRestrictions)) {
+		result['vscode.copilotSandboxNetworkRestrictions'] = networkRestrictions;
+	}
 	if (typeof meta['agentHost.sandboxBypass'] === 'boolean') { result['agentHost.sandboxBypass'] = meta['agentHost.sandboxBypass']; }
+	if (isSandboxPathGrant(meta['vscode.sandboxPathGrant'])) { result['vscode.sandboxPathGrant'] = meta['vscode.sandboxPathGrant']; }
+	const assistedApprovalNotice = meta['vscode.assistedApprovalNotice'];
+	if (typeof assistedApprovalNotice === 'string' && assistedApprovalNotice.trim()) { result['vscode.assistedApprovalNotice'] = assistedApprovalNotice; }
+	if (meta['vscode.assistedApprovalFeedbackAccepted'] === true) { result['vscode.assistedApprovalFeedbackAccepted'] = true; }
 	if (isToolKind(meta.toolKind)) { result.toolKind = meta.toolKind; }
 	if (typeof meta.language === 'string') { result.language = meta.language; }
 	if (typeof meta.subagentDescription === 'string') { result.subagentDescription = meta.subagentDescription; }
@@ -176,10 +213,11 @@ export function readToolCallMeta(source: IHasToolCallMeta): IToolCallMeta {
 	if (typeof meta.mcpServerName === 'string') { result.mcpServerName = meta.mcpServerName; }
 	if (typeof meta.mcpToolName === 'string') { result.mcpToolName = meta.mcpToolName; }
 	if (typeof meta.progressMessage === 'string') { result.progressMessage = meta.progressMessage; }
+	const imageGeneration = readImageGenerationToolMetadata(source);
+	if (imageGeneration) { result[imageGenerationToolMetaKey] = imageGeneration; }
 	const fusionPhase = readFusionPhase(meta.fusionPhase);
 	if (fusionPhase) { result.fusionPhase = fusionPhase; }
 	if (typeof meta.autoApproveBySetting === 'boolean') { result.autoApproveBySetting = meta.autoApproveBySetting; }
-	if (typeof meta.autoApproveRuleResolvable === 'boolean') { result.autoApproveRuleResolvable = meta.autoApproveRuleResolvable; }
 	const toolSearchCandidates = readToolSearchCandidates(meta.toolSearchCandidates);
 	if (toolSearchCandidates) { result.toolSearchCandidates = toolSearchCandidates; }
 	const ui = readToolCallUiMeta(meta.ui);

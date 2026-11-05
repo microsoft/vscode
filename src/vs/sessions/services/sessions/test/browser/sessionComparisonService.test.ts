@@ -8,7 +8,7 @@ import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { IDisposable } from '../../../../../base/common/lifecycle.js';
+import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { hasKey } from '../../../../../base/common/types.js';
@@ -17,18 +17,42 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
-import { IChatService, IChatUsage } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatModelReference, IChatService, IChatUsage } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { getChatNotificationResource } from '../../../../../workbench/contrib/chat/common/chatNotification.js';
 import { hashSessionIdForTelemetry } from '../../../../common/sessionsTelemetry.js';
-import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../common/session.js';
-import { ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, SessionComparisonParticipantRole, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../common/sessionComparison.js';
-import { ICreateNewSessionOptions, ISendRequestOptions, ISessionsManagementService, NewSessionRequestOptions } from '../../common/sessionsManagement.js';
-import { ISessionChangeEvent } from '../../common/sessionsProvider.js';
-import { ISessionGroup, ISessionGroupsChangeEvent, ISessionGroupsService } from '../../browser/sessionGroupsService.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../../common/session.js';
+import { getSessionComparisonHarnessDisplayLabel, getSessionComparisonWorkspaceError, ISessionComparisonHarness, ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, SessionComparisonParticipantRole, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../common/sessionComparison.js';
+import { IChatDeletedEvent, ICreateNewSessionOptions, ISendRequestOptions, ISessionsManagementService, NewSessionRequestOptions } from '../../common/sessionsManagement.js';
+import { IChatMovedEvent, ISessionChangeEvent } from '../../common/sessionsProvider.js';
+import { IDeletedSessionGroups, ISessionGroup, ISessionGroupsChangeEvent, ISessionGroupsService } from '../../browser/sessionGroupsService.js';
 import { SessionComparisonService } from '../../browser/sessionComparisonService.js';
 
 suite('SessionComparisonService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('can omit a common harness while retaining model and configuration labels', () => {
+		const harness: ISessionComparisonHarness = { providerId: 'test', sessionTypeId: 'copilot', label: 'Copilot' };
+		assert.deepStrictEqual([
+			getSessionComparisonHarnessDisplayLabel(harness, false),
+			getSessionComparisonHarnessDisplayLabel({ ...harness, modelLabel: 'Opus' }, false),
+			getSessionComparisonHarnessDisplayLabel({ ...harness, modelConfigurationLabel: 'Balance' }, false),
+			getSessionComparisonHarnessDisplayLabel({ ...harness, modelLabel: 'Opus', modelConfigurationLabel: 'High' }, false),
+			getSessionComparisonHarnessDisplayLabel({ ...harness, modelLabel: 'Opus', modelConfigurationLabel: 'High' }),
+		], ['Copilot', 'Opus', 'Balance', 'Opus · High', 'Copilot · Opus · High']);
+	});
+
+	test('workspace validation requires available Git branch information', () => {
+		assert.deepStrictEqual({
+			unresolved: getSessionComparisonWorkspaceError(undefined),
+			empty: getSessionComparisonWorkspaceError(''),
+			branch: getSessionComparisonWorkspaceError('main'),
+		}, {
+			unresolved: 'Comparisons require a Git repository with branch information.',
+			empty: 'Comparisons require a Git repository with branch information.',
+			branch: undefined,
+		});
+	});
 
 	function createServices(storageService = disposables.add(new InMemoryStorageService()), telemetryService = new RecordingTelemetryService()) {
 		const sessionsManagementService = disposables.add(new TestSessionsManagementService());
@@ -37,19 +61,42 @@ suite('SessionComparisonService', () => {
 		const groupsService = new class extends mock<ISessionGroupsService>() {
 			readonly groupedSessionIds: string[] = [];
 			readonly deletedGroupIds: string[] = [];
+			private readonly membership = new Map<string, string>();
+			private readonly explicitlyUngrouped = new Set<string>();
 			override readonly onDidChange = groupChanges.event;
-			override createGroup(name: string): ISessionGroup { return { id: 'group', name, createdAt: 1 }; }
-			override getGroupOfSession(): string | undefined { return undefined; }
-			override isExplicitlyUngrouped(): boolean { return false; }
+			override createGroup(name: string): ISessionGroup {
+				return { id: this.deletedGroupIds.includes('group') ? 'fallback-group' : 'group', name, createdAt: 1 };
+			}
+			override getGroupOfSession(sessionId: string): string | undefined { return this.membership.get(sessionId); }
+			override isExplicitlyUngrouped(sessionId: string): boolean { return this.explicitlyUngrouped.has(sessionId); }
+			override removeFromGroup(sessionId: string): void {
+				this.membership.delete(sessionId);
+				this.explicitlyUngrouped.add(sessionId);
+			}
 			override getGroup(groupId: string): ISessionGroup | undefined {
 				return this.deletedGroupIds.includes(groupId) ? undefined : { id: groupId, name: 'Comparison', createdAt: 1 };
 			}
-			override deleteGroup(groupId: string): void {
+			override deleteGroup(groupId: string, options?: { readonly automatic?: boolean }): IDeletedSessionGroups | undefined {
 				this.deletedGroupIds.push(groupId);
+				for (const [sessionId, group] of this.membership) {
+					if (group === groupId) {
+						this.membership.delete(sessionId);
+						if (!options?.automatic) {
+							this.explicitlyUngrouped.add(sessionId);
+						}
+					}
+				}
 				groupChanges.fire({ groupsChanged: true, membershipChanged: new Set() });
+				return undefined;
 			}
-			override addToGroup(sessionIdOrIds: string | Iterable<string>): void {
-				this.groupedSessionIds.push(...(typeof sessionIdOrIds === 'string' ? [sessionIdOrIds] : sessionIdOrIds));
+			override addToGroup(sessionIdOrIds: string | Iterable<string>, groupId: string): void {
+				for (const sessionId of typeof sessionIdOrIds === 'string' ? [sessionIdOrIds] : sessionIdOrIds) {
+					if (this.membership.get(sessionId) !== groupId) {
+						this.membership.set(sessionId, groupId);
+						this.explicitlyUngrouped.delete(sessionId);
+						this.groupedSessionIds.push(sessionId);
+					}
+				}
 			}
 		}();
 		const service = disposables.add(new SessionComparisonService(
@@ -111,6 +158,437 @@ suite('SessionComparisonService', () => {
 		await assert.rejects(service.startComparison({ ...startOptions(), judgeHarness: undefined }), /requires a Judge/);
 	});
 
+	test('nests multi-harness attempts and evaluators while tracking their own status and identities across reload', async () => {
+		const { service, sessionsManagementService, groupsService, storageService, chatService } = createServices();
+		const firstStatus = observableValue('first', SessionStatus.Completed);
+		const secondStatus = observableValue('second', SessionStatus.InProgress);
+		const archived = observableValue('archived', false);
+		const first = stubSession('first', firstStatus, undefined, archived);
+		const subagent = { ...stubSession('subagent').mainChat.get(), origin: { kind: ChatOriginKind.Tool } };
+		const hidden = { ...stubSession('hidden').mainChat.get(), interactivity: constObservable(ChatInteractivity.Hidden) };
+		const chats = observableValue<readonly IChat[]>('chats', [first.mainChat.get(), subagent, hidden]);
+		const parent = { ...first, chats, capabilities: constObservable({ supportsMultipleChats: true, supportsChatHarnesses: ['claude'] }) };
+		const second = { ...stubSession('second', secondStatus), harness: 'claude' };
+		sessionsManagementService.nestChat = chat => chats.set([...chats.get(), chat, subagent, hidden], undefined);
+		sessionsManagementService.enqueue(parent);
+		sessionsManagementService.enqueue(second);
+		sessionsManagementService.enqueue(stubSession('judge'));
+		chatService.setUsage(second.mainChat.get().resource, []);
+		const comparison = await service.startComparison(startOptions());
+		await sessionsManagementService.renameSession(parent, 'My comparison');
+		const beforeCompletion = sessionsManagementService.createCalls.length;
+		const secondChat = chats.get().find(chat => chat.resource.fragment === 'second')!;
+		chatService.setUsage(second.mainChat.get().resource, [{ kind: 'usage', promptTokens: 10, completionTokens: 20 }], 75);
+		secondStatus.set(SessionStatus.Completed, undefined);
+		sessionsManagementService.fireChange();
+		chatService.setUsage(second.mainChat.get().resource, [{ kind: 'usage', promptTokens: 15, completionTokens: 25 }], 75);
+		chatService.requestInProgress.set(false, undefined);
+		await timeout(0);
+		service.submitVerdict(comparison.id, verdict('attempt-two', ['attempt-one', 'attempt-two']));
+		sessionsManagementService.enqueue(stubSession('synthesis'));
+		await service.synthesize(comparison.id);
+		const current = service.getComparison(comparison.id)!;
+		const restored = createServices(storageService).service.getComparison(comparison.id)!;
+		archived.set(true, undefined);
+		sessionsManagementService.fireArchive(parent);
+		const wasArchived = service.getComparison(comparison.id)?.archivedAt !== undefined;
+		archived.set(false, undefined);
+		sessionsManagementService.fireChange();
+
+		assert.deepStrictEqual({
+			beforeCompletion,
+			parent: current.sessionResource?.toString(),
+			chats: current.participants.map(participant => [participant.sessionResource?.toString(), participant.chatResource?.toString()]),
+			secondMetrics: current.participants[1].completion,
+			restored: [restored.sessionResource?.toString(), ...restored.participants.map(participant => participant.chatResource?.toString())],
+			groupRemoved: groupsService.deletedGroupIds.includes('group'),
+			archive: [wasArchived, service.getComparison(comparison.id)?.archivedAt],
+			worktrees: sessionsManagementService.createCalls.map(call => call.createOptions?.isolationMode),
+			renames: sessionsManagementService.renameCalls.map(call => call.title),
+			anchors: sessionsManagementService.moveAnchors.map(anchor => anchor?.resource.toString()),
+			releasedModels: chatService.releasedModels,
+		}, {
+			beforeCompletion: 2,
+			parent: 'test:/first',
+			chats: [
+				['test:/first', 'test-chat:/first'],
+				['test:/first', 'test-chat:/first#second'],
+				['test:/first', 'test-chat:/first#judge'],
+				['test:/first', 'test-chat:/first#synthesis'],
+			],
+			secondMetrics: { elapsedMs: 75, tokenCount: 40, tokenCountIsComplete: false },
+			restored: ['test:/first', 'test-chat:/first', 'test-chat:/first#second', 'test-chat:/first#judge', 'test-chat:/first#synthesis'],
+			groupRemoved: true,
+			archive: [true, undefined],
+			worktrees: ['worktree', 'worktree', 'worktree', 'worktree'],
+			renames: [comparison.title, 'My comparison'],
+			anchors: ['test-chat:/first', 'test-chat:/first#second', 'test-chat:/first#judge'],
+			releasedModels: ['test-chat:/second'],
+		});
+		await sessionsManagementService.deleteChat(parent, secondChat.resource);
+		const afterChatDeletion = service.getComparison(comparison.id)!;
+		await sessionsManagementService.deleteSession(parent);
+		assert.deepStrictEqual({
+			unavailable: afterChatDeletion.participants.filter(participant => participant.launchError).map(participant => participant.id),
+			archivedAfterChatDeletion: afterChatDeletion.archivedAt !== undefined,
+			archivedAfterParentDeletion: service.getComparison(comparison.id)?.archivedAt !== undefined,
+		}, { unavailable: ['attempt-two'], archivedAfterChatDeletion: false, archivedAfterParentDeletion: true });
+	});
+
+	test('a refused move retains the comparison and its independently usable sessions', async () => {
+		const { service, sessionsManagementService, groupsService } = createServices();
+		sessionsManagementService.enqueue({ ...stubSession('first'), capabilities: constObservable({ supportsMultipleChats: true }) });
+		sessionsManagementService.enqueue(stubSession('second'));
+		sessionsManagementService.nestChat = () => { throw new Error('Move refused'); };
+		const comparison = await service.startComparison(startOptions());
+		assert.deepStrictEqual({
+			parent: comparison.sessionResource,
+			participants: comparison.participants.map(participant => participant.sessionResource?.toString()),
+			deleted: groupsService.deletedGroupIds,
+		}, { parent: undefined, participants: ['test:/first', 'test:/second'], deleted: [] });
+	});
+
+	test('shared owners retain both comparisons through chat moves and deletions', async () => {
+		const { service, sessionsManagementService } = createServices();
+		const parents = ['first', 'second'].map(id => {
+			const session = stubSession(id);
+			return { ...session, chats: observableValue<readonly IChat[]>(id, [session.mainChat.get()]), capabilities: constObservable({ supportsMultipleChats: true }) };
+		});
+
+		sessionsManagementService.nestChat = (chat, destination) => {
+			const parent = parents.find(parent => parent === destination)!;
+			parent.chats.set([...parent.chats.get(), chat], undefined);
+		};
+		const comparisons = [];
+		for (const parent of parents) {
+			sessionsManagementService.enqueue(parent);
+			sessionsManagementService.enqueue(stubSession(`${parent.sessionId}-attempt`));
+			comparisons.push(await service.startComparison({ ...startOptions(), judgeHarness: undefined, synthesisHarness: undefined }));
+		}
+		const [source, destination] = parents;
+		const moved = source.chats.get()[1];
+		const movedResource = destination.resource.with({ fragment: 'moved' });
+		source.chats.set([source.mainChat.get()], undefined);
+		destination.chats.set([...destination.chats.get(), { ...moved, resource: movedResource }], undefined);
+		sessionsManagementService.fireMove({ from: { session: source, chat: moved.resource }, to: { session: destination, chat: movedResource } });
+		const destinationComparison = service.getComparisonForSession(destination.resource)?.id;
+		await sessionsManagementService.deleteChat(destination, movedResource);
+		const afterChatDelete = comparisons.map(comparison => service.getComparison(comparison.id)!.participants.filter(participant => participant.launchError).map(participant => participant.id));
+		await sessionsManagementService.deleteSession(destination);
+		assert.deepStrictEqual({
+			destinationComparison,
+			afterChatDelete,
+			afterSessionDelete: comparisons.map(comparison => ({
+				archived: service.getComparison(comparison.id)!.archivedAt !== undefined,
+				unavailable: service.getComparison(comparison.id)!.participants.filter(participant => participant.launchError).map(participant => participant.id),
+			})),
+		}, {
+			destinationComparison: comparisons[1].id,
+			afterChatDelete: [['attempt-two'], []],
+			afterSessionDelete: [{ archived: false, unavailable: ['attempt-two'] }, { archived: true, unavailable: ['attempt-one', 'attempt-two'] }],
+		});
+	});
+
+	for (const evaluator of ['judge', 'synthesis'] as const) {
+		for (const destinationKind of ['promoted', 'existing'] as const) {
+			test(`${evaluator} creation preserves an attempt moved elsewhere (${destinationKind} session)`, async () => {
+				const { service, sessionsManagementService, groupsService } = createServices();
+				const status = observableValue('status', SessionStatus.InProgress);
+				const first = stubSession('first', status);
+				const chats = observableValue<readonly IChat[]>('chats', [first.mainChat.get()]);
+				const parent = { ...first, chats, capabilities: constObservable({ supportsMultipleChats: true }) };
+				const moves: string[] = [];
+				sessionsManagementService.nestChat = chat => {
+					moves.push(chat.resource.fragment);
+					chats.set([...chats.get(), chat], undefined);
+				};
+				sessionsManagementService.enqueue(parent);
+				sessionsManagementService.enqueue(stubSession('second', status));
+				sessionsManagementService.enqueue(stubSession('judge'));
+				const comparison = await service.startComparison(startOptions());
+				if (evaluator === 'synthesis') {
+					status.set(SessionStatus.Completed, undefined);
+					sessionsManagementService.fireChange();
+					await timeout(0);
+					service.submitVerdict(comparison.id, verdict('attempt-one', ['attempt-one', 'attempt-two']));
+				}
+
+				const attempt = chats.get().find(chat => chat.resource.fragment === 'second')!;
+				const destination = stubSession('destination');
+				const movedChat = {
+					...attempt,
+					resource: destination.mainChat.get().resource.with({ fragment: destinationKind === 'existing' ? 'moved-attempt' : '' }),
+				};
+				const outside = {
+					...destination,
+					mainChat: constObservable(destinationKind === 'promoted' ? movedChat : destination.mainChat.get()),
+					chats: constObservable(destinationKind === 'promoted' ? [movedChat] : [destination.mainChat.get(), movedChat]),
+				};
+				sessionsManagementService.addSession(outside);
+				chats.set(chats.get().filter(chat => chat !== attempt), undefined);
+				sessionsManagementService.fireMove({
+					from: { session: parent, chat: attempt.resource },
+					to: { session: outside, chat: movedChat.resource },
+				});
+				if (evaluator === 'judge') {
+					status.set(SessionStatus.Completed, undefined);
+					sessionsManagementService.fireChange();
+					await timeout(0);
+				} else {
+					sessionsManagementService.enqueue(stubSession('synthesis'));
+					await service.synthesize(comparison.id);
+				}
+
+				const current = service.getComparison(comparison.id)!;
+				assert.deepStrictEqual({
+					parent: current.sessionResource?.toString(),
+					attemptOwner: current.participants.find(participant => participant.id === 'attempt-two')?.sessionResource?.toString(),
+					outsideAvailable: !!sessionsManagementService.getSession(outside.resource),
+					outsideGroup: groupsService.getGroupOfSession(outside.sessionId),
+					parentChats: chats.get().map(chat => chat.resource.fragment),
+					moves,
+				}, {
+					parent: parent.resource.toString(),
+					attemptOwner: outside.resource.toString(),
+					outsideAvailable: true,
+					outsideGroup: undefined,
+					parentChats: evaluator === 'judge' ? ['', 'judge'] : ['', 'judge', 'synthesis'],
+					moves: evaluator === 'judge' ? ['second', 'judge'] : ['second', 'judge', 'synthesis'],
+				});
+			});
+		}
+	}
+
+	for (const role of [SessionComparisonParticipantRole.Judge, SessionComparisonParticipantRole.Synthesis]) {
+		test(`moved ${role} resolves only its exact live chat and retains that identity through another move`, async () => {
+			const { service, sessionsManagementService, chatService } = createServices();
+			const status = observableValue('status', SessionStatus.Completed);
+			const first = stubSession('first', status);
+			const chats = observableValue<readonly IChat[]>('chats', [first.mainChat.get()]);
+			const parent = { ...first, chats, capabilities: constObservable({ supportsMultipleChats: true }) };
+			sessionsManagementService.nestChat = chat => chats.set([...chats.get(), chat], undefined);
+			sessionsManagementService.enqueue(parent);
+			sessionsManagementService.enqueue(stubSession('second', status));
+			sessionsManagementService.enqueue(stubSession('judge'));
+			const originalResource = URI.parse(`test-chat:/${role}`);
+			chatService.setUsage(originalResource, []);
+			const comparison = await service.startComparison(startOptions());
+			await timeout(0);
+			if (role === SessionComparisonParticipantRole.Synthesis) {
+				service.submitVerdict(comparison.id, verdict('attempt-one', ['attempt-one', 'attempt-two']));
+				sessionsManagementService.enqueue(stubSession('synthesis'));
+				await service.synthesize(comparison.id);
+			}
+			const roles = [originalResource, parent.mainChat.get().resource, URI.parse('test-chat:/unrelated')]
+				.map(resource => service.getParticipantForChat(comparison.id, resource)?.role);
+			const destination = stubSession('promoted-evaluator');
+			sessionsManagementService.addSession(destination);
+			const evaluator = service.getComparison(comparison.id)!.participants.find(participant => participant.role === role)!;
+			sessionsManagementService.fireMove({ from: { session: parent, chat: evaluator.chatResource! }, to: { session: destination, chat: destination.mainChat.get().resource } });
+			const retained = service.getParticipantForChat(comparison.id, originalResource)?.chatResource?.toString();
+			chatService.requestInProgress.set(false, undefined);
+			const expired = service.getParticipantForChat(comparison.id, originalResource);
+			service.archiveComparison(comparison.id);
+			assert.deepStrictEqual({
+				roles,
+				retained,
+				expired,
+				released: chatService.releasedModels,
+				notificationTarget: getChatNotificationResource(chatService.acquiredModels.at(-1)!).toString(),
+			}, {
+				roles: [role, SessionComparisonParticipantRole.Attempt, undefined],
+				retained: destination.mainChat.get().resource.toString(),
+				expired: undefined,
+				released: [originalResource.toString()],
+				notificationTarget: destination.mainChat.get().resource.toString(),
+			});
+		});
+	}
+
+	for (const evaluator of ['judge', 'synthesis'] as const) {
+		test(`archiving a native parent cleans up a ${evaluator} registered during creation`, async () => {
+			const { service, sessionsManagementService } = createServices();
+			const status = observableValue('status', SessionStatus.InProgress);
+			const archived = observableValue('archived', false);
+			const first = stubSession('first', status, undefined, archived);
+			const chats = observableValue<readonly IChat[]>('chats', [first.mainChat.get()]);
+			const parent = { ...first, chats, capabilities: constObservable({ supportsMultipleChats: true }) };
+			sessionsManagementService.nestChat = chat => chats.set([...chats.get(), chat], undefined);
+			sessionsManagementService.enqueue(parent);
+			sessionsManagementService.enqueue(stubSession('second', status));
+			const comparison = await service.startComparison(startOptions());
+			sessionsManagementService.enqueue(stubSession('judge'));
+			const archiveParent = () => {
+				archived.set(true, undefined);
+				sessionsManagementService.fireArchive(parent);
+			};
+			if (evaluator === 'judge') {
+				sessionsManagementService.beforeCreateAndSendReturn = archiveParent;
+			}
+			status.set(SessionStatus.Completed, undefined);
+			sessionsManagementService.fireChange();
+			await timeout(0);
+			if (evaluator === 'synthesis') {
+				service.submitVerdict(comparison.id, verdict('attempt-one', ['attempt-one', 'attempt-two']));
+				sessionsManagementService.enqueue(stubSession('synthesis'));
+				sessionsManagementService.beforeCreateAndSendReturn = archiveParent;
+				await service.synthesize(comparison.id);
+			}
+			assert.deepStrictEqual({
+				archived: service.getComparison(comparison.id)!.archivedAt !== undefined,
+				parent: service.getComparison(comparison.id)!.sessionResource?.toString(),
+				cancelled: sessionsManagementService.cancelledSessionIds,
+				deleted: sessionsManagementService.deletedSessionIds,
+			}, { archived: true, parent: parent.resource.toString(), cancelled: [evaluator], deleted: [evaluator] });
+		});
+	}
+
+	for (const manuallyUngrouped of [false, true]) {
+		test(`failed evaluator nesting restores automatic grouping but preserves user organization (${manuallyUngrouped})`, async () => {
+			const { service, sessionsManagementService, groupsService } = createServices();
+			const status = observableValue('status', SessionStatus.InProgress);
+			const first = stubSession('first', status);
+			const chats = observableValue<readonly IChat[]>('chats', [first.mainChat.get()]);
+			const parent = { ...first, chats, capabilities: constObservable({ supportsMultipleChats: true }) };
+			sessionsManagementService.nestChat = chat => chats.set([...chats.get(), chat], undefined);
+			sessionsManagementService.enqueue(parent);
+			sessionsManagementService.enqueue(stubSession('second', status));
+			const comparison = await service.startComparison(startOptions());
+			if (manuallyUngrouped) {
+				groupsService.removeFromGroup(parent.sessionId);
+			}
+			sessionsManagementService.nestChat = () => { throw new Error('Move refused'); };
+			sessionsManagementService.enqueue(stubSession('judge'));
+			status.set(SessionStatus.Completed, undefined);
+			sessionsManagementService.fireChange();
+			await timeout(0);
+			const current = service.getComparison(comparison.id)!;
+			assert.deepStrictEqual({
+				parent: current.sessionResource,
+				archived: current.archivedAt,
+				groups: ['first', 'judge'].map(id => groupsService.getGroupOfSession(id)),
+			}, { parent: undefined, archived: undefined, groups: [manuallyUngrouped ? undefined : current.groupId, current.groupId] });
+		});
+	}
+
+	for (const evaluator of ['judge', 'synthesis'] as const) {
+		for (const refused of [false, true]) {
+			test(`archiving during ${evaluator} nesting cleans up only a refused move (${refused})`, async () => {
+				const { service, sessionsManagementService } = createServices();
+				const status = observableValue('status', SessionStatus.InProgress);
+				const archived = observableValue('archived', false);
+				const first = stubSession('first', status, undefined, archived);
+				const chats = observableValue<readonly IChat[]>('chats', [first.mainChat.get()]);
+				const parent = { ...first, chats, capabilities: constObservable({ supportsMultipleChats: true }) };
+				sessionsManagementService.nestChat = chat => chats.set([...chats.get(), chat], undefined);
+				sessionsManagementService.enqueue(parent);
+				sessionsManagementService.enqueue(stubSession('second', status));
+				const comparison = await service.startComparison(startOptions());
+				const started = new DeferredPromise<void>();
+				const finish = new DeferredPromise<void>();
+				const holdMove = () => {
+					sessionsManagementService.nestChat = async chat => {
+						started.complete();
+						await finish.p;
+						if (refused) {
+							throw new Error('Move refused');
+						}
+						chats.set([...chats.get(), chat], undefined);
+					};
+				};
+				if (evaluator === 'judge') {
+					holdMove();
+				}
+				sessionsManagementService.enqueue(stubSession('judge'));
+				status.set(SessionStatus.Completed, undefined);
+				await timeout(0);
+				await timeout(0);
+				let synthesis: Promise<void> | undefined;
+				if (evaluator === 'synthesis') {
+					service.submitVerdict(comparison.id, verdict('attempt-one', ['attempt-one', 'attempt-two']));
+					sessionsManagementService.enqueue(stubSession('synthesis'));
+					holdMove();
+					synthesis = service.synthesize(comparison.id);
+				}
+				await started.p;
+				archived.set(true, undefined);
+				sessionsManagementService.fireArchive(parent);
+				finish.complete();
+				await synthesis;
+				await timeout(0);
+				const current = service.getComparison(comparison.id)!;
+				assert.deepStrictEqual({
+					archived: current.archivedAt !== undefined,
+					cancelled: sessionsManagementService.cancelledSessionIds,
+					deleted: sessionsManagementService.deletedSessionIds,
+					owner: current.participants.find(participant => participant.role === evaluator)?.sessionResource?.toString(),
+				}, {
+					archived: true, cancelled: refused ? [evaluator] : [], deleted: refused ? [evaluator] : [],
+					owner: refused ? undefined : parent.resource.toString(),
+				});
+			});
+		}
+	}
+
+	test('starts the Judge when a nested chat completes without a session-change event', async () => {
+		const { service, sessionsManagementService } = createServices();
+		const first = stubSession('first', observableValue('firstStatus', SessionStatus.Completed));
+		const secondStatus = observableValue('secondStatus', SessionStatus.InProgress);
+		const chats = observableValue<readonly IChat[]>('chats', [first.mainChat.get()]);
+		const parent = { ...first, chats, capabilities: constObservable({ supportsMultipleChats: true }) };
+		sessionsManagementService.nestChat = chat => chats.set([...chats.get(), chat], undefined);
+		sessionsManagementService.enqueue(parent);
+		sessionsManagementService.enqueue(stubSession('second', secondStatus));
+		sessionsManagementService.enqueue(stubSession('judge'));
+		const comparison = await service.startComparison(startOptions());
+		const before = sessionsManagementService.createCalls.length;
+		const replacementStatus = observableValue('replacementStatus', SessionStatus.InProgress);
+		chats.set(chats.get().map(chat => chat.resource.fragment === 'second' ? { ...chat, status: replacementStatus } : chat), undefined);
+		secondStatus.set(SessionStatus.Completed, undefined);
+		await timeout(0);
+		const afterOldChatCompletes = sessionsManagementService.createCalls.length;
+		replacementStatus.set(SessionStatus.Completed, undefined);
+		await timeout(0);
+		await timeout(0);
+		assert.deepStrictEqual({
+			before, afterOldChatCompletes, after: sessionsManagementService.createCalls.length,
+			judge: service.getComparison(comparison.id)?.participants.find(participant => participant.role === SessionComparisonParticipantRole.Judge)?.chatResource?.fragment,
+		}, { before: 2, afterOldChatCompletes: 2, after: 3, judge: 'judge' });
+	});
+
+	test('folderless comparisons launch quick chats without worktrees and survive reload', async () => {
+		const { service, sessionsManagementService, groupsService, storageService } = createServices();
+		sessionsManagementService.enqueue(stubSession('one', observableValue('one', SessionStatus.Completed)));
+		sessionsManagementService.enqueue(stubSession('two', observableValue('two', SessionStatus.Completed)));
+		const options = { ...startOptions(), workspace: undefined, judgeHarness: undefined, synthesisHarness: undefined };
+		const comparison = await service.startComparison(options);
+		sessionsManagementService.fireChange();
+		await timeout(0);
+		const restored = createServices(storageService).service.getComparison(comparison.id);
+		assert.deepStrictEqual({
+			requests: sessionsManagementService.createCalls.map(call => ({
+				workspace: call.folderUri,
+				query: call.options.query,
+				model: call.createOptions?.modelId,
+				isolation: call.createOptions?.isolationMode,
+				branch: call.createOptions?.branch,
+			})),
+			grouped: groupsService.groupedSessionIds,
+			restoredWorkspace: restored?.workspace,
+			restoredParticipants: restored?.participants.map(participant => participant.sessionResource?.toString()),
+			canRetryJudge: service.canRetryJudge(comparison.id),
+		}, {
+			requests: ['model-one', 'model-two'].map(model => ({
+				workspace: undefined, query: options.prompt, model, isolation: undefined, branch: undefined,
+			})),
+			grouped: ['one', 'two'],
+			restoredWorkspace: undefined,
+			restoredParticipants: comparison.participants.map(participant => participant.sessionResource?.toString()),
+			canRetryJudge: false,
+		});
+		await assert.rejects(service.startComparison({ ...options, judgeHarness: startOptions().judgeHarness }), /Folderless comparisons/);
+	});
+
 	test('a Judge without a Synthesizer can submit a verdict but cannot synthesize', async () => {
 		const { service, sessionsManagementService } = createServices();
 		sessionsManagementService.enqueue(stubSession('one', observableValue('one', SessionStatus.Completed)));
@@ -158,7 +636,7 @@ suite('SessionComparisonService', () => {
 			const comparison = await service.startComparison({ ...startOptions(), judgeHarness: undefined, synthesisHarness: undefined });
 			storageService.store('sessions.comparisons', JSON.stringify([{
 				...comparison,
-				workspace: comparison.workspace.toString(),
+				workspace: comparison.workspace?.toString(),
 				participants: [
 					{ id: 'unstarted', role: SessionComparisonParticipantRole.Attempt, harness: startOptions().judgeHarness },
 					...(coordinator ? [{ id: 'coordinator', role: SessionComparisonParticipantRole.Coordinator, harness: startOptions().judgeHarness }] : []),
@@ -217,6 +695,97 @@ suite('SessionComparisonService', () => {
 		});
 	});
 
+	test('defers attempt creation so large comparisons do not block the renderer', async () => {
+		const { service, sessionsManagementService } = createServices();
+		const options = startOptions();
+		const attempts = Array.from({ length: 10 }, (_, index) => ({
+			id: `attempt-${index}`,
+			harness: options.attempts[0].harness,
+		}));
+		for (const [index] of attempts.entries()) {
+			sessionsManagementService.enqueue(stubSession(`attempt-${index}`));
+		}
+
+		const comparisonPromise = service.startComparison({ ...options, attempts });
+		const synchronousCreateCallCount = sessionsManagementService.createCalls.length;
+		await comparisonPromise;
+
+		assert.deepStrictEqual({
+			synchronousCreateCallCount,
+			totalCreateCallCount: sessionsManagementService.createCalls.length,
+		}, {
+			synchronousCreateCallCount: 0,
+			totalCreateCallCount: 10,
+		});
+	});
+
+	test('groups an attempt as soon as it is published before the provider catalog updates', async () => {
+		const { service, sessionsManagementService, groupsService } = createServices();
+		const pendingSecond = new DeferredPromise<ISession | undefined>();
+		sessionsManagementService.hideCreatedSessionUntilCreateReturns = true;
+		sessionsManagementService.enqueue(stubSession('attempt-one'));
+		sessionsManagementService.enqueuePromise(pendingSecond.p);
+
+		const comparisonPromise = service.startComparison(startOptions());
+		await timeout(0);
+		const groupedBeforeAllAttemptsReturn = [...groupsService.groupedSessionIds];
+		pendingSecond.complete(stubSession('attempt-two'));
+		await comparisonPromise;
+
+		assert.deepStrictEqual({
+			groupedBeforeAllAttemptsReturn,
+			groupedSessionIds: groupsService.groupedSessionIds,
+		}, {
+			groupedBeforeAllAttemptsReturn: ['attempt-one'],
+			groupedSessionIds: ['attempt-one', 'attempt-two'],
+		});
+	});
+
+	test('keeps the comparison active when an early attempt is archived while others are launching', async () => {
+		const { service, sessionsManagementService, groupsService } = createServices();
+		const firstArchived = observableValue('firstArchived', false);
+		const first = stubSession('attempt-one', undefined, undefined, firstArchived);
+		const pendingSecond = new DeferredPromise<ISession | undefined>();
+		sessionsManagementService.enqueue(first);
+		sessionsManagementService.enqueuePromise(pendingSecond.p);
+
+		const comparisonPromise = service.startComparison(startOptions());
+		await timeout(0);
+		const launchingComparison = service.comparisons.get()[0];
+		firstArchived.set(true, undefined);
+		sessionsManagementService.fireArchive(first);
+		const afterEarlyArchive = service.getComparison(launchingComparison.id);
+
+		pendingSecond.complete(stubSession('attempt-two'));
+		const comparison = await comparisonPromise;
+
+		assert.deepStrictEqual({
+			duringLaunch: {
+				launching: afterEarlyArchive?.launching,
+				archived: afterEarlyArchive?.archivedAt !== undefined,
+				deletedGroupIds: [...groupsService.deletedGroupIds],
+			},
+			afterLaunch: {
+				launching: comparison.launching,
+				archived: comparison.archivedAt !== undefined,
+				groupedSessionIds: groupsService.groupedSessionIds,
+				deletedGroupIds: groupsService.deletedGroupIds,
+			},
+		}, {
+			duringLaunch: {
+				launching: true,
+				archived: false,
+				deletedGroupIds: [],
+			},
+			afterLaunch: {
+				launching: undefined,
+				archived: false,
+				groupedSessionIds: ['attempt-one', 'attempt-two'],
+				deletedGroupIds: [],
+			},
+		});
+	});
+
 	test('deletes the comparison group after every participant is archived', async () => {
 		const { service, sessionsManagementService, groupsService } = createServices();
 		const firstArchived = observableValue('firstArchived', false);
@@ -243,6 +812,32 @@ suite('SessionComparisonService', () => {
 			archived: service.getComparison(comparison.id)?.archivedAt !== undefined,
 			deletedGroupIds: groupsService.deletedGroupIds,
 		}, {
+			archived: true,
+			deletedGroupIds: [comparison.groupId],
+		});
+	});
+
+	test('deletes the comparison group after available participants are archived and missing participants are reconciled', async () => {
+		const { service, sessionsManagementService, groupsService } = createServices();
+		const firstArchived = observableValue('firstArchived', false);
+		const secondArchived = observableValue('secondArchived', false);
+		const first = stubSession('attempt-one', undefined, undefined, firstArchived);
+		const second = stubSession('attempt-two', undefined, undefined, secondArchived);
+		sessionsManagementService.enqueue(first);
+		sessionsManagementService.enqueue(second);
+
+		const comparison = await service.startComparison(startOptions());
+		sessionsManagementService.removeSession(first);
+		sessionsManagementService.fireChange({ added: [], removed: [first], changed: [] });
+		secondArchived.set(true, undefined);
+		sessionsManagementService.fireArchive(second);
+
+		assert.deepStrictEqual({
+			missingParticipant: service.getComparison(comparison.id)?.participants[0].missingSession,
+			archived: service.getComparison(comparison.id)?.archivedAt !== undefined,
+			deletedGroupIds: groupsService.deletedGroupIds,
+		}, {
+			missingParticipant: true,
 			archived: true,
 			deletedGroupIds: [comparison.groupId],
 		});
@@ -1203,7 +1798,7 @@ suite('SessionComparisonService', () => {
 		const { service } = createServices(storageService);
 		const comparison = service.getComparison('comparison');
 		assert.deepStrictEqual({
-			workspace: comparison?.workspace.toString(),
+			workspace: comparison?.workspace?.toString(),
 			session: comparison?.participants[0].sessionResource?.toString(),
 		}, {
 			workspace: 'file:///workspace',
@@ -1568,17 +2163,27 @@ suite('SessionComparisonService', () => {
 class TestSessionsManagementService extends mock<ISessionsManagementService>() implements IDisposable {
 	private readonly _onDidChangeSessions = new Emitter<ISessionChangeEvent>();
 	override readonly onDidChangeSessions = this._onDidChangeSessions.event;
+	private readonly _onDidArchiveSession = new Emitter<ISession>();
+	override readonly onDidArchiveSession = this._onDidArchiveSession.event;
 	private readonly _onDidDeleteSession = new Emitter<ISession>();
 	override readonly onDidDeleteSession = this._onDidDeleteSession.event;
+	private readonly _onDidDeleteChat = new Emitter<IChatDeletedEvent>();
+	override readonly onDidDeleteChat = this._onDidDeleteChat.event;
+	private readonly _onDidMoveChat = new Emitter<IChatMovedEvent>();
+	override readonly onDidMoveChat = this._onDidMoveChat.event;
+	nestChat: ((chat: IChat, destination: ISession) => void | Promise<void>) | undefined;
+	readonly moveAnchors: (IChat | undefined)[] = [];
 	private readonly _results: Array<(createOptions?: ICreateNewSessionOptions) => Promise<ISession | undefined>> = [];
 	private readonly _sessions = new Map<string, ISession>();
-	readonly createCalls: Array<{ folderUri: URI; options: ISendRequestOptions; createOptions?: ICreateNewSessionOptions; token?: CancellationToken }> = [];
+	readonly createCalls: Array<{ folderUri: URI | undefined; options: ISendRequestOptions; createOptions?: ICreateNewSessionOptions; token?: CancellationToken }> = [];
 	readonly renameCalls: Array<{ sessionId: string; title: string }> = [];
 	readonly cancelledSessionIds: string[] = [];
 	readonly deletedSessionIds: string[] = [];
 	getSessionCalls = 0;
 	cancelError: Error | undefined;
 	beforeCreateAndSendReturn: (() => void) | undefined;
+	hideCreatedSessionUntilCreateReturns = false;
+	private readonly _hiddenCreatedSessions = new Set<string>();
 
 	enqueue(session: ISession): void {
 		this.enqueuePromise(Promise.resolve(session));
@@ -1604,20 +2209,35 @@ class TestSessionsManagementService extends mock<ISessionsManagementService>() i
 		if (hasKey(options, { kind: true })) {
 			throw new Error('Session comparisons must send an immediate request.');
 		}
+		return this.createAndSendRequest(folderUri, options, createOptions, token);
+	}
+
+	override createAndSendQuickChatRequest(options: ISendRequestOptions, createOptions?: ICreateNewSessionOptions, token?: CancellationToken): Promise<ISession | undefined> {
+		return this.createAndSendRequest(undefined, options, createOptions, token);
+	}
+
+	private async createAndSendRequest(folderUri: URI | undefined, options: ISendRequestOptions, createOptions?: ICreateNewSessionOptions, token?: CancellationToken): Promise<ISession | undefined> {
 		this.createCalls.push({ folderUri, options, createOptions, token });
 		const result = await this._results.shift()?.(createOptions);
 		if (result) {
 			this._sessions.set(result.resource.toString(), result);
+			if (this.hideCreatedSessionUntilCreateReturns) {
+				this._hiddenCreatedSessions.add(result.resource.toString());
+			}
 			createOptions?.onSessionCreated?.(result);
 			const beforeCreateAndSendReturn = this.beforeCreateAndSendReturn;
 			this.beforeCreateAndSendReturn = undefined;
 			beforeCreateAndSendReturn?.();
+			this._hiddenCreatedSessions.delete(result.resource.toString());
 		}
 		return result;
 	}
 
 	override getSession(resource: URI): ISession | undefined {
 		this.getSessionCalls++;
+		if (this._hiddenCreatedSessions.has(resource.toString())) {
+			return undefined;
+		}
 		return this._sessions.get(resource.toString());
 	}
 
@@ -1633,6 +2253,20 @@ class TestSessionsManagementService extends mock<ISessionsManagementService>() i
 		this.renameCalls.push({ sessionId: session.sessionId, title });
 	}
 
+	override canMoveSessionUnder(session: ISession): boolean {
+		return !!this.nestChat && session.chats.get().filter(chat => chat.origin?.kind !== ChatOriginKind.Tool).length === 1;
+	}
+
+	override async moveSessionUnder(session: ISession, destination: ISession, after?: IChat): Promise<void> {
+		this.moveAnchors.push(after);
+		const from = session.mainChat.get().resource;
+		const to = destination.mainChat.get().resource.with({ fragment: session.sessionId });
+		await this.nestChat?.({ ...session.mainChat.get(), resource: to, harness: session.harness }, destination);
+		this.removeSession(session);
+		this.fireChange({ added: [], removed: [session], changed: [destination] });
+		this._onDidMoveChat.fire({ from: { session, chat: from }, to: { session: destination, chat: to } });
+	}
+
 	override async cancelCurrentRequest(session: ISession): Promise<void> {
 		this.cancelledSessionIds.push(session.sessionId);
 		if (this.cancelError) {
@@ -1646,18 +2280,37 @@ class TestSessionsManagementService extends mock<ISessionsManagementService>() i
 		this._onDidDeleteSession.fire(session);
 	}
 
+	override async deleteChat(session: ISession, chatResource: URI): Promise<boolean> {
+		this._onDidDeleteChat.fire({ session, sessionResource: session.resource, chatResource });
+		return true;
+	}
+
 	fireChange(event: ISessionChangeEvent = { added: [], removed: [], changed: [...this._sessions.values()] }): void {
 		this._onDidChangeSessions.fire(event);
 	}
 
+	fireArchive(session: ISession): void {
+		this._onDidArchiveSession.fire(session);
+	}
+
+	fireMove(event: IChatMovedEvent): void {
+		this._onDidMoveChat.fire(event);
+	}
+
 	dispose(): void {
 		this._onDidChangeSessions.dispose();
+		this._onDidArchiveSession.dispose();
 		this._onDidDeleteSession.dispose();
+		this._onDidDeleteChat.dispose();
+		this._onDidMoveChat.dispose();
 	}
 }
 
 class TestChatService extends mock<IChatService>() {
 	private readonly _responses = new Map<string, readonly { usage: IChatUsage; elapsedMs?: number }[]>();
+	readonly releasedModels: string[] = [];
+	readonly acquiredModels: IChatModel[] = [];
+	readonly requestInProgress = observableValue('requestInProgress', true);
 
 	setUsage(resource: URI, usages: readonly IChatUsage[], firstTurnElapsedMs?: number): void {
 		this._responses.set(resource.toString(), usages.map((usage, index) => ({
@@ -1669,10 +2322,20 @@ class TestChatService extends mock<IChatService>() {
 	override getSession(resource: URI): IChatModel | undefined {
 		const responses = this._responses.get(resource.toString());
 		return responses ? upcastPartial<IChatModel>({
-			getRequests: () => responses.map(response => upcastPartial<IChatRequestModel>({
+			sessionResource: resource,
+			requestInProgress: this.requestInProgress,
+			getRequests: () => (this._responses.get(resource.toString()) ?? []).map(response => upcastPartial<IChatRequestModel>({
 				response: upcastPartial<IChatResponseModel>(response),
 			})),
 		}) : undefined;
+	}
+
+	override acquireExistingSession(resource: URI): IChatModelReference | undefined {
+		const object = this.getSession(resource);
+		if (object) {
+			this.acquiredModels.push(object);
+		}
+		return object ? Object.assign(toDisposable(() => this.releasedModels.push(resource.toString())), { object }) : undefined;
 	}
 }
 

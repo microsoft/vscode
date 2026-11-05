@@ -8,13 +8,14 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IChatEditingSession } from '../../../common/editing/chatEditingService.js';
-import { IChatChangeEvent, IChatModel, IChatPendingRequest, IChatRequestModel, IChatRequestNeedsInputInfo, IExportableChatData, IExportableRepoData, IInputModel, ISerializableChatData } from '../../../common/model/chatModel.js';
+import { IChatChangeEvent, IChatModel, IChatPendingRequest, IChatRequestModel, IChatRequestNeedsInputInfo, IChatSessionCost, IExportableChatData, IExportableRepoData, IInputModel, ISerializableChatData } from '../../../common/model/chatModel.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
 import { IChatSessionContext, IChatSessionTiming } from '../../../common/chatService/chatService.js';
 
 export class MockChatModel extends Disposable implements IChatModel {
 	readonly onDidDispose = this._register(new Emitter<void>()).event;
-	readonly onDidChange = this._register(new Emitter<IChatChangeEvent>()).event;
+	private readonly _onDidChange = this._register(new Emitter<IChatChangeEvent>());
+	readonly onDidChange = this._onDidChange.event;
 	sessionId = '';
 	readonly timestamp = 0;
 	readonly timing: IChatSessionTiming = { created: Date.now(), lastRequestStarted: undefined, lastRequestEnded: undefined };
@@ -61,7 +62,13 @@ export class MockChatModel extends Disposable implements IChatModel {
 
 	readonly hasRequests = false;
 	readonly lastRequest: IChatRequestModel | undefined;
-	readonly sessionCost: number = 0;
+	sessionCostInfo: IChatSessionCost | undefined;
+	get sessionCost(): number { return this.sessionCostInfo?.credits ?? 0; }
+	get sessionCostStatus(): IChatSessionCost['status'] { return this.sessionCostInfo?.status; }
+	setSessionCost(cost: IChatSessionCost): void {
+		this.sessionCostInfo = cost;
+		this._onDidChange.fire({ kind: 'setSessionCost' });
+	}
 
 	override dispose() {
 		this.isDisposed = true;
@@ -76,6 +83,8 @@ export class MockChatModel extends Disposable implements IChatModel {
 	setWorkingDirectory(uri: URI | undefined): void { this.workingDirectory = uri; }
 	readonly onDidChangePendingRequests: Event<void> = this._register(new Emitter<void>()).event;
 	getPendingRequests(): readonly IChatPendingRequest[] { return []; }
+	readonly pendingRequestHandoffs = observableValue<readonly IChatRequestModel[]>(this, []);
+	setPendingRequestHandoffs(requests: readonly IChatRequestModel[]): void { this.pendingRequestHandoffs.set(requests, undefined); }
 	toExport(): IExportableChatData {
 		return {
 			initialLocation: this.initialLocation,

@@ -194,7 +194,7 @@ export class ExternalSessionBanner extends Disposable {
 			() => this._configurationService.getValue<boolean>(SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING) === true);
 		this._register(autorun(reader => {
 			const session = this._session.read(reader);
-			const visible = !this._dismissed.read(reader) && session?.isExternal?.read(reader) === true;
+			const visible = !this._dismissed.read(reader) && session?.isExternal?.read(reader) === true && session.isAutomation?.read(reader) !== true;
 			const grouped = groupExternalSessions.read(reader);
 			const text = grouped
 				? this._getContinuationDescription(session?.sessionType)
