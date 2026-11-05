@@ -9,11 +9,12 @@ import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import type { IInstantiationService, ServicesAccessor } from '../../../instantiation/common/instantiation.js';
 import { NullLogService } from '../../../log/common/log.js';
+import type { IAgent } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import type { IAgentHostChatContributionHost, IAgentHostChatContributions, ISendTurnMessageOptions, ITurnEnd } from '../../common/agentHostChatContributionsService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { chatTurnStarted } from '../common/chatActionBuilders.js';
+import { chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
 import { buildDefaultChatUri, MessageKind, SessionStatus, TurnState } from '../../common/state/sessionState.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostTurnService } from '../../node/agentHostTurnService.js';
@@ -25,12 +26,25 @@ suite('AgentHostTurnService', () => {
 	function createHarness() {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const turnEnds: ITurnEnd[] = [];
+		const sent: ISendTurnMessageOptions[] = [];
 		const contributions = new class extends mock<IAgentHostChatContributions>() {
 			override turnEnd(turn: ITurnEnd): void {
 				turnEnds.push(turn);
 			}
+			override getHost(): IAgentHostChatContributionHost {
+				return {
+					hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
+					sendTurnMessage(request): void {
+						sent.push(request);
+					},
+				};
+			}
 		}();
-		const instantiationService = new class extends mock<IInstantiationService>() { }();
+		const instantiationService = new class extends mock<IInstantiationService>() {
+			override invokeFunction<R>(): R {
+				return { agent: new (mock<IAgent>())() } as R;
+			}
+		}();
 		const service = new AgentHostTurnService(stateManager, contributions, instantiationService, createTestChatOwnershipService(stateManager));
 		const session = URI.parse('copilot:/deferred-turn');
 		const chat = URI.parse(buildDefaultChatUri(session));
@@ -43,8 +57,28 @@ suite('AgentHostTurnService', () => {
 			modifiedAt: new Date(0).toISOString(),
 			defaultChat: buildDefaultChatUri(session.toString()),
 		});
-		return { service, stateManager, session, chat, turnEnds };
+		return { service, stateManager, session, chat, turnEnds, sent };
 	}
+
+	test('a workspace continuation the host writes keeps the custom agent the chat runs with', () => {
+		const harness = createHarness();
+		const reviewer = { uri: 'file:///agents/reviewer.agent.md' };
+		harness.stateManager.dispatchServerAction(harness.chat.toString(), {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'user-turn',
+			startedAt: new Date(0).toISOString(),
+			message: { text: 'Review this', origin: { kind: MessageKind.User }, agent: reviewer },
+		});
+		harness.stateManager.dispatchServerAction(harness.chat.toString(), chatTurnComplete('user-turn', 1));
+
+		const deferred = harness.service.beginDeferredTurnMessage(harness.chat, { text: 'Continue in the requested workspace.', origin: { kind: MessageKind.SystemNotification } });
+		harness.service.continueDeferredTurnMessage(harness.chat, deferred, { text: 'Continue the task in this workspace.', origin: { kind: MessageKind.SystemNotification } });
+
+		assert.deepStrictEqual({
+			turnAgent: harness.stateManager.getChatState(harness.chat.toString())?.activeTurn?.message.agent,
+			sentAgents: harness.sent.map(request => request.message.agent),
+		}, { turnAgent: reviewer, sentAgents: [reviewer] });
+	});
 
 	test('keeps a deferred turn active until it is failed', () => {
 		const harness = createHarness();

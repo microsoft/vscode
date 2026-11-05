@@ -14,6 +14,7 @@ import { localize } from '../../../nls.js';
 import { ArtifactPromptReceipt } from '../../artifactIntegrations/common/artifactIntegration.js';
 import { ArtifactPromptOutcome, ArtifactPromptRecovery, ArtifactPromptRequest, ArtifactPromptState, ArtifactPromptSubmission, ArtifactPromptTrackingError, IArtifactChatAccess, IArtifactChatObservation, IArtifactPromptHandle, isArtifactPromptOutcome } from '../../artifactIntegrations/common/artifactRuntime.js';
 import { AgentHostArtifactRequestMetaKey, AgentHostArtifactRunInitiatorMetaKey, AgentHostArtifactRunMetaKey, readArtifactIntegrationRun } from './meta/agentHostArtifactIntegrationMeta.js';
+import { withLatestTurnAgent } from './agentSessionMessage.js';
 import { ActionEnvelope, ActionType, ChatAction } from './state/sessionActions.js';
 import { ChatInteractivity, ChatState, MessageKind, PendingMessageKind, TurnState } from './state/sessionState.js';
 
@@ -116,7 +117,7 @@ export class ArtifactProtocolChatAccess extends Disposable implements IArtifactC
 			if (state.activeTurn || state.steeringMessage || state.queuedMessages?.length) {
 				return { kind: 'busy' };
 			}
-			const message = {
+			const message = withLatestTurnAgent({
 				text: request.prompt.text,
 				origin: { kind: MessageKind.SystemNotification },
 				_meta: {
@@ -124,7 +125,7 @@ export class ArtifactProtocolChatAccess extends Disposable implements IArtifactC
 					...(request.initiator ? { [AgentHostArtifactRunInitiatorMetaKey]: request.initiator } : {}),
 					...(request.presentation ? { [AgentHostArtifactRequestMetaKey]: request.presentation } : {}),
 				},
-			};
+			}, state);
 			if (this.admission === 'atomic') {
 				await this.backend.dispatch(request.chat, { type: ActionType.ChatTurnStarted, turnId: request.requestId, startedAt: new Date().toISOString(), message });
 				return { kind: 'accepted', handle: this.createHandle(request, { kind: 'turn', turnId: request.requestId }) };

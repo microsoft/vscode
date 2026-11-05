@@ -7,7 +7,7 @@ import type { Mutable } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { findAgentSessionMessage, getPendingSteeringMessages, readOwnedAgentSessionMessage } from '../../common/agentSessionMessage.js';
+import { findAgentSessionMessage, getPendingSteeringMessages, readOwnedAgentSessionMessage, withLatestTurnAgent } from '../../common/agentSessionMessage.js';
 import { toAgentMessageDelegationMeta, type IAgentMessageDelegationMeta, type IAgentMessageSessionDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { localize } from '../../../../nls.js';
 import { AgentSession, type AgentProvider, type IAgentCreateSessionConfig, type IAgentModelInfo, type IAgentSessionChatMetadata, type IAgentSessionMetadata } from '../../common/agent.js';
@@ -1627,6 +1627,7 @@ export async function applySendMessageTool(accessor: ISessionServerToolAccessor,
 		revision,
 	} : undefined;
 	const targetState = stateManager?.getChatState(chat.toString());
+	const message = withLatestTurnAgent(createAgentSessionMessage(args.message, delegation), targetState);
 	if (args.delivery === 'steer') {
 		if (!stateManager || !targetState?.activeTurn) {
 			return JSON.stringify({
@@ -1646,7 +1647,7 @@ export async function applySendMessageTool(accessor: ISessionServerToolAccessor,
 			type: ActionType.ChatPendingMessageSet,
 			kind: PendingMessageKind.Steering,
 			id: messageId,
-			message: createAgentSessionMessage(args.message, delegation),
+			message,
 		}, credentials);
 		return JSON.stringify({ action: 'steered', messageId, revision, status: 'processing', openLink });
 	}
@@ -1655,7 +1656,7 @@ export async function applySendMessageTool(accessor: ISessionServerToolAccessor,
 			type: ActionType.ChatPendingMessageSet,
 			kind: PendingMessageKind.Queued,
 			id: messageId,
-			message: createAgentSessionMessage(args.message, delegation),
+			message,
 		}, credentials);
 		return JSON.stringify({ action: 'queued', messageId, revision, status: 'pending', openLink });
 	}

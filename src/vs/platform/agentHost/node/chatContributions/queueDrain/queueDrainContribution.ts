@@ -10,7 +10,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { IInstantiationService } from '../../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../../log/common/log.js';
-import { getPendingSteeringMessages } from '../../../common/agentSessionMessage.js';
+import { getPendingSteeringMessages, withLatestTurnAgent } from '../../../common/agentSessionMessage.js';
 import { AgentHostClientType } from '../../../common/agentHostClientInfo.js';
 import { createUnknownAgentHostClientTelemetryContext } from '../../../common/agentHostTelemetry.js';
 import { IAgentHostChatContributions, createChatMementoKey, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IAgentHostChatContributionHost, type IAppliedClientAction, type IDispatchedAction, type IQueuedMessageSender, type ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
@@ -282,7 +282,7 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 		// Drop the entry rather than blanking it: the memento is keyed by message
 		// id, so a long-lived chat would otherwise retain one per message queued.
 		this._context.deleteMemento(PendingSender, channel, message.id);
-		this._admitQueuedTurn(host, channel, message.message, message.id, sender);
+		this._admitQueuedTurn(host, channel, withLatestTurnAgent(message.message, state), message.id, sender);
 	}
 
 	private _admitQueuedTurn(host: IAgentHostChatContributionHost, channel: ProtocolURI, message: Message, messageId: string, sender: IQueuedMessageSender): void {
