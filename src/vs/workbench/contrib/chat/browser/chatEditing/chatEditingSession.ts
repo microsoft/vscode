@@ -6,7 +6,7 @@
 import { DeferredPromise, ITask, Sequencer, SequencerByKey, timeout } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { BugIndicatingError } from '../../../../../base/common/errors.js';
+import { BugIndicatingError, CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { isStringInSample } from '../../../../../base/common/hash.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -541,13 +541,20 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		this._baselineCreationLocks.queue(resource.path, () => startPromise.p);
 
 		this._streamingEditLocks.queue(resource.toString(), async () => {
-			await chatEditingSessionIsReady(this);
+			try {
+				await chatEditingSessionIsReady(this);
 
-			if (!this.isDisposed) {
-				await this._acceptStreamingEditsStart(responseModel, inUndoStop, resource);
+				if (!this.isDisposed) {
+					await this._acceptStreamingEditsStart(responseModel, inUndoStop, resource);
+				}
+			} catch (error) {
+				if (this.isDisposed && isCancellationError(error)) {
+					return;
+				}
+				throw error;
+			} finally {
+				startPromise.complete();
 			}
-
-			startPromise.complete();
 			return completePromise.p;
 		});
 
@@ -697,39 +704,48 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 					return;
 				}
 
-				let initialContent: string | undefined;
-				if (contentSource) {
-					// Read the before-content from the provided URI instead of disk
-					try {
-						const data = await this._fileService.readFile(contentSource);
-						initialContent = data.value.toString();
-					} catch {
-						initialContent = '';
+				try {
+					let initialContent: string | undefined;
+					if (contentSource) {
+						// Read the before-content from the provided URI instead of disk
+						try {
+							const data = await this._fileService.readFile(contentSource);
+							initialContent = data.value.toString();
+						} catch {
+							initialContent = '';
+						}
 					}
-				}
 
-				const entry = await this._getOrCreateModifiedFileEntry(resource, NotExistBehavior.Abort, telemetryInfo, initialContent);
-				if (entry) {
-					await this._acceptStreamingEditsStart(responseModel, undoStopId, resource);
-				}
-
-				const notebookUri = CellUri.parse(resource)?.notebook || resource;
-				progress.push(...createOpeningEditCodeBlock(resource, this._notebookService.hasSupportedNotebooks(notebookUri), undoStopId));
-
-				if (initialContent !== undefined) {
+					const entry = await this._getOrCreateModifiedFileEntry(resource, NotExistBehavior.Abort, telemetryInfo, initialContent);
 					if (entry) {
-						entry.initialContent = initialContent;
-						await entry.resetEditTrackerToInitialContent(); // in case it's reused
+						await this._acceptStreamingEditsStart(responseModel, undoStopId, resource);
 					}
-					snapshots.set(resource, initialContent);
-				} else {
-					// Save to disk to ensure disk state is current before external edits
-					await entry?.save();
-					// Take snapshot of current state
-					snapshots.set(resource, entry && this._getCurrentTextOrNotebookSnapshot(entry));
+
+					const notebookUri = CellUri.parse(resource)?.notebook || resource;
+					progress.push(...createOpeningEditCodeBlock(resource, this._notebookService.hasSupportedNotebooks(notebookUri), undoStopId));
+
+					if (initialContent !== undefined) {
+						if (entry) {
+							entry.initialContent = initialContent;
+							await entry.resetEditTrackerToInitialContent(); // in case it's reused
+						}
+						snapshots.set(resource, initialContent);
+					} else {
+						// Save to disk to ensure disk state is current before external edits
+						await entry?.save();
+						// Take snapshot of current state
+						snapshots.set(resource, entry && this._getCurrentTextOrNotebookSnapshot(entry));
+					}
+					entry?.startExternalEdit();
+				} catch (error) {
+					if (this.isDisposed && isCancellationError(error)) {
+						return;
+					}
+					throw error;
+				} finally {
+					// Release startExternalEdits even if the session was disposed while the entry was created.
+					acquiredLock.complete();
 				}
-				entry?.startExternalEdit();
-				acquiredLock.complete();
 
 				// Wait for the lock to be released by stopExternalEdits
 				return releaseLock.p;
@@ -1175,6 +1191,11 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			const maybeEntry = await this._createModifiedFileEntry(resource, telemetryInfo, ifNotExists, initialContent);
 			if (!maybeEntry) {
 				return undefined;
+			}
+			if (this._store.isDisposed) {
+				// .dispose() ran while the entry was being created, so it did not dispose this entry.
+				maybeEntry.dispose();
+				throw new CancellationError();
 			}
 			entry = maybeEntry;
 			if (initialContent === undefined) {
