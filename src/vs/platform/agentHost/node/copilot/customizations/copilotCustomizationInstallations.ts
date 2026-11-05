@@ -477,10 +477,30 @@ export class CopilotCustomizationInstallations extends Disposable {
 		// Claim the request so a concurrent or repeated apply is refused.
 		this.preparations.deleteAndLeak(preparation.id);
 		try {
+			await this.admitConfiguration(preparation);
 			const operation = await this.prepareConfiguredInstall(preparation, selected, answers);
 			return await this.apply({ hostGeneration: this.hostGeneration, ownershipToken: preparation.ownershipToken, operationId: operation.id });
 		} finally {
 			preparation.dispose();
+		}
+	}
+
+	/**
+	 * Admits a claimed configuration request before any value or secret leaves
+	 * the host. Prompts can stay open long enough for the preparation to
+	 * expire, the host to shut down, or the runtime client or hidden policy
+	 * session to change after an authentication change.
+	 */
+	private async admitConfiguration(preparation: PendingCustomizationPreparation): Promise<void> {
+		const client = await this.getClient();
+		if (this._store.isDisposed) {
+			throw toInstallationFailure('cancelled');
+		}
+		if (preparation.expiresAt <= Date.now()) {
+			throw this.expiredError();
+		}
+		if (client !== preparation.client || preparation.policySessionId !== this.policySession?.sessionId) {
+			throw new CustomizationInstallationFailure('foreign-runtime', localize('copilot.customizationInstallation.runtimeChanged', "The customization runtime restarted. Start the operation again."));
 		}
 	}
 

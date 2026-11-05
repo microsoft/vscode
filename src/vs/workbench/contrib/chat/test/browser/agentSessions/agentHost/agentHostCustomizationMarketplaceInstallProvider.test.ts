@@ -7,6 +7,7 @@ import * as assert from 'assert';
 import { disposableTimeout } from '../../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
+import { parseLinkedText } from '../../../../../../../base/common/linkedText.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
@@ -1549,8 +1550,9 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			installation: { kind: 'providerCatalog', resourceKind: 'mcp', selectionId: 'selection' },
 		} as const;
 
-		function createFlow(options: { readonly trusted?: boolean; readonly grantTrust?: boolean; readonly confirm?: boolean; readonly cancelAt?: string } = {}) {
+		function createFlow(options: { readonly trusted?: boolean; readonly grantTrust?: boolean; readonly confirm?: boolean; readonly cancelAt?: string; readonly configuration?: IAgentCustomizationInstallationConfigurationRequest } = {}) {
 			const calls: unknown[] = [];
+			const prompts: (string | undefined)[] = [];
 			const details: string[] = [];
 			const validation: (string | undefined)[] = [];
 			const host = new class extends mock<IAgentHostService>() {
@@ -1558,7 +1560,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 				override readonly onAgentHostExit = Event.None;
 				override async prepareCustomizationInstallation(_provider: string, session: URI) {
 					calls.push(['prepare', session.toString()]);
-					return configuration;
+					return options.configuration ?? configuration;
 				}
 				override async applyCustomizationInstallation(_provider: string, request: IAgentCustomizationInstallationApplyRequest) {
 					calls.push(['apply', request]);
@@ -1570,10 +1572,12 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 				override async pick<T extends IQuickPickItem>(picks: QuickPickInput<T>[], pickOptions?: IPickOptions<T>): Promise<T | undefined> {
 					const items = picks as (T & { readonly value?: string })[];
 					calls.push(['pick', items.map(item => item.label)]);
+					prompts.push(pickOptions?.placeHolder);
 					// The transport pick preselects the recommendation; value picks choose the enum's sentinel.
 					return pickOptions?.activeItem ? await pickOptions.activeItem : items.find(item => item.value === sentinels.region);
 				}
 				override async input(inputOptions?: IInputOptions): Promise<string | undefined> {
+					prompts.push(inputOptions?.prompt);
 					if (inputOptions?.password) {
 						return this.cancelAt === 'secret' ? undefined : sentinels.secret;
 					}
@@ -1607,7 +1611,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 					requestTrust: async () => { calls.push('requestTrust'); return options.grantTrust; },
 				},
 			));
-			return { provider, calls, details, validation, quickInput };
+			return { provider, calls, details, validation, prompts, quickInput };
 		}
 
 		test('installs once through the local host with exact submitted values after a sanitized review', async () => {
@@ -1641,6 +1645,23 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 					'Configuration fields: headers, url',
 				],
 			});
+		});
+
+		test('shows command links from untrusted plan text as plain text', async () => {
+			const link = '[Continue setup](command:workbench.action.files.newUntitledFile)';
+			const { provider, prompts } = createFlow({
+				configuration: {
+					...configuration,
+					recommendedChoiceId: undefined,
+					choices: [{
+						choiceId: 'remote:0', transport: 'streamable-http', endpointSummary: 'https://example.test/mcp', configurationFields: ['headers'],
+						values: [{ key: 'X-Region', category: 'header', valueType: 'enum', required: true, isRepeated: false, enumValues: ['eu', sentinels.region], title: link, description: link }],
+						secrets: [{ key: 'API_KEY', placeholder: '${secret:a}', title: link }],
+					}],
+				},
+			});
+			await provider.install(URI.parse('agent-host-copilotcli:/frontend'), resource, CancellationToken.None);
+			assert.deepStrictEqual(prompts.map(prompt => parseLinkedText(prompt ?? '').nodes.filter(node => typeof node !== 'string').length), [0, 0]);
 		});
 
 		test('declining workspace trust stops before any connection call', async () => {

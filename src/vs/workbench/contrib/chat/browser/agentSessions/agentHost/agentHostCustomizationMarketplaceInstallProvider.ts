@@ -42,9 +42,9 @@ const maxPromptLabelLength = 200;
 /** The user's answers to a configuration request and the choice they answer. */
 type ICustomizationInstallationAnswers = Omit<IAgentCustomizationInstallationAnswers, 'choiceId'> & { readonly choice: IAgentCustomizationInstallationChoice };
 
-/** Renders untrusted plan text as a bounded plain-text label. */
+/** Renders untrusted plan text as a bounded plain-text label. Quick Input turns `[text](command:…)` into links, so `](` is split apart. */
 function toPlainLabel(value: string): string {
-	const singleLine = value.replace(/[\u0000-\u001f\u007f]+/g, ' ');
+	const singleLine = value.replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\]\(/g, '] (');
 	return escapeIcons(singleLine.length > maxPromptLabelLength ? `${singleLine.slice(0, maxPromptLabelLength)}…` : singleLine);
 }
 

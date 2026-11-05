@@ -2206,10 +2206,11 @@ suite('CopilotCustomizationInstallations', () => {
 					mcp,
 				},
 			};
-			const service = store.add(new CopilotCustomizationInstallations(async () => client, policySessions.create));
+			let current = client;
+			const service = store.add(new CopilotCustomizationInstallations(async () => current, policySessions.create));
 			serviceRef.value = service;
 			const request = { mediaType: candidate.mediaType, identifier: itemUrl, displayName: candidate.displayName, description: catalogue.description, itemUrl, installation: { kind: 'mcp' as const } };
-			return { service, request, prepared, cancelled, decisions, confirm: (id: string) => serviceRef.value!.confirmationHandler(confirmation(id, { action: 'install', identity, provenance, catalogueTrust: trust, catalogue, target, policy, selectedChoice: choice, configurationChange: configuration, inputs: prepared.at(-1)!.inputs, suppliedSecrets: [placeholder], secretStorage: 'keychain', effectiveConfiguration: effective }), cancellationToken) };
+			return { service, request, prepared, cancelled, decisions, swapClient: () => { current = { rpc: client.rpc }; }, confirm: (id: string) => serviceRef.value!.confirmationHandler(confirmation(id, { action: 'install', identity, provenance, catalogueTrust: trust, catalogue, target, policy, selectedChoice: choice, configurationChange: configuration, inputs: prepared.at(-1)!.inputs, suppliedSecrets: [placeholder], secretStorage: 'keychain', effectiveConfiguration: effective }), cancellationToken) };
 		}
 
 		async function prepareConfiguration(service: CopilotCustomizationInstallations, request: Parameters<CopilotCustomizationInstallations['prepare']>[0]) {
@@ -2365,6 +2366,24 @@ suite('CopilotCustomizationInstallations', () => {
 				prepared: 1,
 				applied: { kind: 'receipt', installationId: 'installed' },
 			});
+		});
+
+		test('sends no values or secrets after the runtime client or policy session changed during prompting', async () => {
+			const results: unknown[] = [];
+			for (const change of ['policy-session', 'client'] as const) {
+				const { service, request, prepared, swapClient } = createConfiguredFixture();
+				const configuration = await prepareConfiguration(service, request);
+				if (change === 'client') {
+					swapClient();
+				} else {
+					await service.releasePolicySession();
+				}
+				results.push(await service.apply(answers(configuration)).then(() => 'accepted', errorMessage), prepared.length);
+			}
+			assert.deepStrictEqual(results, [
+				'The customization runtime restarted. Start the operation again.', 0,
+				'The customization runtime restarted. Start the operation again.', 0,
+			]);
 		});
 
 		test('fails closed for repeated values and runtimes without configured installation', async () => {
