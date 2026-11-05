@@ -21,7 +21,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { localize } from '../../../../nls.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../common/session.js';
-import { IActiveSession, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, inheritableSessionTarget, IRecentlyOpenedSessions, ISessionsChangeEvent, ISessionsManagementService, IToggleSessionStickinessEvent } from '../common/sessionsManagement.js';
+import { IActiveSession, ICreateNewChatInSessionOptions, IHostSession, ICreateNewSessionOptions, inheritableSessionTarget, IRecentlyOpenedSessions, ISessionsChangeEvent, ISessionsManagementService, IToggleSessionStickinessEvent } from '../common/sessionsManagement.js';
 import { IChatMovedEvent } from '../common/sessionsProvider.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
 import { ensureSessionWorktreesTrusted } from './worktreeTrust.js';
@@ -42,7 +42,7 @@ import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.j
 import { Direction } from '../../../../base/browser/ui/grid/grid.js';
 import { ISessionGridState, isSessionGridState, projectSessionGrid } from './sessionGridState.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
-import { ActiveSessionHost, ISessionHost, SessionHostKind } from './sessionHost.js';
+import { ActiveSessionHost, ISessionGridPanes, ISessionHost, SessionHostKind } from './sessionHost.js';
 
 const ACTIVE_SESSION_STATES_KEY = 'agentSessions.activeSessionStates';
 const SESSION_GRID_STATE_KEY = 'agentSessions.gridState';
@@ -182,7 +182,7 @@ interface ISessionState {
  * model lifecycle operations (creating sessions, sending requests, CRUD)
  * itself — those stay in the management service.
  */
-export interface ISessionsService {
+export interface ISessionsService extends ISessionGridPanes {
 	readonly _serviceBrand: undefined;
 
 	/**
@@ -954,6 +954,18 @@ export class SessionsService extends Disposable implements ISessionsService {
 			}
 		}));
 		this._sendFollow.value = store;
+	}
+
+	isActivePane(pane: IHostSession | undefined): boolean {
+		return this._visibility.isActivePane(pane);
+	}
+
+	isDetachedPane(pane: IHostSession | undefined): boolean {
+		return this._visibility.isDetachedPane(pane);
+	}
+
+	isGridPane(pane: IHostSession | undefined): boolean {
+		return this._visibility.isGridPane(pane);
 	}
 
 	getRecentlyOpenedSessions(): IRecentlyOpenedSessions {

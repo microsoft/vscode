@@ -2082,8 +2082,8 @@ registerAction2(class TogglePinSessionAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, session: IActiveSession | undefined): Promise<void> {
-		// A chat editor's session is not the grid's, which it would pin.
-		if (!session || (session.scopedChatResource && accessor.get(IChatHostOpenerService).getOpenerOf(session.scopedChatResource))) {
+		// A chat editor's session is not the grid's, which it would pin: a pane of another surface, which shows its chat.
+		if (!session || (!accessor.get(ISessionsService).isGridPane(session) && accessor.get(IChatHostOpenerService).getOpenerOf(session.activeChat.get().resource))) {
 			return;
 		}
 		accessor.get(ISessionsService).toggleSessionStickiness(session);
@@ -2216,11 +2216,12 @@ registerAction2(class CloseSessionAction extends Action2 {
 			session = view.getSession();
 		}
 
-		// The session of a chat another surface shows, such as a chat editor's, closes there; focus stays where it is.
-		const scopedChat = session?.scopedChatResource;
-		const shownBy = scopedChat && accessor.get(IChatHostOpenerService).getOpenerOf(scopedChat);
+		// The session of a pane of another surface, such as a chat editor's, closes there; focus stays where it is. A pane of the
+		// grid closes in the grid, even when another surface shows its chat, such as the chat a slot falls back to.
+		const shownChat = session && !sessionsService.isGridPane(session) ? session.activeChat.get().resource : undefined;
+		const shownBy = shownChat && accessor.get(IChatHostOpenerService).getOpenerOf(shownChat);
 		if (shownBy) {
-			await shownBy.close(scopedChat);
+			await shownBy.close(shownChat);
 			return;
 		}
 

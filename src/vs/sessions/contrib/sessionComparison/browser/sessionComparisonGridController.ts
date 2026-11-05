@@ -182,7 +182,7 @@ export class SessionComparisonGridController extends Disposable implements IWork
 			return;
 		}
 		this._isolatedJudge = { paneId: sessionId, chatResource: judgeSession.activeChat.get().resource };
-		if (judgeSession.scopedChatResource || visibleSessions.some(session => session !== judgeSession && session?.sessionId === judgeSession.sessionId)) {
+		if (this.sessionsService.isDetachedPane(judgeSession) || visibleSessions.some(session => session !== judgeSession && session?.sessionId === judgeSession.sessionId)) {
 			this.sessionsService.collapseToSession(judgeSession);
 			this._setSidePaneSuppressed(true);
 			return;

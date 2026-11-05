@@ -141,12 +141,25 @@ export function getFocusedSessionChatSource(focusedSessionHostService: IFocusedS
 }
 
 /**
+ * What only the main window's grid knows of its panes, which hosts do not show. A pane is named by its own session: the
+ * session of its pane host, a view of the session with the pane's own state, such as the chats its tab strip shows.
+ */
+export interface ISessionGridPanes {
+	/** Whether `pane` is the grid's active pane. */
+	isActivePane(pane: IHostSession | undefined): boolean;
+	/** Whether `pane` is a pane of the grid that shows one chat of its session apart from the session's own slot. */
+	isDetachedPane(pane: IHostSession | undefined): boolean;
+	/** Whether `pane` is a pane of the grid, a slot or a detached pane, rather than of another surface, such as a chat editor. */
+	isGridPane(pane: IHostSession | undefined): boolean;
+}
+
+/**
  * The host that shows a session: the one host that does, else, when several do, such as the main window and a chat window
  * showing other chats of it, the one in `preferredWindowHost`. When several in that window do, such as a slot of its grid
- * and a detached pane of another chat of the session, the one that shows that window's current session (its active
- * slot), else the slot of its grid rather than a detached pane. `undefined` when none does, or none of these settles it.
+ * and a detached pane of another chat of the session, the window's active pane (the grid's, or the one that shows the
+ * window's chat), else the one that is not a detached pane. `undefined` when none does, or none of these settles it.
  */
-export function getHostOfSession(sessionHostService: ISessionHostService, sessionResource: URI, preferredWindowHost: ISessionHost | undefined): ISessionHost | undefined {
+export function getHostOfSession(sessionHostService: ISessionHostService, gridPanes: ISessionGridPanes, sessionResource: URI, preferredWindowHost: ISessionHost | undefined): ISessionHost | undefined {
 	const hosts = sessionHostService.getHostsOfSession(sessionResource);
 	if (hosts.length <= 1) {
 		return hosts[0];
@@ -155,13 +168,14 @@ export function getHostOfSession(sessionHostService: ISessionHostService, sessio
 	if (inWindow.length <= 1) {
 		return inWindow[0];
 	}
-	const windowSession = preferredWindowHost?.session.get();
-	const ofCurrentSession = inWindow.filter(host => !!windowSession && host.session.get() === windowSession);
-	if (ofCurrentSession.length === 1) {
-		return ofCurrentSession[0];
+	const isActive = (host: ISessionHost) => preferredWindowHost?.kind === SessionHostKind.MainWindow
+		? gridPanes.isActivePane(host.session.get())
+		: isEqual(host.chatResource.get(), preferredWindowHost?.chatResource.get());
+	const active = inWindow.filter(isActive);
+	if (active.length === 1) {
+		return active[0];
 	}
-	// A detached pane shows its session scoped to one of its chats; the slot of the grid shows the session itself.
-	const ofGrid = inWindow.filter(host => !(host.session.get() as Partial<IActiveSession> | undefined)?.scopedChatResource);
+	const ofGrid = inWindow.filter(host => !gridPanes.isDetachedPane(host.session.get()));
 	return ofGrid.length === 1 ? ofGrid[0] : undefined;
 }
 

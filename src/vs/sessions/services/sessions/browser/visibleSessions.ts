@@ -7,7 +7,7 @@ import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable }
 import { IObservable, ISettableObservable, ITransaction, autorun, derived, observableValue, subtransaction, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IActiveSession } from '../common/sessionsManagement.js';
+import { IActiveSession, IHostSession } from '../common/sessionsManagement.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../common/session.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { Direction } from '../../../../base/browser/ui/grid/grid.js';
@@ -420,6 +420,21 @@ export class VisibleSessions extends Disposable {
 
 	getGridSession(id: string): IActiveSession | undefined {
 		return [...this._detached.values()].find(entry => entry.slot.id === id)?.wrapper;
+	}
+
+	/** Whether `pane`, a pane's own session, is the active pane. */
+	isActivePane(pane: IHostSession | undefined): boolean {
+		return !!pane && this._activeSession.get() === pane;
+	}
+
+	/** Whether `pane`, a pane's own session, is a detached pane: one that shows a chat of its session apart from its slot. */
+	isDetachedPane(pane: IHostSession | undefined): boolean {
+		return !!pane && [...this._detached.values()].some(entry => entry.wrapper === pane);
+	}
+
+	/** Whether `pane`, a pane's own session, is one of the grid's panes: a slot or a detached pane. */
+	isGridPane(pane: IHostSession | undefined): boolean {
+		return !!pane && this._gridSessions.get().some(candidate => candidate === pane);
 	}
 
 	getChatPane(sessionId: string, resource: URI): IActiveSession | undefined {

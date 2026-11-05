@@ -62,7 +62,8 @@ export async function openChatInWindow(accessor: ServicesAccessor, session: ISes
 	const editorGroupsService = accessor.get(IEditorGroupsService);
 	const layoutService = accessor.get(IAgentWorkbenchLayoutService);
 
-	const shown = sessionsService.visibleSessions.get().find(candidate => candidate?.sessionId === session.sessionId && !candidate.scopedChatResource);
+	// The session's own slot: the grid's visible sessions do not include detached panes.
+	const shown = sessionsService.visibleSessions.get().find(candidate => candidate?.sessionId === session.sessionId);
 	const chatResource = chat ?? shown?.activeChat.get().resource;
 	// The main window's editors are the chat's while the main window is laid out for it and shows it as its active chat.
 	const mainWindowHost = getMainWindowHost(accessor.get(ISessionHostService));

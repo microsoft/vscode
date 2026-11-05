@@ -50,7 +50,8 @@ import { ISessionsPartService } from '../../../../services/sessions/browser/sess
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { type IOpenNewSessionOptions, type IOpenNewSessionResult, type IOpenSessionOptions, type IOpenSessionsOptions, ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { IActiveSession, ICreateNewSessionOptions, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ICreateNewSessionOptions, IHostSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { VisibleSessions } from '../../../../services/sessions/browser/visibleSessions.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 
 import { Action } from '../../../../../base/common/actions.js';
@@ -1170,6 +1171,8 @@ suite('Sessions - Actions', () => {
 			override async closeChat() { calls.push('grid closeChat'); }
 			override closeSession() { calls.push('grid closeSession'); }
 			override toggleSessionStickiness() { calls.push('grid pin'); }
+			// The chat editor's pane is not one of the grid's.
+			override isGridPane() { return false; }
 		});
 		stubMissingSessionHostsFromSessionsService(instantiationService);
 		instantiationService.stub(IUriIdentityService, upcastPartial<IUriIdentityService>({ extUri }));
@@ -1197,6 +1200,51 @@ suite('Sessions - Actions', () => {
 			.filter(item => (item.command.id === TOGGLE_PIN_SESSION_COMMAND_ID || item.command.id === TOGGLE_PIN_CHAT_COMMAND_ID) && context.contextMatchesRules(item.when));
 
 		assert.deepStrictEqual({ calls, shownPins: shownPins.length }, { calls: ['editor close /in-editor', 'editor close /in-editor'], shownPins: 0 });
+	});
+
+	test('Close Session and Pin act on a pane of the grid in the grid, even when a chat window shows the chat it falls back to', async () => {
+		const { session: model } = createTestSession('slot');
+		const mainChat: IChat = { ...model.mainChat.get(), interactivity: constObservable(ChatInteractivity.Full) };
+		const toolChat: IChat = { ...mainChat, resource: URI.parse('test-chat:/tool'), origin: { kind: ChatOriginKind.Tool } };
+		const session: ISession = { ...model, mainChat: constObservable(mainChat), chats: constObservable([mainChat, toolChat]) };
+		const grid = disposables.add(new VisibleSessions(candidate => candidate.mainChat.get(), () => [], () => [], () => { }, upcastPartial<IUriIdentityService>({ extUri })));
+		grid.restoreGrid([{ session, sticky: false }], 0);
+		// A chat window shows the main chat: the slot stays for the unshown tool chat, and falls back to the main chat.
+		disposables.add(grid.hideChatFromGrid(session.sessionId, mainChat.resource));
+		const pane = grid.visibleSessions.get()[0]!;
+		const calls: string[] = [];
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			readonly activeSession = constObservable<IActiveSession | undefined>(pane);
+			override closeSession() { calls.push('grid closeSession'); }
+			override toggleSessionStickiness() { calls.push('grid pin'); }
+			override focusActiveSession() { }
+			override isGridPane(candidate: IHostSession | undefined) { return grid.isGridPane(candidate); }
+		});
+		stubMissingSessionHostsFromSessionsService(instantiationService);
+		instantiationService.stub(IUriIdentityService, upcastPartial<IUriIdentityService>({ extUri }));
+		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({}));
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
+			override getSessionView() { return undefined; }
+			override focusSession() { calls.push('grid focus'); }
+		});
+		const opener = new ChatHostOpenerService();
+		disposables.add(opener.register({
+			showsChat: shown => isEqual(shown, mainChat.resource),
+			reveal: async () => { },
+			openBeside: async () => { },
+			close: async closed => { calls.push(`window close ${closed.path}`); },
+		}));
+		instantiationService.stub(IChatHostOpenerService, opener);
+
+		for (const id of [CLOSE_SESSION_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID]) {
+			await CommandsRegistry.getCommand(id)!.handler(instantiationService, pane);
+		}
+
+		assert.deepStrictEqual({ fallenBackTo: pane.activeChat.get().resource.toString(), calls }, {
+			fallenBackTo: mainChat.resource.toString(),
+			calls: ['grid closeSession', 'grid pin'],
+		});
 	});
 
 	test('the Detach Chat command is keyboard-discoverable and detaches the active child', async () => {
@@ -1491,9 +1539,12 @@ suite('Sessions - Actions', () => {
 	test('closes the active session when invoked from its keybinding', async () => {
 		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
 		const { session } = createTestSession('close-active-session');
-		const activeSession = upcastPartial<IActiveSession>(session);
+		const activeSession = upcastPartial<IActiveSession>({ ...session, activeChat: session.mainChat });
+		instantiationService.stub(IChatHostOpenerService, new ChatHostOpenerService());
 		const closedSessions: Array<IActiveSession | undefined> = [];
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			// The grid's active pane.
+			override isGridPane() { return true; }
 			readonly activeSession = constObservable(activeSession);
 			override closeSession(session: IActiveSession | undefined): void {
 				closedSessions.push(session);
@@ -1519,10 +1570,13 @@ suite('Sessions - Actions', () => {
 	test('closes the active main chat group before the session when invoked from its keybinding', async () => {
 		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
 		const { session } = createTestSession('close-active-main-group');
-		const activeSession = upcastPartial<IActiveSession>(session);
+		const activeSession = upcastPartial<IActiveSession>({ ...session, activeChat: session.mainChat });
+		instantiationService.stub(IChatHostOpenerService, new ChatHostOpenerService());
 		let closeSessionCalls = 0;
 		const closedGroups: string[] = [];
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			// The grid's active pane.
+			override isGridPane() { return true; }
 			readonly activeSession = constObservable(activeSession);
 			override closeSession(): void {
 				closeSessionCalls++;

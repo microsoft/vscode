@@ -113,6 +113,10 @@ suite('Session comparison grid controller', () => {
 			override readonly visibleSessions = visibleSessions;
 			override readonly visibleSessionPanes = visibleSessions;
 			override readonly activePaneId = activeSession.map(getSessionPaneId);
+			// As the grid tells its panes apart: a detached pane shows one chat of its session.
+			override isDetachedPane(pane: IActiveSession | undefined): boolean {
+				return !!pane?.scopedChatResource;
+			}
 			override closeSession(session: ISession | undefined): void {
 				if (session) {
 					closed.push(session.sessionId);

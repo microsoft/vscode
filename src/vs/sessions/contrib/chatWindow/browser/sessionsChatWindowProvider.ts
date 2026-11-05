@@ -510,7 +510,8 @@ export class SessionsChatWindowContent extends Disposable implements IChatWindow
 
 /** The chat a chat window opened for a session shows: the one the session shows in the grid, else its main chat. */
 function shownChatOfSession(sessionsService: ISessionsService, session: ISession): URI {
-	const shown = sessionsService.visibleSessions.get().find(candidate => candidate?.sessionId === session.sessionId && !candidate.scopedChatResource);
+	// The session's own slot: the grid's visible sessions do not include detached panes.
+	const shown = sessionsService.visibleSessions.get().find(candidate => candidate?.sessionId === session.sessionId);
 	return shown?.activeChat.get().resource ?? session.mainChat.get().resource;
 }
 

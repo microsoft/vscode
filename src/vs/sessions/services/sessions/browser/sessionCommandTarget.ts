@@ -12,8 +12,9 @@ import { isWindowCommandContext } from '../../../../workbench/common/windowComma
 import { IChat, ISession } from '../common/session.js';
 import { ISessionsManagementService } from '../common/sessionsManagement.js';
 import type { SessionView } from '../../../browser/parts/sessionView.js';
-import { getHostOfSession, getWindowHost, IFocusedSessionHostService, ISessionHost, ISessionHostService, isSessionHostCommandContext, SessionHostKind } from './sessionHost.js';
+import { getHostOfSession, getWindowHost, IFocusedSessionHostService, ISessionGridPanes, ISessionHost, ISessionHostService, isSessionHostCommandContext, SessionHostKind } from './sessionHost.js';
 import { ISessionsPartService } from './sessionsPartService.js';
+import { ISessionsService } from './sessionsService.js';
 
 /** What a Sessions command acts on; see {@link resolveSessionCommandTarget}. */
 export interface ISessionCommandTarget {
@@ -41,10 +42,10 @@ function ofHost(host: ISessionHost): ISessionCommandTarget {
 	return { host, session: host.session.get(), chat: host.chat.get() };
 }
 
-function ofSession(sessionHostService: ISessionHostService, session: ISession, focusedWindowHost: ISessionHost, passed: boolean): ISessionCommandTarget {
-	// A host's own session object, as its toolbars pass it, names that host.
+function ofSession(sessionHostService: ISessionHostService, gridPanes: ISessionGridPanes, session: ISession, focusedWindowHost: ISessionHost, passed: boolean): ISessionCommandTarget {
+	// A host's own session object, as its toolbars pass it, names that host: a pane's names that pane, detached or not.
 	const host = (passed ? sessionHostService.getHostsOfSession(session.resource).find(candidate => candidate.session.get() === session) : undefined)
-		?? getHostOfSession(sessionHostService, session.resource, focusedWindowHost);
+		?? getHostOfSession(sessionHostService, gridPanes, session.resource, focusedWindowHost);
 	return host ? { host, session: host.session.get() ?? session, chat: host.chat.get() ?? session.mainChat.get() } : { host, session, chat: session.mainChat.get() };
 }
 
@@ -106,12 +107,12 @@ export function resolveSessionCommandTarget(accessor: ServicesAccessor, args: re
 		const sessionContext = value && typeof value === 'object' ? (value as { readonly session?: unknown }).session : undefined;
 		const session = isSession(value) ? value : isSession(sessionContext) ? sessionContext : undefined;
 		if (session) {
-			return ofSession(sessionHostService, session, accessor.get(IFocusedSessionHostService).getFocusedHost(), true);
+			return ofSession(sessionHostService, accessor.get(ISessionsService), session, accessor.get(IFocusedSessionHostService).getFocusedHost(), true);
 		}
 		if (value instanceof URI) {
 			const ofResource = managementService.getSession(value);
 			if (ofResource) {
-				return ofSession(sessionHostService, ofResource, accessor.get(IFocusedSessionHostService).getFocusedHost(), false);
+				return ofSession(sessionHostService, accessor.get(ISessionsService), ofResource, accessor.get(IFocusedSessionHostService).getFocusedHost(), false);
 			}
 			const owner = managementService.getSessionForChatResource(value);
 			return owner && ofChat(sessionHostService, owner.session, owner.chat);
