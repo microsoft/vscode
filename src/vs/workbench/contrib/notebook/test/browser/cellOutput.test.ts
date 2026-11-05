@@ -186,15 +186,27 @@ suite('CellOutput', () => {
 	test('updateOutputHeight does not throw for removed or out-of-bounds output index (#225569)', async () => {
 		const outputItem = { data: VSBuffer.fromString('output content'), mime: 'text/plain' };
 		const output1: IOutputDto = { outputId: 'abc', outputs: [outputItem] };
+		const output2: IOutputDto = { outputId: 'def', outputs: [outputItem] };
 
 		await withTestNotebook(
 			[
-				['print(output content)', 'python', CellKind.Code, [output1], {}],
+				['print(output content)', 'python', CellKind.Code, [output1, output2], {}],
 			],
 			(_editor, viewModel) => {
 				const cell = viewModel.viewCells[0] as CodeCellViewModel;
 				assert.doesNotThrow(() => cell.updateOutputHeight(0, 50));
 				assert.doesNotThrow(() => cell.updateOutputHeight(1, 50));
+
+				// Remove the view model for output at index 1 so index 1 remains within
+				// the height collection (_outputCollection.length == 2) while its view model is gone.
+				cell.outputsViewModels.pop();
+				assert.doesNotThrow(() => cell.updateOutputHeight(1, 50));
+
+				// Exercise when the view model entry is undefined while index remains within bounds
+				(cell.outputsViewModels as (any | undefined)[])[0] = undefined;
+				assert.doesNotThrow(() => cell.updateOutputHeight(0, 50));
+
+				// Out-of-bounds index
 				assert.doesNotThrow(() => cell.updateOutputHeight(999, 50));
 			},
 			instantiationService
