@@ -10,6 +10,7 @@ import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js'
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
+import { isWindows } from '../../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IActiveCodeEditor } from '../../../../../../editor/browser/editorBrowser.js';
 import { IBulkEditService } from '../../../../../../editor/browser/services/bulkEditService.js';
@@ -97,7 +98,7 @@ suite('Apply chat code blocks', () => {
 		writtenResources = [];
 		notifications = [];
 		context = {
-			code: '{\n\t"version": "0.2.0"\n}',
+			code: ['{', '\t"version": "0.2.0"', '}'].join(isWindows ? '\r\n' : '\n'),
 			codeBlockIndex: 0,
 			languageId: 'json',
 			element: undefined,
