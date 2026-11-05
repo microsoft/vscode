@@ -37,17 +37,17 @@ suite('Copilot Entra authentication', () => {
 		assert.ok(provider);
 		// The SDK declares a generic event payload; cancellation tokens only signal cancellation.
 		const acquire = (request: EntraTokenProviderArgs, token = CancellationToken.None) => Promise.resolve(provider(request, token as Parameters<EntraTokenProvider>[1]));
-		const credential = (resource = copilotEntraDiscoveryResource, scopes = ['User.Read'], accountId = 'selected'): AuthenticateParams => ({
+		const credential = (resource = copilotEntraDiscoveryResource, scopes = ['User.Read'], accountId = 'selected', label?: string): AuthenticateParams => ({
 			resource,
 			scopes,
 			token: 'synthetic-resource-credential',
 			expiresIn: 3600,
-			_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId }),
+			_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId, ...(label !== undefined ? { label } : {}) }),
 		});
-		const signIn = async () => {
+		const signIn = async (label?: string) => {
 			const result = acquire(identity);
 			await waitForState(bridge.authenticationRequired);
-			await bridge.authenticate(credential(), connection.token);
+			await bridge.authenticate(credential(undefined, undefined, undefined, label), connection.token);
 			return result;
 		};
 		const authenticate = (params: AuthenticateParams) => bridge.authenticate(params, connection.token);
@@ -66,6 +66,73 @@ suite('Copilot Entra authentication', () => {
 			},
 			result: { kind: 'identity', accountId: 'selected' },
 			current: undefined,
+		});
+	});
+
+	test('forwards the selected display label on initial and cached identity acquisition', async () => {
+		const f = fixture();
+		const initial = await f.signIn('Selected account');
+		const renewed = await f.acquire({ ...identity, reason: 'renewal', accountId: 'selected' });
+		const repeated = await f.acquire(identity);
+		assert.deepStrictEqual([initial, renewed, repeated], Array.from({ length: 3 }, () => ({
+			kind: 'identity', accountId: 'selected', username: 'Selected account',
+		})));
+	});
+
+	test('does not use a matching display label to authorize a different account', async () => {
+		const f = fixture();
+		await f.signIn('Shared label');
+		const scopes = [`${copilotEntraEmuAudience}/.default`];
+		const result = f.acquire({ kind: 'token', clientId: copilotEntraClientId, reason: 'renewal', accountId: 'selected', scopes, skipCachedAccessToken: false });
+		const requirement = await waitForState(f.bridge.authenticationRequired);
+		await assert.rejects(f.authenticate(f.credential(requirement.resource.resource, scopes, 'other', 'Shared label')), /original account/);
+		await f.authenticate(f.credential(requirement.resource.resource, scopes, 'selected', 'Different label'));
+		assert.deepStrictEqual({
+			token: await result,
+			identity: await f.acquire({ ...identity, reason: 'renewal', accountId: 'selected' }),
+		}, {
+			token: { kind: 'token', accountId: 'selected', accessToken: 'synthetic-resource-credential' },
+			identity: { kind: 'identity', accountId: 'selected', username: 'Shared label' },
+		});
+	});
+
+	test('rejects malformed display metadata without installing an identity', async () => {
+		const f = fixture();
+		const result = f.acquire(identity);
+		await waitForState(f.bridge.authenticationRequired);
+		await assert.rejects(f.authenticate({
+			...f.credential(),
+			_meta: { 'vscode.authentication.account': { providerId: 'microsoft', accountId: 'selected', label: 42 } },
+		}), /account provenance/);
+		await f.authenticate(f.credential());
+		assert.deepStrictEqual(await result, { kind: 'identity', accountId: 'selected' });
+	});
+
+	test('sign-out removes display metadata before another account signs in', async () => {
+		const f = fixture();
+		await f.signIn('First label');
+		await f.authenticate({ resource: copilotEntraDiscoveryResource, token: '' });
+		const result = f.acquire(identity);
+		await waitForState(f.bridge.authenticationRequired);
+		await f.authenticate(f.credential(copilotEntraDiscoveryResource, ['User.Read'], 'replacement'));
+		assert.deepStrictEqual(await result, { kind: 'identity', accountId: 'replacement' });
+	});
+
+	test('cancelling an identity acquisition discards its late display metadata', async () => {
+		const f = fixture();
+		const cancellation = store.add(new CancellationTokenSource());
+		const result = f.acquire(identity, cancellation.token);
+		await waitForState(f.bridge.authenticationRequired);
+		cancellation.cancel();
+		await assert.rejects(f.authenticate(f.credential(undefined, undefined, undefined, 'Late label')), /pending acquisition/);
+		assert.deepStrictEqual({
+			result: await result,
+			renewed: await f.acquire({ ...identity, reason: 'renewal', accountId: 'selected' }),
+			next: await f.signIn('Current label'),
+		}, {
+			result: { kind: 'cancelled' },
+			renewed: { kind: 'unavailable' },
+			next: { kind: 'identity', accountId: 'selected', username: 'Current label' },
 		});
 	});
 
