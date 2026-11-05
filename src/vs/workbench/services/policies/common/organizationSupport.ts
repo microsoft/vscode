@@ -7,12 +7,11 @@ import { localize } from '../../../../nls.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { getManagedSupportUrl, IManagedSettingsService } from '../../../../platform/policy/common/copilotManagedSettings.js';
 
-// TODO: replace with the final aka.ms link before publishing.
 /**
  * Help page linked from "Contact Admin" when the organization does not set
  * `communication.support.url`. It explains how to find who administers Copilot.
  */
-export const DEFAULT_ORGANIZATION_SUPPORT_URL = 'https://aka.ms/VSCode/ContactAdmin';
+export const DEFAULT_ORGANIZATION_SUPPORT_URL = 'https://aka.ms/vscode-copilot-enterprise-support';
 
 /** The organization's validated support page, or {@link DEFAULT_ORGANIZATION_SUPPORT_URL} when it sets none. */
 export function getOrganizationSupportUrl(service: Pick<IManagedSettingsService, 'getManagedSettingValue'>): string {
