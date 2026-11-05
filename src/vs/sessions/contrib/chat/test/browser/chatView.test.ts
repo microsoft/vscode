@@ -69,7 +69,6 @@ import { IActiveSession, ISessionsManagementService } from '../../../../services
 import { ChatInteractivity, IChat, ISession, ISessionPreparationProgress, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService, observeSessionSandboxToggle } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { SessionContext } from '../../../../services/sessions/browser/sessionContext.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { SessionsChatBackgroundRenderer, SessionsChatBackgroundReplica } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
 import { ISessionsChatBackground } from '../../../../services/chatBackground/browser/chatBackgroundService.js';
@@ -2659,11 +2658,10 @@ suite('Sessions - Chat View', () => {
 		// Another chat of the session is active, such as one open in another group.
 		const activeChat = upcastPartial<IChat>({ resource: URI.parse('chat:/active-elsewhere') });
 		const sessionsService = new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable<IActiveSession | undefined>(upcastPartial<IActiveSession>({ sessionId: 'session', activeChat: constObservable(activeChat), mainChat: constObservable(activeChat), isCreated: constObservable(false) }));
-			override readonly mainWindowActiveSession = this.activeSession;
+			readonly activeSession = constObservable<IActiveSession | undefined>(upcastPartial<IActiveSession>({ sessionId: 'session', activeChat: constObservable(activeChat), mainChat: constObservable(activeChat), isCreated: constObservable(false) }));
 		}();
 		const widget = disposables.add(new NewChatInSessionWidget(
-			{},
+			{ session: sessionsService.activeSession },
 			new TestConfigurationService(),
 			instantiationService,
 			new class extends mock<ILogService>() { }(),
@@ -2673,7 +2671,6 @@ suite('Sessions - Chat View', () => {
 			new class extends mock<IFileDialogService>() { }(),
 			new class extends mock<ISessionsManagementService>() { }(),
 			sessionsService,
-			new SessionContext(sessionsService.activeSession),
 			disposables.add(new InMemoryStorageService()),
 			new TestAccessibilityService(),
 			new class extends mock<IFileService>() { }(),
@@ -2710,10 +2707,10 @@ suite('Sessions - Chat View', () => {
 						: input) as IInstantiationService['createInstance'];
 				}();
 				const sessionsService = new class extends mock<ISessionsService>() {
-					override readonly activeSession = constObservable<IActiveSession | undefined>(undefined);
+					readonly activeSession = constObservable<IActiveSession | undefined>(undefined);
 				}();
 				const widget = disposables.add(new NewChatInSessionWidget(
-					{},
+					{ session: sessionsService.activeSession },
 					new TestConfigurationService(),
 					instantiationService,
 					new class extends mock<ILogService>() { }(),
@@ -2723,7 +2720,6 @@ suite('Sessions - Chat View', () => {
 					new class extends mock<IFileDialogService>() { }(),
 					new class extends mock<ISessionsManagementService>() { }(),
 					sessionsService,
-					new SessionContext(sessionsService.activeSession),
 					disposables.add(new InMemoryStorageService()),
 					new TestAccessibilityService(),
 					new class extends mock<IFileService>() { }(),

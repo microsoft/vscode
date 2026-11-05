@@ -9,7 +9,7 @@ import { localize } from '../../../../nls.js';
 import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
-import { IActiveSession } from '../common/sessionsManagement.js';
+import { ISession } from '../common/session.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
 
 /*
@@ -26,12 +26,12 @@ export const hasWorktreeAndRepositoryContextKey = new RawContextKey<boolean>('ag
 export const IsAgentHostSession = new RawContextKey<boolean>('sessions.isAgentHostSession', false);
 
 /** Binds {@link hasWorktreeAndRepositoryContextKey} on `contextKeyService` to the workspace of `session`. */
-export function bindHasWorktreeAndRepositoryContextKey(contextKeyService: IContextKeyService, session: IObservable<IActiveSession | undefined>): IDisposable {
+export function bindHasWorktreeAndRepositoryContextKey(contextKeyService: IContextKeyService, session: IObservable<ISession | undefined>): IDisposable {
 	return bindContextKey(hasWorktreeAndRepositoryContextKey, contextKeyService, reader => !!session.read(reader)?.workspace.read(reader)?.folders[0]?.gitRepository?.workTreeUri);
 }
 
 /** Binds {@link IsAgentHostSession} on `contextKeyService` to whether `session` is provided by an agent-host provider. */
-export function bindIsAgentHostSessionContextKey(contextKeyService: IContextKeyService, session: IObservable<IActiveSession | undefined>, sessionsProvidersService: ISessionsProvidersService): IDisposable {
+export function bindIsAgentHostSessionContextKey(contextKeyService: IContextKeyService, session: IObservable<ISession | undefined>, sessionsProvidersService: ISessionsProvidersService): IDisposable {
 	return bindContextKey(IsAgentHostSession, contextKeyService, reader => {
 		const value = session.read(reader);
 		const provider = value && sessionsProvidersService.getProvider(value.providerId);

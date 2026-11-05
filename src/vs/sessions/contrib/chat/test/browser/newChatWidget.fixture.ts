@@ -86,7 +86,6 @@ import { getNewSessionRepositoryConfigGroup, Menus } from '../../../../browser/m
 import { AgentHostFilterConnectionStatus, IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET, AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING, AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING, ISessionsChatBackground, ISessionsChatBackgroundService, SessionsChatBackgroundService } from '../../../../services/chatBackground/browser/chatBackgroundService.js';
 import { SessionsChatBackgroundRenderer } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
-import { ISessionContext, SessionContext } from '../../../../services/sessions/browser/sessionContext.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IWorktreeSuggestionService } from '../../../worktreeSuggestion/browser/worktreeSuggestionService.js';
 import { NullWorktreeSuggestionService } from '../../../worktreeSuggestion/test/browser/worktreeSuggestionTestUtils.js';
@@ -121,6 +120,7 @@ import { ChatSubmitAction } from '../../../../../workbench/contrib/chat/browser/
 import { ChatVoiceInputModeAction } from '../../../../../workbench/contrib/chat/browser/voiceInputMode/voiceInputModeActionViewItem.js';
 import { ModelPickerToolbarsContribution } from '../../browser/modelPicker.js';
 import { COMPOSER_SESSION_CONTROLS_ACTION_ID, SharedChatInputComposerContribution } from '../../browser/sharedChatInputComposer.contribution.js';
+import { focusedSessionHostServiceOf, stubSessionHosts } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 const DEFAULT_WIDTH = 800;
 const DEFAULT_HEIGHT = 560;
@@ -461,8 +461,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	const composerService = disposableStore.add(new NewSessionComposerService());
 	const sessionsService = new class extends mock<ISessionsService>() {
 		override readonly initialRestoreComplete = constObservable(true);
-		override readonly activeSession = activeSessionObservable;
-		override readonly mainWindowActiveSession = this.activeSession;
+		readonly activeSession = activeSessionObservable;
 	}();
 	const configurationService = new TestConfigurationService({
 		// Editor settings the composer's chat widget reads.
@@ -612,7 +611,6 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 				override readonly comparisons = constObservable([]);
 			}());
 			reg.defineInstance(ISessionsService, sessionsService);
-			reg.defineInstance(ISessionContext, new SessionContext(activeSessionObservable));
 			reg.defineInstance(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
 				override readonly onDidChangeProviders = Event.None;
 				override getProviders() { return activeSession ? [provider] : []; }
@@ -728,7 +726,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 				override async getSlashCommands() { return []; }
 			}());
 			reg.defineInstance(INewChatVoiceTargetService, disposableStore.add(new NewChatVoiceTargetService(
-				sessionsService,
+				focusedSessionHostServiceOf(sessionsService.activeSession),
 				new class extends mock<IChatWidgetService>() {
 					override readonly onDidChangeFocusedSession = Event.None;
 				}(),
@@ -769,6 +767,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			reg.define(ISessionsChatBackgroundService, SessionsChatBackgroundService);
 		},
 	});
+	stubSessionHosts(instantiationService, disposableStore, { session: sessionsService.activeSession });
 	if (showTip || connectorRecommendations) {
 		ChatContextKeys.foregroundSessionCount.bindTo(instantiationService.get(IContextKeyService)).set(1);
 	}
@@ -888,6 +887,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	}
 	const view = disposableStore.add(instantiationService.createInstance(NewChatView, false, {
 		initialAttachments: withAttachedContext ? createFixtureAttachments() : undefined,
+		session: activeSessionObservable,
 	}));
 	sessionViewContent.appendChild(view.element);
 	view.layout(width, height, 0, 0);

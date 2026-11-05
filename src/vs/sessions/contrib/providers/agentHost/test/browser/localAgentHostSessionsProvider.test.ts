@@ -84,6 +84,8 @@ import { getSessionGitHubReferences } from '../../../../github/common/sessionGit
 import { IActiveSession, ISessionsManagementService, WorkspaceNotTrustedError } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { SessionsManagementService } from '../../../../../services/sessions/browser/sessionsManagementService.js';
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService, ISessionHostService } from '../../../../../services/sessions/browser/sessionHost.js';
+import { focusedSessionHostServiceOf, sessionHostServiceOf } from '../../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsRecentWorkspacesService } from '../../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { DevContainerAgentHostEnabledSettingId, DevContainerSamplesEnabledSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostService } from '../../../../../common/devContainerAgentHostService.js';
@@ -853,11 +855,12 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 	const activeSessionObs = options?.activeSession ?? constObservable<IActiveSession | undefined>(undefined);
 	const visibleSessionsObs = options?.visibleSessions ?? constObservable<readonly (IActiveSession | undefined)[]>([]);
 	instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-		override readonly activeSession: IObservable<IActiveSession | undefined> = activeSessionObs;
-		override readonly mainWindowActiveSession = this.activeSession;
-		override readonly windowSessions = options?.windowSessions ?? constObservable<readonly IActiveSession[]>([]);
+		readonly activeSession: IObservable<IActiveSession | undefined> = activeSessionObs;
+		readonly windowSessions = options?.windowSessions ?? constObservable<readonly IActiveSession[]>([]);
 		override readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> = visibleSessionsObs;
 	}());
+	instantiationService.stub(ISessionHostService, sessionHostServiceOf(disposables, instantiationService.get(ISessionsService)));
+	instantiationService.stub(IFocusedSessionHostService, focusedSessionHostServiceOf(activeSessionObs));
 	instantiationService.stub(IAgentHostActiveClientService, new class extends mock<IAgentHostActiveClientService>() {
 		override acquireSessionTools = (resource: URI) => new ImmortalReference(constObservable(options?.sessionTools?.(resource) ?? []));
 		override areScopeRootsEqual = (first: readonly URI[] | undefined, second: readonly URI[]) =>
@@ -13679,9 +13682,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			instantiationService.stub(IGitHubService, new class extends mock<IGitHubService>() { });
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-				override readonly activeSession = constObservable<IActiveSession | undefined>(undefined);
-				override readonly mainWindowActiveSession = this.activeSession;
-				override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
+				readonly activeSession = constObservable<IActiveSession | undefined>(undefined);
+				readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
 			});
 			instantiationService.stub(IPullRequestIconCache, new class extends mock<IPullRequestIconCache>() { });
 			const options: IAgentHostAdapterOptions = {

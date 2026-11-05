@@ -55,7 +55,7 @@ import { Menus } from '../../../browser/menus.js';
 import { activeSessionViewBackground, activeSessionViewForeground, agentsPanelBackground, inactiveSessionViewBackground } from '../../../common/theme.js';
 import { IWorkspaceSelectionSnapshot } from '../../../common/workspaceSelection.js';
 import { ISessionsProvidersService, observeSessionSandboxToggle } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionContext, SessionContext } from '../../../services/sessions/browser/sessionContext.js';
+import { ActiveSessionHost, ISessionHost, ISessionHostService, SessionHostKind } from '../../../services/sessions/browser/sessionHost.js';
 import { ISessionInputPickerVisibility, SessionInputPickerVisibility } from '../../../services/sessions/common/sessionPickerVisibility.js';
 import { WorkbenchHoverDelegate } from '../../../../platform/hover/browser/hover.js';
 import { HoverStyle } from '../../../../base/browser/ui/hover/hover.js';
@@ -196,6 +196,8 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 	private readonly _onDidFocus = this._register(new Emitter<void>());
 	readonly onDidFocus = this._onDidFocus.event;
 
+	private _widgetContextKeyService: IContextKeyService | undefined;
+
 	constructor(
 		private readonly options: INewChatComposerInputOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -209,6 +211,8 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		@INewChatVoiceTargetService private readonly newChatVoiceTargetService: INewChatVoiceTargetService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@ISessionHost parentHost: ISessionHost,
+		@ISessionHostService sessionHostService: ISessionHostService,
 	) {
 		super();
 		this.pickerHoverDelegate = this._register(this.instantiationService.createInstance(WorkbenchHoverDelegate, 'element', { instantHover: true }, { style: HoverStyle.Pointer }));
@@ -229,9 +233,12 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		// Created before the input's instantiation services so it is disposed first:
 		// disposing it restores the input text.
 		this._promptOptions = this._register(this.instantiationService.createInstance(NewSessionPromptOptionsPresenter, () => this.focus()));
+		// Its keys are bound on the context of its widget once it renders.
+		const host = new ActiveSessionHost({ kind: SessionHostKind.Composer, parent: parentHost, session: this.options.session, chat: this.options.chat, contextKeyService: () => this._widgetContextKeyService ?? this.contextKeyService });
+		this._register(sessionHostService.registerHost(host));
 		this._scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection(
 			[INewChatModelPickerService, this._newChatModelPickerService],
-			[ISessionContext, new SessionContext(this.options.session)],
+			[ISessionHost, host],
 			[ISessionModelSelection, this._modelSelection],
 			[ISessionInputPickerVisibility, this.pickerVisibility],
 		)));
@@ -252,7 +259,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		this._register(toDisposable(() => editorOverflowWidgetsDomNode.remove()));
 
 		const widgetContainer = dom.append(container, dom.$('.sessions-shared-chat-widget'));
-		const widgetContextKeyService = this._register(this.contextKeyService.createScoped(widgetContainer));
+		const widgetContextKeyService = this._widgetContextKeyService = this._register(this.contextKeyService.createScoped(widgetContainer));
 		const busyContextKey = SharedChatInputComposerBusyContext.bindTo(widgetContextKeyService);
 		const comparisonAvailable = ModelComparisonAvailableContext.bindTo(widgetContextKeyService);
 		this._register(autorun(reader => comparisonAvailable.set(this.options.modelPickerComparison?.available.read(reader) ?? false)));

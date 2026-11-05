@@ -17,9 +17,9 @@ import { Event } from '../../../../../base/common/event.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IChatWindow } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { IContentPart, IEditorGroup } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
-import { SessionView } from '../../../../browser/parts/sessionView.js';
+import { ChatEditorContent } from '../../browser/chatEditorContent.js';
 import { createSessionViewTestServices, createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
-import { IInputOnlySessionView, ISessionChatViewHost, SessionChatViewEditorView, SESSION_CHAT_VIEW_HOST_OPTIONS, SESSION_CHAT_VIEW_MINIMUM_HEIGHT, SESSION_CHAT_VIEW_TYPE, SessionChatViewInputOnly } from '../../browser/sessionChatViewEditor.js';
+import { ChatEditorView, IInputOnlySessionView, ISessionChatViewHost, SESSION_CHAT_VIEW_HOST_OPTIONS, SESSION_CHAT_VIEW_MINIMUM_HEIGHT, SESSION_CHAT_VIEW_TYPE, SessionChatViewInputOnly } from '../../browser/chatEditor.js';
 
 suite('Session chat view editor', () => {
 
@@ -192,12 +192,13 @@ suite('Session chat view editor', () => {
 	test('the session header shows in the title row only from the view that shows the chat, the last attached, also while the view it moved from is still there', () => {
 		const { instantiationService } = createSessionViewTestServices(disposables);
 		const titleRow = $('.title-row');
-		const attached = observableValue<SessionView[]>('attached', []);
+		const attached = observableValue<ChatEditorContent[]>('attached', []);
 		const host: ISessionChatViewHost = {
 			session: constObservable(undefined),
 			window: constObservable(undefined),
 			header: constObservable({ element: titleRow, actionsElement: undefined, setShown: () => { } }),
 			showsTitle: constObservable(false),
+			active: constObservable(true),
 			createTitle: () => undefined,
 			attach: view => {
 				attached.set([...attached.get(), view], undefined);
@@ -205,15 +206,34 @@ suite('Session chat view editor', () => {
 			},
 			view: derived(reader => attached.read(reader).at(-1)),
 		};
-		const headerOf = (view: SessionChatViewEditorView) => [...titleRow.children].filter(header => view.sessionView.headerTitleElement && header.contains(view.sessionView.headerTitleElement)).length;
-		const first = instantiationService.createInstance(SessionChatViewEditorView, host);
-		const second = instantiationService.createInstance(SessionChatViewEditorView, host);
+		const headerOf = (view: ChatEditorView) => [...titleRow.children].filter(header => view.sessionView.headerTitleElement && header.contains(view.sessionView.headerTitleElement)).length;
+		const first = instantiationService.createInstance(ChatEditorView, host);
+		const second = instantiationService.createInstance(ChatEditorView, host);
 		const whileBoth = { headers: titleRow.childElementCount, ofSecond: headerOf(second) };
 		second.dispose();
 		const afterSecondGoes = { headers: titleRow.childElementCount, ofFirst: headerOf(first) };
 		first.dispose();
 
 		assert.deepStrictEqual({ whileBoth, afterSecondGoes, afterBoth: titleRow.childElementCount }, { whileBoth: { headers: 1, ofSecond: 1 }, afterSecondGoes: { headers: 1, ofFirst: 1 }, afterBoth: 0 });
+	});
+
+	test('a chat editor shows exactly one chat, with no tabs of chats in it, also of a session of several chats: its chats are editors of their own', () => {
+		const { instantiationService, chatViews } = createSessionViewTestServices(disposables);
+		const host: ISessionChatViewHost = {
+			session: constObservable(createTestActiveSession('session', true, { chatCount: 3 })),
+			window: constObservable(undefined),
+			header: constObservable(undefined),
+			showsTitle: constObservable(false),
+			active: constObservable(true),
+			createTitle: () => undefined,
+			attach: () => Disposable.None,
+			view: constObservable(undefined),
+		};
+		const view = disposables.add(instantiationService.createInstance(ChatEditorView, host));
+		view.layout(800, 600, 0, 0);
+
+		const shownTabStrips = [...view.element.querySelectorAll<HTMLElement>('.session-chat-tabs-bar')].filter(strip => strip.style.display !== 'none');
+		assert.deepStrictEqual({ chatViews: chatViews.length, shownTabStrips: shownTabStrips.length, chatsToSwitchTo: view.element.querySelectorAll('.chat-composite-bar-tab').length - 1 }, { chatViews: 1, shownTabStrips: 0, chatsToSwitchTo: 0 });
 	});
 
 	test('before its editor moves, the chat saves what it shows, such as where it is scrolled to, for the view where it moves to', () => {
@@ -223,11 +243,12 @@ suite('Session chat view editor', () => {
 			window: constObservable(undefined),
 			header: constObservable(undefined),
 			showsTitle: constObservable(false),
+			active: constObservable(true),
 			createTitle: () => undefined,
 			attach: () => Disposable.None,
 			view: constObservable(undefined),
 		};
-		const view = disposables.add(instantiationService.createInstance(SessionChatViewEditorView, host));
+		const view = disposables.add(instantiationService.createInstance(ChatEditorView, host));
 		const saved: string[] = [];
 		for (const chatView of chatViews) {
 			chatView.saveViewState = () => saved.push(chatView.kind);
@@ -236,6 +257,42 @@ suite('Session chat view editor', () => {
 
 		assert.deepStrictEqual({ primary: view.sessionView.primaryChatView.get() === chatViews.at(-1), saved }, { primary: true, saved: ['chat'] });
 	});
+	test('only the window\'s active chat shows the Session Activity Bar: of two chats split in Stacked, the active one; with only its main part shown, still the active one, outside of its hidden chat', () => {
+		const { instantiationService } = createSessionViewTestServices(disposables);
+		const layoutMode = observableValue('layoutMode', ChatWindowLayoutMode.Stacked);
+		const window = upcastPartial<IChatWindow>({
+			layoutMode,
+			inputOnly: constObservable(false),
+			resizing: constObservable(false),
+			mainPart: upcastPartial<IContentPart>({ activeGroup: upcastPartial<IEditorGroup>({ activeEditorPane: undefined, onDidActiveEditorChange: Event.None }), onDidChangeActiveGroup: Event.None }),
+		});
+		const createView = (sessionId: string, active: boolean) => disposables.add(instantiationService.createInstance(ChatEditorView, {
+			session: constObservable(createTestActiveSession(sessionId)),
+			window: constObservable(window),
+			header: constObservable(undefined),
+			showsTitle: constObservable(false),
+			active: constObservable(active),
+			createTitle: () => undefined,
+			attach: () => Disposable.None,
+			view: constObservable(undefined),
+		}));
+		const views = [createView('a', true), createView('b', false)];
+		const read = () => views.map(view => {
+			// What decides whether the group's Session Activity Bar shows, and where
+			const group = (view.sessionView as unknown as { readonly _group: { readonly groupActive: boolean; readonly _sessionVisible: boolean; readonly _sessionPartVisible: boolean } })._group;
+			return { active: group.groupActive, visible: group._sessionVisible, partVisible: group._sessionPartVisible };
+		});
+
+		const stacked = read();
+		layoutMode.set(ChatWindowLayoutMode.EditorOnly, undefined);
+		const editorOnly = read();
+
+		assert.deepStrictEqual({ stacked, editorOnly }, {
+			stacked: [{ active: true, visible: true, partVisible: true }, { active: false, visible: true, partVisible: true }],
+			editorOnly: [{ active: true, visible: false, partVisible: false }, { active: false, visible: false, partVisible: false }],
+		});
+	});
+
 	test('its own title row shows at the top of its card while its host says so, as tall in chat only as side by side, with the chat below it', () => {
 		const { instantiationService } = createSessionViewTestServices(disposables);
 		const run = (mode: ChatWindowLayoutMode) => {
@@ -252,6 +309,7 @@ suite('Session chat view editor', () => {
 				window: constObservable(window),
 				header: constObservable(undefined),
 				showsTitle,
+				active: constObservable(true),
 				createTitle: container => {
 					container.insertBefore(titleElement, container.firstChild);
 					return { element: titleElement, size: constObservable(33), layout: () => { }, dispose: () => titleElement.remove() };
@@ -259,7 +317,7 @@ suite('Session chat view editor', () => {
 				attach: () => Disposable.None,
 				view: constObservable(undefined),
 			};
-			const view = disposables.add(instantiationService.createInstance(SessionChatViewEditorView, host));
+			const view = disposables.add(instantiationService.createInstance(ChatEditorView, host));
 			let chat: { height: number; top: number } | undefined;
 			view.sessionView.layout = (_width, height, top) => { chat = { height, top }; };
 			view.layout(400, 800, 0, 0);
@@ -294,6 +352,7 @@ suite('Session chat view editor', () => {
 			window: hostWindow,
 			header: constObservable(undefined),
 			showsTitle: constObservable(true),
+			active: constObservable(true),
 			createTitle: () => {
 				created++;
 				return { element: $('.own-title'), size: constObservable(33), layout: () => { }, dispose: () => { } };
@@ -302,7 +361,7 @@ suite('Session chat view editor', () => {
 			attach: () => toDisposable(() => hostWindow.set(window(), undefined)),
 			view: constObservable(undefined),
 		};
-		const view = instantiationService.createInstance(SessionChatViewEditorView, host);
+		const view = instantiationService.createInstance(ChatEditorView, host);
 		const beforeDispose = created;
 		view.dispose();
 

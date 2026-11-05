@@ -111,8 +111,8 @@ import { AgentHostArtifactIntegrations, mapArtifactModelChats } from './agentHos
 import { createGitHubPullRequestArtifactWorkspaceConfigurationSynchronizer } from './githubPullRequestArtifactWorkspaceConfiguration.js';
 import { gitHubPullRequestMarkReadyIgnoredChecksSetting } from '../../../../../platform/agentHost/common/githubPullRequestArtifact.js';
 import { IArtifactModel } from '../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import type { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IFocusedSessionHostService, ISessionHostService, SessionHostKind } from '../../../../services/sessions/browser/sessionHost.js';
+import type { IHostSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { IAutomationSessionConfiguration, IChatMovedEvent, ISessionChatMoveDestination, SessionMoveRefusedError, IDeleteChatOptions, type INestedChatFolderInfo, type INestedChatWorkspace, type INestedChatWorkspaceSupport, NestedChatWorkspaceError, type IForkChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionPermissionOption, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration, ICreateNewChatOptions, IHarnessPresentation, type SessionResourceResolveReason } from '../../../../services/sessions/common/sessionsProvider.js';
 import type { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -1381,9 +1381,27 @@ function toSessionSideChatSelection(selection: { text: string; responsePartId?: 
 	};
 }
 
-/** The sessions shown anywhere: in the grid of the Sessions part, or in windows of their own. */
-function readShownSessions(sessionsService: ISessionsService, reader: IReader): readonly (IActiveSession | undefined)[] {
-	return [...sessionsService.visibleSessions.read(reader), ...sessionsService.windowSessions.read(reader)];
+interface IShownSession {
+	readonly session: IHostSession;
+	readonly chat: IChat | undefined;
+}
+
+/** The sessions shown anywhere, in the grid of the Sessions part or in windows of their own, with the chat each host shows. */
+function readShownSessions(sessionHostService: ISessionHostService, reader: IReader): readonly IShownSession[] {
+	const shown: IShownSession[] = [];
+	for (const host of sessionHostService.hosts.read(reader)) {
+		const session = host.kind !== SessionHostKind.AutomationDialog ? host.session.read(reader) : undefined;
+		if (session) {
+			shown.push({ session, chat: host.chat.read(reader) });
+		}
+	}
+	return shown;
+}
+
+/** Whether a window, the main one or a chat window, shows the session. */
+function isShownInWindow(sessionHostService: ISessionHostService, resource: URI, reader: IReader): boolean {
+	return sessionHostService.hosts.read(reader).some(host =>
+		(host.kind === SessionHostKind.MainWindow || host.kind === SessionHostKind.ChatWindow) && isEqual(host.session.read(reader)?.resource, resource));
 }
 
 export class AgentHostSessionAdapter extends Disposable implements ISession {
@@ -1628,7 +1646,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		chatCatalogLoading: IObservable<boolean>,
 		private readonly _acquireChatDetails: (sessionId: string) => IDisposable,
 		@IGitHubService private readonly _gitHubService: IGitHubService,
-		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@ISessionHostService private readonly _sessionHostService: ISessionHostService,
 		@IPullRequestIconCache private readonly _pullRequestIconCache: IPullRequestIconCache,
 	) {
 		super();
@@ -1738,8 +1756,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			this._worktreeIsolation.read(reader)
 			&& !this.workspace.read(reader)?.folders.some(folder => !!folder.gitRepository?.workTreeUri));
 		this.loading = derived(this, reader => {
-			const visible = _sessionsService.visibleSessions.read(reader).some(session => isEqual(session?.resource, this.resource))
-				|| _sessionsService.windowSessions.read(reader).some(session => isEqual(session.resource, this.resource));
+			const visible = readShownSessions(_sessionHostService, reader).some(({ session }) => isEqual(session.resource, this.resource));
 			return _options.loading.read(reader) || (visible && chatCatalogLoading.read(reader));
 		});
 		this.description = derivedOpts<IMarkdownString | undefined>({ owner: this, equalsFn: markdownStringEquals }, reader => {
@@ -1763,12 +1780,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		}
 
 		// Also while the main window shows it, or a chat window does, when another one is the active session.
-		this.isActiveSessionObs = derived(this, reader => {
-			const activeSession = this._sessionsService.activeSession.read(reader);
-			return isEqual(activeSession?.resource, this.resource)
-				|| isEqual(this._sessionsService.mainWindowActiveSession.read(reader)?.resource, this.resource)
-				|| this._sessionsService.windowSessions.read(reader).some(session => isEqual(session.resource, this.resource));
-		});
+		this.isActiveSessionObs = derived(this, reader => isShownInWindow(this._sessionHostService, this.resource, reader));
 
 		// Set the changes summary from the aggregate. While the session is active,
 		// the changes summary will be updated through the session changeset changes.
@@ -3586,7 +3598,7 @@ class NewSession extends Disposable {
 	constructor(
 		ctx: INewSessionConstructionContext,
 		private readonly _options: IAgentHostAdapterOptions,
-		@ISessionsService sessionsService: ISessionsService,
+		@IFocusedSessionHostService focusedSessionHostService: IFocusedSessionHostService,
 		@ILanguageModelsService languageModelsService: ILanguageModelsService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
@@ -3625,7 +3637,7 @@ class NewSession extends Disposable {
 		this._initialPullRequestUrl = ctx.initialPullRequestUrl;
 
 		const resource = URI.from({ scheme: ctx.resourceScheme, path: `/${generateUuid()}` });
-		this._isActiveSessionObs = derived(this, reader => isEqual(sessionsService.activeSession.read(reader)?.resource, resource));
+		this._isActiveSessionObs = derived(this, reader => isEqual(focusedSessionHostService.focusedHost.read(reader).session.read(reader)?.resource, resource));
 		// Defaults to scheme == provider; only hosts that address sessions under a different
 		// scheme (cloud sandbox: provider `copilot`, scheme `ahp-session`) override it.
 		this.backendUri = AgentSession.uri(ctx.backendSessionScheme ?? this.agentProvider, AgentSession.id(resource));
@@ -4925,7 +4937,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		@ILogService protected readonly _logService: ILogService,
 		@IGitHubService protected readonly _gitHubService: IGitHubService,
 		@IInstantiationService protected readonly _instantiationService: IInstantiationService,
-		@ISessionsService protected readonly _sessionsService: ISessionsService,
+		@ISessionHostService protected readonly _sessionHostService: ISessionHostService,
+		@IFocusedSessionHostService protected readonly _focusedSessionHostService: IFocusedSessionHostService,
 		@IAgentHostActiveClientService protected readonly _activeClientService: IAgentHostActiveClientService,
 		@IAgentHostMcpAppToolsService private readonly _mcpAppToolsService: IAgentHostMcpAppToolsService,
 		@IStorageService protected readonly _storageService: IStorageService,
@@ -4967,7 +4980,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._register(autorun(reader => {
 			sessionConfigChanged.read(reader);
 			this._onDidChangeChatCatalogs.read(reader);
-			this._syncActiveChatConfigPins(reader, readShownSessions(this._sessionsService, reader));
+			this._syncActiveChatConfigPins(reader, readShownSessions(this._sessionHostService, reader));
 		}));
 		this._register(this._onDidChangeSessionsImmediately(() => {
 			if (this.connection?.connectionAvailable) {
@@ -4978,7 +4991,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			}
 		}));
 		this._register(autorun(reader => {
-			this._sessionsService.activeSession.read(reader);
+			this._focusedSessionHostService.focusedHost.read(reader).session.read(reader);
 			this._syncActiveClient();
 		}));
 		// Session-cache persistence. These listeners are inert until a subclass
@@ -5399,7 +5412,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	private _syncActiveClient(): void {
 		const cancellation = new ActiveClientSyncCancellationTokenSource();
 		this._activeClientSyncCancellation.value = cancellation;
-		const activeSession = this._sessionsService.activeSession.get();
+		const activeSession = this._focusedSessionHostService.focusedHost.get().session.get();
 		if (!activeSession || activeSession.providerId !== this.id) {
 			this._clearActiveSessionScope();
 			return;
@@ -5435,7 +5448,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		scope: IAgentCustomizationScope,
 	): Promise<void> {
 		await raceCancellation(scope.whenResolved(), token);
-		const activeSession = this._sessionsService.activeSession.get();
+		const activeSession = this._focusedSessionHostService.focusedHost.get().session.get();
 		if (
 			token.isCancellationRequested ||
 			this._isAgentDisabledByPolicy(cached.agentProvider) ||
@@ -9249,8 +9262,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * {@link ISessionsProvider.setModel} does.
 	 */
 	private _activeChatResource(session: AgentHostSessionAdapter): URI {
-		const activeSession = this._sessionsService.activeSession.get();
-		return activeSession?.sessionId === session.sessionId ? activeSession.activeChat.get().resource : session.resource;
+		const focusedHost = this._focusedSessionHostService.focusedHost.get();
+		return focusedHost.session.get()?.sessionId === session.sessionId ? focusedHost.chat.get()?.resource ?? session.resource : session.resource;
 	}
 
 	// -- Lazy session-state subscription seeding -----------------------------
@@ -9317,15 +9330,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * Pin the state subscription of every currently-visible session (so
 	 * host-driven catalog changes flow into `cached.chats` while it is on
 	 * screen) and resume the idle-release timer for sessions that have left the
-	 * viewport. Driven reactively by {@link ISessionsService.visibleSessions}.
+	 * viewport. Driven reactively by the shown sessions of {@link ISessionHostService.hosts}.
 	 */
 	private _syncVisibleSessionStatePins(reader: IReader): void {
-		const visible = readShownSessions(this._sessionsService, reader);
+		const visible = readShownSessions(this._sessionHostService, reader);
 		const nowVisible = new Set<string>();
-		for (const session of visible) {
-			if (!session) {
-				continue;
-			}
+		for (const { session } of visible) {
 			for (const cached of this._sessionCache.values()) {
 				if (isEqual(cached.resource, session.resource)) {
 					nowVisible.add(cached.sessionId);
@@ -9353,19 +9363,23 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	/** Holds the own-config subscription of each visible session's active chat, so its picker never re-resolves while shown. */
-	private _syncActiveChatConfigPins(reader: IReader, visible: readonly (IActiveSession | undefined)[]): void {
+	private _syncActiveChatConfigPins(reader: IReader, visible: readonly IShownSession[]): void {
 		const pinned = new Map<string, string>();
-		for (const session of visible) {
+		for (const { session, chat } of visible) {
 			// Only this provider's running sessions whose host lets a chat set values for itself,
 			// or whose active chat is backed by another agent and so has a config of its own.
-			const config = session && this._runningSessionConfigs.get(session.sessionId);
-			if (!session || !config || !(hasChatConfigProperties(config.schema) || this._chatUsesOwnAgent(session.sessionId, session.activeChat.read(reader).resource))) {
+			const config = this._runningSessionConfigs.get(session.sessionId);
+			if (!config) {
+				continue;
+			}
+			const chatResource = chat?.resource ?? session.mainChat.read(reader).resource;
+			if (!(hasChatConfigProperties(config.schema) || this._chatUsesOwnAgent(session.sessionId, chatResource))) {
 				continue;
 			}
 			// The chat and, for a subagent, the chats that spawned it; only chats the session's catalog lists,
 			// so a chat the host does not know (yet) is never subscribed.
 			const catalog = this._lastSessionStates.get(session.sessionId)?.chats;
-			for (const backendChat of this._getChatConfigChain(session.sessionId, session.activeChat.read(reader).resource)) {
+			for (const backendChat of this._getChatConfigChain(session.sessionId, chatResource)) {
 				if (catalog?.some(summary => summary.resource === backendChat)) {
 					pinned.set(backendChat, session.sessionId);
 				}
@@ -10406,7 +10420,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				this._handleSessionMetaChanged(e.channel, e.action._meta);
 			} else if (e.action.type === ActionType.SessionActiveClientRemoved && e.action.clientId === connection.clientId) {
 				this._lastPublishedActiveClients.delete(e.channel);
-				const activeSession = this._sessionsService.activeSession.get();
+				const activeSession = this._focusedSessionHostService.focusedHost.get().session.get();
 				const rawId = activeSession?.providerId === this.id ? this._sessionKeyFromChatId(activeSession.sessionId) : undefined;
 				if (rawId && this._sessionCache.get(rawId)?.backendUri.toString() === e.channel) {
 					this._syncActiveClient();

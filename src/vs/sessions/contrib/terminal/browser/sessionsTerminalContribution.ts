@@ -22,9 +22,9 @@ import { ITerminalGroupService, ITerminalInstance, ITerminalLocationOptions, ITe
 import { TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
 import { isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
-import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ISession, ISessionWorkspace } from '../../../services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { getMainWindowHost, ISessionHost, ISessionHostService } from '../../../services/sessions/browser/sessionHost.js';
+import { IChat, ISession, ISessionWorkspace } from '../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ITerminalProfileService, TERMINAL_VIEW_ID, TerminalCommandId } from '../../../../workbench/contrib/terminal/common/terminal.js';
 import { TerminalContextKeys } from '../../../../workbench/contrib/terminal/common/terminalContextKey.js';
@@ -131,9 +131,12 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 	 */
 	private readonly _archivedSessionIds = new Set<string>();
 
+	/** The host of the main window, whose terminal panel this manages. */
+	private readonly _mainWindowHost: ISessionHost;
+
 	constructor(
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
-		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@ISessionHostService sessionHostService: ISessionHostService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IAgentHostTerminalService private readonly _agentHostTerminalService: IAgentHostTerminalService,
@@ -143,6 +146,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		@ITerminalProfileService private readonly _terminalProfileService: ITerminalProfileService,
 	) {
 		super();
+		this._mainWindowHost = getMainWindowHost(sessionHostService);
 
 		// Seed with sessions that are already archived (e.g. restored archived
 		// from a previous window) so they are not treated as newly archived on
@@ -154,7 +158,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		}
 
 		const profileOverride = derived(reader => {
-			const session = this._sessionsService.mainWindowActiveSession.read(reader);
+			const session = this._mainWindowHost.session.read(reader);
 			if (!session || session.providerId === LOCAL_AGENT_HOST_PROVIDER_ID) {
 				return; // no need to override local default profiles with the local AH
 			}
@@ -181,20 +185,20 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		// so that "New Terminal" uses it automatically.
 		// This is a little hacky but I don't see any better approach.
 		this._register(autorun(reader => {
-			const session = this._sessionsService.mainWindowActiveSession.read(reader);
+			const session = this._mainWindowHost.session.read(reader);
 			const remoteConnectionStatus = session?.remoteConnectionStatus?.read(reader);
 			const remoteHostAvailable = remoteConnectionStatus === undefined || remoteConnectionStatus.kind === 'connected';
 			if (session?.loading.read(reader) || session?.isArchived.read(reader) || session?.worktreePending?.read(reader) || !remoteHostAvailable) {
 				this._agentHostTerminalService.setDefaultCwd(undefined);
 				return;
 			}
-			const info = this._getActiveSessionTerminalInfo(session, reader);
+			const info = this._getActiveSessionTerminalInfo(session, this._mainWindowHost.chat.read(reader), reader);
 			this._agentHostTerminalService.setDefaultCwd(info?.cwd);
 		}));
 
 		// React to active session changes — use worktree/repo for background sessions, home dir otherwise
 		this._register(autorun(reader => {
-			const session = this._sessionsService.mainWindowActiveSession.read(reader);
+			const session = this._mainWindowHost.session.read(reader);
 			const isArchived = session?.isArchived.read(reader);
 			const worktreePending = session?.worktreePending?.read(reader);
 			const remoteConnectionStatus = session?.remoteConnectionStatus?.read(reader);
@@ -217,8 +221,9 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 				}
 				return;
 			}
-			const info = this._getActiveSessionTerminalInfo(session, reader);
-			this._onActiveSessionChanged(session, info);
+			const chat = this._mainWindowHost.chat.read(reader);
+			const info = this._getActiveSessionTerminalInfo(session, chat, reader);
+			this._onActiveSessionChanged(session, chat, info);
 		}));
 
 		// Repeated New Session actions replace one draft with another. Transfer
@@ -463,12 +468,11 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		return provider.remoteAddress ?? LOCAL_AGENT_HOST_ADDRESS;
 	}
 
-	private _getActiveSessionTerminalInfo(session: IActiveSession | undefined, reader?: IReader): ISessionTerminalInfo | undefined {
+	private _getActiveSessionTerminalInfo(session: ISession | undefined, chat: IChat | undefined, reader?: IReader): ISessionTerminalInfo | undefined {
 		if (!session) {
 			return undefined;
 		}
-		const activeChat = reader ? session.activeChat.read(reader) : session.activeChat.get();
-		const workspace = reader ? activeChat.workspace.read(reader) : activeChat.workspace.get();
+		const workspace = chat && (reader ? chat.workspace.read(reader) : chat.workspace.get());
 		const info = getWorkspaceTerminalInfo(workspace);
 		if (info || workspace) {
 			return info;
@@ -482,12 +486,12 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		return cwd?.scheme === Schemas.file ? { cwd, agentHostCwd: cwd } : undefined;
 	}
 
-	private async _onActiveSessionChanged(session: IActiveSession | undefined, info = this._getActiveSessionTerminalInfo(session)): Promise<void> {
+	private async _onActiveSessionChanged(session: ISession | undefined, chat: IChat | undefined, info = this._getActiveSessionTerminalInfo(session, chat)): Promise<void> {
 		if (!session) {
 			return;
 		}
 		const targetAgentHostAddress = this._getSessionAgentHostAddress(session);
-		if (!info && session.activeChat.get().workspace.get()?.isVirtualWorkspace === false) {
+		if (!info && chat?.workspace.get()?.isVirtualWorkspace === false) {
 			this._logService.trace(`[SessionsTerminal] Waiting for a filesystem working directory for ${session.sessionId}`);
 			return;
 		}
@@ -881,7 +885,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 	}
 
 	private async _ensureActiveSessionTerminalAfterLateArchiveCleanup(sessionId: string): Promise<void> {
-		const activeSession = this._sessionsService.mainWindowActiveSession.get();
+		const activeSession = this._mainWindowHost.session.get();
 		if (!activeSession
 			|| activeSession.sessionId !== sessionId
 			|| activeSession.isArchived.get()
@@ -892,7 +896,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		this._activeKey = undefined;
 		this._activeAgentHostAddress = undefined;
 		this._activeSessionId = undefined;
-		await this._onActiveSessionChanged(activeSession);
+		await this._onActiveSessionChanged(activeSession, this._mainWindowHost.chat.get());
 	}
 
 	private async _findUntrackedTerminalsForResource(resource: URI): Promise<ITerminalInstance[]> {
@@ -935,15 +939,15 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 	 * that no other chat window shows, or a new one there, created at `location`, in the chat window, rather than in the
 	 * panel of the main window and moved. While the main window shows the session too, its panel keeps all but one of them.
 	 */
-	async getChatWindowTerminals(session: IActiveSession, location?: ITerminalLocationOptions): Promise<readonly ITerminalInstance[]> {
-		const cwd = this._getActiveSessionTerminalInfo(session)?.cwd ?? await this._pathService.userHome();
+	async getChatWindowTerminals(session: ISession, chat: IChat | undefined, location?: ITerminalLocationOptions): Promise<readonly ITerminalInstance[]> {
+		const cwd = this._getActiveSessionTerminalInfo(session, chat)?.cwd ?? await this._pathService.userHome();
 		const instances = await this._ensureTerminal(cwd, false, session, undefined, true, location);
 		if (!instances.length) {
 			return [];
 		}
 		const free = instances.filter(instance => !this._chatWindowTerminalIds.has(instance.instanceId));
 		if (free.length) {
-			const taken = this._sessionsService.mainWindowActiveSession.get()?.sessionId === session.sessionId ? free.slice(0, 1) : free;
+			const taken = this._mainWindowHost.session.get()?.sessionId === session.sessionId ? free.slice(0, 1) : free;
 			// Taken at once, so that a chat window that asks meanwhile does not take them too.
 			taken.forEach(terminal => this.setShownInChatWindow(terminal, true));
 			return taken;
@@ -954,12 +958,12 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 	}
 
 	/** A new terminal of `session`, in its working directory, with its profile, created at `location`, in a chat window. */
-	async createChatWindowTerminal(session: IActiveSession, location?: ITerminalLocationOptions): Promise<ITerminalInstance | undefined> {
-		const cwd = this._getActiveSessionTerminalInfo(session)?.cwd ?? await this._pathService.userHome();
+	async createChatWindowTerminal(session: ISession, chat: IChat | undefined, location?: ITerminalLocationOptions): Promise<ITerminalInstance | undefined> {
+		const cwd = this._getActiveSessionTerminalInfo(session, chat)?.cwd ?? await this._pathService.userHome();
 		return this._createChatWindowTerminal(session, cwd, location);
 	}
 
-	private async _createChatWindowTerminal(session: IActiveSession, cwd: URI, location: ITerminalLocationOptions | undefined): Promise<ITerminalInstance | undefined> {
+	private async _createChatWindowTerminal(session: ISession, cwd: URI, location: ITerminalLocationOptions | undefined): Promise<ITerminalInstance | undefined> {
 		const created = this._getAvailableTerminal(await this._createTerminalForSession(cwd, session, location), `chat window terminal for ${cwd.fsPath}`);
 		if (created) {
 			this._trackTerminalsForSession(session.sessionId, [created], { sessionId: session.sessionId, key: cwd.fsPath.toLowerCase(), agentHostAddress: this._getSessionAgentHostAddress(session) });
@@ -977,7 +981,16 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		}
 	}
 
-	trackChatWindowTerminal(session: IActiveSession, instance: ITerminalInstance): void {
+	getChatWindowTerminalOwner(instance: ITerminalInstance): string | undefined {
+		for (const [sessionId, terminalIds] of this._sessionTerminals) {
+			if (terminalIds.has(instance.instanceId)) {
+				return sessionId;
+			}
+		}
+		return undefined;
+	}
+
+	trackChatWindowTerminal(session: ISession, instance: ITerminalInstance): void {
 		this.setShownInChatWindow(instance, true);
 		if (instance.isDisposed || this._sessionTerminals.get(session.sessionId)?.has(instance.instanceId)) {
 			return;
@@ -1011,8 +1024,9 @@ class SessionsChatWindowTerminals extends ChatWindowTerminals {
 		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
 		@IChatWindowService chatWindowService: IChatWindowService,
 		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
+		@ISessionHostService sessionHostService: ISessionHostService,
 	) {
-		super(getWorkbenchContribution<SessionsTerminalContribution>(SessionsTerminalContribution.ID), terminalService, terminalGroupService, editorGroupsService, chatWindowService, sessionsManagementService);
+		super(getWorkbenchContribution<SessionsTerminalContribution>(SessionsTerminalContribution.ID), terminalService, terminalGroupService, editorGroupsService, chatWindowService, sessionsManagementService, sessionHostService);
 	}
 }
 

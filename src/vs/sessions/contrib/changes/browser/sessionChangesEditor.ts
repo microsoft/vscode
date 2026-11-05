@@ -46,9 +46,8 @@ import { IResourceLabel, IWorkbenchUIElementFactory, MultiDiffEditorItemLabelKin
 import { Menus } from '../../../browser/menus.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { ActiveSessionContextKeys, SessionChangesEditorFileListContext } from '../common/changes.js';
-import { ISessionScope } from '../../../services/sessions/browser/sessionScope.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionHost, ISessionHostService } from '../../../services/sessions/browser/sessionHost.js';
+import { IHostSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { getChangesEditorChanges } from './changesMultiDiffSourceResolver.js';
 import { IChangesSessionScope, IChangesViewService } from '../common/changesViewService.js';
 import { ChangesActionsBar, createChangesSessionScope } from './changesView.js';
@@ -236,7 +235,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	 */
 	private readonly _inputChangesObs = derived(this, reader => {
 		const input = this._inputChangesSource.read(reader);
-		return input ? getChangesEditorChanges(this, this.changesViewService, this.sessionsService, this.sessionsManagementService, input.session, input.chat) : undefined;
+		return input ? getChangesEditorChanges(this, this.changesViewService, this.sessionHostService, this.sessionsManagementService, input.session, input.chat) : undefined;
 	});
 	private readonly _scopedChangesObs = derivedObservableWithCache<readonly ISessionFileChange[]>(this, (reader, lastValue) => {
 		return this._inputChangesObs.read(reader)?.read(reader) ?? lastValue ?? [];
@@ -256,7 +255,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	private readonly _logger: MultiDiffEditorLogger;
 	private _scopeInstance: IChangesSessionScope | undefined;
 	private get _scope(): IChangesSessionScope {
-		return this._scopeInstance ??= createChangesSessionScope(this.changesViewService, this.sessionsService, this.sessionScope);
+		return this._scopeInstance ??= createChangesSessionScope(this.changesViewService, this.sessionHost);
 	}
 
 	/** The session whose changes it shows, and those changes. */
@@ -281,8 +280,8 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		@ILogService logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IActionViewItemService private readonly actionViewItemService: IActionViewItemService,
-		@ISessionsService private readonly sessionsService: ISessionsService,
-		@ISessionScope private readonly sessionScope: ISessionScope,
+		@ISessionHostService private readonly sessionHostService: ISessionHostService,
+		@ISessionHost private readonly sessionHost: ISessionHost,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 	) {
 		super(
@@ -753,7 +752,7 @@ export const CHANGESET_REVIEW_ACTION_ID = 'changeset.review';
 
 /** What the actions of the toolbar of a file of a Changes editor get after the file: the session and editor it shows in. */
 export interface IChangesEditorFileActionContext {
-	readonly session: IActiveSession | undefined;
+	readonly session: IHostSession | undefined;
 	readonly editor: SessionChangesEditor;
 }
 

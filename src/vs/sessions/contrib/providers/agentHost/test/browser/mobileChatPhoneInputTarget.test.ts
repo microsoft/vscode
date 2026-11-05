@@ -24,20 +24,24 @@ function session(providerId: string, sessionId: string, chatResource: string): I
 	} as unknown as IActiveSession;
 }
 
+function contextOf(value: IActiveSession) {
+	return createChatPhoneInputSessionContext(value, value.activeChat.get());
+}
+
 suite('MobileChatPhoneInputTarget', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('matches only the captured provider, session, and active chat', () => {
 		const original = session('provider', 'session', 'chat:/one');
-		const target = createChatPhoneInputTarget(createChatPhoneInputSessionContext(original), uriIdentityService);
+		const target = createChatPhoneInputTarget(contextOf(original), uriIdentityService);
 
 		assert.deepStrictEqual({
-			same: matchesChatPhoneInputTarget(target, createChatPhoneInputSessionContext(original), uriIdentityService),
-			equivalentChat: matchesChatPhoneInputTarget(target, createChatPhoneInputSessionContext(session('provider', 'session', 'chat:/ONE')), uriIdentityService),
-			providerChanged: matchesChatPhoneInputTarget(target, createChatPhoneInputSessionContext(session('other', 'session', 'chat:/one')), uriIdentityService),
-			sessionChanged: matchesChatPhoneInputTarget(target, createChatPhoneInputSessionContext(session('provider', 'other', 'chat:/one')), uriIdentityService),
-			chatChanged: matchesChatPhoneInputTarget(target, createChatPhoneInputSessionContext(session('provider', 'session', 'chat:/two')), uriIdentityService),
+			same: matchesChatPhoneInputTarget(target, contextOf(original), uriIdentityService),
+			equivalentChat: matchesChatPhoneInputTarget(target, contextOf(session('provider', 'session', 'chat:/ONE')), uriIdentityService),
+			providerChanged: matchesChatPhoneInputTarget(target, contextOf(session('other', 'session', 'chat:/one')), uriIdentityService),
+			sessionChanged: matchesChatPhoneInputTarget(target, contextOf(session('provider', 'other', 'chat:/one')), uriIdentityService),
+			chatChanged: matchesChatPhoneInputTarget(target, contextOf(session('provider', 'session', 'chat:/two')), uriIdentityService),
 			missing: matchesChatPhoneInputTarget(target, undefined, uriIdentityService),
 		}, {
 			same: true,
@@ -52,7 +56,7 @@ suite('MobileChatPhoneInputTarget', () => {
 	test('an absent target matches only while no session is active', () => {
 		assert.deepStrictEqual({
 			stillAbsent: matchesChatPhoneInputTarget(undefined, undefined, uriIdentityService),
-			sessionAppeared: matchesChatPhoneInputTarget(undefined, createChatPhoneInputSessionContext(session('provider', 'session', 'chat:/one')), uriIdentityService),
+			sessionAppeared: matchesChatPhoneInputTarget(undefined, contextOf(session('provider', 'session', 'chat:/one')), uriIdentityService),
 		}, {
 			stillAbsent: true,
 			sessionAppeared: false,

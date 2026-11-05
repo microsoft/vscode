@@ -65,7 +65,7 @@ Archived inventory discovery is an optional `IChatSessionsService` capability, r
 
 The view service:
 
-- owns the active session and visible-session arrangement;
+- owns the main window's grid: its visible-session arrangement and its active pane, which it shows through its grid host (see [Session hosts](#session-hosts));
 - opens sessions and chats;
 - presents new-session and peer-chat composers;
 - owns Back/Forward navigation across session chats, the new-session composer, custom views, and native window canvases, along with focus and visible-session restoration.
@@ -80,9 +80,20 @@ Explicit opens carry navigation intent even when the destination is already visi
 
 Visible-session slots have stable identities independent of list position. The view service coordinates membership, activation, directional placement, cancellation, and persisted leaf bindings; the Sessions Part owns rendering and split geometry. Explicit batch opening resolves and prepares its sessions before committing a visibility change. Geometry and layout operations remain independent of providers and comparison membership. See [LAYOUT.md](LAYOUT.md#sessions-part) for the grid and restoration contract.
 
-### Scoped session context
+### Session hosts
 
-Surfaces that can represent a session other than the window-global active session use `ISessionContext`. Commands and menus resolve their target through that scope rather than assuming the active session.
+A session host (`ISessionHost`) is a surface that shows a chat: the main window, a chat window, a pane of either (a slot of the grid, or a chat editor), a composer outside a pane, or the automation dialog. The host's chat is its source of truth, and its session (`IHostSession`) is the session of that chat, or the draft of a new-session composer. A host has no notion of an active chat beyond the one it shows.
+
+- **Ownership.** Window and pane hosts own the session and chat they show. Composers and the automation dialog only draft in them, so lookups skip them. Hosts nest: a pane's parent is its window host, whose window the pane shares.
+- **Injection.** UI injects `ISessionHost` and gets the innermost host it is created in: a session view, chat editor, composer, or dialog provides its own host to its scoped instantiation service. Hosts bind their session's context keys on their own context key service, so a `when` clause sees the keys of the host that contains the focused element.
+- **Scopes.** The root has no `ISessionHost`; injecting it there throws. The main window's parts are created in a child scope that provides the grid host (`createMainWindowInstantiationService`); each part owns that child. A scope with a host and a context of its own is created with `createSessionHostServices`, which binds `InSessionHostScopeContext` on that context, or binds it with `bindSessionHostScopeContext` where the scope's services are collected elsewhere, as a chat window's. Items that act on the host in workbench-wide menus, such as the chat input's, add that key to their `when`, so they don't show in chat inputs outside host scopes, such as Quick Chat's.
+- **A host's session.** A host's session is its view of the session: a pane's has the pane's own view state, such as the chats its tab strip shows and whether it is pinned. Two panes that show chats of one session, such as a slot of the grid and a detached pane, have different views of it. Code compares them by session resource; only the session a pane's toolbars pass names that pane.
+- **Lookups.** `ISessionHostService` finds hosts by id, window, editor group, chat, or session, returning the innermost match, and tells whether any host shows a session or chat. It has no selection. Which pane of the grid is the active one, and which panes are detached, only the grid knows: `ISessionsService.isActivePane` and `isDetachedPane` answer for a pane's own session. `getHostOfSession` uses them to pick, of the panes of a window that show a session, the active one, else the one that is not detached.
+- **Focused host.** `IFocusedSessionHostService` is the window host that last gained focus; it stays while the app is in the background. Only window-independent consumers, such as voice, use it; UI uses the host it is in.
+- **Command targets.** `resolveSessionCommandTarget` resolves what a command acts on: a host its toolbar or menu passes (`createHostMenuOptions`), an editor or window context, a chat, or a session. Without arguments, it resolves the focused host. Arguments that name something that is not found resolve to `undefined`, and the command does nothing; it never falls back to the focused host. Commands of the main window's grid act on the grid's active pane (`ISessionsPartService.getActiveSessionView()`), and neither run nor match their keybindings while a chat window is the focused host.
+- **Chat-host openers.** A surface outside the grid that shows chats, such as a chat window, registers an `IChatHostOpener`. Opening, revealing, opening beside, closing, and activating a chat it shows go through its opener; the grid is not touched.
+- **Grid exclusion.** A chat that a chat window shows is held out of the grid with `ISessionsService.hideChatFromGrid`, while that window shows it. The session leaves the grid when that was the only chat it showed there.
+- **Grid host.** `ISessionsService.gridHost` is the main window's host, which shows the grid's active pane. It is the one instance that `ISessionHostService` registers for the main window. The grid's own selection is internal to `ISessionsService`; others read the hosts.
 
 ### Browser networks
 
@@ -206,7 +217,7 @@ The product protocol link `<product-protocol>://agents/new?prompt=<encoded text>
 
 Automation editing uses an independent draft so it cannot replace the ordinary New Session composer. Providers advertise `supportsAutomationSessionConfiguration` when they restore `ISessionsProviderCreateSessionOptions.automationConfiguration` before the draft's first configuration resolution and implement `getAutomationSessionConfiguration` to capture the current template. The management service rejects canonical templates for providers without this capability, while deprecated flat aliases continue through ordinary model, mode, and permission operations. It distinguishes unsupported capture from a valid empty template, a replaced draft, and capture failure.
 
-Provider-specific configuration remains opaque to shared Sessions code. Scoped Automation and New Session surfaces consume the same provider menu contributions and `ISessionContext`; providers may advertise presentation capabilities such as a combined phone Mode/Model picker without exposing provider identity checks to shared UI.
+Provider-specific configuration remains opaque to shared Sessions code. Scoped Automation and New Session surfaces consume the same provider menu contributions through the host they are in; providers may advertise presentation capabilities such as a combined phone Mode/Model picker without exposing provider identity checks to shared UI.
 
 ### Operations
 
@@ -216,7 +227,7 @@ The window-scoped worktree cleanup service owns confirmed batch submission and o
 
 `onDidDeleteChat` reports `{ session, sessionResource, chatResource }` only after the provider confirms success. The immutable resource pair is captured before the asynchronous provider operation. Consumers remove that exact chat's state rather than infer deletion from a potentially incomplete chat catalogue.
 
-Chat-owned presentation consumers use the immutable `{ sessionResource, chatResource }` identity derived from `activeSession.activeChat`. The workbench exposes one reload-fixed `ChatLayoutPresentation`; its runtime phone suspension invalidates queued presentation snapshots without changing ownership. `ChatLayoutContext` projects the existing active observables and invalidates foreground snapshots on owner changes, including A/B/A transitions. Request-origin ownership remains separately available in the captured snapshot. Replacement maps the supplied source main-chat resource to the destination main-chat resource and retains opaque peer resources, including when the session resource does not change.
+Chat-owned presentation consumers use the immutable `{ sessionResource, chatResource }` identity derived from the chat the main window's host shows. The workbench exposes one reload-fixed `ChatLayoutPresentation`; its runtime phone suspension invalidates queued presentation snapshots without changing ownership. `ChatLayoutContext` projects the existing active observables and invalidates foreground snapshots on owner changes, including A/B/A transitions. Request-origin ownership remains separately available in the captured snapshot. Replacement maps the supplied source main-chat resource to the destination main-chat resource and retains opaque peer resources, including when the session resource does not change.
 
 ### Provider ownership
 

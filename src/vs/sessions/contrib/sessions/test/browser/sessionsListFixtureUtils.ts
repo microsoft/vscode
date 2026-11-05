@@ -72,6 +72,8 @@ import { ISessionsListModelService, SessionsListModelService } from '../../../..
 import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
+import { sessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 import { IChat, ISession, ISessionEnvironment } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionComparison, ISessionComparisonService } from '../../../../services/sessions/common/sessionComparison.js';
@@ -667,9 +669,9 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 			});
 			reg.defineInstance(ISessionsService, new class extends mock<ISessionsService>() {
 				override readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> = constObservable(visibleSessions);
-				override readonly activeSession: IObservable<IActiveSession | undefined> = constObservable(undefined);
-				override readonly mainWindowActiveSession = this.activeSession;
+				readonly activeSession: IObservable<IActiveSession | undefined> = constObservable(undefined);
 			}());
+			reg.defineInstance(ISessionHostService, sessionHostServiceOf(disposableStore, { mainWindowActiveSession: constObservable(undefined), visibleSessions: constObservable(visibleSessions), windowSessions: constObservable([]) }));
 			reg.defineInstance(IAgentHostFilterService, new class extends mock<IAgentHostFilterService>() {
 				override readonly onDidChange = Event.None;
 				override readonly selectedHostId = undefined;

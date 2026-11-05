@@ -36,6 +36,7 @@ import { IChat, ISession, ISessionCapabilities, ISessionChangesSummary, SessionS
 import { ISessionComparison, ISessionComparisonService } from '../../../../services/sessions/common/sessionComparison.js';
 import { IDeleteChatOptions } from '../../../../services/sessions/common/sessionsProvider.js';
 import { getSessionApplication } from '../../../../common/sessionApplication.js';
+import { stubSessionHostsFromSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 const ITestAgentSessionsService = createDecorator<object>('agentSessions');
 
@@ -331,8 +332,7 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 	instantiationService.stub(ICommandService, commandService);
 	instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 		override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([]);
-		override readonly activeSession = options.activeSession ?? constObservable<IActiveSession | undefined>(undefined);
-		override readonly mainWindowActiveSession = this.activeSession;
+		readonly activeSession = options.activeSession ?? constObservable<IActiveSession | undefined>(undefined);
 	});
 	instantiationService.stub(ISessionsListModelService, new class extends mock<ISessionsListModelService>() {
 		override readonly onDidChange = onDidChangeListModel.event;
@@ -529,6 +529,7 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 		instantiationService.get(IStorageService).store('sessionsListControl.sessionGroupExpansionState', JSON.stringify(state), StorageScope.PROFILE, StorageTarget.USER);
 	}
 	configure?.(instantiationService);
+	stubSessionHostsFromSessionsService(instantiationService);
 
 	const createContainer = (width = 400, height = 300) => {
 		const container = mainWindow.document.createElement('div');

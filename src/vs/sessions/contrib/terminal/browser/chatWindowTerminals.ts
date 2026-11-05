@@ -19,9 +19,9 @@ import { ITerminalGroupService, ITerminalInstance, ITerminalLocationOptions, ITe
 import { TerminalEditorInput } from '../../../../workbench/contrib/terminal/browser/terminalEditorInput.js';
 import { editorGroupToColumn } from '../../../../workbench/services/editor/common/editorGroupColumn.js';
 import { GroupsOrder, IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../workbench/services/editor/common/editorGroupsService.js';
-import { ISessionScope } from '../../../services/sessions/browser/sessionScope.js';
-import { ISession } from '../../../services/sessions/common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionHost, ISessionHostService, SessionHostKind } from '../../../services/sessions/browser/sessionHost.js';
+import { IChat, ISession } from '../../../services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 
 /** What the terminals of chat windows need of the sessions' terminals. */
 export interface IChatWindowTerminalsSource {
@@ -29,9 +29,9 @@ export interface IChatWindowTerminalsSource {
 	 * The terminals a chat window shows `session` with, in their order: its terminals that no other chat window shows, or
 	 * a new one in its working directory, created at `location`.
 	 */
-	getChatWindowTerminals(session: IActiveSession, location?: ITerminalLocationOptions): Promise<readonly ITerminalInstance[]>;
+	getChatWindowTerminals(session: ISession, chat: IChat | undefined, location?: ITerminalLocationOptions): Promise<readonly ITerminalInstance[]>;
 	/** A new terminal of `session`, in its working directory, with its profile, created at `location`. */
-	createChatWindowTerminal(session: IActiveSession, location?: ITerminalLocationOptions): Promise<ITerminalInstance | undefined>;
+	createChatWindowTerminal(session: ISession, chat: IChat | undefined, location?: ITerminalLocationOptions): Promise<ITerminalInstance | undefined>;
 	/** Leaves `instance` to the chat window that shows it, out of the terminal panel, or gives it back to the panel. */
 	setShownInChatWindow(instance: ITerminalInstance, shown: boolean): void;
 	/**
@@ -39,7 +39,9 @@ export interface IChatWindowTerminalsSource {
 	 * terminal of `session`, such as the terminal of a task or one opened by New Terminal in the window: it goes with the
 	 * session, such as as the session is archived, rather than with another session.
 	 */
-	trackChatWindowTerminal(session: IActiveSession, instance: ITerminalInstance): void;
+	trackChatWindowTerminal(session: ISession, instance: ITerminalInstance): void;
+	/** The id of the session `instance` is a terminal of, if any. */
+	getChatWindowTerminalOwner(instance: ITerminalInstance): string | undefined;
 }
 
 export const IChatWindowTerminalsService = createDecorator<IChatWindowTerminalsService>('chatWindowTerminalsService');
@@ -97,6 +99,11 @@ export class ChatWindowTerminals extends Disposable implements IChatWindowTermin
 	/** The session each window showed when it last showed its terminals, for once its parts are gone. */
 	private readonly _sessionIds = new WeakMap<IChatWindow, string>();
 	/**
+	 * The windows that get terminals for a session, how many times at once, and the terminals that opened in them meanwhile
+	 * with no session: one of those may be a terminal an acquisition is creating, which knows its session once it has it.
+	 */
+	private readonly _acquisitions = new Map<IChatWindow, { count: number; readonly claimed: Set<ITerminalInstance>; readonly deferred: Set<ITerminalInstance> }>();
+	/**
 	 * The order of the terminals a window of each session showed as they last hid, and the active one, by instance id: they
 	 * show so again, also in another window, such as when the chat opens in a window again.
 	 */
@@ -111,6 +118,7 @@ export class ChatWindowTerminals extends Disposable implements IChatWindowTermin
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 		@IChatWindowService private readonly _chatWindowService: IChatWindowService,
 		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
+		@ISessionHostService private readonly _sessionHostService: ISessionHostService,
 	) {
 		super();
 		// What sessions that went away, or were archived, showed their terminals with goes with them
@@ -158,7 +166,7 @@ export class ChatWindowTerminals extends Disposable implements IChatWindowTermin
 			const terminals = this._getTerminals(window);
 			if (instance && !instance.isDisposed && !terminals.has(instance)) {
 				terminals.add(instance);
-				this._take(window, instance);
+				this._adopt(window, instance);
 			}
 		}));
 		store.add(window.onWillClose(() => {
@@ -189,10 +197,20 @@ export class ChatWindowTerminals extends Disposable implements IChatWindowTermin
 	 * one they last showed with. Resolves to whether it had one to show, which opens in the part that holds its terminals.
 	 */
 	async show(window: IChatWindow, focus: boolean): Promise<boolean> {
-		const session = this._sessionOf(window);
+		const host = this._hostOf(window);
+		const session = host?.session.get();
 		if (!session) {
 			return false;
 		}
+		return this._show(window, focus, session, host?.chat.get());
+	}
+
+	/**
+	 * Shows the terminals of `session` in `window`. Those it gets meanwhile stay `session`'s: when the window shows another
+	 * session's chat by the time they are there, they wait in the panel for `session` to show again, rather than showing
+	 * for the other session.
+	 */
+	private async _show(window: IChatWindow, focus: boolean, session: ISession, chat: IChat | undefined): Promise<boolean> {
 		this._sessionIds.set(window, session.sessionId);
 		const generation = this._generations.get(window) ?? 0;
 		const part = window.getOrCreateTerminalsPart();
@@ -211,15 +229,18 @@ export class ChatWindowTerminals extends Disposable implements IChatWindowTermin
 				this._getTerminals(other).add(instance);
 			}
 		}
-		const toShow = [...terminals].filter(instance => !this._isElsewhereInWindow(window, instance));
+		// Those of the session: the window may have shown another session's chat with its terminals.
+		const toShow = [...terminals].filter(instance => !this._isElsewhereInWindow(window, instance) && this._isOf(window, session, instance));
 		if (!toShow.length) {
 			// A new one is created in the window's part, rather than in the panel of the main window and moved.
-			const instances = (await this._source.getChatWindowTerminals(session, { viewColumn: editorGroupToColumn(this._editorGroupsService, part.activeGroup) })).filter(instance => !instance.isDisposed);
+			const location = { viewColumn: editorGroupToColumn(this._editorGroupsService, part.activeGroup) };
+			const instances = (await this._acquire(window, () => this._source.getChatWindowTerminals(session, chat, location), acquired => acquired)).filter(instance => !instance.isDisposed);
 			if (!instances.length) {
 				return false;
 			}
-			// Hidden meanwhile, or the window closed: the terminals stay with their session, in the panel.
-			if (!this._isCurrent(window, generation)) {
+			// Hidden meanwhile, the window closed, or it shows another session's chat now: the terminals stay with their session,
+			// in the panel.
+			if (!this._isCurrent(window, generation) || !this._showsSession(window, session)) {
 				instances.forEach(instance => this._releaseToPanel(instance));
 				return false;
 			}
@@ -236,13 +257,25 @@ export class ChatWindowTerminals extends Disposable implements IChatWindowTermin
 		// The group of the part now, which may have changed while the terminals were created.
 		const group = part.activeGroup;
 		this._trackPart(window, part);
+		// The window shows another session's chat now: those moved, once they opened, and the rest stay with their session,
+		// in the panel, rather than showing for the other session.
+		const park = async (moved: readonly ITerminalInstance[]) => {
+			for (const instance of moved) {
+				await this._whenShownIn(group, instance);
+			}
+			ordered.forEach(instance => this._releaseToPanel(instance));
+			return false;
+		};
 		for (const [index, instance] of ordered.entries()) {
 			// Hidden meanwhile, or the window closed, also while one moved: the rest stay with their session, in the panel.
 			if (!this._isCurrent(window, generation)) {
 				ordered.slice(index).forEach(rest => this._releaseToPanel(rest));
 				return false;
 			}
-			await this._moveToGroup(window, instance, group, false);
+			if (!this._showsSession(window, session)) {
+				return park(ordered.slice(0, index));
+			}
+			await this._moveToGroup(window, instance, group, false, session);
 			if (!this._isCurrent(window, generation)) {
 				ordered.slice(index).forEach(rest => this._releaseToPanel(rest));
 				return false;
@@ -256,6 +289,9 @@ export class ChatWindowTerminals extends Disposable implements IChatWindowTermin
 		if (!this._isCurrent(window, generation)) {
 			return false;
 		}
+		if (!this._showsSession(window, session)) {
+			return park([]);
+		}
 		const editors = ordered.map(instance => group.editors.find(editor => isEqual(editor.resource, instance.resource)));
 		const start = Math.min(...editors.map(editor => editor ? group.editors.indexOf(editor) : Number.MAX_SAFE_INTEGER));
 		editors.forEach((editor, index) => {
@@ -266,13 +302,23 @@ export class ChatWindowTerminals extends Disposable implements IChatWindowTermin
 		const activeEditor = editors[ordered.indexOf(active)];
 		if (activeEditor && group.activeEditor !== activeEditor) {
 			await group.openEditor(activeEditor, { preserveFocus: !focus });
+			if (!this._isCurrent(window, generation)) {
+				return false;
+			}
+			if (!this._showsSession(window, session)) {
+				return park([]);
+			}
 		}
 		if (focus) {
 			// Once it shows in the group: until then it is still where it was, such as in the panel of the main window.
 			await this._whenShownIn(group, active);
-			if (this._isCurrent(window, generation)) {
-				await active.focusWhenReady(true);
+			if (!this._isCurrent(window, generation)) {
+				return false;
 			}
+			if (!this._showsSession(window, session)) {
+				return park([]);
+			}
+			await active.focusWhenReady(true);
 		}
 		return true;
 	}
@@ -377,27 +423,98 @@ export class ChatWindowTerminals extends Disposable implements IChatWindowTermin
 			await this.show(window, true);
 			return;
 		}
-		const session = this._sessionOf(window);
+		const host = this._hostOf(window);
+		const session = host?.session.get();
 		if (!session) {
 			return;
 		}
 		const generation = this._generations.get(window) ?? 0;
 		// A terminal of the window's session, in its working directory, with its profile, rather than of the main window's.
-		const instance = await this._source.createChatWindowTerminal(session, { viewColumn: editorGroupToColumn(this._editorGroupsService, part.activeGroup) });
+		const location = { viewColumn: editorGroupToColumn(this._editorGroupsService, part.activeGroup) };
+		const instance = await this._acquire(window, () => this._source.createChatWindowTerminal(session, host?.chat.get(), location), created => created ? [created] : []);
 		if (!instance || instance.isDisposed) {
 			return;
 		}
-		if (!this._isCurrent(window, generation)) {
+		// Hidden meanwhile, the window closed, or it shows another session's chat now: it stays with its session, in the panel.
+		if (!this._isCurrent(window, generation) || !this._showsSession(window, session)) {
 			this._releaseToPanel(instance);
 			return;
 		}
 		this._getTerminals(window).add(instance);
-		this._source.setShownInChatWindow(instance, true);
+		this._take(window, instance, session);
 	}
 
 	/** Whether the terminals of `window` neither hid nor went away, as the window closed, since `generation`. */
 	private _isCurrent(window: IChatWindow, generation: number): boolean {
 		return this._windows.has(window) && this._terminals.has(window) && (this._generations.get(window) ?? 0) === generation;
+	}
+
+	/** Whether `instance` shows in an editor of a group of `window`. */
+	private _isInWindow(window: IChatWindow, instance: ITerminalInstance): boolean {
+		return this._editorGroupsService.groups.some(group => group.windowId === window.windowId && group.editors.some(editor => isEqual(editor.resource, instance.resource)));
+	}
+
+	/** Whether `window` shows a chat of `session`. */
+	private _showsSession(window: IChatWindow, session: ISession): boolean {
+		return this._hostOf(window)?.session.get()?.sessionId === session.sessionId;
+	}
+
+	/**
+	 * Gets terminals for a session of `window` with `acquire`: those it resolves to, its `terminalsOf`, are that session's,
+	 * which the caller takes them for. The terminals that open in the window meanwhile with no session, other than those,
+	 * such as by New Terminal, are the session the window shows once its acquisitions are done.
+	 */
+	private async _acquire<T>(window: IChatWindow, acquire: () => Promise<T>, terminalsOf: (result: T) => readonly ITerminalInstance[]): Promise<T> {
+		let acquisitions = this._acquisitions.get(window);
+		if (!acquisitions) {
+			acquisitions = { count: 0, claimed: new Set(), deferred: new Set() };
+			this._acquisitions.set(window, acquisitions);
+		}
+		acquisitions.count++;
+		try {
+			const result = await acquire();
+			terminalsOf(result).forEach(instance => acquisitions.claimed.add(instance));
+			return result;
+		} finally {
+			if (--acquisitions.count === 0) {
+				this._acquisitions.delete(window);
+				for (const instance of acquisitions.deferred) {
+					if (acquisitions.claimed.has(instance) || instance.isDisposed || !this._windows.has(window)) {
+						continue;
+					}
+					// Only while it is still in the window with no session: one the user took elsewhere meanwhile, such as into
+					// another window, which made it that window's session's, or to the panel, is not the window's.
+					if (!this._isInWindow(window, instance)) {
+						this._terminals.get(window)?.delete(instance);
+					} else if (this._source.getChatWindowTerminalOwner(instance) === undefined) {
+						this._take(window, instance);
+					}
+				}
+			}
+		}
+	}
+
+	/**
+	 * Takes `instance`, which opened in `window`, such as one the user moved there or opened there with New Terminal, as a
+	 * terminal of the session the window shows. One with no session while the window gets terminals waits for that to be
+	 * done: it may be one of those.
+	 */
+	private _adopt(window: IChatWindow, instance: ITerminalInstance): void {
+		const acquisitions = this._acquisitions.get(window);
+		if (acquisitions && this._source.getChatWindowTerminalOwner(instance) === undefined) {
+			acquisitions.deferred.add(instance);
+			return;
+		}
+		this._take(window, instance);
+	}
+
+	/**
+	 * Whether `instance` is a terminal of `session`, or of no session, but for one that may be a terminal the window gets for
+	 * a session now.
+	 */
+	private _isOf(window: IChatWindow, session: ISession, instance: ITerminalInstance): boolean {
+		const owner = this._source.getChatWindowTerminalOwner(instance);
+		return owner === undefined ? !this._acquisitions.get(window)?.deferred.has(instance) : owner === session.sessionId;
 	}
 
 	/**
@@ -437,7 +554,7 @@ export class ChatWindowTerminals extends Disposable implements IChatWindowTermin
 	/** The chat window that shows `session` while it is the active window, such as one a task was run from with its Run menu. */
 	private _activeWindowShowing(session: ISession): IChatWindow | undefined {
 		const activeWindowId = getActiveWindow().vscodeWindowId;
-		return this._chatWindowService.windows.get().find(candidate => candidate.windowId === activeWindowId && this._sessionOf(candidate)?.sessionId === session.sessionId);
+		return this._chatWindowService.windows.get().find(candidate => candidate.windowId === activeWindowId && this._hostOf(candidate)?.session.get()?.sessionId === session.sessionId);
 	}
 
 	/** Gives the terminals of `window` back to their session, still running, as it closes. */
@@ -447,8 +564,8 @@ export class ChatWindowTerminals extends Disposable implements IChatWindowTermin
 	}
 
 	/** Moves a terminal of `window` to `group`, out of the panel or an editor elsewhere. */
-	private async _moveToGroup(window: IChatWindow, instance: ITerminalInstance, group: IEditorGroup, focus: boolean): Promise<void> {
-		this._take(window, instance);
+	private async _moveToGroup(window: IChatWindow, instance: ITerminalInstance, group: IEditorGroup, focus: boolean, owner?: ISession): Promise<void> {
+		this._take(window, instance, owner);
 		if (instance.target === TerminalLocation.Editor && group.editors.some(editor => isEqual(editor.resource, instance.resource))) {
 			// Already in the group, such as a terminal created there.
 			if (focus) {
@@ -527,7 +644,7 @@ export class ChatWindowTerminals extends Disposable implements IChatWindowTermin
 			const instance = this._instanceOf(editor);
 			if (instance && !terminals.has(instance)) {
 				terminals.add(instance);
-				this._take(window, instance);
+				this._adopt(window, instance);
 			}
 		};
 		this._partListeners.set(window, this._trackGroups(part, group => {
@@ -624,9 +741,9 @@ export class ChatWindowTerminals extends Disposable implements IChatWindowTermin
 		return store;
 	}
 
-	/** Takes `instance` as a terminal of `window`, and of the session it shows. */
-	private _take(window: IChatWindow, instance: ITerminalInstance): void {
-		const session = this._sessionOf(window);
+	/** Takes `instance` as a terminal of `window`, and of `owner`, by default of the session the window shows. */
+	private _take(window: IChatWindow, instance: ITerminalInstance, owner?: ISession): void {
+		const session = owner ?? this._hostOf(window)?.session.get();
 		if (session) {
 			this._sessionIds.set(window, session.sessionId);
 			this._source.trackChatWindowTerminal(session, instance);
@@ -647,8 +764,9 @@ export class ChatWindowTerminals extends Disposable implements IChatWindowTermin
 		return editor && isTerminalEditor(editor) ? this._terminalService.getInstanceFromResource(editor.resource) : undefined;
 	}
 
-	/** The session `window` shows: the session its parts act on. */
-	private _sessionOf(window: IChatWindow): IActiveSession | undefined {
-		return this._editorGroupsService.getScopedInstantiationService(window.mainPart).invokeFunction(accessor => accessor.get(ISessionScope)).session.get();
+	/** The host of `window`: what it shows, and its session. */
+	private _hostOf(window: IChatWindow): ISessionHost | undefined {
+		const host = this._sessionHostService.getHostOfWindow(window.windowId);
+		return host?.kind === SessionHostKind.ChatWindow ? host : undefined;
 	}
 }

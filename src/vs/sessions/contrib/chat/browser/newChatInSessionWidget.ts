@@ -22,7 +22,6 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { INestedChatWorkspace, INestedChatWorkspaceSupport, NestedChatWorkspaceError } from '../../../services/sessions/common/sessionsProvider.js';
@@ -121,7 +120,6 @@ export class NewChatInSessionWidget extends Disposable {
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
-		@ISessionContext sessionContext: ISessionContext,
 		@IStorageService private readonly storageService: IStorageService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IFileService private readonly fileService: IFileService,
@@ -141,7 +139,8 @@ export class NewChatInSessionWidget extends Disposable {
 		);
 		this._sessionOptionsExpanded = observableValue(this, this._getInitialSessionOptionsExpanded());
 
-		this._session = sessionContext.session;
+		// The session of the pane that hosts the composer.
+		this._session = _options.session ?? constObservable(undefined);
 
 		// Read per session, folder or host capability change, never per keystroke.
 		this._workspaceSupport = derived(reader => {
