@@ -11,7 +11,7 @@ import { registerThemingParticipant } from '../../../../platform/theme/common/th
 import { IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from '../../../common/theme.js';
 import { ansiColorIdentifiers } from '../../terminal/common/terminalColorRegistry.js';
-import { DebugLinkHoverBehaviorTypeData, detectLinks, ILinkDetector } from './linkDetector.js';
+import { DebugLinkHoverBehaviorTypeData, detectLinks, ILinkDetector, LinkPart } from './linkDetector.js';
 
 /**
  * A run of text that has the same styles.
@@ -492,9 +492,20 @@ function appendStyledSegmentsToContainer(
 	};
 
 	const crossesSegments = (start: number, end: number) => starts.some(segmentStart => segmentStart > start && segmentStart < end);
-	const links = segments.length > 1
-		? detectLinks(segments.map(segment => segment.text).join('')).filter(part => part.kind !== 'text' && crossesSegments(part.index, part.index + part.value.length))
-		: [];
+	const links: LinkPart[] = [];
+	if (segments.length > 1) {
+		// Detect links one line at a time, so that a path is never joined with
+		// the text on the next line.
+		const text = segments.map(segment => segment.text).join('');
+		for (const line of text.matchAll(/[^\r\n]+/g)) {
+			for (const part of detectLinks(line[0])) {
+				const index = line.index + part.index;
+				if (part.kind !== 'text' && crossesSegments(index, index + part.value.length)) {
+					links.push({ ...part, index });
+				}
+			}
+		}
+	}
 
 	let rendered = 0;
 	for (const link of links) {

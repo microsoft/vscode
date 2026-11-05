@@ -7,6 +7,7 @@ import assert from 'assert';
 import { isHTMLSpanElement } from '../../../../../base/browser/dom.js';
 import { Color, RGBA } from '../../../../../base/common/color.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { isWindows } from '../../../../../base/common/platform.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -1002,6 +1003,16 @@ suite('Debug - ANSI Handling', () => {
 		const link = root.querySelector('a')!;
 		assert.strictEqual(link.textContent, 'http://localhost:5173/');
 		assert.deepStrictEqual([...link.querySelectorAll('.highlight')].map(highlight => highlight.textContent), ['host:', '51']);
+	});
+
+	test('path at the end of a line is not joined with the next line', () => {
+		const hoverBehavior = { type: DebugLinkHoverBehavior.None, store: new DisposableStore() };
+		const path = isWindows ? 'C:/foo/bar.js' : '/Users/foo/bar.js';
+		const root = handleANSIOutput(`\x1b[1m${path}\x1b[0m\nplain output`, linkDetector, session.root, [], hoverBehavior);
+		hoverBehavior.store.dispose();
+
+		assert.strictEqual(root.textContent, `${path}\nplain output`);
+		assert.deepStrictEqual([...root.querySelectorAll('a')].map(link => link.textContent), [path]);
 	});
 
 	test('Invalid codes treated as regular text', () => {
