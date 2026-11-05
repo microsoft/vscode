@@ -433,6 +433,9 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		}
 
 		await this._commentThreadWidget.display(this.editor.getOption(EditorOption.lineHeight), shouldReveal);
+		if (this._disposables.isDisposed) {
+			return;
+		}
 		this._disposables.add(this._commentThreadWidget.onDidResize(dimension => {
 			this._refresh(dimension);
 		}));

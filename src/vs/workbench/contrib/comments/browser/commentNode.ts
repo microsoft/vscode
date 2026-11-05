@@ -484,6 +484,10 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			path: `/commentinput-${this.comment.uniqueIdInThread}-${Date.now()}.md`
 		});
 		const modelRef = await this.textModelService.createModelReference(resource);
+		if (this._store.isDisposed) {
+			modelRef.dispose();
+			return;
+		}
 		this._commentEditorModel = modelRef;
 		this._editModeDisposables.add(this._commentEditorModel);
 

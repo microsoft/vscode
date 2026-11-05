@@ -281,6 +281,9 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 		}, CONNECT_TIMEOUT_MS));
 		try {
 			await raceCancellationError(this.initialize(), source.token);
+			if (this._store.isDisposed) {
+				throw new CancellationError();
+			}
 			const host = this._requireHost(id);
 			const generation = this._generation;
 			this._connects.set(id, source);

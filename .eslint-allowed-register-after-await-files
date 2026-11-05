@@ -31,7 +31,7 @@ src/vs/sessions/contrib/providers/agentHost/browser/baseAgentHostSessionsProvide
 src/vs/sessions/electron-browser/sessions.main.ts
 src/vs/sessions/services/configuration/browser/configurationService.ts
 
-# Workbench chat and agents (29 files)
+# Workbench chat and agents (25 files)
 src/vs/workbench/api/browser/mainThreadChatAgents2.ts
 src/vs/workbench/api/common/extHostChatAgents2.ts
 src/vs/workbench/api/common/extHostMcp.ts
@@ -41,18 +41,14 @@ src/vs/workbench/contrib/chat/browser/agentSessions/agentHost/chatTerminalOutput
 src/vs/workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.ts
 src/vs/workbench/contrib/chat/browser/aiCustomization/embeddedAgentPluginDetail.ts
 src/vs/workbench/contrib/chat/browser/chat.shared.contribution.ts
-src/vs/workbench/contrib/chat/browser/chatDebug/chatDebugDetailPanel.ts
-src/vs/workbench/contrib/chat/browser/chatDebug/chatDebugWireLogView.ts
 src/vs/workbench/contrib/chat/browser/chatEditing/chatEditingCodeEditorIntegration.ts
 src/vs/workbench/contrib/chat/browser/chatEditing/chatEditingSession.ts
 src/vs/workbench/contrib/chat/browser/chatSetup/chatSetupContributions.ts
 src/vs/workbench/contrib/chat/browser/chatWindowNotifier.ts
 src/vs/workbench/contrib/chat/browser/promptSyntax/promptFileContributions.ts
-src/vs/workbench/contrib/chat/browser/remoteAgentHost/missionControlEnvironmentService.ts
 src/vs/workbench/contrib/chat/browser/speechToText/chatSpeechToTextService.ts
 src/vs/workbench/contrib/chat/browser/voiceClient/micCaptureService.ts
 src/vs/workbench/contrib/chat/browser/voiceClient/voiceSessionController.ts
-src/vs/workbench/contrib/chat/browser/widget/chatContentParts/toolInvocationParts/chatMcpAppModel.ts
 src/vs/workbench/contrib/chat/browser/widget/input/editor/agentHostInputCompletions.ts
 src/vs/workbench/contrib/chat/browser/widgetHosts/editor/chatEditorInput.ts
 src/vs/workbench/contrib/chat/common/chatService/remoteChatSessionRestorer.ts
@@ -62,7 +58,7 @@ src/vs/workbench/contrib/mcp/browser/mcpPromptArgumentPick.ts
 src/vs/workbench/contrib/mcp/browser/mcpServerEditor.ts
 src/vs/workbench/contrib/mcp/common/discovery/installedMcpServersDiscovery.ts
 
-# Notebooks (15 files)
+# Notebooks (14 files)
 src/vs/workbench/contrib/interactive/browser/interactive.contribution.ts
 src/vs/workbench/contrib/interactive/browser/interactiveEditor.ts
 src/vs/workbench/contrib/notebook/browser/contrib/multicursor/notebookMulticursor.ts
@@ -74,7 +70,6 @@ src/vs/workbench/contrib/notebook/browser/notebook.contribution.ts
 src/vs/workbench/contrib/notebook/browser/notebookEditor.ts
 src/vs/workbench/contrib/notebook/browser/notebookEditorWidget.ts
 src/vs/workbench/contrib/notebook/browser/outputEditor/notebookOutputEditor.ts
-src/vs/workbench/contrib/notebook/browser/viewParts/notebookEditorStickyScroll.ts
 src/vs/workbench/contrib/notebook/common/notebookEditorModel.ts
 src/vs/workbench/contrib/replNotebook/browser/repl.contribution.ts
 src/vs/workbench/contrib/replNotebook/browser/replEditor.ts
@@ -114,16 +109,12 @@ src/vs/workbench/services/extensions/browser/webWorkerExtensionHost.ts
 src/vs/workbench/services/extensions/electron-browser/localProcessExtensionHost.ts
 src/vs/workbench/services/extensions/electron-browser/nativeExtensionService.ts
 
-# Other workbench contributions (41 files)
+# Other workbench contributions (37 files)
 src/vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPane.ts
 src/vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPreview.ts
 src/vs/workbench/contrib/callHierarchy/browser/callHierarchyPeek.ts
 src/vs/workbench/contrib/canvases/electron-browser/canvasView.ts
 src/vs/workbench/contrib/codeEditor/browser/outline/documentSymbolsOutline.ts
-src/vs/workbench/contrib/comments/browser/commentNode.ts
-src/vs/workbench/contrib/comments/browser/commentReply.ts
-src/vs/workbench/contrib/comments/browser/commentThreadWidget.ts
-src/vs/workbench/contrib/comments/browser/commentThreadZoneWidget.ts
 src/vs/workbench/contrib/comments/browser/commentsController.ts
 src/vs/workbench/contrib/customEditor/browser/customEditorInput.ts
 src/vs/workbench/contrib/editSessions/browser/editSessionsStorageService.ts
