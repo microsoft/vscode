@@ -116,7 +116,7 @@ import { ICopilotHomeService } from '../../../../../../platform/environment/comm
 import { TestCopilotHomeService } from '../../../../../../platform/environment/test/common/testCopilotHomeService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
-import { IWorkspaceContextService, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, WorkbenchState, type IWorkspace } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { AgentHostContribution, AgentHostSessionHandler } from '../../../browser/agentSessions/agentHost/agentHostChatContribution.js';
 import { IAgentHostFirstResponseEvent } from '../../../browser/agentSessions/agentHost/agentHostFirstResponseTelemetry.js';
@@ -6932,6 +6932,60 @@ suite('AgentHostChatContribution', () => {
 				rebindCalls: [{ oldResource: untitledResource, newResource: item.resource }],
 				carriedFolder: folderB.toString(),
 			});
+		}));
+
+		test('newChatSessionItem carries a folder chosen on the user\'s behalf to the new session without making it the window default', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+			const folderA = URI.from({ scheme: 'file', path: '/workspace/a' });
+			const folderB = URI.from({ scheme: 'file', path: '/workspace/b' });
+			const workspace: Partial<IWorkspaceContextService> = {
+				getWorkbenchState: () => WorkbenchState.WORKSPACE,
+				getWorkspace: () => ({
+					id: '', folders: [
+						{ uri: folderA, name: 'a', index: 0, toResource: () => folderA },
+						{ uri: folderB, name: 'b', index: 1, toResource: () => folderB },
+					]
+				}) as unknown as IWorkspace,
+				getWorkspaceFolder: () => null,
+				onDidChangeWorkspaceFolders: Event.None,
+			};
+			instantiationService.stub(IWorkspaceContextService, workspace as IWorkspaceContextService);
+			const folders = disposables.add(new AgentHostNewSessionFolderService({ onDidDisposeSession: Event.None } as Partial<IChatService> as IChatService, workspace as IWorkspaceContextService, { extUri: extUriBiasedIgnorePathCase } as Partial<IUriIdentityService> as IUriIdentityService));
+			instantiationService.stub(IAgentHostNewSessionFolderService, folders);
+			let rebind: 'moved' | 'failed' = 'moved';
+			instantiationService.stub(IAgentHostUntitledProvisionalSessionService, {
+				onDidChange: Event.None,
+				get: () => undefined,
+				waitForPending: async () => undefined,
+				getOrCreate: async () => undefined,
+				// The backend graduates under a different identity, so the folder is carried a second time.
+				tryRebind: async (_old: URI, resource: URI) => {
+					if (rebind === 'failed') {
+						throw new Error('rebind failed');
+					}
+					return resource.with({ path: `${resource.path}-backend` });
+				},
+				getProvisionalWorkingDirectories: () => [folderB],
+				setSessionCreationMetadata: () => { },
+				clearSessionCreationMetadata: () => { },
+				disposeSession: async () => { },
+			} as Partial<IAgentHostUntitledProvisionalSessionService> as IAgentHostUntitledProvisionalSessionService);
+			const listController = createSessionListController(disposables, instantiationService, agentHostService);
+
+			// The user last chose folder A; a moved conversation continues in folder B.
+			folders.setFolder(URI.from({ scheme: 'agent-host-copilot', path: '/untitled-earlier' }), folderA);
+			const moved = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-moved' });
+			folders.setFolder(moved, folderB, { updateDefault: false });
+			const item = await listController.newChatSessionItem({ prompt: '', untitledResource: moved }, CancellationToken.None);
+			rebind = 'failed';
+			const failed = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-failed' });
+			folders.setFolder(failed, folderB, { updateDefault: false });
+			await assert.rejects(listController.newChatSessionItem({ prompt: '', untitledResource: failed }, CancellationToken.None), /rebind failed/);
+
+			assert.deepStrictEqual({
+				carried: item && folders.getFolder(item.resource)?.path,
+				windowDefault: folders.getDefaultFolder()?.path,
+			}, { carried: '/workspace/b', windowDefault: '/workspace/a' });
 		}));
 
 		test('folder picker is visible only in multi-root agent-host editor windows when the provider pins an immutable primary directory', () => {

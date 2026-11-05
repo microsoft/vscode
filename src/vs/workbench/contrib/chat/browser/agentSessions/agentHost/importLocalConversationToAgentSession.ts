@@ -13,7 +13,7 @@ import { rewriteMarkdownLinks } from '../../../../../../base/common/markdownLink
 import { Mimes } from '../../../../../../base/common/mime.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { hasKey } from '../../../../../../base/common/types.js';
-import { URI } from '../../../../../../base/common/uri.js';
+import { URI, type UriComponents } from '../../../../../../base/common/uri.js';
 import { basename } from '../../../../../../base/common/resources.js';
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { IRange } from '../../../../../../editor/common/core/range.js';
@@ -27,7 +27,7 @@ import { isImageVariableEntry, type IChatRequestVariableEntry } from '../../../c
 import { coerceImageBuffer } from '../../../common/chatImageExtraction.js';
 import { LanguageModelPartAudience, type ILanguageModelsService } from '../../../common/languageModels.js';
 import { getDisplayedQuestionText } from '../../../common/chatService/chatQuestionCarouselHelpers.js';
-import { getCodeCitationsMessage, type IChatModel, type IChatRequestModel } from '../../../common/model/chatModel.js';
+import { getCodeCitationsMessage, type IChatModel, type IChatProgressResponseContent, type IChatRequestModel } from '../../../common/model/chatModel.js';
 import { isToolResultInputOutputDetails, isToolResultOutputDetails, type IToolResultOutputDetails, type ToolInputOutputEmbedded, type ToolInputOutputReference } from '../../../common/tools/languageModelToolsService.js';
 
 /** Renders a chat message (plain string or markdown) as plain text. */
@@ -973,6 +973,26 @@ function combineTurnUsage(usages: readonly (UsageInfo | undefined)[]): UsageInfo
 }
 
 /**
+ * The directory a Local terminal command ran in, or `undefined` when the call
+ * is not a terminal command or never ran. Local records the directory before
+ * the command is approved, so a call denied or skipped before it ran still has
+ * one. A command whose output was rejected after it ran is recorded as denied
+ * or skipped too, but it has the command's state, output or terminal command,
+ * which are only recorded once a command runs. A call saved before its
+ * confirmation was recorded is taken as having run.
+ */
+function terminalCommandDirectory(part: IChatProgressResponseContent): UriComponents | undefined {
+	if ((part.kind !== 'toolInvocation' && part.kind !== 'toolInvocationSerialized') || part.toolSpecificData?.kind !== 'terminal' || isLegacyChatTerminalToolInvocationData(part.toolSpecificData)) {
+		return undefined;
+	}
+	const data = part.toolSpecificData;
+	const reason = part.kind === 'toolInvocationSerialized' && part.isConfirmed === undefined ? undefined : IChatToolInvocation.executionConfirmedOrDenied(part);
+	const cancelled = reason?.type === ToolConfirmKind.Denied || reason?.type === ToolConfirmKind.Skipped;
+	const ran = !!(data.terminalCommandState || data.terminalCommandOutput || data.terminalCommandUri);
+	return cancelled && !ran ? undefined : data.cwd;
+}
+
+/**
  * The workspace folder a moved conversation continues in, chosen where its
  * Local agent would run its next command: the folder of the directory its last
  * terminal command ran in, else the folder of the window's last active editor.
@@ -985,10 +1005,7 @@ export function importedConversationPrimaryFolder(model: IChatModel, workspace: 
 	for (let i = requests.length - 1; i >= 0; i--) {
 		const parts = requests[i].response?.entireResponse.value ?? [];
 		for (let j = parts.length - 1; j >= 0; j--) {
-			const part = parts[j];
-			const cwd = (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && part.toolSpecificData?.kind === 'terminal' && !isLegacyChatTerminalToolInvocationData(part.toolSpecificData)
-				? part.toolSpecificData.cwd
-				: undefined;
+			const cwd = terminalCommandDirectory(parts[j]);
 			const folder = cwd && workspace.getWorkspaceFolder(URI.revive(cwd));
 			if (folder) {
 				return folder.uri;
