@@ -33,6 +33,8 @@ import { INativeHostService } from '../../../../../platform/native/common/native
 import { AgentHostEditorUpdate } from '../../../../../platform/chat/common/agentsWindowInvitation.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { extUri } from '../../../../../base/common/resources.js';
+import { remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
+import { RemoteAgentHostHandoffResult } from '../../../../common/remoteWorkspaceHandoff.js';
 
 const getSessionForResource = Reflect.get(SelectAgentsFolderContribution.prototype, 'getSessionForResource') as (
 	chatResource: URI,
@@ -219,6 +221,71 @@ suite('Agents Window workspace handoff telemetry', () => {
 			{ folder: undefined, remote: sshRemote, preferDevContainer: false, isDefault: false, draft: undefined },
 			{ folder: undefined, remote: { kind: 'codespaces', folder: undefined }, preferDevContainer: false, isDefault: true, draft: undefined },
 		]);
+	});
+
+	test('identifies the machine of a remote editor window\'s own agent host sessions by its folder', async () => {
+		const sessions: { resource: string; remoteAuthority: string | undefined }[] = [];
+		const harness = {
+			openExistingSession: async (resource: URI, _token: CancellationToken, remoteAuthority?: string) => { sessions.push({ resource: resource.toString(), remoteAuthority }); },
+		};
+		const handleOpenIntent = Reflect.get(SelectAgentsFolderContribution.prototype, 'handleOpenIntent') as (
+			this: typeof harness, workspace: URI | undefined, session: URI | undefined, isDefault: boolean, token: CancellationToken, telemetry: undefined
+		) => Promise<void>;
+		const remoteFolder = URI.from({ scheme: Schemas.vscodeRemote, authority: 'tunnel+box', path: '/project' });
+		for (const [workspace, session] of [
+			[remoteFolder, 'agent-host-copilotcli:/session'],
+			[URI.file('/project'), 'agent-host-copilotcli:/session'],
+			[undefined, 'agent-host-copilotcli:/session'],
+			[remoteFolder, 'copilotcli:/session'],
+		] as const) {
+			await handleOpenIntent.call(harness, workspace, URI.parse(session), false, CancellationToken.None, undefined);
+		}
+		assert.deepStrictEqual(sessions, [
+			{ resource: 'agent-host-copilotcli:/session', remoteAuthority: 'tunnel+box' },
+			{ resource: 'agent-host-copilotcli:/session', remoteAuthority: undefined },
+			{ resource: 'agent-host-copilotcli:/session', remoteAuthority: undefined },
+			{ resource: 'copilotcli:/session', remoteAuthority: undefined },
+		]);
+	});
+
+	test('opens sessions of tunnel editor windows under this window\'s connection and explains other remotes', async () => {
+		const known = URI.parse(`${remoteAgentHostSessionTypeId('tunnel-box', 'copilotcli')}:/known#chat`);
+		const hosts: Record<string, RemoteAgentHostHandoffResult> = {
+			'tunnel+box': { connectionAuthority: 'tunnel-box', connected: Promise.resolve(true) },
+			'tunnel+offline': { connectionAuthority: 'tunnel-offline', connected: Promise.resolve(false) },
+			'tunnel+unknown': { unavailableReason: 'Tunnel \'unknown\' was not found for the signed-in accounts.' },
+		};
+		const resolved: string[] = [];
+		const opened: string[] = [];
+		const notifications: string[] = [];
+		const harness = {
+			resolveAndOpenRemoteSession: Reflect.get(SelectAgentsFolderContribution.prototype, 'resolveAndOpenRemoteSession') as (resource: URI, remoteAuthority: string, token: CancellationToken) => Promise<void>,
+			remoteWorkspaceHandoffService: { resolveHost: async (remoteAuthority: string) => { resolved.push(remoteAuthority); return hosts[remoteAuthority]; } },
+			notificationService: { warn: (message: string) => { notifications.push(message); } },
+			logService: new NullLogService(),
+			_focusedSessionHostService: { focusedHost: { get: () => ({ session: { get: () => undefined } }) } },
+			waitForSessionAvailable: async (resource: URI) => extUri.isEqual(resource, known),
+			getSessionForResource: (resource: URI) => extUri.isEqual(resource, known) ? upcastPartial<ISession>({ resource: known }) : undefined,
+			sessionsService: { openChat: async (_session: ISession, chatResource: URI) => { opened.push(chatResource.toString()); } },
+		};
+		for (const [remoteAuthority, resource] of [
+			['tunnel+box', 'agent-host-copilotcli:/known#chat'],
+			['tunnel+box', 'agent-host-copilotcli:/missing'],
+			['tunnel+offline', 'agent-host-copilotcli:/known#chat'],
+			['tunnel+unknown', 'agent-host-copilotcli:/known#chat'],
+			['ssh-remote+host', 'agent-host-copilotcli:/known#chat'],
+		]) {
+			await harness.resolveAndOpenRemoteSession(URI.parse(resource), remoteAuthority, CancellationToken.None);
+		}
+		assert.deepStrictEqual({ resolved, opened, notifications }, {
+			resolved: ['tunnel+box', 'tunnel+box', 'tunnel+offline', 'tunnel+unknown'],
+			opened: [known.toString()],
+			notifications: [
+				'The session of your remote window could not be found on the remote agent host.',
+				'The session of your remote window could not be opened in the Agents Window. Tunnel \'unknown\' was not found for the signed-in accounts.',
+				'The Agents Window can\'t open sessions from this remote window yet. Only sessions from local and tunnel windows can be opened here.',
+			],
+		});
 	});
 
 	test('later opening requests cannot change the initial opening context or handoff tracker', () => {

@@ -382,14 +382,24 @@ suite('RemoteWorkspaceHandoffService', () => {
 		const wsl: IRemoteAgentHostEntry = { name: 'Ubuntu', connection: { type: RemoteAgentHostEntryType.WSL, address: 'wsl:Ubuntu', distro: 'Ubuntu' } };
 		const connected: IRemoteAgentHostEntry = { name: 'Debian', connection: { type: RemoteAgentHostEntryType.WSL, address: 'wsl:Debian', distro: 'Debian' } };
 		const harness = createHarness({ entries: [ssh, wsl, connected] });
-		await harness.service.resolveFolder({ remoteAuthority: 'ssh-remote+myhost', path: '/project' }, CancellationToken.None);
-		await harness.service.resolveFolder({ remoteAuthority: 'wsl+Ubuntu', path: '/project' }, CancellationToken.None);
-		await harness.service.resolveFolder({ remoteAuthority: 'wsl+Debian', path: '/project' }, CancellationToken.None);
+		const hosts = [
+			await harness.service.resolveHost('ssh-remote+myhost', CancellationToken.None),
+			await harness.service.resolveHost('wsl+Ubuntu', CancellationToken.None),
+			await harness.service.resolveHost('wsl+Debian', CancellationToken.None),
+		];
 		harness.addProvider('ssh:myhost', async status => status.set(RemoteAgentHostConnectionStatus.connected, undefined));
 		harness.addProvider('wsl:Ubuntu', async () => { throw new Error('WSL is not running'); });
 		harness.addProvider('wsl:Debian', () => assert.fail('A connected host must not reconnect'), RemoteAgentHostConnectionStatus.connected);
-		await timeout(0);
-		assert.deepStrictEqual({ calls: harness.calls, errors: harness.errors }, {
+		assert.deepStrictEqual({
+			hosts: await Promise.all(hosts.map(async host => ({ authority: host.connectionAuthority, connected: await host.connected }))),
+			calls: harness.calls,
+			errors: harness.errors,
+		}, {
+			hosts: [
+				{ authority: agentHostAuthority('ssh:myhost'), connected: true },
+				{ authority: agentHostAuthority('wsl:Ubuntu'), connected: false },
+				{ authority: agentHostAuthority('wsl:Debian'), connected: true },
+			],
 			calls: ['show:ssh:myhost', 'connect:ssh:myhost', 'show:wsl:Ubuntu', 'connect:wsl:Ubuntu', 'show:wsl:Debian'],
 			errors: ['Failed to connect to wsl:Ubuntu: WSL is not running'],
 		});

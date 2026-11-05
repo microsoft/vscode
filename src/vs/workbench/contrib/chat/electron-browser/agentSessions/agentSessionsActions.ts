@@ -38,7 +38,7 @@ import { CHAT_CATEGORY } from '../../browser/actions/chatActions.js';
 import { IChatWidget, IChatWidgetService, isIChatResourceViewContext } from '../../browser/chat.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { getChatSessionTelemetryContext } from '../../common/chatService/chatServiceTelemetry.js';
-import { IChatSessionsService, isAgentHostTarget, SessionType } from '../../common/chatSessionsService.js';
+import { IChatSessionsService, isAgentHostTarget, isLocalAgentHostTarget, SessionType } from '../../common/chatSessionsService.js';
 import { IChatViewTitleActionContext } from '../../common/actions/chatActions.js';
 import { getChatSessionType, isUntitledChatSession } from '../../common/model/chatUri.js';
 import { ChatInputNotificationSeverity, IChatInputNotificationService } from '../../browser/widget/input/chatInputNotificationService.js';
@@ -49,6 +49,7 @@ import { logExperimentTrigger, logSettingExperimentTrigger } from '../../../../.
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { AgentsWindowOpenSource, isAgentsWindowOpenSource } from '../../../../../platform/window/common/window.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -366,8 +367,11 @@ export class OpenChatSessionInAgentsWindowAction extends Action2 {
 		const draftOptions = commandOptions?.reveal === 'new' ? getDraftHandoffOptions(accessor, sessionResource, commandOptions.transferDraft === true, inputUri) : {};
 		const hasRealSession = sessionResource && !isUntitledChatSession(sessionResource) && commandOptions?.reveal !== 'new';
 		const folderUri = getInvokingWorkspaceFolder(accessor) ?? workspaceContextService.getWorkspace().folders[0]?.uri;
+		// A remote window's own agent host runs on its remote machine, which the Agents Window identifies by the window's folder.
+		const remoteAuthority = sessionResource && hasRealSession && isLocalAgentHostTarget(getChatSessionType(sessionResource)) ? accessor.get(IWorkbenchEnvironmentService).remoteAuthority : undefined;
+		const sessionHostFolderUri = remoteAuthority ? folderUri ?? URI.from({ scheme: Schemas.vscodeRemote, authority: remoteAuthority, path: '/' }) : undefined;
 		await nativeHostService.openAgentsWindow({
-			folderUri: !hasRealSession && (draftOptions.draft || folderUri?.scheme === Schemas.file) ? folderUri?.toJSON() : undefined,
+			folderUri: sessionHostFolderUri?.toJSON() ?? (!hasRealSession && (draftOptions.draft || folderUri?.scheme === Schemas.file) ? folderUri?.toJSON() : undefined),
 			reveal: hasRealSession ? sessionResource?.toJSON() : commandOptions?.reveal,
 			source,
 			...draftOptions,

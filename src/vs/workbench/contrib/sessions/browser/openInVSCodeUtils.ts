@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostEntryType } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { toLocalAgentHostSessionType } from '../../../../platform/agentHost/common/agentHostSessionType.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
 import { isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_PREFIX } from '../common/agentHostSessionsProvider.js';
 import { encodeHex, VSBuffer } from '../../../../base/common/buffer.js';
@@ -45,17 +48,20 @@ export function resolveRemoteAuthority(
 	sessionsProvidersService: ISessionsProvidersService,
 	remoteAgentHostService: IRemoteAgentHostService,
 ): string | undefined {
+	const entry = getRemoteAgentHostEntry(providerId, sessionsProvidersService, remoteAgentHostService);
+	return entry && resolveRemoteAgentHostEntryAuthority(entry);
+}
+
+function getRemoteAgentHostEntry(
+	providerId: string,
+	sessionsProvidersService: ISessionsProvidersService,
+	remoteAgentHostService: IRemoteAgentHostService,
+): IRemoteAgentHostEntry | undefined {
 	const provider = sessionsProvidersService.getProvider(providerId);
 	if (!provider || !isAgentHostProvider(provider) || !provider.remoteAddress) {
 		return undefined;
 	}
-
-	const entry = remoteAgentHostService.getEntryByAddress(provider.remoteAddress);
-	if (!entry) {
-		return undefined;
-	}
-
-	return resolveRemoteAgentHostEntryAuthority(entry);
+	return remoteAgentHostService.getEntryByAddress(provider.remoteAddress);
 }
 
 export function resolveRemoteAgentHostEntryAuthority(entry: IRemoteAgentHostEntry): string | undefined {
@@ -105,6 +111,34 @@ export function resolveRemoteFolderUri(
 
 	// eslint-disable-next-line local/code-agent-host-uri-mapping -- opens a wrapped host folder through the target window's remote authority
 	return fromAgentHostUri(folderUri).with({ authority: remoteAuthority, scheme: Schemas.vscodeRemote });
+}
+
+/**
+ * Names a session or chat as the editor window that opens its folder does, or returns undefined when that window
+ * cannot open it. An editor window of a VS Code remote reaches the agent host on its remote machine as its own agent
+ * host, while this window connects to the same host as a remote agent host, which names its sessions differently.
+ * Only a tunnel's editor windows share that agent host. Elsewhere, the editor's VS Code server runs its own agent
+ * host, with a session registry separate from that of the agent host this window starts.
+ */
+export function getEditorWindowSessionResource(
+	resource: URI,
+	providerId: string,
+	sessionsProvidersService: ISessionsProvidersService,
+	remoteAgentHostService: IRemoteAgentHostService,
+	agentHostConnectionsService: IAgentHostConnectionsService,
+): URI | undefined {
+	const connectionAuthority = agentHostConnectionsService.resolveSessionResourceIdentity(resource)?.connectionAuthority;
+	if (!connectionAuthority || connectionAuthority === AMBIENT_AGENT_HOST_AUTHORITY) {
+		return resource;
+	}
+	const sessionType = toLocalAgentHostSessionType(resource.scheme, connectionAuthority);
+	const entry = getRemoteAgentHostEntry(providerId, sessionsProvidersService, remoteAgentHostService);
+	return sessionType && entry?.connection.type === RemoteAgentHostEntryType.Tunnel ? resource.with({ scheme: sessionType }) : undefined;
+}
+
+/** Explains why the editor window opened for a session's folder does not open the session as well. */
+export function notifyEditorWindowSessionUnsupported(notificationService: INotificationService): void {
+	notificationService.info(localize('openInVSCode.remoteSessionUnsupported', "The session's folder was opened in a new editor window, but editor windows can't open sessions from this remote yet. Only local and tunnel sessions can be opened there."));
 }
 
 /**
