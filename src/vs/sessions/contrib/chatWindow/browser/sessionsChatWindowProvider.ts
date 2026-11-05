@@ -431,9 +431,12 @@ export class SessionsChatWindowContent extends Disposable implements IChatWindow
 		return chat;
 	}
 
-	/** Whether it shows `chat`, as one of its chats. */
+	/**
+	 * Whether it shows `chat`, as one of its chats, while the chat's editor is open in a group: not once the editor closed,
+	 * such as with its window as the window closes, and the window is still going away.
+	 */
 	showsChat(chat: URI): boolean {
-		return this._chats.get().some(candidate => isEqual(candidate.chat.get(), chat));
+		return this._chats.get().some(candidate => isEqual(candidate.chat.get(), chat) && this._editorGroupsService.groups.some(group => group.contains(candidate.input, { strictEquals: true })));
 	}
 
 	/** Closes the editor of `chat`, one of its chats. */

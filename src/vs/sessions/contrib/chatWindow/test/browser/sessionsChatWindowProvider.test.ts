@@ -126,7 +126,8 @@ suite('Sessions chat window provider', () => {
 			override readonly initialRestoreComplete = constObservable(true);
 			readonly mainWindowActiveSession = mainWindowActiveSession;
 			override async openMovedChats(chats: readonly { readonly session: ISession; readonly chatResource: URI }[]) {
-				events.push(`open moved ${chats.map(chat => `${chat.session.sessionId} ${chat.chatResource.path}`).join(', ')}`);
+				// A chat that a window still claims would open in that window again, not in the grid
+				events.push(`open moved ${chats.map(chat => `${chat.session.sessionId} ${chat.chatResource.path}${chatHostOpenerService.getOpenerOf(chat.chatResource) ? ' (claimed by a window)' : ''}`).join(', ')}`);
 			}
 			override hideChatFromGrid(session: ISession, chat: URI) {
 				events.push(`hide ${session.sessionId} ${chat.path}`);
@@ -258,23 +259,50 @@ suite('Sessions chat window provider', () => {
 		assert.deepStrictEqual(ended, ['/archived', '/deleted']);
 	});
 
-	test('opening a chat a window shows reveals it there, and a chat opened beside one it shows opens beside it in that window', async () => {
+	test('opening a chat a window shows reveals it there, and a chat opened beside one it shows opens beside it in that window; once the chat\'s editor closed, such as with its window, which is still going away, the window does not show it: it opens elsewhere, not in a new window', async () => {
 		const store = disposables.add(new DisposableStore());
 		const session = createSession('session', [createChat('main'), createChat('subagent')]);
-		const { provider, events, chatHostOpenerService } = createProvider(store, [session]);
+		const { provider, events, chatHostOpenerService, editorGroups } = createProvider(store, [session]);
 		const content = store.add((await provider.resolveContent(session.resource))!);
-		await content.resolveChat(URI.parse('test:/main'));
+		const main = (await content.resolveChat(URI.parse('test:/main')))!;
+		// The group of the window that shows the chat's editor
+		const group = upcastPartial<IEditorGroup>({ contains: editor => editor === main.input });
+		editorGroups.push(group);
 
 		const opener = chatHostOpenerService.getOpenerOf(URI.parse('test:/main'));
 		const notShown = chatHostOpenerService.getOpenerOf(URI.parse('test:/subagent'));
 		await opener?.reveal(URI.parse('test:/main'));
 		await opener?.openBeside(URI.parse('test:/subagent'), URI.parse('test:/main'));
+		editorGroups.splice(editorGroups.indexOf(group), 1);
+		const afterEditorClosed = chatHostOpenerService.getOpenerOf(URI.parse('test:/main'));
 
-		assert.deepStrictEqual({ shown: !!opener, notShown, events: events.filter(event => event.startsWith('window')) }, {
+		assert.deepStrictEqual({ shown: !!opener, notShown, afterEditorClosed, events: events.filter(event => event.startsWith('window')) }, {
 			shown: true,
 			notShown: undefined,
+			afterEditorClosed: undefined,
 			events: ['window open /main', 'window open /subagent in 42 beside /main'],
 		});
+	});
+
+	test('Move to Main Window, once the window closed its chats\' editors as it closes, opens every chat in the grid: no window, which is still going away, claims them, so none opens again', async () => {
+		const store = disposables.add(new DisposableStore());
+		const session = createSession('session', [createChat('main'), createChat('subagent')]);
+		const other = createSession('other', [createChat('elsewhere')]);
+		const { provider, events, editorGroups } = createProvider(store, [session, other]);
+		const content = store.add((await provider.resolveContent(session.resource))!);
+		const shown = await Promise.all(['test:/elsewhere', 'test:/main', 'test:/subagent'].map(async chat => (await content.resolveChat(URI.parse(chat)))!));
+		// The chat part of the window, which shows the chats' editors until it closes with the window
+		const chatPart = upcastPartial<IEditorGroup>({ contains: editor => shown.some(chat => chat.input === editor) });
+		editorGroups.push(chatPart);
+
+		await provider.moveToMainWindow([URI.parse('test:/elsewhere')], {});
+		editorGroups.splice(editorGroups.indexOf(chatPart), 1);
+		await provider.moveToMainWindow([URI.parse('test:/elsewhere'), URI.parse('test:/main'), URI.parse('test:/subagent')], {});
+
+		assert.deepStrictEqual(events.filter(event => !event.startsWith('hide')), [
+			'open moved other /elsewhere (claimed by a window)',
+			'open moved other /elsewhere, session /main, session /subagent',
+		]);
 	});
 
 	test('Move to Main Window shows the chats of the window in the main window, its active one first, also of other sessions; it then opens its other editors there, without waiting for a session that does not become active', async () => {

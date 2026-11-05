@@ -313,6 +313,10 @@ export class ChatWindow extends Disposable implements IChatWindow {
 		this.chatLeads = derived(this, reader => {
 			chatMoved.read(reader);
 			this._chats.read(reader);
+			// Not once it closes: its chat part's grid goes away as its editors and chats do
+			if (this._closed || this._closing) {
+				return false;
+			}
 			const first = chatPart.getGroups(GroupsOrder.GRID_APPEARANCE)[0];
 			return _host.chatPartLeads.read(reader) && first?.count === 1 && !!this._chatOf(first.activeEditor);
 		});
@@ -556,23 +560,31 @@ export class ChatWindow extends Disposable implements IChatWindow {
 		// All or nothing: what the chat part shows beside the chat, such as an editor dropped beside it, moves into the main
 		// part first, so that the chat part, then holding only the chat, which closes without asking, closes once the main
 		// part did. The main part closes first: when an editor cannot move to the main window, the window stays as it was,
-		// its chat too, and the editors that moved go back beside the chat.
+		// its chat too, and the editors that moved go back beside the chat. Whatever ends the close early, also an error,
+		// leaves the window as closable as it was: it is not closing anymore.
+		let closed = false;
+		let mainPartClosed = false;
 		const moved = this._moveEditorsBesideChatToMainPart();
-		const chatPartHoldsOnlyChat = this._chatPartHoldsOnlyChat();
-		if (chatPartHoldsOnlyChat) {
-			// What leaves the window rather than closing with its parts, such as terminals beside the chat, leaves it now
-			this._onWillCloseParts.fire();
-		}
-		if (!chatPartHoldsOnlyChat || !this.mainPart.close()) {
-			moved.moveBack();
-			this._closing = false;
-			this._host.setClosing?.(false);
-			return false;
-		}
-		if (!this.chatPart.close()) {
-			this._closing = false;
-			this._host.setClosing?.(false);
-			return false;
+		try {
+			const chatPartHoldsOnlyChat = this._chatPartHoldsOnlyChat();
+			if (chatPartHoldsOnlyChat) {
+				// What leaves the window rather than closing with its parts, such as terminals beside the chat, leaves it now
+				this._onWillCloseParts.fire();
+			}
+			mainPartClosed = chatPartHoldsOnlyChat && this.mainPart.close();
+			if (!mainPartClosed || !this.chatPart.close()) {
+				return false;
+			}
+			closed = true;
+		} finally {
+			if (!closed) {
+				// The editors that moved go back beside the chat while the main part they moved into is still there
+				if (!mainPartClosed) {
+					moved.moveBack();
+				}
+				this._closing = false;
+				this._host.setClosing?.(false);
+			}
 		}
 		this.willUnload();
 		this._closed = true;
