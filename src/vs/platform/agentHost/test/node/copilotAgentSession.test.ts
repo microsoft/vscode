@@ -27630,7 +27630,7 @@ Use the attached image as context.
 			return created;
 		}
 
-		async function createMcpRoutingSession(connected = false, routingEnabled = true, serverEnabled = true) {
+		async function createMcpRoutingSession(connected = false, routingEnabled = true, serverEnabled = true, telemetryService?: ITelemetryService) {
 			const configuration = {
 				type: McpServerType.REMOTE,
 				url: 'https://docs.example.com/mcp',
@@ -27647,6 +27647,7 @@ Use the attached image as context.
 			activeClientToolSet.set('tool-search-client', toolSearchSnapshot.tools);
 			const serverCustomizationId = 'mcp-top-level:copilotcli:test-session-1:docs';
 			const created = await createAgentSession(disposables, {
+				telemetryService,
 				clientSnapshot: toolSearchSnapshot,
 				activeClientToolSet,
 				modelId: 'claude-opus-4.8',
@@ -27832,6 +27833,84 @@ Use the attached image as context.
 				changedConfigurationMissesCache: true,
 				persistedContainsSecret: false,
 			});
+		});
+
+		for (const routingEnabled of [false, true]) {
+			test(`MCP usage telemetry compares real tool use and zero-use turns with routing=${routingEnabled}`, async () => {
+				const telemetryService = new PlatformCapturingTelemetryService<Record<string, unknown>>();
+				const { session, runtime, mockSession } = await createMcpRoutingSession(true, routingEnabled, true, telemetryService);
+				runtime.configureClientTools!(clientToolConfiguration(true));
+				runtime.createClientSdkTools(true);
+				session.resetTurnState('zero-use');
+				session.discardActiveTurn();
+				session.resetTurnState('real-use');
+				mockSession.fire('tool.execution_start', { toolCallId: 'real-tool', toolName: 'mcp_docs_search', mcpServerName: 'docs', arguments: {} });
+				mockSession.fire('tool.execution_complete', { toolCallId: 'real-tool', success: true, result: { content: 'Found docs' } });
+				session.failActiveTurn({ errorType: 'test', message: 'A later operation failed' });
+				assert.deepStrictEqual(telemetryService.events
+					.filter(event => event.eventName === 'agentHost.mcpUsageStarted' || event.eventName === 'agentHost.mcpUsageCompleted')
+					.map(({ eventName, data }) => ({
+						eventName, turnId: data.turnId, routingEnabled: data.routingEnabled,
+						configuredServerCount: data.configuredServerCount, toolSearchActive: data.toolSearchActive,
+						mcpToolSuccesses: data.mcpToolSuccesses, serversUsed: data.serversUsed, result: data.result,
+					})), [
+					{ eventName: 'agentHost.mcpUsageStarted', turnId: 'zero-use', routingEnabled, configuredServerCount: 1, toolSearchActive: true, mcpToolSuccesses: undefined, serversUsed: undefined, result: undefined },
+					{ eventName: 'agentHost.mcpUsageCompleted', turnId: 'zero-use', routingEnabled, configuredServerCount: 1, toolSearchActive: true, mcpToolSuccesses: 0, serversUsed: 0, result: 'interrupted' },
+					{ eventName: 'agentHost.mcpUsageStarted', turnId: 'real-use', routingEnabled, configuredServerCount: 1, toolSearchActive: true, mcpToolSuccesses: undefined, serversUsed: undefined, result: undefined },
+					{ eventName: 'agentHost.mcpUsageCompleted', turnId: 'real-use', routingEnabled, configuredServerCount: 1, toolSearchActive: true, mcpToolSuccesses: 1, serversUsed: 1, result: 'failed' },
+				]);
+			});
+		}
+
+		test('MCP usage telemetry records search results and proxy success without claiming real MCP use', async () => {
+			const telemetryService = new PlatformCapturingTelemetryService<Record<string, unknown>>();
+			const { session, runtime, mockSession } = await createMcpRoutingSession(false, true, true, telemetryService);
+			runtime.configureClientTools!(clientToolConfiguration(true));
+			const [search, proxy] = runtime.createClientSdkTools(true);
+			assert.ok(proxy.description);
+			session.resetTurnState('proxy-only');
+			mockSession.fire('tool.execution_start', { toolCallId: 'search-proxy', toolName: RUNTIME_TOOL_SEARCH_TOOL_NAME, arguments: { query: 'docs' } });
+			const result = invokeClientToolHandler(search, 'search-proxy', { query: 'docs' }, [{ name: proxy.name, description: proxy.description, deferLoading: true }]);
+			session.handleClientToolCallComplete('search-proxy', { success: true, pastTenseMessage: 'Searched', content: [{ type: ToolResultContentType.Text, text: JSON.stringify([proxy.name]) }] });
+			await result;
+			mockSession.fire('tool.execution_start', { toolCallId: 'proxy', toolName: proxy.name, arguments: {} });
+			mockSession.fire('tool.execution_complete', { toolCallId: 'proxy', success: true, result: { content: 'Connected' } });
+			session.discardActiveTurn();
+			assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'agentHost.mcpUsageCompleted').map(({ data }) => ({
+				searches: data.searches, searchesReturningRoutingTools: data.searchesReturningRoutingTools,
+				routingToolCalls: data.routingToolCalls, routingToolSuccesses: data.routingToolSuccesses,
+				mcpToolCalls: data.mcpToolCalls, mcpToolSuccesses: data.mcpToolSuccesses, serversUsed: data.serversUsed,
+			})), [{ searches: 1, searchesReturningRoutingTools: 1, routingToolCalls: 1, routingToolSuccesses: 1, mcpToolCalls: 0, mcpToolSuccesses: 0, serversUsed: 0 }]);
+		});
+
+		for (const routingEnabled of [false, true]) {
+			test(`MCP authentication telemetry reports callback cancellation with routing=${routingEnabled}`, async () => {
+				const telemetryService = new PlatformCapturingTelemetryService<Record<string, unknown>>();
+				const { session, runtime, configuration } = await createMcpRoutingSession(false, routingEnabled, true, telemetryService);
+				session.resetTurnState('cancel-auth');
+				const authentication = runtime.handleMcpAuthRequest({ requestId: 'cancel-auth-request', serverName: 'docs', serverUrl: configuration.url, reason: 'initial' }, { sessionId: 'test-session-1' });
+				await timeout(0);
+				await session.abort();
+				await authentication;
+				assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'agentHost.mcpAuthentication').map(({ data }) => ({
+					turnId: data.turnId, routingEnabled: data.routingEnabled, result: data.result,
+				})), [{ turnId: 'cancel-auth', routingEnabled, result: 'cancelled' }]);
+			});
+		}
+
+		test('MCP authentication telemetry keeps its original turn and excludes credentials', async () => {
+			const telemetryService = new PlatformCapturingTelemetryService<Record<string, unknown>>();
+			const { session, runtime, configuration } = await createMcpRoutingSession(false, true, true, telemetryService);
+			session.resetTurnState('auth-owner');
+			const authentication = runtime.handleMcpAuthRequest({ requestId: 'auth-telemetry', serverName: 'docs', serverUrl: configuration.url, reason: 'initial' }, { sessionId: 'test-session-1' });
+			await timeout(0);
+			session.resetTurnState('successor');
+			await session.resolveMcpAuthentication({ resource: configuration.url, scopes: [], token: 'private-access-token' });
+			await authentication;
+			assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'agentHost.mcpAuthentication').map(({ data }) => ({
+				turnId: data.turnId, routingEnabled: data.routingEnabled, requestId: data.requestId, hasToolCall: data.hasToolCall, result: data.result,
+				containsCredentials: JSON.stringify(data).includes('private-access-token') || JSON.stringify(data).includes(configuration.url),
+			})), [{ turnId: 'auth-owner', routingEnabled: true, requestId: 'auth-telemetry', hasToolCall: false, result: 'tokenProvided', containsCredentials: false }]);
 		});
 
 		test('configured MCP server adds a cautious routing proxy without cached tool metadata', async () => {
