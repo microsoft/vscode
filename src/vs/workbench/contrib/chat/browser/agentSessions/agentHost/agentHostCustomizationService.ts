@@ -12,6 +12,7 @@ import { getErrorMessage, isCancellationError } from '../../../../../../base/com
 import { StringSHA1 } from '../../../../../../base/common/hash.js';
 import { Disposable, DisposableResourceMap, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
+import { equals } from '../../../../../../base/common/objects.js';
 import { AgentHostMcpServers, AgentHostMcpServersConfigKey } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { affectsAgentHostProviderPreference, IAgentConnection, isLocalAgentHostProviderDisabledByPolicy } from '../../../../../../platform/agentHost/common/agentService.js';
 import { getAgentHostCustomizationUri } from '../../../common/agentHostSessionCustomizations.js';
@@ -21,6 +22,7 @@ import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService, IAgentHostS
 import { getEffectiveAgents } from '../../../../../../platform/agentHost/common/customAgents.js';
 import { readMcpServerConnectorName, readMcpServerControllingSetting, readMcpServerDisplayName, readMcpServerSource, readMcpServerSourcePlugin } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import { readAgentToolFullReferenceName } from '../../../../../../platform/agentHost/common/meta/agentToolDefinitionMeta.js';
+import { readSessionWorkspaceMcpServers, type ISessionWorkspaceMcpServers } from '../../../../../../platform/agentHost/common/meta/agentHostWorkspaceMcpServersMeta.js';
 import { getCustomizationDisabledReason, isCustomizationEnabled, withCustomizationEnablement } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { AuthenticateTargetKind } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
@@ -123,6 +125,20 @@ export interface IAgentHostCustomizationService {
 	setCustomizationEnablement(sessionResource: URI, customizationId: string, currentEnablement: readonly CustomizationEnablement[] | undefined, kind: CustomizationEnablementKind, enabled: boolean): void;
 
 	/**
+	 * The host's decision for the class of MCP servers the session's workspace
+	 * configures, resolved `session > workspace > chat.mcp.workspaceServersEnabled`.
+	 * `undefined` when the session is not backed by an agent host that decides
+	 * for the class, so no override can be offered.
+	 */
+	getWorkspaceMcpServers(sessionResource: URI): ISessionWorkspaceMcpServers | undefined;
+
+	/**
+	 * Changes the Workspace or Session decision of that class while preserving
+	 * the other. The Global decision is the setting and cannot be changed here.
+	 */
+	setWorkspaceMcpServersEnablement(sessionResource: URI, kind: CustomizationEnablementKind.Workspace | CustomizationEnablementKind.Session, enabled: boolean): Promise<void>;
+
+	/**
 	 * Reveals the per-server MCP diagnostics Output channel for the server
 	 * `serverId` in the agent-host session `sessionResource`, making its hidden
 	 * logger visible first. The channel is an internal detail of this service --
@@ -177,6 +193,12 @@ export class NullAgentHostCustomizationService implements IAgentHostCustomizatio
 	setCustomizationEnablement(_sessionResource: URI, _customizationId: string, _currentEnablement: readonly CustomizationEnablement[] | undefined, _kind: CustomizationEnablementKind, _enabled: boolean): void {
 		// no-op
 	}
+	getWorkspaceMcpServers(_sessionResource: URI): ISessionWorkspaceMcpServers | undefined {
+		return undefined;
+	}
+	setWorkspaceMcpServersEnablement(_sessionResource: URI, _kind: CustomizationEnablementKind.Workspace | CustomizationEnablementKind.Session, _enabled: boolean): Promise<void> {
+		return Promise.resolve();
+	}
 	async showMcpServerLog(_sessionResource: URI, _serverId: string, beforeShow?: () => Promise<void>): Promise<void> {
 		await beforeShow?.();
 	}
@@ -194,10 +216,14 @@ export interface IAgentHostCustomizationTarget {
 	/** Client-space roots, including provisional roots. */
 	readonly clientWorkingDirectories?: readonly URI[];
 	readonly rootConfig?: RootConfigState;
+	/** The host-published class decision for workspace-configured MCP servers, with client-space Workspace URIs. */
+	readonly workspaceMcpServers?: ISessionWorkspaceMcpServers;
 	isBundledMcpServer(pluginUri: string, serverName: string): boolean;
 	authenticate(request: IAgentHostAuthenticateRequest): Promise<unknown>;
 	handleMcpRequest?(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown>;
 	setCustomizationEnablement(rawId: string, enablement: readonly CustomizationEnablement[]): void;
+	/** Replaces the Workspace and Session decisions of the workspace MCP server class; entries carry client-space URIs. */
+	setWorkspaceMcpServersEnablement?(enablement: readonly CustomizationEnablement[]): Promise<void>;
 	startMcpServer(rawId: string): Promise<void>;
 	stopMcpServer(rawId: string): Promise<void>;
 	backgroundMcpServer(rawId: string): Promise<void>;
@@ -689,6 +715,26 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 		target.setCustomizationEnablement(customization.id, withCustomizationEnablement(currentEnablement, kind, entry));
 	}
 
+	getWorkspaceMcpServers(sessionResource: URI): ISessionWorkspaceMcpServers | undefined {
+		return this._resolveTarget(sessionResource)?.workspaceMcpServers;
+	}
+
+	async setWorkspaceMcpServersEnablement(sessionResource: URI, kind: CustomizationEnablementKind.Workspace | CustomizationEnablementKind.Session, enabled: boolean): Promise<void> {
+		const target = this._resolveTarget(sessionResource);
+		if (!target?.setWorkspaceMcpServersEnablement || !target.workspaceMcpServers) {
+			this._logService.warn(`[AgentHostCustomizationService] Cannot change workspace MCP server enablement because the session ${sessionResource.toString()} does not decide for them as a class.`);
+			return;
+		}
+		const entry = kind === CustomizationEnablementKind.Workspace
+			? this._workspaceEnablementEntry(target, enabled)
+			: { kind, enabled };
+		if (!entry) {
+			this._logService.warn(`[AgentHostCustomizationService] Cannot set workspace MCP server enablement without a working directory.`);
+			return;
+		}
+		await target.setWorkspaceMcpServersEnablement(withCustomizationEnablement(target.workspaceMcpServers.enablement, kind, entry));
+	}
+
 	private _workspaceEnablementEntry(target: IAgentHostCustomizationTarget, enabled: boolean): CustomizationEnablement | undefined {
 		const workingDirectory = target.workingDirectories?.[0] ?? target.workingDirectory;
 		return workingDirectory ? { kind: CustomizationEnablementKind.Workspace, uri: workingDirectory, enabled } : undefined;
@@ -898,6 +944,8 @@ interface ISessionStateSubscriptionEntry extends IDisposable {
 export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCustomizationService {
 
 	private readonly _sessionStateSubscriptions = this._register(new DisposableResourceMap<ISessionStateSubscriptionEntry>());
+	/** The last workspace MCP server decision seen per backend session channel, to fire change events only when it changes. */
+	private readonly _lastWorkspaceMcpServers = new Map<string, ISessionWorkspaceMcpServers | undefined>();
 
 	constructor(
 		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
@@ -927,6 +975,15 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 					this._fireCustomizationsChanged();
 					this._fireCustomAgentsChanged();
 					break;
+				case ActionType.SessionMetaChanged: {
+					// Session meta changes for many reasons; only the host's workspace MCP server decision concerns customizations.
+					const workspaceMcpServers = readSessionWorkspaceMcpServers(envelope.action._meta);
+					if (!equals(this._lastWorkspaceMcpServers.get(envelope.channel), workspaceMcpServers)) {
+						this._lastWorkspaceMcpServers.set(envelope.channel, workspaceMcpServers);
+						this._fireCustomizationsChanged();
+					}
+					break;
+				}
 			}
 		}));
 		this._register(this._provisionalSessionService.onDidChange(sessionResource => {
@@ -1005,6 +1062,10 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 		const clientWorkingDirectories = provisionalWorkingDirectories ?? workingDirectories.map(directory => target.connection.resourceUris.fromAgentHost(URI.parse(directory)));
 		const rootState = target.connection.rootState.value;
 		const channel = target.backendSession.toString();
+		const toHostEnablement = (enablement: readonly CustomizationEnablement[]) => enablement.map(entry => entry.kind === CustomizationEnablementKind.Workspace
+			? { ...entry, uri: target.connection.resourceUris.toAgentHost(URI.parse(entry.uri)).toString() }
+			: entry);
+		const publishedWorkspaceMcpServers = readSessionWorkspaceMcpServers(sessionState?._meta);
 		return {
 			backendSession: target.backendSession,
 			clientId: target.connection.clientId,
@@ -1015,6 +1076,12 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 			workingDirectories,
 			clientWorkingDirectories,
 			rootConfig: rootState && !(rootState instanceof Error) ? rootState.config : undefined,
+			workspaceMcpServers: publishedWorkspaceMcpServers && {
+				enabled: publishedWorkspaceMcpServers.enabled,
+				enablement: publishedWorkspaceMcpServers.enablement.map(entry => entry.kind === CustomizationEnablementKind.Workspace
+					? { ...entry, uri: target.connection.resourceUris.fromAgentHost(URI.parse(entry.uri)).toString() }
+					: entry),
+			},
 			isBundledMcpServer: (pluginUri, serverName) => this._activeClientService.isBundledMcpServer(pluginUri, serverName),
 			authenticate: request => target.connection.authenticate(request),
 			handleMcpRequest: (channel, method, params) => target.connection.handleMcpRequest(channel, method, params),
@@ -1022,11 +1089,12 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 				target.connection.dispatch(channel, {
 					type: ActionType.SessionCustomizationToggled,
 					id: rawId,
-					enablement: enablement.map(entry => entry.kind === CustomizationEnablementKind.Workspace
-						? { ...entry, uri: target.connection.resourceUris.toAgentHost(URI.parse(entry.uri)).toString() }
-						: entry),
+					enablement: toHostEnablement(enablement),
 				});
 			},
+			setWorkspaceMcpServersEnablement: target.connection.setWorkspaceMcpServersEnablement
+				? enablement => target.connection.setWorkspaceMcpServersEnablement!(target.backendSession, toHostEnablement(enablement))
+				: undefined,
 			startMcpServer: rawId => {
 				target.connection.dispatch(channel, {
 					type: ActionType.SessionMcpServerStartRequested,

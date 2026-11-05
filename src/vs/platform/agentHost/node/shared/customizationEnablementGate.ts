@@ -6,6 +6,7 @@
 import { URI } from '../../../../base/common/uri.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { readCustomizationDiscoveryMeta } from '../../common/meta/customizationDiscoveryMeta.js';
+import { readMcpServerSource } from '../../common/meta/mcpCustomizationMeta.js';
 import { CustomizationEnablementKind, CustomizationType, type ChildCustomization, type ClientPluginCustomization, type Customization, type CustomizationEnablement, type McpServerCustomization, type PluginCustomization, type SkillCustomization } from '../../common/state/protocol/channels-session/state.js';
 import { IAgentHostCustomizationEnablementService, type CustomizationEnablementResolution, type ICustomizationEnablementTarget } from '../agentHostCustomizationEnablementService.js';
 
@@ -34,6 +35,8 @@ export function targetForMcpServer(server: McpServerCustomization, owningPluginU
 		isClientBundled,
 		defaultEnabled: readCustomizationDiscoveryMeta(server)?.defaultEnabled,
 		...(owningPluginUri ? { owningPluginSource: URI.parse(owningPluginUri) } : {}),
+		// A plugin's server is governed by the plugin, even when the plugin is itself workspace-discovered.
+		...(owningPluginUri === undefined && readMcpServerSource(server) === 'workspace' ? { isWorkspaceConfigured: true } : {}),
 	};
 }
 

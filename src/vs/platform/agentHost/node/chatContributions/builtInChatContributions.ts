@@ -37,6 +37,7 @@ import { TurnAdmissionContribution } from './turnAdmission/turnAdmissionContribu
 import { TurnDelegationContribution } from './turnDelegation/turnDelegationContribution.js';
 import { WorktreeAnnouncementContribution } from './worktreeAnnouncement/worktreeAnnouncementContribution.js';
 import { WorkspaceContextContribution } from './workspaceContext/workspaceContextContribution.js';
+import { WorkspaceMcpServersContribution } from './workspaceMcpServers/workspaceMcpServersContribution.js';
 import { WorktreeFailureContribution } from './worktreeFailure/worktreeFailureContribution.js';
 
 /** Registers all built-in chat contribution constructors. */
@@ -68,6 +69,7 @@ export function registerBuiltInChatContributions(
 	registrations.add(contributions.registerContribution(ChatConfigContribution));
 	registrations.add(contributions.registerContribution(MarkdownPlanRichLinksContribution));
 	registrations.add(contributions.registerContribution(WorkspaceContextContribution));
+	registrations.add(contributions.registerContribution(WorkspaceMcpServersContribution));
 	registrations.add(contributions.registerContribution(ArtifactToolsContribution));
 	registrations.add(contributions.registerContribution(ArtifactRunsContribution));
 	registrations.add(contributions.registerContribution(ChatSurfaceContribution));

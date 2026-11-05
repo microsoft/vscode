@@ -312,6 +312,26 @@ suite('McpCustomizationController', () => {
 		});
 	});
 
+	test('does not restore stale published enablement onto a workspace-configured server', () => {
+		const workspaceServer: McpServerCustomization = {
+			type: CustomizationType.McpServer, id: 'file:///workspace/.mcp.json#mcp=repo-tools',
+			uri: 'file:///workspace/.mcp.json', name: 'repo-tools', state: stopped(),
+			_meta: withMcpServerSourceMeta(undefined, 'workspace'),
+		};
+		const userServer: McpServerCustomization = {
+			type: CustomizationType.McpServer, id: 'file:///home/.copilot/mcp-config.json#mcp=notes',
+			uri: 'file:///home/.copilot/mcp-config.json', name: 'notes', state: stopped(),
+			_meta: withMcpServerSourceMeta(undefined, 'user'),
+		};
+		const stale = [{ kind: CustomizationEnablementKind.Global, enabled: false }] as const;
+		const merged = applyMcpServerEnablement([workspaceServer, userServer], [{ ...workspaceServer, enablement: [...stale] }, { ...userServer, enablement: [...stale] }]);
+		assert.deepStrictEqual(merged.map(item => item.type === CustomizationType.McpServer ? { id: item.id, enablement: item.enablement } : undefined), [
+			// The gate reopened for the workspace: the fresh resolution carries no decision and must not be masked.
+			{ id: workspaceServer.id, enablement: undefined },
+			{ id: userServer.id, enablement: [...stale] },
+		]);
+	});
+
 	test('merges discovered and live native MCP identities while retaining metadata and distinct sources', () => {
 		const declaration: McpServerCustomization = {
 			type: CustomizationType.McpServer,

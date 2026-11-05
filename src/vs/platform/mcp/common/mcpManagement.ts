@@ -323,6 +323,12 @@ export const mcpGalleryServiceUrlConfig = 'chat.mcp.gallery.serviceUrl';
 export const mcpGalleryServiceEnablementConfig = 'chat.mcp.gallery.enabled';
 export const mcpAutoStartConfig = 'chat.mcp.autostart';
 export const mcpAppsEnabledConfig = 'chat.mcp.apps.enabled';
+/**
+ * Whether MCP servers configured by a workspace (`.mcp.json`, `.vscode/mcp.json`, `.code-workspace`
+ * settings and other repository-defined files) are enabled by default. The setting is
+ * application-scoped, so a repository cannot re-enable its own servers through workspace settings.
+ */
+export const mcpWorkspaceServersEnabledConfig = 'chat.mcp.workspaceServersEnabled';
 
 export interface IMcpGalleryConfig {
 	readonly serviceUrl?: string;

@@ -99,6 +99,7 @@ import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomati
 import type { CreateResourceWatchParams, CreateResourceWatchResult, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWriteParams, ResourceWriteResult } from '../common/state/sessionProtocol.js';
 import type { ActionEnvelope, ChatAction, ClientAnnotationsAction, ClientAutomationAction, ClientAutomationRunAction, ClientChangesetAction, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from '../common/state/sessionActions.js';
 import type { ComponentToState, RootState, StateComponents } from '../common/state/sessionState.js';
+import type { CustomizationEnablement } from '../common/state/protocol/channels-session/state.js';
 
 const LOG_PREFIX = '[AgentHost:renderer]';
 
@@ -536,6 +537,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	removeSessionArtifact(session: URI, artifactId: string): Promise<void> {
 		return this._requireClient().removeSessionArtifact(session, artifactId);
+	}
+
+	setWorkspaceMcpServersEnablement(session: URI, enablement: readonly CustomizationEnablement[]): Promise<void> {
+		return this._requireClient().setWorkspaceMcpServersEnablement(session, enablement);
 	}
 
 	stopBackgroundWork(chat: URI, id: string): Promise<boolean> {

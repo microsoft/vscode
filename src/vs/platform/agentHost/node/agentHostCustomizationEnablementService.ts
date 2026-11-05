@@ -9,11 +9,13 @@ import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentSession } from '../common/agentService.js';
+import { AgentHostWorkspaceMcpServersEnabledConfigKey } from '../common/agentHostSchema.js';
 import { IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../common/agentHostSessionStateStore.js';
 import { DEFAULT_CUSTOMIZATION_ENABLED, isCustomizationEnabled, sortCustomizationEnablement, withCustomizationEnablement } from '../common/customizationEnablement.js';
 import { isAhpChatChannel, readSessionWorkspaceless } from '../common/state/sessionState.js';
 import { isChatWorkspaceless } from './agentChatContext.js';
 import { CustomizationEnablementKind, CustomizationType, type CustomizationEnablement } from '../common/state/protocol/channels-session/state.js';
+import { ActionType } from '../common/state/protocol/common/actions.js';
 import { IAgentHostStorageService } from './agentHostStorageService.js';
 import { getEffectiveWorkingDirectories } from './agentConfigurationService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
@@ -70,6 +72,49 @@ export interface ICustomizationEnablementTarget {
 	readonly isClientBundled?: boolean;
 	/** Provider-discovered enablement inherited when no host or client decision exists. */
 	readonly defaultEnabled?: boolean;
+	/**
+	 * Whether the workspace configures this MCP server (`.mcp.json`,
+	 * `.github/mcp.json`, or a runtime-reported workspace source). Such a server
+	 * is gated by the class decision of {@link targetForWorkspaceMcpServers}.
+	 */
+	readonly isWorkspaceConfigured?: boolean;
+	/**
+	 * Marks the target that decides for the whole class of MCP servers a
+	 * workspace configures, rather than for one server; see
+	 * {@link targetForWorkspaceMcpServers}.
+	 */
+	readonly isWorkspaceMcpServersClass?: true;
+}
+
+/**
+ * Durable key of the class decision for workspace-configured MCP servers.
+ * Single-server keys are `mcpServers#<name>` or plugin source URIs, so a bare
+ * word cannot collide with them.
+ */
+export const WORKSPACE_MCP_SERVERS_ENABLEMENT_KEY = 'workspaceMcpServers';
+
+/**
+ * Session-scope identity of the workspace MCP server class. Customization ids
+ * are URIs or `agent-discovery:` identifiers, so this value cannot name one.
+ */
+export const WORKSPACE_MCP_SERVERS_TARGET_ID = 'vscode.workspaceMcpServers';
+
+/**
+ * The target that gates every MCP server a workspace configures (`.mcp.json`,
+ * `.github/mcp.json`, and runtime discovery that reports a workspace source).
+ * Its Global decision is the mirrored `chat.mcp.workspaceServersEnabled`
+ * setting, passed as `defaultEnabled`; Workspace and Session decisions are
+ * recorded by the host like those of a single server.
+ */
+export function targetForWorkspaceMcpServers(defaultEnabled: boolean): ICustomizationEnablementTarget {
+	return {
+		id: WORKSPACE_MCP_SERVERS_TARGET_ID,
+		type: CustomizationType.McpServer,
+		name: WORKSPACE_MCP_SERVERS_ENABLEMENT_KEY,
+		source: URI.from({ scheme: 'vscode-agent-host-enablement', path: `/${WORKSPACE_MCP_SERVERS_ENABLEMENT_KEY}` }),
+		defaultEnabled,
+		isWorkspaceMcpServersClass: true,
+	};
 }
 
 /**
@@ -102,6 +147,16 @@ export interface IAgentHostCustomizationEnablementService {
 	initializeSession(session: string): Promise<void>;
 	getWorkingDirectoryState(session: string): WorkingDirectoryState;
 	resolve(session: string, target: ICustomizationEnablementTarget): CustomizationEnablementResolution;
+	/**
+	 * Resolves the class decision for the MCP servers a session's workspace
+	 * configures: `session > workspace > chat.mcp.workspaceServersEnabled`.
+	 */
+	resolveWorkspaceMcpServers(session: string): CustomizationEnablementResolution;
+	/**
+	 * Replaces the Workspace and Session decisions of the workspace MCP server
+	 * class. A Global entry is ignored: the mirrored setting owns that scope.
+	 */
+	replaceWorkspaceMcpServersEnablement(session: string, enablement: readonly CustomizationEnablement[]): CustomizationEnablementResolution;
 	adoptMcpServerOwnership(session: string, target: ICustomizationEnablementTarget, owningPluginSource: URI): void;
 	applyClientGlobalEnablement(session: string, target: ICustomizationEnablementTarget, enablement: readonly CustomizationEnablement[]): CustomizationEnablementResolution;
 	replaceEnablement(session: string, target: ICustomizationEnablementTarget, enablement: readonly CustomizationEnablement[]): CustomizationEnablementResolution;
@@ -123,6 +178,9 @@ export function getCustomizationEnablementKey(target: ICustomizationEnablementTa
 		case CustomizationType.Plugin:
 			return target.source.toString();
 		case CustomizationType.McpServer:
+			if (target.isWorkspaceMcpServersClass) {
+				return WORKSPACE_MCP_SERVERS_ENABLEMENT_KEY;
+			}
 			return target.owningPluginSource
 				? `${target.owningPluginSource.toString()}#mcp=${target.name}`
 				: `mcpServers#${target.name}`;
@@ -171,6 +229,7 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 	private readonly _pendingReplacements = new Map<string, IPendingReplacement>();
 	private readonly _pendingMcpOwnership = new Map<string, { target: ICustomizationEnablementTarget; owningPluginSource: URI }>();
 	private readonly _worktree: IAgentHostWorktreePendingState;
+	private _lastWorkspaceMcpServersEnabledSetting: boolean;
 
 	constructor(
 		@IAgentHostStorageService private readonly _storageService: IAgentHostStorageService,
@@ -185,8 +244,13 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 		this._persistent = this._readPersistentEnablement();
 		this._lru = this._readLru();
 		this._reconcileLru();
+		this._lastWorkspaceMcpServersEnabledSetting = this._workspaceMcpServersEnabledSetting();
 		this._register(this._sessionState.onDidRemoveSession(session => this._mcpSkillEnablement.delete(session)));
 		this._register(this._sessionState.onDidEmitEnvelope(envelope => {
+			if (envelope.action.type === ActionType.RootConfigChanged) {
+				this._onDidChangeRootConfig();
+				return;
+			}
 			const session = isAhpChatChannel(envelope.channel)
 				? this._chatOwnership.getChatOwner(envelope.channel)
 				: this._sessionState.getSessionSummary(envelope.channel) ? envelope.channel : undefined;
@@ -278,6 +342,32 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 			return { kind: 'pending', reason: 'workingDirectory' };
 		}
 
+		let enablement = this._resolveDecisions(session, target, workingDirectory, sessionEnablement);
+		if (target.isWorkspaceConfigured && !this._isWorkspaceMcpServersEnabled(session, workingDirectory, sessionEnablement)) {
+			// The class decides the Global scope of a server its workspace configures. A per-server
+			// Global decision is keyed by the server name alone, so honoring it would enable
+			// same-named servers that other workspaces configure. Workspace and Session decisions
+			// of the server itself still win.
+			enablement = withCustomizationEnablement(enablement, CustomizationEnablementKind.Global, { kind: CustomizationEnablementKind.Global, enabled: false });
+		}
+		return {
+			kind: 'resolved',
+			enablement,
+			enabled: isCustomizationEnabled({ enablement }),
+			workingDirectory,
+		};
+	}
+
+	resolveWorkspaceMcpServers(session: string): CustomizationEnablementResolution {
+		return this.resolve(session, this._workspaceMcpServersTarget());
+	}
+
+	replaceWorkspaceMcpServersEnablement(session: string, enablement: readonly CustomizationEnablement[]): CustomizationEnablementResolution {
+		return this.replaceEnablement(session, this._workspaceMcpServersTarget(), enablement.filter(entry => entry.kind !== CustomizationEnablementKind.Global));
+	}
+
+	/** The explicit decisions for `target`, most specific first, without the workspace MCP server gate. */
+	private _resolveDecisions(session: string, target: ICustomizationEnablementTarget, workingDirectory: Exclude<WorkingDirectoryState, { kind: 'pending' }>, sessionEnablement: ReadonlyMap<string, boolean>): CustomizationEnablement[] {
 		const persistentKey = this._persistentKey(target);
 		const decisions: CustomizationEnablement[] = [];
 		const sessionDecision = sessionEnablement.get(this._sessionKey(target));
@@ -301,14 +391,33 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 				decisions.push({ kind: CustomizationEnablementKind.Global, enabled: target.defaultEnabled });
 			}
 		}
+		return sortCustomizationEnablement(decisions);
+	}
 
-		const enablement = sortCustomizationEnablement(decisions);
-		return {
-			kind: 'resolved',
-			enablement,
-			enabled: isCustomizationEnabled({ enablement }),
-			workingDirectory,
-		};
+	/** The mirrored `chat.mcp.workspaceServersEnabled` setting; absent or malformed values keep workspace servers enabled. */
+	private _workspaceMcpServersEnabledSetting(): boolean {
+		return this._sessionState.rootState.config?.values[AgentHostWorkspaceMcpServersEnabledConfigKey] !== false;
+	}
+
+	private _workspaceMcpServersTarget(): ICustomizationEnablementTarget {
+		return targetForWorkspaceMcpServers(this._workspaceMcpServersEnabledSetting());
+	}
+
+	private _isWorkspaceMcpServersEnabled(session: string, workingDirectory: Exclude<WorkingDirectoryState, { kind: 'pending' }>, sessionEnablement: ReadonlyMap<string, boolean>): boolean {
+		return isCustomizationEnabled({ enablement: this._resolveDecisions(session, this._workspaceMcpServersTarget(), workingDirectory, sessionEnablement) });
+	}
+
+	/**
+	 * The mirrored setting is the only Global decision of the workspace MCP server
+	 * class, so a change to it changes the resolution of every session.
+	 */
+	private _onDidChangeRootConfig(): void {
+		const enabled = this._workspaceMcpServersEnabledSetting();
+		if (enabled === this._lastWorkspaceMcpServersEnabledSetting) {
+			return;
+		}
+		this._lastWorkspaceMcpServersEnabledSetting = enabled;
+		this._notifyDecisionChanged(this._sessionEnablement.keys());
 	}
 
 	applyClientGlobalEnablement(session: string, target: ICustomizationEnablementTarget, enablement: readonly CustomizationEnablement[]): CustomizationEnablementResolution {
@@ -599,6 +708,10 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 	}
 
 	private _setGlobal(session: string, target: ICustomizationEnablementTarget, enabled: boolean | undefined): void {
+		if (target.isWorkspaceMcpServersClass) {
+			// The mirrored `chat.mcp.workspaceServersEnabled` setting is the only Global decision for the class.
+			return;
+		}
 		this._setGlobalEnablement(session, target, enabled, true);
 	}
 
@@ -649,7 +762,14 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 		return this._persistent.workingDirectories?.[workingDirectory.toString()]?.[this._persistentKey(target)] ?? this._globalEnablement(session, target);
 	}
 
+	/** The value a Workspace decision inherits: for a workspace-configured server, the gate when it is closed (see {@link resolve}). */
 	private _globalEnablement(session: string, target: ICustomizationEnablementTarget): boolean {
+		if (target.isWorkspaceConfigured) {
+			const workspaceMcpServers = this.resolveWorkspaceMcpServers(session);
+			if (workspaceMcpServers.kind === 'resolved' ? !workspaceMcpServers.enabled : !this._workspaceMcpServersEnabledSetting()) {
+				return false;
+			}
+		}
 		const key = this._persistentKey(target);
 		return this._persistent.global?.[key] ?? this._clientGlobalEnablement.get(session)?.get(key) ?? target.defaultEnabled ?? DEFAULT_CUSTOMIZATION_ENABLED;
 	}

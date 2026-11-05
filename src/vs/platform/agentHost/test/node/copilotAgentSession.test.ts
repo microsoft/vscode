@@ -1856,6 +1856,8 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			return customizationEnablementService.resolve(session, target);
 		},
 		setEnablement: () => ({ kind: 'resolved', enablement: [], enabled: true, workingDirectory: { kind: 'workspaceless' } }),
+		resolveWorkspaceMcpServers: () => ({ kind: 'resolved', enablement: [], enabled: true, workingDirectory: { kind: 'workspaceless' } }),
+		replaceWorkspaceMcpServersEnablement: () => ({ kind: 'resolved', enablement: [], enabled: true, workingDirectory: { kind: 'workspaceless' } }),
 		whenIdle: async () => { },
 	};
 	services.set(IAgentHostCustomizationEnablementService, customizationEnablementService);

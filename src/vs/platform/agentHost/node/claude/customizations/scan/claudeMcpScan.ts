@@ -6,19 +6,26 @@
 import { URI } from '../../../../../../base/common/uri.js';
 import { IFileService } from '../../../../../files/common/files.js';
 import { makeMcpServerCustomization, readJsonFile } from '../../../../../agentPlugins/common/pluginParsers.js';
+import { withMcpServerSourceMeta, type McpServerSource } from '../../../../common/meta/mcpCustomizationMeta.js';
 import { McpServerStatus, type McpServerCustomization, type McpServerState } from '../../../../common/state/protocol/channels-session/state.js';
+
+interface IClaudeMcpFile {
+	readonly uri: URI;
+	/** Where servers declared in this file are configured; workspace files are gated by `chat.mcp.workspaceServersEnabled`. */
+	readonly source: McpServerSource;
+}
 
 /**
  * The JSON files a Claude session reads MCP server declarations from,
  * in precedence order (project before user — first-seen wins).
  */
-function claudeMcpFiles(workingDirectory: URI | undefined, userHome: URI): URI[] {
-	const files: URI[] = [];
+function claudeMcpFiles(workingDirectory: URI | undefined, userHome: URI): IClaudeMcpFile[] {
+	const files: IClaudeMcpFile[] = [];
 	if (workingDirectory) {
-		files.push(URI.joinPath(workingDirectory, '.claude', 'settings.json'));
-		files.push(URI.joinPath(workingDirectory, '.mcp.json'));
+		files.push({ uri: URI.joinPath(workingDirectory, '.claude', 'settings.json'), source: 'workspace' });
+		files.push({ uri: URI.joinPath(workingDirectory, '.mcp.json'), source: 'workspace' });
 	}
-	files.push(URI.joinPath(userHome, '.claude', 'settings.json'));
+	files.push({ uri: URI.joinPath(userHome, '.claude', 'settings.json'), source: 'user' });
 	return files;
 }
 
@@ -44,6 +51,8 @@ function extractMcpServerMap(uri: URI, raw: unknown): Record<string, unknown> | 
  * Scans a Claude session's `settings.json` / `.mcp.json` files (project +
  * user scope) for declared MCP servers and returns them as
  * {@link McpServerCustomization} entries pointing at the real source file.
+ * Each entry carries its configuration source so enablement can gate the
+ * project-declared ones behind `chat.mcp.workspaceServersEnabled`.
  *
  * Pre-materialize, the state is {@link McpServerStatus.Stopped} (declared
  * but not yet connected). Post-materialize, the live connection status is
@@ -56,7 +65,7 @@ export async function scanClaudeMcpServers(
 ): Promise<readonly McpServerCustomization[]> {
 	const seen = new Set<string>();
 	const result: McpServerCustomization[] = [];
-	for (const uri of claudeMcpFiles(workingDirectory, userHome)) {
+	for (const { uri, source } of claudeMcpFiles(workingDirectory, userHome)) {
 		const raw = await readJsonFile(uri, fileService);
 		const servers = extractMcpServerMap(uri, raw);
 		if (!servers) {
@@ -67,7 +76,8 @@ export async function scanClaudeMcpServers(
 				continue;
 			}
 			seen.add(name);
-			result.push(makeMcpServerCustomization(uri, name));
+			const customization = makeMcpServerCustomization(uri, name);
+			result.push({ ...customization, _meta: withMcpServerSourceMeta(customization._meta, source) });
 		}
 	}
 	result.sort((a, b) => a.name.localeCompare(b.name));

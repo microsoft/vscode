@@ -40,6 +40,7 @@ import { supportsAgentHostArtifactRemoval, supportsAgentHostCreateChatWorkspace 
 import { supportsAgentHostSessionImport } from '../../../../../platform/agentHost/common/meta/agentHostSessionImportMeta.js';
 import { supportsAgentHostSessionMove } from '../../../../../platform/agentHost/common/meta/agentHostSessionMoveMeta.js';
 import { supportsAgentHostWorktreeDiskUsage } from '../../../../../platform/agentHost/common/meta/agentHostWorktreeDiskUsageMeta.js';
+import { readSessionWorkspaceMcpServers, type ISessionWorkspaceMcpServers } from '../../../../../platform/agentHost/common/meta/agentHostWorkspaceMcpServersMeta.js';
 import { supportsForceWorktreeCleanup } from '../../../../../platform/agentHost/common/meta/agentHostWorktreeCleanupMeta.js';
 import { getCustomizationDisabledReason, isCustomizationEnabled, withCustomizationEnablement } from '../../../../../platform/agentHost/common/customizationEnablement.js';
 import { readCodexAccountInfo } from '../../../../../platform/agentHost/common/codexAccount.js';
@@ -3335,6 +3336,10 @@ export const AGENT_MODE_KIND = 'agent';
 
 function customizationsChanged(previous: SessionState, state: SessionState): boolean {
 	if (previous.customizations !== state.customizations) {
+		return true;
+	}
+	// The host publishes its decision for the workspace's MCP servers next to the customizations it gates.
+	if (!structuralEquals(readSessionWorkspaceMcpServers(previous._meta), readSessionWorkspaceMcpServers(state._meta))) {
 		return true;
 	}
 	const previousActiveCustomizations = flattenActiveClientCustomizations(previous);
@@ -7777,6 +7782,32 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				? { ...entry, uri: connection.resourceUris.toAgentHost(URI.parse(entry.uri)).toString() }
 				: entry),
 		});
+	}
+
+	getWorkspaceMcpServers(sessionId: string): ISessionWorkspaceMcpServers | undefined {
+		const connection = this.connection;
+		const published = readSessionWorkspaceMcpServers(this._lastSessionStates.get(sessionId)?._meta);
+		if (!connection || !published) {
+			return undefined;
+		}
+		return {
+			enabled: published.enabled,
+			enablement: published.enablement.map(entry => entry.kind === CustomizationEnablementKind.Workspace
+				? { ...entry, uri: connection.resourceUris.fromAgentHost(URI.parse(entry.uri)).toString() }
+				: entry),
+		};
+	}
+
+	async setWorkspaceMcpServersEnablement(sessionId: string, enablement: readonly CustomizationEnablement[]): Promise<void> {
+		this._assertSessionAvailable(sessionId);
+		const sessionUri = this._getBackendSessionUri(sessionId);
+		const connection = this.connection;
+		if (!sessionUri || !connection?.setWorkspaceMcpServersEnablement) {
+			return;
+		}
+		await connection.setWorkspaceMcpServersEnablement(sessionUri, enablement.map(entry => entry.kind === CustomizationEnablementKind.Workspace
+			? { ...entry, uri: connection.resourceUris.toAgentHost(URI.parse(entry.uri)).toString() }
+			: entry));
 	}
 
 	async handleMcpRequest(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown> {

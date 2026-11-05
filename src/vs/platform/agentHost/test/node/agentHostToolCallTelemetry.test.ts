@@ -60,7 +60,7 @@ import { IAgentHostChangesetService } from '../../common/agentHostChangesetServi
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { AgentSideEffects } from '../../node/agentSideEffects.js';
-import type { IAgentHostCustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
+import { IAgentHostCustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
 import { AgentHostStateManager, IAgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { AgentHostArtifactEventService, IAgentHostArtifactEventService } from '../../node/artifactIntegrations/agentHostArtifactRuntime.js';
 import { AgentHostArtifactIntegrationDirectory, IAgentHostArtifactIntegrationDirectory } from '../../node/artifactIntegrations/agentHostArtifactIntegrationDirectory.js';
@@ -244,6 +244,8 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			applyClientGlobalEnablement: () => ({ kind: 'resolved', enablement: [], enabled: true, workingDirectory: { kind: 'workspaceless' } }),
 			replaceEnablement: () => ({ kind: 'resolved', enablement: [], enabled: true, workingDirectory: { kind: 'workspaceless' } }),
 			setEnablement: () => ({ kind: 'resolved', enablement: [], enabled: true, workingDirectory: { kind: 'workspaceless' } }),
+			resolveWorkspaceMcpServers: () => ({ kind: 'pending', reason: 'session' }),
+			replaceWorkspaceMcpServersEnablement: () => ({ kind: 'pending', reason: 'session' }),
 			whenIdle: async () => { },
 		};
 		const sharedLocalTurns = new AgentHostLocalTurns(createTestChatRows(sessionDataService, disposables), logService);
@@ -317,6 +319,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 		services.set(IAgentHostToolCallTracker, disposables.add(instantiationService.createInstance(AgentHostToolCallTracker)));
 		const localCommands = disposables.add(instantiationService.createInstance(AgentHostLocalCommands));
 		services.set(IAgentHostLocalCommands, localCommands);
+		services.set(IAgentHostCustomizationEnablementService, customizationEnablementService);
 		// Blocked/unblocked tool-call telemetry is reported by
 		// `SessionInputNeededContribution`, so the built-in contributions must be
 		// registered for this graph to mirror production wiring.

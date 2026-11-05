@@ -21052,6 +21052,8 @@ suite('CopilotAgent', () => {
 				applyClientGlobalEnablement: () => ({ kind: 'pending', reason: 'session' }),
 				replaceEnablement: () => ({ kind: 'pending', reason: 'session' }),
 				setEnablement: () => ({ kind: 'pending', reason: 'session' }),
+				resolveWorkspaceMcpServers: () => ({ kind: 'pending', reason: 'session' }),
+				replaceWorkspaceMcpServersEnablement: () => ({ kind: 'pending', reason: 'session' }),
 				whenIdle: async () => { },
 			};
 			const { agent, stateManager } = createTestAgentContext(disposables, { pluginManager: new PassthroughPluginManager(), customizationEnablementService: pendingEnablementService });
@@ -24403,6 +24405,8 @@ suite('CopilotAgent', () => {
 				applyClientGlobalEnablement: () => ({ kind: 'pending', reason: 'session' }),
 				replaceEnablement: () => ({ kind: 'pending', reason: 'session' }),
 				setEnablement: () => ({ kind: 'pending', reason: 'session' }),
+				resolveWorkspaceMcpServers: () => ({ kind: 'pending', reason: 'session' }),
+				replaceWorkspaceMcpServersEnablement: () => ({ kind: 'pending', reason: 'session' }),
 				whenIdle: async () => { },
 			} satisfies ICustomizationEnablementService);
 			const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));

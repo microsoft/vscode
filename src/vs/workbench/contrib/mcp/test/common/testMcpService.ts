@@ -5,7 +5,7 @@
 
 import { observableValue } from '../../../../../base/common/observable.js';
 import { ContributionEnablementState, IEnablementModel } from '../../../chat/common/enablement.js';
-import { IAutostartResult, IMcpServer, IMcpService, LazyCollectionState } from '../../common/mcpTypes.js';
+import { IAutostartResult, IMcpServer, IMcpService, IWorkspaceMcpServersEnablement, LazyCollectionState } from '../../common/mcpTypes.js';
 
 export class TestEnablementModel implements IEnablementModel {
 	readEnabled(_key: string): ContributionEnablementState {
@@ -18,10 +18,21 @@ export class TestEnablementModel implements IEnablementModel {
 	setEnabled(_key: string, _state: ContributionEnablementState): void { }
 }
 
+export class TestWorkspaceMcpServersEnablement implements IWorkspaceMcpServersEnablement {
+	isWorkspaceServer(_serverDefinitionId: string): boolean {
+		return false;
+	}
+	readWorkspaceServersEnabled(): ContributionEnablementState {
+		return ContributionEnablementState.EnabledProfile;
+	}
+	setWorkspaceServersEnabled(_enabled: boolean | undefined): void { }
+}
+
 export class TestMcpService implements IMcpService {
 	declare readonly _serviceBrand: undefined;
 	public servers = observableValue<readonly IMcpServer[]>(this, []);
 	public readonly enablementModel: IEnablementModel = new TestEnablementModel();
+	public readonly workspaceServersEnablement: IWorkspaceMcpServersEnablement = new TestWorkspaceMcpServersEnablement();
 	resetCaches(): void {
 
 	}
