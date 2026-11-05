@@ -17,6 +17,7 @@ import { GroupIdentifier } from '../../../common/editor.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IChat, isSessionCreated } from '../common/session.js';
 import { IActiveSession, IHostSession, IShownChat } from '../common/sessionsManagement.js';
+import type { ISessionGridPane } from './sessionGridPane.js';
 
 export const enum SessionHostKind {
 	/** The main window of the Agents window. */
@@ -164,6 +165,13 @@ export interface ISessionGridPanes {
 	 * the new-session slot's. `false` for the hosts of chat windows, chat editors, composers and dialogs.
 	 */
 	isGridPaneHost(host: ISessionHost): boolean;
+
+	/**
+	 * The pane of the grid `host` stands for: the active pane, including the new-session slot, for the grid host; the pane of
+	 * its view for the host of a slot's or detached pane's view. `undefined` for the hosts of chat windows, chat editors,
+	 * composers and dialogs, and for hosts that are gone.
+	 */
+	getPaneOfHost(host: ISessionHost, reader?: IReader): ISessionGridPane | undefined;
 }
 
 /**

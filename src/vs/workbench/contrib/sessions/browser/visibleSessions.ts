@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, ISettableObservable, ITransaction, autorun, derived, observableValue, subtransaction, transaction } from '../../../../base/common/observable.js';
+import { IObservable, IReader, ISettableObservable, ITransaction, autorun, derived, observableValue, subtransaction, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IActiveSession, IHostSession } from '../common/sessionsManagement.js';
@@ -12,6 +12,7 @@ import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } fro
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { Direction } from '../../../../base/browser/ui/grid/grid.js';
 import { ISessionGridSlot } from './sessionsPartService.js';
+import { ISessionGridPane, ISessionPaneTabs, SessionGridPaneKind } from './sessionGridPane.js';
 
 /**
  * Wraps an {@link ISession} with an active chat observable to form an
@@ -333,6 +334,44 @@ export class VisibleSession extends Disposable implements IActiveSession {
 }
 
 /**
+ * A pane of the grid: its grid slot, which shows the session of its current {@link VisibleSession}, the adapter of the session
+ * incarnation it shows. A replacement of the session, such as a draft graduating, gives the pane another adapter, and keeps
+ * the pane and its id.
+ */
+class SessionGridPane implements ISessionGridPane {
+
+	private readonly _adapter = observableValue<VisibleSession | undefined>(this, undefined);
+	/** The adapter of the session incarnation the pane shows; `undefined` for the new-session slot. */
+	readonly adapter: IObservable<VisibleSession | undefined> = this._adapter;
+
+	readonly session: IObservable<ISession | undefined>;
+	readonly chat: IObservable<IChat | undefined>;
+	readonly sticky: IObservable<boolean>;
+	readonly tabs: ISessionPaneTabs;
+
+	constructor(
+		readonly id: string,
+		readonly kind: SessionGridPaneKind,
+	) {
+		const adapter = this._adapter;
+		this.session = derived(this, reader => adapter.read(reader)?.session);
+		this.chat = derived(this, reader => adapter.read(reader)?.activeChat.read(reader));
+		this.sticky = derived(this, reader => kind === SessionGridPaneKind.Slot && (adapter.read(reader)?.sticky.read(reader) ?? false));
+		this.tabs = {
+			openChats: derived(this, reader => adapter.read(reader)?.openChats.read(reader) ?? []),
+			closedChats: derived(this, reader => adapter.read(reader)?.closedChats.read(reader) ?? []),
+			get lastClosedChat() { return adapter.get()?.lastClosedChat; },
+			visibleChatTabs: derived(this, reader => adapter.read(reader)?.visibleChatTabs.read(reader) ?? []),
+			shouldShowChatTabs: derived(this, reader => adapter.read(reader)?.shouldShowChatTabs.read(reader) ?? false),
+		};
+	}
+
+	setAdapter(adapter: VisibleSession | undefined, transaction: ITransaction | undefined): void {
+		this._adapter.set(adapter, transaction);
+	}
+}
+
+/**
  * Sentinel used to distinguish "no slot tracked" from the empty slot
  * (which is itself represented by `undefined` in the visible list).
  */
@@ -360,6 +399,11 @@ export class VisibleSessions extends Disposable {
 	private readonly _detachedDisposables = this._register(new DisposableMap<string, DisposableStore>());
 	private readonly _gridSessions = observableValue<readonly (IActiveSession | undefined)[]>(this, [undefined]);
 	readonly gridSessions: IObservable<readonly (IActiveSession | undefined)[]> = this._gridSessions;
+
+	private readonly _panesById = new Map<string, SessionGridPane>();
+	private readonly _panes = observableValue<readonly SessionGridPane[]>(this, []);
+	/** The panes of the grid, in the order of {@link getRenderedGridSlots}: its slots, then its detached panes. */
+	readonly panes: IObservable<readonly ISessionGridPane[]> = this._panes;
 
 	getRenderedGridSlots(): readonly ISessionGridSlot[] {
 		return [...this.getGridSlots(), ...[...this._detached.values()].map(entry => entry.slot)];
@@ -547,6 +591,14 @@ export class VisibleSessions extends Disposable {
 	private readonly _activeSession = observableValue<IActiveSession | undefined>(this, undefined);
 	readonly activeSession: IObservable<IActiveSession | undefined> = this._activeSession;
 
+	/** The pane of {@link activeSession}: the new-session slot's while that is active; `undefined` while no pane is. */
+	readonly activePane: IObservable<ISessionGridPane | undefined> = derived(this, reader => {
+		const active = this._activeSession.read(reader);
+		return this._panes.read(reader).find(pane => active
+			? pane.adapter.read(reader) === active
+			: pane.kind === SessionGridPaneKind.Slot && !pane.adapter.read(reader));
+	});
+
 	/**
 	 * Whether the most recent active-session change asked to preserve keyboard
 	 * focus (i.e. show the session without moving focus into it). Always set in
@@ -592,6 +644,7 @@ export class VisibleSessions extends Disposable {
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 	) {
 		super();
+		this._updatePanes(undefined);
 	}
 
 	/**
@@ -1205,6 +1258,40 @@ export class VisibleSessions extends Disposable {
 		}
 		this._visibleSessions.set(wrappers, tsx);
 		this._gridSessions.set([...wrappers, ...[...this._detached.values()].map(entry => entry.wrapper)], tsx);
+		this._updatePanes(tsx);
+	}
+
+	/**
+	 * Gives each grid slot its pane, in the same transaction as the sessions the grid shows: a slot keeps its pane, which shows
+	 * the adapter of the session incarnation the slot now shows.
+	 */
+	private _updatePanes(tsx: ITransaction | undefined): void {
+		// The session ids of the slots of `getGridSlots`, in order.
+		const roots = !this._visibleList.length && this._detached.size ? [] : this._visibleList.length ? this._visibleList : [undefined];
+		const entries: { readonly id: string; readonly kind: SessionGridPaneKind; readonly adapter: VisibleSession | undefined }[] = [
+			...this.getGridSlots().map((slot, index) => ({ id: slot.id, kind: SessionGridPaneKind.Slot, adapter: roots[index] === undefined ? undefined : this._wrappers.get(roots[index]) })),
+			...[...this._detached.values()].map(entry => ({ id: entry.slot.id, kind: SessionGridPaneKind.Detached, adapter: entry.wrapper })),
+		];
+		const panes = entries.map(({ id, kind, adapter }) => {
+			let pane = this._panesById.get(id);
+			if (!pane || pane.kind !== kind) {
+				pane = new SessionGridPane(id, kind);
+				this._panesById.set(id, pane);
+			}
+			pane.setAdapter(adapter, tsx);
+			return pane;
+		});
+		for (const id of [...this._panesById.keys()]) {
+			if (!panes.some(pane => pane.id === id)) {
+				this._panesById.delete(id);
+			}
+		}
+		this._panes.set(panes, tsx);
+	}
+
+	/** The pane of the grid slot `id`. */
+	getPane(id: string, reader?: IReader): ISessionGridPane | undefined {
+		return this._panes.read(reader).find(pane => pane.id === id);
 	}
 
 	private _getOrCreateVisibleSession(session: ISession): VisibleSession {

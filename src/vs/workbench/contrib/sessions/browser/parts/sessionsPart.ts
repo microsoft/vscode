@@ -359,6 +359,11 @@ export class SessionsPart extends Part {
 		return this._slots.find(slot => slot.view.host === host)?.view;
 	}
 
+	/** The id of the grid slot whose view's host is `host`. */
+	getPaneIdOfHost(host: ISessionHost): string | undefined {
+		return this._slots.find(slot => slot.view.host === host)?.id;
+	}
+
 	getActiveSessionView(): SessionView | undefined {
 		return this._activeSlot && this._slots.includes(this._activeSlot) ? this._activeSlot.view : undefined;
 	}

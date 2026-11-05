@@ -177,6 +177,9 @@ export interface ISessionsPartService {
 	/** The view of the grid whose host is `host`: a slot or a detached pane. `undefined` for other hosts, such as a chat window's. */
 	getSessionViewOfHost(host: ISessionHost): ISessionView | undefined;
 
+	/** The id of the grid slot whose view's host is `host`, which is the id of its pane. `undefined` for other hosts. */
+	getPaneIdOfHost(host: ISessionHost): string | undefined;
+
 	/**
 	 * Returns the progress indicator for the sessions part, which drives the
 	 * progress bar shown at the top of the part's content area.

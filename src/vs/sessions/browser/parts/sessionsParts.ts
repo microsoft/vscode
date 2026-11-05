@@ -123,6 +123,10 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 		return this._mainPart.getSessionViewOfHost(host);
 	}
 
+	getPaneIdOfHost(host: ISessionHost): string | undefined {
+		return this._mainPart.getPaneIdOfHost(host);
+	}
+
 	getProgressIndicator(): IProgressIndicator {
 		return this._mainPart.getProgressIndicator();
 	}

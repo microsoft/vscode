@@ -17,6 +17,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, observableValue, waitForState } from '../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase, isEqual } from '../../../../../base/common/resources.js';
+import { ResourceMap } from '../../../../../base/common/map.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -352,6 +353,7 @@ class TestSessionsPartService extends mock<ISessionsPartService>() {
 	override getFocusedSessionView(): SessionView | undefined { return this.part?.getFocusedSessionView() ?? this.focusedSessionView; }
 	override getActiveSessionView(): SessionView | undefined { return this.part?.getActiveSessionView(); }
 	override getSessionViewOfHost(host: ISessionHost): SessionView | undefined { return this.part?.getSessionViewOfHost(host); }
+	override getPaneIdOfHost(host: ISessionHost): string | undefined { return this.part?.getPaneIdOfHost(host); }
 }
 
 class TestCustomView extends AbstractCustomView {
@@ -595,7 +597,12 @@ suite('SessionsManagementService', () => {
 			const child = { ...main, resource: main.resource.with({ fragment: 'child' }) };
 			const parent = { ...session, chats: constObservable([main, child]) };
 			const { view, part } = harness([parent]);
-			const of = (host: ISessionHost | undefined) => host && { active: view.isActivePaneHost(host), detached: view.isDetachedPaneHost(host), grid: view.isGridPaneHost(host) };
+			const paneOf = (host: ISessionHost) => {
+				const pane = view.getPaneOfHost(host);
+				const chat = pane?.chat.get();
+				return pane && `${pane.kind}:${pane.session.get()?.sessionId ?? 'new session'}:${chat ? chat.resource.fragment || 'main' : 'no chat'}`;
+			};
+			const of = (host: ISessionHost | undefined) => host && { active: view.isActivePaneHost(host), detached: view.isDetachedPaneHost(host), grid: view.isGridPaneHost(host), pane: paneOf(host) };
 			const empty = { grid: of(view.gridHost), emptySlot: of(part.getSessionView(undefined)?.host) };
 			await view.openSession(parent.resource);
 			await view.moveChatToGrid(parent.sessionId, child.resource, (Reflect.get(view, '_visibility') as VisibleSessions).getGridSlots()[0].id, 'right');
@@ -609,11 +616,11 @@ suite('SessionsManagementService', () => {
 				detached: of(part.getViewOfSession(detached!)?.host),
 				chatWindow: of(chatWindow),
 			}, {
-				empty: { grid: { active: true, detached: false, grid: true }, emptySlot: { active: true, detached: false, grid: true } },
-				grid: { active: true, detached: true, grid: true },
-				slot: { active: false, detached: false, grid: true },
-				detached: { active: true, detached: true, grid: true },
-				chatWindow: { active: false, detached: false, grid: false },
+				empty: { grid: { active: true, detached: false, grid: true, pane: 'slot:new session:no chat' }, emptySlot: { active: true, detached: false, grid: true, pane: 'slot:new session:no chat' } },
+				grid: { active: true, detached: true, grid: true, pane: 'detached:parent:child' },
+				slot: { active: false, detached: false, grid: true, pane: 'slot:parent:main' },
+				detached: { active: true, detached: true, grid: true, pane: 'detached:parent:child' },
+				chatWindow: { active: false, detached: false, grid: false, pane: undefined },
 			});
 		});
 
@@ -1694,6 +1701,60 @@ suite('SessionsManagementService', () => {
 				scope: restored.view.activeSession.get()?.scopedChatResource?.toString(),
 				focused: restored.part.getFocusedSessionView()?.getActiveChat()?.resource.toString(),
 			}, { panes: 3, scope: child.resource.toString(), focused: child.resource.toString() });
+		});
+
+		test('a detached pane that is active remembers its chat as the session\'s active chat, which saving replaces by its slot\'s; closed tabs stay the slot\'s', async () => {
+			const a = created('a');
+			const main = a.mainChat.get();
+			const child: IChat = { ...main, resource: URI.parse('test:///a/child') };
+			const peer: IChat = { ...main, resource: URI.parse('test:///a/peer') };
+			const parent = { ...a, chats: constObservable([main, child, peer]) };
+			const storage = disposables.add(new InMemoryStorageService());
+			const { view } = harness([parent], { storage });
+			await view.openSession(parent.resource);
+			const slot = view.visibleSessions.get()[0]!;
+			await view.closeChat(slot, peer);
+			await view.moveChatToGrid(parent.sessionId, child.resource, (Reflect.get(view, '_visibility') as VisibleSessions).getGridSlots()[0].id, 'right');
+			const remembered = (Reflect.get(view, '_sessionStates') as ResourceMap<{ activeChatResource?: string }>).get(parent.resource)?.activeChatResource;
+			await storage.flush();
+			const states = JSON.parse(storage.get('agentSessions.activeSessionStates', StorageScope.WORKSPACE) ?? '[]') as { sessionResource: string; activeChatResource?: string; closedChatResources?: string[] }[];
+			const state = states.find(entry => entry.sessionResource === parent.resource.toString());
+
+			assert.deepStrictEqual({
+				activePaneChat: view.activeSession.get()?.scopedChatResource?.toString(),
+				remembered,
+				saved: state?.activeChatResource,
+				closed: state?.closedChatResources,
+			}, { activePaneChat: child.resource.toString(), remembered: child.resource.toString(), saved: main.resource.toString(), closed: [peer.resource.toString()] });
+		});
+
+		test('a layout of only a detached pane is saved and restored; closing it attaches its chat, which reopening the session shows', async () => {
+			const a = created('a');
+			const main = a.mainChat.get();
+			const child: IChat = { ...main, resource: URI.parse('test:///a/child') };
+			const parent = { ...a, chats: constObservable([main, child]) };
+			const storage = disposables.add(new InMemoryStorageService());
+			const first = harness([parent], { storage });
+			await first.view.openSession(parent.resource);
+			await first.view.moveChatToGrid(parent.sessionId, child.resource, (Reflect.get(first.view, '_visibility') as VisibleSessions).getGridSlots()[0].id, 'right');
+			first.view.closeSession(first.view.visibleSessions.get()[0]);
+			const saved = first.view.visibleSessionPanes.get().map(pane => pane?.scopedChatResource?.toString());
+			await storage.flush();
+
+			const restored = harness([parent], { storage });
+			await restored.view.restoreVisibleSessions();
+			const afterReload = {
+				panes: restored.view.visibleSessionPanes.get().map(pane => pane?.scopedChatResource?.toString()),
+				active: restored.view.activeSession.get()?.scopedChatResource?.toString(),
+			};
+			restored.view.closeSession(restored.view.activeSession.get());
+			await restored.view.openSession(parent.resource);
+
+			assert.deepStrictEqual({ saved, afterReload, reopened: restored.view.activeSession.get()?.activeChat.get().resource.toString() }, {
+				saved: [child.resource.toString()],
+				afterReload: { panes: [child.resource.toString()], active: child.resource.toString() },
+				reopened: child.resource.toString(),
+			});
 		});
 
 		test('directional batch moves deduplicate, preserve pins, and retain created chat inputs', async () => {

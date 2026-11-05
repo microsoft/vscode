@@ -12,7 +12,7 @@ import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposa
 import { ResourceMap } from '../../../../base/common/map.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { IHostService } from '../../../services/host/browser/host.js';
-import { IObservable, autorun, constObservable, observableValue, transaction } from '../../../../base/common/observable.js';
+import { IObservable, IReader, autorun, constObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -43,6 +43,7 @@ import { Direction } from '../../../../base/browser/ui/grid/grid.js';
 import { ISessionGridState, isSessionGridState, projectSessionGrid } from './sessionGridState.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { ActiveSessionHost, ISessionGridPanes, ISessionHost, SessionHostKind } from './sessionHost.js';
+import { ISessionGridPane, SessionGridPaneKind } from './sessionGridPane.js';
 
 const ACTIVE_SESSION_STATES_KEY = 'agentSessions.activeSessionStates';
 const SESSION_GRID_STATE_KEY = 'agentSessions.gridState';
@@ -990,20 +991,28 @@ export class SessionsService extends Disposable implements ISessionsService {
 		return this._visibility.isGridPane(pane);
 	}
 
+	getPaneOfHost(host: ISessionHost, reader?: IReader): ISessionGridPane | undefined {
+		if (host === this.gridHost) {
+			return this._visibility.activePane.read(reader);
+		}
+		const id = this.sessionsPartService.getPaneIdOfHost(host);
+		return id === undefined ? undefined : this._visibility.getPane(id, reader);
+	}
+
 	isActivePaneHost(host: ISessionHost): boolean {
 		if (host === this.gridHost) {
 			return true;
 		}
-		const view = this.sessionsPartService.getSessionViewOfHost(host);
-		return !!view && view === this.sessionsPartService.getActiveSessionView();
+		const pane = this.getPaneOfHost(host);
+		return !!pane && pane === this._visibility.activePane.get();
 	}
 
 	isDetachedPaneHost(host: ISessionHost): boolean {
-		return this._visibility.isDetachedPane(this.getPaneSessionOfHost(host));
+		return this.getPaneOfHost(host)?.kind === SessionGridPaneKind.Detached;
 	}
 
 	isGridPaneHost(host: ISessionHost): boolean {
-		return host === this.gridHost || !!this.sessionsPartService.getSessionViewOfHost(host);
+		return host === this.gridHost || !!this.getPaneOfHost(host);
 	}
 
 	getPaneSessionOfHost(host: ISessionHost): IActiveSession | undefined {
