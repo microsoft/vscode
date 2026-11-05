@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { normalizeDriveLetter } from '../../../../../base/common/labels.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { win32 } from '../../../../../base/common/path.js';
 import { isWindows, Platform } from '../../../../../base/common/platform.js';
@@ -36,15 +37,15 @@ import { TaskProblemMonitor } from '../../browser/taskProblemMonitor.js';
 import { TaskTerminalStatus } from '../../browser/taskTerminalStatus.js';
 import { TerminalTaskSystem } from '../../browser/terminalTaskSystem.js';
 import { ApplyToKind, FileLocationKind, ProblemMatcher } from '../../common/problemMatcher.js';
-import { ITaskSystemInfo, VerifiedTask } from '../../common/taskSystem.js';
-import { CustomTask, IConfigurationProperties, PresentationOptions, RunOptions, RuntimeType, TaskEventKind } from '../../common/tasks.js';
+import { ITaskSummary, ITaskSystemInfo, VerifiedTask } from '../../common/taskSystem.js';
+import { CustomTask, IConfigurationProperties, InMemoryTask, PresentationOptions, RunOptions, RuntimeType, TaskEvent, TaskEventKind } from '../../common/tasks.js';
 
 suite('TerminalTaskSystem process executable', () => {
 	/* eslint-disable local/code-no-bracket-notation-for-identifiers -- Exercise the real resolution and launch-config pipeline without exposing test-only APIs. */
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const workspaceFolder = toWorkspaceFolder(URI.file('C:\\work'));
 
-	function createSystem(values: Map<string, string>, options: { withSystemInfo?: boolean; foundExecutable?: string; configurationProperties?: IConfigurationProperties; args?: string[] } = {}) {
+	function createSystem(values: Map<string, string>, options: { withSystemInfo?: boolean; foundExecutable?: string; configurationProperties?: IConfigurationProperties; args?: string[]; runtime?: RuntimeType; asDependency?: boolean } = {}) {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stubInstance(TaskProblemMonitor, { dispose() { }, addTerminal() { } });
 		instantiationService.stubInstance(TaskTerminalStatus, { dispose() { }, addTerminal() { } });
@@ -61,13 +62,15 @@ suite('TerminalTaskSystem process executable', () => {
 			override getModels() { return []; }
 		});
 		let resolutionCalls = 0;
+		const acquiredVariables: string[] = [];
 		const lookupCalls: { command: string; cwd?: string; paths?: string[] }[] = [];
 		const systemInfo: ITaskSystemInfo = {
 			platform: Platform.Windows,
 			context: undefined,
 			uriProvider: path => URI.file(path),
-			resolveVariables: async () => {
+			resolveVariables: async (_folder, resolveSet) => {
 				resolutionCalls++;
+				acquiredVariables.push(...resolveSet.variables);
 				return { variables: new Map(values), process: 'ignored.exe' };
 			},
 			findExecutable: async (command, cwd, paths) => {
@@ -86,7 +89,17 @@ suite('TerminalTaskSystem process executable', () => {
 		const pathService = new class extends mock<IPathService>() {
 			override path = Promise.resolve(win32);
 			override defaultUriScheme = Schemas.file;
+			override async fileURI(path: string) { return URI.file(path); }
+			override userHome(options?: { preferLocal: boolean }): Promise<URI>;
+			override userHome(options: { preferLocal: true }): URI;
+			override userHome(options?: { preferLocal: boolean }): Promise<URI> | URI {
+				const home = URI.file('/home');
+				return options?.preferLocal ? home : Promise.resolve(home);
+			}
 		};
+		instantiationService.stub(ITerminalProfileResolverService, new class extends mock<ITerminalProfileResolverService>() {
+			override async getDefaultProfile() { return { profileName: 'test', path: '/bin/bash.exe', args: [], isDefault: true }; }
+		});
 		const system = store.add(instantiationService.invokeFunction(accessor => new TerminalTaskSystem(
 			new class extends mock<ITerminalService>() {
 				override onDidChangeActiveInstance = Event.None;
@@ -104,10 +117,12 @@ suite('TerminalTaskSystem process executable', () => {
 		)));
 		let taskEnded = false;
 		const events: TaskEventKind[] = [];
+		const endedTasks: string[] = [];
 		store.add(system.onDidStateChange(event => {
 			events.push(event.kind);
 			if (event.kind === TaskEventKind.End) {
 				taskEnded = true;
+				endedTasks.push(event.__task._label);
 			}
 		}));
 		let launchConfig: IShellLaunchConfig | undefined;
@@ -124,9 +139,21 @@ suite('TerminalTaskSystem process executable', () => {
 				override processReady = Promise.resolve();
 			};
 		};
+		const createTask = (command: string, cwd = 'C:\\work', env?: { [key: string]: string }) => new CustomTask('test', {
+			kind: 'workspace', label: 'workspace',
+			config: { workspaceFolder, file: '.vscode/tasks.json', index: 0, element: {} }
+		}, 'test', options.runtime === RuntimeType.Shell ? 'shell' : 'process', {
+			runtime: options.runtime ?? RuntimeType.Process, name: command, args: options.args ?? ['argument'],
+			options: { cwd, env }, presentation: PresentationOptions.defaults
+		}, false, RunOptions.defaults, options.configurationProperties ?? {});
 		return {
+			system,
+			createTask,
 			lookupCalls,
+			acquiredVariables,
+			endedTasks,
 			get resolutionCalls() { return resolutionCalls; },
+			get taskListeners() { return system['_onDidStateChange']['_size']; },
 			get state() { return { taskEnded, terminalCreated: launchConfig !== undefined }; },
 			get lifecycle() {
 				return {
@@ -136,16 +163,13 @@ suite('TerminalTaskSystem process executable', () => {
 			},
 			execute(command: string, cwd = 'C:\\work', env?: { [key: string]: string }, alreadyResolved = new Map<string, string>()) {
 				return runWithFakedTimers({ useFakeTimers: true }, async () => {
-					const task = new CustomTask('test', {
-						kind: 'workspace', label: 'workspace',
-						config: { workspaceFolder, file: '.vscode/tasks.json', index: 0, element: {} }
-					}, 'test', 'process', {
-						runtime: RuntimeType.Process, name: command, args: options.args ?? ['argument'],
-						options: { cwd, env }, presentation: PresentationOptions.defaults
-					}, false, RunOptions.defaults, options.configurationProperties ?? {});
-					const resolver = { resolve: async () => undefined };
+					const task = createTask(command, cwd, env);
+					const resolver = { resolve: async () => task };
+					const root = options.asDependency ? new InMemoryTask('parent', { kind: 'inMemory', label: 'test' }, 'parent', 'composite', RunOptions.defaults, {
+						dependsOn: [{ uri: workspaceFolder.uri, task: 'test' }]
+					}) : task;
 					system['_currentTask'] = new VerifiedTask(task, resolver, 'test');
-					await system['_executeTask'](task, resolver, 'test', new Set(), new Map(), alreadyResolved);
+					await system['_executeTask'](root, resolver, 'test', new Set(), new Map(), alreadyResolved);
 					await timeout(100);
 					return launchConfig;
 				});
@@ -246,6 +270,24 @@ suite('TerminalTaskSystem process executable', () => {
 		});
 	});
 
+	test('resolves workspace variables inside unknown shell expansions', async () => {
+		const system = createSystem(new Map(), { runtime: RuntimeType.Shell, args: [] });
+		const config = await system.execute('cd ${ROOT:-${workspaceFolder}} && make');
+		assert.deepStrictEqual(config?.args, ['-c', `cd \${ROOT:-${normalizeDriveLetter(workspaceFolder.uri.fsPath)}} && make`]);
+	});
+
+	for (const variable of ['input:root', 'command:root']) {
+		test(`acquires and resolves ${variable} inside unknown shell expansions`, async () => {
+			const system = createSystem(new Map([[variable, '/work']]), { runtime: RuntimeType.Shell, args: [] });
+			const config = await system.execute('cd ${ROOT:-${' + variable + '}} && make');
+			assert.deepStrictEqual({
+				args: config?.args, acquired: system.acquiredVariables, resolutionCalls: system.resolutionCalls
+			}, {
+				args: ['-c', 'cd ${ROOT:-/work} && make'], acquired: ['${' + variable + '}', '${workspaceFolder}'], resolutionCalls: 1
+			});
+		});
+	}
+
 	test('leaves cyclic acquired variables unresolved without looping', async () => {
 		const { execute } = createSystem(new Map([
 			['config:self', '${config:self}'],
@@ -257,7 +299,35 @@ suite('TerminalTaskSystem process executable', () => {
 		});
 	});
 
+	test('resolves repeated acquired shell expansions without treating siblings as cycles', async () => {
+		const system = createSystem(new Map([
+			['input:wrapped', '${ROOT:-${config:directory}}'], ['config:directory', '/work']
+		]), { args: ['${input:wrapped}', '${input:wrapped}'] });
+		const config = await system.execute('C:\\tools\\run.exe');
+		assert.deepStrictEqual(config?.args, ['${ROOT:-/work}', '${ROOT:-/work}']);
+	});
+
+	test('leaves cycles inside acquired shell expansions unresolved without repeating their prefix', async () => {
+		const system = createSystem(new Map([
+			['input:wrapped', '${ROOT:-${input:wrapped}}'], ['config:grow', 'prefix ${config:grow}']
+		]), { args: ['${input:wrapped}', '${config:grow}'] });
+		const config = await system.execute('C:\\tools\\run.exe');
+		assert.deepStrictEqual(config?.args, ['${ROOT:-${input:wrapped}}', 'prefix ${config:grow}']);
+	});
+
 	if (isWindows) {
+		for (const command of ['run.exe', '${input:tool}', '${command:tool}']) {
+			test(`preserves PATH lookup for bare ${command} without task system info`, async () => {
+				const system = createSystem(new Map([['input:tool', 'run.exe'], ['command:tool', 'run.exe']]), { withSystemInfo: false });
+				const config = await system.execute(command, 'C:\\work', { PATH: 'C:\\tools' });
+				assert.deepStrictEqual({
+					executable: config?.executable, path: config?.env?.PATH, lookupCalls: system.lookupCalls
+				}, {
+					executable: 'run.exe', path: 'C:\\tools', lookupCalls: []
+				});
+			});
+		}
+
 		test('resolves process variables without task system info', async () => {
 			const { execute } = createSystem(new Map([['input:tool', 'tools\\run.exe']]), { withSystemInfo: false });
 			const config = await execute('${input:tool}');
@@ -338,4 +408,76 @@ suite('TerminalTaskSystem process executable', () => {
 			events: [TaskEventKind.AcquiredInput, TaskEventKind.End, TaskEventKind.AcquiredInput, TaskEventKind.End]
 		}]);
 	});
+
+	test('disposes dependency listeners after repeated empty background rejections', async () => {
+		const system = createSystem(new Map([['input:tool', '']]), {
+			asDependency: true, configurationProperties: { isBackground: true, problemMatchers: [backgroundMatcher] }
+		});
+		const initialListeners = system.taskListeners;
+		const attempts = [];
+		for (let i = 0; i < 2; i++) {
+			await assert.rejects(system.execute('${input:tool}'), /process task command resolved to an empty string/i);
+			attempts.push({
+				extraListeners: system.taskListeners - initialListeners,
+				activeTasks: system.lifecycle.activeTasks,
+				terminalCreated: system.state.terminalCreated,
+				inactiveEvents: system.lifecycle.events.filter(event => event === TaskEventKind.Inactive).length,
+				endedTasks: [...system.endedTasks]
+			});
+		}
+		assert.deepStrictEqual(attempts, [
+			{ extraListeners: 0, activeTasks: 0, terminalCreated: false, inactiveEvents: 0, endedTasks: ['test', 'parent'] },
+			{ extraListeners: 0, activeTasks: 0, terminalCreated: false, inactiveEvents: 0, endedTasks: ['test', 'parent', 'test', 'parent'] }
+		]);
+	});
+
+	test('disposes dependency listeners after successful background execution', async () => {
+		const system = createSystem(new Map(), {
+			asDependency: true, configurationProperties: { isBackground: true, problemMatchers: [backgroundMatcher] }
+		});
+		const initialListeners = system.taskListeners;
+		await system.execute('C:\\tools\\run.exe');
+		assert.deepStrictEqual({
+			extraListeners: system.taskListeners - initialListeners,
+			activeTasks: system.lifecycle.activeTasks,
+			modelListeners: system.lifecycle.modelListeners,
+			inactiveEvents: system.lifecycle.events.filter(event => event === TaskEventKind.Inactive).length
+		}, { extraListeners: 0, activeTasks: 0, modelListeners: 0, inactiveEvents: 1 });
+	});
+
+	for (const outcome of ['inactive', 'complete', 'reject']) {
+		test(`disposes an already-running dependency listener when it becomes ${outcome}`, async () => {
+			const fixture = createSystem(new Map(), { configurationProperties: { isBackground: true, problemMatchers: [backgroundMatcher] } });
+			const task = fixture.createTask('C:\\tools\\run.exe');
+			const completion = new DeferredPromise<ITaskSummary>();
+			const initialListeners = fixture.taskListeners;
+			const dependency = fixture.system['_getDependencyPromise']({
+				task, promise: completion.p, count: { count: 1 }, state: TaskEventKind.Active
+			});
+			fixture.system['_fireTaskEvent'](TaskEvent.general(TaskEventKind.Inactive, fixture.createTask('C:\\other.exe')));
+			const listenersAfterUnrelatedEvent = fixture.taskListeners - initialListeners;
+			let result: ITaskSummary | string;
+			if (outcome === 'reject') {
+				const rejection = assert.rejects(dependency, /dependency failed/);
+				await completion.error(new Error('dependency failed'));
+				await rejection;
+				result = 'rejected';
+			} else {
+				if (outcome === 'inactive') {
+					fixture.system['_fireTaskEvent'](TaskEvent.general(TaskEventKind.Inactive, task));
+					result = await dependency;
+					await completion.complete({ exitCode: 9 });
+				} else {
+					await completion.complete({ exitCode: 9 });
+					result = await dependency;
+				}
+			}
+			assert.deepStrictEqual({
+				listenersAfterUnrelatedEvent, remainingListeners: fixture.taskListeners - initialListeners, result
+			}, {
+				listenersAfterUnrelatedEvent: 1, remainingListeners: 0,
+				result: outcome === 'reject' ? 'rejected' : { exitCode: outcome === 'inactive' ? 0 : 9 }
+			});
+		});
+	}
 });

@@ -46,7 +46,6 @@ import { VSCodeOscProperty, VSCodeOscPt, VSCodeSequence } from '../../terminal/b
 import { TerminalProcessExtHostProxy } from '../../terminal/browser/terminalProcessExtHostProxy.js';
 import { ITerminalProfileResolverService, TERMINAL_VIEW_ID } from '../../terminal/common/terminal.js';
 import { IConfigurationResolverService } from '../../../services/configurationResolver/common/configurationResolver.js';
-import { ConfigurationResolverExpression } from '../../../services/configurationResolver/common/configurationResolverExpression.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IOutputService } from '../../../services/output/common/output.js';
 import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
@@ -86,17 +85,24 @@ export interface IReconnectionTaskData {
 const TaskTerminalType = 'Task';
 
 class VariableResolver {
+	// Match VS Code variables inside shell expansions without consuming the surrounding shell syntax.
+	static readonly variableRegex = /\$\{[^{}]*\}/g;
+
 	constructor(public workspaceFolder: IWorkspaceFolder | undefined, public taskSystemInfo: ITaskSystemInfo | undefined, public readonly values: Map<string, string>, private _service: IConfigurationResolverService | undefined) {
 	}
-	async resolve(value: string): Promise<string> {
-		const expression = ConfigurationResolverExpression.parse(value);
-		for (const variable of expression.unresolved()) {
-			const result = this.values.get(variable.inner) ?? await this._service?.resolveAsync(this.workspaceFolder, variable.id);
-			if (result !== undefined) {
-				expression.resolve(variable, result);
+	async resolve(value: string, resolving: ReadonlySet<string> = new Set()): Promise<string> {
+		const replacements = await Promise.all([...value.matchAll(VariableResolver.variableRegex)].map(async ([match]) => {
+			if (resolving.has(match)) {
+				return match;
 			}
-		}
-		return expression.toObject();
+			const result = await (this.values.get(match.substring(2, match.length - 1)) ?? this._service?.resolveAsync(this.workspaceFolder, match));
+			if (result === undefined || result === match || resolving.has(result)) {
+				return match;
+			}
+			return this.resolve(result, new Set([...resolving, match]));
+		}));
+		let replacementIndex = 0;
+		return value.replace(VariableResolver.variableRegex, () => replacements[replacementIndex++]);
 	}
 }
 
@@ -515,6 +521,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 		const mapKey = task.getMapKey();
 		const customExecution = (ContributedTask.is(task) || CustomTask.is(task)) && task.command?.runtime === RuntimeType.CustomExecution;
+		let commandInvoked = false;
 
 		// It's important that we add this task's entry to _activeTasks before
 		// any of the code in the then runs (see #180541 and #180578). Wrapping
@@ -580,6 +587,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					}
 				}
 				if ((ContributedTask.is(task) || CustomTask.is(task)) && (task.command)) {
+					commandInvoked = true;
 					if (this._isRerun) {
 						return this._reexecuteCommand(task, trigger, alreadyResolved!);
 					} else {
@@ -588,6 +596,11 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				}
 				return { exitCode: 0 };
 			});
+		}).catch(error => {
+			if (!commandInvoked) {
+				this._fireTaskEvent(TaskEvent.general(TaskEventKind.End, task));
+			}
+			throw error;
 		}).finally(() => {
 			// Skip if a later run replaced our entry; wiping it would orphan the live task.
 			if (this._activeTasks[mapKey] === activeTask) {
@@ -608,15 +621,13 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		return promise;
 	}
 
-	private _createInactiveDependencyPromise(task: Task): Promise<ITaskSummary> {
-		return new Promise<ITaskSummary>(resolve => {
-			const taskInactiveDisposable = this.onDidStateChange(taskEvent => {
-				if ((taskEvent.kind === TaskEventKind.Inactive) && (taskEvent.__task === task)) {
-					taskInactiveDisposable.dispose();
-					resolve({ exitCode: 0 });
-				}
-			});
-		});
+	private async _createInactiveDependencyPromise(task: Task, taskPromise: Promise<ITaskSummary>): Promise<ITaskSummary> {
+		const inactive = Event.toPromise(Event.filter(this.onDidStateChange, event => event.kind === TaskEventKind.Inactive && event.__task === task));
+		try {
+			return await Promise.race([inactive.then(() => ({ exitCode: 0 })), taskPromise]);
+		} finally {
+			inactive.cancel();
+		}
 	}
 
 	private _taskHasErrors(task: Task): boolean {
@@ -665,7 +676,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		if (task.state === TaskEventKind.Inactive) {
 			return { exitCode: 0 };
 		}
-		return this._createInactiveDependencyPromise(task.task);
+		return this._createInactiveDependencyPromise(task.task, task.promise);
 	}
 
 	private async _executeDependencyTask(task: Task, resolver: ITaskResolver, trigger: string, liveDependencies: Set<string>, encounteredTasks: Map<string, Promise<ITaskSummary>>, alreadyResolved?: Map<string, string>): Promise<ITaskSummary> {
@@ -675,8 +686,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			return this._executeTask(task, resolver, trigger, liveDependencies, encounteredTasks, alreadyResolved);
 		}
 
-		const inactivePromise = this._createInactiveDependencyPromise(task);
-		return Promise.race([inactivePromise, this._executeTask(task, resolver, trigger, liveDependencies, encounteredTasks, alreadyResolved)]);
+		return this._createInactiveDependencyPromise(task, this._executeTask(task, resolver, trigger, liveDependencies, encounteredTasks, alreadyResolved));
 	}
 
 	private async _resolveAndFindExecutable(systemInfo: ITaskSystemInfo | undefined, workspaceFolder: IWorkspaceFolder | undefined, task: CustomTask | ContributedTask, cwd: string | undefined, envPath: string | undefined, resolvedVariables: Map<string, string>): Promise<string> {
@@ -691,6 +701,9 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			cwd = pathLib.join(workspaceFolder.uri.fsPath, cwd);
 		}
 		const paths = envPath ? (await resolver.resolve(envPath)).split(pathLib.delimiter) : undefined;
+		if (!systemInfo && pathLib.basename(command) === command) {
+			return command;
+		}
 		const foundExecutable = await systemInfo?.findExecutable(command, cwd, paths);
 		if (foundExecutable) {
 			return foundExecutable;
@@ -1831,14 +1844,9 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 	private _collectVariables(variables: Set<string>, value: string | CommandString): void {
 		const string: string = Types.isString(value) ? value : value.value;
-		const r = /\$\{(.*?)\}/g;
-		let matches: RegExpExecArray | null;
-		do {
-			matches = r.exec(string);
-			if (matches) {
-				variables.add(matches[0]);
-			}
-		} while (matches);
+		for (const [match] of string.matchAll(VariableResolver.variableRegex)) {
+			variables.add(match);
+		}
 	}
 
 	private async _resolveCommandAndArgs(resolver: VariableResolver, commandConfig: ICommandConfiguration): Promise<{ command: CommandString; args: CommandString[] }> {
