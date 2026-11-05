@@ -211,7 +211,54 @@ class MinimapOptions {
 	}
 }
 
-class MinimapLayout {
+/**
+ * A view zone as seen by the minimap, which does not render view zones.
+ */
+export interface IMinimapWhitespace {
+	/**
+	 * The vertical offset where the view zone starts, ignoring the height of all view zones.
+	 */
+	readonly zoneFreeVerticalOffset: number;
+	readonly height: number;
+}
+
+/**
+ * Convert an editor vertical offset to the vertical offset it would have if all view zones were removed.
+ * An offset inside a view zone maps to the offset where the view zone starts.
+ * @param whitespaces The view zones, sorted by `zoneFreeVerticalOffset`.
+ */
+export function toZoneFreeVerticalOffset(whitespaces: readonly IMinimapWhitespace[], verticalOffset: number): number {
+	let removedHeight = 0;
+	for (const whitespace of whitespaces) {
+		if (verticalOffset < whitespace.zoneFreeVerticalOffset + removedHeight + whitespace.height) {
+			return Math.min(verticalOffset - removedHeight, whitespace.zoneFreeVerticalOffset);
+		}
+		removedHeight += whitespace.height;
+	}
+	return verticalOffset - removedHeight;
+}
+
+/**
+ * The inverse of {@link toZoneFreeVerticalOffset}. An offset where view zones start maps to the offset before them.
+ * @param whitespaces The view zones, sorted by `zoneFreeVerticalOffset`.
+ */
+export function fromZoneFreeVerticalOffset(whitespaces: readonly IMinimapWhitespace[], zoneFreeVerticalOffset: number): number {
+	let addedHeight = 0;
+	for (const whitespace of whitespaces) {
+		if (whitespace.zoneFreeVerticalOffset >= zoneFreeVerticalOffset) {
+			break;
+		}
+		addedHeight += whitespace.height;
+	}
+	return zoneFreeVerticalOffset + addedHeight;
+}
+
+/**
+ * The minimap does not render view zones, so its layout is computed in zone-free coordinates:
+ * the vertical offsets and scroll positions the editor would have if all view zones were removed.
+ * This keeps the slider still while a view zone scrolls by, instead of moving it over lines that are not visible.
+ */
+export class MinimapLayout {
 
 	constructor(
 		/**
@@ -219,9 +266,13 @@ class MinimapLayout {
 		 */
 		public readonly scrollTop: number,
 		/**
-		 * The given editor scrollHeight (input).
+		 * The given editor scrollTop, ignoring view zones (input).
 		 */
-		public readonly scrollHeight: number,
+		public readonly zoneFreeScrollTop: number,
+		/**
+		 * The given editor scrollHeight, ignoring view zones (input).
+		 */
+		public readonly zoneFreeScrollHeight: number,
 		public readonly sliderNeeded: boolean,
 		private readonly _computedSliderRatio: number,
 		/**
@@ -247,13 +298,22 @@ class MinimapLayout {
 	) { }
 
 	/**
-	 * Compute a desired `scrollPosition` such that the slider moves by `delta`.
+	 * Compute a desired zone-free `scrollTop` such that the slider moves by `delta`.
 	 */
-	public getDesiredScrollTopFromDelta(delta: number): number {
-		return Math.round(this.scrollTop + delta / this._computedSliderRatio);
+	public getDesiredZoneFreeScrollTopFromDelta(delta: number): number {
+		if (this._computedSliderRatio <= 0) {
+			return this.zoneFreeScrollTop;
+		}
+		return Math.round(this.zoneFreeScrollTop + delta / this._computedSliderRatio);
 	}
 
-	public getDesiredScrollTopFromTouchLocation(pageY: number): number {
+	/**
+	 * Compute a desired zone-free `scrollTop` such that the slider is centered on `pageY`.
+	 */
+	public getDesiredZoneFreeScrollTopFromTouchLocation(pageY: number): number {
+		if (this._computedSliderRatio <= 0) {
+			return this.zoneFreeScrollTop;
+		}
 		return Math.round((pageY - this.sliderHeight / 2) / this._computedSliderRatio);
 	}
 
@@ -277,19 +337,30 @@ class MinimapLayout {
 		return + (lineNumber - this.startLineNumber + this.topPaddingLineCount) * minimapLineHeight;
 	}
 
+	/**
+	 * @param viewportStartLineNumberZoneFreeVerticalOffset The vertical offset of `viewportStartLineNumber`, ignoring view zones.
+	 * @param scrollTop The editor scrollTop.
+	 * @param zoneFreeScrollTop The editor scrollTop, ignoring view zones (see {@link toZoneFreeVerticalOffset}).
+	 * @param zoneFreeScrollHeight The editor scrollHeight, ignoring view zones.
+	 */
 	public static create(
-		options: MinimapOptions,
+		options: Pick<MinimapOptions, 'pixelRatio' | 'minimapLineHeight' | 'canvasInnerHeight' | 'lineHeight' | 'minimapHeightIsEditorHeight' | 'minimapHeight' | 'paddingTop' | 'paddingBottom' | 'scrollBeyondLastLine'>,
 		viewportStartLineNumber: number,
-		viewportEndLineNumber: number,
-		viewportStartLineNumberVerticalOffset: number,
+		viewportStartLineNumberZoneFreeVerticalOffset: number,
 		viewportHeight: number,
-		viewportContainsWhitespaceGaps: boolean,
 		lineCount: number,
 		realLineCount: number,
 		scrollTop: number,
-		scrollHeight: number,
+		zoneFreeScrollTop: number,
+		zoneFreeScrollHeight: number,
 		previousLayout: MinimapLayout | null
 	): MinimapLayout {
+		// The slider can move from 0 to `maxMinimapSliderTop`
+		// in the same way `zoneFreeScrollTop` can move from 0 to `zoneFreeScrollHeight` - `viewportHeight`.
+		const maxZoneFreeScrollTop = Math.max(0, zoneFreeScrollHeight - viewportHeight);
+		zoneFreeScrollTop = Math.max(0, Math.min(maxZoneFreeScrollTop, zoneFreeScrollTop));
+		const computeSliderRatio = (maxMinimapSliderTop: number) => (maxZoneFreeScrollTop > 0 ? maxMinimapSliderTop / maxZoneFreeScrollTop : 0);
+
 		const pixelRatio = options.pixelRatio;
 		const minimapLineHeight = options.minimapLineHeight;
 		const minimapLinesFitting = Math.floor(options.canvasInnerHeight / minimapLineHeight);
@@ -306,14 +377,12 @@ class MinimapLayout {
 			}
 			const sliderHeight = Math.max(1, Math.floor(viewportHeight * viewportHeight / logicalScrollHeight));
 			const maxMinimapSliderTop = Math.max(0, options.minimapHeight - sliderHeight);
-			// The slider can move from 0 to `maxMinimapSliderTop`
-			// in the same way `scrollTop` can move from 0 to `scrollHeight` - `viewportHeight`.
-			const computedSliderRatio = (maxMinimapSliderTop) / (scrollHeight - viewportHeight);
-			const sliderTop = (scrollTop * computedSliderRatio);
+			const computedSliderRatio = computeSliderRatio(maxMinimapSliderTop);
+			const sliderTop = (zoneFreeScrollTop * computedSliderRatio);
 			const sliderNeeded = (maxMinimapSliderTop > 0);
 			const maxLinesFitting = Math.floor(options.canvasInnerHeight / options.minimapLineHeight);
 			const topPaddingLineCount = Math.floor(options.paddingTop / options.lineHeight);
-			return new MinimapLayout(scrollTop, scrollHeight, sliderNeeded, computedSliderRatio, sliderTop, sliderHeight, topPaddingLineCount, 1, Math.min(lineCount, maxLinesFitting));
+			return new MinimapLayout(scrollTop, zoneFreeScrollTop, zoneFreeScrollHeight, sliderNeeded, computedSliderRatio, sliderTop, sliderHeight, topPaddingLineCount, 1, Math.min(lineCount, maxLinesFitting));
 		}
 
 		// The visible line count in a viewport can change due to a number of reasons:
@@ -322,21 +391,11 @@ class MinimapLayout {
 		//          * scrollTop = 0  => visible lines are [1, 30]
 		//          * scrollTop = 10 => visible lines are [1, 31] (with lines 1 and 31 partially visible)
 		//          * scrollTop = 20 => visible lines are [2, 31]
-		//  b) whitespace gaps might make their way in the viewport (which results in a decrease in the visible line count)
+		//  b) view zones might make their way in the viewport (which results in a decrease in the visible line count)
 		//  c) we could be in the scroll beyond last line case (which also results in a decrease in the visible line count, down to possibly only one line being visible)
-
-		// We must first establish a desirable slider height.
-		let sliderHeight: number;
-		if (viewportContainsWhitespaceGaps && viewportEndLineNumber !== lineCount) {
-			// case b) from above: there are whitespace gaps in the viewport.
-			// In this case, the height of the slider directly reflects the visible line count.
-			const viewportLineCount = viewportEndLineNumber - viewportStartLineNumber + 1;
-			sliderHeight = Math.floor(viewportLineCount * minimapLineHeight / pixelRatio);
-		} else {
-			// The slider has a stable height
-			const expectedViewportLineCount = viewportHeight / lineHeight;
-			sliderHeight = Math.floor(expectedViewportLineCount * minimapLineHeight / pixelRatio);
-		}
+		// The minimap does not render view zones, so the slider has a stable height and is positioned in zone-free coordinates:
+		// it stays still while a view zone scrolls through the viewport.
+		const sliderHeight = Math.floor((viewportHeight / lineHeight) * minimapLineHeight / pixelRatio);
 
 		const extraLinesAtTheTop = Math.floor(options.paddingTop / lineHeight);
 		let extraLinesAtTheBottom = Math.floor(options.paddingBottom / lineHeight);
@@ -356,21 +415,19 @@ class MinimapLayout {
 		}
 		maxMinimapSliderTop = Math.min(options.minimapHeight - sliderHeight, maxMinimapSliderTop);
 
-		// The slider can move from 0 to `maxMinimapSliderTop`
-		// in the same way `scrollTop` can move from 0 to `scrollHeight` - `viewportHeight`.
-		const computedSliderRatio = (maxMinimapSliderTop) / (scrollHeight - viewportHeight);
-		const sliderTop = (scrollTop * computedSliderRatio);
+		const computedSliderRatio = computeSliderRatio(maxMinimapSliderTop);
+		const sliderTop = (zoneFreeScrollTop * computedSliderRatio);
 
 		if (minimapLinesFitting >= extraLinesAtTheTop + lineCount + extraLinesAtTheBottom) {
 			// All lines fit in the minimap
 			const sliderNeeded = (maxMinimapSliderTop > 0);
-			return new MinimapLayout(scrollTop, scrollHeight, sliderNeeded, computedSliderRatio, sliderTop, sliderHeight, extraLinesAtTheTop, 1, lineCount);
+			return new MinimapLayout(scrollTop, zoneFreeScrollTop, zoneFreeScrollHeight, sliderNeeded, computedSliderRatio, sliderTop, sliderHeight, extraLinesAtTheTop, 1, lineCount);
 		} else {
 			let consideringStartLineNumber: number;
 			if (viewportStartLineNumber > 1) {
 				consideringStartLineNumber = viewportStartLineNumber + extraLinesAtTheTop;
 			} else {
-				consideringStartLineNumber = Math.max(1, scrollTop / lineHeight);
+				consideringStartLineNumber = Math.max(1, zoneFreeScrollTop / lineHeight);
 			}
 
 			let topPaddingLineCount: number;
@@ -385,13 +442,13 @@ class MinimapLayout {
 
 			// Avoid flickering caused by a partial viewport start line
 			// by being consistent w.r.t. the previous layout decision
-			if (previousLayout && previousLayout.scrollHeight === scrollHeight) {
-				if (previousLayout.scrollTop > scrollTop) {
+			if (previousLayout && previousLayout.zoneFreeScrollHeight === zoneFreeScrollHeight) {
+				if (previousLayout.zoneFreeScrollTop > zoneFreeScrollTop) {
 					// Scrolling up => never increase `startLineNumber`
 					startLineNumber = Math.min(startLineNumber, previousLayout.startLineNumber);
 					topPaddingLineCount = Math.max(topPaddingLineCount, previousLayout.topPaddingLineCount);
 				}
-				if (previousLayout.scrollTop < scrollTop) {
+				if (previousLayout.zoneFreeScrollTop < zoneFreeScrollTop) {
 					// Scrolling down => never decrease `startLineNumber`
 					startLineNumber = Math.max(startLineNumber, previousLayout.startLineNumber);
 					topPaddingLineCount = Math.min(topPaddingLineCount, previousLayout.topPaddingLineCount);
@@ -399,16 +456,16 @@ class MinimapLayout {
 			}
 
 			const endLineNumber = Math.min(lineCount, startLineNumber - topPaddingLineCount + minimapLinesFitting - 1);
-			const partialLine = (scrollTop - viewportStartLineNumberVerticalOffset) / lineHeight;
+			const partialLine = Math.max(0, zoneFreeScrollTop - viewportStartLineNumberZoneFreeVerticalOffset) / lineHeight;
 
 			let sliderTopAligned: number;
-			if (scrollTop >= options.paddingTop) {
+			if (zoneFreeScrollTop >= options.paddingTop) {
 				sliderTopAligned = (viewportStartLineNumber - startLineNumber + topPaddingLineCount + partialLine) * minimapLineHeight / pixelRatio;
 			} else {
-				sliderTopAligned = (scrollTop / options.paddingTop) * (topPaddingLineCount + partialLine) * minimapLineHeight / pixelRatio;
+				sliderTopAligned = (zoneFreeScrollTop / options.paddingTop) * (topPaddingLineCount + partialLine) * minimapLineHeight / pixelRatio;
 			}
 
-			return new MinimapLayout(scrollTop, scrollHeight, true, computedSliderRatio, sliderTopAligned, sliderHeight, topPaddingLineCount, startLineNumber, endLineNumber);
+			return new MinimapLayout(scrollTop, zoneFreeScrollTop, zoneFreeScrollHeight, true, computedSliderRatio, sliderTopAligned, sliderHeight, topPaddingLineCount, startLineNumber, endLineNumber);
 		}
 	}
 }
@@ -573,20 +630,22 @@ export interface IMinimapModel {
 	getSectionHeaderText(decoration: ViewModelDecoration, fitWidth: (s: string) => string): string | null;
 	getOptions(): TextModelResolvedOptions;
 	revealLineNumber(lineNumber: number): void;
+	/**
+	 * Scroll the editor to a scrollTop given in zone-free coordinates (see {@link toZoneFreeVerticalOffset}).
+	 */
+	setZoneFreeScrollTop(zoneFreeScrollTop: number): void;
 	setScrollTop(scrollTop: number): void;
 }
 
 interface IMinimapRenderingContext {
-	readonly viewportContainsWhitespaceGaps: boolean;
-
 	readonly scrollWidth: number;
-	readonly scrollHeight: number;
+	readonly zoneFreeScrollHeight: number;
 
 	readonly viewportStartLineNumber: number;
-	readonly viewportEndLineNumber: number;
-	readonly viewportStartLineNumberVerticalOffset: number;
+	readonly viewportStartLineNumberZoneFreeVerticalOffset: number;
 
 	readonly scrollTop: number;
+	readonly zoneFreeScrollTop: number;
 	readonly scrollLeft: number;
 
 	readonly viewportWidth: number;
@@ -961,24 +1020,30 @@ export class Minimap extends ViewPart implements IMinimapModel {
 
 	public render(ctx: RestrictedRenderingContext): void {
 		let viewportStartLineNumber = ctx.visibleRange.startLineNumber;
-		let viewportEndLineNumber = ctx.visibleRange.endLineNumber;
 
 		if (this._samplingState) {
 			viewportStartLineNumber = this._samplingState.modelLineToMinimapLine(viewportStartLineNumber);
-			viewportEndLineNumber = this._samplingState.modelLineToMinimapLine(viewportEndLineNumber);
+		}
+
+		const whitespaces = this._getMinimapWhitespaces();
+		let whitespacesTotalHeight = 0;
+		let whitespacesHeightBeforeViewportStart = 0;
+		for (const whitespace of this._context.viewModel.viewLayout.getWhitespaces()) {
+			whitespacesTotalHeight += whitespace.height;
+			if (whitespace.afterLineNumber < viewportStartLineNumber) {
+				whitespacesHeightBeforeViewportStart += whitespace.height;
+			}
 		}
 
 		const minimapCtx: IMinimapRenderingContext = {
-			viewportContainsWhitespaceGaps: (ctx.viewportData.whitespaceViewportData.length > 0),
-
 			scrollWidth: ctx.scrollWidth,
-			scrollHeight: ctx.scrollHeight,
+			zoneFreeScrollHeight: ctx.scrollHeight - whitespacesTotalHeight,
 
 			viewportStartLineNumber: viewportStartLineNumber,
-			viewportEndLineNumber: viewportEndLineNumber,
-			viewportStartLineNumberVerticalOffset: ctx.getVerticalOffsetForLineNumber(viewportStartLineNumber),
+			viewportStartLineNumberZoneFreeVerticalOffset: ctx.getVerticalOffsetForLineNumber(viewportStartLineNumber) - whitespacesHeightBeforeViewportStart,
 
 			scrollTop: ctx.scrollTop,
+			zoneFreeScrollTop: toZoneFreeVerticalOffset(whitespaces, ctx.scrollTop),
 			scrollLeft: ctx.scrollLeft,
 
 			viewportWidth: ctx.viewportWidth,
@@ -1140,10 +1205,36 @@ export class Minimap extends ViewPart implements IMinimapModel {
 		);
 	}
 
+	public setZoneFreeScrollTop(zoneFreeScrollTop: number): void {
+		this.setScrollTop(fromZoneFreeVerticalOffset(this._getMinimapWhitespaces(), zoneFreeScrollTop));
+	}
+
 	public setScrollTop(scrollTop: number): void {
 		this._context.viewModel.viewLayout.setScrollPosition({
 			scrollTop: scrollTop
 		}, ScrollType.Immediate);
+	}
+
+	/**
+	 * The view zones, with their offsets computed as if no view zones existed.
+	 */
+	private _getMinimapWhitespaces(): IMinimapWhitespace[] {
+		const viewLayout = this._context.viewModel.viewLayout;
+		const result: IMinimapWhitespace[] = [];
+		let accumulatedHeight = 0;
+		let heightBeforeAfterLineNumber = 0;
+		let previousAfterLineNumber = -1;
+		for (const whitespace of viewLayout.getWhitespaces()) {
+			if (whitespace.afterLineNumber !== previousAfterLineNumber) {
+				heightBeforeAfterLineNumber = accumulatedHeight;
+				previousAfterLineNumber = whitespace.afterLineNumber;
+			}
+			// `getVerticalOffsetAfterLineNumber` includes the view zones placed after lines before `afterLineNumber`
+			const zoneFreeVerticalOffset = viewLayout.getVerticalOffsetAfterLineNumber(whitespace.afterLineNumber) - heightBeforeAfterLineNumber;
+			result.push({ zoneFreeVerticalOffset, height: whitespace.height });
+			accumulatedHeight += whitespace.height;
+		}
+		return result;
 	}
 
 	//#endregion
@@ -1342,7 +1433,7 @@ class InnerMinimap extends Disposable {
 			}
 
 			const pointerDelta = posy - initialPosY;
-			this._model.setScrollTop(initialSliderState.getDesiredScrollTopFromDelta(pointerDelta));
+			this._model.setZoneFreeScrollTop(initialSliderState.getDesiredZoneFreeScrollTopFromDelta(pointerDelta));
 		};
 
 		if (e.pageY !== initialPosY) {
@@ -1362,8 +1453,8 @@ class InnerMinimap extends Disposable {
 
 	private scrollDueToTouchEvent(touch: GestureEvent) {
 		const startY = this._domNode.domNode.getBoundingClientRect().top;
-		const scrollTop = this._lastRenderData!.renderedLayout.getDesiredScrollTopFromTouchLocation(touch.pageY - startY);
-		this._model.setScrollTop(scrollTop);
+		const zoneFreeScrollTop = this._lastRenderData!.renderedLayout.getDesiredZoneFreeScrollTopFromTouchLocation(touch.pageY - startY);
+		this._model.setZoneFreeScrollTop(zoneFreeScrollTop);
 	}
 
 	public override dispose(): void {
@@ -1520,14 +1611,13 @@ class InnerMinimap extends Disposable {
 		const layout = MinimapLayout.create(
 			this._model.options,
 			renderingCtx.viewportStartLineNumber,
-			renderingCtx.viewportEndLineNumber,
-			renderingCtx.viewportStartLineNumberVerticalOffset,
+			renderingCtx.viewportStartLineNumberZoneFreeVerticalOffset,
 			renderingCtx.viewportHeight,
-			renderingCtx.viewportContainsWhitespaceGaps,
 			this._model.getLineCount(),
 			this._model.getRealLineCount(),
 			renderingCtx.scrollTop,
-			renderingCtx.scrollHeight,
+			renderingCtx.zoneFreeScrollTop,
+			renderingCtx.zoneFreeScrollHeight,
 			this._lastRenderData ? this._lastRenderData.renderedLayout : null
 		);
 		this._slider.setDisplay(layout.sliderNeeded ? 'block' : 'none');
