@@ -126,14 +126,38 @@ function activate(context) {
 	);
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand('smoketest.openAgentHostChat', async () => {
-			// Open an Agent Host Copilot session in a chat editor. The command
-			// waits for the agent host, which may run on the remote, to register
-			// its Copilot agent. It is not in the palette, hence this wrapper.
-			await vscode.commands.executeCommand('workbench.action.closeAllEditors');
-			await vscode.commands.executeCommand('workbench.action.chat.openNewSessionEditor.agent-host-copilotcli');
+		vscode.commands.registerCommand('smoketest.openAgentHostChat', () => {
+			// Join an open that is still in progress, so a caller that retries
+			// the command does not open a second chat editor.
+			openingAgentHostChat ??= openAgentHostChat().finally(() => openingAgentHostChat = undefined);
+			return openingAgentHostChat;
 		})
 	);
+}
+
+/** @type {Promise<void> | undefined} */
+let openingAgentHostChat;
+
+/**
+ * Open an Agent Host Copilot session in a chat editor. The command is not in
+ * the palette, hence this wrapper. It waits up to 30 seconds for the agent
+ * host, which may still be starting or run on the remote, to register its
+ * Copilot agent, and then fails; retry only that failure, until it has
+ * registered.
+ */
+async function openAgentHostChat() {
+	await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+	const deadline = Date.now() + 5 * 60_000;
+	for (; ;) {
+		try {
+			await vscode.commands.executeCommand('workbench.action.chat.openNewSessionEditor.agent-host-copilotcli');
+			return;
+		} catch (error) {
+			if (Date.now() >= deadline || !/did not register a copilotcli agent/.test(error instanceof Error ? error.message : String(error))) {
+				throw error;
+			}
+		}
+	}
 }
 
 function deactivate() {

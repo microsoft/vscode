@@ -23,6 +23,7 @@ import { ISessionActivityBarActivityService, SessionActivityBarActivityService }
 import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../common/sessionConfig.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { createSessionViewTestServices, createTestActiveSession } from './sessionViewTestUtils.js';
+import { SessionHostKind } from '../../services/sessions/browser/sessionHost.js';
 import { TestLayoutService, TestMenuService, workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { IWorkbenchLayoutService } from '../../../workbench/services/layout/browser/layoutService.js';
 import { AgentWorkbenchLayout } from '../../browser/workbench.js';
@@ -160,6 +161,50 @@ suite('Sessions - Session View', () => {
 			});
 		});
 	}
+
+	test('is a pane host in the host it is created in, for as long as it lives', () => {
+		const { instantiationService, sessionHostService } = createSessionViewTestServices(disposables);
+		const view = instantiationService.createInstance(SessionView, undefined);
+		view.openSession(createTestActiveSession('a'), {});
+		const shown = sessionHostService.hosts.get().map(host => ({ kind: host.kind, parent: host.parent?.kind, session: host.session.get()?.sessionId }));
+		view.dispose();
+		const disposed = sessionHostService.hosts.get().map(host => host.kind);
+
+		assert.deepStrictEqual({ shown, disposed }, {
+			shown: [{ kind: SessionHostKind.MainWindow, parent: undefined, session: undefined }, { kind: SessionHostKind.Pane, parent: SessionHostKind.MainWindow, session: 'a' }],
+			disposed: [SessionHostKind.MainWindow],
+		});
+	});
+
+	test('disposes what its chat groups show, such as a composer whose input clears as it goes away, while the services of its scope that created them are still there: they dispose after it', () => {
+		const { instantiationService, chatViews } = createSessionViewTestServices(disposables);
+		const events: string[] = [];
+		// The services of the view's own scope, which what it shows is created with
+		const createChild = instantiationService.createChild;
+		instantiationService.createChild = (...args: Parameters<typeof createChild>) => {
+			const child = createChild.apply(instantiationService, args);
+			const disposeChild = child.dispose;
+			child.dispose = () => {
+				events.push('dispose services');
+				disposeChild.apply(child);
+			};
+			return child;
+		};
+		const view = instantiationService.createInstance(SessionView, undefined);
+		instantiationService.createChild = createChild;
+		view.openSession(createTestActiveSession('a'), {});
+		// What the chat group of the session shows
+		const composer = chatViews.find(chatView => !chatView.disposed)!;
+		const disposeComposer = composer.dispose;
+		composer.dispose = () => {
+			events.push('dispose composer');
+			disposeComposer.apply(composer);
+		};
+
+		view.dispose();
+
+		assert.deepStrictEqual(events, ['dispose composer', 'dispose services']);
+	});
 
 	test('forwards workspace selection to the actual standalone or active group view', () => {
 		const folder = URI.file('/requested');

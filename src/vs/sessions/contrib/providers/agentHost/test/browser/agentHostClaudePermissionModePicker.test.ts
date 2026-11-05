@@ -26,6 +26,7 @@ import { ISessionsService } from '../../../../../services/sessions/browser/sessi
 import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { AgentHostClaudePermissionModePicker } from '../../browser/agentHostClaudePermissionModePicker.js';
 import { IAgentHostSessionEnumPickerItem } from '../../browser/agentHostModePicker.js';
+import { sessionChatSourceOf } from '../../../../../services/sessions/browser/sessionHost.js';
 
 const PROVIDER_ID = 'local-agent-host';
 const SESSION_ID = 'local-agent-host:s1';
@@ -98,9 +99,8 @@ function setupPicker(store: Pick<ReturnType<typeof ensureNoDisposablesAreLeakedI
 	});
 	const sessionObs = observableValue<IActiveSession | undefined>('activeSession', { providerId: PROVIDER_ID, sessionId: SESSION_ID, activeChat: constObservable({ resource: URI.parse('agent-host-claude:/session') }) } as unknown as IActiveSession);
 	instantiationService.set(ISessionsService, new (class extends mock<ISessionsService>() {
-		override readonly activeSession = sessionObs;
-		override readonly mainWindowActiveSession = this.activeSession;
-		override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
+		readonly activeSession = sessionObs;
+		readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
 	})());
 	instantiationService.set(ISessionsProvidersService, new (class extends mock<ISessionsProvidersService>() {
 		override readonly onDidChangeProviders = Event.None;
@@ -118,7 +118,7 @@ function setupPicker(store: Pick<ReturnType<typeof ensureNoDisposablesAreLeakedI
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	instantiationService.stub(IHoverService, { ...NullHoverService });
 
-	const picker = store.add(instantiationService.createInstance(AgentHostClaudePermissionModePicker, sessionObs));
+	const picker = store.add(instantiationService.createInstance(AgentHostClaudePermissionModePicker, sessionChatSourceOf(sessionObs)));
 	const container = document.createElement('div');
 	picker.render(container);
 	const trigger = container.querySelector<HTMLElement>('a.action-label');

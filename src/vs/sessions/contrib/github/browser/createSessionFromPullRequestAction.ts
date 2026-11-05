@@ -20,7 +20,6 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID } from '../../../browser/workbench.js';
 import { Menus } from '../../../browser/menus.js';
@@ -62,7 +61,6 @@ registerAction2(class NewSessionFromPullRequestAction extends Action2 {
 		const notificationService = accessor.get(INotificationService);
 		const gitHubService = accessor.get(IGitHubService);
 		const sessionsService = accessor.get(ISessionsService);
-		const sessionsPartService = accessor.get(ISessionsPartService);
 		const quickInputService = accessor.get(IQuickInputService);
 		const commandService = accessor.get(ICommandService);
 		const picker = quickInputService.createQuickPick<IPullRequestQuickPickItem>({ useSeparators: true });
@@ -244,7 +242,7 @@ registerAction2(class NewSessionFromPullRequestAction extends Action2 {
 				if (isWeb && isMobile) {
 					await commandService.executeCommand(CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID);
 				}
-				sessionsPartService.focusSession(sessionsService.activeSession.get());
+				sessionsService.focusActiveSession();
 			} catch (error) {
 				if (isCancellationError(error)) {
 					return;

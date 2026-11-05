@@ -28,12 +28,24 @@
 
 .inbox-notifications-tabs {
 	display: flex;
-	flex-wrap: wrap;
 	gap: var(--vscode-spacing-size40);
+	overflow-x: auto;
+	scrollbar-width: thin;
+	scrollbar-color: var(--vscode-scrollbarSlider-background) transparent;
 }
 
 .inbox-notifications-tabs .monaco-button {
 	width: auto;
+	flex: none;
+	white-space: nowrap;
+}
+
+.inbox-notifications-view.compact {
+	padding-inline: var(--vscode-spacing-size120);
+}
+
+.inbox-notifications-view.compact .inbox-notifications-search {
+	flex-basis: 100%;
 }
 
 .inbox-notifications-view .inbox-notifications-tabs .monaco-button.active {
@@ -94,6 +106,52 @@
 
 .inbox-notifications-new-session.visible {
 	display: block;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	.monaco-workbench:not(.monaco-reduce-motion, .hc-black, .hc-light) .inbox-notifications-new-session.highlight .chat-input-container {
+		animation: inbox-composer-glow 1600ms ease-out;
+	}
+}
+
+@keyframes inbox-composer-glow {
+	0%, 100% {
+		box-shadow: 0 0 0 0 transparent, 0 0 0 0 transparent;
+	}
+	20%, 55% {
+		box-shadow:
+			0 0 var(--vscode-spacing-size80) var(--vscode-spacing-size20) color-mix(in srgb, var(--vscode-focusBorder) 70%, transparent),
+			0 0 var(--vscode-spacing-size240) var(--vscode-spacing-size60) color-mix(in srgb, var(--vscode-focusBorder) 40%, transparent);
+	}
+}
+
+.inbox-notifications-row-action-status {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	color: var(--vscode-descriptionForeground);
+}
+
+.inbox-notifications-item.action-succeeded .inbox-notifications-row-inline-actions,
+.inbox-notifications-item.action-succeeded .inbox-notifications-row-actions {
+	display: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	.monaco-workbench:not(.monaco-reduce-motion) .inbox-notifications-item.action-succeeded .inbox-notifications-row-action-status > .codicon {
+		animation: inbox-action-taken 300ms ease-out;
+	}
+}
+
+@keyframes inbox-action-taken {
+	from {
+		opacity: 0;
+		transform: scale(0.7);
+	}
+	to {
+		opacity: 1;
+		transform: scale(1);
+	}
 }
 
 .inbox-notifications-new-session .new-chat-widget-container,
@@ -688,13 +746,21 @@
 	color: var(--vscode-descriptionForeground);
 }
 
-.inbox-notifications-row-titles {
+.inbox-notifications-row-content {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
 	flex: 1;
 	min-width: 0;
 }
 
-.inbox-notifications-row-titles > *,
-.inbox-notifications-row-repository {
+.inbox-notifications-row-titles {
+	flex: 1 1 180px;
+	min-width: 0;
+}
+
+.inbox-notifications-row-titles > * {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
@@ -707,12 +773,30 @@
 
 .inbox-notifications-row-metadata {
 	display: flex;
+	flex-wrap: wrap;
 	align-items: center;
 	gap: var(--vscode-spacing-size80);
-	max-width: 25%;
+	max-width: 100%;
 	min-width: 0;
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-label2);
+}
+
+.inbox-notifications-row-inline-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size40);
+	min-width: 0;
+	max-width: 100%;
+}
+
+.inbox-notifications-row-inline-actions .monaco-button {
+	width: auto;
+	max-width: 100%;
+	height: auto;
+	box-sizing: border-box;
+	white-space: normal;
+	overflow-wrap: anywhere;
 }
 
 .inbox-notifications-visual {
@@ -736,6 +820,39 @@
 
 .inbox-notifications-row-trailing > * {
 	grid-area: 1 / 1;
+}
+
+.inbox-notifications-list-pane.compact .inbox-notifications-item {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr) auto;
+	column-gap: var(--vscode-spacing-size60);
+	row-gap: var(--vscode-spacing-size20);
+}
+
+.inbox-notifications-list-pane.compact .inbox-notifications-row-icon {
+	grid-area: 1 / 1;
+}
+
+.inbox-notifications-list-pane.compact .inbox-notifications-row-content {
+	display: contents;
+}
+
+.inbox-notifications-list-pane.compact .inbox-notifications-row-titles {
+	grid-area: 1 / 2;
+}
+
+.inbox-notifications-list-pane.compact .inbox-notifications-row-metadata {
+	grid-area: 2 / 2;
+	max-width: none;
+}
+
+.inbox-notifications-list-pane.compact .inbox-notifications-item-kind-label {
+	display: none;
+}
+
+.inbox-notifications-list-pane.compact .inbox-notifications-row-trailing {
+	grid-area: 1 / 3;
+	min-width: 0;
 }
 
 .inbox-notifications-row-actions {
@@ -865,22 +982,6 @@
 	display: flex;
 	align-items: flex-start;
 	gap: var(--vscode-spacing-size100);
-}
-
-.inbox-notifications-item-kind-label {
-	flex: 0 1 auto;
-	min-width: 0;
-	max-width: 30%;
-	font-size: var(--vscode-fontSize-label2);
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-	text-align: end;
-	color: var(--vscode-descriptionForeground);
-}
-
-.inbox-notifications-item-kind-label.priority-0 {
-	color: var(--vscode-textLink-foreground);
 }
 
 .inbox-notifications-item-title-group {

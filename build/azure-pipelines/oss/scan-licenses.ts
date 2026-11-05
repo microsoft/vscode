@@ -547,6 +547,20 @@ function collectPackagesInNodeModules(nmDir: string): string[] {
 	return packages;
 }
 
+/**
+ * Returns the node_modules folders nested in the packages of `nmDir`, at any depth.
+ */
+function collectNestedNodeModules(nmDir: string): string[] {
+	const result: string[] = [];
+	for (const pkgName of collectPackagesInNodeModules(nmDir)) {
+		const nested = path.join(nmDir, ...pkgName.split('/'), 'node_modules');
+		if (fs.existsSync(nested)) {
+			result.push(nested, ...collectNestedNodeModules(nested));
+		}
+	}
+	return result;
+}
+
 // =============================================================================
 // SECTION 5 helpers: Platform-binary (arch-specific npm package) enumeration.
 //
@@ -1149,14 +1163,18 @@ async function main(): Promise<void> {
 	let noLicense = 0;
 
 	// TODO(future): expand the scanner to walk EVERY node_modules folder in the
-	// repo (e.g. remote/node_modules, remote/web/node_modules, and nested
-	// node_modules), not just the extension + root roots below. The copilot
-	// extension folder has no node_modules, so it is naturally excluded. Walking
-	// all node_modules would make the presence index complete; until then the
+	// repo (e.g. remote/node_modules and nested node_modules), not just the
+	// extension + root roots below. The copilot extension folder has no
+	// node_modules, so it is naturally excluded. Walking all node_modules
+	// would make the presence index complete; until then the
 	// presence index is best-effort and the stale-override signal is warn-only.
 
-	for (const ext of extensions) {
-		const nmDirs = [
+	// `extensions` is a pnpm install root: with the hoisted layout most extension
+	// dependencies are in extensions/node_modules, after the extensions' own folders.
+	// Its nested node_modules folders come last, for packages that pnpm didn't
+	// hoist (e.g. `emmet`, whose name a workspace project has).
+	for (const ext of [...extensions, '(extensions)']) {
+		const nmDirs = ext === '(extensions)' ? [path.join(extensionsDir, 'node_modules'), ...collectNestedNodeModules(path.join(extensionsDir, 'node_modules'))] : [
 			path.join(extensionsDir, ext, 'node_modules'),
 			path.join(extensionsDir, ext, 'server', 'node_modules'),
 			path.join(extensionsDir, ext, 'server', 'lib', 'node_modules'),
@@ -1656,6 +1674,7 @@ async function main(): Promise<void> {
 		path.join(repoRoot, 'node_modules'),
 		path.join(repoRoot, 'remote', 'node_modules'),
 		path.join(repoRoot, 'build', 'node_modules'),
+		path.join(extensionsDir, 'node_modules'),
 	];
 	for (const ext of extensions) {
 		pbRoots.push(path.join(extensionsDir, ext, 'node_modules'));
@@ -1888,6 +1907,7 @@ async function main(): Promise<void> {
 		path.join(repoRoot, 'pnpm-lock.yaml'),
 		path.join(repoRoot, 'remote', 'pnpm-lock.yaml'),
 		path.join(repoRoot, 'build', 'pnpm-lock.yaml'),
+		path.join(repoRoot, 'extensions', 'pnpm-lock.yaml'),
 	];
 	let s6Seeded = 0;
 	let s6AlreadyResolved = 0;

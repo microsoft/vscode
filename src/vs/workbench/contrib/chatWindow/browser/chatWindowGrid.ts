@@ -7,10 +7,10 @@ import { addDisposableListener, EventType, getWindow, isHTMLElement, scheduleAtN
 import { Direction, ISerializedGrid, ISerializedNode, IViewSize, Orientation } from '../../../../base/browser/ui/grid/grid.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { combinedDisposable, Disposable, DisposableMap, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, constObservable, IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
+import { autorun, constObservable, IObservable, ITransaction, observableValue, transaction } from '../../../../base/common/observable.js';
 import { IPartGridPartFactory, IPartGridPartOptions, IPartGridView, PartGrid, PartGridCellContent, PartGridLocation } from '../../../browser/parts/partGrid/partGrid.js';
 import { IGridEdgeInsets, NO_GRID_EDGE_INSETS } from '../../../browser/parts/partGrid/partGridGap.js';
-import { IContentPart, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { GroupsOrder, IContentPart, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { ChatWindowLayoutMode, ChatWindowTerminalPosition } from '../common/chatWindowLayout.js';
 import { ChatWindowPartSizes } from '../common/chatWindowState.js';
 import { moveEditorsToChatWindow } from './chatWindowParts.js';
@@ -56,6 +56,11 @@ export interface IChatWindowGridCells {
 	readonly terminals?: IObservable<IContentPart | undefined>;
 	/** Whether the chat shows only its input: it does not move then, so that the sash on its edge takes the pointer there. */
 	readonly chatInputOnly?: IObservable<boolean>;
+	/**
+	 * Whether the title row merges into the title of the chat while the chat part leads the window, or does not, as where a
+	 * part being moved would put it: the title row hides then. Without it, it merges while the chat part leads.
+	 */
+	readonly isTitleMergedIf?: (chatPartLeads: boolean) => boolean;
 }
 
 type TopologyNode = { readonly cell: ChatWindowGridCell } | { readonly orientation: Orientation; readonly children: readonly TopologyNode[] };
@@ -244,6 +249,14 @@ export class ChatWindowGrid extends Disposable {
 	 */
 	readonly chatLeads: IObservable<boolean> = this._chatLeads;
 
+	private readonly _titleReachesRightEdge = observableValue<boolean>(this, false);
+	/**
+	 * Whether the group at the top left of the chat part, which holds the title the title row merges into, reaches the right
+	 * edge of the window: no part beside the chat part other than the strip, which ends before the window controls, and no group beside that group, whatever the layout mode or where the
+	 * parts were moved to.
+	 */
+	readonly titleReachesRightEdge: IObservable<boolean> = this._titleReachesRightEdge;
+
 	private readonly _titleRow: ChromeView | undefined;
 	private readonly _strip: ChromeView | undefined;
 
@@ -283,6 +296,8 @@ export class ChatWindowGrid extends Disposable {
 				return created;
 			}
 		};
+		// Groups split beside the group at its top left, or taken away, change whether that group reaches the edge
+		this._register(Event.any(_cells.chat.onDidAddGroup, _cells.chat.onDidRemoveGroup, _cells.chat.onDidMoveGroup)(() => this._updateTitleReachesRightEdge(undefined)));
 		this._titleRow = _cells.titleRow && this._register(new ChromeView(_cells.titleRow, 'row'));
 		this._strip = _cells.strip && this._register(new ChromeView(_cells.strip, 'column'));
 
@@ -428,7 +443,21 @@ export class ChatWindowGrid extends Disposable {
 		transaction(tx => {
 			this._terminalsVisible.set(!!grid?.isCellVisible(ChatWindowGridCell.Terminals), tx);
 			this._chatLeads.set(!!grid?.leadsWindow(ChatWindowGridCell.Chat), tx);
+			this._updateTitleReachesRightEdge(tx);
 		});
+	}
+
+	private _updateTitleReachesRightEdge(tx: ITransaction | undefined): void {
+		// The chat part may be disposed by now, while the window closes: its last value stays, and a close that does not happen updates it
+		if (this._closing) {
+			return;
+		}
+		if (!this._grid.value?.isCellVisible(ChatWindowGridCell.Chat)) {
+			this._titleReachesRightEdge.set(false, tx);
+			return;
+		}
+		const titleGroup = this._cells.chat.getGroups(GroupsOrder.GRID_APPEARANCE)[0];
+		this._titleReachesRightEdge.set(!!titleGroup && !!this._grid.value?.reachesRightEdge(ChatWindowGridCell.Chat, titleGroup, [ChatWindowGridCell.Strip]), tx);
 	}
 
 	private _update(): void {
@@ -605,12 +634,18 @@ export class ChatWindowGrid extends Disposable {
 		// The chat showing only its input does not move: its edge is the sash's, which shows its conversation
 		this._movableRegistration.value = partGrid.setMovable(id => id !== ChatWindowGridCell.Chat || !this._cells.chatInputOnly?.get());
 		partGrid.setPreviewLayoutAllowed((id, part) => id !== ChatWindowGridCell.Terminals && !part.groups.some(group => group.activeEditor?.typeId === TERMINAL_EDITOR_TYPE_ID));
-		// The title row of the window shows while the chat does not lead it, as the chat's own title stands in for it while
-		// it does: a part that moves shows where it goes with the title row as it will be
+		// The title row spans the top of the window, whatever moves, as the first row of the grid: the window's controls
+		// are in it, and no part's title is under them.
+		if (this._titleRow) {
+			partGrid.setPinnedTopView(ChatWindowGridCell.TitleRow);
+		}
+		// The title row of the window shows while it does not merge into the chat's title, as the chat's own title stands in
+		// for it while it does: a part that moves shows where it goes with the title row as it will be
+		const merged = (chatPartLeads: boolean) => this._cells.isTitleMergedIf?.(chatPartLeads) ?? chatPartLeads;
 		this._previewAdjusterRegistration.value = this._titleRow && partGrid.setMovePreviewAdjuster(preview => {
-			const titleRowFollowsLead = preview.isCellVisible(ChatWindowGridCell.TitleRow) === !this._chatLeads.get();
-			if (titleRowFollowsLead) {
-				preview.setCellVisible(ChatWindowGridCell.TitleRow, !preview.leads(ChatWindowGridCell.Chat));
+			const titleRowFollowsMerge = preview.isCellVisible(ChatWindowGridCell.TitleRow) === !merged(this._chatLeads.get());
+			if (titleRowFollowsMerge) {
+				preview.setCellVisible(ChatWindowGridCell.TitleRow, !merged(preview.leads(ChatWindowGridCell.Chat)));
 			}
 		});
 		this._terminalsFirstShowHeight = undefined;

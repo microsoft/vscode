@@ -100,6 +100,9 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 	}
 	if (type !== 'inlineChat') {
 		content.push(getChatInputSessionLinkAccessibilityHelp());
+		if (!isSessionsWindow) {
+			content.push(localize('chat.pasteOptions', "When the paste options button is available, Change Paste Type{0} opens paste choices instead of the agent picker. Use Up or Down Arrow to choose, Enter to apply, and Escape to close the choices and return to the input.", '<keybinding:editor.changePasteType>'));
+		}
 	}
 	content.push(localize('chat.attachments.filesPicker', "To attach files without searching a workspace, open Add Context{0} and choose Files. Select one or more files in the file dialog and choose Attach. In the simplified file dialog, use the checkboxes or Space to select items and Enter to attach them. Images can also be attached when the chat and selected model support them. Closing the dialog returns focus to the chat input.", '<keybinding:workbench.action.chat.attachContext>'));
 	if (!isSessionsWindow && type !== 'inlineChat' && type !== 'quickChat') {
@@ -121,6 +124,7 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 		content.push(localize('chat.sessionWorkingSet.contextMenu', "Press Shift+F10 or the Context Menu key on the working set heading or a file to open its context menu. Keep and Undo is checked by default; toggle it to show or hide review controls in both the working set and open editors. View All Edits remains available. Show Pill replaces the working set with the Changes pill by turning off chat.editor.workingSet.enabled. The Changes pill's context menu offers Show Working Set to restore it."));
 	}
 	if (type !== 'inlineChat' && type !== 'quickChat') {
+		content.push(localize('chat.generateCustomizations', "Use the Chat: Generate commands in the Command Palette to create agents, skills, instructions, prompts, and hooks. Local chats use built-in creation skills; other harnesses receive a plain-text request and a Documentation reference. Use Tab to reach the reference and Enter or Space to open the documentation. You can edit the request and describe what you want to create before sending. Generate Agent Instructions sends its request immediately to analyze the codebase."));
 		content.push(getChatViewModeAccessibilityHelp());
 		content.push(localize('chat.agentRequiredModels', "When the selected agent requires specific models, the model picker only offers those models. Its footer explains that the agent defines the models. Use Tab to reach the agent link, then Enter or Space to open its definition."));
 		content.push(localize('chat.permissionLevelPolicy', "When Assisted permissions or Allow all is unavailable for a session, the option remains in the permissions picker as a disabled option with its reason, such as Disabled by your organization. Its hover also explains the restriction. Disabled options cannot be selected."));

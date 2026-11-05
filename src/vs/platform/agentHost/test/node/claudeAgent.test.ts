@@ -26,6 +26,7 @@ import {
 	makeStreamEvent,
 	makeSystemInitMessage,
 	makeTextDelta,
+	makeTextResponseMessages,
 	makeThinkingDelta,
 	makeUserToolResultMessage,
 } from './claudeMapSessionEventsTestUtils.js';
@@ -508,6 +509,7 @@ class FakeClaudeAgentSdkService implements IClaudeAgentSdkService {
 	 * down. Resolves immediately when undefined.
 	 */
 	queryReturnGate: Promise<void> | undefined;
+	interruptRejection: Error | undefined;
 
 	/**
 	 * Phase 16 — programmable live SDK customization snapshot, read by
@@ -917,6 +919,9 @@ class FakeQuery implements AsyncGenerator<SDKMessage, void> {
 
 	async interrupt(): Promise<SDKControlInterruptResponse | undefined> {
 		this.interruptCount++;
+		if (this._sdk.interruptRejection) {
+			throw this._sdk.interruptRejection;
+		}
 		return undefined;
 	}
 
@@ -3111,6 +3116,160 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
+	for (const operation of ['abort', 'dispose'] as const) {
+		test(`${operation} during first SDK startup releases the late runtime without publishing a chat`, async () => {
+			const { agent, sdk } = createTestContext(disposables);
+			await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+			const workspace = URI.file('/work');
+			const created = await createSession(agent, { workingDirectories: [workspace] });
+			const chat = defaultChatUri(created.session);
+			const entered = new DeferredPromise<void>();
+			const release = new DeferredPromise<void>();
+			sdk.startupAdvance = async () => {
+				entered.complete();
+				await release.p;
+			};
+			const materialized: IAgentMaterializeChatEvent[] = [];
+			const signals: AgentSignal[] = [];
+			disposables.add(agent.onDidMaterializeChat(event => materialized.push(event)));
+			disposables.add(agent.onDidChatProgress(signal => signals.push(signal)));
+			const cancelled = assert.rejects(
+				agent.chats.sendMessage(chat, 'cancelled startup', [workspace], undefined, 'turn-cancelled', undefined, undefined, chatContext(chat)),
+				isCancellationError,
+			);
+			await entered.p;
+			try {
+				if (operation === 'abort') {
+					await agent.chats.abort(chat, chatContext(chat));
+				} else {
+					agent.dispose();
+				}
+			} finally {
+				release.complete();
+			}
+			await cancelled;
+
+			assert.deepStrictEqual({
+				aborted: sdk.capturedStartupOptions[0].abortController?.signal.aborted,
+				runtimes: sdk.warmQueries.map(warm => ({ disposed: warm.asyncDisposeCount, queries: warm.queryCallCount })),
+				materialized: materialized.length,
+				actions: signals.filter(signal => signal.kind === 'action'),
+			}, { aborted: true, runtimes: [{ disposed: 1, queries: 0 }], materialized: 0, actions: [] });
+		});
+	}
+
+	for (const coldResume of [false, true]) {
+		test(`${coldResume ? 'cold resume' : 'first launch'} retries a failed SDK startup on the same chat and completes its own response`, async () => {
+			const { agent, sdk } = createTestContext(disposables);
+			await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+			const workspace = URI.file('/work');
+			const created = await createSession(agent, { workingDirectories: [workspace] });
+			const chat = defaultChatUri(created.session);
+			const sessionId = created.sdkSessionId;
+			if (coldResume) {
+				sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+				await agent.chats.sendMessage(chat, 'seed', [workspace], undefined, 'turn-seed', undefined, undefined, chatContext(chat));
+				sdk.sessionList = [{ sessionId, cwd: workspace.fsPath, summary: '', lastModified: 1 }];
+				await releaseDefaultChat(agent, created.session);
+			}
+			const launchesBeforeFailure = sdk.startupCallCount;
+			const materialized: IAgentMaterializeChatEvent[] = [];
+			const signals: AgentSignal[] = [];
+			disposables.add(agent.onDidMaterializeChat(event => materialized.push(event)));
+			disposables.add(agent.onDidChatProgress(signal => signals.push(signal)));
+			const failure = new Error('SDK startup failed');
+			sdk.startupRejection = failure;
+			await assert.rejects(
+				agent.chats.sendMessage(chat, 'failed launch', [workspace], undefined, 'turn-failed', undefined, undefined, chatContext(chat)),
+				error => error === failure,
+			);
+			sdk.nextQueryMessages = [
+				makeSystemInitMessage(sessionId),
+				...makeTextResponseMessages(sessionId, 'retry response'),
+			];
+			await agent.chats.sendMessage(chat, 'retry', [workspace], undefined, 'turn-retry', undefined, undefined, chatContext(chat));
+
+			assert.deepStrictEqual({
+				launches: sdk.capturedStartupOptions.slice(launchesBeforeFailure).map(options => ({
+					sessionId: options.sessionId, resume: options.resume, cwd: options.cwd,
+				})),
+				materialized: materialized.map(event => event.chat.toString()),
+				responses: signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatDelta
+					? [{ turnId: signal.action.turnId, content: signal.action.content }] : []),
+				completed: signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatTurnComplete ? [signal.action.turnId] : []),
+			}, {
+				launches: [
+					{ sessionId: coldResume ? undefined : sessionId, resume: coldResume ? sessionId : undefined, cwd: workspace.fsPath },
+					{ sessionId: coldResume ? undefined : sessionId, resume: coldResume ? sessionId : undefined, cwd: workspace.fsPath },
+				],
+				materialized: [chat.toString()],
+				responses: [{ turnId: 'turn-retry', content: 'retry response' }],
+				completed: ['turn-retry'],
+			});
+		});
+	}
+
+	test('cancelling during SDK rebuild releases the late runtime and allows an independent retry', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const workspace = URI.file('/work');
+		const created = await createSession(agent, { workingDirectories: [workspace] });
+		const chat = defaultChatUri(created.session);
+		const sessionId = created.sdkSessionId;
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		await agent.chats.sendMessage(chat, 'seed', [workspace], undefined, 'turn-seed', undefined, undefined, chatContext(chat));
+
+		const entered = new DeferredPromise<void>();
+		const release = new DeferredPromise<void>();
+		sdk.startupAdvance = async call => {
+			if (call === 2) {
+				entered.complete();
+				await release.p;
+			}
+		};
+		getOrCreateActiveClient(agent, chat, 'client').tools = [{ name: 'echo', inputSchema: { type: 'object' } }];
+		const signals: AgentSignal[] = [];
+		disposables.add(agent.onDidChatProgress(signal => signals.push(signal)));
+		const cancelled = assert.rejects(
+			agent.chats.sendMessage(chat, 'cancelled rebuild', [workspace], undefined, 'turn-cancelled', undefined, undefined, chatContext(chat)),
+			isCancellationError,
+		);
+		await entered.p;
+		try {
+			await agent.chats.abort(chat, chatContext(chat));
+		} finally {
+			release.complete();
+		}
+		await cancelled;
+		const lateRuntime = sdk.warmQueries[1];
+		const afterCancellation = {
+			aborted: sdk.capturedStartupOptions[1].abortController?.signal.aborted,
+			disposed: lateRuntime.asyncDisposeCount,
+			queries: lateRuntime.queryCallCount,
+			actions: signals.filter(signal => signal.kind === 'action'),
+		};
+		sdk.nextQueryMessages = [
+			makeSystemInitMessage(sessionId),
+			...makeTextResponseMessages(sessionId, 'replacement response'),
+		];
+		await agent.chats.sendMessage(chat, 'replacement', [workspace], undefined, 'turn-replacement', undefined, undefined, chatContext(chat));
+
+		assert.deepStrictEqual({
+			afterCancellation,
+			launches: sdk.startupCallCount,
+			resume: sdk.capturedStartupOptions[2]?.resume,
+			responses: signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatDelta
+				? [{ turnId: signal.action.turnId, content: signal.action.content }] : []),
+			completed: signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatTurnComplete ? [signal.action.turnId] : []),
+		}, {
+			afterCancellation: { aborted: true, disposed: 1, queries: 0, actions: [] },
+			launches: 3,
+			resume: sessionId,
+			responses: [{ turnId: 'turn-replacement', content: 'replacement response' }],
+			completed: ['turn-replacement'],
+		});
+	});
+
 	test('multi-root session passes additionalDirectories to the SDK and emits the full resolved set', async () => {
 		const { agent, sdk } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
@@ -5099,6 +5258,28 @@ suite('ClaudeAgent', () => {
 			summary: 'Hello world',
 			sdkCalls: 1,
 		});
+	});
+
+	test('tearing down a recovered chat cleans up even when interruption fails', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
+		const chat = URI.parse(buildChatUri(created.session.toString(), 'chat-interrupt-failure'));
+		const backing = await agent.chats.createChat(chat, created.session, { ...resolvedChatOptions() });
+		const sessionId = AgentSession.id(backing!.backingSession!);
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		await agent.chats.sendMessage(chat, 'hi', undefined, undefined, 'turn-1', undefined, undefined, chatContext(chat));
+		await agent.chats.abort(chat, chatContext(chat));
+		await agent.chats.sendMessage(chat, 'replacement', undefined, undefined, 'turn-2', undefined, undefined, chatContext(chat));
+		const failure = new Error('interrupt failed');
+		sdk.interruptRejection = failure;
+
+		await assert.rejects(agent.chats.disposeChat(chat, chatContext(chat)), failure);
+		assert.deepStrictEqual({
+			liveChats: listLiveChats(agent),
+			additionalChats: listAdditionalChats(agent, created.session),
+		}, { liveChats: [defaultChatUri(created.session).toString()], additionalChats: [] });
+		await agent.chats.disposeChat(chat, chatContext(chat));
 	});
 
 	test('chats.getMessages returns an empty transcript for a chat with no backing', async () => {

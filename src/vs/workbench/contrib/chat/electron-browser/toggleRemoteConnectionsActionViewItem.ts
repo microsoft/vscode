@@ -26,6 +26,9 @@ import { IRemoteTunnelService } from '../../../../platform/remoteTunnel/common/r
 import { RemoteTunnelCommandIds } from '../../remoteTunnel/electron-browser/remoteTunnel.contribution.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { getDevTunnelsDetail, getGitHubEnvironmentsDetail, getOffDetail, IRemoteTunnelAccessState, RemoteConnectionsMethod, RemoteConnectionsSharing, RemoteConnectionsState, TUNNEL_ACCESS_DOCS_URL } from './remoteConnectionsSharing.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { getManagedSupportUrl, IManagedSettingsService } from '../../../../platform/policy/common/copilotManagedSettings.js';
+import { getOrganizationSupportActionLabel, getOrganizationSupportActionTooltip, openOrganizationSupport } from '../../../services/policies/common/organizationSupport.js';
 
 export interface IRemoteConnectionsActionViewItemOptions {
 	/** Adds a separate menu entry after the connection methods, e.g. to manage remote environments. */
@@ -51,6 +54,8 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 	private readonly _primaryAction: ToggleRemoteConnectionsActionViewItem;
 	private readonly _dropdown: ActionWidgetDropdownActionViewItem;
 	private readonly _sharing: RemoteConnectionsSharing;
+	/** The support URL behind the policy footer of the last opened menu, if it showed that footer. */
+	private _policyFooterSupportUrl: { readonly url: string | undefined } | undefined;
 
 	constructor(
 		action: IAction,
@@ -58,6 +63,8 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 		private readonly _options: IRemoteConnectionsActionViewItemOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IPreferencesService private readonly _preferencesService: IPreferencesService,
+		@IManagedSettingsService private readonly _managedSettingsService: IManagedSettingsService,
+		@IOpenerService private readonly _openerService: IOpenerService,
 	) {
 		super(undefined, action);
 
@@ -72,6 +79,12 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 			},
 		));
 		this._register(this._primaryAction.onDidChangeState(() => this._updateDropdownState()));
+		// The policy footer's link is resolved when the menu opens, so it closes rather than going stale.
+		this._register(this._managedSettingsService.onDidChangeManagedSettings(() => {
+			if (this._policyFooterSupportUrl && getManagedSupportUrl(this._managedSettingsService) !== this._policyFooterSupportUrl.url) {
+				this._dropdown.hide();
+			}
+		}));
 	}
 
 	override set actionRunner(actionRunner: IActionRunner) {
@@ -147,21 +160,36 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 			hideDefaultKeybindingTooltip: true,
 		};
 		if (this._sharing.gitHubEnvironmentsAvailability !== 'policyDisabled') {
+			this._policyFooterSupportUrl = undefined;
 			return options;
 		}
-		const label = localize('remoteConnections.viewSetting', "View Setting");
+		const supportUrl = getManagedSupportUrl(this._managedSettingsService);
+		this._policyFooterSupportUrl = { url: supportUrl };
+		const label = supportUrl ? getOrganizationSupportActionLabel() : localize('remoteConnections.viewSetting', "View Setting");
 		return {
 			...options,
-			footerText: localize('remoteConnections.policyFooter', "GitHub Environments is disabled by your organization. Contact your administrator. {0}", label),
-			footerAction: toAction({
-				id: 'remoteConnections.viewSetting',
-				label,
-				tooltip: localize('remoteConnections.viewManagedSetting', "View the Organization-Managed GitHub Environments Setting"),
-				run: async () => {
-					this._dropdown.hide();
-					await this._preferencesService.openSettings({ query: `@id:${GitHubEnvironmentsEnabledSettingId}` });
-				},
-			}),
+			footerText: supportUrl
+				? localize('remoteConnections.policyFooterWithSupport', "GitHub Environments is disabled by your organization. {0}", label)
+				: localize('remoteConnections.policyFooter', "GitHub Environments is disabled by your organization. Contact your administrator. {0}", label),
+			footerAction: supportUrl
+				? toAction({
+					id: 'remoteConnections.organizationSupport',
+					label,
+					tooltip: getOrganizationSupportActionTooltip(supportUrl),
+					run: async () => {
+						this._dropdown.hide();
+						await openOrganizationSupport(this._openerService, supportUrl);
+					},
+				})
+				: toAction({
+					id: 'remoteConnections.viewSetting',
+					label,
+					tooltip: localize('remoteConnections.viewManagedSetting', "View the Organization-Managed GitHub Environments Setting"),
+					run: async () => {
+						this._dropdown.hide();
+						await this._preferencesService.openSettings({ query: `@id:${GitHubEnvironmentsEnabledSettingId}` });
+					},
+				}),
 		};
 	}
 

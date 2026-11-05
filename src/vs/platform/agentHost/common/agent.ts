@@ -1352,6 +1352,13 @@ export interface IAgentPrepareChatResult {
 	readonly error?: ErrorInfo;
 }
 
+export type AgentChatReleaseReason = 'idle' | 'archived' | 'other';
+
+export interface IAgentChatReleaseOptions {
+	readonly reason: () => AgentChatReleaseReason;
+	readonly canContinue?: () => boolean;
+}
+
 /**
  * The chat-addressed operation surface an agent exposes for the chats
  * within a session.
@@ -1411,7 +1418,7 @@ export interface IAgentChats {
 	canReleaseChat?(chat: URI, context: AgentChatOperationContext): Promise<boolean>;
 
 	/** Release the addressed chat's in-memory backing without deleting durable data. */
-	releaseChat(chat: URI, context: AgentChatOperationContext): Promise<void>;
+	releaseChat(chat: URI, context: AgentChatOperationContext, options?: IAgentChatReleaseOptions): Promise<void>;
 
 	/**
 	 * Send a user message into `chat`. On every send, the host passes the complete
@@ -1619,6 +1626,12 @@ export interface IAgentToolPendingConfirmationSignal {
 	readonly permissionKind?: AgentPermissionKind;
 	/** Host-only auto-approval path target (not part of the dispatched action). */
 	readonly permissionPath?: string;
+	/**
+	 * Host-only resource that {@link permissionPath} names, for providers whose
+	 * paths are not local disk paths (such as virtual workspaces). Defaults to
+	 * `URI.file(permissionPath)`.
+	 */
+	readonly permissionResource?: URI;
 	/** Host-only URL target for request approval (not part of the dispatched action). */
 	readonly permissionUrl?: string;
 	/** Host-only command for shell approval when the displayed tool input contains structured arguments. */
@@ -1911,12 +1924,19 @@ export interface IAgentSessionPlan {
 	readonly dependencies: readonly { readonly todoId: string; readonly dependsOn: string }[];
 }
 
+export interface IAgentChatCanvasWatchHost {
+	readonly published: () => readonly string[] | undefined;
+	resolveContext(): Promise<IAgentChatContext>;
+}
+
 /**
  * Implemented by each agent backend (e.g. Copilot SDK).
  * The {@link IAgentService} dispatches to the appropriate agent based on
  * the agent id.
  */
 export interface IAgent {
+	/** Host-internal opt-in to client-backed, non-file working directories. */
+	readonly supportsVirtualWorkspaces?: true;
 	readonly supportsScopedCredentials?: boolean;
 	// ---- Identity and catalog -----------------------------------------------
 
@@ -1956,6 +1976,12 @@ export interface IAgent {
 
 	/** Close one canvas that a live provider chat presents, notifying its canvas provider. Never resumes a cold chat. */
 	closeSessionCanvas?(session: URI, request: IAgentCanvasCloseRequest, chat: URI, context: AgentChatOperationContext): Promise<void>;
+
+	/** Observe one hydrated chat's canvas projection and restore provider-owned continuity when needed. */
+	watchChatCanvases?(chat: URI, host: IAgentChatCanvasWatchHost): IDisposable;
+
+	/** Invalidate retained canvas continuity when a chat or session is archived or removed. */
+	clearCanvasContinuity?(session: URI, chat?: URI): void;
 
 	/** Install a plugin through the provider that owns its installation state. */
 	installPlugin?(request: IAgentPluginInstallRequest, session?: URI, chat?: URI): Promise<void>;

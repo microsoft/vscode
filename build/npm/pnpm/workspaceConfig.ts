@@ -22,6 +22,7 @@ export const knownSettingNames = [
 	'packages',
 	'pnpmfile',
 	'nodeLinker',
+	'hoistWorkspacePackages',
 	'strictPeerDependencies',
 	'autoInstallPeers',
 	'dedupePeerDependents',

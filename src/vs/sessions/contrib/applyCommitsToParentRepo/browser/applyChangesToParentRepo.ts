@@ -18,8 +18,8 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { resolveSessionActionTarget } from '../../../services/sessions/browser/sessionActionTarget.js';
+import { getFocusedSessionChatSource, IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
+import { resolveSessionCommandTarget } from '../../../services/sessions/browser/sessionCommandTarget.js';
 import { bindHasWorktreeAndRepositoryContextKey, hasWorktreeAndRepositoryContextKey } from '../../../services/sessions/browser/sessionScopedContextKeys.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -31,11 +31,11 @@ class ApplyChangesToParentRepoContribution extends Disposable implements IWorkbe
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@ISessionsService sessionsService: ISessionsService,
+		@IFocusedSessionHostService focusedSessionHostService: IFocusedSessionHostService,
 	) {
 		super();
 
-		this._register(bindHasWorktreeAndRepositoryContextKey(contextKeyService, sessionsService.activeSession));
+		this._register(bindHasWorktreeAndRepositoryContextKey(contextKeyService, getFocusedSessionChatSource(focusedSessionHostService).session));
 	}
 }
 
@@ -74,7 +74,7 @@ class ApplyChangesToParentRepoAction extends Action2 {
 		const openerService = accessor.get(IOpenerService);
 		const productService = accessor.get(IProductService);
 
-		const activeSession = resolveSessionActionTarget(accessor, sessionArg);
+		const activeSession = resolveSessionCommandTarget(accessor, [sessionArg])?.session;
 		const folder = activeSession?.workspace.get()?.folders[0];
 		if (!activeSession || !folder?.gitRepository?.workTreeUri) {
 			return;

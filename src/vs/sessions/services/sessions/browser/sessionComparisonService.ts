@@ -27,7 +27,7 @@ import { setChatNotificationResource } from '../../../../workbench/contrib/chat/
 import { ChatInteractivity, ChatOriginKind, isActiveSessionStatus, ISession, SessionStatus } from '../common/session.js';
 import { ISessionGroupsService } from './sessionGroupsService.js';
 import { ICreateNewSessionOptions, ISendRequestOptions, ISessionsChangeEvent, ISessionsManagementService } from '../common/sessionsManagement.js';
-import { getBoundedSessionComparisonManifestText, getSessionComparisonAttemptLabel, getSessionComparisonChat, getSessionComparisonHarnessLabel, ISessionComparison, ISessionComparisonHarness, ISessionComparisonParticipant, ISessionComparisonService, ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, IStartSessionComparisonOptions, SESSION_COMPARISON_MANIFEST_LIST_MAX_ITEMS, SESSION_COMPARISON_MAX_ATTEMPTS, SESSION_COMPARISON_SYNTHESIS_INSTRUCTIONS_MAX_LENGTH, SessionComparisonParticipantRole } from '../common/sessionComparison.js';
+import { getBoundedSessionComparisonManifestText, getSessionComparisonAttemptLabel, getSessionComparisonChat, getSessionComparisonHarnessLabel, ISessionComparison, ISessionComparisonHarness, ISessionComparisonParticipant, ISessionComparisonService, ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, IStartSessionComparisonOptions, SESSION_COMPARISON_MANIFEST_LIST_MAX_ITEMS, SESSION_COMPARISON_MAX_ATTEMPTS, SESSION_COMPARISON_SYNTHESIS_INSTRUCTIONS_MAX_LENGTH, SessionComparisonLaunchError, SessionComparisonParticipantRole } from '../common/sessionComparison.js';
 import { getSessionsTelemetryAgentId, getSessionsTelemetryModelId, getSessionsTelemetryProviderId, hashSessionIdForTelemetry, logSessionComparisonAttemptCompleted, logSessionComparisonModelOutcome } from '../../../common/sessionsTelemetry.js';
 
 interface IStoredSessionComparisonParticipant extends Omit<ISessionComparisonParticipant, 'sessionResource' | 'chatResource'> {
@@ -232,19 +232,14 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 				.filter(participant => participant.launchError)
 				.map(participant => `${getSessionComparisonHarnessLabel(participant)}: ${participant.launchError}`)
 				.join('; ');
-			throw new Error(localize(
+			throw new SessionComparisonLaunchError(localize(
 				'sessionComparison.insufficientSuccessfulAttempts',
 				"Only {0} of {1} comparison attempts started. At least two must start successfully. Failed attempts: {2}",
 				successfulAttemptCount,
 				attempts.length,
 				launchFailures
-			));
+			), launchedAttempts);
 		}
-		const launchedSessions = launchedAttempts.flatMap(participant => {
-			const session = participant.sessionResource ? this.sessionsManagementService.getSession(participant.sessionResource) : undefined;
-			return session ? [session] : [];
-		});
-		await this._nestComparisonParticipants(comparison, launchedSessions);
 		comparison = { ...this._requireComparison(comparison.id), launching: undefined };
 		this._replaceComparison(comparison);
 		this._archiveFullyArchivedComparisons([comparison]);
@@ -569,11 +564,11 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 	}
 
 	private async _nestComparisonParticipants(comparison: ISessionComparison, sessionsToNest: readonly ISession[]): Promise<void> {
-		if (!sessionsToNest.length || (!comparison.launching && !comparison.sessionResource) || comparison.cancelledAt !== undefined || comparison.archivedAt !== undefined) {
+		if (!sessionsToNest.length || !comparison.sessionResource || comparison.cancelledAt !== undefined || comparison.archivedAt !== undefined) {
 			return;
 		}
-		const parentResource = comparison.sessionResource ?? sessionsToNest[0].resource;
-		const parent = parentResource && this.sessionsManagementService.getSession(parentResource);
+		const parentResource = comparison.sessionResource;
+		const parent = this.sessionsManagementService.getSession(parentResource);
 		const sessions = sessionsToNest.filter(session => !isEqual(session.resource, parentResource));
 		if (!parent || parent.isArchived.get()) {
 			return;
@@ -583,9 +578,6 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			&& sessions.every(session => session.providerId === parent.providerId
 				&& (session.harness === parent.harness || capabilities.supportsChatHarnesses?.includes(session.harness))
 				&& this.sessionsManagementService.canMoveSessionUnder(session));
-		if (!canNest && !comparison.sessionResource) {
-			return;
-		}
 		try {
 			if (!canNest) {
 				throw new Error('The comparison participant cannot join its parent session.');
@@ -596,9 +588,6 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			}
 			if (this._requireComparison(comparison.id).archivedAt !== undefined || this._requireComparison(comparison.id).cancelledAt !== undefined) {
 				return;
-			}
-			if (!comparison.sessionResource) {
-				await this.sessionsManagementService.renameSession(parent, comparison.title);
 			}
 			const current = this._requireComparison(comparison.id);
 			if (current.archivedAt !== undefined || current.cancelledAt !== undefined) {

@@ -34,7 +34,8 @@ import { IActiveSession } from '../../../../services/sessions/common/sessionsMan
 import { IChat, IGitHubPullRequestRef, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ActiveSessionScope, ISessionScope } from '../../../../services/sessions/browser/sessionScope.js';
+import { ActiveSessionHost, ISessionHost, SessionHostKind } from '../../../../services/sessions/browser/sessionHost.js';
+import { stubSessionHosts } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackService, ISubmitFeedbackOptions } from '../../../agentFeedback/browser/agentFeedbackService.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
@@ -44,6 +45,7 @@ import { GitHubPullRequestState, IGitHubPullRequest, OPEN_PULL_REQUEST_ACTION_ID
 import { PullRequestCheck } from '../../../../../platform/github/common/githubPullRequestService.js';
 import { classifyRequiredPullRequestChecks } from '../../../../../platform/github/common/pullRequestRequiredChecks.js';
 import { SessionInputBanners } from '../../browser/sessionInputBanners.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 
 suite('SessionInputBanners', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -66,6 +68,7 @@ suite('SessionInputBanners', () => {
 				override readonly status = observableValue('status', SessionStatus.Completed);
 				override readonly mainChat = observableValue<IChat>('mainChat', chat);
 				override readonly activeChat = observableValue<IChat>('activeChat', chat);
+				override readonly isCreated = constObservable(true);
 			}();
 		};
 		const windowA = sessionOf('window-a', 1);
@@ -80,8 +83,8 @@ suite('SessionInputBanners', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		// The chat window of session A has focus: it is the globally active session.
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', windowA);
-			override readonly mainWindowActiveSession = observableValue<IActiveSession | undefined>('mainWindowActiveSession', main);
+			readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', windowA);
+			readonly mainWindowActiveSession = observableValue<IActiveSession | undefined>('mainWindowActiveSession', main);
 		}());
 		const agentHostProvider = new class extends mock<IAgentHostSessionsProvider>() {
 			override readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
@@ -119,16 +122,19 @@ suite('SessionInputBanners', () => {
 		instantiationService.stub(IContextMenuService, upcastPartial<IContextMenuService>({ showContextMenu() { } }));
 
 		// Each chat window scopes its views to its own session; the main window to the session it shows.
-		const bannersIn = (scope: ISessionScope) => {
-			const banners = store.add(instantiationService.createChild(new ServiceCollection([ISessionScope, scope])).createInstance(SessionInputBanners));
+		const contextKeyService = upcastPartial<IContextKeyService>({});
+		const hostOf = (kind: SessionHostKind, session: IActiveSession) => new ActiveSessionHost({ kind, parent: undefined, session: constObservable<IActiveSession | undefined>(session), contextKeyService });
+		const bannersIn = (host: ISessionHost) => {
+			const banners = store.add(instantiationService.createChild(new ServiceCollection([ISessionHost, host])).createInstance(SessionInputBanners));
 			// Every chat window's session view is active, as is the main window's.
 			banners.setActive(true);
 			return currentBanner(banners).text;
 		};
 		assert.deepStrictEqual({
-			windowA: bannersIn({ _serviceBrand: undefined, session: constObservable(windowA) }),
-			windowB: bannersIn({ _serviceBrand: undefined, session: constObservable(windowB) }),
-			main: bannersIn(instantiationService.createInstance(ActiveSessionScope)),
+			windowA: bannersIn(hostOf(SessionHostKind.ChatWindow, windowA)),
+			windowB: bannersIn(hostOf(SessionHostKind.ChatWindow, windowB)),
+			// A pane of the main window shows the banners of the main window's session.
+			main: bannersIn(new ActiveSessionHost({ kind: SessionHostKind.Pane, parent: hostOf(SessionHostKind.MainWindow, main), session: constObservable<IActiveSession | undefined>(windowA), contextKeyService })),
 		}, {
 			windowA: '1 check failed',
 			windowB: '2 out of 2 checks failed',
@@ -158,10 +164,10 @@ suite('SessionInputBanners', () => {
 			override readonly workspace = sessionWorkspace;
 			override readonly mainChat = observableValue<IChat>('mainChat', mainChat);
 			override readonly activeChat = activeChat;
+			override readonly isCreated = constObservable(true);
 		}();
 		const sessionsService = new class extends mock<ISessionsService>() {
-			override readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', session);
-			override readonly mainWindowActiveSession = this.activeSession;
+			readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', session);
 		}();
 		const agentMergeState = observableValue<AgentMergeSessionState>('agentMergeState', { enabled: false });
 		const agentHostProvider = new class extends mock<IAgentHostSessionsProvider>() {
@@ -264,7 +270,7 @@ suite('SessionInputBanners', () => {
 		const configuration = new TestConfigurationService();
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const banners = store.add(new SessionInputBanners(
-			new ActiveSessionScope(sessionsService),
+			stubSessionHosts(instantiationService, store, { session: sessionsService.activeSession }).mainHost,
 			sessionsProvidersService,
 			configuration,
 			gitHubService,
