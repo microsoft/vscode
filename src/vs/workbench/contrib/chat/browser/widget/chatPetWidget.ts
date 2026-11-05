@@ -2914,8 +2914,9 @@ export class ChatPetWidget extends Disposable {
 				(eye.firstElementChild as HTMLElement | null)?.style.removeProperty('transform');
 			}
 			const disposables = this._subagentEffects.add(new DisposableStore());
+			let state: 'idle' | 'splat' = 'idle';
 			const blink = disposables.add(new ChatPetBlinkController(blinking => eyes.classList.toggle('blink', blinking)));
-			const updateBlink = () => blink.setEnabled(this._enabled && !this._motionReduced && this._isAnimationVisible(this._visual) && this._isAnimationVisible(element));
+			const updateBlink = () => blink.setEnabled(state === 'idle' && this._enabled && !this._motionReduced && this._isAnimationVisible(this._visual) && this._isAnimationVisible(element));
 			disposables.add(this._onDidChangeAnimationVisibility.event(updateBlink));
 			const firstPupil = eyes.firstElementChild?.firstElementChild;
 			if (firstPupil) {
@@ -2929,8 +2930,13 @@ export class ChatPetWidget extends Disposable {
 			const animation = disposables.add(new MutableDisposable<IDisposable>());
 			const image = dom.append(element, dom.$('img.chat-pet-spritesheet')) as HTMLImageElement;
 			image.alt = '';
-			const sources = getChatPetSpriteSources(this._variant).idle;
-			const source = this._motionReduced ? sources.reducedMotion : sources.animated;
+			const setState = (nextState: 'idle' | 'splat') => {
+				animation.clear();
+				state = nextState;
+				updateBlink();
+				const sources = getChatPetSpriteSources(this._variant)[state];
+				setChatPetImageSource(image, (this._motionReduced ? sources.reducedMotion : sources.animated).url);
+			};
 			const sprite: ChatPetSpriteElement = { container: element, canvas, image, color: this._color };
 			const accessory = this._selectedAccessory ? getChatPetAccessory(this._selectedAccessory) : undefined;
 			const accessoryImage = accessory ? dom.append(element, dom.$('img.chat-pet-spritesheet')) as HTMLImageElement : undefined;
@@ -2939,16 +2945,33 @@ export class ChatPetWidget extends Disposable {
 				disposables.add(dom.addDisposableListener(accessoryImage, 'load', () => sprite.redrawFrame?.()));
 				setChatPetImageSource(accessoryImage, getChatPetAccessoryImageSource(accessory).url);
 			}
-			disposables.add(dom.addDisposableListener(image, 'load', () => this._startSpriteAnimation(source, sprite, animation, undefined, false, frameIndex => {
-				eyes.classList.toggle('bobbed', !this._motionReduced && (source.accessoryRigFrame ?? frameIndex) >= 20);
-				if (accessoryImage?.complete && accessoryImage.naturalWidth > 0 && accessory) {
-					const context = canvas.getContext('2d');
-					if (context) {
-						drawChatPetComposite(context, image, accessoryImage, frameIndex, source.accessoryRigFrame ?? frameIndex, source.frameWidth, source.frameHeight ?? CHAT_PET_SOURCE_SIZE, 'right', 'idle', source.fixedOrientationDecorations, true, accessory.eyeAccessoryMirrorsWithFacing !== false, accessory.coversAntennae === true, sprite.color);
+			disposables.add(dom.addDisposableListener(image, 'load', () => {
+				if (state === 'splat' && this._motionReduced) {
+					setState('idle');
+					return;
+				}
+				const sources = getChatPetSpriteSources(this._variant)[state];
+				const source = this._motionReduced ? sources.reducedMotion : sources.animated;
+				eyes.classList.toggle('tracking', state === 'idle');
+				this._startSpriteAnimation(source, sprite, animation, state === 'splat' ? () => setState('idle') : undefined, false, frameIndex => {
+					eyes.classList.toggle('bobbed', state === 'idle' && !this._motionReduced && (source.accessoryRigFrame ?? frameIndex) >= 20);
+					if (accessoryImage?.complete && accessoryImage.naturalWidth > 0 && accessory) {
+						const context = canvas.getContext('2d');
+						if (context) {
+							drawChatPetComposite(context, image, accessoryImage, frameIndex, source.accessoryRigFrame ?? frameIndex, source.frameWidth, source.frameHeight ?? CHAT_PET_SOURCE_SIZE, 'right', state, source.fixedOrientationDecorations, true, accessory.eyeAccessoryMirrorsWithFacing !== false, accessory.coversAntennae === true, sprite.color);
+						}
+					}
+				});
+			}));
+			disposables.add(dom.addDisposableListener(element, 'animationend', event => {
+				if (event.target === element && (event as AnimationEvent).animationName === 'chat-pet-subagent-fall') {
+					element.classList.remove('arriving');
+					if (!this._motionReduced) {
+						setState('splat');
 					}
 				}
-			})));
-			setChatPetImageSource(image, source.url);
+			}));
+			setState('idle');
 			this._subagentPets.set(id, { element, canvas, image, accessoryImage, eyes, disposables, updateBlink, slot, side });
 		}
 	}
