@@ -5,6 +5,7 @@
 
 import { IDefaultAccount } from '../../../../base/common/defaultAccount.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { getExpirationTime, isExpired } from '../../../../base/common/date.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { disposableTimeout } from '../../../../base/common/async.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
@@ -30,6 +31,8 @@ import { ExtensionGalleryAccountStatus, IExtensionGalleryAccount, IExtensionGall
 type ExtensionGalleryAccessProviderId = 'github' | 'microsoft';
 
 const PREFERRED_ACCOUNT_KEY = 'marketplace.account';
+const PROTECTED_RESOURCE_CACHE_TTL_SECONDS = 5 * 60;
+const PROTECTED_RESOURCE_ABSENCE_TTL_SECONDS = 30;
 
 // Well-known MSA (personal account) tenant ids. Duplicated from the microsoft-authentication
 // extension, which lives in the extension host and is not importable here.
@@ -66,7 +69,19 @@ interface IPreferredAccount {
 interface IMarketplaceProtectedResource {
 	readonly authorizationServer: string;
 	readonly scopes: readonly string[];
+	readonly invalidScopes?: boolean;
+}
+
+interface IGitHubMarketplaceProtectedResource extends IMarketplaceProtectedResource {
 	readonly resource: string;
+}
+
+interface IMarketplaceProtectedResourceCache {
+	readonly serviceIndexUrl: string;
+	/** `null` represents confirmed absence, not a discovery failure. */
+	value?: IMarketplaceProtectedResource | null;
+	expiresAt?: number;
+	request?: Promise<IMarketplaceProtectedResource | null | undefined>;
 }
 
 type MarketplaceExchangeResult =
@@ -101,7 +116,7 @@ function createRequestFetcher(requestService: IRequestService, callSite: string)
 }
 
 /** Discovers the marketplace's Protected Resource Metadata (RFC 9728) from the service index origin. */
-async function discoverMarketplaceProtectedResource(requestService: IRequestService, serviceIndexUrl: string, onTransientFailure?: () => void): Promise<IMarketplaceProtectedResource | undefined> {
+async function discoverMarketplaceProtectedResource(requestService: IRequestService, serviceIndexUrl: string, onTransientFailure?: () => void): Promise<IGitHubMarketplaceProtectedResource | undefined> {
 	let transient = false;
 	let definitive = false;
 	const fetcher = createRequestFetcher(requestService, 'extensionGalleryAccountService.discoverProtectedResource');
@@ -137,7 +152,7 @@ async function discoverMarketplaceProtectedResource(requestService: IRequestServ
  * grant. The subject token is sent only to the advertised authorization server's token endpoint, and
  * only when both that server and the endpoint are same-origin HTTPS with the service index.
  */
-async function exchangeMarketplaceResourceToken(requestService: IRequestService, serviceIndexUrl: string, protectedResource: IMarketplaceProtectedResource, subjectToken: string): Promise<MarketplaceExchangeResult> {
+async function exchangeMarketplaceResourceToken(requestService: IRequestService, serviceIndexUrl: string, protectedResource: IGitHubMarketplaceProtectedResource, subjectToken: string): Promise<MarketplaceExchangeResult> {
 	if (!isSameSecureOrigin(protectedResource.authorizationServer, serviceIndexUrl)) {
 		return { kind: 'rejected' };
 	}
@@ -438,12 +453,13 @@ export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvi
 		return this.productService.extensionsGallery?.accessScopes;
 	}
 
-	/** The resource the marketplace last advertised, if it gates its requests at all. */
-	private protectedResource: IMarketplaceProtectedResource | undefined;
-	private serviceIndexUrl: string | undefined;
+	private protectedResourceCache: IMarketplaceProtectedResourceCache | undefined;
 
 	protected override async doGetAccount(serviceIndexUrl: string): Promise<IExtensionGalleryAccount | undefined> {
-		this.serviceIndexUrl = serviceIndexUrl;
+		if (!this.protectedResourceCache || this.protectedResourceCache.serviceIndexUrl !== serviceIndexUrl) {
+			this.protectedResourceCache = { serviceIndexUrl };
+		}
+		const cache = this.protectedResourceCache;
 		const session = await this.getSession();
 		if (!session) {
 			this.setAccountStatus(ExtensionGalleryAccountStatus.SignedOut);
@@ -455,11 +471,10 @@ export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvi
 		if (!eligible) {
 			return {};
 		}
-		const protectedResource = await discoverMarketplaceProtectedResource(this.requestService, serviceIndexUrl);
-		if (!protectedResource) {
+		const protectedResource = await this.getProtectedResource(cache);
+		if (!protectedResource || protectedResource.invalidScopes) {
 			return { accessToken: session.accessToken };
 		}
-		this.protectedResource = protectedResource;
 		return { accessToken: (await this.getResourceSession(session, protectedResource))?.accessToken ?? session.accessToken };
 	}
 
@@ -520,6 +535,79 @@ export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvi
 		}
 	}
 
+	private async getProtectedResource(cache: IMarketplaceProtectedResourceCache, bypassNegativeCache = false): Promise<IMarketplaceProtectedResource | undefined> {
+		if (this._store.isDisposed || this.protectedResourceCache !== cache) {
+			return undefined;
+		}
+		if (cache.value !== undefined && !isExpired(cache.expiresAt) && !(bypassNegativeCache && cache.value === null)) {
+			return cache.value ?? undefined;
+		}
+		if (!cache.request) {
+			cache.value = undefined;
+			cache.expiresAt = undefined;
+			cache.request = this.discoverProtectedResource(cache.serviceIndexUrl);
+		}
+		const request = cache.request;
+		const protectedResource = await request;
+		if (this._store.isDisposed || this.protectedResourceCache !== cache) {
+			return undefined;
+		}
+		if (cache.request === request) {
+			cache.request = undefined;
+			if (protectedResource !== undefined && !protectedResource?.invalidScopes) {
+				cache.value = protectedResource;
+				cache.expiresAt = getExpirationTime(protectedResource ? PROTECTED_RESOURCE_CACHE_TTL_SECONDS : PROTECTED_RESOURCE_ABSENCE_TTL_SECONDS);
+			}
+		}
+		return protectedResource ?? undefined;
+	}
+
+	private async discoverProtectedResource(serviceIndexUrl: string): Promise<IMarketplaceProtectedResource | null | undefined> {
+		const attempts: { status?: number }[] = [];
+		const fetcher = async (input: string, init: { method: string; headers: Record<string, string> }) => {
+			const attempt: { status?: number } = {};
+			attempts.push(attempt);
+			const context = await this.requestService.request({ type: init.method, url: input, headers: init.headers, callSite: 'extensionGalleryAccountService.discoverProtectedResource' }, CancellationToken.None);
+			attempt.status = context.res.statusCode;
+			return {
+				status: context.res.statusCode ?? 0,
+				statusText: '',
+				json: async (): Promise<unknown> => await asJson(context),
+				text: async (): Promise<string> => (await asText(context)) ?? '',
+			};
+		};
+		try {
+			const { metadata } = await fetchResourceMetadata(serviceIndexUrl, undefined, { fetch: fetcher });
+			const authorizationServers = metadata.authorization_servers;
+			if (authorizationServers === undefined) {
+				return undefined;
+			}
+			if (!Array.isArray(authorizationServers) || !authorizationServers.every(server => {
+				if (typeof server !== 'string' || !/^https:\/\/[^/]/i.test(server) || /[\s\\]/.test(server) || !URL.canParse(server)) {
+					return false;
+				}
+				const url = new URL(server);
+				return !!url.hostname && !url.username && !url.password && !url.search && !url.hash;
+			})) {
+				this.logService.warn('[Marketplace] Ignoring invalid protected resource authorization servers');
+				return undefined;
+			}
+			const authorizationServer = authorizationServers[0];
+			if (!authorizationServer) {
+				return undefined;
+			}
+			const scopes = metadata.scopes_supported ?? [];
+			// RFC 6749 section 3.3 defines the allowed characters of a scope token.
+			if (!Array.isArray(scopes) || !scopes.every(scope => typeof scope === 'string' && scope.length > 0 && !/[^\x21\x23-\x5B\x5D-\x7E]/.test(scope))) {
+				this.logService.warn('[Marketplace] Ignoring invalid protected resource scopes');
+				return { authorizationServer, scopes: [], invalidScopes: true };
+			}
+			return { authorizationServer, scopes };
+		} catch {
+			return attempts.length > 0 && attempts.every(attempt => attempt.status === 404 || attempt.status === 410) ? null : undefined;
+		}
+	}
+
 	private pickSession(sessions: readonly AuthenticationSession[]): AuthenticationSession | undefined {
 		const preferredId = this.readPreferredAccountId();
 		if (preferredId) {
@@ -542,6 +630,7 @@ export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvi
 			this.logService.error('[Marketplace] extensionsGallery.accessScopes is not configured — cannot sign in to the Microsoft marketplace path.');
 			return;
 		}
+		const cache = this.protectedResourceCache;
 
 		// Passing a known account binds to it without a fresh interactive login; omitting it falls
 		// back to interactive sign-in, which is also how the user adds a different account.
@@ -552,10 +641,7 @@ export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvi
 			}
 			const session = await this.authenticationService.createSession('microsoft', scopes, account ? { account } : undefined);
 			this.storePreferredAccountId(session.account.id);
-			if (!this.protectedResource && this.serviceIndexUrl) {
-				this.protectedResource = await discoverMarketplaceProtectedResource(this.requestService, this.serviceIndexUrl);
-			}
-			await this.consentToProtectedResource(session);
+			await this.consentToProtectedResource(session, cache);
 		};
 
 		const accounts = await this.authenticationService.getAccounts('microsoft');
@@ -584,12 +670,18 @@ export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvi
 	 * cannot prompt, so without this a user whose tenant has not pre-consented would authenticate
 	 * and still be sent back to the sign-in prompt. Tries silently first; failure is not fatal.
 	 */
-	private async consentToProtectedResource(session: AuthenticationSession): Promise<void> {
-		const protectedResource = this.protectedResource;
-		if (!protectedResource) {
+	private async consentToProtectedResource(session: AuthenticationSession, cache: IMarketplaceProtectedResourceCache | undefined): Promise<void> {
+		if (!cache) {
+			return;
+		}
+		const protectedResource = await this.getProtectedResource(cache, true);
+		if (!protectedResource || protectedResource.invalidScopes) {
 			return;
 		}
 		if (await this.getResourceSession(session, protectedResource)) {
+			return;
+		}
+		if (this._store.isDisposed || this.protectedResourceCache !== cache || cache.value !== protectedResource || isExpired(cache.expiresAt)) {
 			return;
 		}
 		const resourceScopes = protectedResource.scopes.length ? [...protectedResource.scopes] : this.scopes;

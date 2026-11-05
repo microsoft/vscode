@@ -369,6 +369,8 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 		openSession: async () => overrides?.openSession ? new class extends mock<IChatWidget>() { }() : undefined,
 	});
 	instantiationService.stub(ILanguageModelsService, {
+		onDidChangeLanguageModels: Event.None,
+		onDidChangeModelVisibility: Event.None,
 		getLanguageModelIds: () => [],
 		lookupLanguageModel: () => undefined,
 	});
@@ -414,6 +416,8 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 	instantiationService.stub(IPullRequestIconCache, instantiationService.createInstance(PullRequestIconCache));
 	instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 		override readonly activeSession = overrides?.activeSession ?? constObservable<IActiveSession | undefined>(undefined);
+		override readonly mainWindowActiveSession = this.activeSession;
+		override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
 		override readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> = constObservable<readonly (IActiveSession | undefined)[]>([]);
 	}());
 	instantiationService.stub(IAgentHostActiveClientService, new class extends mock<IAgentHostActiveClientService>() {

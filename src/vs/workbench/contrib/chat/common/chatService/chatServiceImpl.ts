@@ -9,7 +9,7 @@ import { IChatSessionHistoryStatus } from '../../../../../platform/chat/common/c
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { IStringDictionary } from '../../../../../base/common/collections.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
-import { BugIndicatingError, ErrorNoTelemetry, isCancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
+import { BugIndicatingError, CancellationError, ErrorNoTelemetry, isCancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
@@ -67,6 +67,7 @@ import { IIntendedModelSelection, ModelSelectionReason } from '../modelSelection
 import { ILanguageModelToolsService, ToolAndToolSetEnablementMap } from '../tools/languageModelToolsService.js';
 import { ChatSessionOperationLog } from '../model/chatSessionOperationLog.js';
 import { IPromptsService } from '../promptSyntax/service/promptsService.js';
+import { getAgentModelPolicyError } from '../promptSyntax/languageProviders/promptModelResolver.js';
 import { AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING, TROUBLESHOOT_COMMAND_NAME, TROUBLESHOOT_SKILL_PATH, COPILOT_SKILL_URI_SCHEME } from '../promptSyntax/promptTypes.js';
 import { ChatRequestHooks, mergeHooks } from '../promptSyntax/hookSchema.js';
 import { ComputeAutomaticInstructions } from '../promptSyntax/computeAutomaticInstructions.js';
@@ -1026,7 +1027,11 @@ export class ChatService extends Disposable implements IChatService {
 	 * with the input state restored from the session and its persisted draft.
 	 */
 	private createRemoteSessionModel(sessionResource: URI, providedSession: IChatSession, location: ChatAgentLocation, sessionTypeSelectionReason: SessionTypeSelectionReason | undefined): { model: ChatModel; inputRestore: IRemoteSessionInputRestore } {
-		const modelId = findLast(providedSession.history.filter(m => m.type === 'request'), req => req.modelId)?.modelId;
+		// The model the session continues with: its transferred draft's selection when it has one,
+		// else the last model its request history used. A draft model wins even when its metadata is
+		// not loaded yet, so a cold restore waits for it rather than settling on an earlier turn's.
+		const modelId = providedSession.transferredState?.selectedModelId
+			?? findLast(providedSession.history.filter(m => m.type === 'request'), req => req.modelId)?.modelId;
 		const agentUri = findLast(providedSession.history.filter(m => m.type === 'request'), req => req.modeInstructions?.uri)?.modeInstructions?.uri;
 		const storedMetadata = this._chatSessionStore.getMetadataForSessionSync(sessionResource);
 		const storedPermissionLevel = storedMetadata?.permissionLevel;
@@ -1232,6 +1237,8 @@ export class ChatService extends Disposable implements IChatService {
 		if (providedSession.progressObs && providedSession.interruptActiveResponseCallback) {
 			let streamingRequest = restored.lastRequest;
 			let streamingResponseCompletedAt = restored.lastResponseCompletedAt;
+			// Only the replayed turn can carry a recorded cancellation; a live turn's is applied as it happens.
+			let streamingResponseCanceled = restored.lastResponseCanceled;
 			let lastProgressLength = 0;
 			// Completion state as of the previous observation, or undefined before the
 			// first one. A session that is already complete when first observed is
@@ -1265,14 +1272,22 @@ export class ChatService extends Disposable implements IChatService {
 			};
 
 			const completeStreamingResponse = (finishedNow = false) => {
-				if (Number.isFinite(streamingResponseCompletedAt)) {
-					streamingRequest?.response?.complete(streamingResponseCompletedAt);
+				const response = streamingRequest?.response;
+				if (streamingResponseCanceled && !finishedNow) {
+					if (streamingResponseCompletedAt !== undefined && Number.isFinite(streamingResponseCompletedAt)) {
+						response?.cancel(streamingResponseCompletedAt);
+					} else {
+						response?.cancelWithoutTimestamp();
+					}
+				} else if (Number.isFinite(streamingResponseCompletedAt)) {
+					response?.complete(streamingResponseCompletedAt);
 				} else if (finishedNow) {
-					streamingRequest?.response?.complete();
+					response?.complete();
 				} else {
-					streamingRequest?.response?.completeWithoutTimestamp();
+					response?.completeWithoutTimestamp();
 				}
 				streamingResponseCompletedAt = undefined;
+				streamingResponseCanceled = false;
 			};
 			const processProgress = (progressArray: readonly IChatProgress[], isComplete: boolean) => {
 				// The first observation replays whatever the session did before it was watched.
@@ -1319,6 +1334,7 @@ export class ChatService extends Disposable implements IChatService {
 						request.response.reopen();
 						streamingRequest = request;
 						streamingResponseCompletedAt = undefined;
+						streamingResponseCanceled = false;
 						lastProgressLength = 0;
 						ensureCancellationTracking();
 						return;
@@ -1588,6 +1604,28 @@ export class ChatService extends Disposable implements IChatService {
 				reason: model.isInputBlocked.get() ? 'Session input is blocked' : 'Session is read-only',
 				...(newSessionResource ? { newSessionResource } : {}),
 			};
+		}
+
+		const savedMode = model.inputModel.state.get()?.mode;
+		const modeUri = options?.modeInfo?.modeInstructions?.uri
+			?? (!options?.modeInfo && savedMode?.id && savedMode.id !== savedMode.kind ? URI.parse(savedMode.id) : undefined);
+		if (modeUri && getChatSessionType(sessionResource) === localChatSessionType) {
+			const agents = await this.promptsService.getCustomAgents(CancellationToken.None);
+			const agent = agents.find(agent => agent.enabled && isEqual(agent.uri, modeUri));
+			if (agent?.modelPolicy === 'required' && agent.model?.length) {
+				const models = this.languageModelsService.getLanguageModelIds().flatMap(identifier => {
+					const metadata = this.languageModelsService.lookupLanguageModel(identifier);
+					return metadata && !metadata.targetChatSessionType && metadata.isUserSelectable !== false
+						? [{ identifier, metadata }] : [];
+				});
+				const modelId = options?.userSelectedModelId ?? model.inputModel.state.get()?.selectedModel?.identifier;
+				const error = getAgentModelPolicyError({ models: agent.model, required: true }, modelId, models);
+				if (error) {
+					this.logService.warn('[ChatService] Rejected request: selected agent requires an available authored model');
+					throw new Error(error);
+				}
+				options = { ...options, userSelectedModelId: modelId };
+			}
 		}
 
 		const isEligibleRequest = (request: IChatRequestModel) => !request.isSystemInitiated && !request.isHiddenFromTranscript;
@@ -2634,7 +2672,18 @@ export class ChatService extends Disposable implements IChatService {
 		request.response?.complete();
 	}
 
-	async cancelCurrentRequestForSession(sessionResource: URI, source?: string): Promise<void> {
+	cancelCurrentRequestForSession(sessionResource: URI, source?: string): Promise<void> {
+		return this.cancelCurrentRequest(sessionResource, source, true);
+	}
+
+	/**
+	 * @param dropQueuedSystemNotifications Whether to remove the system notifications waiting in the queue,
+	 * such as a background terminal command that completed while the request ran. A request that was stopped
+	 * does not send the queue when it ends, and run_in_terminal drops the notifications that arrive once the
+	 * user stopped the agent. The ones queued before the stop would otherwise stay pending, and the user's next
+	 * message would first ask whether to keep them.
+	 */
+	private async cancelCurrentRequest(sessionResource: URI, source: string | undefined, dropQueuedSystemNotifications: boolean): Promise<void> {
 		this.trace('cancelCurrentRequestForSession', `session: ${sessionResource}`);
 		const pendingRequest = this._pendingRequests.get(sessionResource);
 		if (!pendingRequest) {
@@ -2663,6 +2712,17 @@ export class ChatService extends Disposable implements IChatService {
 		const requestId = pendingRequest.requestId ?? (activeRequest?.response?.isInProgress ? activeRequest.id : undefined);
 		const sessionTelemetry = getChatSessionTelemetryIds(sessionResource, this.agentHostConnectionsService);
 		pendingRequest.cancel();
+
+		// Drop the queued system notifications while the stopped request is still the session's in-flight
+		// request: a streamed session sends queued steering as soon as its queue changes with no request in
+		// flight, which would send the user's remaining steering message right after the stop.
+		const sessionModel = this._sessionModels.get(sessionResource);
+		if (dropQueuedSystemNotifications && sessionModel && !this._isServerManagedQueue(sessionResource)) {
+			for (const pending of sessionModel.getPendingRequests().filter(p => p.request.isSystemInitiated)) {
+				this.removePendingRequest(sessionResource, pending.request.id);
+			}
+		}
+
 		this._pendingRequests.deleteAndDispose(sessionResource);
 		this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'remove', source: source ?? 'cancelRequest', requestId, ...sessionTelemetry });
 
@@ -2725,6 +2785,63 @@ export class ChatService extends Disposable implements IChatService {
 		}
 	}
 
+	consumePendingRequest(sessionResource: URI, pendingRequestId: string, requestId: string): void {
+		const deferred = this._queuedRequestDeferreds.get(pendingRequestId);
+		const model = this._sessionModels.get(sessionResource);
+		if (!deferred || !model) {
+			return;
+		}
+		this._queuedRequestDeferreds.delete(pendingRequestId);
+		const store = new DisposableStore();
+		let completion: DeferredPromise<void> | undefined;
+		const cancel = () => {
+			if (completion) {
+				completion.error(new CancellationError());
+			} else {
+				deferred.complete({ kind: 'rejected', reason: localize('chat.consumedRequestRemoved', "The consumed request was removed or its session was disposed.") });
+			}
+			store.dispose();
+		};
+		store.add(model.onDidDispose(cancel));
+		store.add(model.onDidChange(event => {
+			if (event.kind === 'removeRequest' && event.requestId === requestId) {
+				cancel();
+			}
+		}));
+		const observeRequest = (request: IChatRequestModel) => {
+			const response = request.response;
+			const agent = response?.agent;
+			if (!response || !agent) {
+				deferred.complete({ kind: 'rejected', reason: localize('chat.consumedRequestUnavailable', "The consumed request has no response or participant.") });
+				store.dispose();
+				return;
+			}
+			const responseComplete = completion = new DeferredPromise<void>();
+			const checkComplete = () => {
+				if (response.isComplete || response.isCanceled) {
+					responseComplete.complete();
+					store.dispose();
+				}
+			};
+			store.add(response.onDidChange(checkComplete));
+			deferred.complete({
+				kind: 'sent',
+				data: { agent, responseCreatedPromise: Promise.resolve(response), responseCompletePromise: responseComplete.p },
+			});
+			checkComplete();
+		};
+		const request = model.getRequests().find(request => request.id === requestId);
+		if (request) {
+			observeRequest(request);
+		} else {
+			store.add(Event.once(Event.filter(model.onDidChange, event => event.kind === 'addRequest' && event.request.id === requestId))(event => {
+				if (event.kind === 'addRequest') {
+					observeRequest(event.request);
+				}
+			}));
+		}
+	}
+
 	setPendingRequests(sessionResource: URI, requests: readonly { requestId: string; kind: ChatRequestQueueKind }[]): void {
 		const model = this._sessionModels.get(sessionResource) as ChatModel | undefined;
 		if (model) {
@@ -2738,7 +2855,7 @@ export class ChatService extends Disposable implements IChatService {
 			return;
 		}
 
-		const existing = model.getPendingRequests();
+		const existing = model.getPendingRequests().slice();
 		const existingById = new Map(existing.map(request => [request.request.id, request]));
 		const reconciled: IChatPendingRequest[] = requests.map(remote => {
 			const variableData = remote.variableData ?? { variables: [] };
@@ -2857,12 +2974,14 @@ export class ChatService extends Disposable implements IChatService {
 
 		// Local sessions: move the target to the front (keeping its kind),
 		// cancel the in-flight request, and let the queue processor send it.
+		// The agent keeps going with the target, so the queued system
+		// notifications still follow it.
 		const reordered = [
 			{ requestId: target.request.id, kind: target.kind },
 			...pendingRequests.filter(r => r.request.id !== requestId).map(r => ({ requestId: r.request.id, kind: r.kind })),
 		];
 		this.setPendingRequests(sessionResource, reordered);
-		await this.cancelCurrentRequestForSession(sessionResource, 'queueRunNext');
+		await this.cancelCurrentRequest(sessionResource, 'queueRunNext', false);
 		this.processPendingRequests(sessionResource);
 	}
 

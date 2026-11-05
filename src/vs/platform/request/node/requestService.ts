@@ -32,6 +32,7 @@ const TRANSIENT_ERROR_CODES = new Set([
 ]);
 
 const IDEMPOTENT_HTTP_METHODS_REGEX = /^(GET|HEAD|OPTIONS)$/i;
+const ORIGIN_CREDENTIAL_HEADERS = new Set(['authorization', 'cookie', 'cookie2']);
 
 function isTransientError(error: unknown): boolean {
 	if (error instanceof Error) {
@@ -172,52 +173,40 @@ async function getNodeRequest(options: IRequestOptions): Promise<IRawRequestFunc
 	return module.request;
 }
 
-/**
- * Resolves a redirect `location` (which may be relative or protocol-relative) against the request
- * URL and classifies whether following it crosses to a different origin (scheme + host + port, with
- * default ports normalized). Returns `undefined` when the target is unparseable or uses a
- * non-HTTP(S) scheme, signalling that the redirect must not be followed.
- *
- * Resolving once and returning the SAME absolute URL that the origin check was made against is
- * essential: validating the resolved URL but then re-requesting the raw `location` header would let
- * a relative (`/path`) or protocol-relative (`//host/path`) redirect send credentials to an origin
- * the cross-origin check never saw (node's URL parser mis-resolves a bare path to no host, and a
- * protocol-relative target silently downgrades the scheme). The caller therefore uses `url` for the
- * follow-up request, not the raw header.
- */
 function resolveRedirectTarget(currentUrl: string, location: string): { url: string; crossOrigin: boolean } | undefined {
-	let from: URL;
-	let to: URL;
 	try {
-		from = new URL(currentUrl);
-		to = new URL(location, currentUrl); // resolves relative / protocol-relative redirect targets
+		const current = new URL(currentUrl);
+		const target = new URL(location, current);
+		if (target.protocol === 'http:' || target.protocol === 'https:') {
+			return { url: target.toString(), crossOrigin: current.origin !== target.origin };
+		}
 	} catch {
-		return undefined;
+		// An invalid redirect is returned to the caller without following it.
 	}
-	// Only ever follow HTTP(S) redirects. A `Location` pointing at another scheme (`file:`, `data:`,
-	// a custom app scheme, …) must never be fetched by the HTTP request stack.
-	if (to.protocol !== 'http:' && to.protocol !== 'https:') {
-		return undefined;
-	}
-	return { url: to.toString(), crossOrigin: from.origin !== to.origin };
+	return undefined;
 }
 
-/**
- * Returns a copy of `headers` with origin-bound credential headers removed (case-insensitive
- * `Authorization`, `Cookie`, and `Cookie2`). These authenticate to the origin server, which is a
- * different host after a cross-origin redirect, so forwarding them would leak credentials to the new
- * host. `Proxy-Authorization` is intentionally preserved: it authenticates to the forward proxy,
- * which does not change when the origin server issues a redirect.
- */
-function stripOriginCredentialHeaders(headers: IHeaders | undefined): IHeaders | undefined {
-	if (!headers) {
+function stripRedirectHeaders(headers: IHeaders | undefined, crossOrigin: boolean, removeBody: boolean): IHeaders | undefined {
+	if (!headers || (!crossOrigin && !removeBody)) {
 		return headers;
 	}
 	const result: IHeaders = {};
 	for (const name of Object.keys(headers)) {
-		const lower = name.toLowerCase();
-		if (lower === 'authorization' || lower === 'cookie' || lower === 'cookie2') {
+		const normalizedName = name.toLowerCase();
+		if (crossOrigin && ORIGIN_CREDENTIAL_HEADERS.has(normalizedName)) {
 			continue;
+		}
+		switch (normalizedName) {
+			case 'content-type':
+			case 'content-encoding':
+			case 'content-language':
+			case 'content-location':
+			case 'content-length':
+			case 'origin':
+				if (removeBody) {
+					continue;
+				}
+				break;
 		}
 		result[name] = headers[name];
 	}
@@ -252,11 +241,15 @@ export async function nodeRequest(options: NodeRequestOptions, token: Cancellati
 async function nodeRequestAttempt(options: NodeRequestOptions, token: CancellationToken): Promise<IRequestContext> {
 	return Promises.withAsyncBody<IRequestContext>(async (resolve, reject) => {
 		const endpoint = parseUrl(options.url!);
+		const hasOriginCredentials = !!endpoint.auth || options.user !== undefined || options.password !== undefined
+			|| Object.keys(options.headers ?? {}).some(name => ORIGIN_CREDENTIAL_HEADERS.has(name.toLowerCase()));
+		const manualRedirects = !options.isChromiumNetwork || isNumber(options.followRedirects) || hasOriginCredentials;
+		const followRedirects = isNumber(options.followRedirects) ? options.followRedirects : options.isChromiumNetwork ? 20 : 3;
 		const rawRequest = options.getRawRequest
 			? options.getRawRequest(options)
 			: await getNodeRequest(options);
 
-		const opts: https.RequestOptions & { cache?: 'default' | 'no-store' | 'reload' | 'no-cache' | 'force-cache' | 'only-if-cached' } = {
+		const opts: https.RequestOptions & { cache?: 'default' | 'no-store' | 'reload' | 'no-cache' | 'force-cache' | 'only-if-cached'; redirect?: 'manual'; url?: string } = {
 			hostname: endpoint.hostname,
 			port: endpoint.port ? parseInt(endpoint.port) : (endpoint.protocol === 'https:' ? 443 : 80),
 			protocol: endpoint.protocol,
@@ -275,33 +268,38 @@ async function nodeRequestAttempt(options: NodeRequestOptions, token: Cancellati
 			opts.cache = 'no-store';
 		}
 
-		const req = rawRequest(opts, (res: http.IncomingMessage) => {
-			const followRedirects: number = isNumber(options.followRedirects) ? options.followRedirects : 3;
-			const location = res.headers['location'];
-			// Resolve the redirect target ONCE against the current URL. `resolveRedirectTarget`
-			// returns `undefined` for an unparseable or non-HTTP(S) `location`, in which case we do
-			// NOT follow it and fall through to surface the 3xx response as-is (fails closed: no
-			// credentials are sent to a target we could not verify).
-			const redirectTarget = (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && followRedirects > 0 && location)
+		if (options.isChromiumNetwork) {
+			if (manualRedirects) {
+				opts.redirect = 'manual';
+			}
+			// Electron reparses Node-style paths as URLs, which changes leading double slashes.
+			opts.url = options.url;
+		}
+
+		const followRedirect = (statusCode: number | undefined, location: string | undefined, method = options.type): boolean => {
+			const target = statusCode && statusCode >= 300 && statusCode < 400 && followRedirects > 0 && location
 				? resolveRedirectTarget(options.url!, location)
 				: undefined;
-			if (redirectTarget) {
-				// On a cross-origin redirect, never forward origin credentials to the new host: an
-				// `Authorization` bearer/basic secret (and any explicit `Cookie`) is bound to the
-				// original origin (this mirrors WHATWG fetch, which strips these on cross-origin
-				// redirects, and curl, which does not resend credentials to a different host).
-				// Same-origin redirects keep the headers so authenticated flows that legitimately
-				// redirect within one origin work. The follow-up request uses the resolved absolute
-				// URL the origin check was made against — never the raw `location` header.
-				const crossOrigin = redirectTarget.crossOrigin;
+			if (target) {
+				const removeBody = method !== (options.type || 'GET') && (method === 'GET' || method === 'HEAD');
 				nodeRequest({
 					...options,
-					url: redirectTarget.url,
+					url: target.url,
+					type: method,
+					data: removeBody ? undefined : options.data,
 					followRedirects: followRedirects - 1,
-					headers: crossOrigin ? stripOriginCredentialHeaders(options.headers) : options.headers,
-					user: crossOrigin ? undefined : options.user,
-					password: crossOrigin ? undefined : options.password
+					headers: stripRedirectHeaders(options.headers, target.crossOrigin, removeBody),
+					user: target.crossOrigin ? undefined : options.user,
+					password: target.crossOrigin ? undefined : options.password
 				}, token).then(resolve, reject);
+				return true;
+			}
+			return false;
+		};
+
+		const req = rawRequest(opts, (res: http.IncomingMessage) => {
+			if (!options.isChromiumNetwork && followRedirect(res.statusCode, res.headers['location'])) {
+				res.resume();
 			} else {
 				let stream: streams.ReadableStreamEvents<Uint8Array> = res;
 
@@ -319,6 +317,16 @@ async function nodeRequestAttempt(options: NodeRequestOptions, token: Cancellati
 		});
 
 		req.on('error', reject);
+
+		if (options.isChromiumNetwork && manualRedirects) {
+			req.on('redirect', (statusCode: number, method: string, redirectUrl: string, headers: IHeaders) => {
+				// Abort synchronously so Chromium cannot follow with the original credentials.
+				req.abort();
+				if (!followRedirect(statusCode, redirectUrl, method)) {
+					resolve({ res: { statusCode, headers }, stream: streams.emptyStream() });
+				}
+			});
+		}
 
 		// Handle timeout
 		if (options.timeout) {
@@ -363,5 +371,6 @@ async function nodeRequestAttempt(options: NodeRequestOptions, token: Cancellati
 
 		req.on('response', () => cancellationListener.dispose());
 		req.on('error', () => cancellationListener.dispose());
+		req.on('abort', () => cancellationListener.dispose());
 	});
 }

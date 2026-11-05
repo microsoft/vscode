@@ -613,7 +613,7 @@ suite('Sessions Chat Background Tint', () => {
 
 	test('updates mounted card and session surfaces without changing foreground tokens', async () => {
 		const { root, requests, themeService } = createFixture();
-		const card = append(root, $('.agents-part-card'));
+		const card = append(root, $('.agents-part-card.agents-card-surface'));
 		const session = append(card, $('.session-view'));
 		const updateStyles = () => {
 			applyAgentsPartCardStyles(card, themeService.getColorTheme());
