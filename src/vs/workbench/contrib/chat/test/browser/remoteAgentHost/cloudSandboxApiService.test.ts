@@ -1167,15 +1167,64 @@ suite('CloudSandboxApiService repository-less discovery', () => {
 		{ ...task('none', 'No repository', undefined, 's3', 'e3'), updated_at: '2026-01-01T00:00:00Z' },
 	];
 
-	for (const [includeRepositoryless, expected] of [
-		[undefined, 4], [true, 4], [false, 2],
+	for (const [includeRepositoryless, includeArchived, expected] of [
+		[undefined, undefined, 4], [true, undefined, 4], [false, undefined, 2], [true, false, 2], [false, false, 1],
 	] as const) {
-		test(`empty inventory makes only the expected list requests (includeRepositoryless=${includeRepositoryless})`, async () => {
+		test(`empty inventory makes only the expected list requests (repo-less=${includeRepositoryless}, archived=${includeArchived})`, async () => {
 			const h = createService(store, { tasks: [], repositories });
-			await h.service.listSessions(CancellationToken.None, { includeRepositoryless });
+			await h.service.listSessions(CancellationToken.None, { includeRepositoryless, includeArchived });
 			assert.deepStrictEqual(h.requestedUrls.map(url => new URL(url).pathname), Array(expected).fill('/agents/tasks'));
 		});
 	}
+
+	test('archive and repo-less expansion each discover their initial inventory independently', async () => {
+		const values = [
+			...tasks(),
+			{ ...task('archived', 'Archived repo', 42, 's4', 'e4'), archived_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z' },
+			{ ...task('archived-none', 'Archived repo-less', undefined, 's5', 'e5'), archived_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z' },
+		];
+		const h = createService(store, {
+			tasks: values, repositories, discoveryDate: () => 'Sun, 18 Oct 2026 17:00:00 GMT',
+		});
+		const observations = [];
+		for (const [includeRepositoryless, includeArchived] of [[false, false], [false, true], [true, false], [true, true], [false, true]]) {
+			const start = h.requestedUrls.length;
+			const result = await h.service.listSessions(CancellationToken.None, { incremental: true, includeRepositoryless, includeArchived });
+			const lists = h.requestedUrls.slice(start).map(url => new URL(url)).filter(url => url.pathname === '/agents/tasks');
+			observations.push({
+				kind: result.kind, tasks: result.kind === 'failed' ? [] : result.sessions.map(session => session.taskId),
+				since: [...new Set(lists.map(url => url.searchParams.get('since')))],
+			});
+		}
+		assert.deepStrictEqual(observations, [
+			{ kind: 'scoped', tasks: ['one', 'two'], since: [null] },
+			{ kind: 'complete', tasks: ['one', 'two', 'archived'], since: [null] },
+			{ kind: 'scoped', tasks: ['one', 'two', 'none'], since: [null] },
+			{ kind: 'complete', tasks: ['one', 'two', 'none', 'archived', 'archived-none'], since: [null] },
+			{ kind: 'incremental', tasks: [], since: ['2026-10-18T16:59:00.000Z'] },
+		]);
+	});
+
+	test('an active repo-only refresh retains omitted repo-less and archived cache entries', async () => {
+		const values = [
+			...tasks(),
+			{ ...task('archived', 'Archived repo', 42, 's4', 'e4'), archived_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z' },
+		];
+		const h = createService(store, { tasks: values, repositories });
+		await h.service.listSessions(CancellationToken.None);
+		values.splice(0, 2);
+		const active = await h.service.listSessions(CancellationToken.None, { includeArchived: false, includeRepositoryless: false });
+		const start = h.requestedUrls.length;
+		const expanded = await h.service.listSessions(CancellationToken.None);
+		assert.deepStrictEqual({
+			active,
+			retained: expanded.kind === 'failed' ? [] : expanded.sessions.map(session => session.taskId),
+			details: h.requestedUrls.slice(start).filter(url => new URL(url).pathname.startsWith('/agents/tasks/')),
+		}, {
+			active: { kind: 'scoped', sessions: [], includeRepositoryless: false, removedTaskIds: [] },
+			retained: ['none', 'archived'], details: [],
+		});
+	});
 
 	test('repo-only discovery lists all repo-backed tasks and preserves the population filter through pagination', async () => {
 		const h = createService(store, {
@@ -2650,6 +2699,135 @@ suite('Mission Control environment discovery', () => {
 		changeAuthentication();
 		response.complete(jsonResponse([{ id: 'host', kind: 'user-local', name: 'Old account', status: 'online' }]));
 		await assert.rejects(inventory, CancellationError);
+	});
+});
+
+suite('CloudSandboxApiService archived discovery', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('bounds active-only discovery and the first archive expansion to three pages per requested partition', async () => {
+		const date = 'Tue, 22 Sep 2026 10:00:00 GMT';
+		const tasks: ITestTask[] = [
+			task('repo', 'Repository', 42, 'repo-session', 'repo-environment'),
+			task('no-repo', 'No repository', undefined, 'no-repo-session', 'no-repo-environment'),
+			{ ...task('archived-repo', 'Archived repository', 42, 'archived-repo-session', 'archived-repo-environment'), archived_at: date },
+			{ ...task('archived-no-repo', 'Archived without repository', undefined, 'archived-no-repo-session', 'archived-no-repo-environment'), archived_at: date },
+		].map(task => ({ ...task, updated_at: '2026-09-22T09:00:00Z' }));
+		const { service, requestedUrls } = createService(store, {
+			tasks, repositories: new Map([[42, { full_name: 'owner/repo' }]]),
+			onRequest: url => {
+				if (url.pathname !== '/agents/tasks') {
+					return undefined;
+				}
+				const archived = url.searchParams.get('is_archived') === 'true';
+				return jsonResponse({
+					tasks: tasks.filter(task => (task.repository !== undefined) === (url.searchParams.get('with_repo') === 'true')
+						&& !!task.archived_at === archived),
+				}, 200, { date, link: `<?page=${Number(url.searchParams.get('page')) + 1}>; rel="next"` });
+			},
+		});
+		const partitions = () => requestedUrls.map(url => new URL(url)).filter(url => url.pathname === '/agents/tasks')
+			.map(url => [url.searchParams.get('with_repo'), url.searchParams.get('is_archived'), url.searchParams.get('page')]);
+		const active = await service.listSessions(CancellationToken.None, { includeArchived: false });
+		const activeRequests = partitions();
+		requestedUrls.length = 0;
+		const expanded = await service.listSessions(CancellationToken.None, { incremental: true, includeArchived: true });
+		assert.deepStrictEqual({
+			kinds: [active.kind, expanded.kind],
+			activeRequests,
+			expandedRequests: partitions(),
+			expandedDetails: requestedUrls.map(url => new URL(url).pathname).filter(path => path.startsWith('/agents/tasks/')),
+		}, {
+			kinds: ['scoped', 'complete'],
+			activeRequests: [true, false].flatMap(withRepository => [1, 2, 3].map(page => [String(withRepository), 'false', String(page)])),
+			expandedRequests: [false, true].flatMap(archived => [true, false].flatMap(withRepository =>
+				[1, 2, 3].map(page => [String(withRepository), String(archived), String(page)]))),
+			expandedDetails: ['/agents/tasks/archived-repo', '/agents/tasks/archived-no-repo'],
+		});
+	});
+
+	test('active-only window eviction is not confirmed deletion and targeted archive reads still work', async () => {
+		const original = task('changed', 'Changed', undefined, 'session', 'environment');
+		const tasks: ITestTask[] = [original];
+		const { service, requestedUrls } = createService(store, { tasks, repositories: new Map() });
+		await service.listSessions(CancellationToken.None);
+		tasks[0] = { ...original, archived_at: '2026-10-01T00:00:00Z' };
+		requestedUrls.length = 0;
+		const collapsed = await service.listSessions(CancellationToken.None, { includeArchived: false });
+		const collapsedDetails = requestedUrls.filter(url => new URL(url).pathname.startsWith('/agents/tasks/'));
+		requestedUrls.length = 0;
+		const opened = await service.listSessions(CancellationToken.None, { includeArchived: false, taskIds: ['changed'] });
+		assert.deepStrictEqual({
+			collapsed, collapsedDetails,
+			opened: opened.kind === 'failed' ? [] : opened.sessions.map(session => ({ taskId: session.taskId, archived: session.isArchived })),
+			openedRequests: requestedUrls.map(url => new URL(url).pathname),
+		}, {
+			collapsed: { kind: 'scoped', sessions: [], removedTaskIds: [] }, collapsedDetails: [],
+			opened: [{ taskId: 'changed', archived: true }], openedRequests: ['/agents/tasks/changed'],
+		});
+	});
+
+	test('active-only startup reads neither archived inventory nor archived task details', async () => {
+		const { service, requestedUrls } = createService(store, {
+			tasks: [
+				task('active', 'Active', undefined, 'active-session', 'environment'),
+				{ ...task('archived', 'Archived', undefined, 'archived-session', 'environment'), archived_at: '2026-10-01T00:00:00Z' },
+			],
+			repositories: new Map(),
+		});
+		const result = await service.listSessions(CancellationToken.None, { includeArchived: false });
+		assert.deepStrictEqual({
+			kind: result.kind,
+			sessions: result.kind === 'failed' ? [] : result.sessions.map(session => session.taskId),
+			lists: requestedUrls.filter(url => new URL(url).pathname === '/agents/tasks').map(url => new URL(url).searchParams.get('is_archived')),
+			details: requestedUrls.filter(url => new URL(url).pathname.startsWith('/agents/tasks/')).map(url => new URL(url).pathname),
+		}, { kind: 'scoped', sessions: ['active'], lists: ['false', 'false'], details: ['/agents/tasks/active'] });
+	});
+
+	test('first archived discovery does not reuse an active-only checkpoint and later active refreshes retain its cache', async () => {
+		const archived = {
+			...task('archived', 'Archived', undefined, 'archived-session', 'environment'),
+			archived_at: '2026-09-01T00:00:00Z', updated_at: '2026-09-01T00:00:00Z',
+		};
+		const { service, requestedUrls } = createService(store, {
+			tasks: [archived], repositories: new Map(),
+			discoveryDate: () => '2026-10-01T00:00:00Z',
+		});
+		await service.listSessions(CancellationToken.None, { includeArchived: false });
+		requestedUrls.length = 0;
+		const expanded = await service.listSessions(CancellationToken.None, { incremental: true, includeArchived: true });
+		const expansionLists = requestedUrls.filter(url => new URL(url).pathname === '/agents/tasks').map(url => ({
+			archived: new URL(url).searchParams.get('is_archived'), since: new URL(url).searchParams.get('since'),
+		}));
+		requestedUrls.length = 0;
+		const collapsed = await service.listSessions(CancellationToken.None, { includeArchived: false });
+		const readsWhileCollapsed = [...requestedUrls];
+		requestedUrls.length = 0;
+		const reopened = await service.listSessions(CancellationToken.None, { includeArchived: true });
+		assert.deepStrictEqual({
+			expansion: expanded.kind === 'failed' ? [] : expanded.sessions.map(session => session.taskId),
+			expansionLists, collapsed,
+			readsWhileCollapsed: readsWhileCollapsed.map(url => new URL(url).searchParams.get('is_archived')),
+			reopened: reopened.kind === 'failed' ? [] : reopened.sessions.map(session => session.taskId),
+			reopenedDetails: requestedUrls.filter(url => new URL(url).pathname === '/agents/tasks/archived').length,
+		}, {
+			expansion: ['archived'],
+			expansionLists: ['false', 'false', 'true', 'true'].map(archived => ({ archived, since: null })),
+			collapsed: { kind: 'scoped', sessions: [], removedTaskIds: [] }, readsWhileCollapsed: ['false', 'false'],
+			reopened: ['archived'], reopenedDetails: 0,
+		});
+	});
+
+	test('known archived tasks remain targetable without archived inventory demand', async () => {
+		const { service, requestedUrls } = createService(store, {
+			tasks: [{ ...task('archived', 'Archived', undefined, 'session', 'environment'), archived_at: '2026-10-01T00:00:00Z' }],
+			repositories: new Map(),
+		});
+		const result = await service.listSessions(CancellationToken.None, { includeArchived: false, taskIds: ['archived'] });
+		assert.deepStrictEqual({
+			archived: result.kind === 'failed' ? [] : result.sessions.map(session => session.isArchived),
+			urls: requestedUrls.map(url => new URL(url).pathname),
+		}, { archived: [true], urls: ['/agents/tasks/archived'] });
 	});
 });
 

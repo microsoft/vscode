@@ -52,6 +52,7 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatSessionItemArchiveState } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatEntitlementService, IChatSentiment } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
@@ -432,6 +433,7 @@ function getArchiveWordingCommands(wording: ChatSessionArchiveActionWording): Re
 
 /** A live sessions catalog: renames, archiving, and read state update the rendered sessions. */
 class FixtureSessionsManagementService extends mock<ISessionsManagementService>() {
+	override readonly archivedSessionItems = constObservable<IChatSessionItemArchiveState>({ available: false, state: 'loaded' });
 	private readonly store = new DisposableStore();
 	private readonly changeEmitter = this.store.add(new Emitter<ISessionsChangeEvent>());
 	private readonly archiveEmitter = this.store.add(new Emitter<ISession>());

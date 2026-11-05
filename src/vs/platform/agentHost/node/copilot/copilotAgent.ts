@@ -103,7 +103,7 @@ import { IAgentHostSessionTitleSignal } from '../agentHostSessionTitleSignal.js'
 import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { IByokLmProxyService } from './byokLmProxyService.js';
 import { detachedWorktreeRecordUri, IAgentHostWorktreeIsolation, type IAgentHostWorktreeResumeService, SessionWorkingDirectoryMissingError } from '../shared/worktreeIsolation.js';
-import { buildSessionEventLogFromTurns, IMPORTED_TURN_DURATIONS_DB_KEY, serializeImportedTurnDurations } from './buildSessionEvents.js';
+import { buildSessionEventLogFromTurns, IMPORTED_TOOL_CALLS_DB_KEY, IMPORTED_TURN_DURATIONS_DB_KEY, serializeImportedToolCalls, serializeImportedTurnDurations } from './buildSessionEvents.js';
 import { CopilotAgentSession, type ICopilotCanvasHandoff, type ICopilotWorkingDirectoryChangeTransaction } from './copilotAgentSession.js';
 import { CopilotSandboxCertificate } from './copilotSandboxCertificate.js';
 import { readCopilotSessionMetadataEvents, toCopilotSessionMetadataEvent } from './copilotSessionMetadataEvents.js';
@@ -6380,7 +6380,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const usages = importConfig.turns.filter(turn => isUUID(turn.id) && hasReportedUsage(turn.usage));
 			// The event log's timestamps are synthesized, so record the real durations for the replay.
 			const durations = serializeImportedTurnDurations(importConfig.turns);
-			if (responses.length || usages.length || durations) {
+			// A replay regenerates tool-call messages and confirmations, so record the originals.
+			const toolCalls = serializeImportedToolCalls(importConfig.turns);
+			if (responses.length || usages.length || durations || toolCalls) {
 				const reference = this._sessionDataService.openDatabase(this._resolveChatStorageScope(chat));
 				try {
 					for (const response of responses) {
@@ -6391,6 +6393,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 					}
 					if (durations) {
 						await reference.object.setMetadata(IMPORTED_TURN_DURATIONS_DB_KEY, durations);
+					}
+					if (toolCalls) {
+						await reference.object.setMetadata(IMPORTED_TOOL_CALLS_DB_KEY, toolCalls);
 					}
 				} finally {
 					reference.dispose();

@@ -79,7 +79,8 @@ import { ICloudSandboxTelemetryService } from '../../../browser/remoteAgentHost/
 import { IChatWidget, IChatWidgetService, IChatWidgetViewModelChangeEvent } from '../../../browser/chat.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
-import { ChatSessionRefreshReason, ChatSessionStatus, IChatSessionContentProvider, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, IChatSessionsExtensionPoint, ReadonlyChatSessionOptionsMap, ResolvedChatSessionsExtensionPoint, SessionType } from '../../../common/chatSessionsService.js';
+import { ChatSessionRefreshReason, ChatSessionStatus, IChatSessionContentProvider, IChatSessionItemArchiveProvider, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, IChatSessionsExtensionPoint, ReadonlyChatSessionOptionsMap, ResolvedChatSessionsExtensionPoint, SessionType } from '../../../common/chatSessionsService.js';
+import { MockChatSessionsService } from '../../common/mockChatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { IChatModel, IChatRequestModel, IChatRequestVariableData, IChatResponseModel } from '../../../common/model/chatModel.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../../common/participants/chatAgents.js';
@@ -264,6 +265,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	const discoveryModes: boolean[] = [];
 	const discoveryTriggers: ICloudSandboxDiscoveryOptions['trigger'][] = [];
 	const repoLessDiscovery: boolean[] = [];
+	let archiveProvider: IChatSessionItemArchiveProvider | undefined;
 	const errorNotifications: NotificationMessage[] = [];
 	instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
 		override error(message: NotificationMessage): void { errorNotifications.push(message); }
@@ -322,7 +324,11 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 			state.hostSessions = state.hostSessions.filter(entry => entry.session.toString() !== session.toString());
 		}
 	}();
-	const chatSessionsService = options?.chatSessionsService ?? new class extends mock<IChatSessionsService>() {
+	const chatSessionsService = options?.chatSessionsService ?? new class extends MockChatSessionsService {
+		override registerChatSessionItemArchiveProvider(provider: IChatSessionItemArchiveProvider) {
+			archiveProvider = provider;
+			return toDisposable(() => { archiveProvider = undefined; });
+		}
 		override readonly onDidChangeSessionOptions = sessionOptionsChanged.event;
 		override readonly onDidChangeItemsProviders = Event.None;
 		override readonly onDidChangeAvailability = Event.None;
@@ -420,7 +426,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 			discoveryTriggers.push(discoveryOptions?.trigger);
 			repoLessDiscovery.push(discoveryOptions?.includeRepositoryless !== false);
 			const result = options?.listSessions ? await options.listSessions(discoveryOptions) : state.result;
-			return result.kind === 'complete' ? { ...result, includeRepositoryless: discoveryOptions?.includeRepositoryless } : result;
+			return result.kind === 'complete' || result.kind === 'scoped' ? { ...result, includeRepositoryless: discoveryOptions?.includeRepositoryless } : result;
 		}
 		override async createSession(request: ICloudSandboxCreateSessionRequest, token: CancellationToken, onRequest?: () => void): Promise<ICloudSandboxCreatedSession> {
 			calls.created++;
@@ -661,6 +667,11 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 		refresh: async (reason: ChatSessionRefreshReason = 'manual') => {
 			await contribution.refresh(CancellationToken.None, reason);
 			await Promise.all(initialRefreshes);
+		},
+		requestArchives: async () => {
+			assert.ok(archiveProvider);
+			archiveProvider.setRequested(true);
+			await contribution.refresh(CancellationToken.None, 'automatic');
 		},
 		items: () => [...controllers.values()].flatMap(controller => controller.items),
 		/**
@@ -2510,7 +2521,7 @@ suite('Editor cloud sandbox discovery', () => {
 		});
 	});
 
-	test('a repo-only full result retains repo-less offline history but reconciles repo-backed entries', async () => {
+	test('an active repo-only result retains repo-less offline history but reconciles repo-backed entries', async () => {
 		const storageService = store.add(new InMemoryStorageService());
 		const first = createHarness(store, { workspaceFolders: [], storageService });
 		const repoLess = { ...discovered, environmentId: 'repo-less-env', sessionId: 'repo-less-session', taskId: 'repo-less-task', repoName: undefined };
@@ -2518,8 +2529,9 @@ suite('Editor cloud sandbox discovery', () => {
 		await first.refresh();
 		first.contribution.dispose();
 		const restored = createHarness(store, {
-			storageService, listSessions: async () => ({ kind: 'complete', sessions: [] }),
+			storageService, listSessions: async () => ({ kind: 'scoped', sessions: [], removedTaskIds: [] }),
 		});
+
 		await restored.refresh();
 		const retained = [...restored.controllers.keys()].filter(type => type !== CLOUD_SANDBOX_SESSION_TYPE);
 		assert.deepStrictEqual({
@@ -2528,6 +2540,24 @@ suite('Editor cloud sandbox discovery', () => {
 			retained: [remoteAgentHostSessionTypeId(agentHostAuthority(cloudSandboxAddress(repoLess.environmentId)), CLOUD_SANDBOX_AGENT_PROVIDER)],
 			removed: [address], cleared: [discovered.taskId],
 		});
+	});
+
+	test('Editor archive expansion stays repo-only while initial discovery remains active-only', async () => {
+		const requests: ICloudSandboxDiscoveryOptions[] = [];
+		const h = createHarness(store, {
+			listSessions: async options => {
+				assert.ok(options);
+				requests.push(options);
+				return options.includeArchived
+					? { kind: 'complete', sessions: [discovered] }
+					: { kind: 'scoped', sessions: [discovered], removedTaskIds: [] };
+			},
+		});
+		await h.refresh();
+		await h.requestArchives();
+		assert.deepStrictEqual(requests.map(options => [options.includeArchived, options.includeRepositoryless]), [
+			[false, false], [true, false],
+		]);
 	});
 
 	test('entering a workspace during discovery queues a repo-only scan', async () => {

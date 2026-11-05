@@ -234,6 +234,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	private readonly _discoveredTasks = new Map<string, ICachedSandboxTask>();
 	private readonly _activeDiscoveryReads = new Set<Map<string, ICachedSandboxTask | undefined>>();
 	private readonly _discoverySince = new Map<boolean, string>();
+	private readonly _archivedDiscoverySince = new Map<boolean, string>();
 	private _discoveryGeneration = 0;
 	private _accountGeneration = 0;
 	private _historyRequestId = 0;
@@ -486,6 +487,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		const generation = ++this._accountGeneration;
 		this._discoveryGeneration++;
 		this._discoverySince.clear();
+		this._archivedDiscoverySince.clear();
 		this._discoveredTasks.clear();
 		this._repositoryNames.clear();
 		try {
@@ -612,9 +614,14 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		const targeted = options?.taskIds !== undefined;
 		const includeRepositoryless = targeted || options?.includeRepositoryless !== false;
 		const previousSince = this._discoverySince.get(includeRepositoryless);
-		const since = !targeted && options?.incremental ? previousSince : undefined;
+		const includeArchived = options?.includeArchived !== false;
+		const archivedSince = this._archivedDiscoverySince.get(includeRepositoryless);
+		const checkpointSince = includeArchived
+			? previousSince && archivedSince && (previousSince < archivedSince ? previousSince : archivedSince)
+			: previousSince;
+		const since = !targeted && options?.incremental ? checkpointSince : undefined;
 		telemetry.mode = targeted ? 'targeted' : since ? 'incremental' : 'full';
-		const matchesPopulation = (task: IScannedTask) => includeRepositoryless || task.hasRepository;
+		const matchesPopulation = (task: IScannedTask) => (includeRepositoryless || task.hasRepository) && (includeArchived || !task.archived_at);
 		const tasks = new Map<string, IScannedTask>();
 		const details = new Map<string, ITaskDetail>();
 		const cache = new Map(this._discoveredTasks);
@@ -675,7 +682,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		}
 		const partitions = [
 			{ withRepository: true, archived: false }, { withRepository: false, archived: false },
-			{ withRepository: true, archived: true }, { withRepository: false, archived: true },
+			...(includeArchived ? [{ withRepository: true, archived: true }, { withRepository: false, archived: true }] : []),
 		].filter(partition => includeRepositoryless || partition.withRepository);
 		for (const { withRepository, archived } of targeted ? [] : partitions) {
 			const query: Record<string, string> = {
@@ -892,6 +899,9 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 				const nextSince = new Date(nextCheckpoint - DISCOVERY_OVERLAP_MS).toISOString();
 				telemetry.checkpointAdvanced = previousSince === undefined || Date.parse(nextSince) > Date.parse(previousSince);
 				this._discoverySince.set(includeRepositoryless, nextSince);
+				if (includeArchived) {
+					this._archivedDiscoverySince.set(includeRepositoryless, nextSince);
+				}
 			}
 			if (!since) {
 				for (const [id, cached] of cache) {
@@ -941,7 +951,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			if (cached) {
 				this._discoveredTasks.set(id, cached);
 			} else {
-				if (this._discoveredTasks.delete(id) && !hasUnreadPages) {
+				if (this._discoveredTasks.delete(id) && !hasUnreadPages && includeArchived) {
 					removed.add(id);
 				}
 			}
@@ -971,7 +981,9 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		}
 		return targeted || since
 			? { kind: 'incremental', sessions, removedTaskIds: [...removed] }
-			: { kind: 'complete', sessions, ...(!includeRepositoryless ? { includeRepositoryless } : {}), ...(removed.size ? { removedTaskIds: [...removed] } : {}) };
+			: includeArchived
+				? { kind: 'complete', sessions, ...(!includeRepositoryless ? { includeRepositoryless } : {}), ...(removed.size ? { removedTaskIds: [...removed] } : {}) }
+				: { kind: 'scoped', sessions, ...(!includeRepositoryless ? { includeRepositoryless } : {}), removedTaskIds: [...removed] };
 	}
 
 	async reserveSession(request: ICloudSandboxReserveSessionRequest, token: CancellationToken): Promise<ICloudSandboxReservedSession> {

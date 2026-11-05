@@ -127,6 +127,7 @@ import { computePullRequestIcon, GitHubPullRequestState } from '../../../github/
 import { mapProtocolStatus } from './agentHostDiffs.js';
 import { createActiveSessionSubscriptionObs, createChangesets, createChatChangesets, type IAgentHostCurrentTurnChanges } from './agentHostSessionChangesets.js';
 import { createSessionOutputObs, ISessionOutputObs } from './agentHostSessionFiles.js';
+import { AgentHostSessionSandbox } from './agentHostSessionSandbox.js';
 import { getAgentHostSessionPermissionConfig, getAgentHostSessionPermissionId, getAgentHostSessionPermissionOptions } from './agentHostSessionPermissions.js';
 
 const STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES = 'sessions.agentHost.sessionConfigPicker.selectedValues';
@@ -6326,6 +6327,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			mode: typeof mode === 'string' ? mode : undefined,
 			permissionLevel: typeof permissionLevel === 'string' ? permissionLevel : undefined,
 		};
+	}
+
+	getSandboxToggleChecked(session: ISession, chat: URI): IObservable<boolean> {
+		if (session.sessionType !== CopilotCLISessionType.id) {
+			return constObservable(false);
+		}
+		return this._instantiationService.createInstance(AgentHostSessionSandbox, session, chat, this).checked;
 	}
 
 	getSessionSandboxPolicy(sessionId: string): ISessionSandboxPolicy | undefined {

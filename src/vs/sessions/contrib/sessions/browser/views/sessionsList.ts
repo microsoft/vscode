@@ -4521,6 +4521,7 @@ function resettableValue<T>(read: () => T, write: (value: T) => void, defaultVal
 }
 
 export class SessionsList extends Disposable implements ISessionsList {
+	private readonly archiveDemand = this._register(new MutableDisposable());
 
 	private static readonly SECTION_COLLAPSE_STATE_KEY = 'sessionsListControl.sectionCollapseState';
 	private static readonly SESSION_COLLAPSE_STATE_KEY = 'sessionsListControl.sessionCollapseState';
@@ -5383,6 +5384,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 				if (this.persistsCollapseState()) {
 					this.saveSectionCollapseState(element.collapseStateId ?? element.id, e.node.collapsed);
 				}
+				if (element.id === 'archived') {
+					this.updateArchiveDemand();
+				}
 			} else if (element && isSessionItem(element)) {
 				this.syncCollapsedSessionIds();
 				if (this.persistsCollapseState()) {
@@ -5484,6 +5488,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 		}));
 		this._register(this.filters.onDidChange(() => this.update()));
+		const archivesAvailable = derived(this, reader => this._sessionsManagementService.archivedSessionItems.read(reader).available);
+		this._register(autorun(reader => {
+			archivesAvailable.read(reader);
+			this.scheduleListUpdate();
+		}));
 
 		// Re-render when the session the main window shows changes: chat windows, which are other windows, do not select theirs.
 		this._register(autorun(reader => {
@@ -5676,7 +5685,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// are listed in the Done section as rows of their own instead of under
 		// their session's row.
 		const standaloneDoneChats = this._excludeArchived ? [] : filtered.flatMap(session => getSessionDoneListChats(session).map(chat => ({ session, chat })));
-		if (standaloneDoneChats.length > 0 && !sections.some(s => s.id === 'archived')) {
+		if ((standaloneDoneChats.length > 0 || !this._excludeArchived && this._sessionsManagementService.archivedSessionItems.get().available) && !sections.some(s => s.id === 'archived')) {
 			sections.push({ id: 'archived', label: archivedSectionLabel, sessions: [] });
 		}
 		const comparisonGroupsBySectionId = new Map<string, ISessionGroup[]>();
@@ -6216,6 +6225,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// Match sessions again: their text may have changed since the last update.
 		this.searchFilter.invalidate();
 		this.tree.setChildren(null, children);
+		this.updateArchiveDemand();
 		this.nestedSessionResources = nextNestedSessionResources;
 		this.syncCollapsedSessionIds();
 		this.reconcileChatRowHeights();
@@ -6659,8 +6669,20 @@ export class SessionsList extends Disposable implements ISessionsList {
 			return;
 		}
 		this.visible = visible;
+		this.updateArchiveDemand();
 		if (this.visible) {
 			this.refresh();
+		}
+	}
+
+	private updateArchiveDemand(): void {
+		const section = this.tree.getNode().children.find(node => node.element && isSessionSection(node.element) && node.element.id === 'archived');
+		const requested = this.visible && !this._excludeArchived && section && !section.collapsed
+			&& this._sessionsManagementService.archivedSessionItems.get().available;
+		if (requested && !this.archiveDemand.value) {
+			this.archiveDemand.value = this._sessionsManagementService.acquireArchivedSessionItems();
+		} else if (!requested) {
+			this.archiveDemand.clear();
 		}
 	}
 

@@ -59,6 +59,8 @@ The model-orchestration service:
 
 It does not own active or visible session state, focus, or layout.
 
+Archived inventory discovery is an optional `IChatSessionsService` capability, registered independently of per-environment controllers so it remains reachable before any archived session is known. Management exposes its observable state and disposable demand to Sessions surfaces. Providers without the capability keep their existing discovery behavior; opening a known session does not depend on archive-list demand.
+
 ### `ISessionsService`
 
 The view service:
@@ -101,6 +103,8 @@ Providers also supply independent harness and environment identifiers, plus obse
 ### Observable state
 
 `ISession` and `IChat` are stable facades. Mutable state is exposed through `IObservable`, including status, title, workspace, chats, model, changes, archive state, and capabilities.
+
+Providers that expose a terminal sandbox toggle can publish its checked state for an individual chat. Composers observe the owning provider for their scoped session and chat; they do not infer sandboxing from workbench settings.
 
 Consumers derive state from those observables. Provider events announce catalog membership changes; they are not a parallel state store.
 

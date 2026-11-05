@@ -813,6 +813,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 			this.clearSelectedItem('tabChanged');
 			this.selectedTab.set(tabValues[next], undefined);
 			tabButtons[next].focus();
+			tabButtons[next].element.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 		}));
 		const search = this._register(new InputBox(toolbar, undefined, {
 			inputBoxStyles: defaultInputBoxStyles,
@@ -1411,26 +1412,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		if (item.title !== sessionTitle) {
 			titleGroup.appendChild($('.inbox-notifications-item-title', undefined, item.title));
 		}
-		const primaryActions = item.actions.filter(action =>
-			action.kind !== InboxNotificationActionKind.OpenSession
-			&& action.kind !== InboxNotificationActionKind.MarkDone
-			&& action.kind !== InboxNotificationActionKind.Dismiss
-			&& !isInboxPullRequestActionKind(action.kind));
-		const headerActions: IInboxNotificationAction[] = [];
-		let footerActions: HTMLElement | undefined;
-		if (primaryActions.length || headerActions.length) {
-			const actionContainer = item.kind === InboxNotificationKind.PullRequestMerged
-				? footerActions = $('.inbox-notifications-item-actions.inbox-notifications-item-footer-actions')
-				: heading.appendChild($('.inbox-notifications-item-actions.inbox-notifications-item-header-actions'));
-			for (const action of [...primaryActions, ...headerActions]) {
-				const button = this.renderActionButton(actionContainer, item, action, store);
-				if (action.kind === InboxNotificationActionKind.MarkDone) {
-					button.element.classList.add('inbox-notifications-item-action-done');
-				}
-			}
-		}
-
-		if (!titleGroup.childElementCount && !primaryActions.length) {
+		if (!titleGroup.childElementCount) {
 			heading.remove();
 		}
 		const badges = card.appendChild($('.inbox-notifications-item-badges'));
@@ -1497,7 +1479,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		descriptionEl.hidden = !descriptionEl.textContent;
 		card.setAttribute('aria-label', this.getCardAriaLabel(item, descriptionEl.textContent));
 		this.renderNeedsInputPart(card, item, store);
-		const hasContent = !!(titleGroup.childElementCount || primaryActions.length || item.repositoryLabel
+		const hasContent = !!(titleGroup.childElementCount || item.repositoryLabel
 			|| item.pullRequestStates?.length || descriptionEl.textContent || item.needsInputPart);
 		card.hidden = !hasContent;
 		const session = item.sessionResource ? this.sessionsManagementService.getSession(item.sessionResource) : undefined;
@@ -1515,9 +1497,6 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 			}));
 		}
 
-		if (footerActions) {
-			card.appendChild(footerActions);
-		}
 		return card;
 	}
 
@@ -2738,6 +2717,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 			this.detailSash.state = sideBySide ? SashState.Enabled : SashState.Disabled;
 		}
 		this.listPaneElement.style.width = sideBySide ? `${this.clampListPaneWidth(this.listPaneWidth)}px` : '';
+		this.listPaneElement.classList.toggle('compact', this.listPaneElement.clientWidth < 560);
 		this.detailSash?.layout();
 		this.scrollableElement.scanDomNode();
 		this.detailScrollableElement.scanDomNode();
@@ -3047,6 +3027,15 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 			this.detailContentElement.setAttribute('aria-label', localize('inboxNotifications.detail.ariaLabel.item', "Notification details for {0}.", heading.textContent));
 		}));
 		const headerActions = header.appendChild($('.inbox-notifications-evidence-actions'));
+		for (const notification of row?.notifications ?? [item]) {
+			for (const action of notification.actions) {
+				if (action.kind !== InboxNotificationActionKind.OpenSession
+					&& action.kind !== InboxNotificationActionKind.MarkDone
+					&& action.kind !== InboxNotificationActionKind.Dismiss) {
+					this.renderActionButton(headerActions, notification, action, this.detailDisposables);
+				}
+			}
+		}
 		if (item.sessionResource) {
 			this.renderActionButton(headerActions, item, { id: 'open', label: localize('inbox.openSession', "Open Session"), kind: InboxNotificationActionKind.OpenSession }, this.detailDisposables);
 		}
@@ -3431,6 +3420,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 
 	layout(width: number, _height: number): void {
 		this.layoutWidth = width;
+		this.container?.classList.toggle('compact', width < 600);
 		if (!this.hasCustomListPaneWidth) {
 			this.listPaneWidth = this.getDefaultListPaneWidth();
 		}

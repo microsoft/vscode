@@ -35,6 +35,7 @@ import { IActiveSession, ICreateNewSessionOptions, ISendRequestOptions, ISession
 import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../services/sessions/common/session.js';
 import { IOpenNewSessionResult, ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { VisibleSession } from '../../../services/sessions/browser/visibleSessions.js';
 import { ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
 import { getNoWorkspaceDescription, getQuickChatProviderLabel, getRemoteQuickChatSelectedLabel } from './noWorkspaceChoice.js';
@@ -233,6 +234,7 @@ export class NewChatWidget extends Disposable {
 		@ILogService private readonly logService: ILogService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
+		@ISessionContext sessionContext: ISessionContext,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@ISessionsRecentWorkspacesService private readonly recentWorkspacesService: ISessionsRecentWorkspacesService,
 		@IAquariumService private readonly aquariumService: IAquariumService,
@@ -261,18 +263,10 @@ export class NewChatWidget extends Disposable {
 
 		this._restoreSessionOptionsExpanded();
 
-		// TODO: @sandy081 The session/chat should be passed down. There should not be sessionsService.activeSession read in the widget.
 		this._session = this._preserveCustomView ? derived(this, reader => {
 			const draft = this.sessionsManagementService.newSession.read(reader);
 			return draft ? reader.store.add(new VisibleSession(draft, draft.mainChat.read(reader))) : undefined;
-		}) : derivedObservableWithCache<IActiveSession | undefined>(this, (reader, prev) => {
-			const activeSession = this.sessionsService.activeSession.read(reader);
-			if (activeSession && activeSession.isCreated.read(reader)) {
-				return prev;
-			}
-
-			return activeSession;
-		});
+		}) : sessionContext.session;
 
 		// A quick chat is workspace-less; the composer hides the workspace picker
 		// (nothing to pick) and surfaces the session-type picker in the controls.

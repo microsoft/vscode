@@ -41,7 +41,7 @@ import { IEditorService } from '../../../../../../services/editor/common/editorS
 import { DEFAULT_EDITOR_ASSOCIATION } from '../../../../../../common/editor.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, isUserProvidedModel } from '../../../../common/languageModels.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
-import { getModelConfigDescription, getModelConfigProperty, getModelConfigSummary, IModelConfigurationAccess, MODEL_CONFIG_GROUP_EFFORT, ModelConfigChangeListener } from './modelPickerModelConfig.js';
+import { getModelConfigDescription, getModelConfigProperty, getModelConfigSummary, IModelConfigurationAccess, MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT, ModelConfigChangeListener } from './modelPickerModelConfig.js';
 import { IModelCardOptions, IPricingDisclosure, ModelCard } from './modelPickerCard.js';
 import { getPreferredSpeedVariant, IModelSpeedVariants } from './modelPickerVariants.js';
 import { getModelBadge, getOrganizationDefaultDescription, getOrganizationDefaultModel, organizationDefaultLabel } from './modelPickerBadges.js';
@@ -1327,8 +1327,12 @@ export class TabbedModelPicker extends Disposable {
 				: getModelConfigDescription(model, context.configurationAccess, useModelConfigurationSchema);
 		const defaultModel = this._getOrganizationDefaultForModel(model, context);
 		const defaultDescription = defaultModel && getOrganizationDefaultDescription(defaultModel.metadata.name);
-		// Auto opens its tiers like any model's details; HydraFusion only when it has tiers of its own.
-		const hasDetails = !isHydraFusionModel(model) || !!ownTierLabel;
+		// Auto opens its tiers like any model's details; HydraFusion only when it has tiers of its own, and
+		// Copilot Fusion only when it offers something to configure, which it does not in inline chat.
+		const fusionWithoutConfiguration = !!model.metadata.autoModelFusion
+			&& !getModelConfigProperty(model, context.configurationAccess, MODEL_CONFIG_GROUP_EFFORT, useModelConfigurationSchema)
+			&& !getModelConfigProperty(model, context.configurationAccess, MODEL_CONFIG_GROUP_CONTEXT, useModelConfigurationSchema);
+		const hasDetails = (!isHydraFusionModel(model) || !!ownTierLabel) && !fusionWithoutConfiguration;
 		return {
 			item: {
 				...action,

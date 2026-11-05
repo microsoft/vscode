@@ -8,7 +8,7 @@ import { cancelOnDispose, CancellationToken, CancellationTokenSource } from '../
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable } from '../../../../../base/common/observable.js';
+import { IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { equalsIgnoreCase } from '../../../../../base/common/strings.js';
 import { isObject } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -50,7 +50,7 @@ import { IProgress } from '../../../../../platform/progress/common/progress.js';
 import { IStorageEntry, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
-import { ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSessionContentProvider, IChatSessionsService, SessionType } from '../../common/chatSessionsService.js';
+import { ChatSessionArchiveDiscoveryState, ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSessionContentProvider, IChatSessionsService, SessionType } from '../../common/chatSessionsService.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { CloudSandboxSessionHandler } from './cloudSandboxSessionHandler.js';
@@ -202,6 +202,12 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 	private _accountKey: string | undefined;
 	private readonly _deletedTaskIds = new Set<string>();
 	private readonly _sessionFeed = this._register(new MutableDisposable<CloudSandboxSessionFeed>());
+	private readonly _archiveRegistration = this._register(new MutableDisposable());
+	private readonly _archiveState = observableValue<ChatSessionArchiveDiscoveryState>(this, 'idle');
+	private _archivesRequested = false;
+	private _archivesLoaded = false;
+	private _discoveryIncludesArchived = false;
+	private _sessionMutationVersion = 0;
 	private readonly _discoveryPoll = this._register(new RunOnceScheduler(() => {
 		void this._refreshIfStale();
 		this._discoveryPoll.schedule(this._nextPollDelay());
@@ -223,6 +229,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
 		super();
+		this._updateArchiveRegistration();
 
 		// Supply the generic remote-agent-host contribution with the sandbox host's per-connection
 		// deviations (sealed-token auth + `ahp-session` backend scheme) without leaking sandbox
@@ -347,7 +354,8 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			return this._refreshTasks(taskIds);
 		}
 		if (this._discoveryInFlight) {
-			if (!retry && this._discoveryToken === this._enabledCts.token && (incremental || !this._discoveryIncremental)) {
+			if (!retry && this._discoveryToken === this._enabledCts.token && (incremental || !this._discoveryIncremental)
+				&& (!this._archivesRequested || this._discoveryIncludesArchived)) {
 				return this._discoveryQueued ?? this._discoveryInFlight;
 			}
 			if (!this._queuedDiscoveryRequest || !incremental) {
@@ -366,6 +374,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		this._discoveryIncremental = incremental && this._lastFullDiscovery !== undefined
 			&& now - this._lastFullDiscovery < FULL_DISCOVERY_INTERVAL_MS;
 		this._discoveryToken = this._enabledCts.token;
+		this._discoveryIncludesArchived = this._archivesRequested;
 		this._discoveryInFlight = this._doDiscoverAndSeed(this._discoveryToken, this._discoveryIncremental, trigger, taskIds).finally(() => {
 			this._discoveryInFlight = undefined;
 			this._discoveryToken = undefined;
@@ -432,6 +441,8 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 
 	private async _doDiscoverAndSeed(token: CancellationToken, incremental: boolean, trigger: CloudSandboxDiscoveryTrigger, taskIds?: readonly string[]): Promise<void> {
 		let result: ICloudSandboxDiscoveryResult;
+		// Keep the scope fixed across authentication so it matches the in-flight coalescing flag.
+		const includeArchived = this._archivesRequested;
 		try {
 			const accountKey = await this._apiService.getAccountKey();
 			if (token.isCancellationRequested || !this._isEnabled()) {
@@ -448,6 +459,9 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 				taskIds = undefined;
 				this._lastDiscoveryAttempt = Date.now();
 			}
+			if (includeArchived && !taskIds && !this._archivesLoaded) {
+				this._archiveState.set('loading', undefined);
+			}
 			if (!accountKey) {
 				throw new CloudSandboxAuthenticationRequiredError();
 			}
@@ -462,8 +476,9 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			if (!this._discoveryPoll.isScheduled()) {
 				this._discoveryPoll.schedule(this._nextPollDelay());
 			}
+			const mutationVersion = this._sessionMutationVersion;
 			const includeRepositoryless = taskIds !== undefined || this._includeRepositorylessSessions();
-			result = await this._apiService.listSessions(token, { incremental, trigger, ...(taskIds ? { taskIds } : {}), ...(!includeRepositoryless ? { includeRepositoryless } : {}) });
+			result = await this._apiService.listSessions(token, { incremental, includeArchived, trigger, ...(taskIds ? { taskIds } : {}), ...(!includeRepositoryless ? { includeRepositoryless } : {}) });
 			const retryTaskIds = taskIds && (result.kind === 'failed' ? taskIds : result.kind === 'partial' ? result.failedTaskIds : undefined);
 			if (retryTaskIds?.length && !token.isCancellationRequested && this._isEnabled()
 				&& this._configurationService.getValue<boolean>(CloudSandboxSessionFeedEnabledSettingId) === true) {
@@ -479,6 +494,9 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 					};
 				}
 			}
+			if (mutationVersion !== this._sessionMutationVersion) {
+				result = { kind: 'failed', reason: 'Sandbox discovery was invalidated by a session mutation' };
+			}
 		} catch (error) {
 			if (token.isCancellationRequested || isCancellationError(error) || !this._isEnabled()) {
 				return;
@@ -488,6 +506,11 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		if (token.isCancellationRequested || !this._isEnabled()) {
 			return;
 		}
+		if (includeArchived && !taskIds) {
+			const succeeded = result.kind === 'complete' || result.kind === 'incremental';
+			this._archivesLoaded ||= succeeded;
+			this._archiveState.set(this._archivesLoaded ? 'loaded' : 'error', undefined);
+		}
 		this._discoveryRetryInterval = result.kind === 'failed' || result.kind === 'partial'
 			? Math.min(this._discoveryRetryInterval * 2, MAX_DISCOVERY_RETRY_INTERVAL_MS)
 			: DISCOVERY_POLL_INTERVAL_MS;
@@ -495,7 +518,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			this._logService.warn(`${LOG_PREFIX} Discovery failed: ${result.reason}`);
 			return;
 		}
-		if (result.kind === 'complete') {
+		if (result.kind === 'complete' || result.kind === 'scoped') {
 			this._lastFullDiscovery = Date.now();
 		}
 
@@ -514,7 +537,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		}
 
 		const removedTasks = new Set(result.removedTaskIds);
-		const authoritativeFor = (session: ICloudSandboxSessionEnvironment) => result.kind === 'complete'
+		const authoritativeFor = (session: ICloudSandboxSessionEnvironment) => (result.kind === 'complete' || result.kind === 'scoped' && !session.isArchived)
 			&& (result.includeRepositoryless !== false || session.hasRepository === true || session.repoName !== undefined);
 		for (const [address, sessions] of this._sessionEnvironments) {
 			if (this._provisioning.has(address)) {
@@ -721,6 +744,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		if (current?.taskId !== environment.taskId || current.sessionId !== rawId) {
 			throw new CancellationError();
 		}
+		this._sessionMutationVersion++;
 		this._updateSandboxSession(address, { ...current, name: title });
 		this._persistInventory();
 	}
@@ -748,6 +772,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		if (current?.taskId !== environment.taskId || current.sessionId !== rawId) {
 			throw new CancellationError();
 		}
+		this._sessionMutationVersion++;
 		this._updateSandboxSession(address, { ...current, isArchived: archived });
 		this._persistInventory();
 	}
@@ -777,6 +802,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 				if (source.token.isCancellationRequested) {
 					throw new CancellationError();
 				}
+				this._sessionMutationVersion++;
 				this._deletedTaskIds.add(target.taskId);
 				this._apiService.clearSessionHistory(target.taskId);
 				sessions?.delete(target.sessionId);
@@ -849,6 +875,8 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		this._enabledCts = new CancellationTokenSource();
 		this._lastDiscoveryAttempt = undefined;
 		this._lastFullDiscovery = undefined;
+		this._archivesLoaded = false;
+		this._archiveState.set('idle', undefined);
 		this._discoveryRetryInterval = DISCOVERY_POLL_INTERVAL_MS;
 		this._accountKey = undefined;
 		this._deletedTaskIds.clear();
@@ -1322,9 +1350,26 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 	}
 
 	private _updateEnablement(): void {
+		this._updateArchiveRegistration();
 		this._updateRegistration();
 		if (!this._isEnabled()) {
 			this._teardownAll();
+		}
+	}
+
+	private _updateArchiveRegistration(): void {
+		if (!this._isEnabled()) {
+			this._archiveRegistration.clear();
+		} else if (!this._archiveRegistration.value) {
+			this._archiveRegistration.value = this._chatSessionsService.registerChatSessionItemArchiveProvider({
+				state: this._archiveState,
+				setRequested: requested => {
+					this._archivesRequested = requested;
+					if (requested && (!this._archivesLoaded || this._archiveState.get() === 'error')) {
+						void this._discoverAndSeed();
+					}
+				},
+			});
 		}
 	}
 
