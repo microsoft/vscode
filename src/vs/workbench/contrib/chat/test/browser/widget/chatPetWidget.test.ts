@@ -111,7 +111,7 @@ suite('ChatPetWidget', () => {
 		}
 	}
 
-	function createHostTransitionHarness(motionReduced = false, initialTransition: IChatPetWidgetHost['transition'] = 'teleport', color?: ChatPetColor, intersectionObserverCtor?: typeof IntersectionObserver, setPlatformOccupation?: IChatPetWidgetHost['setPlatformOccupation'], supportsJumpGame = false, initializeService?: (service: ChatPetService) => void) {
+	function createHostTransitionHarness(motionReduced = false, initialTransition: IChatPetWidgetHost['transition'] = 'teleport', color?: ChatPetColor, intersectionObserverCtor?: typeof IntersectionObserver, setPlatformOccupation?: IChatPetWidgetHost['setPlatformOccupation'], supportsJumpGame = false, initializeService?: (service: ChatPetService) => void, initialModel?: IChatModel) {
 		const root = mainWindow.document.createElement('div');
 		root.style.cssText = 'position:fixed;left:0;top:0;width:800px;height:640px';
 		if (supportsJumpGame) {
@@ -152,7 +152,7 @@ suite('ChatPetWidget', () => {
 			onDidChangePlatform: platformChanged.event,
 			setPlatformOccupation,
 		});
-		const firstHost = createHost(firstParent, initialTransition);
+		const firstHost = { ...createHost(firstParent, initialTransition), model: constObservable(initialModel) };
 		const secondHost: IChatPetWidgetHost = {
 			...createHost(secondParent, 'fall'),
 			model: constObservable(new class extends mock<IChatModel>() {
@@ -2333,10 +2333,6 @@ suite('ChatPetWidget', () => {
 		button.style.left = '300px';
 		button.style.transform = 'rotate(45deg)';
 		assert.strictEqual(mini.style.left, position);
-		service.toggle();
-		assert.ok(overlay.querySelector('.chat-pet-subagent-layer.hidden'));
-		service.toggle();
-		assert.ok(overlay.querySelector('.chat-pet-subagent-layer:not(.hidden)'));
 		first.toolSpecificData = { kind: 'subagent', isActive: false };
 		responseChanged.fire({ reason: 'other' });
 		assert.strictEqual(overlay.querySelectorAll('.chat-pet-subagent').length, 1);
@@ -2357,6 +2353,107 @@ suite('ChatPetWidget', () => {
 		assert.strictEqual(overlay.querySelectorAll('.chat-pet-subagent').length, 0);
 		await timeout(900);
 		assert.strictEqual(overlay.querySelectorAll('.chat-pet-subagent-despawning').length, 0);
+	});
+
+	test('mini pets use restored geometry when the initial model already has a subagent', () => {
+		const tool = new ChatToolInvocation(undefined, { id: 'subagent', displayName: 'Subagent', modelDescription: 'Subagent', source: ToolDataSource.Internal }, 'subagent', undefined, {});
+		tool.toolSpecificData = { kind: 'subagent', isActive: true };
+		const model = createSubagentTestModel([tool]);
+		const { button, overlay } = createHostTransitionHarness(true, 'teleport', undefined, undefined, undefined, false, service => {
+			service.setScale(2);
+			service.setHorizontalPosition(0.8);
+		}, model);
+		const pet = overlay.querySelector<HTMLElement>('.chat-pet-subagent')!;
+		assert.strictEqual(Number.parseFloat(pet.style.getPropertyValue('--chat-pet-subagent-scale')), 1);
+		assert.ok(pet.offsetLeft < button.offsetLeft);
+	});
+
+	test('mini pets stop when disabled and return for active subagents when re-enabled', async () => {
+		const { widget, firstHost, overlay, service } = createHostTransitionHarness();
+		const changed = disposables.add(new Emitter<ChatResponseModelChangeReason>());
+		const parts: IChatProgressResponseContent[] = [];
+		widget.setHost({ ...firstHost, model: constObservable(createSubagentTestModel(parts, changed.event)) });
+		const tool = new ChatToolInvocation(undefined, { id: 'first', displayName: 'First', modelDescription: 'Subagent', source: ToolDataSource.Internal }, 'first', undefined, {});
+		tool.toolSpecificData = { kind: 'subagent', isActive: true };
+		parts.push(tool);
+		changed.fire({ reason: 'other' });
+		const first = overlay.querySelector<HTMLElement>('.chat-pet-subagent')!;
+		await whenSpriteLoaded(first.querySelector<HTMLImageElement>('img')!);
+		service.toggle();
+		assert.strictEqual(first.isConnected, false);
+		const second = new ChatToolInvocation(undefined, { id: 'second', displayName: 'Second', modelDescription: 'Subagent', source: ToolDataSource.Internal }, 'second', undefined, {});
+		second.toolSpecificData = { kind: 'subagent', isActive: true };
+		parts.push(second);
+		changed.fire({ reason: 'other' });
+		assert.strictEqual(overlay.querySelectorAll('.chat-pet-subagent').length, 0);
+		service.toggle();
+		assert.strictEqual(overlay.querySelectorAll('.chat-pet-subagent').length, 2);
+	});
+
+	test('mini pets avoid existing positions when the main pet moves between subagents', () => {
+		const { widget, firstHost, button, overlay } = createHostTransitionHarness(true);
+		const changed = disposables.add(new Emitter<ChatResponseModelChangeReason>());
+		const parts: IChatProgressResponseContent[] = [];
+		widget.setHost({ ...firstHost, model: constObservable(createSubagentTestModel(parts, changed.event)) });
+		const add = (id: string) => {
+			const tool = new ChatToolInvocation(undefined, { id, displayName: id, modelDescription: 'Subagent', source: ToolDataSource.Internal }, id, undefined, {});
+			tool.toolSpecificData = { kind: 'subagent', isActive: true };
+			parts.push(tool);
+			changed.fire({ reason: 'other' });
+		};
+		button.style.left = '300px';
+		add('first');
+		button.style.left = '324px';
+		add('second');
+		const [first, second] = overlay.querySelectorAll<HTMLElement>('.chat-pet-subagent');
+		assert.ok(second.offsetLeft + 24 <= first.offsetLeft || first.offsetLeft + 24 <= second.offsetLeft);
+	});
+
+	test('mini pets update appearance and motion settings while active', async () => {
+		const { widget, firstHost, button, overlay, service, setReducedMotion } = createHostTransitionHarness();
+		const tool = new ChatToolInvocation(undefined, { id: 'subagent', displayName: 'Subagent', modelDescription: 'Subagent', source: ToolDataSource.Internal }, 'subagent', undefined, {});
+		tool.toolSpecificData = { kind: 'subagent', isActive: true };
+		widget.setHost({ ...firstHost, model: constObservable(createSubagentTestModel([tool])) });
+		const pet = overlay.querySelector<HTMLElement>('.chat-pet-subagent')!;
+		pet.classList.remove('arriving');
+		const body = pet.querySelector<HTMLImageElement>('img')!;
+		await whenSpriteLoaded(body);
+		setReducedMotion(true);
+		await whenSpriteLoaded(body);
+		assert.ok(body.getAttribute('src')?.endsWith('-96.png'));
+		setReducedMotion(false);
+		await whenSpriteLoaded(body);
+		assert.ok(body.getAttribute('src')?.endsWith('.spritesheet.png'));
+		service.unlockAchievement(ChatPetAchievementIds.Blobby);
+		service.setColor('stable');
+		await whenSpriteLoaded(body);
+		assert.ok(body.getAttribute('src')?.includes('buddy-idle-stable'));
+		service.setColor('#12abcd');
+		assert.strictEqual(pet.querySelector<HTMLElement>('.chat-pet-eyes')!.style.color, button.querySelector<HTMLElement>('.chat-pet-eyes')!.style.color);
+		service.unlockAchievement(getChatPetAchievementForAccessory(ChatPetAccessoryIds.CowboyHat).id);
+		service.setAccessory(ChatPetAccessoryIds.CowboyHat);
+		const hat = pet.querySelectorAll<HTMLImageElement>('img')[1];
+		assert.ok(hat?.src.includes('/accessories/'));
+		service.setAccessory(undefined);
+		assert.strictEqual(pet.querySelectorAll('img').length, 1);
+	});
+
+	test('mini pets stop squishing when reduced motion is enabled during landing', async () => {
+		const { widget, firstHost, overlay, setReducedMotion } = createHostTransitionHarness();
+		const tool = new ChatToolInvocation(undefined, { id: 'subagent', displayName: 'Subagent', modelDescription: 'Subagent', source: ToolDataSource.Internal }, 'subagent', undefined, {});
+		tool.toolSpecificData = { kind: 'subagent', isActive: true };
+		widget.setHost({ ...firstHost, model: constObservable(createSubagentTestModel([tool])) });
+		const pet = overlay.querySelector<HTMLElement>('.chat-pet-subagent')!;
+		const image = pet.querySelector<HTMLImageElement>('img')!;
+		await whenSpriteLoaded(image);
+		pet.dispatchEvent(new mainWindow.AnimationEvent('animationend', { animationName: 'chat-pet-subagent-fall' }));
+		await whenSpriteLoaded(image);
+		assert.ok(image.getAttribute('src')?.includes('buddy-splat-'));
+		setReducedMotion(true);
+		await whenSpriteLoaded(image);
+		assert.ok(image.getAttribute('src')?.includes('buddy-idle-'));
+		assert.ok(image.getAttribute('src')?.endsWith('-96.png'));
+		assert.ok(pet.querySelector('.chat-pet-eyes.tracking'));
 	});
 
 	test('mini pets squish on landing and return to their own idle animation', async () => {
