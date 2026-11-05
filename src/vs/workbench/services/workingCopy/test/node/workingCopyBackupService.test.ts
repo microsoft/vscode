@@ -38,15 +38,15 @@ class TestBackupFileSystemProvider extends DiskFileSystemProvider {
 	opens = 0;
 	renames = 0;
 	bufferedWrites = false;
-	atomicWrites = true;
+	atomicRenames = true;
 
 	override get capabilities(): FileSystemProviderCapabilities {
 		let capabilities = super.capabilities;
 		if (this.bufferedWrites) {
 			capabilities &= ~FileSystemProviderCapabilities.FileReadWrite;
 		}
-		if (!this.atomicWrites) {
-			capabilities &= ~FileSystemProviderCapabilities.FileAtomicWrite;
+		if (!this.atomicRenames) {
+			capabilities &= ~FileSystemProviderCapabilities.FileAtomicRename;
 		}
 		return capabilities;
 	}
@@ -64,12 +64,12 @@ class TestBackupFileSystemProvider extends DiskFileSystemProvider {
 		return written;
 	}
 
-	override async rename(from: URI, to: URI, options: { overwrite: boolean }): Promise<void> {
+	override async renameFileAtomic(from: URI, to: URI, options: { overwrite: boolean }): Promise<void> {
 		this.renames++;
 		if (this.renameError) {
 			throw this.renameError;
 		}
-		return super.rename(from, to, options);
+		return super.renameFileAtomic(from, to, options);
 	}
 }
 
@@ -208,7 +208,7 @@ suite('Streamed working copy backups', () => {
 	});
 
 	test('providers without atomic support retain the existing write path', async () => {
-		provider.atomicWrites = false;
+		provider.atomicRenames = false;
 		const identifier = { resource: joinPath(root, 'document.txt'), typeId: '' };
 		await service.backup(identifier, bufferToReadable(VSBuffer.fromString('fallback')), 1);
 		const restored = await service.resolve(identifier);

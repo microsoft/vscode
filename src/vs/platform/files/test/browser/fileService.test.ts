@@ -25,20 +25,44 @@ class BufferedWriteFileSystemProvider extends InMemoryFileSystemProvider {
 	}
 }
 
+class AtomicRenameFileSystemProvider extends InMemoryFileSystemProvider {
+	override get capabilities(): FileSystemProviderCapabilities {
+		return super.capabilities | FileSystemProviderCapabilities.FileAtomicRename;
+	}
+
+	async renameFileAtomic(from: URI, to: URI, options: { overwrite: boolean }): Promise<void> {
+		return super.rename(from, to, options);
+	}
+}
+
 suite('File Service', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('atomic move', () => {
+		test('rejects providers without atomic rename support before changing either file', async () => {
+			const service = disposables.add(new FileService(new NullLogService()));
+			disposables.add(service.registerProvider('test', disposables.add(new InMemoryFileSystemProvider())));
+			const source = URI.parse('test:/source');
+			const target = URI.parse('test:/target');
+			await service.writeFile(source, VSBuffer.fromString('new'));
+			await service.writeFile(target, VSBuffer.fromString('old'));
+			await assert.rejects(service.move(source, target, true, { atomic: true }), /atomic rename/);
+			assert.deepStrictEqual([
+				(await service.readFile(source)).value.toString(),
+				(await service.readFile(target)).value.toString(),
+			], ['new', 'old']);
+		});
+
 		test('preserves the target on rename failure and supports retry', async () => {
 			const service = disposables.add(new FileService(new NullLogService()));
-			const provider = disposables.add(new class extends InMemoryFileSystemProvider {
+			const provider = disposables.add(new class extends AtomicRenameFileSystemProvider {
 				failRename = true;
-				override async rename(from: URI, to: URI, options: { overwrite: boolean }): Promise<void> {
+				override async renameFileAtomic(from: URI, to: URI, options: { overwrite: boolean }): Promise<void> {
 					if (this.failRename) {
 						throw new Error('rename failed');
 					}
-					return super.rename(from, to, options);
+					return super.renameFileAtomic(from, to, options);
 				}
 			}());
 			disposables.add(service.registerProvider('test', provider));
@@ -60,8 +84,8 @@ suite('File Service', () => {
 
 		test('rejects cross-provider moves without changing either file', async () => {
 			const service = disposables.add(new FileService(new NullLogService()));
-			disposables.add(service.registerProvider('test', disposables.add(new InMemoryFileSystemProvider())));
-			disposables.add(service.registerProvider('other', disposables.add(new InMemoryFileSystemProvider())));
+			disposables.add(service.registerProvider('test', disposables.add(new AtomicRenameFileSystemProvider())));
+			disposables.add(service.registerProvider('other', disposables.add(new AtomicRenameFileSystemProvider())));
 			const source = URI.parse('test:/source');
 			const target = URI.parse('other:/target');
 			await service.writeFile(source, VSBuffer.fromString('new'));
@@ -76,7 +100,7 @@ suite('File Service', () => {
 		for (const sourceDirectory of [true, false]) {
 			test(`rejects a ${sourceDirectory ? 'source' : 'target'} directory`, async () => {
 				const service = disposables.add(new FileService(new NullLogService()));
-				disposables.add(service.registerProvider('test', disposables.add(new InMemoryFileSystemProvider())));
+				disposables.add(service.registerProvider('test', disposables.add(new AtomicRenameFileSystemProvider())));
 				const source = URI.parse('test:/source');
 				const target = URI.parse('test:/target');
 				await service.createFolder(sourceDirectory ? source : target);
@@ -92,7 +116,7 @@ suite('File Service', () => {
 
 		test('still requires overwrite permission', async () => {
 			const service = disposables.add(new FileService(new NullLogService()));
-			disposables.add(service.registerProvider('test', disposables.add(new InMemoryFileSystemProvider())));
+			disposables.add(service.registerProvider('test', disposables.add(new AtomicRenameFileSystemProvider())));
 			const source = URI.parse('test:/source');
 			const target = URI.parse('test:/target');
 			await service.writeFile(source, VSBuffer.fromString('new'));
@@ -104,7 +128,7 @@ suite('File Service', () => {
 
 		test('creates missing target parents for non-sibling moves', async () => {
 			const service = disposables.add(new FileService(new NullLogService()));
-			disposables.add(service.registerProvider('test', disposables.add(new InMemoryFileSystemProvider())));
+			disposables.add(service.registerProvider('test', disposables.add(new AtomicRenameFileSystemProvider())));
 			const source = URI.parse('test:/source');
 			const target = URI.parse('test:/new/parent/target');
 			await service.writeFile(source, VSBuffer.fromString('content'));
@@ -117,7 +141,7 @@ suite('File Service', () => {
 
 		test('does not replace the target when the source is missing', async () => {
 			const service = disposables.add(new FileService(new NullLogService()));
-			disposables.add(service.registerProvider('test', disposables.add(new InMemoryFileSystemProvider())));
+			disposables.add(service.registerProvider('test', disposables.add(new AtomicRenameFileSystemProvider())));
 			const target = URI.parse('test:/target');
 			await service.writeFile(target, VSBuffer.fromString('old'));
 			await assert.rejects(service.move(URI.parse('test:/missing'), target, true, { atomic: true }));
@@ -126,7 +150,7 @@ suite('File Service', () => {
 
 		test('does not rename after a target stat permission error', async () => {
 			const service = disposables.add(new FileService(new NullLogService()));
-			const provider = disposables.add(new class extends InMemoryFileSystemProvider {
+			const provider = disposables.add(new class extends AtomicRenameFileSystemProvider {
 				denyTarget = false;
 				renamed = false;
 				override async stat(resource: URI) {
@@ -135,9 +159,9 @@ suite('File Service', () => {
 					}
 					return super.stat(resource);
 				}
-				override async rename(from: URI, to: URI, options: { overwrite: boolean }): Promise<void> {
+				override async renameFileAtomic(from: URI, to: URI, options: { overwrite: boolean }): Promise<void> {
 					this.renamed = true;
-					return super.rename(from, to, options);
+					return super.renameFileAtomic(from, to, options);
 				}
 			}());
 			disposables.add(service.registerProvider('test', provider));

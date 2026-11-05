@@ -311,7 +311,7 @@ class WorkingCopyBackupServiceImpl extends Disposable implements IWorkingCopyBac
 				backupBuffer = VSBuffer.concat([preambleBuffer, VSBuffer.fromString('')]);
 			}
 
-			if (this.fileService.hasCapability(backupResource, FileSystemProviderCapabilities.FileAtomicWrite)) {
+			if (this.fileService.hasCapability(backupResource, FileSystemProviderCapabilities.FileAtomicRename)) {
 				const temporaryResource = backupResource.with({ path: `${backupResource.path}${WORKING_COPY_BACKUP_TEMP_FILE_SUFFIX}` });
 				try {
 					await this.fileService.writeFile(temporaryResource, backupBuffer);

@@ -168,7 +168,7 @@ export interface IFileService {
 	 * Moves the file/folder to a new path identified by the resource.
 	 *
 	 * The optional parameter overwrite can be set to replace an existing file at the location.
-	 * Atomic moves only support files within the same provider and preserve an existing target until the provider renames the source.
+	 * Atomic moves require a provider with `FileAtomicRename` support and never fall back to copying or deleting the target.
 	 *
 	 * Emits a `FileOperation.MOVE` file operation event when successful.
 	 */
@@ -673,7 +673,12 @@ export const enum FileSystemProviderCapabilities {
 	/**
 	 * Provider support to append to files.
 	 */
-	FileAppend = 1 << 19
+	FileAppend = 1 << 19,
+
+	/**
+	 * Provider supports renaming files without deleting the target first or falling back to copying.
+	 */
+	FileAtomicRename = 1 << 20
 }
 
 export interface IFileSystemProvider {
@@ -691,6 +696,7 @@ export interface IFileSystemProvider {
 	delete(resource: URI, opts: IFileDeleteOptions): Promise<void>;
 
 	rename(from: URI, to: URI, opts: IFileOverwriteOptions): Promise<void>;
+	renameFileAtomic?(from: URI, to: URI, opts: IFileOverwriteOptions): Promise<void>;
 	copy?(from: URI, to: URI, opts: IFileOverwriteOptions): Promise<void>;
 
 	readFile?(resource: URI): Promise<Uint8Array>;
@@ -795,6 +801,15 @@ export interface IFileSystemProviderWithFileAtomicDeleteCapability extends IFile
 
 export function hasFileAtomicDeleteCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithFileAtomicDeleteCapability {
 	return !!(provider.capabilities & FileSystemProviderCapabilities.FileAtomicDelete);
+}
+
+export interface IFileSystemProviderWithFileAtomicRenameCapability extends IFileSystemProvider {
+	/** Renames files atomically or rejects without modifying either file when unsupported. */
+	renameFileAtomic(from: URI, to: URI, opts: IFileOverwriteOptions): Promise<void>;
+}
+
+export function hasFileAtomicRenameCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithFileAtomicRenameCapability {
+	return !!(provider.capabilities & FileSystemProviderCapabilities.FileAtomicRename);
 }
 
 export interface IFileSystemProviderWithReadonlyCapability extends IFileSystemProvider {
