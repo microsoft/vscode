@@ -15,7 +15,7 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
-import { ISessionWorktreeCleanupService, ISessionWorktreeCleanupSuggestion } from '../../../../../workbench/contrib/sessions/browser/sessionInputBanners/sessionWorktreeCleanupService.js';
+import { ISessionWorktreeCleanupService, ISessionWorktreeCleanupSuggestion } from '../sessionInputBanners/sessionWorktreeCleanupService.js';
 
 export class SessionStorageCleanupNotice extends Disposable {
 

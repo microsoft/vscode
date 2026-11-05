@@ -30,7 +30,7 @@ import { createSessionsWorkbenchFixture } from './sessionsWorkbenchFixtureUtils.
 
 import '../../../../browser/media/style.css';
 import '../../../../browser/parts/media/editorPart.css';
-import '../../browser/media/chatView.css';
+import '../../../../../workbench/contrib/sessions/browser/chat/media/chatView.css';
 
 class FixtureChatView extends AbstractChatView {
 	private chat: IChat | undefined;

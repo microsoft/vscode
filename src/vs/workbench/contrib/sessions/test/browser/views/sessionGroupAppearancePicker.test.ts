@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Codicon } from '../../../../../base/common/codicons.js';
-import { mock } from '../../../../../base/test/common/mock.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
-import { IconPicker } from '../../../../../workbench/services/userDataProfile/browser/iconPicker.js';
-import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
-import { SessionGroupAppearancePicker } from '../../browser/views/sessionGroupAppearancePicker.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../../../platform/quickinput/common/quickInput.js';
+import { IconPicker } from '../../../../../services/userDataProfile/browser/iconPicker.js';
+import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { SessionGroupAppearancePicker } from '../../../browser/views/sessionGroupAppearancePicker.js';
 
 suite('SessionGroupAppearancePicker', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();

@@ -15,7 +15,7 @@ import { ISessionsService } from '../../../../workbench/contrib/sessions/browser
 import { IFocusedSessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { SessionsView, SessionsViewId } from '../../sessions/browser/views/sessionsView.js';
+import { SessionsView, SessionsViewId } from '../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { createParallelTasksTour } from './tours/parallelTasksTour.js';
 
 const SESSION_COUNT_LIMIT = 3;

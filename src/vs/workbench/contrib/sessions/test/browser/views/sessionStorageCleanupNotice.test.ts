@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { IManagedHover } from '../../../../../base/browser/ui/hover/hover.js';
-import { toDisposable } from '../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../base/common/observable.js';
-import { upcastPartial } from '../../../../../base/test/common/mock.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
-import { INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { ISessionWorktreeCleanupService, ISessionWorktreeCleanupSuggestion } from '../../../../../workbench/contrib/sessions/browser/sessionInputBanners/sessionWorktreeCleanupService.js';
-import { SessionStorageCleanupNotice } from '../../browser/views/sessionStorageCleanupNotice.js';
-import '../../browser/media/sessionsViewPane.css';
+import { IManagedHover } from '../../../../../../base/browser/ui/hover/hover.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { observableValue } from '../../../../../../base/common/observable.js';
+import { upcastPartial } from '../../../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { ISessionWorktreeCleanupService, ISessionWorktreeCleanupSuggestion } from '../../../browser/sessionInputBanners/sessionWorktreeCleanupService.js';
+import { SessionStorageCleanupNotice } from '../../../browser/views/sessionStorageCleanupNotice.js';
+import '../../../browser/media/sessionsViewPane.css';
 
 suite('SessionStorageCleanupNotice', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();

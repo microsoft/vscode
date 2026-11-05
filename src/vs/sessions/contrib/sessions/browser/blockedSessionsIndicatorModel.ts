@@ -18,7 +18,7 @@ import { ISession, SessionStatus } from '../../../../workbench/contrib/sessions/
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { BlockedSessionReason, BlockedSessions, describeBlockedSessions, IBlockedSession } from '../../../../workbench/contrib/sessions/browser/blockedSessions.js';
 import { BlockedSessionsCIFixModel } from './blockedSessionsCIFixModel.js';
-import { getFirstApprovalAcrossChats, IApprovedSession } from './views/sessionsList.js';
+import { getFirstApprovalAcrossChats, IApprovedSession } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 
 const LOG_PREFIX = '[BlockedSessionsIndicator]';
 const IGNORED_OCCURRENCES_STORAGE_KEY = 'sessions.blockedIndicator.ignoredOccurrences';

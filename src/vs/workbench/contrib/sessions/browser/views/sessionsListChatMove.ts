@@ -11,10 +11,10 @@ import { ChatProvidersSettingId } from '../../../../../platform/agentHost/common
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { ChatInteractivity, ChatOriginKind, getChatHarness, IChat, ISession, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { ISessionChatMoveTarget, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { SessionMoveRefusedError } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
+import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { ChatInteractivity, ChatOriginKind, getChatHarness, IChat, ISession, SessionStatus } from '../../common/session.js';
+import { ISessionChatMoveTarget, ISessionsManagementService } from '../../common/sessionsManagement.js';
+import { SessionMoveRefusedError } from '../../common/sessionsProvider.js';
 
 /**
  * Whether dragging chats and sessions to move them is on: the Move Chats setting is enabled and AI features are not

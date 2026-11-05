@@ -24,7 +24,7 @@ import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbenc
 // Loaded here (rather than in the workbench-layer fixture) so the
 // `.interactive-input-part` padding (32px each side) that the `isSessionsWindow`
 // layout path accounts for is available without a layering violation.
-import '../../browser/media/chatView.css';
+import '../../../../../workbench/contrib/sessions/browser/chat/media/chatView.css';
 import '../../../../../workbench/contrib/sessions/browser/chat/media/chatInput.css';
 
 /**

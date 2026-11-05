@@ -44,8 +44,8 @@ import { AgentHostSessionTypesAvailableContext, NewSessionOnboardingHandoffConte
 import { ISessionNavigationRequest } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { getSessionOnboardingTargetId, SessionsList } from '../../../sessions/browser/views/sessionsList.js';
-import { SessionsView } from '../../../sessions/browser/views/sessionsView.js';
+import { getSessionOnboardingTargetId, SessionsList } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SessionsView } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { createTestSession } from '../../../sessions/test/browser/sessionsListTestUtils.js';
 import { AgentsWindowInvitationOnboarding } from '../../browser/agentsWindowInvitationOnboarding.js';
 import { createNewSessionTour, NEW_SESSION_ONBOARDING_SEEN_KEY } from '../../browser/tours/newSessionTour.js';

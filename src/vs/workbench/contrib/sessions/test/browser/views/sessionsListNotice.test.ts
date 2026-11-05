@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { toDisposable } from '../../../../../base/common/lifecycle.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { SessionsListNotice } from '../../browser/views/sessionsListNotice.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { SessionsListNotice } from '../../../browser/views/sessionsListNotice.js';
 
 suite('SessionsListNotice', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();

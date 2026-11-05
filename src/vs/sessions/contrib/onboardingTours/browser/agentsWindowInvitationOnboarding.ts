@@ -26,8 +26,8 @@ import { NewSessionOnboardingHandoffContext } from '../../../common/agentsWindow
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IFocusedSessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { ISession } from '../../../../workbench/contrib/sessions/common/session.js';
-import { getSessionOnboardingTargetId } from '../../sessions/browser/views/sessionsList.js';
-import { SessionsView, SessionsViewId } from '../../sessions/browser/views/sessionsView.js';
+import { getSessionOnboardingTargetId } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SessionsView, SessionsViewId } from '../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { createAgentsWindowInvitationTour, IAgentsWindowInvitationTourCopy } from './tours/agentsWindowInvitationTour.js';
 
 /** Reserves onboarding during an invitation handoff, then reveals its row without replaying setup. */

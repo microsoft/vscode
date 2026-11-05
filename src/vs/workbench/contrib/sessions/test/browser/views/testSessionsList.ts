@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { hasKey, isDefined } from '../../../../../base/common/types.js';
-import { SessionListItem, SessionsList, SessionsListItemReference } from '../../browser/views/sessionsList.js';
+import { hasKey, isDefined } from '../../../../../../base/common/types.js';
+import { SessionListItem, SessionsList, SessionsListItemReference } from '../../../browser/views/sessionsList.js';
 
 /**
  * A sessions list whose focus, selection, collapse state, and rendered rows can be

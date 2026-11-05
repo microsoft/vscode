@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { createMatches } from '../../../../../base/common/filters.js';
-import { upcastPartial } from '../../../../../base/test/common/mock.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { findSearchWords, getSessionSearchHint, ISessionSearchDocument, ISessionSearchField, matchSessionSearch, SessionsListSearchQuery, SessionsListSearchTelemetry, toSearchFilterData } from '../../browser/views/sessionsListSearch.js';
+import { createMatches } from '../../../../../../base/common/filters.js';
+import { upcastPartial } from '../../../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { findSearchWords, getSessionSearchHint, ISessionSearchDocument, ISessionSearchField, matchSessionSearch, SessionsListSearchQuery, SessionsListSearchTelemetry, toSearchFilterData } from '../../../browser/views/sessionsListSearch.js';
 
 suite('Sessions - SessionsListSearch', () => {
 

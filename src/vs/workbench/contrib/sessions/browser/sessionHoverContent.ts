@@ -14,13 +14,13 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { ISessionSummaryHoverData, ISessionSummaryHoverLocation, ISessionSummaryHoverPullRequest, ISessionSummaryHoverWorkspace, SessionSummaryHoverWidget } from '../../../../workbench/contrib/chat/browser/agentSessions/sessionSummaryHover.js';
-import { SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
-import { UNKNOWN_SESSION_APPLICATION_ID } from '../../../../workbench/contrib/sessions/common/sessionApplication.js';
-import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { getHarnessPresentationOrDefault } from '../../../../workbench/contrib/sessions/common/sessionsProvider.js';
-import { BRANCH_CHANGES_CHANGESET_ID, getChatHarness, getSessionOwnedGitHubPullRequestRefs, getSessionPresentationWorkspace, getSessionWorkspaceKind, getUntitledSessionTitle, IChat, ISession, ISessionFolder, ISessionWorkspace, SessionWorkspaceKind } from '../../../../workbench/contrib/sessions/common/session.js';
-import { ISessionChangesStats, readChatChangesStats, readSessionChangesStats } from '../../../../workbench/contrib/sessions/common/sessionChangesStatsCache.js';
+import { ISessionSummaryHoverData, ISessionSummaryHoverLocation, ISessionSummaryHoverPullRequest, ISessionSummaryHoverWorkspace, SessionSummaryHoverWidget } from '../../chat/browser/agentSessions/sessionSummaryHover.js';
+import { SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID } from '../common/sessionCommands.js';
+import { UNKNOWN_SESSION_APPLICATION_ID } from '../common/sessionApplication.js';
+import { ISessionsProvidersService } from './sessionsProvidersService.js';
+import { getHarnessPresentationOrDefault } from '../common/sessionsProvider.js';
+import { BRANCH_CHANGES_CHANGESET_ID, getChatHarness, getSessionOwnedGitHubPullRequestRefs, getSessionPresentationWorkspace, getSessionWorkspaceKind, getUntitledSessionTitle, IChat, ISession, ISessionFolder, ISessionWorkspace, SessionWorkspaceKind } from '../common/session.js';
+import { ISessionChangesStats, readChatChangesStats, readSessionChangesStats } from '../common/sessionChangesStatsCache.js';
 
 /** Shared session diff counts, omitting entries without line changes. */
 export function getSessionDiffStats(session: ISession, reader?: IReader): ISessionSummaryHoverLocation['changes'] {

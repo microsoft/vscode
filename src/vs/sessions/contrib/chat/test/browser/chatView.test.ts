@@ -73,7 +73,7 @@ import { ISessionsService } from '../../../../../workbench/contrib/sessions/brow
 import { SessionsChatBackgroundRenderer, SessionsChatBackgroundReplica } from '../../../../../workbench/contrib/sessions/browser/chatBackgroundRenderer.js';
 import { ISessionsChatBackground } from '../../../../../workbench/contrib/sessions/browser/chatBackgroundService.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../../../../workbench/contrib/sessions/common/layoutConstants.js';
-import { ChatView, EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE, findInitialTranscriptContextEntry, getChatRespondent, getInputOnlyProgressMessage, getInputOnlyResponseState, getInputOnlyResponseText, IInputOnlyStatus, needsConversationForInput, findTranscriptContextEntry, getSessionChatItemHorizontalPadding, getSessionComparisonRequestSummary, getTranscriptProgress, isFocusChatPillsKeyDown, NewChatView, shouldRenderRunningSessionSecondaryToolbar, shouldShowSessionChatTip, shouldShowTranscriptPreparationCompletion, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
+import { ChatView, EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE, findInitialTranscriptContextEntry, getChatRespondent, getInputOnlyProgressMessage, getInputOnlyResponseState, getInputOnlyResponseText, IInputOnlyStatus, needsConversationForInput, findTranscriptContextEntry, getSessionChatItemHorizontalPadding, getSessionComparisonRequestSummary, getTranscriptProgress, isFocusChatPillsKeyDown, NewChatView, shouldRenderRunningSessionSecondaryToolbar, shouldShowSessionChatTip, shouldShowTranscriptPreparationCompletion, shouldShowTranscriptPreparationProgress } from '../../../../../workbench/contrib/sessions/browser/chat/chatView.js';
 import { SessionsChatViewStateService } from '../../../../../workbench/contrib/sessions/browser/chat/chatViewStateService.js';
 import { NewChatInSessionWidget } from '../../../../../workbench/contrib/sessions/browser/chat/newChatInSessionWidget.js';
 import { NestedChatWorkspaceControls } from '../../../../../workbench/contrib/sessions/browser/chat/nestedChatWorkspacePicker.js';
@@ -99,7 +99,7 @@ import '../../../../../workbench/contrib/sessions/browser/parts/media/sessionVie
 import '../../../../../workbench/contrib/sessions/browser/parts/media/sessionsPart.css';
 import '../../../../../workbench/contrib/sessions/browser/chat/media/externalSessionBanner.css';
 import '../../../../../workbench/contrib/sessions/browser/chat/media/chatWidget.css';
-import '../../browser/media/chatView.css';
+import '../../../../../workbench/contrib/sessions/browser/chat/media/chatView.css';
 import '../../../../../workbench/contrib/sessions/browser/chat/media/newChatInSession.css';
 import '../../../../../workbench/contrib/chat/browser/promptTimeline/media/promptTimeline.css';
 

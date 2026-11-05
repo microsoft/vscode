@@ -32,8 +32,8 @@ import { ISession, ISessionChangesSummary } from '../../../../../workbench/contr
 import { IActiveSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { ISessionChangesService } from '../../../../../workbench/contrib/sessions/common/sessionChangesService.js';
-import { SessionsList } from '../../../sessions/browser/views/sessionsList.js';
-import { SessionsView } from '../../../sessions/browser/views/sessionsView.js';
+import { SessionsList } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SessionsView } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { createTestSession } from '../../../sessions/test/browser/sessionsListTestUtils.js';
 import { GetStartedItemId } from '../../common/getStartedChecklist.js';
 import { GetStartedTourRunner } from '../../browser/getStartedTourRunner.js';

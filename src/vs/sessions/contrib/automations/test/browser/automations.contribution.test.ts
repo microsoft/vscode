@@ -34,7 +34,7 @@ import { ISessionsProvidersService } from '../../../../../workbench/contrib/sess
 import { ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { IOpenSessionOptions, ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
-import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../../sessions/browser/automationsConstants.js';
+import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../../../../workbench/contrib/sessions/browser/automationsConstants.js';
 
 import '../../browser/automations.contribution.js';
 

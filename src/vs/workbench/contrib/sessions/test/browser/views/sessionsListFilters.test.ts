@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { autorun, constObservable, observableValue } from '../../../../../base/common/observable.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
-import { getSessionApplication } from '../../../../../workbench/contrib/sessions/common/sessionApplication.js';
-import { ISession, ISessionEnvironment } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { buildTestSession } from '../../../../../workbench/contrib/sessions/test/common/testSessionBuilder.js';
-import { getSessionFilterOptions, sessionFilterKey, SessionsListFilters } from '../../browser/views/sessionsListFilters.js';
+import { autorun, constObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { getSessionApplication } from '../../../common/sessionApplication.js';
+import { ISession, ISessionEnvironment } from '../../../common/session.js';
+import { buildTestSession } from '../../common/testSessionBuilder.js';
+import { getSessionFilterOptions, sessionFilterKey, SessionsListFilters } from '../../../browser/views/sessionsListFilters.js';
 
 suite('SessionsListFilters', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

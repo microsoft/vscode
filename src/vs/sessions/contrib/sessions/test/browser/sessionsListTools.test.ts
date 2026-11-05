@@ -20,10 +20,10 @@ import { ISessionSectionOrderService, SessionSectionOrderService } from '../../.
 import { ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { OrganizeSessionsListTool, ReadSessionsListTool } from '../../browser/sessionsListTools.js';
-import { SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
-import { SessionsView } from '../../browser/views/sessionsView.js';
+import { SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SessionsView } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { createListHarness, createTestSession } from './sessionsListTestUtils.js';
-import { TestSessionsList } from './testSessionsList.js';
+import { TestSessionsList } from '../../../../../workbench/contrib/sessions/test/browser/views/testSessionsList.js';
 
 interface ITreeNodeOutput {
 	readonly type: string;

@@ -6,10 +6,10 @@
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { derived, IObservable, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IAgentHostCustomizationService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
-import { getEffectiveMcpServerCount } from '../../../../workbench/contrib/chat/browser/aiCustomization/mcpServerCount.js';
-import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
-import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.js';
+import { IAgentHostCustomizationService } from '../../chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
+import { getEffectiveMcpServerCount } from '../../chat/browser/aiCustomization/mcpServerCount.js';
+import { ICustomizationHarnessService } from '../../chat/common/customizationHarnessService.js';
+import { IMcpService } from '../../mcp/common/mcpTypes.js';
 
 export const IAICustomizationMcpServerCountService = createDecorator<IAICustomizationMcpServerCountService>('aiCustomizationMcpServerCountService');
 

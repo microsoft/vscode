@@ -13,7 +13,7 @@ import { ISession } from '../../../../workbench/contrib/sessions/common/session.
 import { buildFixCIPrompt, countRequiredChecks } from '../../../../workbench/contrib/sessions/browser/fixCIChecks.js';
 import { IGitHubService } from '../../../../workbench/contrib/sessions/browser/github/githubService.js';
 import { GitHubPullRequestCIModel } from '../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
-import { ISessionCIFixModel, ISessionCIFixState } from './views/sessionsList.js';
+import { ISessionCIFixModel, ISessionCIFixState } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 
 /**
  * Backs the per-session "Fix CI" row shown in the blocked-sessions dropdown for

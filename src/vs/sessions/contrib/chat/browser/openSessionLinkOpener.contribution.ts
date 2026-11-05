@@ -25,7 +25,7 @@ import { ISessionsProvidersService } from '../../../../workbench/contrib/session
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { isChatWindowChatGone } from '../../chatWindow/browser/chatWindowOpening.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../../chatWindow/common/chatWindows.js';
-import { getSessionSummaryHoverData } from '../../sessions/browser/sessionHoverContent.js';
+import { getSessionSummaryHoverData } from '../../../../workbench/contrib/sessions/browser/sessionHoverContent.js';
 
 /** The chat window a link was activated in, and the chat of it the user activated it in. */
 interface ILinkSource {

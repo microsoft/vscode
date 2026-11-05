@@ -35,7 +35,7 @@ import { FixtureContextViewService, FixtureKeybindingService, FixtureMenuService
 import { SessionActivityBarGroup } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { OPEN_PULL_REQUEST_ACTION_ID } from '../../../../../workbench/contrib/sessions/common/github/types.js';
 import { ExternalSessionBanner } from '../../../../../workbench/contrib/sessions/browser/chat/externalSessionBanner.js';
-import '../../browser/media/chatView.css';
+import '../../../../../workbench/contrib/sessions/browser/chat/media/chatView.css';
 import '../../../../../workbench/contrib/sessions/browser/parts/media/chatCompositeBar.css';
 import '../../../../../workbench/contrib/sessions/browser/parts/media/chatGroupsView.css';
 import '../../../../../workbench/contrib/sessions/browser/parts/media/sessionView.css';

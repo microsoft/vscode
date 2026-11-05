@@ -25,8 +25,7 @@ import { ISessionsProvidersService } from '../../../../contrib/sessions/browser/
 import { BlockedSessionsList, registerBlockedSessionsItemActions } from '../../../../../sessions/contrib/sessions/browser/blockedSessionsList.js';
 // eslint-disable-next-line local/code-import-patterns
 import { registerBlockedSessionsHeaderActions, registerBlockedSessionsHeaderCommands } from '../../../../../sessions/contrib/sessions/browser/sessionsTitleBarWidget.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ISessionCIFixModel, ISessionCIFixState } from '../../../../../sessions/contrib/sessions/browser/views/sessionsList.js';
+import { ISessionCIFixModel, ISessionCIFixState } from '../../../../contrib/sessions/browser/views/sessionsList.js';
 import { IVoicePlaybackService } from '../../../../contrib/chat/common/voicePlaybackService.js';
 import { IChatService } from '../../../../contrib/chat/common/chatService/chatService.js';
 import { IChatModel } from '../../../../contrib/chat/common/model/chatModel.js';
@@ -37,8 +36,7 @@ import { stubSessionHosts } from '../../../../contrib/sessions/test/browser/sess
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 
 // The blocked-sessions list reuses the shared session-row styles.
-// eslint-disable-next-line local/code-import-patterns
-import '../../../../../sessions/contrib/sessions/browser/media/sessionsList.css';
+import '../../../../contrib/sessions/browser/media/sessionsList.css';
 
 // ============================================================================
 // Mock helpers

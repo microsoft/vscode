@@ -16,7 +16,7 @@ import { observableConfigValue } from '../../../../../platform/observable/common
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
-import { getCustomizationsPresentation } from '../../browser/views/sessionsView.js';
+import { getCustomizationsPresentation } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { sessionsConfiguration } from '../../browser/sessions.contribution.js';
 
 suite('Sessions sidebar separate navigation', () => {

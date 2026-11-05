@@ -9,8 +9,8 @@ import { themeColorFromId, ThemeIcon } from '../../../../../base/common/themable
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
-import { ansiColorMap } from '../../../../../workbench/contrib/terminal/common/terminalColorRegistry.js';
-import { IconPicker } from '../../../../../workbench/services/userDataProfile/browser/iconPicker.js';
+import { ansiColorMap } from '../../../terminal/common/terminalColorRegistry.js';
+import { IconPicker } from '../../../../services/userDataProfile/browser/iconPicker.js';
 
 export class SessionGroupAppearancePicker extends Disposable {
 

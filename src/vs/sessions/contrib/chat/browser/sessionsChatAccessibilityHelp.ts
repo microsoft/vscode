@@ -27,7 +27,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { ArtifactIntegrationsSettingId } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { areRemoteSessionToolsEnabled } from '../../remoteSessions/common/remoteSessions.js';
 import { ChatSessionArchiveActionWording, getChatSessionArchiveActionWording } from '../../../../platform/chat/common/sessionArchiveActions.js';
-import { SESSION_ARCHIVE_NUDGE_SETTING } from './sessionArchiveNudge.js';
+import { SESSION_ARCHIVE_NUDGE_SETTING } from '../../../../workbench/contrib/sessions/browser/chat/sessionArchiveNudge.js';
 import { getWorktreeSuggestionAccessibilityHelp } from '../../../../workbench/contrib/sessions/browser/worktreeSuggestion/worktreeSuggestionPresentation.js';
 import { AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING } from '../../../../workbench/contrib/sessions/browser/sessionInputBanners/sessionWorktreeCleanupService.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';

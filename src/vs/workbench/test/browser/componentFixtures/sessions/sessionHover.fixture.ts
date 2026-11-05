@@ -17,8 +17,7 @@ import { getSessionApplication } from '../../../../contrib/sessions/common/sessi
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { computePullRequestIcon, GitHubPullRequestState } from '../../../../contrib/sessions/common/github/types.js';
-// eslint-disable-next-line local/code-import-patterns
-import { getSessionSummaryHoverData } from '../../../../../sessions/contrib/sessions/browser/sessionHoverContent.js';
+import { getSessionSummaryHoverData } from '../../../../contrib/sessions/browser/sessionHoverContent.js';
 import { ISessionsProvidersService } from '../../../../contrib/sessions/browser/sessionsProvidersService.js';
 import { IChat, IGitHubInfo, IGitHubPullRequestRef, ISession, ISessionFileChange, ISessionFolder, ISessionType, ISessionWorkspace, SessionTypeAuthRequirement } from '../../../../contrib/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../contrib/sessions/common/sessionsProvider.js';
