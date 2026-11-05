@@ -48,6 +48,24 @@ function toPlainLabel(value: string): string {
 	return escapeIcons(singleLine.length > maxPromptLabelLength ? `${singleLine.slice(0, maxPromptLabelLength)}…` : singleLine);
 }
 
+/** Names a configured value by where the server uses it, so a bare key such as `-d` has context. */
+function describeConfiguredValue(value: IAgentCustomizationInstallationValuePrompt): string {
+	const key = toPlainLabel(value.key);
+	switch (value.category) {
+		case 'header':
+			return localize('agentHost.customizationInstall.headerValue', "HTTP header '{0}'", key);
+		case 'url-variable':
+			return localize('agentHost.customizationInstall.urlVariableValue', "URL variable '{0}'", key);
+		case 'environment-variable':
+			return localize('agentHost.customizationInstall.environmentVariableValue', "Environment variable '{0}'", key);
+		case 'runtime-argument':
+		case 'package-argument':
+			return value.key.startsWith('-')
+				? localize('agentHost.customizationInstall.optionValue', "Value for command-line option '{0}'", key)
+				: localize('agentHost.customizationInstall.argumentValue', "Command-line argument '{0}'", key);
+	}
+}
+
 /** UI validation for one configured value; the host revalidates and the runtime remains authoritative. */
 function validateConfiguredValue(value: IAgentCustomizationInstallationValuePrompt, input: string, omittable: boolean): string | undefined {
 	if (!input) {
@@ -584,9 +602,14 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 		if (choice.values.some(value => value.isRepeated)) {
 			throw new Error(localize('agentHost.customizationInstall.repeatedUnsupported', "This MCP server requires configuration that cannot be collected yet."));
 		}
+		const totalSteps = choice.values.length + choice.secrets.length;
+		let step = 0;
+		const stepTitle = () => totalSteps > 1
+			? localize('agentHost.customizationInstall.configureStepTitle', "Configure '{0}' ({1}/{2})", toPlainLabel(request.displayName), ++step, totalSteps)
+			: title;
 		const inputs: IAgentCustomizationInstallationAnswers['inputs'][number][] = [];
 		for (const value of choice.values) {
-			const answer = await this.collectValue(title, value, token);
+			const answer = await this.collectValue(stepTitle(), value, token);
 			if (answer === undefined) {
 				return undefined;
 			}
@@ -597,7 +620,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 		const secrets: IAgentCustomizationInstallationAnswers['secrets'][number][] = [];
 		for (const secret of choice.secrets) {
 			const value = await this.quickInputService.input({
-				title,
+				title: stepTitle(),
 				prompt: localize('agentHost.customizationInstall.secretPrompt', "Enter the secret for {0}. It is stored by the Agent Host and never shown again.", toPlainLabel(secret.title ?? secret.key)),
 				password: true,
 				ignoreFocusLost: true,
@@ -613,7 +636,10 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 
 	/** Returns `{ value: undefined }` for an omitted field and `undefined` when the user cancels. */
 	private async collectValue(title: string, value: IAgentCustomizationInstallationValuePrompt, token: CancellationToken): Promise<{ readonly value: string | undefined } | undefined> {
-		const label = toPlainLabel(value.title ?? value.key);
+		const kind = describeConfiguredValue(value);
+		const label = value.title !== undefined
+			? localize('agentHost.customizationInstall.titledValue', "{0} ({1})", toPlainLabel(value.title), kind)
+			: kind;
 		const prompt = value.description !== undefined ? `${label}: ${toPlainLabel(value.description)}` : label;
 		const omittable = !value.required || value.defaultValue !== undefined;
 		if (value.valueType === 'enum' || value.valueType === 'boolean') {
@@ -634,14 +660,19 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 			const picked = await this.quickInputService.pick(items, { title, placeHolder: prompt, ignoreFocusLost: true }, token);
 			return picked ? { value: picked.value } : undefined;
 		}
+		const fieldPrompt = (value.valueType === 'path'
+			? localize('agentHost.customizationInstall.pathPrompt', "{0} (a path on the Agent Host machine)", prompt)
+			: prompt).replace(/[.\s]+$/, '');
 		const entered = await this.quickInputService.input({
 			title,
-			prompt: value.valueType === 'path'
-				? localize('agentHost.customizationInstall.pathPrompt', "{0} (a path on the Agent Host machine)", prompt)
-				: prompt,
+			prompt: value.defaultValue !== undefined
+				? localize('agentHost.customizationInstall.defaultPrompt', "{0}. Leave empty to use the default.", fieldPrompt)
+				: omittable
+					? localize('agentHost.customizationInstall.optionalPrompt', "{0}. Optional: leave empty to skip.", fieldPrompt)
+					: fieldPrompt,
 			placeHolder: value.defaultValue !== undefined
 				? localize('agentHost.customizationInstall.defaultPlaceholder', "Default: {0}", toPlainLabel(value.defaultValue))
-				: undefined,
+				: omittable ? localize('agentHost.customizationInstall.optionalPlaceholder', "Optional") : undefined,
 			ignoreFocusLost: true,
 			validateInput: async input => validateConfiguredValue(value, input, omittable),
 		}, token);

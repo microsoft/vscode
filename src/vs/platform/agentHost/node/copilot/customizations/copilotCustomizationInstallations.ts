@@ -913,13 +913,13 @@ export class CopilotCustomizationInstallations extends Disposable {
 		const defaultOnlyRemote = source.kind === 'candidate'
 			? choices.find(choice => choice.installMethod === 'remote' && choice.secretPlaceholders.length === 0)
 			: undefined;
-		if (!choice && source.kind === 'candidate' && planned.plan.policy.decision !== 'blocked') {
+		if (!choice && planned.plan.policy.decision !== 'blocked') {
 			// Configured preparation consumes a bound plan; direct-card plans are unbound, so the runtime would refuse them after prompting.
-			const configurable = choices.filter(isConfigurableRemoteChoice);
+			const configurable = source.kind === 'candidate' ? choices.filter(isConfigurableRemoteChoice) : [];
 			if (configurable.length && await this.supportsConfiguredInstallation(client, policySessionId)) {
 				return this.requestMcpConfiguration(client, policySessionId, request, planned.plan, card, configurable.map(choice => ({ choice })), ownershipToken, candidate);
 			}
-			// Local packages are configured by the host, preferred over a remote default-only choice that would still need values.
+			// Local packages are configured by the host from catalog entries and direct cards alike, preferred over a remote default-only choice that would still need values.
 			if (!defaultOnlyRemote?.requiredValues.every(value => !value.required || value.defaultValue !== undefined)) {
 				const inputFreePackage = choices.find(choice => choice.installMethod === 'package' && isInputFree(choice));
 				if (inputFreePackage) {

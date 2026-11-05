@@ -1813,18 +1813,13 @@ suite('CopilotCustomizationInstallations', () => {
 		}]);
 	});
 
-	test('refuses blocked local plans and package inputs before fetching a card', async () => {
-		for (const scenario of ['policy', 'secret', 'input'] as const) {
+	test('refuses blocked local plans and package secrets before fetching a card', async () => {
+		for (const scenario of ['policy', 'secret'] as const) {
 			const { service, request, plan, added, requests } = createLocalMcpCardFixture();
 			if (scenario === 'policy') {
 				plan.policy = { decision: 'blocked', source: 'enterprise-allowlist', reason: 'Blocked by test policy' };
 			} else {
-				const choice = plan.transportChoices[0];
-				if (scenario === 'secret') {
-					choice.secretPlaceholders.push({ key: 'token', placeholder: '${secret:token}', title: 'Token' });
-				} else {
-					choice.requiredValues.push({ kind: 'scalar', key: 'mode', category: 'environment-variable', valueType: 'string', required: true, isRepeated: false });
-				}
+				plan.transportChoices[0].secretPlaceholders.push({ key: 'token', placeholder: '${secret:token}', title: 'Token' });
 			}
 			await assert.rejects(prepareReview(service, request), /Blocked by test policy|additional values/);
 			assert.deepStrictEqual({ added, requests }, { added: [], requests: [] });
@@ -2289,6 +2284,14 @@ suite('CopilotCustomizationInstallations', () => {
 				added: [{ name: 'io.github.example/local', config: { type: 'stdio', command: 'npx', args: ['@example/local@1.2.3', 'C:\\work', '--port', '3000', '--headless'], env: { LOG_LEVEL: 'debug' }, tools: ['*'] } }],
 				duplicate: 'This customization installation review expired. Start the operation again.',
 			});
+		});
+
+		test('collects package values for an MCP Gallery card the same way', async () => {
+			const { service, request, added } = createPackageFixture({ requiredValues: declaredValues });
+			const configuration = await service.prepare({ ...request, installation: { kind: 'mcp', source: { kind: 'url', mediaType: 'application/mcp-server+json', url: cardUrl } } });
+			assert.strictEqual(configuration.kind, 'configuration');
+			await service.apply({ hostGeneration: configuration.hostGeneration, ownershipToken: configuration.ownershipToken, operationId: configuration.operationId, answers: { choiceId: 'package:0', inputs: submitted, secrets: [] } });
+			assert.deepStrictEqual(added.map(entry => entry.config), [{ type: 'stdio', command: 'npx', args: ['@example/local@1.2.3', 'C:\\work', '--port', '3000', '--headless'], env: { LOG_LEVEL: 'debug' }, tools: ['*'] }]);
 		});
 
 		test('fails closed for package secrets, variable references and values the card cannot place', async () => {

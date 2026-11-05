@@ -1556,6 +1556,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			const details: string[] = [];
 			const validation: (string | undefined)[] = [];
 			const secretValidation: (string | undefined)[] = [];
+			const prompts: { readonly title?: string; readonly prompt?: string; readonly placeHolder?: string }[] = [];
 			const host = new class extends mock<IAgentHostService>() {
 				override readonly onAgentHostStart = Event.None;
 				override readonly onAgentHostExit = Event.None;
@@ -1586,7 +1587,8 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 						}
 						return this.cancelAt === 'secret' ? undefined : sentinels.secret;
 					}
-					const tenant = inputOptions?.prompt?.startsWith('TENANT');
+					prompts.push({ title: inputOptions?.title, prompt: inputOptions?.prompt, placeHolder: inputOptions?.placeHolder });
+					const tenant = inputOptions?.prompt?.includes(`'TENANT'`);
 					for (const probe of tenant ? ['$HOME', '${HOME}', sentinels.tenant, ''] : ['1.0', ' 1', '0x1', '-1.5e3']) {
 						const message = await inputOptions?.validateInput?.(probe);
 						validation.push(typeof message === 'string' ? message : undefined);
@@ -1681,7 +1683,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		});
 
 		test('reviews a local package choice by its command and sends its values once', async () => {
-			const { provider, calls, details } = createFlow({
+			const { provider, calls, details, prompts } = createFlow({
 				configuration: {
 					...configuration,
 					recommendedChoiceId: undefined,
@@ -1690,13 +1692,18 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 						values: [
 							{ key: 'LOG_LEVEL', category: 'environment-variable', valueType: 'enum', required: true, isRepeated: false, enumValues: ['info', sentinels.region] },
 							{ key: '--port', category: 'package-argument', valueType: 'number', required: false, isRepeated: false, defaultValue: '3000' },
+							{ key: '-d', category: 'package-argument', valueType: 'string', required: false, isRepeated: false },
 						],
 						secrets: [],
 					}],
 				},
 			});
 			await provider.install(URI.parse('agent-host-copilotcli:/frontend'), resource, CancellationToken.None);
-			assert.deepStrictEqual({ apply: calls.find(call => Array.isArray(call) && call[0] === 'apply'), detail: details[0].split('\n').slice(2) }, {
+			assert.deepStrictEqual({ prompts, apply: calls.find(call => Array.isArray(call) && call[0] === 'apply'), detail: details[0].split('\n').slice(2) }, {
+				prompts: [
+					{ title: `Configure 'Configured MCP' (2/3)`, prompt: `Value for command-line option '--port'. Leave empty to use the default.`, placeHolder: 'Default: 3000' },
+					{ title: `Configure 'Configured MCP' (3/3)`, prompt: `Value for command-line option '-d'. Optional: leave empty to skip.`, placeHolder: 'Optional' },
+				],
 				apply: ['apply', {
 					hostGeneration: 'generation', ownershipToken: 'token', operationId: 'preparation',
 					answers: { choiceId: 'package:0', inputs: [{ key: 'LOG_LEVEL', category: 'environment-variable', value: sentinels.region }], secrets: [] },
