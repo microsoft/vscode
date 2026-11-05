@@ -1,5 +1,6 @@
 {
   "name": "code-oss-dev",
+<<<<<<< HEAD
   "version": "1.146.0",
   "packageManager": "pnpm@12.16.0",
   "distro": "db5ed1b9eedd37f415858594f54bfd0859e60a6b",
@@ -10,6 +11,10 @@
     "msBuildId": "15893748",
     "buildFromSource": true
   },
+=======
+  "version": "1.145.1",
+  "distro": "165a83e58ea80a0a4a0a4332c175f1399b5be61e",
+>>>>>>> beeb36cc0f0 (Bump version to 1.145.1 (#346285))
   "author": {
     "name": "Microsoft Corporation"
   },
