@@ -7,12 +7,14 @@ import { raceCancellationError } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError, onUnexpectedExternalError } from '../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { isHighSurrogate, isLowSurrogate } from '../../../../base/common/strings.js';
 import { Constants } from '../../../../base/common/uint.js';
 import { diffEditorDefaultOptions } from '../../../common/config/diffEditor.js';
 import { clampedInt } from '../../../common/config/editorOptions.js';
 import { IRange, Range } from '../../../common/core/range.js';
+import { RangeMapping } from '../../../common/diff/rangeMapping.js';
 import { LanguageFeatureRegistry } from '../../../common/languageFeatureRegistry.js';
-import { StructuralDiff, StructuralDiffClassification, StructuralDiffContext, StructuralDiffCoverage, StructuralDiffEntity, StructuralDiffNode, StructuralDiffProvider, StructuralDiffResult, StructuralDiffTag, SymbolKind, symbolKindNames } from '../../../common/languages.js';
+import { StructuralDiff, StructuralDiffClassification, StructuralDiffContext, StructuralDiffCoverage, StructuralDiffEntity, StructuralDiffNode, StructuralDiffProvider, StructuralDiffResult, StructuralDiffTag, StructuralDiffTextChange, SymbolKind, symbolKindNames } from '../../../common/languages.js';
 import { ITextModel } from '../../../common/model.js';
 import { IEditorWorkerService } from '../../../common/services/editorWorker.js';
 import { ITextResourceConfigurationService } from '../../../common/services/textResourceConfiguration.js';
@@ -93,10 +95,7 @@ export namespace StructuralDiffs {
 			}
 
 			const context: StructuralDiffContext = {
-				changes: textDiff.changes.flatMap(change => (change.innerChanges ?? [change.toRangeMapping()]).map(mapping => ({
-					originalRange: originalModel.validateRange(mapping.originalRange),
-					modifiedRange: modifiedModel.validateRange(mapping.modifiedRange),
-				}))),
+				changes: textDiff.changes.flatMap(change => (change.innerChanges ?? [change.toRangeMapping()]).map(mapping => toTextChange(mapping, originalModel, modifiedModel))),
 			};
 			for (const provider of providers) {
 				checkCancellation();
@@ -133,7 +132,34 @@ function isEnumValue(enumObject: { readonly [value: number]: string }, value: un
 	return typeof value === 'number' && typeof enumObject[value] === 'string';
 }
 
-/** Returns the range if it addresses existing text in the model, because a range that has to be adjusted is not valid. */
+/**
+ * Returns the change that a text diff mapping describes. The text diff compares UTF-16 code units, so a change can start
+ * or end within a surrogate pair. The text next to a change is the same in both documents, so the change is extended in
+ * both to include the pair. Validating each range on its own would move the ranges differently, so that they would no
+ * longer describe the same change.
+ */
+function toTextChange(mapping: RangeMapping, originalModel: ITextModel, modifiedModel: ITextModel): StructuralDiffTextChange {
+	const { originalRange, modifiedRange } = mapping;
+	const charCodeBefore = getCharCode(originalModel, originalRange.startLineNumber, originalRange.startColumn - 1);
+	const charCodeAfter = getCharCode(originalModel, originalRange.endLineNumber, originalRange.endColumn);
+	const extendStart = isHighSurrogate(charCodeBefore) && charCodeBefore === getCharCode(modifiedModel, modifiedRange.startLineNumber, modifiedRange.startColumn - 1) ? 1 : 0;
+	const extendEnd = isLowSurrogate(charCodeAfter) && charCodeAfter === getCharCode(modifiedModel, modifiedRange.endLineNumber, modifiedRange.endColumn) ? 1 : 0;
+	// The ranges no longer split surrogate pairs, so validation only clamps them, such as the maximal columns of whole-line changes.
+	const extend = (model: ITextModel, range: Range) => model.validateRange(new Range(range.startLineNumber, range.startColumn - extendStart, range.endLineNumber, range.endColumn + extendEnd));
+	return { originalRange: extend(originalModel, originalRange), modifiedRange: extend(modifiedModel, modifiedRange) };
+}
+
+/** Returns the UTF-16 code unit at a position, or 0 if the line has none there. */
+function getCharCode(model: ITextModel, lineNumber: number, column: number): number {
+	return lineNumber >= 1 && lineNumber <= model.getLineCount() && column >= 1 && column < model.getLineMaxColumn(lineNumber)
+		? model.getValueInRange(new Range(lineNumber, column, lineNumber, column + 1)).charCodeAt(0)
+		: 0;
+}
+
+/**
+ * Returns the range if it addresses existing text in the model without splitting a surrogate pair, like the text changes,
+ * because a range that has to be adjusted is not valid.
+ */
 function toValidRange(model: ITextModel, range: IRange): Range | undefined {
 	const valid = model.validateRange(range);
 	return Range.equalsRange(valid, range) ? valid : undefined;

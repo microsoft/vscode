@@ -347,6 +347,26 @@ suite('Structural diff', () => {
 		});
 	}
 
+	for (const [name, originalText, modifiedText, originalRange, modifiedRange] of [
+		['an insertion', '\uD83D\uDE00', '\uD83D\uDE01\uD83E\uDE00', new Range(1, 1, 1, 3), new Range(1, 1, 1, 5)],
+		['a deletion', '\uD83D\uDE01\uD83E\uDE00', '\uD83D\uDE00', new Range(1, 1, 1, 5), new Range(1, 1, 1, 3)],
+	] as const) {
+		test(`extends both sides of ${name} that splits surrogate pairs`, async () => {
+			// The text diff keeps the high surrogate of the first and the low surrogate of the last character.
+			original.setValue(originalText);
+			modified.setValue(modifiedText);
+			let context: StructuralDiffContext | undefined;
+			store.add(languageFeatures.structuralDiffProvider.register('*', {
+				provideStructuralDiff: (_original, _modified, value) => {
+					context = value;
+					return createResult(value);
+				},
+			}));
+			assert.ok(await compute());
+			assert.deepStrictEqual(context, { changes: [{ originalRange, modifiedRange }] });
+		});
+	}
+
 	for (const unavailable of [true, false]) {
 		test(`rejects ${unavailable ? 'unavailable' : 'incomplete'} text diffs`, async () => {
 			worker = new class extends mock<IEditorWorkerService>() {
