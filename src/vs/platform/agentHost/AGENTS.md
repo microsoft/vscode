@@ -97,7 +97,7 @@ Copilot alone opts into the host-internal `supportsVirtualWorkspaces` capability
 
 Responsible for:
 - Creating and owning SDK chats (`chats.createChat`, with optional fork input).
-- Reading history (`chats.getMessages`).
+- Reading history (`chats.getMessages`). Copilot tool requests without a recorded execution completion restore as skipped, not successful. A recorded subagent start proves execution began, so an incomplete task restores as failed and retains child discovery.
 - Emitting progress signals (`onDidChatProgress`).
 - Optionally admitting provider-native metadata through `onDidChatSessionEvent` for environment-owned SDK mirroring. History reads receive exact chat/context plus an acknowledged journal cursor; they never create or resume a runtime. Only the owning provider interprets native records or synchronizes a host title into a live backing.
 - Emitting membership events for harness-spawned chats (`onDidSpawnChat`, `onDidEndChat`).
