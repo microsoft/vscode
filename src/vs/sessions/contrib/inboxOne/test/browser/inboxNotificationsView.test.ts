@@ -32,6 +32,7 @@ import { ContextKeyService } from '../../../../../platform/contextkey/browser/co
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
@@ -499,6 +500,30 @@ suite('InboxNotificationsView', () => {
 		assert.deepStrictEqual({ hidden, hostVisibility }, {
 			hidden: { visible: false, active: false }, hostVisibility: [false, true, false],
 		});
+	});
+
+	test('disposes its new-session composer, whose input may clear as it goes away, while the services of the composer\'s scope are still there: they dispose after it', () => {
+		const { view, container, instantiationService } = createView(constObservable([]));
+		const events: string[] = [];
+		instantiationService.stub(IChatViewFactory, 'createNewChatView', (_nested: boolean, _options: IChatViewOptions, scopedInstantiationService: IInstantiationService) => {
+			const disposeServices = scopedInstantiationService.dispose;
+			scopedInstantiationService.dispose = () => {
+				events.push('dispose services');
+				disposeServices.apply(scopedInstantiationService);
+			};
+			const composer = new TestChatView();
+			const disposeComposer = composer.dispose;
+			composer.dispose = () => {
+				events.push('dispose composer');
+				disposeComposer.apply(composer);
+			};
+			return composer;
+		});
+		view.render(container);
+
+		view.dispose();
+
+		assert.deepStrictEqual(events, ['dispose composer', 'dispose services']);
 	});
 
 	for (const width of [900, 540]) {
