@@ -7808,7 +7808,8 @@ export class CopilotAgentSession extends Disposable {
 			return;
 		}
 		try {
-			const policy = await resolveCopilotSessionManagedSettings(this._launchPlan, this._lifetimeCts.token);
+			const accountSession = this._configurationService.copilotM365EnabledAtStartup && !this._launchPlan.githubCredentials.usesScopedCredential ? this._wrapper.session : undefined;
+			const policy = await resolveCopilotSessionManagedSettings(this._launchPlan, this._lifetimeCts.token, undefined, accountSession);
 			if (this._store.isDisposed) {
 				return;
 			}

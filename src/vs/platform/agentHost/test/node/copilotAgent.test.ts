@@ -1763,6 +1763,7 @@ function createAgentSessionThroughAgent(agent: CopilotAgent, instantiationServic
 				return mockSession as unknown as CopilotSession;
 			},
 			resumeSession: async (_id, options) => { reportManagedSettings(options); return mockSession as unknown as CopilotSession; },
+			deleteSession: async () => { assert.fail('Unexpected session deletion'); },
 		},
 		extensionSdkPath: '/copilot-sdk',
 		// Production always launches with the owning session's live registry

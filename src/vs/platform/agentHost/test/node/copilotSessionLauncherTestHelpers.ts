@@ -60,6 +60,7 @@ export const noopSessionOpenTelemetry: IAgentHostSessionOpenTelemetry = {
 
 export function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettingsPermissions, rootValues: Record<string, unknown> = {}, logService: ILogService = new NullLogService(), sessionOpenTelemetry: IAgentHostSessionOpenTelemetry = noopSessionOpenTelemetry, configuration?: IAgentConfigurationService, telemetryService?: ITelemetryService, fileService: IFileService = upcastPartial<IFileService>({}), accountService?: ICopilotAccountService): CopilotSessionLauncher {
 	const configurationService = configuration ?? upcastPartial<IAgentConfigurationService>({
+		copilotM365EnabledAtStartup: rootValues.m365Enabled === true,
 		getRootValue: stub().callsFake((_schema: unknown, key: string) => rootValues[key]),
 		getRootConfigValues: () => rootValues,
 		getSessionConfigValues: () => undefined,
