@@ -1402,6 +1402,11 @@ class InnerMinimap extends Disposable {
 		this._domNode.setLeft(this._model.options.minimapLeft);
 		this._domNode.setWidth(this._model.options.minimapWidth);
 		this._domNode.setHeight(this._model.options.minimapHeight);
+		// The minimap is drawn on top of the editor contents, and its canvas can be narrower than the
+		// minimap (at fractional pixel ratios) or translucent, so give it an opaque editor background
+		// to keep the text and line highlights underneath from showing through.
+		const background = this._model.options.defaultBackgroundColor;
+		this._domNode.setBackgroundColor(`rgb(${background.r}, ${background.g}, ${background.b})`);
 		this._shadow.setHeight(this._model.options.minimapHeight);
 
 		this._canvas.setWidth(this._model.options.canvasOuterWidth);
