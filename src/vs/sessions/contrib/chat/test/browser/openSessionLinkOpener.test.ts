@@ -217,9 +217,11 @@ suite('OpenSessionLinkOpenerContribution', () => {
 		const sessionResource = URI.parse('copilotcli:/session-1');
 		const chatResource = sessionResource.with({ fragment: 'chat-2' });
 		const clickedChat = URI.parse('copilotcli:/session-0');
-		const mainChat = upcastPartial<IChat>({ resource: sessionResource });
-		const chat = upcastPartial<IChat>({ resource: chatResource });
-		const session = upcastPartial<ISession>({ resource: sessionResource, mainChat: observableValue('mainChat', mainChat), chats: observableValue('chats', [chat]) });
+		const mainChat = upcastPartial<IChat>({ resource: sessionResource, isArchived: observableValue('mainArchived', false) });
+		const chatArchived = observableValue('chatArchived', false);
+		const chat = upcastPartial<IChat>({ resource: chatResource, isArchived: chatArchived });
+		const chats = observableValue<readonly IChat[]>('chats', [mainChat, chat]);
+		const session = upcastPartial<ISession>({ resource: sessionResource, mainChat: observableValue('mainChat', mainChat), chats, loading: observableValue('loading', false) });
 		const sessionsManagementService = new class extends mock<ISessionsManagementService>() {
 			override getSessions(): ISession[] {
 				return [session];
@@ -280,6 +282,14 @@ suite('OpenSessionLinkOpenerContribution', () => {
 		// A link of the main window, and one a tool or command opens, whichever window has focus.
 		await registeredOpener.open(link, { fromUserGesture: true, sourceWindowId: 1 });
 		await registeredOpener.open(link, { sourceWindowId: 42 });
+		// An archived chat, which a chat window would end, opens as in the main window
+		chatArchived.set(true, undefined);
+		await registeredOpener.open(link, { fromUserGesture: true, sourceWindowId: 42 });
+		chatArchived.set(false, undefined);
+		// A chat the session no longer lists
+		chats.set([], undefined);
+		await registeredOpener.open(link, { fromUserGesture: true, sourceWindowId: 42 });
+		chats.set([mainChat, chat], undefined);
 		// A link of a chat window while chat windows are off
 		await configurationService.setUserConfiguration(CHAT_WINDOWS_ENABLED_SETTING, false);
 		await registeredOpener.open(link, { fromUserGesture: true, sourceWindowId: 42 });
@@ -288,6 +298,8 @@ suite('OpenSessionLinkOpenerContribution', () => {
 			`window:copilotcli:/session-1#chat-2:tabOf=${clickedChat}:beside=undefined:in=true`,
 			`window:copilotcli:/session-1#chat-2:tabOf=undefined:beside=${clickedChat}:in=true`,
 			`window:copilotcli:/session-1:tabOf=${clickedChat}:beside=undefined:in=true`,
+			'main:copilotcli:/session-1#chat-2',
+			'main:copilotcli:/session-1#chat-2',
 			'main:copilotcli:/session-1#chat-2',
 			'main:copilotcli:/session-1#chat-2',
 			'main:copilotcli:/session-1#chat-2',
@@ -301,9 +313,9 @@ suite('OpenSessionLinkOpenerContribution', () => {
 		const peerChat = 'ahp-chat://peer-1/c2Vzc2lvbi0x';
 		const activatedChat = URI.parse('copilotcli:/session-0');
 		const otherChat = URI.parse('copilotcli:/session-9');
-		const mainChat = upcastPartial<IChat>({ resource: sessionResource });
-		const peer = upcastPartial<IChat>({ resource: sessionResource.with({ fragment: 'peer-1' }) });
-		const session = upcastPartial<ISession>({ resource: sessionResource, mainChat: observableValue('mainChat', mainChat), chats: observableValue('chats', [mainChat, peer]) });
+		const mainChat = upcastPartial<IChat>({ resource: sessionResource, isArchived: observableValue('archived', false) });
+		const peer = upcastPartial<IChat>({ resource: sessionResource.with({ fragment: 'peer-1' }), isArchived: observableValue('archived', false) });
+		const session = upcastPartial<ISession>({ resource: sessionResource, mainChat: observableValue('mainChat', mainChat), chats: observableValue('chats', [mainChat, peer]), loading: observableValue('loading', false) });
 		const activeChat = observableValue('chat', activatedChat);
 		const chatWindow = upcastPartial<IChatWindow>({ windowId: 42, chat: activeChat });
 		const log: string[] = [];

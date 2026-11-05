@@ -23,6 +23,7 @@ import { ISessionsManagementService } from '../../../services/sessions/common/se
 import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { isChatWindowChatGone } from '../../chatWindow/browser/chatWindowOpening.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../../chatWindow/common/chatWindows.js';
 import { getSessionSummaryHoverData } from '../../sessions/browser/sessionHoverContent.js';
 
@@ -124,7 +125,8 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 		// An absent chat id means the session's main/default chat, not "no target chat" (see buildOpenSessionLinkUri).
 		const chatId = parseOpenSessionLinkChatId(resource);
 		const chatResource = chatId && !await this._isDefaultChatId(session, chatId) ? session.resource.with({ fragment: chatId }) : session.mainChat.get().resource;
-		if (source) {
+		// A chat window ends a chat that is archived or gone, so the main window opens it as it does for a click there.
+		if (source && !isChatWindowChatGone(session, chatResource, undefined)) {
 			// Shown in another chat window, it is revealed there; in the main window's grid, it moves into this one.
 			await this._chatWindowService.open(chatResource, openToSide ? { window: source.window, beside: source.chat } : { window: source.window, tabOf: source.chat });
 		} else if (openToSide) {
