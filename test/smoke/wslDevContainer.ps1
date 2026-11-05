@@ -426,9 +426,12 @@ rm -rf /var/lib/apt/lists/*
 sync
 fstrim --verbose / || echo 'fstrim failed, so the export keeps the blocks of deleted files.'
 '@
-	$terminate = Invoke-WslExe -ArgumentList '--terminate', $Distribution -TimeoutSeconds 60
-	if ($terminate.ExitCode -ne 0) {
-		throw "Failed to stop $Distribution before exporting it ($(Format-WslResult $terminate))."
+	# A VHD export fails with a sharing violation while the utility VM still holds the distribution's VHD, which
+	# --terminate doesn't release (https://github.com/microsoft/WSL/issues/10737). Prepare runs in a job of its own, so
+	# it stops the VM.
+	$shutdown = Invoke-WslExe -ArgumentList '--shutdown' -TimeoutSeconds 60
+	if ($shutdown.ExitCode -ne 0) {
+		throw "Failed to stop WSL before exporting $Distribution ($(Format-WslResult $shutdown))."
 	}
 	New-Item -ItemType Directory -Force -Path (Split-Path $Path -Parent) | Out-Null
 	Remove-Item -LiteralPath $Path -ErrorAction SilentlyContinue
