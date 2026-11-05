@@ -37,7 +37,7 @@ import { TaskProblemMonitor } from '../../browser/taskProblemMonitor.js';
 import { TaskTerminalStatus } from '../../browser/taskTerminalStatus.js';
 import { TerminalTaskSystem } from '../../browser/terminalTaskSystem.js';
 import { ApplyToKind, FileLocationKind, ProblemMatcher } from '../../common/problemMatcher.js';
-import { ITaskSummary, ITaskSystemInfo, VerifiedTask } from '../../common/taskSystem.js';
+import { ITaskSummary, ITaskSystemInfo, TaskExecuteKind, VerifiedTask } from '../../common/taskSystem.js';
 import { CustomTask, IConfigurationProperties, InMemoryTask, PresentationOptions, RunOptions, RuntimeType, TaskEvent, TaskEventKind } from '../../common/tasks.js';
 
 suite('TerminalTaskSystem process executable', () => {
@@ -45,7 +45,7 @@ suite('TerminalTaskSystem process executable', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const workspaceFolder = toWorkspaceFolder(URI.file('C:\\work'));
 
-	function createSystem(values: Map<string, string>, options: { withSystemInfo?: boolean; foundExecutable?: string; configurationProperties?: IConfigurationProperties; args?: string[]; runtime?: RuntimeType; asDependency?: boolean } = {}) {
+	function createSystem(values: Map<string, string>, options: { withSystemInfo?: boolean; platform?: Platform; foundExecutable?: string; configurationProperties?: IConfigurationProperties; args?: string[]; runtime?: RuntimeType; asDependency?: boolean } = {}) {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stubInstance(TaskProblemMonitor, { dispose() { }, addTerminal() { } });
 		instantiationService.stubInstance(TaskTerminalStatus, { dispose() { }, addTerminal() { } });
@@ -65,7 +65,7 @@ suite('TerminalTaskSystem process executable', () => {
 		const acquiredVariables: string[] = [];
 		const lookupCalls: { command: string; cwd?: string; paths?: string[] }[] = [];
 		const systemInfo: ITaskSystemInfo = {
-			platform: Platform.Windows,
+			platform: options.platform ?? Platform.Windows,
 			context: undefined,
 			uriProvider: path => URI.file(path),
 			resolveVariables: async (_folder, resolveSet) => {
@@ -137,6 +137,11 @@ suite('TerminalTaskSystem process executable', () => {
 				override onLineData = Event.None;
 				override onExit = onExit.event;
 				override processReady = Promise.resolve();
+				override scrollToBottom() { }
+				override async reuseTerminal(config: IShellLaunchConfig) {
+					this.shellLaunchConfig = launchConfig = config;
+					setTimeout(() => onExit.fire(0), 0);
+				}
 			};
 		};
 		const createTask = (command: string, cwd = 'C:\\work', env?: { [key: string]: string }) => new CustomTask('test', {
@@ -347,6 +352,9 @@ suite('TerminalTaskSystem process executable', () => {
 		test('propagates nested configuration errors without task system info', async () => {
 			const system = createSystem(new Map([['config:tool', '${config:missing}']]), { withSystemInfo: false });
 			await assert.rejects(system.execute('${config:tool}'), /setting 'missing' not found/);
+			assert.deepStrictEqual({ ...system.state, endedTasks: system.endedTasks }, {
+				taskEnded: true, terminalCreated: false, endedTasks: ['test']
+			});
 		});
 
 		for (const command of ['tools\\run.exe', 'run.exe']) {
@@ -375,6 +383,140 @@ suite('TerminalTaskSystem process executable', () => {
 			endsPattern: { regexp: /^end$/ }
 		}
 	};
+
+	for (const withSystemInfo of [false, true]) {
+		for (const asDependency of [false, true]) {
+			test(`ends a background ${asDependency ? 'dependency' : 'task'} after repeated configuration errors ${withSystemInfo ? 'with' : 'without'} task system info`, async () => {
+				const system = createSystem(new Map([['config:tool', '${config:missing}']]), {
+					withSystemInfo, asDependency,
+					configurationProperties: { isBackground: true, problemMatchers: [backgroundMatcher] }
+				});
+				const initialListeners = system.taskListeners;
+				const attempts = [];
+				for (let i = 0; i < 2; i++) {
+					await assert.rejects(system.execute('${config:tool}'), /setting 'missing' not found/);
+					const { events, ...lifecycle } = system.lifecycle;
+					attempts.push({
+						...system.state, ...lifecycle,
+						extraListeners: system.taskListeners - initialListeners,
+						endedTasks: [...system.endedTasks],
+						activeEvents: events.filter(event => event === TaskEventKind.Active || event === TaskEventKind.Inactive).length
+					});
+				}
+				const endedTasks = asDependency ? ['test', 'parent'] : ['test'];
+				assert.deepStrictEqual(attempts, [1, 2].map(attempt => ({
+					taskEnded: true, terminalCreated: false, activeTasks: 0, busyTasks: 0, modelListeners: 0,
+					extraListeners: 0, endedTasks: Array.from({ length: attempt }, () => endedTasks).flat(), activeEvents: 0
+				})));
+			});
+		}
+	}
+
+	test('ends a background task when process preflight resolution fails', async () => {
+		const system = createSystem(new Map([['input:tool', '${config:missing}']]), {
+			platform: Platform.Linux,
+			configurationProperties: { isBackground: true, problemMatchers: [backgroundMatcher] }
+		});
+		await assert.rejects(system.execute('${input:tool}'), /setting 'missing' not found/);
+		assert.deepStrictEqual({ ...system.state, ...system.lifecycle, endedTasks: system.endedTasks }, {
+			taskEnded: true, terminalCreated: false, activeTasks: 0, busyTasks: 0, modelListeners: 0,
+			events: [TaskEventKind.AcquiredInput, TaskEventKind.End], endedTasks: ['test']
+		});
+	});
+
+	for (const runtime of [RuntimeType.Process, RuntimeType.Shell]) {
+		for (const isBackground of [false, true]) {
+			for (const location of ['arguments', 'environment', 'problem matcher']) {
+				test(`ends a ${isBackground ? 'background' : 'foreground'} ${runtime === RuntimeType.Process ? 'process' : 'shell'} task before launch when ${location} resolution fails`, async () => {
+					const system = createSystem(new Map([['input:value', '${config:missing}']]), {
+						runtime,
+						args: location === 'arguments' ? ['${input:value}'] : [],
+						configurationProperties: {
+							isBackground,
+							problemMatchers: [location === 'problem matcher' ? {
+								...backgroundMatcher, fileLocation: FileLocationKind.Relative, filePrefix: '${input:value}'
+							} : backgroundMatcher]
+						}
+					});
+					const env = location === 'environment' ? { VALUE: '${input:value}' } : undefined;
+					await assert.rejects(system.execute('C:\\tools\\run.exe', 'C:\\work', env), /setting 'missing' not found/);
+					assert.deepStrictEqual({ ...system.state, ...system.lifecycle, endedTasks: system.endedTasks }, {
+						taskEnded: true, terminalCreated: false, activeTasks: 0, busyTasks: 0, modelListeners: 0,
+						events: [TaskEventKind.AcquiredInput, TaskEventKind.End], endedTasks: ['test']
+					});
+				});
+			}
+		}
+	}
+
+	for (const withSystemInfo of [false, true]) {
+		for (const cached of [false, true]) {
+			test(`ends a rerun when ${cached ? 'cached' : 'new'} configuration resolution fails ${withSystemInfo ? 'with' : 'without'} task system info`, async () => {
+				const values = new Map<string, string>(cached ? [['config:tool', '${config:missing}']] : []);
+				values.set('workspaceFolder', normalizeDriveLetter(workspaceFolder.uri.fsPath));
+				const system = createSystem(values, { withSystemInfo });
+				await system.execute('C:\\tools\\run.exe');
+				system.system['_lastTask'] = system.system['_currentTask'];
+				system.system['_isRerun'] = true;
+				values.set('config:tool', '${config:missing}');
+				const initialCalls = system.resolutionCalls;
+				const initialEvents = system.lifecycle.events.length;
+				await assert.rejects(system.execute('${config:tool}'), /setting 'missing' not found/);
+				const { events, ...lifecycle } = system.lifecycle;
+				assert.deepStrictEqual({
+					...lifecycle, endedTasks: system.endedTasks, acquisitionCalls: system.resolutionCalls - initialCalls,
+					executionEvents: events.slice(initialEvents).filter(event => event !== TaskEventKind.AcquiredInput)
+				}, {
+					activeTasks: 0, busyTasks: 0, modelListeners: 0, endedTasks: ['test', 'test'],
+					acquisitionCalls: cached ? 0 : 1, executionEvents: [TaskEventKind.End]
+				});
+			});
+		}
+	}
+
+	test('acquires only missing rerun inputs and preserves shared values', async () => {
+		const values = new Map([
+			['input:tool', 'C:\\cached\\run.exe'],
+			['workspaceFolder', normalizeDriveLetter(workspaceFolder.uri.fsPath)]
+		]);
+		const args: string[] = [];
+		const system = createSystem(values, { args });
+		await system.execute('${input:tool}');
+		system.system['_lastTask'] = system.system['_currentTask'];
+		system.system['_isRerun'] = true;
+		args.push('${input:argument}');
+		values.delete('input:tool');
+		values.set('input:argument', 'new argument');
+		const alreadyResolved = new Map([['input:tool', 'C:\\shared\\run.exe']]);
+		const initialAcquisitions = system.acquiredVariables.length;
+		const config = await system.execute('${input:tool}', 'C:\\work', undefined, alreadyResolved);
+		assert.deepStrictEqual({
+			acquiredVariables: system.acquiredVariables.slice(initialAcquisitions),
+			command: system.lookupCalls.at(-1)?.command, arguments: config?.args,
+			sharedValues: [alreadyResolved.get('input:tool'), alreadyResolved.get('input:argument')],
+			endedTasks: system.endedTasks
+		}, {
+			acquiredVariables: ['${input:argument}'], command: 'C:\\shared\\run.exe', arguments: ['new argument'],
+			sharedValues: ['C:\\shared\\run.exe', 'new argument'], endedTasks: ['test', 'test']
+		});
+	});
+
+	test('clears rerun state when execution rejects without swallowing the error', async () => {
+		const system = createSystem(new Map());
+		await system.execute('C:\\tools\\run.exe');
+		const previousTask = system.system['_currentTask'];
+		previousTask.task.runOptions = { ...previousTask.task.runOptions, reevaluateOnRerun: false };
+		system.system['_lastTask'] = previousTask;
+		const execution = new DeferredPromise<ITaskSummary>();
+		system.system.run = () => ({ kind: TaskExecuteKind.Started, task: previousTask.task, promise: execution.p });
+		const result = system.system.rerun();
+		assert.ok(result);
+		const error = new Error('variable resolution failed');
+		const rejection = assert.rejects(result.promise, reason => reason === error);
+		await execution.error(error);
+		await rejection;
+		assert.strictEqual(system.system['_isRerun'], false);
+	});
 
 	test('balances background task events and disposes model listeners on successful execution', async () => {
 		const system = createSystem(new Map(), {
