@@ -3964,7 +3964,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	async handleAuthenticationToken(params: AuthenticateParams, connectionToken?: CancellationToken): Promise<boolean> {
+	private async _handleMicrosoftAuthentication(params: AuthenticateParams, connectionToken?: CancellationToken): Promise<boolean> {
 		if (readCopilotAccountOperation(params)) {
 			if (!this._entraAuthentication || !connectionToken) {
 				throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Microsoft account setup requires an enabled, live connection.');
@@ -3979,10 +3979,20 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			return true;
 		}
+		if (connectionToken && this._accountService.acceptCredential(params, connectionToken)) {
+			return true;
+		}
 		if (await this._entraAuthentication?.authenticate(params, connectionToken)) {
 			if (!params.token) {
 				await this._clientStopping;
 			}
+			return true;
+		}
+		return false;
+	}
+
+	async handleAuthenticationToken(params: AuthenticateParams, connectionToken?: CancellationToken): Promise<boolean> {
+		if (await this._handleMicrosoftAuthentication(params, connectionToken)) {
 			return true;
 		}
 		let handled = false;
@@ -6151,7 +6161,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		} catch (err) {
 			if (err instanceof CancellationError || isRecognizedCopilotClientStartupFailure(err) || classifyCopilotClientOperationFailure(err) !== undefined) {
 				timing?.complete('unavailable');
-				this._logService.info(`[Copilot] Client unavailable while listing ${reason}: ${err instanceof Error ? err.message : String(err)}`);
+				this._logService.info(`[Copilot] Client unavailable while listing ${reason}: ${getErrorMessage(err)}`);
 				return undefined;
 			}
 			timing?.complete('error');

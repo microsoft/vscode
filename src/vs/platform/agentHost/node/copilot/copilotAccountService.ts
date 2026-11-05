@@ -21,6 +21,7 @@ import { readCopilotAccountOperation } from '../../common/meta/copilotAccountOpe
 import type { ProtectedResourceMetadata } from '../../common/state/protocol/state.js';
 import { AhpErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
+import { IAgentHostAuthenticationService } from '../agentHostAuthenticationService.js';
 import { CopilotEntraAuthentication, copilotEntraDiscoveryMetadata } from './copilotEntraAuthentication.js';
 import { AGENT_HOST_COPILOT_CLIENT_NAME } from './copilotManagedSettings.js';
 
@@ -43,6 +44,7 @@ export interface ICopilotAccountService {
 	readonly state: IObservable<CopilotAccountContext>;
 	getProtectedResources(reader?: IReader): ProtectedResourceMetadata[];
 	authenticate(client: Promise<CopilotClient>, params: AuthenticateParams, connection: CancellationToken): Promise<void>;
+	acceptCredential(params: AuthenticateParams, connection: CancellationToken): boolean;
 	requireReady(): Extract<CopilotAccountContext, { kind: 'ready' }>;
 	getSession(context: Extract<CopilotAccountContext, { kind: 'ready' }>): Promise<CopilotSession>;
 	isAuthenticationSession(sessionId: string): boolean;
@@ -64,6 +66,7 @@ export class CopilotAccountService extends Disposable implements ICopilotAccount
 		@IAgentConfigurationService configurationService: IAgentConfigurationService,
 		@ICopilotHomeService private readonly _home: ICopilotHomeService,
 		@ILogService private readonly _logService: ILogService,
+		@IAgentHostAuthenticationService private readonly _authenticationService: IAgentHostAuthenticationService,
 	) {
 		super();
 		configurationService.publishRootTransientValues?.({ [copilotAccountContextKey]: undefined }, true);
@@ -82,6 +85,12 @@ export class CopilotAccountService extends Disposable implements ICopilotAccount
 	getProtectedResources(reader?: IReader): ProtectedResourceMetadata[] {
 		const state = this.state.read(reader);
 		const resources = new Map<string, ProtectedResourceMetadata>([[copilotEntraDiscoveryResource, copilotEntraDiscoveryMetadata]]);
+		if (state.kind === 'incomplete') {
+			for (const service of ['github', 'm365'] as const) {
+				const resource = resourceForService(service);
+				resources.set(resource.resource, resource);
+			}
+		}
 		const choices = state.kind === 'choiceRequired' ? state.choices : state.kind === 'ready' || state.kind === 'activating' ? [state.choice] : [];
 		for (const choice of choices) {
 			resources.set(choice.resource, resourceForChoice(choice));
@@ -128,7 +137,34 @@ export class CopilotAccountService extends Disposable implements ICopilotAccount
 			throw new CancellationError();
 		}
 		this.authentication?.validateSelection(params, copilotEntraDiscoveryMetadata);
+		if (state.kind !== 'incomplete' || !this.hasPreparedCredential(accountId)) {
+			this._state.set({ kind: 'incomplete', entraAccountId: accountId }, undefined);
+			return;
+		}
 		await this.discover(client, accountId);
+	}
+
+	private hasPreparedCredential(accountId: string): boolean {
+		return (['github', 'm365'] as const).some(service => {
+			const resource = resourceForService(service);
+			const credential = this._authenticationService.getAuthCredential({ resource: resource.resource, scopes: resource.scopes_supported });
+			return credential?.account?.providerId === 'microsoft' && credential.account.accountId === accountId;
+		});
+	}
+
+	acceptCredential(params: AuthenticateParams, connection: CancellationToken): boolean {
+		const state = this.state.get();
+		const choices = state.kind === 'choiceRequired' ? state.choices : state.kind === 'ready' || state.kind === 'activating' ? [state.choice] : [];
+		const resources = state.kind === 'incomplete' ? (['github', 'm365'] as const).map(resourceForService) : choices.map(resourceForChoice);
+		const resource = resources.find(resource => resource.resource === params.resource);
+		if (!resource || params.target || !params.token || !this.authentication) {
+			return false;
+		}
+		if (connection.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		this.authentication.validateSelection(params, resource);
+		return true;
 	}
 
 	requireReady(): Extract<CopilotAccountContext, { kind: 'ready' }> {
@@ -316,8 +352,12 @@ function toServiceChoice(account: LoginAccount): ICopilotServiceChoice {
 }
 
 function resourceForChoice(choice: ICopilotServiceChoice): ProtectedResourceMetadata {
-	const audience = choice.service === 'github' ? copilotEntraEmuAudience : copilotEntraM365Audience;
-	return { resource: choice.resource, authorization_servers: [copilotEntraAuthorizationServer], scopes_supported: [`${audience}/${choice.service === 'github' ? 'user_impersonation' : '.default'}`] };
+	return resourceForService(choice.service);
+}
+
+function resourceForService(service: ICopilotServiceChoice['service']): ProtectedResourceMetadata {
+	const audience = service === 'github' ? copilotEntraEmuAudience : copilotEntraM365Audience;
+	return { resource: copilotEntraResources.get(audience)!, authorization_servers: [copilotEntraAuthorizationServer], scopes_supported: [`${audience}/${service === 'github' ? 'user_impersonation' : '.default'}`] };
 }
 
 async function readActiveAccount(session: CopilotSession): Promise<{ choice: ICopilotServiceChoice; derivedFrom: string }> {

@@ -1211,14 +1211,18 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		return session;
 	}
 
-	async launch(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime): Promise<CopilotSessionWrapper> {
-		if (plan.workspace?.kind === 'virtual' && !plan.virtualSessionFs) {
-			throw new Error('Virtual Copilot sessions require an editor-backed filesystem provider');
-		}
+	private _assertConversationAuthentication(plan: CopilotSessionLaunchPlan): void {
 		if (this._configurationService.copilotM365EnabledAtStartup && !plan.githubCredentials.usesScopedCredential) {
 			this._accountService.requireReady();
 			throw new Error(localize('copilot.microsoftConversationUnavailable', "Microsoft Copilot conversation authentication is not yet available."));
 		}
+	}
+
+	async launch(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime): Promise<CopilotSessionWrapper> {
+		if (plan.workspace?.kind === 'virtual' && !plan.virtualSessionFs) {
+			throw new Error('Virtual Copilot sessions require an editor-backed filesystem provider');
+		}
+		this._assertConversationAuthentication(plan);
 		this._logService.info(`[Copilot:${plan.sessionId}] Preparing SDK session: kind=${plan.kind}, configuration=${runtime.launchOwner.toString()}, chat=${runtime.chatUri.toString()}`);
 		let managedSettingsResolved = false;
 		plan.stageRecorder?.mark('config');

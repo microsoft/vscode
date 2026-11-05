@@ -11,7 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import type { AuthenticateParams } from '../../../../../../platform/agentHost/common/agent.js';
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { copilotAccountContextKey, type CopilotAccountContext } from '../../../../../../platform/agentHost/common/copilotAccountContext.js';
-import { copilotEntraDiscoveryResource, copilotEntraM365Audience } from '../../../../../../platform/agentHost/common/copilotEntraAuthentication.js';
+import { copilotEntraAuthorizationServer, copilotEntraDiscoveryResource, copilotEntraEmuAudience, copilotEntraM365Audience, copilotEntraResources } from '../../../../../../platform/agentHost/common/copilotEntraAuthentication.js';
 import { readAuthenticationAccount } from '../../../../../../platform/agentHost/common/meta/agentAuthenticationAccount.js';
 import { readCopilotAccountOperation } from '../../../../../../platform/agentHost/common/meta/copilotAccountOperation.js';
 import type { RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -43,7 +43,11 @@ suite('Agent Host Copilot account setup', () => {
 		};
 		const identity: AuthenticationSession = { id: 'session-id', account: { id: 'account-id', label: 'Intended Microsoft account' }, scopes: ['User.Read'], accessToken: 'synthetic-only' };
 		const requests: AuthenticateParams[] = [];
-		const state = { pending: undefined as DeferredPromise<readonly AuthenticationSession[]> | undefined, hidden: false, disabledInWorkspace: false, rejectDiscovery: false };
+		const state = {
+			pending: undefined as DeferredPromise<readonly AuthenticationSession[]> | undefined, hidden: false, disabledInWorkspace: false, rejectDiscovery: false,
+			discoveryResults: [] as CopilotAccountContext[], missingScopes: [] as string[],
+			delivery: undefined as DeferredPromise<boolean> | undefined,
+		};
 		const setContext = (context: CopilotAccountContext | undefined) => {
 			root.config!.values[copilotAccountContextKey] = context;
 			rootChanged.fire(root);
@@ -59,20 +63,23 @@ suite('Agent Host Copilot account setup', () => {
 					if (state.rejectDiscovery) {
 						return { authenticated: false };
 					}
-					setContext(discoveryResult);
+					setContext(state.discoveryResults.shift() ?? discoveryResult);
 				} else if (operation?.kind === 'select') {
 					setContext({ kind: 'ready', entraAccountId: identity.account.id, discoveryId: operation.discoveryId, choice: choices.find(choice => choice.selectionId === operation.selectionId)!, derivedFrom: 'opaque-runtime-base' });
+				} else if (state.delivery) {
+					return { authenticated: await state.delivery.p };
 				}
 				return { authenticated: true };
 			},
 		});
 		const authentication = upcastPartial<IAuthenticationService>({
 			onDidChangeSessions: changed.event,
-			getSessions: async (_provider, scopes) => scopes && state.pending ? state.pending.p : [{ ...identity, scopes: Array.isArray(scopes) ? scopes : identity.scopes }],
+			getSessions: async (_provider, scopes) => Array.isArray(scopes) && scopes.some(scope => state.missingScopes.includes(scope)) ? [] : scopes && state.pending ? state.pending.p : [{ ...identity, scopes: Array.isArray(scopes) ? scopes : identity.scopes }],
+			createSession: async () => { assert.fail('Setup credential preparation must remain silent'); },
 		});
 		const entitlement = upcastPartial<IChatEntitlementService>({ onDidChangeSentiment: sentimentChanged.event, get sentiment(): IChatSentiment { return { hidden: state.hidden, disabledInWorkspace: state.disabledInWorkspace }; } });
 		const service = store.add(new AgentHostCopilotAccountService(authentication, entitlement, new TestConfigurationService(), new NullLogService()));
-		return { service, connection, requests, identity, setContext, changed, state, rootFailed, sentimentChanged };
+		return { service, connection, requests, identity, setContext, changed, state, rootFailed, sentimentChanged, root };
 	}
 
 	test('separates Microsoft session id, identity, runtime choice and service', async () => {
@@ -83,9 +90,9 @@ suite('Agent Host Copilot account setup', () => {
 			operations: f.requests.map(readCopilotAccountOperation), identities: f.requests.map(request => readAuthenticationAccount(request)?.accountId),
 			resources: f.requests.map(request => request.resource), ready,
 		}, {
-			operations: [{ kind: 'discover' }, { kind: 'select', discoveryId: 'opaque-flow', selectionId: 'selection-A' }],
-			identities: ['account-id', 'account-id'],
-			resources: [copilotEntraDiscoveryResource, choices[0].resource],
+			operations: [{ kind: 'discover' }, undefined, { kind: 'select', discoveryId: 'opaque-flow', selectionId: 'selection-A' }],
+			identities: ['account-id', 'account-id', 'account-id'],
+			resources: [copilotEntraDiscoveryResource, choices[0].resource, choices[0].resource],
 			ready: { kind: 'ready', entraAccountId: 'account-id', discoveryId: 'opaque-flow', choice: choices[0], derivedFrom: 'opaque-runtime-base' },
 		});
 	});
@@ -96,6 +103,119 @@ suite('Agent Host Copilot account setup', () => {
 		assert.deepStrictEqual({ kind: state.kind, resources: f.requests.map(request => request.resource) }, {
 			kind: 'choiceRequired', resources: [copilotEntraDiscoveryResource],
 		});
+	});
+
+	function preparingFixture() {
+		const incomplete: CopilotAccountContext = { kind: 'incomplete', entraAccountId: 'account-id' };
+		const f = fixture(offered);
+		f.state.discoveryResults.push(incomplete);
+		f.root.agents[0].protectedResources = [...copilotEntraResources].map(([audience, resource]) => ({
+			resource, authorization_servers: [copilotEntraAuthorizationServer],
+			scopes_supported: [`${audience}/${audience === copilotEntraEmuAudience ? 'user_impersonation' : '.default'}`],
+		}));
+		return f;
+	}
+
+	test('waits for accepted same-account delivery before one discovery retry and skips an optional EMU miss silently', async () => {
+		const f = preparingFixture();
+		f.state.missingScopes.push(`${copilotEntraEmuAudience}/user_impersonation`);
+		f.state.delivery = new DeferredPromise<boolean>();
+		const started = new DeferredPromise<void>();
+		const authenticate = f.connection.authenticate;
+		f.connection.authenticate = async params => {
+			if (!readCopilotAccountOperation(params)) {
+				started.complete();
+			}
+			return authenticate(params);
+		};
+		const discovery = f.service.discover(f.connection, f.identity.id);
+		await started.p;
+		const beforeAccepted = f.requests.map(readCopilotAccountOperation);
+		f.state.delivery.complete(true);
+		const result = await discovery;
+		assert.deepStrictEqual({ beforeAccepted, operations: f.requests.map(readCopilotAccountOperation), resources: f.requests.map(request => request.resource), result }, {
+			beforeAccepted: [{ kind: 'discover' }, undefined],
+			operations: [{ kind: 'discover' }, undefined, { kind: 'discover' }],
+			resources: [copilotEntraDiscoveryResource, copilotEntraResources.get(copilotEntraM365Audience), copilotEntraDiscoveryResource],
+			result: offered,
+		});
+	});
+
+	test('missing service credentials leave discovery incomplete, not zero available services', async () => {
+		const f = preparingFixture();
+		f.state.missingScopes.push(`${copilotEntraEmuAudience}/user_impersonation`, `${copilotEntraM365Audience}/.default`);
+		const result = await f.service.discover(f.connection, f.identity.id);
+		assert.deepStrictEqual({ result, operations: f.requests.map(readCopilotAccountOperation) }, {
+			result: { kind: 'incomplete', entraAccountId: 'account-id' }, operations: [{ kind: 'discover' }],
+		});
+	});
+
+	test('a failed native discovery after preparation does not trigger another retry or become availability', async () => {
+		const f = preparingFixture();
+		const authenticate = f.connection.authenticate;
+		let discoveries = 0;
+		f.connection.authenticate = async params => {
+			if (readCopilotAccountOperation(params)?.kind === 'discover' && ++discoveries === 2) {
+				f.setContext({ kind: 'error', stage: 'discovery', entraAccountId: 'account-id' });
+				throw new Error('Native discovery unavailable');
+			}
+			return authenticate(params);
+		};
+		await assert.rejects(f.service.discover(f.connection, f.identity.id), /Native discovery unavailable/);
+		assert.strictEqual(discoveries, 2);
+	});
+
+	for (const stop of ['rejected', 'signedOut', 'disconnected', 'otherWindowSignOut'] as const) {
+		test(`${stop} credential preparation cannot retry discovery`, async () => {
+			const f = preparingFixture();
+			f.state.missingScopes.push(`${copilotEntraEmuAudience}/user_impersonation`);
+			f.state.delivery = new DeferredPromise<boolean>();
+			const started = new DeferredPromise<void>();
+			const authenticate = f.connection.authenticate;
+			f.connection.authenticate = async params => {
+				if (!readCopilotAccountOperation(params)) {
+					started.complete();
+				}
+				return authenticate(params);
+			};
+			const rejected = assert.rejects(f.service.discover(f.connection, f.identity.id));
+			await started.p;
+			if (stop === 'signedOut') {
+				await f.service.signOut(f.connection);
+			} else if (stop === 'disconnected') {
+				f.rootFailed.fire(new Error('Disconnected'));
+			} else if (stop === 'otherWindowSignOut') {
+				f.setContext({ kind: 'signedOut' });
+			}
+			f.state.delivery.complete(stop !== 'rejected');
+			await rejected;
+			assert.deepStrictEqual(f.requests.map(readCopilotAccountOperation).filter(Boolean), [{ kind: 'discover' }]);
+		});
+	}
+
+	test('a missing discovery credential never creates an interactive sign-in automatically', async () => {
+		const f = fixture();
+		f.state.missingScopes.push('User.Read');
+		await assert.rejects(f.service.discover(f.connection, f.identity.id), /additional permissions/);
+		assert.deepStrictEqual(f.requests, []);
+	});
+
+	test('a selected credential must be accepted before activation and cannot outlive its offered choice', async () => {
+		const f = fixture();
+		f.setContext(offered);
+		f.state.delivery = new DeferredPromise<boolean>();
+		const started = new DeferredPromise<void>();
+		const authenticate = f.connection.authenticate;
+		f.connection.authenticate = async params => {
+			started.complete();
+			return authenticate(params);
+		};
+		const rejected = assert.rejects(f.service.select(f.connection, 'opaque-flow', 'selection-A'));
+		await started.p;
+		f.setContext({ ...offered, discoveryId: 'replacement-flow' });
+		f.state.delivery.complete(true);
+		await rejected;
+		assert.deepStrictEqual(f.requests.map(readCopilotAccountOperation), [undefined]);
 	});
 
 	for (const operation of ['discover', 'select'] as const) {
@@ -116,7 +236,7 @@ suite('Agent Host Copilot account setup', () => {
 				} else {
 					await f.service.select(f.connection, 'opaque-flow', 'selection-A');
 				}
-				assert.deepStrictEqual(f.requests.map(readAuthenticationAccount), [{
+				assert.deepStrictEqual(f.requests.filter(request => readCopilotAccountOperation(request)).map(readAuthenticationAccount), [{
 					providerId: 'microsoft', accountId: f.identity.account.id, ...(label ? { label } : {}),
 				}]);
 			});
@@ -188,8 +308,26 @@ suite('Agent Host Copilot account setup', () => {
 		f.setContext({ ...offered, entraAccountId: 'another-account' });
 		f.state.rejectDiscovery = true;
 		await assert.rejects(f.service.discover(f.connection, f.identity.id), /did not accept/);
-		await assert.rejects(f.service.signOut(f.connection));
+		await f.service.signOut(f.connection);
 		assert.deepStrictEqual(f.requests.map(request => request.token), ['synthetic-only']);
+	});
+
+	test('a rejected first delivery cannot revoke the same account supplied by another window', async () => {
+		const f = fixture();
+		f.setContext(offered);
+		f.state.rejectDiscovery = true;
+		await assert.rejects(f.service.discover(f.connection, f.identity.id), /did not accept/);
+		await f.service.signOut(f.connection);
+		assert.deepStrictEqual(f.requests.map(request => request.token), ['synthetic-only']);
+	});
+
+	test('a rejected later delivery preserves previously accepted sign-out authority', async () => {
+		const f = fixture();
+		await f.service.discover(f.connection, f.identity.id);
+		f.state.rejectDiscovery = true;
+		await assert.rejects(f.service.discover(f.connection, f.identity.id), /did not accept/);
+		await f.service.signOut(f.connection);
+		assert.deepStrictEqual(f.requests.map(request => request.token), ['synthetic-only', 'synthetic-only', '']);
 	});
 
 	test('disabling AI during credential acquisition prevents forwarding the late result', async () => {

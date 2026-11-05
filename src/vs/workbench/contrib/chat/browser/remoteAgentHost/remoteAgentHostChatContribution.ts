@@ -656,7 +656,6 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		this._instantiationService.invokeFunction(accessor => connState.authRecovery.recover(accessor, protectedResource, {
 			authTokenCache: connState.authTokenCache,
 			microsoftAccountId: this._copilotAccountContext(connection)?.entraAccountId,
-			challengeReason: reason,
 			logPrefix: '[RemoteAgentHost]',
 			isCurrent: () => this._connections.get(address) === connState,
 			renewAuthentication: renewAuthentication ? async resource => {

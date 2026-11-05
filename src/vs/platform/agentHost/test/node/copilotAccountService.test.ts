@@ -15,11 +15,12 @@ import { ICopilotHomeService } from '../../../environment/common/copilotHome.js'
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
-import type { AuthenticateParams } from '../../common/agent.js';
+import type { AuthenticateParams, IAgent } from '../../common/agent.js';
 import { copilotEntraDiscoveryResource, copilotEntraEmuAudience, copilotEntraM365Audience, copilotEntraResources } from '../../common/copilotEntraAuthentication.js';
 import { authenticationAccountMeta } from '../../common/meta/agentAuthenticationAccount.js';
-import { copilotAccountOperationMeta, type CopilotAccountOperation } from '../../common/meta/copilotAccountOperation.js';
+import { copilotAccountOperationMeta, readCopilotAccountOperation, type CopilotAccountOperation } from '../../common/meta/copilotAccountOperation.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { CopilotAccountService } from '../../node/copilot/copilotAccountService.js';
 
@@ -49,7 +50,9 @@ suite('Copilot account context', () => {
 			requestWorkspaceTrust: async () => false, requestMcpAuthentication: async () => false,
 		}));
 		const published: string[] = [];
+		const authentication = store.add(new AgentHostAuthenticationService(new NullLogService()));
 		const services = new ServiceCollection(
+			[IAgentHostAuthenticationService, authentication],
 			[ILogService, new NullLogService()],
 			[IAgentHostClientConnectionService, connections],
 			[ICopilotHomeService, upcastPartial<ICopilotHomeService>({ home: URI.file('/test-copilot-home') })],
@@ -120,10 +123,53 @@ suite('Copilot account context', () => {
 			};
 		};
 		const runtime = Promise.resolve(client);
-		const discover = () => context.authenticate(runtime, credential({ kind: 'discover' }), connection.token);
+		const provider = new class extends mock<IAgent>() {
+			override readonly id = 'copilotcli';
+			override getProtectedResources() { return context.getProtectedResources(); }
+			override async authenticate() { return false; }
+			override async handleAuthenticationToken(params: AuthenticateParams) {
+				if (readCopilotAccountOperation(params)) {
+					await context.authenticate(runtime, params, connection.token);
+					return true;
+				}
+				return context.acceptCredential(params, connection.token) || await context.authentication!.authenticate(params, connection.token);
+			}
+		}();
+		const prepare = async () => {
+			await context.authenticate(runtime, credential({ kind: 'discover' }), connection.token);
+			for (const service of ['github', 'm365'] as const) {
+				const params = credential({ kind: 'discover' }, service);
+				await authentication.authenticate({ ...params, _meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: 'entra-identity' }) }, [provider], undefined, connection.token);
+			}
+		};
+		const discover = async () => {
+			if (context.state.get().kind !== 'ready' && context.state.get().kind !== 'choiceRequired') {
+				await prepare();
+			}
+			await context.authenticate(runtime, credential({ kind: 'discover' }), connection.token);
+		};
 		const select = (service: 'github' | 'm365') => context.authenticate(runtime, credential({ kind: 'select', discoveryId: 'opaque-flow', selectionId: service === 'github' ? 'opaque-emu' : 'opaque-m365' }, service), connection.token);
-		return { context, client, runtime, session, state, published, connection, credential, discover, select };
+		return { context, client, runtime, session, state, published, connection, credential, discover, select, authentication, provider, prepare };
 	}
+
+	test('initial discovery advertises credential preparation without running native discovery or publishing availability', async () => {
+		const f = fixture();
+		await f.context.authenticate(f.runtime, f.credential({ kind: 'discover' }), f.connection.token);
+		await f.context.authenticate(f.runtime, f.credential({ kind: 'discover' }), f.connection.token);
+		assert.deepStrictEqual({ state: f.context.state.get(), nativeSessions: f.state.created, resources: f.context.getProtectedResources().map(resource => resource.resource) }, {
+			state: { kind: 'incomplete', entraAccountId: 'entra-identity' }, nativeSessions: 0,
+			resources: [copilotEntraDiscoveryResource, ...copilotEntraResources.values()],
+		});
+	});
+
+	test('preparing credentials never activates a service and rejects a different identity', async () => {
+		const f = fixture();
+		await f.prepare();
+		assert.throws(() => f.context.acceptCredential(f.credential({ kind: 'discover' }, 'm365', 'another'), f.connection.token), /original account/);
+		assert.deepStrictEqual({ kind: f.context.state.get().kind, nativeSessions: f.state.created, selected: f.state.selected }, {
+			kind: 'incomplete', nativeSessions: 0, selected: '',
+		});
+	});
 
 	for (const service of ['github', 'm365'] as const) {
 		test(`waits for choice and confirms ${service} identity before readiness`, async () => {
@@ -246,7 +292,7 @@ suite('Copilot account context', () => {
 		await f.context.authentication!.authenticate({ resource: copilotEntraDiscoveryResource, token: '' }, f.connection.token);
 		f.state.confirmation.complete({ kind: 'activeAccount', account: { ...choices[0], active: true, derivedFrom: 'opaque-runtime-base' } });
 		await rejected;
-		assert.deepStrictEqual(states, ['signedOut', 'discovering', 'signedOut']);
+		assert.deepStrictEqual(states, ['signedOut', 'incomplete', 'discovering', 'signedOut']);
 	});
 
 	for (const step of [
@@ -387,6 +433,7 @@ suite('Copilot account context', () => {
 
 	test('sign-out during runtime startup cannot reestablish authority or discovery', async () => {
 		const f = fixture();
+		await f.prepare();
 		const starting = new DeferredPromise<CopilotClient>();
 		const discovery = f.context.authenticate(starting.p, f.credential({ kind: 'discover' }), f.connection.token);
 		await f.context.authentication!.authenticate({ resource: copilotEntraDiscoveryResource, token: '' }, f.connection.token);
