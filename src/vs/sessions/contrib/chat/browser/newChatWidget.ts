@@ -443,7 +443,7 @@ export class NewChatWidget extends Disposable {
 			session?.loading.read(reader);
 			session?.isQuickChat?.read(reader);
 			return this._shouldShowComparisonAction();
-		}), comparisonConfigResolving, modelId => this.languageModelsService.lookupLanguageModel(modelId)?.name,
+		}), modelId => this.languageModelsService.lookupLanguageModel(modelId)?.name,
 			derived(this, reader => !this._isQuickChatComposer.read(reader)),
 			observableFromEvent(this, Event.filter(this.configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING)),
 				() => this.configurationService.getValue<boolean>(COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING))));
@@ -549,19 +549,7 @@ export class NewChatWidget extends Disposable {
 		this._register(toDisposable(() => newChatInput.saveState()));
 		this._newChatInput = this._register(newChatInput);
 		this._register(this._trackSessionPreparation());
-		let comparisonHarness: string | undefined;
-		this._register(autorun(reader => {
-			const session = this._session.read(reader);
-			const harness = session ? JSON.stringify([session.providerId, session.sessionType, session.isQuickChat?.read(reader)]) : undefined;
-			if (harness !== comparisonHarness) {
-				this._comparisonSelection.reset();
-				comparisonHarness = harness;
-			}
-			newChatInput.selectedModelState.read(reader);
-			if (!session?.loading.read(reader) && !comparisonConfigResolving.read(reader)) {
-				this._comparisonSelection.retainModels(this._getComparisonModelIds());
-			}
-		}));
+		this._register(this._trackComparisonSelection(comparisonConfigResolving));
 		this.pickerVisibility = derived(this, reader => this._activeEmptyState.read(reader)
 			? noSessionPickerVisibility
 			: newChatInput.pickerVisibility.visibility.read(reader));
@@ -696,6 +684,24 @@ export class NewChatWidget extends Disposable {
 			if (session && !session.isCreated.read(reader) && !session.isNewSessionRequestInProgress?.read(reader)
 				&& this._newChatInput.getInputValue().trim()) {
 				this.sessionsProvidersService.getProvider(session.providerId)?.prepareNewSessionWhileComposing?.(session.sessionId);
+			}
+		});
+	}
+
+	private _trackComparisonSelection(configurationResolving: IObservable<boolean>): IDisposable {
+		let comparisonHarness: string | undefined;
+		return autorun(reader => {
+			const session = this._session.read(reader);
+			const harness = session ? JSON.stringify([session.providerId, session.sessionType]) : undefined;
+			if (!this._compareAgentsEnabled.read(reader) || harness !== undefined && comparisonHarness !== undefined && harness !== comparisonHarness) {
+				this._comparisonSelection.reset();
+			}
+			if (harness !== undefined) {
+				comparisonHarness = harness;
+			}
+			this._newChatInput.selectedModelState.read(reader);
+			if (session && !session.loading.read(reader) && !configurationResolving.read(reader) && this._comparisonSelection.available.read(reader)) {
+				this._comparisonSelection.retainModels(this._getComparisonModelIds());
 			}
 		});
 	}
@@ -2238,9 +2244,6 @@ export class NewChatWidget extends Disposable {
 			this._preferredDevContainerFolderUri = undefined;
 		}
 		const currentFolderUri = this._session.get()?.workspace.get()?.folders[0]?.root;
-		if (!folderUri || !currentFolderUri || !this.uriIdentityService.extUri.isEqual(currentFolderUri, folderUri)) {
-			this._comparisonSelection.reset();
-		}
 		const refreshingPromptOptions = !!currentFolderUri
 			&& (!folderUri || !this.uriIdentityService.extUri.isEqual(currentFolderUri, folderUri))
 			&& this._newChatInput.preparePromptOptionsRefresh();
