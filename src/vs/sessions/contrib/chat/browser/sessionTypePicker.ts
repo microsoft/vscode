@@ -32,7 +32,7 @@ import { ILanguageModelsService } from '../../../../workbench/contrib/chat/commo
 import { getSessionTypeAvailability, getSessionTypePickerAvailability, getSessionTypeUnavailableDescription, getSessionTypeUnavailableHover, SessionTypeAvailability } from '../../../../workbench/contrib/chat/browser/agentSessions/sessionTypeAvailability.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { markOnboardingTarget } from '../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
-import { reportNewChatPickerClosed } from './newChatPickerTelemetry.js';
+import { reportNewChatPickerClosed } from '../../../../workbench/contrib/sessions/browser/newChatPickerTelemetry.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { registerPickerKeybindingPresentation } from './newChatPickerKeybinding.js';
 import { createSessionPickerToolbar } from './sessionPickerToolbar.js';

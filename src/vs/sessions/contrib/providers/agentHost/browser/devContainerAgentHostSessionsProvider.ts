@@ -21,7 +21,7 @@ import { IWorkspaceTrustRequestService } from '../../../../../platform/workspace
 import { AgentSandboxEnabledSettingValue, AgentSandboxSettingId, isAgentSandboxEnabledValue } from '../../../../../platform/sandbox/common/settings.js';
 import { ILanguageModelChatMetadata } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { isAgentHostProvider } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
-import { DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostService } from '../../../../common/devContainerAgentHostService.js';
+import { DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostService } from '../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ChatModelSource, ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { WorkspaceNotTrustedError } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';

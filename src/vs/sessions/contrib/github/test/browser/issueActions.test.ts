@@ -17,7 +17,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IOpenURLOptions, IURLService } from '../../../../../platform/url/common/url.js';
 import { IExtensionService } from '../../../../../workbench/services/extensions/common/extensions.js';
-import { Menus } from '../../../../browser/menus.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISession, ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';

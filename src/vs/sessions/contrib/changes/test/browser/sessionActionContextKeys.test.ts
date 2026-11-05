@@ -14,11 +14,11 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { DesktopChangesEditorTransitionContext, SessionHasOpenPullRequestContext, SessionPrimaryPullRequestOperationContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ISessionChangeset, ISessionChangesetOperation } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { GitHubCheckConclusion, GitHubCheckStatus, IGitHubCICheck } from '../../../github/common/types.js';
-import { GitHubPullRequestCIModel } from '../../../github/browser/models/githubPullRequestCIModel.js';
+import { GitHubCheckConclusion, GitHubCheckStatus, IGitHubCICheck } from '../../../../../workbench/contrib/sessions/common/github/types.js';
+import { GitHubPullRequestCIModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
 import { PullRequestCheck } from '../../../../../platform/github/common/githubPullRequestService.js';
 import { RequiredPullRequestChecks } from '../../../../../platform/github/common/pullRequestRequiredChecks.js';
-import { ActiveSessionState } from '../../common/changesViewService.js';
+import { ActiveSessionState } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { registerSessionActionContextKeyBinder, bindSessionActionContextKeys, ISessionActionContextKeysSource } from '../../browser/sessionActionContextKeys.js';
 import { activeSessionCIFixRequested, hasActiveSessionFailedCIChecks } from '../../browser/checksActions.js';
 import { SessionChangesReviewedFilesContext } from '../../browser/changesMultiDiffSourceResolver.js';

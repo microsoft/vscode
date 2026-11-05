@@ -29,7 +29,7 @@ import { OpenInVSCodeTitleBarWidget } from '../../browser/widget/openInVSCodeWid
 import { IActionViewItemService } from '../../../platform/actions/browser/actionViewItemService.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
-import { resolveRemoteFolderUri } from '../../browser/openInVSCodeUtils.js';
+import { resolveRemoteFolderUri } from '../../../workbench/contrib/sessions/browser/openInVSCodeUtils.js';
 import { INativeHostService } from '../../../platform/native/common/native.js';
 import { IFolderToOpen, IOpenedMainWindow } from '../../../platform/window/common/window.js';
 import { ILabelService, Verbosity } from '../../../platform/label/common/label.js';

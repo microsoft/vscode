@@ -42,7 +42,7 @@ import { ConnectMissionControlEnvironmentCommand } from '../../../../../../workb
 import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
 import { isIMenuItem, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../../platform/actions/common/menuService.js';
-import { Menus } from '../../../../../browser/menus.js';
+import { Menus } from '../../../../../../workbench/contrib/sessions/browser/menus.js';
 import '../../browser/missionControlAgentHostContribution.js';
 import { getSessionCreationEnvironments } from '../../../../chat/browser/sessionEnvironmentPicker.js';
 import { IWSLRemoteAgentHostService } from '../../../../../../platform/agentHost/common/wslRemoteAgentHost.js';

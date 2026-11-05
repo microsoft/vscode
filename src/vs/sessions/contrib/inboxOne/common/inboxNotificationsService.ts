@@ -13,7 +13,7 @@ import { IChatPlanReview, IChatQuestion, IChatToolInvocation } from '../../../..
 import { migrateLegacyTerminalToolSpecificData } from '../../../../workbench/contrib/chat/common/chat.js';
 import { AgentHostPullRequestOperationId } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { getGitHubPullRequestRefs, getSessionOwnedGitHubPullRequestRefs, IGitHubPullRequestRef, ISession, ISessionChangeset, ISessionChangesetOperation, SessionChangesetOperationScope, SessionChangesetOperationStatus } from '../../../../workbench/contrib/sessions/common/session.js';
-import { getSessionGitHubReferences } from '../../github/common/sessionGitHubReferences.js';
+import { getSessionGitHubReferences } from '../../../../workbench/contrib/sessions/common/github/sessionGitHubReferences.js';
 
 export const IInboxNotificationsService = createDecorator<IInboxNotificationsService>('sessionsInboxNotificationsService');
 

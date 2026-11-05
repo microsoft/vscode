@@ -31,7 +31,7 @@ import { IProgressIndicator } from '../../../platform/progress/common/progress.j
 import { AbstractProgressScope, ScopedProgressIndicator } from '../../../workbench/services/progress/browser/progressIndicator.js';
 import { IAgentWorkbenchLayoutService } from '../workbench.js';
 import { applyAgentsPartCardStyles, getAgentsPartCardContentSize, getSessionsPartCardMarginRight } from './agentsPartCard.js';
-import { isPhoneLayout } from './mobile/mobileLayout.js';
+import { isPhoneLayout } from '../../../workbench/contrib/sessions/browser/mobileLayout.js';
 import { SessionsChatSurface } from '../../services/chatBackground/browser/sessionsChatSurface.js';
 import { noSessionPickerVisibility, SessionPickerVisibilityContextKeys } from '../../../workbench/contrib/sessions/common/sessionPickerVisibility.js';
 import { ISessionGridSlot, SessionGridRequest } from '../../../workbench/contrib/sessions/browser/sessionsPartService.js';

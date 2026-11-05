@@ -51,11 +51,11 @@ import { getStatusHover, getStatusLabel, removeRemoteHost, showRemoteHostOptions
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles, defaultCountBadgeStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { areDevContainerSamplesEnabled, DevContainerAgentHostEnabledSettingId, DevContainerSamplesEnabledSettingId } from '../../../common/devContainerAgentHostService.js';
-import { reportNewChatPickerClosed } from './newChatPickerTelemetry.js';
-import { Menus } from '../../../browser/menus.js';
+import { areDevContainerSamplesEnabled, DevContainerAgentHostEnabledSettingId, DevContainerSamplesEnabledSettingId } from '../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
+import { reportNewChatPickerClosed } from '../../../../workbench/contrib/sessions/browser/newChatPickerTelemetry.js';
+import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { markOnboardingTarget } from '../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
-import { NewSessionWorkspacePreselectionSource } from './newSessionComposerService.js';
+import { NewSessionWorkspacePreselectionSource } from '../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { IWorkspaceSelectionSnapshot, WorkspaceSelectionOrigin, WorkspaceSessionFallbackState } from '../../../../workbench/contrib/sessions/common/workspaceSelection.js';
 import { type IResolvedFolderWorkspace, SessionWorkspaceFallback } from './sessionWorkspaceFallback.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';

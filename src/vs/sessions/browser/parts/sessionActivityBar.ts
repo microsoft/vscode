@@ -33,7 +33,7 @@ import { WorkbenchHoverDelegate } from '../../../platform/hover/browser/hover.js
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../platform/instantiation/common/serviceCollection.js';
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
-import { Menus, SessionActivityBarGroup } from '../menus.js';
+import { Menus, SessionActivityBarGroup } from '../../../workbench/contrib/sessions/browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../workbench.js';
 import { AgentWorkbenchLayout } from '../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
 import { SESSION_ACTIVITY_BAR_SETTING } from '../../../workbench/contrib/sessions/common/sessionConfig.js';
@@ -41,7 +41,7 @@ import { TOGGLE_SIDE_PANEL_COMMAND_ID } from '../../../workbench/contrib/session
 import { sessionActivityBarChatActionContext } from '../../../workbench/contrib/sessions/common/contextkeys.js';
 import { LayoutModeContext } from '../../../workbench/common/contextkeys.js';
 import { IWindowCommandContext } from '../../../workbench/common/windowCommandContext.js';
-import { isPhoneLayout } from './mobile/mobileLayout.js';
+import { isPhoneLayout } from '../../../workbench/contrib/sessions/browser/mobileLayout.js';
 import { findSessionActivityBarExternalHost, ISessionActivityBarExternalHost, SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from './sessionActivityBarHost.js';
 import { SubmenuFlyout } from './submenuFlyout.js';
 

@@ -32,20 +32,15 @@ import { IWorkspaceFolderLabelService } from '../../../../services/workspaces/co
 import { FixtureMenuService } from '../chat/chatFixtureUtils.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 
-// eslint-disable-next-line local/code-import-patterns
-import { ActiveSessionState, ChangesViewSection, IChangesDetailsViewState, IChangesSessionObservables, IChangesViewSectionCollapseState, IChangesViewService } from '../../../../../sessions/contrib/changes/common/changesViewService.js';
-// eslint-disable-next-line local/code-import-patterns
-import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesViewMode, IsolationMode } from '../../../../../sessions/contrib/changes/common/changes.js';
+import { ActiveSessionState, ChangesViewSection, IChangesDetailsViewState, IChangesSessionObservables, IChangesViewSectionCollapseState, IChangesViewService } from '../../../../contrib/sessions/common/changesViewService.js';
+import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesViewMode, IsolationMode } from '../../../../contrib/sessions/common/changes.js';
 // eslint-disable-next-line local/code-import-patterns
 import { DesktopChangesViewPane } from '../../../../../sessions/contrib/changes/browser/changesView.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionChangesService, SessionChangesService } from '../../../../../sessions/contrib/changes/browser/sessionChangesService.js';
-// eslint-disable-next-line local/code-import-patterns
-import { GitHubPullRequestCIModel } from '../../../../../sessions/contrib/github/browser/models/githubPullRequestCIModel.js';
-// eslint-disable-next-line local/code-import-patterns
-import { IGitHubService } from '../../../../../sessions/contrib/github/browser/githubService.js';
-// eslint-disable-next-line local/code-import-patterns
-import { GitHubCheckConclusion, GitHubCheckStatus, GitHubCIOverallStatus, IGitHubCICheck } from '../../../../../sessions/contrib/github/common/types.js';
+import { GitHubPullRequestCIModel } from '../../../../contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
+import { IGitHubService } from '../../../../contrib/sessions/browser/github/githubService.js';
+import { GitHubCheckConclusion, GitHubCheckStatus, GitHubCIOverallStatus, IGitHubCICheck } from '../../../../contrib/sessions/common/github/types.js';
 import { IFocusedSessionHostService } from '../../../../contrib/sessions/browser/sessionHost.js';
 import { focusedSessionHostServiceOf, stubSessionHosts } from '../../../../contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsService } from '../../../../contrib/sessions/browser/sessionsService.js';

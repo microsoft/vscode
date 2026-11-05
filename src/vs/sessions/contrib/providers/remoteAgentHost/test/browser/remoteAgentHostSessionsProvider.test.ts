@@ -62,26 +62,26 @@ import { IChatSessionsService, isIChatSessionFileChange2 } from '../../../../../
 import { ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ISessionChangeEvent, ISessionsProvider, ISessionsProviderCreateSessionOptions } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { IAgentHostSessionsProvider } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
-import { DevContainerIdleTimeoutSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostService } from '../../../../../common/devContainerAgentHostService.js';
+import { DevContainerIdleTimeoutSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostService } from '../../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ChatInteractivity, ChatModelSource, getChatCapabilities, getGitHubPullRequestRefs, getSessionOwnedGitHubPullRequestRefs, SessionRemoteConnectionFailureReason, SessionStatus, type ISession, type ISessionFileChange } from '../../../../../../workbench/contrib/sessions/common/session.js';
-import { SessionPullRequestPresentationModel } from '../../../../github/browser/pullRequestIconStatus.js';
+import { SessionPullRequestPresentationModel } from '../../../../../../workbench/contrib/sessions/browser/github/pullRequestIconStatus.js';
 import { buildSessionPullRequestSections } from '../../../../chat/browser/sessionChatInputToolbar.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { RemoteAgentHostSessionsProvider, type IRemoteAgentHostSessionsProviderConfig } from '../../browser/remoteAgentHostSessionsProvider.js';
 import { getRemoteAgentHostPickerKey, RemoteAgentHostPickerVisibility } from '../../browser/remoteAgentHostPickerVisibility.js';
-import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING } from '../../../../chat/common/constants.js';
+import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING } from '../../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { getSessionCreationEnvironments } from '../../../../chat/browser/sessionEnvironmentPicker.js';
 import { CloudSandboxSessionsProvider } from '../../browser/cloudSandboxSessionsProvider.js';
 import { CLOUD_SANDBOX_CREATION_PROVIDER_ID, COPILOT_PROVIDER_ID } from '../../../copilotChatSessions/common/copilotChatSessions.js';
 import { ProviderAutomationService } from '../../../../automations/browser/providerAutomationService.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
-import { IGitHubService } from '../../../../github/browser/githubService.js';
-import { GitHubPullRequestModel } from '../../../../github/browser/models/githubPullRequestModel.js';
-import { IPullRequestIconCache, PullRequestIconCache } from '../../../../github/browser/pullRequestIconCache.js';
+import { IGitHubService } from '../../../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { GitHubPullRequestModel } from '../../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestModel.js';
+import { IPullRequestIconCache, PullRequestIconCache } from '../../../../../../workbench/contrib/sessions/browser/github/pullRequestIconCache.js';
 import { IAgentHostActiveClientService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IAgentHostMcpAppToolsService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostMcpAppToolsService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
@@ -96,7 +96,7 @@ import { ISessionsRecentWorkspacesService } from '../../../../../../workbench/co
 import { MockLabelService } from '../../../../../../workbench/services/label/test/common/mockLabelService.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { extUri } from '../../../../../../base/common/resources.js';
-import { INewSessionComposerService, NewSessionComposerService } from '../../../../chat/browser/newSessionComposerService.js';
+import { INewSessionComposerService, NewSessionComposerService } from '../../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 
 // ---- Mock connection --------------------------------------------------------
 

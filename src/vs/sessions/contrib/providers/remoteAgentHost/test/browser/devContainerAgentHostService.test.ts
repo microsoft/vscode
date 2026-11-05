@@ -14,7 +14,7 @@ import { getComparisonKey } from '../../../../../../base/common/resources.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { devContainerSamples, devContainerSampleUri } from '../../../../../../platform/agentHost/common/devContainerSamples.js';
-import { resolveDevContainerSourceWorkspace } from '../../../../../browser/openInVSCodeUtils.js';
+import { resolveDevContainerSourceWorkspace } from '../../../../../../workbench/contrib/sessions/browser/openInVSCodeUtils.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -28,7 +28,7 @@ import { IWorkspaceTrustRequestService } from '../../../../../../platform/worksp
 import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISession } from '../../../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionChangeEvent, ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
-import { IDevContainerAgentHostConnector } from '../../../../../common/devContainerAgentHostService.js';
+import { IDevContainerAgentHostConnector } from '../../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { DevContainerAgentHostService } from '../../browser/devContainerAgentHostService.js';
 import { IRemoteAgentHostSessionsProviderConfig, RemoteAgentHostSessionsProvider } from '../../browser/remoteAgentHostSessionsProvider.js';
 

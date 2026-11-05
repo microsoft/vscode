@@ -25,7 +25,7 @@ import { canMoveModalEditorToEditorArea } from '../../../../platform/editor/comm
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ActiveEditorContext, EditorPartModalCanMoveToEditorAreaContext, EditorPartModalContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../workbench/common/contextkeys.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { Menus } from '../../../browser/menus.js';
+import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { AgentWorkbenchLayout } from '../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
 import { DesktopLayoutContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
@@ -37,7 +37,7 @@ import { IEditorService } from '../../../../workbench/services/editor/common/edi
 import { IListService } from '../../../../platform/list/browser/listService.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../workbench/common/editor.js';
 import { resolveCommandsContext } from '../../../../workbench/browser/parts/editor/editorCommandsContext.js';
-import { CHANGES_VIEW_ID } from '../../changes/common/changes.js';
+import { CHANGES_VIEW_ID } from '../../../../workbench/contrib/sessions/common/changes.js';
 import { ChangesViewPane } from '../../changes/browser/changesView.js';
 import { CONNECTED_EDITOR_TABS_CLASS } from '../../../../workbench/browser/parts/editor/editor.js';
 import { IWorkbenchLayoutService, LayoutSettings, ModernUIEditorTabStyle, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
@@ -46,8 +46,8 @@ import { MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID } from '../../../../workbench/brow
 import { TERMINAL_VIEW_ID } from '../../../../workbench/contrib/terminal/common/terminal.js';
 import { TEXT_FILE_EDITOR_ID } from '../../../../workbench/contrib/files/common/files.js';
 import { ISessionsPartService } from '../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
-import { SessionsCategories } from '../../../common/categories.js';
-import { IChangesViewService } from '../../changes/common/changesViewService.js';
+import { SessionsCategories } from '../../../../workbench/contrib/sessions/common/categories.js';
+import { IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
 
 const terminalPanelHiddenForMaximizedEditor = new WeakSet<IAgentWorkbenchLayoutService>();
 

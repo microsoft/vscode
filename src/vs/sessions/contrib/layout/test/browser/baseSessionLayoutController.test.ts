@@ -18,7 +18,7 @@ import { BaseLayoutController } from '../../browser/baseSessionLayoutController.
 import { IMenuItem, isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyValue, IContext } from '../../../../../platform/contextkey/common/contextkey.js';
 import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
-import { Menus } from '../../../../browser/menus.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { SessionEditorWorkingSetService } from '../../common/sessionEditorWorkingSet.js';
 import { SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';

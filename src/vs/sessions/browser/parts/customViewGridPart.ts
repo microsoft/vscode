@@ -16,7 +16,7 @@ import { Parts } from '../../../workbench/services/layout/browser/layoutService.
 import { ICustomViewDescriptor } from '../../../workbench/contrib/sessions/browser/customView.js';
 import { applyAgentsPartCardStyles, getAgentsPartCardContentSize } from './agentsPartCard.js';
 import { CustomViewNode } from './customViewNode.js';
-import { isPhoneLayout } from './mobile/mobileLayout.js';
+import { isPhoneLayout } from '../../../workbench/contrib/sessions/browser/mobileLayout.js';
 import { IAgentWorkbenchLayoutService } from '../workbench.js';
 
 /**

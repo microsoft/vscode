@@ -26,8 +26,7 @@ import { ChatCompositeBar, IChatCompositeBarDelegate } from '../../../../../sess
 import { applySessionViewThemeColors } from '../../../../../sessions/browser/parts/sessionBarStyles.js';
 // eslint-disable-next-line local/code-import-patterns
 import { applyAgentsPartCardStyles } from '../../../../../sessions/browser/parts/agentsPartCard.js';
-// eslint-disable-next-line local/code-import-patterns
-import { Menus } from '../../../../../sessions/browser/menus.js';
+import { Menus } from '../../../../contrib/sessions/browser/menus.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 import { IChatWidgetFixtureHandle, renderChatWidget } from '../chat/chatWidget.fixture.js';
 

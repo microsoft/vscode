@@ -15,9 +15,9 @@ import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actio
 import { IChatWindowOpenOptions, IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { resolveChatWindow } from '../../../../workbench/contrib/chatWindow/browser/chatWindowLayoutActions.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
-import { Menus, SessionHeaderMenus } from '../../../browser/menus.js';
+import { Menus, SessionHeaderMenus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
-import { SessionsCategories } from '../../../common/categories.js';
+import { SessionsCategories } from '../../../../workbench/contrib/sessions/common/categories.js';
 import { SessionIsCreatedContext, SessionItemIsMultiSelectionContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { getMainWindowHost, ISessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';

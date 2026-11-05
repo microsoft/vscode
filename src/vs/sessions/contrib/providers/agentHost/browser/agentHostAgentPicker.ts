@@ -25,7 +25,7 @@ import { ChatMode, IChatMode } from '../../../../../workbench/contrib/chat/commo
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { logChangesToStateModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatModeKind } from '../../../../../workbench/contrib/chat/common/constants.js';
-import { Menus } from '../../../../browser/menus.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_RE } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { SessionProviderIdContext, IsPhoneLayoutContext, SessionActiveChatIsUntitledContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
@@ -37,7 +37,7 @@ import { IFocusedSessionHostService, InSessionHostScopeContext, ISessionHost } f
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IAction } from '../../../../../base/common/actions.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING } from '../../../chat/common/constants.js';
+import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { IChatContextPickService, IChatContextValueItem } from '../../../../../workbench/contrib/chat/browser/attachments/chatContextPickService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';

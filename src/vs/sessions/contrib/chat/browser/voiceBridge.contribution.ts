@@ -20,7 +20,7 @@ import { getFocusedSessionChatSource, getMainWindowHost, IFocusedSessionHostServ
 import { SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
 import { IHostSession, inheritableSessionTarget, ISendRequestOptions, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { INewChatVoiceComposer, INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL } from './newChatVoice.js';
-import { INewSessionComposerService } from './newSessionComposerService.js';
+import { INewSessionComposerService } from '../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { ChatRequestQueueKind } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 
 export async function prepareNewVoiceSession(

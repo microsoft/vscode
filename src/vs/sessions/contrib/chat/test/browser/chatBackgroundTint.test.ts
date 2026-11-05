@@ -42,7 +42,7 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { ColorThemeData } from '../../../../../workbench/services/themes/common/colorThemeData.js';
 import { IColorMap, IWorkbenchColorTheme, IWorkbenchThemeService } from '../../../../../workbench/services/themes/common/workbenchThemeService.js';
 import '../../../../browser/media/workbench.css';
-import { Menus } from '../../../../browser/menus.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { applyAgentsPartCardStyles } from '../../../../browser/parts/agentsPartCard.js';
 import { applySessionViewThemeColors } from '../../../../browser/parts/sessionBarStyles.js';
 import { SessionsChatBackgroundAvailableContext, SessionsChatBackgroundImageConfiguredContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';

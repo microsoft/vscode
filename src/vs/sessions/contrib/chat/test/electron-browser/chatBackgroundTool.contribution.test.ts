@@ -22,7 +22,7 @@ import { IUserDataProfileService } from '../../../../../workbench/services/userD
 import { ISessionsChatBackgroundService } from '../../../../../workbench/contrib/sessions/browser/chatBackgroundService.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { SetChatBackgroundToolContribution } from '../../electron-browser/chatBackgroundTool.contribution.js';
-import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING } from '../../common/constants.js';
+import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 
 suite('Sessions - Chat background tool contribution', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();

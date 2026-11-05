@@ -25,7 +25,7 @@ import { ISessionsProvidersService } from '../../../../../workbench/contrib/sess
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession, ICreateNewSessionOptions, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { INewSessionComposerService } from '../../browser/newSessionComposerService.js';
+import { INewSessionComposerService } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { NewChatInSessionsWindowAction } from '../../browser/newSessionAction.js';
 import { ITestSessionsService, stubMissingSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 

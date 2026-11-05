@@ -38,10 +38,10 @@ import { ActiveSessionHost, ISessionHost, SessionHostKind } from '../../../../..
 import { stubSessionHosts } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackService, ISubmitFeedbackOptions } from '../../../agentFeedback/browser/agentFeedbackService.js';
-import { IGitHubService } from '../../../github/browser/githubService.js';
-import { GitHubPullRequestCIModel } from '../../../github/browser/models/githubPullRequestCIModel.js';
-import { GitHubPullRequestModel } from '../../../github/browser/models/githubPullRequestModel.js';
-import { GitHubPullRequestState, IGitHubPullRequest, OPEN_PULL_REQUEST_ACTION_ID } from '../../../github/common/types.js';
+import { IGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { GitHubPullRequestCIModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
+import { GitHubPullRequestModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestModel.js';
+import { GitHubPullRequestState, IGitHubPullRequest, OPEN_PULL_REQUEST_ACTION_ID } from '../../../../../workbench/contrib/sessions/common/github/types.js';
 import { PullRequestCheck } from '../../../../../platform/github/common/githubPullRequestService.js';
 import { classifyRequiredPullRequestChecks } from '../../../../../platform/github/common/pullRequestRequiredChecks.js';
 import { SessionInputBanners } from '../../browser/sessionInputBanners.js';

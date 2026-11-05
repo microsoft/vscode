@@ -12,7 +12,7 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { WORKTREE_SUGGESTION_MIN_CREATED_SESSIONS, WORKTREE_SUGGESTION_SETTING, WORKTREE_SUGGESTION_VARIANTS, WorktreeSuggestionVariant } from '../common/worktreeSuggestion.js';
+import { WORKTREE_SUGGESTION_MIN_CREATED_SESSIONS, WORKTREE_SUGGESTION_SETTING, WORKTREE_SUGGESTION_VARIANTS, WorktreeSuggestionVariant } from '../../../../workbench/contrib/sessions/common/worktreeSuggestion.js';
 import { IWorktreeSuggestionService, WorktreeSuggestionService } from './worktreeSuggestionService.js';
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({

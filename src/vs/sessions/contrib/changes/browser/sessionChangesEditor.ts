@@ -43,13 +43,13 @@ import { IDiffEditorOptions } from '../../../../editor/common/config/editorOptio
 import { IMultiDiffEditorOptions } from '../../../../editor/common/multiDiffEditor.js';
 import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
 import { IResourceLabel, IWorkbenchUIElementFactory, MultiDiffEditorItemLabelKind } from '../../../../editor/browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
-import { Menus } from '../../../browser/menus.js';
+import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
-import { ActiveSessionContextKeys, SessionChangesEditorFileListContext } from '../common/changes.js';
+import { ActiveSessionContextKeys, SessionChangesEditorFileListContext } from '../../../../workbench/contrib/sessions/common/changes.js';
 import { ISessionHost, ISessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { IHostSession, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { getChangesEditorChanges } from './changesMultiDiffSourceResolver.js';
-import { IChangesSessionScope, IChangesViewService } from '../common/changesViewService.js';
+import { IChangesSessionScope, IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { ChangesActionsBar, createChangesSessionScope } from './changesView.js';
 import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
 import { ISessionChangesService } from './sessionChangesService.js';

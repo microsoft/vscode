@@ -8,7 +8,7 @@ import * as DOM from '../../../../base/browser/dom.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { Menus } from '../../../browser/menus.js';
+import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 
 const $ = DOM.$;
 

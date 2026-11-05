@@ -26,7 +26,7 @@ import { DesktopChangesTabAvailableContext, DesktopChangesTabMissingContext, Des
 import { DockedEditorInput } from '../../../../browser/dockedEditorInput.js';
 import { SessionChangesEditorInput } from '../../../changes/browser/sessionChangesEditorInput.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
-import { IChangesViewService } from '../../../changes/common/changesViewService.js';
+import { IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
 import { ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IDesktopLayoutContext } from './desktopLayoutStrategy.js';

@@ -24,7 +24,7 @@ import { ISessionsService } from '../../../../../workbench/contrib/sessions/brow
 import { ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession, ISendRequestSentEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISendRequestOptions } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
-import { INewSessionComposerService, NewSessionComposerService } from '../../../chat/browser/newSessionComposerService.js';
+import { INewSessionComposerService, NewSessionComposerService } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { FIRST_TIME_WINDOW_OPEN_DURATION_LIMIT_MS } from '../../browser/sessionsWindowOpenTelemetry.js';
 import { SessionsWorkspaceSelectionTelemetry } from '../../browser/sessionsWorkspaceSelectionTelemetry.js';
 import { ITestSessionsService, stubFocusedSessionHostFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';

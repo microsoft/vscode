@@ -17,7 +17,7 @@ import { IFocusedSessionHostService } from '../../../../workbench/contrib/sessio
 import { IChat, ISession, ISessionChangeset, ISessionFileChange, TURN_CHANGES_CHANGESET_ID } from '../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
-import { IChangesViewService } from '../../changes/common/changesViewService.js';
+import { IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
 
 interface ISessionTransientTurnChanges {
 	readonly id: string;

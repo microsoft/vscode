@@ -16,8 +16,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { getSessionApplication } from '../../../../contrib/sessions/common/sessionApplication.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-// eslint-disable-next-line local/code-import-patterns
-import { computePullRequestIcon, GitHubPullRequestState } from '../../../../../sessions/contrib/github/common/types.js';
+import { computePullRequestIcon, GitHubPullRequestState } from '../../../../contrib/sessions/common/github/types.js';
 // eslint-disable-next-line local/code-import-patterns
 import { getSessionSummaryHoverData } from '../../../../../sessions/contrib/sessions/browser/sessionHoverContent.js';
 import { ISessionsProvidersService } from '../../../../contrib/sessions/browser/sessionsProvidersService.js';

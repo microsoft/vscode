@@ -39,7 +39,7 @@ import { Parts } from '../../../../workbench/services/layout/browser/layoutServi
 import { IPaneCompositePartService } from '../../../../workbench/services/panecomposite/browser/panecomposite.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
-import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
+import { Menus, SessionActivityBarGroup } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 import { SessionsWelcomeVisibleContext, IsQuickChatSessionContext, DesktopLayoutContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { CustomViewVisibleContext, SessionActivityBarLayoutActionsContext } from '../../../common/agentsWindowContextKeys.js';
@@ -49,7 +49,7 @@ import { ChatWindowLayoutCommandsContext, toggleChatWindowEditorAsSidePanel } fr
 import { logSidePanelToggle } from '../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
 import { ChatLayoutContext } from '../../../common/chatLayout.js';
 import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
-import { IChangesViewService } from '../../changes/common/changesViewService.js';
+import { IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { IHostSession, ISessionsManagementService, IShownChat } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { getMainWindowHost, ISessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';

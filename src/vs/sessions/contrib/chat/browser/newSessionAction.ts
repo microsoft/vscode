@@ -13,9 +13,9 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { ActiveEditorContext, EditorAreaFocusContext, LayoutModeContext, SideBarVisibleContext } from '../../../../workbench/common/contextkeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { INewSessionInAgentsWindowOptions } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { Menus } from '../../../browser/menus.js';
+import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
-import { resolveDevContainerSourceWorkspace } from '../../../browser/openInVSCodeUtils.js';
+import { resolveDevContainerSourceWorkspace } from '../../../../workbench/contrib/sessions/browser/openInVSCodeUtils.js';
 import { isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { SessionsListRearrangeContext, SessionsWelcomeVisibleContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { SessionsTitleBarNewSessionEnabledContext } from '../../../common/agentsWindowContextKeys.js';
@@ -27,8 +27,8 @@ import { getMainWindowHost, ISessionHostService } from '../../../../workbench/co
 import { ICustomViewService } from '../../../../workbench/contrib/sessions/browser/customView.js';
 import { WindowCanvasInput, IWindowCanvasService } from '../../../../workbench/contrib/sessions/browser/windowCanvas.js';
 import { inheritableSessionTarget, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { NEW_SESSION_ACTION_ID } from '../common/constants.js';
-import { INewSessionComposerService } from './newSessionComposerService.js';
+import { NEW_SESSION_ACTION_ID } from '../../../../workbench/contrib/sessions/common/chatConstants.js';
+import { INewSessionComposerService } from '../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 
 export class NewChatInSessionsWindowAction extends Action2 {
 

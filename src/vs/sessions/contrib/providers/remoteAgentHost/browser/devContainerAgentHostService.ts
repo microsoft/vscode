@@ -23,9 +23,9 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceTrustRequestService } from '../../../../../platform/workspace/common/workspaceTrust.js';
-import { IDevContainerAgentHostConnection, IDevContainerAgentHostConnector, IDevContainerAgentHostService, IDevContainerAgentHostTarget } from '../../../../common/devContainerAgentHostService.js';
+import { IDevContainerAgentHostConnection, IDevContainerAgentHostConnector, IDevContainerAgentHostService, IDevContainerAgentHostTarget } from '../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { resolveRemoteAgentHostEntryAuthority } from '../../../../browser/openInVSCodeUtils.js';
+import { resolveRemoteAgentHostEntryAuthority } from '../../../../../workbench/contrib/sessions/browser/openInVSCodeUtils.js';
 import { devContainerSourcePath, getDevContainerSourceEntry, resolveDevContainerSourceConnection } from './devContainerSource.js';
 import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
 

@@ -19,7 +19,7 @@ import { ISessionsManagementService } from '../../../../workbench/contrib/sessio
 import { resolveSessionCommandTarget } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
 import { CodeReviewService, ICodeReviewService } from './codeReviewService.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
-import { Menus } from '../../../browser/menus.js';
+import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { SessionChangesEditorInput } from '../../changes/browser/sessionChangesEditorInput.js';
 import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
 

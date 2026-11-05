@@ -61,7 +61,7 @@ import { TERMINAL_VIEW_ID } from '../../../../../workbench/contrib/terminal/comm
 import { openNewSearchEditor } from '../../../../../workbench/contrib/searchEditor/browser/searchEditorActions.js';
 import { IFileQuery, ISearchComplete, ISearchService } from '../../../../../workbench/services/search/common/search.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { Menus } from '../../../../browser/menus.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { NEW_FILE_TAB_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';

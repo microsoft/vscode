@@ -50,14 +50,14 @@ import { type IChatInputPickerOptions } from '../../../../../workbench/contrib/c
 import { IChatInputPickerResponsiveState } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerResponsiveLayout.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
-import { getNewSessionRepositoryConfigGroup, Menus } from '../../../../browser/menus.js';
-import { DevContainerWorktreeEnabledSettingId, isDevContainerWorktreeEnabled } from '../../../../common/devContainerAgentHostService.js';
+import { getNewSessionRepositoryConfigGroup, Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
+import { DevContainerWorktreeEnabledSettingId, isDevContainerWorktreeEnabled } from '../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { SessionIdContext, SessionProviderIdContext, IsPhoneLayoutContext, IsQuickChatSessionContext, SessionUsesExperimentalComposerLayoutContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
-import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
+import { reportNewChatPickerClosed } from '../../../../../workbench/contrib/sessions/browser/newChatPickerTelemetry.js';
 import { NEW_WORKTREE_LABEL } from '../../../chat/browser/branchPicker.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
-import { CHANGES_VIEW_ID } from '../../../changes/common/changes.js';
+import { CHANGES_VIEW_ID } from '../../../../../workbench/contrib/sessions/common/changes.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IHostSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { getFocusedSessionChatSource, IFocusedSessionHostService, InSessionHostScopeContext, ISessionChatSource, ISessionHost } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
@@ -66,7 +66,7 @@ import type { ISessionsProvider } from '../../../../../workbench/contrib/session
 import { type IAgentHostSessionsProvider, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_RE } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { PermissionPicker } from '../../copilotChatSessions/browser/permissionPicker.js';
 import { MobilePermissionPicker } from '../../copilotChatSessions/browser/mobilePermissionPicker.js';
-import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
+import { isPhoneLayout } from '../../../../../workbench/contrib/sessions/browser/mobileLayout.js';
 import { showMobilePickerSheet, IMobilePickerSheetItem, IMobilePickerSheetSearchSource, MOBILE_PICKER_SHEET_CONFIRM } from '../../../../browser/parts/mobile/mobilePickerSheet.js';
 import { AgentHostModePicker } from './agentHostModePicker.js';
 import { MobileAgentHostModePicker } from './mobile/mobileAgentHostModePicker.js';
@@ -87,7 +87,7 @@ import { type IChat, type ISessionChangeset, type ISessionFileChange, UNCOMMITTE
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IUncommittedChangesListItem, IWorktreeSuggestion, IWorktreeSuggestionService } from '../../../worktreeSuggestion/browser/worktreeSuggestionService.js';
 import { getChangedFileUri, getUncommittedFilesDescription, getUncommittedFilesSectionLabel } from '../../../worktreeSuggestion/browser/worktreeSuggestionPresentation.js';
-import { WorktreeSuggestionVariant } from '../../../worktreeSuggestion/common/worktreeSuggestion.js';
+import { WorktreeSuggestionVariant } from '../../../../../workbench/contrib/sessions/common/worktreeSuggestion.js';
 
 const ExperimentalSessionComposerLayout = SessionUsesExperimentalComposerLayoutContext;
 const LegacySessionComposerLayout = SessionUsesExperimentalComposerLayoutContext.negate();

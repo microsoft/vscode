@@ -26,7 +26,7 @@ import { MultiDiffEditorWithFileListWidget } from '../../../../../workbench/cont
 import { MultiDiffEditorFileList } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorFileList.js';
 import { FocusFileListAction } from '../../../../../workbench/contrib/multiDiffEditor/browser/actions.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
-import { SessionChangesEditorFileListContext } from '../../common/changes.js';
+import { SessionChangesEditorFileListContext } from '../../../../../workbench/contrib/sessions/common/changes.js';
 import { isMultiDiffEditorFileListHost, multiDiffEditorExperimentalFileListSetting, MultiDiffEditorFileListAvailableContext, MultiDiffEditorFileListEnabledContext, MultiDiffEditorFileListVisibleContext, toggleMultiDiffEditorFileList } from '../../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -34,7 +34,7 @@ import { ISessionChangesService } from '../../browser/sessionChangesService.js';
 import { stubSessionHosts } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { IChangesViewService } from '../../common/changesViewService.js';
+import { IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { InstantiationService } from '../../../../../platform/instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { IDiffProviderFactoryService } from '../../../../../editor/browser/widget/diffEditor/diffProviderFactoryService.js';

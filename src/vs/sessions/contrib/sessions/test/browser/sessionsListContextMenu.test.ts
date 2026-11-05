@@ -43,14 +43,14 @@ import { ISessionsService } from '../../../../../workbench/contrib/sessions/brow
 import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import type { SessionView } from '../../../../browser/parts/sessionView.js';
-import { Menus } from '../../../../browser/menus.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { SessionsGrouping, SessionsList, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { SessionsArchiveActionsContribution } from '../../browser/views/sessionsViewActions.js';
 import { createListHarness, createSession, createTestSession, TestCommandService, TestSessionsManagementService } from './sessionsListTestUtils.js';
 import { ISessionChatMoveTarget, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { SessionMoveRefusedError } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { MOVE_CHAT_TO_SESSION_ACTION_ID, MOVE_SESSION_INTO_SESSION_ACTION_ID, PROMOTE_CHAT_TO_SESSION_ACTION_ID } from '../../browser/sessionsActions.js';
-import { NEW_SESSION_ACTION_ID } from '../../../chat/common/constants.js';
+import { NEW_SESSION_ACTION_ID } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import '../../../chatWindow/browser/openChatInWindow.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../../../chatWindow/common/chatWindows.js';
 

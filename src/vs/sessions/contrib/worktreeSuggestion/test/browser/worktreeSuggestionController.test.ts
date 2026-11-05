@@ -20,7 +20,7 @@ import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../..
 import { SessionInputPickerVisibility } from '../../../../../workbench/contrib/sessions/common/sessionPickerVisibility.js';
 import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { NEW_SESSION_BANNERS_MIN_CREATED_SESSIONS, NewSessionBannerPriority, NewSessionBanners } from '../../../chat/common/newSessionBanners.js';
-import { WorktreeSuggestionVariant } from '../../common/worktreeSuggestion.js';
+import { WorktreeSuggestionVariant } from '../../../../../workbench/contrib/sessions/common/worktreeSuggestion.js';
 import { WorktreeSuggestionController } from '../../browser/worktreeSuggestionController.js';
 import { IWorktreeSuggestionService, WorktreeSpotlightChoice } from '../../browser/worktreeSuggestionService.js';
 import { TestWorktreeSuggestionService } from './worktreeSuggestionTestUtils.js';

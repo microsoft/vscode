@@ -41,10 +41,10 @@ import { createOpenPullRequestChangesAction, SessionArtifacts, sessionArtifactLo
 import { SessionCustomizations } from '../../../../workbench/contrib/chat/browser/sessionCustomizations.js';
 import { localize } from '../../../../nls.js';
 import { CHAT_INPUT_PILLS_ROW_HEIGHT, chatPillCopyUrlHoverLabel, chatPillRemoveArtifactHoverLabel, getChatPillEntries, getChatPillResourceLocation, getChatReferencePillPresentation, type ChatPillsCompactMode, type IChatPillEntry, type IChatPillSection, withChatPillHoverLabel } from '../../../../workbench/browser/chatPills.js';
-import { computeAggregateIssueIcon, computeIssueIcon, getPullRequestStatusFromIcon, GitHubCIOverallStatus, GitHubIssueState, OPEN_ISSUE_ACTION_ID, OPEN_PULL_REQUEST_ACTION_ID, OPEN_PULL_REQUEST_CHANGES_ACTION_ID, type IGitHubIssue } from '../../github/common/types.js';
-import { getSessionGitHubReferences } from '../../github/common/sessionGitHubReferences.js';
-import { IGitHubService } from '../../github/browser/githubService.js';
-import { IResolvedSessionPullRequest, SessionPullRequestPresentationModel } from '../../github/browser/pullRequestIconStatus.js';
+import { computeAggregateIssueIcon, computeIssueIcon, getPullRequestStatusFromIcon, GitHubCIOverallStatus, GitHubIssueState, OPEN_ISSUE_ACTION_ID, OPEN_PULL_REQUEST_ACTION_ID, OPEN_PULL_REQUEST_CHANGES_ACTION_ID, type IGitHubIssue } from '../../../../workbench/contrib/sessions/common/github/types.js';
+import { getSessionGitHubReferences } from '../../../../workbench/contrib/sessions/common/github/sessionGitHubReferences.js';
+import { IGitHubService } from '../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { IResolvedSessionPullRequest, SessionPullRequestPresentationModel } from '../../../../workbench/contrib/sessions/browser/github/pullRequestIconStatus.js';
 import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS, SessionChatPillKind } from '../../../../workbench/contrib/chat/common/sessionChatPills.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, IChat, SESSION_CHANGES_CHANGESET_ID, type IGitHubIssueRef, type IGitHubPullRequestRef, type ISessionWorkspace } from '../../../../workbench/contrib/sessions/common/session.js';

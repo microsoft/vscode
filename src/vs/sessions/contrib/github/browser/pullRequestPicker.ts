@@ -12,7 +12,7 @@ import { IChatRequestTranscriptContextVariableEntry } from '../../../../workbenc
 import { localize } from '../../../../nls.js';
 import { IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { GITHUB_REMOTE_FILE_SCHEME, ISession } from '../../../../workbench/contrib/sessions/common/session.js';
-import { IGitHubPullRequestContext, IGitHubPullRequestSummary } from '../common/types.js';
+import { IGitHubPullRequestContext, IGitHubPullRequestSummary } from '../../../../workbench/contrib/sessions/common/github/types.js';
 
 export interface IPullRequestQuickPickItem extends IQuickPickItem {
 	readonly pullRequest: IGitHubPullRequestSummary;

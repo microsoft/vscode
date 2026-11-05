@@ -35,7 +35,7 @@ import { NullTelemetryService } from '../../../../../platform/telemetry/common/t
 import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
-import { Menus } from '../../../../browser/menus.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { IsPhoneLayoutContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { ISession, ISessionEnvironment } from '../../../../../workbench/contrib/sessions/common/session.js';

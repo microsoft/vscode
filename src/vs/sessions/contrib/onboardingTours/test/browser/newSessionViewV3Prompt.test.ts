@@ -22,11 +22,11 @@ import { NullWorkbenchAssignmentService } from '../../../../../workbench/service
 import { GITHUB_REMOTE_FILE_SCHEME, ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { INewSessionComposerService, INewSessionPromptOptionsController, NewSessionPromptOptionsState } from '../../../chat/browser/newSessionComposerService.js';
+import { INewSessionComposerService, INewSessionPromptOptionsController, NewSessionPromptOptionsState } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { GitHubRequestError } from '../../../../../platform/github/common/githubTypes.js';
 import { ApiRequestOptions } from '../../../../../platform/github/common/client/request.js';
-import { IGitHubRecentUserWork } from '../../../github/browser/fetchers/githubRecentUserWorkFetcher.js';
-import { IGitHubService } from '../../../github/browser/githubService.js';
+import { IGitHubRecentUserWork } from '../../../../../workbench/contrib/sessions/browser/github/fetchers/githubRecentUserWorkFetcher.js';
+import { IGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
 import { INewSessionPromptRunnerOptions, NewSessionViewV3PromptRunner, selectNewSessionViewV3GitHubCandidate } from '../../browser/newSessionViewV3Prompt.js';
 import { NEW_SESSION_VIEW_V3_TOUR_ID } from '../../browser/tours/newSessionViewV3Tour.js';
 

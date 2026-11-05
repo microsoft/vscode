@@ -50,11 +50,11 @@ import { IChatSessionsService } from '../../../../../workbench/contrib/chat/comm
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IAgentHostAutoConnect, IAgentHostConnectProgress, IAgentHostConnectionLabels, IAgentHostGroup, LocalAgentHostRegistration } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../../../workbench/contrib/sessions/common/agentHostSessionWorkspace.js';
-import { DevContainerIdleTimeoutSettingId } from '../../../../common/devContainerAgentHostService.js';
+import { DevContainerIdleTimeoutSettingId } from '../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { IGitHubInfo, IChat, isActiveSessionStatus, ISession, ISessionEnvironment, SessionStatus, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IFocusedSessionHostService, ISessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { ISessionsRecentWorkspacesService } from '../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
-import { IGitHubService } from '../../../github/browser/githubService.js';
+import { IGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
 import { DevContainerAgentHostSessionsProvider } from '../../agentHost/browser/devContainerAgentHostSessionsProvider.js';
 import type { AgentHostSessionAdapter } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
 import { mapProtocolStatus } from '../../agentHost/browser/agentHostDiffs.js';
@@ -62,9 +62,9 @@ import { ReconnectableAgentHostAutomationStore } from '../../agentHost/browser/r
 import type { INestedChatFolderInfo, INestedChatWorkspace, ISendRequestOptions, ISessionsProviderAutomations, SessionResourceResolveReason, ICreateNewChatOptions } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { remoteAgentHostSessionTypeAuthorityPrefix, remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { readAgentDevContainerWorktreeMetadata } from '../../../../../platform/agentHost/common/meta/agentDevContainerWorktreeMeta.js';
-import { INewSessionComposerService } from '../../../chat/browser/newSessionComposerService.js';
+import { INewSessionComposerService } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { getRemoteAgentHostPickerKey, RemoteAgentHostPickerVisibility } from './remoteAgentHostPickerVisibility.js';
-import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING } from '../../../chat/common/constants.js';
+import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 
 /** Storage key prefix for cached session summaries, per remote address. */
 const CACHED_SESSIONS_STORAGE_PREFIX = 'remoteAgentHost.cachedSessions.v5.';

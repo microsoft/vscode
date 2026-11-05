@@ -47,9 +47,9 @@ import { buildSessionArtifactSections, sessionArtifactLocationText, SessionArtif
 import { type IChat, type IGitHubInfo, type ISessionArtifact, type ISessionWorkspace, SessionArtifactKind } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { hashSessionIdForTelemetry } from '../../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
-import { IGitHubService as ISessionsGitHubService } from '../../../github/browser/githubService.js';
-import { OPEN_PULL_REQUEST_CHANGES_ACTION_ID } from '../../../github/common/types.js';
-import { getSessionGitHubReferences } from '../../../github/common/sessionGitHubReferences.js';
+import { IGitHubService as ISessionsGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { OPEN_PULL_REQUEST_CHANGES_ACTION_ID } from '../../../../../workbench/contrib/sessions/common/github/types.js';
+import { getSessionGitHubReferences } from '../../../../../workbench/contrib/sessions/common/github/sessionGitHubReferences.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 
 suite('Session Artifacts', () => {

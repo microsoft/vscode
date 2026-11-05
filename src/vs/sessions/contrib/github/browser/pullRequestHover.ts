@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createPullRequestResourceHover, getPullRequestChecksStatusLabel as getResourceChecksStatusLabel, type GitHubChecksStatus, type IGitHubPullRequestHoverModel, type IGitHubResourceHover } from '../../../../workbench/contrib/github/browser/githubResourceHover.js';
-import { GitHubCIOverallStatus, type IGitHubPullRequest } from '../common/types.js';
+import { GitHubCIOverallStatus, type IGitHubPullRequest } from '../../../../workbench/contrib/sessions/common/github/types.js';
 
 export interface IPullRequestHoverData {
 	readonly owner: string;

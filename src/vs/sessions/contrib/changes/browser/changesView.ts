@@ -88,22 +88,22 @@ import { REVEAL_CI_CHECKS_COMMAND_ID } from './checksActions.js';
 // eslint-disable-next-line local/code-import-patterns -- TODO: move skill button constants out of providers
 import { AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID, isAgentHostSkillButtonId } from '../../providers/agentHost/browser/agentHostSkillButtons.js';
 import { AGENT_HOST_AUTO_MERGE_OPERATION_IDS, AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
-import { ActiveSessionContextKeys, CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesContextKeys, ChangesViewMode, IsolationMode, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../common/changes.js';
+import { ActiveSessionContextKeys, CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesContextKeys, ChangesViewMode, IsolationMode, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../../../../workbench/contrib/sessions/common/changes.js';
 import { buildTreeChildren, ChangesTreeElement, ChangesTreeRenderer, IChangesFileItem, IChangesTreeRootInfo, isChangesFileItem, isChangesFileResource, toIChangesFileItem } from './changesViewRenderer.js';
 import { ResourceTree } from '../../../../base/common/resourceTree.js';
 import { compareFileNames, comparePaths } from '../../../../base/common/comparers.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
-import { ChangesViewSection, findDefaultChangeset, IChangesDetailsViewState, IChangesDetailsViewStateTransfer, IChangesSessionObservables, IChangesSessionScope, IChangesViewService, getActiveSessionChanges } from '../common/changesViewService.js';
+import { ChangesViewSection, findDefaultChangeset, IChangesDetailsViewState, IChangesDetailsViewStateTransfer, IChangesSessionObservables, IChangesSessionScope, IChangesViewService, getActiveSessionChanges } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { ChangesSummaryWidget } from './changesSummaryWidget.js';
 import { ChangesStatsWidget, IChangesStats } from '../../../../workbench/browser/changesStatsWidget.js';
-import { Menus } from '../../../browser/menus.js';
+import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 import { ISessionsHostLayoutService } from '../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
 import { CreatePullRequestContextView } from './createPullRequestContextView.js';
 import { CreatePullRequestChatRequest } from './createPullRequestChatRequest.js';
-import { isSessionPullRequestOperation } from '../common/pullRequestCreation.js';
+import { isSessionPullRequestOperation } from '../../../../workbench/contrib/sessions/common/pullRequestCreation.js';
 
 const $ = dom.$;
 

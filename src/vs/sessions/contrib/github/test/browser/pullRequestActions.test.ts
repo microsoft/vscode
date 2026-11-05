@@ -18,7 +18,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IResourceMultiDiffEditorInput, isResourceMultiDiffEditorInput } from '../../../../../workbench/common/editor.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
-import { Menus, SessionActivityBarGroup } from '../../../../browser/menus.js';
+import { Menus, SessionActivityBarGroup } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionsHostLayoutService } from '../../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
 import { sessionActivityBarChatActionContext, SessionHasPullRequestContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
@@ -27,12 +27,12 @@ import { ISessionsService } from '../../../../../workbench/contrib/sessions/brow
 import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import '../../browser/pullRequestActions.js';
 import { createPullRequestChangesEditorInput } from '../../browser/pullRequestChangesMultiDiffSourceResolver.js';
-import { SessionPullRequestPresentationModel } from '../../browser/pullRequestIconStatus.js';
-import { IGitHubService } from '../../browser/githubService.js';
-import { GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPullRequest, OPEN_PULL_REQUEST_CHANGES_ACTION_ID } from '../../common/types.js';
-import { GitHubPullRequestModel } from '../../browser/models/githubPullRequestModel.js';
-import { GitHubPullRequestCIModel } from '../../browser/models/githubPullRequestCIModel.js';
-import { GitHubPullRequestReviewThreadsModel } from '../../browser/models/githubPullRequestReviewThreadsModel.js';
+import { SessionPullRequestPresentationModel } from '../../../../../workbench/contrib/sessions/browser/github/pullRequestIconStatus.js';
+import { IGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPullRequest, OPEN_PULL_REQUEST_CHANGES_ACTION_ID } from '../../../../../workbench/contrib/sessions/common/github/types.js';
+import { GitHubPullRequestModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestModel.js';
+import { GitHubPullRequestCIModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
+import { GitHubPullRequestReviewThreadsModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestReviewThreadsModel.js';
 import { stubSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 function createSessionWithPullRequest(pullRequestUri: URI | undefined, pullRequestRefs?: readonly IGitHubPullRequestRef[]): ISession {

@@ -9,7 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/comm
 import { isIMenuItem, isISubmenuItem, MenuId, MenuRegistry } from '../../../platform/actions/common/actions.js';
 import { IAgentWorkbenchLayoutService } from '../../browser/workbench.js';
 import { AgentWorkbenchLayout } from '../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
-import { Menus } from '../../browser/menus.js';
+import { Menus } from '../../../workbench/contrib/sessions/browser/menus.js';
 
 suite('Sessions - Editor Title Menu Bridge', () => {
 

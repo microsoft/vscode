@@ -16,7 +16,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IChatTip, IChatTipProvider, IChatTipService } from '../../../../workbench/contrib/chat/browser/chatTipService.js';
 import { findMatchingConnectorRecommendationIds } from '../../../../workbench/contrib/chat/common/connectorRecommendations.js';
-import { NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING } from '../common/constants.js';
+import { NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING } from '../../../../workbench/contrib/sessions/common/chatConstants.js';
 
 interface IConnectorRecommendation {
 	readonly id: string;

@@ -31,7 +31,7 @@ import { IContextMenuMenuDelegate, IContextMenuService, IContextViewService } fr
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { ChatViewSessionActivityBar, SessionActivityBar } from '../../browser/parts/sessionActivityBar.js';
 import { registerSessionActivityBarExternalHost, SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from '../../browser/parts/sessionActivityBarHost.js';
-import { Menus, SessionActivityBarGroup } from '../../browser/menus.js';
+import { Menus, SessionActivityBarGroup } from '../../../workbench/contrib/sessions/browser/menus.js';
 import { TogglePanelAction } from '../../../workbench/browser/parts/panel/panelActions.js';
 import { IAgentWorkbenchLayoutService } from '../../browser/workbench.js';
 import { AgentWorkbenchLayout } from '../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';

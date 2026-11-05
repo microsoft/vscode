@@ -25,7 +25,7 @@ import { IAICustomizationItemsModel, ItemsModelSection } from '../../../../workb
 import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE, countEnabledCustomizationTools, IAgentHostToolSetEnablementService, isCopilotCliSessionType } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
 import { getCustomizationToolSets } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/copilotCliBuiltinToolSet.js';
-import { Menus } from '../../../browser/menus.js';
+import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { agentIcon, instructionsIcon, mcpServerIcon, pluginIcon, skillIcon, hookIcon, toolsIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
 import { extensionsViewIcon } from '../../../../workbench/contrib/extensions/browser/extensionsIcons.js';
 import { EXTENSIONS_AGENTS_WINDOW_MANAGEMENT } from '../../../../platform/extensions/common/extensions.js';

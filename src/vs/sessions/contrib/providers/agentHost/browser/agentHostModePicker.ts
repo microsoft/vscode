@@ -31,7 +31,7 @@ import { IHostSession } from '../../../../../workbench/contrib/sessions/common/s
 import { IChat } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionChatSource } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { type ISessionConfigProvider, type ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
-import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
+import { reportNewChatPickerClosed } from '../../../../../workbench/contrib/sessions/browser/newChatPickerTelemetry.js';
 import { ChatPetAchievementIds, didExplicitlyEnableChatPetAutopilot } from '../../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
 import { IChatPetService } from '../../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { getAgentHostModeIcon } from './agentHostModeIcon.js';

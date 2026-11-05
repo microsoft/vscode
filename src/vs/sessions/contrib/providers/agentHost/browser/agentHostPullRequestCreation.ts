@@ -12,7 +12,7 @@ import { createPullRequestChatMeta, createPullRequestConversationMeta, createPul
 import { InvokeChangesetOperationResult } from '../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
 import { ISessionChangesetOperation } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { ISendRequestOptions } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
-import { ISessionPullRequestChatOptions, ISessionPullRequestCreation, ISessionPullRequestDetails, ISessionPullRequestOperation, ISessionPullRequestOptions } from '../../../changes/common/pullRequestCreation.js';
+import { ISessionPullRequestChatOptions, ISessionPullRequestCreation, ISessionPullRequestDetails, ISessionPullRequestOperation, ISessionPullRequestOptions } from '../../../../../workbench/contrib/sessions/common/pullRequestCreation.js';
 
 export class AgentHostPullRequestCreation implements ISessionPullRequestCreation {
 	readonly operationId = 'create-pr';

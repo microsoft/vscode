@@ -16,9 +16,9 @@ import { IsSessionsWindowContext } from '../../../../workbench/common/contextkey
 import { IChatWidget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
-import { IGitHubService, IGitHubSessionPullRequestObservables } from '../../github/browser/githubService.js';
-import { GitHubPullRequestCIModel } from '../../github/browser/models/githubPullRequestCIModel.js';
-import { GitHubCheckStatus, IGitHubCICheck } from '../../github/common/types.js';
+import { IGitHubService, IGitHubSessionPullRequestObservables } from '../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { GitHubPullRequestCIModel } from '../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
+import { GitHubCheckStatus, IGitHubCICheck } from '../../../../workbench/contrib/sessions/common/github/types.js';
 import { PullRequestCheck } from '../../../../platform/github/common/githubPullRequestService.js';
 import { getPullRequestCheckState, isUnreportedCheckSuite, RequiredPullRequestChecks } from '../../../../platform/github/common/pullRequestRequiredChecks.js';
 import { SessionIsActiveContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';

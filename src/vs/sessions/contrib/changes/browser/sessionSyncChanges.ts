@@ -20,7 +20,7 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { getNewSessionRepositoryConfigGroup, Menus } from '../../../browser/menus.js';
+import { getNewSessionRepositoryConfigGroup, Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { SessionActiveChatResourceContext, SessionIdContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { getWindowHost, ISessionHost, SessionHostKind } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';

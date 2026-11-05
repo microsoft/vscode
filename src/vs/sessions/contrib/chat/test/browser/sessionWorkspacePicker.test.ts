@@ -30,7 +30,7 @@ import { TUNNEL_ADDRESS_PREFIX } from '../../../../../platform/agentHost/common/
 import { cloudSandboxAddress } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { devContainerSamples, devContainerSampleUri, findDevContainerSample } from '../../../../../platform/agentHost/common/devContainerSamples.js';
-import { DevContainerAgentHostEnabledSettingId, DevContainerSamplesEnabledSettingId } from '../../../../common/devContainerAgentHostService.js';
+import { DevContainerAgentHostEnabledSettingId, DevContainerSamplesEnabledSettingId } from '../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
@@ -49,7 +49,7 @@ import { IAgentHostSessionsProvider } from '../../../../../workbench/contrib/ses
 import { GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo, ISession, ISessionWorkspace, ISessionWorkspaceBrowseAction, SessionStatus, SessionTypeAuthRequirement, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { type IResolvedFolderWorkspace, IWorkspacePickerItem, IWorkspacePickerOptions, WorkspacePicker } from '../../browser/sessionWorkspacePicker.js';
 import { WebWorkspacePicker } from '../../browser/webWorkspacePicker.js';
-import { NewSessionWorkspacePreselectionSource } from '../../browser/newSessionComposerService.js';
+import { NewSessionWorkspacePreselectionSource } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { WorkspaceSelectionOrigin } from '../../../../../workbench/contrib/sessions/common/workspaceSelection.js';
 import '../../browser/media/chatWidget.css';
 import { ISessionsRecentWorkspacesService, SessionsRecentWorkspacesService } from '../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';

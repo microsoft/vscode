@@ -14,9 +14,9 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { SessionPrimaryPullRequestOperationContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ISessionChangeset, ISessionChangesetOperation } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { GitHubPullRequestCIModel } from '../../../github/browser/models/githubPullRequestCIModel.js';
-import { IGitHubService } from '../../../github/browser/githubService.js';
-import { ActiveSessionState, IChangesSessionObservables, IChangesSessionScope } from '../../common/changesViewService.js';
+import { GitHubPullRequestCIModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
+import { IGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { ActiveSessionState, IChangesSessionObservables, IChangesSessionScope } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { createSessionActionsInstantiationService } from '../../browser/sessionActionsHost.js';
 import { hasWorktreeAndRepositoryContextKey } from '../../../../../workbench/contrib/sessions/browser/sessionScopedContextKeys.js';
 

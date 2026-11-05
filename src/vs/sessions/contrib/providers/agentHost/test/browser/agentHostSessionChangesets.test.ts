@@ -38,7 +38,7 @@ import { IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../
 import { IsSessionsWindowContext } from '../../../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { TestStorageService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
-import { Menus } from '../../../../../browser/menus.js';
+import { Menus } from '../../../../../../workbench/contrib/sessions/browser/menus.js';
 import { SessionActiveChatResourceContext, SessionIdContext } from '../../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { IChat, ISessionChangeset, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionTurnFileChange, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationStatus } from '../../../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionHost, SessionHostKind } from '../../../../../../workbench/contrib/sessions/browser/sessionHost.js';
@@ -47,7 +47,7 @@ import { ISessionsPartService } from '../../../../../../workbench/contrib/sessio
 import { ISessionsService } from '../../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { SessionSyncChangesActionViewItem, SessionSyncChangesContribution } from '../../../../changes/browser/sessionSyncChanges.js';
-import { isSessionPullRequestOperation } from '../../../../changes/common/pullRequestCreation.js';
+import { isSessionPullRequestOperation } from '../../../../../../workbench/contrib/sessions/common/pullRequestCreation.js';
 import { createChangesets, createChatChangesets, filterChangesToPrimaryWorkingDirectory, IAgentHostChangeset } from '../../browser/agentHostSessionChangesets.js';
 import { IAgentHostAdapterOptions } from '../../browser/baseAgentHostSessionsProvider.js';
 import { changesetFileToChange } from '../../browser/agentHostDiffs.js';

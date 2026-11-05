@@ -30,7 +30,7 @@ import { AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, AGE
 import { IChat, ISession, ISessionFolder, ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { SetChatBackgroundTool } from '../../browser/chatBackgroundTool.js';
-import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING } from '../../common/constants.js';
+import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 
 class WritableConfigurationService extends TestConfigurationService {
 	override updateValue(key: string, value: unknown): Promise<void> {

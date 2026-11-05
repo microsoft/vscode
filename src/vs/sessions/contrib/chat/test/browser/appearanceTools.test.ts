@@ -39,7 +39,7 @@ import { SetChatBackgroundTool } from '../../browser/chatBackgroundTool.js';
 import { GetThemeColorsTool } from '../../browser/getThemeColorsTool.js';
 import { ScreenshotWindowTool } from '../../browser/screenshotWindowTool.js';
 import { AgenticPromptsService, BUILTIN_SKILLS_URI } from '../../browser/promptsService.js';
-import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING, NEW_SESSION_ACTION_ID } from '../../common/constants.js';
+import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING, NEW_SESSION_ACTION_ID } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import '../../browser/chat.contribution.js';
 
 const appearanceToolsProperty = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING];

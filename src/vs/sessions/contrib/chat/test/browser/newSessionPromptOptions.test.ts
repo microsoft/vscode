@@ -12,7 +12,7 @@ import { Disposable, IDisposable, MutableDisposable } from '../../../../../base/
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
-import { INewSessionPromptOption, INewSessionPromptOptionsController, NewSessionPromptOptionsProgress, NewSessionPromptOptionsState } from '../../browser/newSessionComposerService.js';
+import { INewSessionPromptOption, INewSessionPromptOptionsController, NewSessionPromptOptionsProgress, NewSessionPromptOptionsState } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { NewSessionPromptOptionsPresenter, NewSessionPromptOptionsWidget } from '../../browser/newSessionPromptOptions.js';
 
 interface IPromptOptionsRefreshHarness {

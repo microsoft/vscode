@@ -31,7 +31,7 @@ import { AgentWorkbenchLayout } from '../../../../../workbench/contrib/sessions/
 import { IChat, ISessionChangeset, ISessionFileChange, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { SessionChangesEditorInput } from '../../browser/sessionChangesEditorInput.js';
 import { ISessionChangesService, SessionChangesService } from '../../browser/sessionChangesService.js';
-import { IChangesViewService } from '../../common/changesViewService.js';
+import { IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
 
 /** The host lookups and the focused host for the state of `sessionsService`, as {@link SessionChangesService} takes them. */
 function hostsOf(store: Pick<DisposableStore, 'add'>, sessionsService: Partial<ITestSessionsService>): [ISessionHostService, IFocusedSessionHostService, ISessionsService] {

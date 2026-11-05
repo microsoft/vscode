@@ -28,7 +28,7 @@ import { ILayoutService } from '../../../../../../platform/layout/browser/layout
 import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
-import { Menus } from '../../../../../browser/menus.js';
+import { Menus } from '../../../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../../../browser/agentsWindowMenus.js';
 import { AgentHostFilterConnectionStatus, IAgentHostFilterEntry, IAgentHostFilterService } from '../../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
 import { AgentHostFilterContribution } from '../../browser/hostFilter.contribution.js';

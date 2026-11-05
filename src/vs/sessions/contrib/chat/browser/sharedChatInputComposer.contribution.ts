@@ -17,7 +17,7 @@ import { Action2, MenuRegistry, registerAction2 } from '../../../../platform/act
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { CHAT_ATTACH_CONTEXT_ACTION_ID } from '../../../../workbench/contrib/chat/common/constants.js';
-import { Menus } from '../../../browser/menus.js';
+import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { getLabeledPickerResponsiveItems } from './newChatComposerInput.js';
 import { createNewSessionControlToolbar } from './newSessionConfigToolbars.js';
 import { SharedChatInputComposerBusyContext } from './sharedChatInputComposer.js';

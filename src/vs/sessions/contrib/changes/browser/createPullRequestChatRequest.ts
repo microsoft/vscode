@@ -6,7 +6,7 @@
 import { localize } from '../../../../nls.js';
 import { ChatInteractivity, effectiveChatInteractivity, IChat, ISession } from '../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { ISessionPullRequestChatOptions, ISessionPullRequestCreation, SessionPullRequestMergeMethod } from '../common/pullRequestCreation.js';
+import { ISessionPullRequestChatOptions, ISessionPullRequestCreation, SessionPullRequestMergeMethod } from '../../../../workbench/contrib/sessions/common/pullRequestCreation.js';
 
 export class CreatePullRequestChatRequest {
 	constructor(

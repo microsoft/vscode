@@ -31,7 +31,7 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { CreatePullRequestPreferences, ICreatePullRequestPreferences } from '../../common/createPullRequestPreferences.js';
-import { ISessionPullRequestAgentMergeOptions, ISessionPullRequestChatOptions, ISessionPullRequestCreation, ISessionPullRequestDetails, ISessionPullRequestOptions } from '../../common/pullRequestCreation.js';
+import { ISessionPullRequestAgentMergeOptions, ISessionPullRequestChatOptions, ISessionPullRequestCreation, ISessionPullRequestDetails, ISessionPullRequestOptions } from '../../../../../workbench/contrib/sessions/common/pullRequestCreation.js';
 import { CreatePullRequestContextView } from '../../browser/createPullRequestContextView.js';
 import { CreatePullRequestWidget, ICreatePullRequestWidgetOptions } from '../../browser/createPullRequestWidget.js';
 import { SessionsChangesAccessibilityHelp } from '../../browser/sessionsChangesAccessibilityHelp.js';

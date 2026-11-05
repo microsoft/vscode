@@ -33,7 +33,7 @@ import { COMPARE_SESSION_MODELS_COMMAND_ID } from '../../../../../workbench/cont
 import { SessionView } from '../../../../browser/parts/sessionView.js';
 import { ISessionsPartService } from '../../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { Menus } from '../../../../browser/menus.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { IsPhoneLayoutContext, SessionUsesCombinedConfigPickerContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ModelPicker, ModelPickerActionViewItem } from '../../browser/modelPicker.js';
 import { INewChatModelPickerService, NewChatModelPickerService } from '../../browser/newChatModelPicker.js';

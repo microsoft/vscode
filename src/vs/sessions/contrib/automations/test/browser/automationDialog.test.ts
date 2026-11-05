@@ -65,7 +65,7 @@ import { GitRefType, IGitRepository, IGitService } from '../../../../../workbenc
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
-import { Menus } from '../../../../browser/menus.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { MobileSessionTypePicker } from '../../../chat/browser/mobile/mobileSessionTypePicker.js';
 import { SessionModelSelection } from '../../../chat/browser/sessionModelSelection.js';

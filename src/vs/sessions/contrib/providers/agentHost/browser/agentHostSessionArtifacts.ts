@@ -7,9 +7,9 @@ import { hasDriveLetter, toSlashes } from '../../../../../base/common/extpath.js
 import { URI } from '../../../../../base/common/uri.js';
 import { readSessionArtifacts, SessionArtifactType, type ISessionArtifact as IProtocolSessionArtifact } from '../../../../../platform/agentHost/common/sessionArtifacts.js';
 import type { SessionMeta } from '../../../../../platform/agentHost/common/state/sessionState.js';
-import { linkKey } from '../../../../common/sessionLinks.js';
+import { linkKey } from '../../../../../workbench/contrib/sessions/common/sessionLinks.js';
 import { SessionArtifactKind, type ISessionArtifact } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { parseGitHubArtifactLink } from '../../../github/common/sessionGitHubReferences.js';
+import { parseGitHubArtifactLink } from '../../../../../workbench/contrib/sessions/common/github/sessionGitHubReferences.js';
 
 const kindByType: ReadonlyMap<SessionArtifactType, SessionArtifactKind> = new Map([
 	[SessionArtifactType.PullRequest, SessionArtifactKind.PullRequest],

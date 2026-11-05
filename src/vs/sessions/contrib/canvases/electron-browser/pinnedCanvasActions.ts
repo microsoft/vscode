@@ -19,9 +19,9 @@ import { CANVAS_INPUT_SCHEME, CanvasInput, getCanvasInstanceLabels, ICanvasConte
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-import { Menus } from '../../../browser/menus.js';
+import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
-import { SessionsCategories } from '../../../common/categories.js';
+import { SessionsCategories } from '../../../../workbench/contrib/sessions/common/categories.js';
 import { ICustomViewService } from '../../../../workbench/contrib/sessions/browser/customView.js';
 import { CanvasesPinnedToSidebarContext, IPinnedCanvas, IPinnedCanvasService, PINNED_CANVAS_PAGE_ID, PinnedCanvasConnectedContext } from '../browser/pinnedCanvases.js';
 

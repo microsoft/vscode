@@ -15,8 +15,8 @@ import { ILogService, NullLogService } from '../../../../../platform/log/common/
 import { IChatWidget, IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IChat } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { IGitHubService, IGitHubSessionPullRequestObservables } from '../../../github/browser/githubService.js';
-import { GitHubPullRequestCIModel } from '../../../github/browser/models/githubPullRequestCIModel.js';
+import { IGitHubService, IGitHubSessionPullRequestObservables } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { GitHubPullRequestCIModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
 import { FIX_CI_CHECKS_COMMAND_ID } from '../../browser/checksActions.js';
 import { ITestSessionsService, stubSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';

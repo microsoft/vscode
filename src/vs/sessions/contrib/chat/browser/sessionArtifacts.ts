@@ -49,19 +49,19 @@ import { createCommitResourceHover } from '../../../../workbench/contrib/github/
 import { getGitHubResourcePresentation, GitHubResourceDetailsResolver } from '../../../../workbench/contrib/github/browser/githubResourceDetails.js';
 import { ChatPillHoverCache, createChatPillHover } from '../../../../workbench/browser/chatPillHover.js';
 import { IWorkbenchGitHubService } from '../../../../workbench/services/github/common/githubService.js';
-import { linkKey } from '../../../common/sessionLinks.js';
+import { linkKey } from '../../../../workbench/contrib/sessions/common/sessionLinks.js';
 import { getChatSessionArtifacts, getSessionArtifactKey, SessionArtifactKind, type IChat, type IGitHubPullRequestRef, type ISessionArtifact } from '../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ArtifactIntegrationPresentation, IArtifactDetailsHost } from './artifactIntegrationPresentation.js';
 import { collapseArtifactIntegrationAliases, getArtifactIntegrationAliasCandidate, getArtifactIntegrationGroupId } from './artifactIntegrationPillSources.js';
 import { ISessionsManagementService, type IActiveSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { logSessionArtifactOpen } from '../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
-import { ISessionGitHubReferences, parseGitHubArtifactLink } from '../../github/common/sessionGitHubReferences.js';
+import { ISessionGitHubReferences, parseGitHubArtifactLink } from '../../../../workbench/contrib/sessions/common/github/sessionGitHubReferences.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { getActiveWindow } from '../../../../base/browser/dom.js';
-import { IGitHubService as ISessionsGitHubService } from '../../github/browser/githubService.js';
-import { OPEN_PULL_REQUEST_CHANGES_ACTION_ID } from '../../github/common/types.js';
+import { IGitHubService as ISessionsGitHubService } from '../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { OPEN_PULL_REQUEST_CHANGES_ACTION_ID } from '../../../../workbench/contrib/sessions/common/github/types.js';
 
 /** Action id of the references pill. */
 export const SESSION_REFERENCES_PILL_ID = 'sessions.chatPills.references';

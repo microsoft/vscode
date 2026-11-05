@@ -9,7 +9,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ActionListItemKind, IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { ISessionFileChange } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { WorktreeSuggestionVariant } from '../../common/worktreeSuggestion.js';
+import { WorktreeSuggestionVariant } from '../../../../../workbench/contrib/sessions/common/worktreeSuggestion.js';
 import { getChangedFileUri } from '../../browser/worktreeSuggestionPresentation.js';
 import { IUncommittedChangesListItem, IWorktreeSuggestion, IWorktreeSuggestionService, WorktreeSpotlightChoice } from '../../browser/worktreeSuggestionService.js';
 

@@ -29,7 +29,7 @@ import { resolveCommandsContext } from '../../../../workbench/browser/parts/edit
 import { FileDownload } from '../../../../workbench/contrib/files/browser/fileImportExport.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-import { Menus } from '../../../browser/menus.js';
+import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { EmptyFileEditorInput } from '../../editor/browser/emptyFileEditorInput.js';
 import { SESSIONS_FILES_EMPTY_VIEW_ID, SessionsExplorerEmptyView, SessionsExplorerView } from './filesView.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';

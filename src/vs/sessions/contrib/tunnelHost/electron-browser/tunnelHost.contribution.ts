@@ -22,7 +22,7 @@ import { RemoteConnectionsActionViewItem } from '../../../../workbench/contrib/c
 import { executeToggleRemoteConnections, TUNNEL_HOST_SHARING_KEY } from '../../../../workbench/contrib/chat/electron-browser/tunnelHost.contribution.js';
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 import { OPEN_REMOTES_EDITOR_COMMAND_ID, TOGGLE_REMOTE_CONNECTIONS_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
-import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../chat/common/constants.js';
+import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../../../workbench/contrib/sessions/common/chatConstants.js';
 
 export const TOGGLE_SHARING_FROM_AGENTS_ID = TOGGLE_REMOTE_CONNECTIONS_COMMAND_ID;
 

@@ -16,8 +16,8 @@ import { DesktopChangesEditorTransitionContext, SessionHasOpenPullRequestContext
 import { getMainWindowHost, ISessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { IHostSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IChat } from '../../../../workbench/contrib/sessions/common/session.js';
-import { IGitHubService, IGitHubSessionPullRequestObservables } from '../../github/browser/githubService.js';
-import { IChangesSessionObservables, IChangesViewService } from '../common/changesViewService.js';
+import { IGitHubService, IGitHubSessionPullRequestObservables } from '../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { IChangesSessionObservables, IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { SessionChangesReviewedFilesContext } from './changesMultiDiffSourceResolver.js';
 import { bindSessionCIChecksContextKeys } from './checksActions.js';
 

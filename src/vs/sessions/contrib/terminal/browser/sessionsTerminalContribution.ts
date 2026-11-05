@@ -29,7 +29,7 @@ import { ISessionsProvidersService } from '../../../../workbench/contrib/session
 import { ITerminalProfileService, TERMINAL_VIEW_ID, TerminalCommandId } from '../../../../workbench/contrib/terminal/common/terminal.js';
 import { TerminalContextKeys } from '../../../../workbench/contrib/terminal/common/terminalContextKey.js';
 import { ActivePanelContext, IsAuxiliaryWindowContext, PanelVisibleContext } from '../../../../workbench/common/contextkeys.js';
-import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
+import { Menus, SessionActivityBarGroup } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { CustomViewVisibleContext } from '../../../common/agentsWindowContextKeys.js';
 import { ISessionTaskRunnerRegistry } from '../../chat/browser/sessionTaskRunner.js';
 import { AgentHostSessionTaskRunner } from './agentHostSessionTaskRunner.js';

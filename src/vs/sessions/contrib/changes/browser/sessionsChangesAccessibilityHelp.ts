@@ -12,7 +12,7 @@ import { IAccessibleViewImplementation } from '../../../../platform/accessibilit
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { ActiveEditorContext, EditorAreaFocusContext, FocusedViewContext } from '../../../../workbench/common/contextkeys.js';
-import { CHANGES_VIEW_ID, CreatePullRequestFocusedContext } from '../common/changes.js';
+import { CHANGES_VIEW_ID, CreatePullRequestFocusedContext } from '../../../../workbench/contrib/sessions/common/changes.js';
 import { ChangesViewPane } from './changesView.js';
 import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
 

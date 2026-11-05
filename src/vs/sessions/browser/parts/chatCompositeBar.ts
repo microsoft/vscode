@@ -24,7 +24,7 @@ import { ThemeIcon } from '../../../base/common/themables.js';
 import { IContextMenuService, IContextViewService } from '../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
-import { Menus } from '../menus.js';
+import { Menus } from '../../../workbench/contrib/sessions/browser/menus.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { IKeyboardEvent, StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../base/common/keyCodes.js';

@@ -17,7 +17,7 @@ import { ChangesetReviewAction } from '../../browser/changesetReviewActions.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { stubSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { IChangesSessionObservables, IChangesViewService } from '../../common/changesViewService.js';
+import { IChangesSessionObservables, IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
 
 suite('ChangesetReviewAction', () => {
 

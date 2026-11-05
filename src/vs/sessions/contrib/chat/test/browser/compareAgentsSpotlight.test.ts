@@ -27,7 +27,7 @@ import { IChatEntitlementService } from '../../../../../workbench/services/chat/
 import { TestHostService, TestLayoutService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { CompareAgentsSpotlight, COMPARE_AGENTS_SPOTLIGHT_ID } from '../../browser/compareAgentsSpotlight.js';
 import { SessionComparisonModelSelection } from '../../browser/sessionComparisonModelSelection.js';
-import { COMPARE_AGENTS_SHOW_SPOTLIGHT_SETTING } from '../../common/constants.js';
+import { COMPARE_AGENTS_SHOW_SPOTLIGHT_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 
 suite('CompareAgentsSpotlight', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

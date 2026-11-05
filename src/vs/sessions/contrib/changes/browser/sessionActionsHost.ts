@@ -11,8 +11,8 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { setHostSessionContextKeys } from '../../../../workbench/contrib/sessions/common/sessionContextKeys.js';
 import { bindHasWorktreeAndRepositoryContextKey, bindIsAgentHostSessionContextKey } from '../../../../workbench/contrib/sessions/browser/sessionScopedContextKeys.js';
 import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { IGitHubService } from '../../github/browser/githubService.js';
-import { IChangesSessionScope } from '../common/changesViewService.js';
+import { IGitHubService } from '../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { IChangesSessionScope } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { bindSessionActionContextKeys } from './sessionActionContextKeys.js';
 import { bindChangesetContextKeys } from './changesViewService.js';
 

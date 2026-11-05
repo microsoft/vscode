@@ -18,7 +18,7 @@ import { MultiDiffEditorViewModel } from '../../../../editor/browser/widget/mult
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { DockedEditorInput } from '../../../browser/dockedEditorInput.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
-import { getSessionChangesFileCountLabel } from '../common/changes.js';
+import { getSessionChangesFileCountLabel } from '../../../../workbench/contrib/sessions/common/changes.js';
 import { ISessionChangesService } from '../common/sessionChangesService.js';
 
 /**

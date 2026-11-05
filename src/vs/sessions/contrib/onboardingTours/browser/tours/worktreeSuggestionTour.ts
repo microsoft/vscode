@@ -7,7 +7,7 @@ import { localize } from '../../../../../nls.js';
 import { ISpotlightPayload, SPOTLIGHT_PRESENTATION_KIND } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightTypes.js';
 import { onboardingScenarioRegistry } from '../../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
 import { IOnboardingScenario } from '../../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
-import { WORKTREE_SUGGESTION_TOUR_ID } from '../../../worktreeSuggestion/common/worktreeSuggestion.js';
+import { WORKTREE_SUGGESTION_TOUR_ID } from '../../../../../workbench/contrib/sessions/common/worktreeSuggestion.js';
 
 onboardingScenarioRegistry.registerDescriptor({ id: WORKTREE_SUGGESTION_TOUR_ID });
 

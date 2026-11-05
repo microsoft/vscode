@@ -15,7 +15,7 @@ import { IWorkspaceSelectionSnapshot, WorkspaceSelectionOrigin } from '../../../
 import { IFocusedSessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISendRequestOptions } from '../../../../workbench/contrib/sessions/common/sessionsProvider.js';
-import { INewSessionComposerService } from '../../chat/browser/newSessionComposerService.js';
+import { INewSessionComposerService } from '../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { FIRST_TIME_WINDOW_OPEN_DURATION_LIMIT_MS, ISessionsWindowOpenContext } from './sessionsWindowOpenTelemetry.js';
 
 type ObservationReason = 'firstRequest' | 'timer' | 'close' | 'quit' | 'reload' | 'otherShutdown';

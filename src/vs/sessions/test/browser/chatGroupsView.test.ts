@@ -22,7 +22,7 @@ import { TestConfigurationService } from '../../../platform/configuration/test/c
 import { ContextKeyService } from '../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../platform/actions/common/actions.js';
-import { Menus } from '../../browser/menus.js';
+import { Menus } from '../../../workbench/contrib/sessions/browser/menus.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { UNARCHIVE_CHAT_COMMAND_ID } from '../../../workbench/contrib/sessions/common/sessionCommands.js';

@@ -21,7 +21,7 @@ import { getChatCapabilities, getUntitledSessionTitle, IChat, SessionStatus } fr
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
-import { Menus } from '../menus.js';
+import { Menus } from '../../../workbench/contrib/sessions/browser/menus.js';
 import { LocalSelectionTransfer } from '../../../platform/dnd/browser/dnd.js';
 import { DraggedSessionIdentifier, fillSessionChatDragData, fillSessionDataTransfer, fillSessionDragData, isSessionDragFromPaneEdge, onDidEndSessionChatDrag } from '../dnd.js';
 import { applyDragImage } from '../../../base/browser/ui/dnd/dnd.js';

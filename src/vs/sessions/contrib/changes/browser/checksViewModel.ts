@@ -5,8 +5,8 @@
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { derived, IObservable } from '../../../../base/common/observable.js';
-import { IGitHubService } from '../../github/browser/githubService.js';
-import { GitHubPullRequestCIModel } from '../../github/browser/models/githubPullRequestCIModel.js';
+import { IGitHubService } from '../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { GitHubPullRequestCIModel } from '../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
 
 export class ChecksViewModel extends Disposable {
 	readonly checksObs: IObservable<GitHubPullRequestCIModel | undefined>;

@@ -40,7 +40,7 @@ import { SESSIONS_LAYOUT_SCOPE_SETTING } from '../../../../common/chatLayout.js'
 import { isIMenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { ActivePanelContext, IsAuxiliaryWindowContext, LayoutModeContext, PanelVisibleContext } from '../../../../../workbench/common/contextkeys.js';
 import { TerminalContextKeys } from '../../../../../workbench/contrib/terminal/common/terminalContextKey.js';
-import { Menus, SessionActivityBarGroup } from '../../../../browser/menus.js';
+import { Menus, SessionActivityBarGroup } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import '../../../../browser/layoutActions.js';
 import { CustomViewVisibleContext } from '../../../../common/agentsWindowContextKeys.js';
 import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';

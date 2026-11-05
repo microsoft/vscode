@@ -12,8 +12,8 @@ import { getSessionAgentMergeConfigurationObservable } from '../../../browser/se
 import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISession, SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { IGitHubService } from '../../github/browser/githubService.js';
-import { GitHubCIOverallStatus, GitHubPullRequestState } from '../../github/common/types.js';
+import { IGitHubService } from '../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { GitHubCIOverallStatus, GitHubPullRequestState } from '../../../../workbench/contrib/sessions/common/github/types.js';
 
 const LOG_PREFIX = '[BlockedSessions]';
 

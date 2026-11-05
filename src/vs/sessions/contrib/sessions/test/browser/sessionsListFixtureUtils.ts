@@ -61,7 +61,7 @@ import { IEditorService } from '../../../../../workbench/services/editor/common/
 import { ComponentFixtureContext, ComponentFixtureOptions, createEditorServices, defineComponentFixture, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { TestProductService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { TestQuickInputService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
-import { Menus } from '../../../../browser/menus.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { IsPhoneLayoutContext, SessionsListRearrangeContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { IAgentHostFilterService } from '../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
 import { ISessionsListPresentation } from '../../../../../workbench/contrib/sessions/browser/sessionsListPresentation.js';
@@ -80,7 +80,7 @@ import { ISessionComparison, ISessionComparisonService } from '../../../../../wo
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { buildTestSession, ITestChat, ITestChatSpec, ITestSession, ITestSessionSpec } from '../../../../../workbench/contrib/sessions/test/common/testSessionBuilder.js';
 import { BlockedSessionReason, BlockedSessions } from '../../../blockedSessions/browser/blockedSessions.js';
-import { NEW_SESSION_ACTION_ID } from '../../../chat/common/constants.js';
+import { NEW_SESSION_ACTION_ID } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { IInboxNotificationsService, InboxNotificationsSortMode } from '../../../inboxOne/common/inboxNotificationsService.js';
 import { NEW_SESSION_BUTTON_STYLE_SETTING, NEW_SESSION_BUTTON_STYLE_TREATMENT, NewSessionActionViewItemContribution, type NewSessionButtonStyle } from '../../browser/sessionsActions.js';
 import { SessionChatItem, SessionsGrouping, SessionsList, SessionsListItemReference, SessionsSorting } from '../../browser/views/sessionsList.js';

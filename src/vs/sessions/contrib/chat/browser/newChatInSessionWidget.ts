@@ -35,7 +35,7 @@ import { raceCancellation, raceTimeout } from '../../../../base/common/async.js'
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { SharedChatInputComposer } from './sharedChatInputComposer.js';
-import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING } from '../common/constants.js';
+import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING } from '../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { getStoredSessionOptionsExpanded, SessionOptionsRow } from './sessionOptionsRow.js';
 import { NewChatUserInteraction } from './newChatUserInteraction.js';
 import { IChatViewOptions } from '../../../browser/parts/chatView.js';

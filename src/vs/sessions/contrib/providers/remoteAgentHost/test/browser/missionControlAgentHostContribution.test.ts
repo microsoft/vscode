@@ -39,7 +39,7 @@ import { IUserDataProfile } from '../../../../../../platform/userDataProfile/com
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ConnectMissionControlEnvironmentCommand } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/missionControlEnvironmentActions.js';
-import { Menus } from '../../../../../browser/menus.js';
+import { Menus } from '../../../../../../workbench/contrib/sessions/browser/menus.js';
 import { RemoteAgentHostCommandIds } from '../../browser/remoteAgentHostActions.js';
 import { IRecentWorkspace, ISessionsRecentWorkspacesService } from '../../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionWorkspace } from '../../../../../../workbench/contrib/sessions/common/session.js';

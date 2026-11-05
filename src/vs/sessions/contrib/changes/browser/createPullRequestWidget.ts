@@ -29,7 +29,7 @@ import { localize } from '../../../../nls.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { ISessionPullRequestAgentMergeOptions, ISessionPullRequestChatOptions, ISessionPullRequestCreation, ISessionPullRequestDetails, ISessionPullRequestOptions, SessionPullRequestMergeMethod } from '../common/pullRequestCreation.js';
+import { ISessionPullRequestAgentMergeOptions, ISessionPullRequestChatOptions, ISessionPullRequestCreation, ISessionPullRequestDetails, ISessionPullRequestOptions, SessionPullRequestMergeMethod } from '../../../../workbench/contrib/sessions/common/pullRequestCreation.js';
 import { CreatePullRequestAction, CreatePullRequestMergeMode, ICreatePullRequestPreferences } from '../common/createPullRequestPreferences.js';
 
 type AgentMergeRepairAction = Exclude<keyof ISessionPullRequestAgentMergeOptions, 'mergePullRequest'>;

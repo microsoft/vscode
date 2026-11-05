@@ -17,7 +17,7 @@ import { onboardingScenarioRegistry } from '../../../../workbench/contrib/onboar
 import { IOnboardingScenario } from '../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
 import { IOnboardingScenarioService } from '../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { COMPARE_AGENTS_SHOW_SPOTLIGHT_SETTING } from '../common/constants.js';
+import { COMPARE_AGENTS_SHOW_SPOTLIGHT_SETTING } from '../../../../workbench/contrib/sessions/common/chatConstants.js';
 
 export const COMPARE_AGENTS_SPOTLIGHT_ID = 'sessions.compareAgents';
 onboardingScenarioRegistry.registerDescriptor({ id: COMPARE_AGENTS_SPOTLIGHT_ID });

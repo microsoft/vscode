@@ -30,7 +30,7 @@ import { IRecentWorkspace, ISessionsRecentWorkspacesService } from '../../../../
 import { IOpenNewSessionResult, ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISession, ISessionChangesSummary } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { IChangesViewService } from '../../../changes/common/changesViewService.js';
+import { IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { ISessionChangesService } from '../../../changes/common/sessionChangesService.js';
 import { SessionsList } from '../../../sessions/browser/views/sessionsList.js';
 import { SessionsView } from '../../../sessions/browser/views/sessionsView.js';

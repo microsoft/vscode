@@ -40,7 +40,7 @@ import { IExtensionService } from '../../../../../../workbench/services/extensio
 import { workbenchInstantiationService } from '../../../../../../workbench/test/browser/workbenchTestServices.js';
 import { AgentHostArtifactIntegrations, createHostFacingArtifactAccess, IArtifactWorkspaceConfigurationContext, mapArtifactModelChats } from '../../browser/agentHostArtifactIntegrations.js';
 import { createGitHubPullRequestArtifactWorkspaceConfigurationSynchronizer } from '../../browser/githubPullRequestArtifactWorkspaceConfiguration.js';
-import { createClientArtifactRuntime } from '../../../../../services/artifactIntegrations/browser/clientArtifactRuntime.js';
+import { createClientArtifactRuntime } from '../../../../../../workbench/contrib/sessions/browser/clientArtifactRuntime.js';
 
 suite('Agent Host artifact chat mapping', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

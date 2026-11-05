@@ -33,8 +33,8 @@ import { ISessionsService } from '../../../../../workbench/contrib/sessions/brow
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IAgentFeedbackService } from '../../../agentFeedback/browser/agentFeedbackService.js';
-import { IGitHubService } from '../../../github/browser/githubService.js';
-import { NEW_SESSION_WELCOME_NAME_SETTING } from '../../../chat/common/constants.js';
+import { IGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { NEW_SESSION_WELCOME_NAME_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { InboxNotificationsView } from '../../browser/inboxNotificationsView.js';
 import { IInboxCanvasHostService, UnsupportedInboxCanvasHostService } from '../../browser/inboxCanvasHost.js';
 import { IInboxDetailSummary, IInboxNotificationItem, IInboxNotificationsService, IInboxSessionRow, InboxNotificationActionKind, InboxNotificationKind, InboxNotificationPriority, InboxNotificationsSortMode, InboxTab } from '../../common/inboxNotificationsService.js';

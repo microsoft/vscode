@@ -7,7 +7,7 @@ import { Parts } from '../../../../workbench/services/layout/browser/layoutServi
 import { Part } from '../../../../workbench/browser/part.js';
 import { SessionsPart } from '../sessionsPart.js';
 import { clearAgentsPartCardStyles } from '../agentsPartCard.js';
-import { isPhoneLayout } from './mobileLayout.js';
+import { isPhoneLayout } from '../../../../workbench/contrib/sessions/browser/mobileLayout.js';
 
 /**
  * Mobile variant of SessionsPart.

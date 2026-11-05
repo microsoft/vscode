@@ -76,13 +76,13 @@ import { InboxNotificationsView } from '../../browser/inboxNotificationsView.js'
 import { InboxEvidenceWidget } from '../../browser/inboxEvidenceWidget.js';
 import { InboxCanvases } from '../../browser/inboxCanvases.js';
 import { IInboxDetailSummary, IInboxNotificationConfirmationPart, IInboxNotificationItem, IInboxNotificationPlanReviewPart, IInboxNotificationQuestionCarouselPart, IInboxNotificationsService, IInboxNotificationToolConfirmationPart, IInboxSessionRow, InboxNotificationActionKind, InboxNotificationKind, InboxNotificationPriority, InboxNotificationsSortMode, InboxTab } from '../../common/inboxNotificationsService.js';
-import { IGitHubService } from '../../../github/browser/githubService.js';
+import { IGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
 import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackChangeEvent, IAgentFeedbackService, ISubmitFeedbackOptions } from '../../../agentFeedback/browser/agentFeedbackService.js';
 import { ConfirmationOptionKind } from '../../../../../platform/agentHost/common/state/protocol/state.js';
-import { GitHubPullRequestCIModel } from '../../../github/browser/models/githubPullRequestCIModel.js';
-import { GitHubPullRequestModel } from '../../../github/browser/models/githubPullRequestModel.js';
-import { GitHubPullRequestReviewThreadsModel } from '../../../github/browser/models/githubPullRequestReviewThreadsModel.js';
-import { IGitHubPRComment } from '../../../github/common/types.js';
+import { GitHubPullRequestCIModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
+import { GitHubPullRequestModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestModel.js';
+import { GitHubPullRequestReviewThreadsModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestReviewThreadsModel.js';
+import { IGitHubPRComment } from '../../../../../workbench/contrib/sessions/common/github/types.js';
 import { PullRequestCheck } from '../../../../../platform/github/common/githubPullRequestService.js';
 import '../../../chat/browser/media/chatWidget.css';
 import '../../../chat/browser/media/chatInput.css';

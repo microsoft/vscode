@@ -26,7 +26,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { logSettingExperimentTrigger } from '../../../../platform/telemetry/common/experimentTrigger.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { Menus } from '../../../browser/menus.js';
+import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { getAgentHostConnectionStatusLabel, isAgentHostEnvironmentAvailable, isAgentHostProvider, isRemoteSessionCreationEnvironment } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { SessionWorkspacePickerGroupContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ISessionWorkspace, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../workbench/contrib/sessions/common/session.js';
@@ -39,7 +39,7 @@ import { registerPickerKeybindingPresentation } from './newChatPickerKeybinding.
 import { createSessionPickerToolbar } from './sessionPickerToolbar.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isWindows } from '../../../../base/common/platform.js';
-import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../common/constants.js';
+import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../../../workbench/contrib/sessions/common/chatConstants.js';
 
 export interface ISessionCreationEnvironment {
 	readonly id: string;

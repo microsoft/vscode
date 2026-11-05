@@ -34,7 +34,7 @@ import { DockedEditorInput } from '../../browser/dockedEditorInput.js';
 import { EditorInputCapabilities, IEditorPartOptions, IEditorPartOptionsChangeEvent } from '../../../workbench/common/editor.js';
 import { GroupDirection, GroupOrientation, IEditorGroupsService } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { SESSIONS_LIST_MINIMUM_WIDTH } from '../../browser/parts/sidebarPart.js';
-import { Menus } from '../../browser/menus.js';
+import { Menus } from '../../../workbench/contrib/sessions/browser/menus.js';
 import { DEFAULT_NOTIFICATION_ROW_HEIGHT, onDidChangeNotificationRowHeight, setNotificationRowHeight } from '../../../workbench/browser/parts/notifications/notificationsViewer.js';
 import { DEFAULT_EDITOR_PART_OPTIONS, IEditorGroupViewOptions } from '../../../workbench/browser/parts/editor/editor.js';
 import { EditorInput } from '../../../workbench/common/editor/editorInput.js';

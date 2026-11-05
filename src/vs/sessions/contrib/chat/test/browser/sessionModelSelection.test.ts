@@ -33,7 +33,7 @@ import { ISessionsProvider, ISessionModelPickerOptions, ISessionModelsSnapshot }
 import { ChatModelSource, IChat, ISessionWorkspace, SessionStatus, SessionTypeAuthRequirement } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { restoreReasonForSource, SessionModelSelection } from '../../browser/sessionModelSelection.js';
-import { AutomationModelConfiguration } from '../../../automations/browser/automationModelConfiguration.js';
+import { AutomationModelConfiguration } from '../../../../../workbench/contrib/sessions/browser/automationModelConfiguration.js';
 import { modelConfigurationSourceKey } from '../../../../../platform/agentHost/common/agentModelConfiguration.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 

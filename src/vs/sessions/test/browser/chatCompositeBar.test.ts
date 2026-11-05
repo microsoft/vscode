@@ -30,7 +30,7 @@ import { IEditorPartOptions, IEditorPartOptionsChangeEvent } from '../../../work
 import { IEditorGroupsService } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { ChatCompositeBar, IChatCompositeBarDelegate } from '../../browser/parts/chatCompositeBar.js';
-import { Menus } from '../../browser/menus.js';
+import { Menus } from '../../../workbench/contrib/sessions/browser/menus.js';
 import { getSessionChatDragData, isSessionChatDrag, registerSessionChatDragEndHandler } from '../../browser/dnd.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ARCHIVE_CHAT_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../../workbench/contrib/sessions/common/sessionCommands.js';

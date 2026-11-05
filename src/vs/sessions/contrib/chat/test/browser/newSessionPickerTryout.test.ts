@@ -19,7 +19,7 @@ import { resolveOnboardingTarget } from '../../../../../workbench/contrib/onboar
 import { IOnboardingScenario } from '../../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
 import { IOnboardingTryoutRunContext, IOnboardingTryoutService, onboardingTryoutPresentationRegistry, OnboardingTryoutAvailability } from '../../../../../workbench/contrib/onboarding/common/onboardingTryout.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { INewSessionComposer, INewSessionComposerPicker, INewSessionComposerService, NewSessionComposerService } from '../../browser/newSessionComposerService.js';
+import { INewSessionComposer, INewSessionComposerPicker, INewSessionComposerService, NewSessionComposerService } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { NewSessionPickerTryoutContribution } from '../../browser/newSessionPickerTryout.js';
 import { NewSessionOnboardingTargets } from '../../browser/newSessionOnboardingTargets.js';
 import { ITestSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';

@@ -15,8 +15,8 @@ import { ILayoutService } from '../../../../platform/layout/browser/layoutServic
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
-import { ISessionPullRequestCreation, ISessionPullRequestOptions } from '../common/pullRequestCreation.js';
-import { CreatePullRequestFocusedContext } from '../common/changes.js';
+import { ISessionPullRequestCreation, ISessionPullRequestOptions } from '../../../../workbench/contrib/sessions/common/pullRequestCreation.js';
+import { CreatePullRequestFocusedContext } from '../../../../workbench/contrib/sessions/common/changes.js';
 import { CreatePullRequestPreferences } from '../common/createPullRequestPreferences.js';
 import { CreatePullRequestWidget, ICreatePullRequestFormContent, ICreatePullRequestWidgetOptions } from './createPullRequestWidget.js';
 

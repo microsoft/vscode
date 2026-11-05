@@ -20,7 +20,7 @@ import { ISessionsProvidersService } from '../../../../../workbench/contrib/sess
 import { getFocusedSessionChatSource, IFocusedSessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { resolveSessionCommandTarget } from '../../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
 import { bindIsAgentHostSessionContextKey, IsAgentHostSession } from '../../../../../workbench/contrib/sessions/browser/sessionScopedContextKeys.js';
-import { ActiveSessionContextKeys, IsolationMode } from '../../../changes/common/changes.js';
+import { ActiveSessionContextKeys, IsolationMode } from '../../../../../workbench/contrib/sessions/common/changes.js';
 import { BaseAgentHostSessionsProvider } from './baseAgentHostSessionsProvider.js';
 
 /**

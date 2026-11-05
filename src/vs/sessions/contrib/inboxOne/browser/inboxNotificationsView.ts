@@ -82,8 +82,8 @@ import { IEditorService } from '../../../../workbench/services/editor/common/edi
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { InboxCanvasFocusContext } from '../../../common/agentsWindowContextKeys.js';
-import { AUTO_DELETE_MARKED_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_MARK_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING } from '../../github/common/sessionLifecycleSettings.js';
-import { IGitHubService } from '../../github/browser/githubService.js';
+import { AUTO_DELETE_MARKED_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_MARK_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING } from '../../../../workbench/contrib/sessions/common/github/sessionLifecycleSettings.js';
+import { IGitHubService } from '../../../../workbench/contrib/sessions/browser/github/githubService.js';
 import { buildFixCIPrompt } from '../../changes/browser/checksActions.js';
 import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
 import { syncPRReviewFeedback } from '../../agentFeedback/browser/agentFeedbackPRReviewSeeder.js';

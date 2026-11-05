@@ -33,7 +33,7 @@ import { IChatResponseViewModel, IChatViewModel } from '../../../../../workbench
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
 import { logResponseSelectionWidgetAction } from '../../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
-import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING } from '../../common/constants.js';
+import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { SessionsSideChatProviderContribution } from '../../browser/sideChatProvider.contribution.js';
 import { ISessionsPartService } from '../../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';

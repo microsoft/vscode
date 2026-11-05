@@ -42,16 +42,16 @@ import { IAgentWorkbenchLayoutService, ISidePaneToggleEvent } from '../../../../
 import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
 import { ChatInteractivity, IChat, ISession, ISessionChangeset, ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionChangesService, SessionChangesService } from '../../../changes/browser/sessionChangesService.js';
-import { CHANGES_VIEW_CONTAINER_ID } from '../../../changes/common/changes.js';
+import { CHANGES_VIEW_CONTAINER_ID } from '../../../../../workbench/contrib/sessions/common/changes.js';
 import { SESSIONS_FILES_CONTAINER_ID } from '../../../files/browser/files.contribution.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { ILifecycleService } from '../../../../../workbench/services/lifecycle/common/lifecycle.js';
-import { IChangesViewService } from '../../../changes/common/changesViewService.js';
+import { IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { ISessionEditorWorkingSetService, SessionEditorWorkingSetService } from '../../common/sessionEditorWorkingSet.js';
-import { IGitHubService } from '../../../github/browser/githubService.js';
-import { GitHubPullRequestCIModel } from '../../../github/browser/models/githubPullRequestCIModel.js';
-import { IGitHubCICheck } from '../../../github/common/types.js';
+import { IGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { GitHubPullRequestCIModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
+import { IGitHubCICheck } from '../../../../../workbench/contrib/sessions/common/github/types.js';
 
 type SidePaneComposition = { readonly editor: boolean; readonly auxiliaryBar: boolean };
 

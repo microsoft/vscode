@@ -33,13 +33,13 @@ import { getChatSessionType } from '../../../../workbench/contrib/chat/common/mo
 import { ChatMessageRole, ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { IChatUtilityModelRequest, IChatUtilityModelService } from '../../../../workbench/contrib/chat/common/chatUtilityModelService.js';
 import { ConfirmationOptionKind } from '../../../../platform/agentHost/common/state/protocol/state.js';
-import { IGitHubService } from '../../github/browser/githubService.js';
-import { getPullRequestKey } from '../../github/common/utils.js';
-import { computePullRequestIcon, GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPullRequestReviewThread } from '../../github/common/types.js';
+import { IGitHubService } from '../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { getPullRequestKey } from '../../../../workbench/contrib/sessions/common/github/utils.js';
+import { computePullRequestIcon, GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPullRequestReviewThread } from '../../../../workbench/contrib/sessions/common/github/types.js';
 import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { getGitHubPullRequestRefs, getSessionStatusMessage, IGitHubPullRequestRef, SessionStatus, type ISession } from '../../../../workbench/contrib/sessions/common/session.js';
-import { getSessionGitHubReferences } from '../../github/common/sessionGitHubReferences.js';
+import { getSessionGitHubReferences } from '../../../../workbench/contrib/sessions/common/github/sessionGitHubReferences.js';
 import {
 	compareInboxNotificationsByRecency,
 	compareInboxNotifications,

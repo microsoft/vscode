@@ -10,7 +10,7 @@ import { MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { searchViewIcon } from '../../../../workbench/contrib/search/browser/searchIcons.js';
 import { OpenEditorCommandId } from '../../../../workbench/contrib/searchEditor/browser/constants.js';
-import { Menus } from '../../../browser/menus.js';
+import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { SessionsEmptyStateActions } from '../../../browser/parts/sessionsEmptyStateActions.js';
 import { SessionsEmptyStateLayout } from '../../../browser/parts/sessionsEmptyStateLayout.js';
 import { NEW_FILE_TAB_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';

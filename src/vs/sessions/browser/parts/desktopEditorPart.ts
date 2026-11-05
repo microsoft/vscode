@@ -20,7 +20,7 @@ import { Parts } from '../../../workbench/services/layout/browser/layoutService.
 import { IHostService } from '../../../workbench/services/host/browser/host.js';
 import { DockedEditorInput } from '../dockedEditorInput.js';
 import { DockedAuxiliaryBarController } from '../dockedAuxiliaryBarController.js';
-import { Menus } from '../menus.js';
+import { Menus } from '../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../agentsWindowMenus.js';
 import { IAgentWorkbenchLayoutService } from '../workbench.js';
 import { AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS } from './agentsPartCard.js';

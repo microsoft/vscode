@@ -18,7 +18,7 @@ import { IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGrou
 import { EditorExtensions } from '../../../../workbench/common/editor.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
+import { Menus, SessionActivityBarGroup } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus, SessionCanvasMenuGroup } from '../../../browser/agentsWindowMenus.js';
 import { ISessionsHostLayoutService } from '../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
 import { WindowCanvasService } from '../../../services/canvas/browser/windowCanvasService.js';

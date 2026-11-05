@@ -39,7 +39,7 @@ import { TestProgressService } from '../../../../../../workbench/test/browser/wo
 import { IInputOptions, IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { IAgentHostSessionsProvider, LocalAgentHostRegistration } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
-import { DevContainerAgentHostEnabledSettingId, IDevContainerAgentHostService } from '../../../../../common/devContainerAgentHostService.js';
+import { DevContainerAgentHostEnabledSettingId, IDevContainerAgentHostService } from '../../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IRemoteRefreshProgress, RemotesModel, remoteKinds } from '../../browser/remotesModel.js';
 import { getRemoteAgentHostPickerKey, RemoteAgentHostPickerVisibility } from '../../browser/remoteAgentHostPickerVisibility.js';

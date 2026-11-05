@@ -30,7 +30,7 @@ import { diffStatsEqual, IDiffStats } from '../../../../workbench/contrib/chat/b
 import { IconBadge } from '../../../../workbench/services/activity/common/activity.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
-import { Menus } from '../../../browser/menus.js';
+import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { SessionActivityBarActionViewItem } from '../../../browser/parts/sessionActivityBar.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { AgentWorkbenchLayout } from '../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';

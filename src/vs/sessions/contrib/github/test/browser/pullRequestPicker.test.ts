@@ -13,7 +13,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ISession, ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { createPullRequestBootstrapPrompt, createPullRequestContextAttachment, createPullRequestQuickPickItems, createPullRequestUrl, getExistingPullRequests, getPullRequestNumberFromCheckoutRef, IPullRequestQuickPickItem, isPullRequestAvailable, mergePullRequestSummaries, pullRequestMatchesQuery, resolvePullRequestSessionRepository } from '../../browser/pullRequestPicker.js';
-import { IGitHubPullRequestSummary } from '../../common/types.js';
+import { IGitHubPullRequestSummary } from '../../../../../workbench/contrib/sessions/common/github/types.js';
 import { createAndOpenPullRequestSession } from '../../browser/pullRequestSessionCreation.js';
 
 suite('Create Session from Pull Request', () => {

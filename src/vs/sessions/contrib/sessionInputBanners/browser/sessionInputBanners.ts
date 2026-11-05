@@ -21,9 +21,9 @@ import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackSe
 import { buildFixCIPrompt, countRequiredChecks, submitFixCIChecks } from '../../changes/browser/checksActions.js';
 import { whenChatWidgetForSession } from '../../chat/browser/chatWidgetUtils.js';
 import type { ISessionChatPillsDebugData } from '../../chat/browser/sessionChatInputToolbarDebug.js';
-import { IGitHubService } from '../../github/browser/githubService.js';
-import { GitHubPullRequestCIModel } from '../../github/browser/models/githubPullRequestCIModel.js';
-import { GitHubPullRequestState, OPEN_PULL_REQUEST_ACTION_ID } from '../../github/common/types.js';
+import { IGitHubService } from '../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { GitHubPullRequestCIModel } from '../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
+import { GitHubPullRequestState, OPEN_PULL_REQUEST_ACTION_ID } from '../../../../workbench/contrib/sessions/common/github/types.js';
 import { getWindowHost, ISessionHost } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { getGitHubPullRequestRefs, IGitHubPullRequestRef, SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';

@@ -32,8 +32,8 @@ import { ISession } from '../../../../../workbench/contrib/sessions/common/sessi
 import { IconBadge } from '../../../../../workbench/services/activity/common/activity.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { FixtureContextViewService, FixtureKeybindingService, FixtureMenuService, fixtureBrowser, fixtureCanvas, fixtureChanges, fixtureFiles, fixtureTerminal, fixtureTogglePanel, fixtureToggleSidePanel, IFixtureEntry } from '../../../../test/browser/addTabFixtureUtils.js';
-import { SessionActivityBarGroup } from '../../../../browser/menus.js';
-import { OPEN_PULL_REQUEST_ACTION_ID } from '../../../github/common/types.js';
+import { SessionActivityBarGroup } from '../../../../../workbench/contrib/sessions/browser/menus.js';
+import { OPEN_PULL_REQUEST_ACTION_ID } from '../../../../../workbench/contrib/sessions/common/github/types.js';
 import { ExternalSessionBanner } from '../../browser/externalSessionBanner.js';
 import '../../browser/media/chatView.css';
 import '../../../../browser/parts/media/chatCompositeBar.css';

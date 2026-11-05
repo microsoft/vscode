@@ -28,7 +28,7 @@ import { ISessionNavigationRequest, ISessionsService } from '../../../../../work
 import { ISessionsPartService } from '../../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
 import { WorkspaceHandoffState } from '../../../sessions/browser/sessionsWindowOpenTelemetry.js';
 import { AgentsWindowWorkspaceHandoff, WORKSPACE_HANDOFF_TIMEOUT_MS } from '../../browser/agentsWindowWorkspaceHandoff.js';
-import { INewSessionComposerService, NewSessionComposerService } from '../../browser/newSessionComposerService.js';
+import { INewSessionComposerService, NewSessionComposerService } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IChatDraft, reviveChatDraft, serializeChatDraft } from '../../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
 import { toFileVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';

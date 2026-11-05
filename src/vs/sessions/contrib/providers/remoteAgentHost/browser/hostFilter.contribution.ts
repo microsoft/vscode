@@ -14,7 +14,7 @@ import { ServicesAccessor } from '../../../../../platform/instantiation/common/i
 import { IsAuxiliaryWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { IsNewChatSessionContext, IsPhoneLayoutContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
-import { Menus } from '../../../../browser/menus.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { HostFilterActionViewItem } from './hostFilterActionViewItem.js';
 import { MobileHostFilterActionViewItem } from './mobileHostFilterActionViewItem.js';

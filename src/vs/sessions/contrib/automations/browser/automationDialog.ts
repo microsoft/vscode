@@ -87,7 +87,7 @@ import { ActiveSessionHost, createSessionHostServices, getMainWindowHost, ISessi
 import { VisibleSession } from '../../../../workbench/contrib/sessions/browser/visibleSessions.js';
 import { setActiveSessionContextKeys } from '../../../../workbench/contrib/sessions/common/sessionContextKeys.js';
 import { SessionUsesCombinedConfigPickerContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
-import { Menus } from '../../../browser/menus.js';
+import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 
 const $ = DOM.$;

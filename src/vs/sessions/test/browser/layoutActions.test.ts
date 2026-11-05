@@ -18,7 +18,7 @@ import { LayoutDensityMenu } from '../../../workbench/browser/actions/layoutDens
 import { SecondarySideBarVisibleContext } from '../../../workbench/common/contextkeys.js';
 import { TogglePanelAction } from '../../../workbench/browser/parts/panel/panelActions.js';
 import { LayoutSettings, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
-import { Menus } from '../../browser/menus.js';
+import { Menus } from '../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../browser/agentsWindowMenus.js';
 import { TOGGLE_SESSION_ACTIVITY_BAR_COMMAND_ID, TOGGLE_SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_COMMAND_ID } from '../../browser/layoutActions.js';
 import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../../workbench/contrib/sessions/common/sessionConfig.js';

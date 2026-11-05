@@ -14,7 +14,7 @@ import { ActiveEditorContext, LayoutModeContext, TerminalsPositionContext, Termi
 import { ChatWindowCategory, ChatWindowLayoutCommandsContext, resolveChatWindow } from '../../../../workbench/contrib/chatWindow/browser/chatWindowLayoutActions.js';
 import { ChatWindowLayoutMode, ChatWindowTerminalPosition } from '../../../../workbench/contrib/chatWindow/common/chatWindowLayout.js';
 import { terminalEditorId } from '../../../../workbench/contrib/terminal/browser/terminal.js';
-import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
+import { Menus, SessionActivityBarGroup } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 import { IChatWindowTerminalsService } from './chatWindowTerminals.js';
 

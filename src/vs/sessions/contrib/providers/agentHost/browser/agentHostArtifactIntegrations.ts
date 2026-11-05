@@ -25,7 +25,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { IUserDataProfileService } from '../../../../../workbench/services/userDataProfile/common/userDataProfile.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IExtensionService } from '../../../../../workbench/services/extensions/common/extensions.js';
-import { createClientArtifactRuntime } from '../../../../services/artifactIntegrations/browser/clientArtifactRuntime.js';
+import { createClientArtifactRuntime } from '../../../../../workbench/contrib/sessions/browser/clientArtifactRuntime.js';
 import { AgentHostInteractiveAuthentication } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostAuth.js';
 import { authenticateWithConnectionCustomization, IRemoteAgentHostConnectionCustomizationService } from '../../../../../workbench/contrib/chat/browser/remoteAgentHost/remoteAgentHostConnectionCustomization.js';
 

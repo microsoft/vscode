@@ -28,13 +28,13 @@ import { InMemoryStorageService } from '../../../../../platform/storage/common/s
 import { ActiveEditorContext, IsAuxiliaryWindowContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
 import { CanvasInput, getCanvasReferenceKey, ICanvasContextService, ICanvasReference, ICanvasService } from '../../../../../workbench/contrib/canvases/common/canvas.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
-import { Menus } from '../../../../browser/menus.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { SessionActiveChatCanvasReferenceKeysContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ActiveSessionCanvasReferenceContext } from '../../../../common/agentsWindowContextKeys.js';
 import { IChat, ISessionCanvas, ISessionCanvasDefinition, ISessionCapabilities } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { NEW_SESSION_ACTION_ID } from '../../../chat/common/constants.js';
+import { NEW_SESSION_ACTION_ID } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { getSessionCanvasDefinitionInstanceId, WindowCanvasesAvailableContext } from '../../common/sessionCanvas.js';
 import { CREATE_SESSION_CANVAS_COMMAND_ID, DISCOVER_SESSION_CANVASES_COMMAND_ID, OPEN_SESSION_CANVAS_COMMAND_ID, registerSessionCanvasActions } from '../../electron-browser/sessionCanvasActions.js';
 import { SessionCanvasRegistryService } from '../../electron-browser/sessionCanvasService.js';

@@ -41,7 +41,7 @@ import { registerSessionChatDragEndHandler } from '../../../../browser/dnd.js';
 import { MOVE_CHAT_TO_SESSION_ACTION_ID, MOVE_SESSION_INTO_SESSION_ACTION_ID, PROMOTE_CHAT_TO_SESSION_ACTION_ID } from '../../browser/sessionsActions.js';
 import { IPickOptions, IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../../platform/quickinput/common/quickInput.js';
 import { isIMenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
-import { Menus } from '../../../../browser/menus.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { IView } from '../../../../../workbench/common/views.js';

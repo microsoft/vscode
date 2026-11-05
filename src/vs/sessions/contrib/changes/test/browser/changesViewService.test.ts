@@ -19,8 +19,8 @@ import { BRANCH_CHANGES_CHANGESET_ID, IChat, ISession, ISessionChangeset, ISessi
 import { AgentFeedbackState, IAgentFeedback, IAgentFeedbackService } from '../../../agentFeedback/browser/agentFeedbackService.js';
 import { ICodeReviewService, PRReviewStateKind } from '../../../codeReview/browser/codeReviewService.js';
 import { ChangesetReviewedFilesContext, ChangesViewService } from '../../browser/changesViewService.js';
-import { getChangesOfSession } from '../../common/changesViewService.js';
-import { ChangesViewMode } from '../../common/changes.js';
+import { getChangesOfSession } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
+import { ChangesViewMode } from '../../../../../workbench/contrib/sessions/common/changes.js';
 import { sessionHostServiceOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('ChangesViewService', () => {

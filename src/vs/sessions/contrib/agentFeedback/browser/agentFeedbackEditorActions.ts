@@ -19,7 +19,7 @@ import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actio
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { AgentFeedbackState, IAgentFeedbackService, shouldIncludeRawPRReviewComments } from './agentFeedbackService.js';
 import { getActiveResourceCandidates, getFeedbackSessionCandidates } from './agentFeedbackEditorUtils.js';
-import { Menus } from '../../../browser/menus.js';
+import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { ICodeReviewService } from '../../codeReview/browser/codeReviewService.js';
 import { getSessionEditorComments } from './sessionEditorComments.js';
 import { IPlanReviewFeedbackService } from '../../../../workbench/contrib/chat/browser/planReviewFeedback/planReviewFeedbackService.js';

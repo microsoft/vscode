@@ -28,7 +28,7 @@ import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/servic
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IWorkbenchLayoutService, LayoutSettings, ModernUIDensity, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ITitleService } from '../../../../workbench/services/title/browser/titleService.js';
-import { Menus } from '../../../browser/menus.js';
+import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 import { EmptyEditorGroupAddTab } from '../../../browser/parts/emptyEditorGroupAddTab.js';
 import { registerSessionActivityBarExternalHost, SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from '../../../browser/parts/sessionActivityBarHost.js';
@@ -43,8 +43,8 @@ import { IChatHostOpenerService } from '../../../../workbench/contrib/sessions/b
 import { IChat, ISession } from '../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { bindSessionScopeContextKeys } from '../../changes/browser/sessionActionsHost.js';
-import { SessionChangesEditorFileListContext } from '../../changes/common/changes.js';
-import { IChangesViewService } from '../../changes/common/changesViewService.js';
+import { SessionChangesEditorFileListContext } from '../../../../workbench/contrib/sessions/common/changes.js';
+import { IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { ISessionEditorWorkingSetService } from '../../layout/common/sessionEditorWorkingSet.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../common/chatWindows.js';
 import { ChatModelHold, chatWindowTitle, isChatWindowChatGone } from './chatWindowOpening.js';

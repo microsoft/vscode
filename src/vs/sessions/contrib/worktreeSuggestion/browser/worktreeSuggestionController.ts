@@ -22,7 +22,7 @@ import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultS
 import { ISessionInputPickerVisibility } from '../../../../workbench/contrib/sessions/common/sessionPickerVisibility.js';
 import { IActiveSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { NewSessionBannerPriority, NewSessionBanners } from '../../chat/common/newSessionBanners.js';
-import { WorktreeSuggestionVariant } from '../common/worktreeSuggestion.js';
+import { WorktreeSuggestionVariant } from '../../../../workbench/contrib/sessions/common/worktreeSuggestion.js';
 import { getInlineHintMessage, getShowChangesLabel, getUseWorktreeLabel } from './worktreeSuggestionPresentation.js';
 import { IWorktreeSuggestion, IWorktreeSuggestionService, worktreeSuggestionEquals, WorktreeSpotlightChoice } from './worktreeSuggestionService.js';
 

@@ -32,15 +32,15 @@ import { IViewsService } from '../../../../workbench/services/views/common/views
 import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
 import { isAgentHostProvider } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { IsPhoneLayoutContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
-import { isDevContainerWorktreeEnabled } from '../../../common/devContainerAgentHostService.js';
+import { isDevContainerWorktreeEnabled } from '../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionFileChange, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../workbench/contrib/sessions/common/session.js';
 import { IHostSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../workbench/contrib/sessions/common/sessionsProvider.js';
-import { CHANGES_VIEW_ID } from '../../changes/common/changes.js';
+import { CHANGES_VIEW_ID } from '../../../../workbench/contrib/sessions/common/changes.js';
 import { ISessionChangesService } from '../../changes/common/sessionChangesService.js';
 import { createWorktreeSuggestionTour } from '../../onboardingTours/browser/tours/worktreeSuggestionTour.js';
-import { isWorktreeSuggestionVariant, WORKTREE_SUGGESTION_MIN_CREATED_SESSIONS, WORKTREE_SUGGESTION_SETTING, WORKTREE_SUGGESTION_TOUR_ID, WorktreeSuggestionVariant } from '../common/worktreeSuggestion.js';
+import { isWorktreeSuggestionVariant, WORKTREE_SUGGESTION_MIN_CREATED_SESSIONS, WORKTREE_SUGGESTION_SETTING, WORKTREE_SUGGESTION_TOUR_ID, WorktreeSuggestionVariant } from '../../../../workbench/contrib/sessions/common/worktreeSuggestion.js';
 import { formatChangeStats, getChangedFileAriaDescription, getChangedFileLabel, getChangedFilesRoot, getChangedFileUri, getMoreFilesLabel, getSendInWorktreeLabel, getSendLabel, getUncommittedChangesMessage } from './worktreeSuggestionPresentation.js';
 
 /** A new session that would start in a folder with uncommitted changes. */

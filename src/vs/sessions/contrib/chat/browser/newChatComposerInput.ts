@@ -18,7 +18,7 @@ import { IWorkspaceSelectionSnapshot } from '../../../../workbench/contrib/sessi
 import { isInputGitHubContext, toInputGitHubContextMetadata } from '../common/newChatContextIds.js';
 import { IActiveSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import type { IChat } from '../../../../workbench/contrib/sessions/common/session.js';
-import { NewSessionWorkspacePreselectionSource } from './newSessionComposerService.js';
+import { NewSessionWorkspacePreselectionSource } from '../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import type { NewChatUserInteraction } from './newChatUserInteraction.js';
 import type { ISessionTypePickerOptions } from './sessionTypePicker.js';
 import type { IChatPetPlatformOccupation } from '../../../../workbench/contrib/chat/browser/widget/chatPetWidget.js';

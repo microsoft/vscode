@@ -29,10 +29,10 @@ import { IViewsService } from '../../../../workbench/services/views/common/views
 import { hashSessionIdForTelemetry } from '../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
 import { getSessionOwnedGitHubPullRequestRefs, IChat, isActiveSessionStatus, ISession, SessionArtifactKind, SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { IGitHubService } from '../../github/browser/githubService.js';
-import { GitHubPullRequestState } from '../../github/common/types.js';
-import { getPullRequestKey } from '../../github/common/utils.js';
-import { AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_QUERY } from '../../github/common/sessionLifecycleSettings.js';
+import { IGitHubService } from '../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { GitHubPullRequestState } from '../../../../workbench/contrib/sessions/common/github/types.js';
+import { getPullRequestKey } from '../../../../workbench/contrib/sessions/common/github/utils.js';
+import { AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_QUERY } from '../../../../workbench/contrib/sessions/common/github/sessionLifecycleSettings.js';
 import { createSessionArchiveTour, SESSION_ARCHIVE_TOUR_ID } from '../../onboardingTours/browser/tours/sessionArchiveTour.js';
 import { getSessionArchiveOnboardingTargetId } from '../../sessions/browser/views/sessionsList.js';
 import { SessionsView, SessionsViewId } from '../../sessions/browser/views/sessionsView.js';

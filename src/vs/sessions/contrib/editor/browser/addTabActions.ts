@@ -25,13 +25,13 @@ import { EditorsOrder, isEditorCommandsContext } from '../../../../workbench/com
 import { ActiveEditorContext, AuxiliaryBarVisibleContext, EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../workbench/common/contextkeys.js';
 import { IsQuickChatSessionContext, SessionWithWorkspaceContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { DesktopChangesTabAvailableContext, DesktopChangesTabMissingContext, DesktopFilesTabAvailableContext, DesktopFilesTabMissingContext } from '../../../common/agentsWindowContextKeys.js';
-import { SessionsCategories } from '../../../common/categories.js';
+import { SessionsCategories } from '../../../../workbench/contrib/sessions/common/categories.js';
 import { CHAT_WINDOW_OPEN_BROWSER_COMMAND_ID, CHAT_WINDOW_OPEN_CHANGES_COMMAND_ID, CHAT_WINDOW_OPEN_FILES_COMMAND_ID, NEW_FILE_TAB_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
 import { SessionChangesEditorInput } from '../../changes/browser/sessionChangesEditorInput.js';
 import { getMainWindowHost, ISessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { EmptyFileEditorInput } from './emptyFileEditorInput.js';
-import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
+import { Menus, SessionActivityBarGroup } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 import { ChatWindowLayoutCommandsContext, resolveChatWindowOfContext } from '../../../../workbench/contrib/chatWindow/browser/chatWindowLayoutActions.js';
 import { IChatWindow, IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';

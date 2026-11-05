@@ -9,7 +9,7 @@ import { IActionViewItemService } from '../../../../../platform/actions/browser/
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../../../workbench/common/contributions.js';
-import { Menus } from '../../../../browser/menus.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { SessionProviderIdContext, IsNewChatSessionContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { CLOUD_SANDBOX_CREATION_PROVIDER_ID, COPILOT_PROVIDER_ID } from '../common/copilotChatSessions.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -19,7 +19,7 @@ import { AgentHostPermissionPickerDelegate } from '../../agentHost/browser/agent
 import { PickerActionViewItem } from '../../agentHost/browser/agentHostSessionConfigPicker.js';
 import { MobilePermissionPicker } from './mobilePermissionPicker.js';
 import { MobileAgentHostModePicker } from '../../agentHost/browser/mobile/mobileAgentHostModePicker.js';
-import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
+import { isPhoneLayout } from '../../../../../workbench/contrib/sessions/browser/mobileLayout.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 
 const IsActiveCopilotChatSessionProvider = ContextKeyExpr.equals(SessionProviderIdContext.key, COPILOT_PROVIDER_ID);

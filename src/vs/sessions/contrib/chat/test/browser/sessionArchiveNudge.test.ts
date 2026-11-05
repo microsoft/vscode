@@ -43,11 +43,11 @@ import { ONBOARDING_DEVELOPER_MODE_CONFIG, ONBOARDING_ENABLED_CONFIG } from '../
 import { hashSessionIdForTelemetry } from '../../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
 import { IChat, IGitHubInfo, IGitHubPullRequestRef, ISession, ISessionArtifact, ISessionWorkspace, SessionArtifactKind, SessionRemoteConnectionStatus, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { IGitHubService } from '../../../github/browser/githubService.js';
-import { GitHubPullRequestModel } from '../../../github/browser/models/githubPullRequestModel.js';
-import { GitHubPullRequestState, IGitHubPullRequest } from '../../../github/common/types.js';
-import { getPullRequestKey } from '../../../github/common/utils.js';
-import { AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_QUERY } from '../../../github/common/sessionLifecycleSettings.js';
+import { IGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { GitHubPullRequestModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestModel.js';
+import { GitHubPullRequestState, IGitHubPullRequest } from '../../../../../workbench/contrib/sessions/common/github/types.js';
+import { getPullRequestKey } from '../../../../../workbench/contrib/sessions/common/github/utils.js';
+import { AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_QUERY } from '../../../../../workbench/contrib/sessions/common/github/sessionLifecycleSettings.js';
 import { SESSION_ARCHIVE_TOUR_ID } from '../../../onboardingTours/browser/tours/sessionArchiveTour.js';
 import { SESSION_ARCHIVE_NUDGE_SETTING, SessionArchiveNudge, SessionArchiveNudgeService } from '../../browser/sessionArchiveNudge.js';
 import { getSessionArchiveOnboardingTargetId, SessionsList } from '../../../sessions/browser/views/sessionsList.js';

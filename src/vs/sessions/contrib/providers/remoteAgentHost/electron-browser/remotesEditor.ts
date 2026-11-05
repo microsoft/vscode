@@ -27,7 +27,7 @@ import { RemotesEditorInput } from '../browser/remotesEditorInput.js';
 import { RemotesModel } from '../browser/remotesModel.js';
 import { RemotesWidget } from '../browser/remotesWidget.js';
 import { ThisComputerSection } from './thisComputerSection.js';
-import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING } from '../../../chat/common/constants.js';
+import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 
 export const RemotesEditorFocusedContext = new RawContextKey<boolean>('remotesEditorFocused', false);
 

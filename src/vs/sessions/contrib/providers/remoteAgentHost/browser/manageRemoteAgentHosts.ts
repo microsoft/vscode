@@ -18,8 +18,8 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { TUNNEL_ADDRESS_PREFIX } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
-import { Menus } from '../../../../browser/menus.js';
-import { SessionsCategories } from '../../../../common/categories.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
+import { SessionsCategories } from '../../../../../workbench/contrib/sessions/common/categories.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { getStatusLabel, removeRemoteHost, showRemoteHostOptions } from './remoteHostOptions.js';

@@ -20,8 +20,8 @@ import { WorkbenchList } from '../../../../platform/list/browser/listService.js'
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { DEFAULT_LABELS_CONTAINER, IResourceLabel, ResourceLabels } from '../../../../workbench/browser/labels.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
-import { GitHubCheckConclusion, GitHubCheckStatus, IGitHubCICheck } from '../../github/common/types.js';
-import { GitHubPullRequestCIModel, parseWorkflowRunId } from '../../github/browser/models/githubPullRequestCIModel.js';
+import { GitHubCheckConclusion, GitHubCheckStatus, IGitHubCICheck } from '../../../../workbench/contrib/sessions/common/github/types.js';
+import { GitHubPullRequestCIModel, parseWorkflowRunId } from '../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
 import { CICheckGroup, getCheckGroup, getCheckStateLabel } from './checksActions.js';
 import { ChecksViewModel } from './checksViewModel.js';
 

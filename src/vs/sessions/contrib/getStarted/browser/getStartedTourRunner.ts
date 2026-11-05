@@ -33,8 +33,8 @@ import { IFocusedSessionHostService } from '../../../../workbench/contrib/sessio
 import { ISession, SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { SessionChangesEditorInput } from '../../changes/browser/sessionChangesEditorInput.js';
-import { IChangesViewService } from '../../changes/common/changesViewService.js';
-import { VIEW_SESSION_CHANGES_COMMAND_ID } from '../../changes/common/changes.js';
+import { IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
+import { VIEW_SESSION_CHANGES_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/changes.js';
 import { ISessionChangesService } from '../../changes/common/sessionChangesService.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../sessions/browser/automationsConstants.js';
 import { SessionsList } from '../../sessions/browser/views/sessionsList.js';

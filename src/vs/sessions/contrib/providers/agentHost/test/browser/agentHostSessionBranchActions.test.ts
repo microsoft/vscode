@@ -18,7 +18,7 @@ import { ServiceCollection } from '../../../../../../platform/instantiation/comm
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { COPY_AGENT_HOST_CHAT_LINK_COMMAND_ID, COPY_AGENT_HOST_SESSION_LINK_COMMAND_ID } from '../../../../../../workbench/contrib/sessions/common/sessionCommands.js';
-import { Menus } from '../../../../../browser/menus.js';
+import { Menus } from '../../../../../../workbench/contrib/sessions/browser/menus.js';
 import { IChat, ISession } from '../../../../../../workbench/contrib/sessions/common/session.js';
 import '../../browser/agentHostSessionBranchActions.js';
 import '../../browser/agentHostSettings.contribution.js';

@@ -20,9 +20,9 @@ import { BRANCH_CHANGES_CHANGESET_ID, IChat, ISession, ISessionChangeset, ISessi
 import { IActiveSession, IHostSession, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, AgentFeedbackState, IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
 import { ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
-import { ChangesViewMode, IsolationMode } from '../common/changes.js';
+import { ChangesViewMode, IsolationMode } from '../../../../workbench/contrib/sessions/common/changes.js';
 import { getChangesEditorFileResource } from './changesEditorLabels.js';
-import { ActiveSessionState, ChangesViewSection, findDefaultChangeset, IChangesDetailsViewState, IChangesDetailsViewStateTransfer, IChangesSessionObservables, IChangesViewSectionCollapseState, IChangesViewService, getActiveSessionChanges, getChangesOfSession } from '../common/changesViewService.js';
+import { ActiveSessionState, ChangesViewSection, findDefaultChangeset, IChangesDetailsViewState, IChangesDetailsViewStateTransfer, IChangesSessionObservables, IChangesViewSectionCollapseState, IChangesViewService, getActiveSessionChanges, getChangesOfSession } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
 
 export const ChangesetReviewSupportContext = new RawContextKey<boolean>('sessions.changesetReviewSupport', false);
 export const ChangesetReviewedFilesContext = new RawContextKey<string[]>('sessions.changesetReviewedFiles', []);

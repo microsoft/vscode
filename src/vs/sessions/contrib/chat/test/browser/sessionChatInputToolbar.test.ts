@@ -62,11 +62,11 @@ import { REVEAL_CANVAS_COMMAND_ID } from '../../../../../workbench/contrib/canva
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../changes/common/sessionChangesService.js';
 import { getGitHubHoverDate, getGitHubHoverDescription, getGitHubHoverTitle, getGitHubHoverTitleParts } from '../../../github/browser/githubHover.js';
 import { createIssueHover } from '../../../github/browser/issueHover.js';
-import { GitHubCIOverallStatus, GitHubIssueState, GitHubIssueStateReason, GitHubPullRequestState, OPEN_ISSUE_ACTION_ID, OPEN_PULL_REQUEST_ACTION_ID, OPEN_PULL_REQUEST_CHANGES_ACTION_ID, type IGitHubIssue, type IGitHubPullRequest } from '../../../github/common/types.js';
-import type { IResolvedSessionPullRequest } from '../../../github/browser/pullRequestIconStatus.js';
-import { IGitHubService } from '../../../github/browser/githubService.js';
-import { GitHubPullRequestModel } from '../../../github/browser/models/githubPullRequestModel.js';
-import { GitHubIssueModel } from '../../../github/browser/models/githubIssueModel.js';
+import { GitHubCIOverallStatus, GitHubIssueState, GitHubIssueStateReason, GitHubPullRequestState, OPEN_ISSUE_ACTION_ID, OPEN_PULL_REQUEST_ACTION_ID, OPEN_PULL_REQUEST_CHANGES_ACTION_ID, type IGitHubIssue, type IGitHubPullRequest } from '../../../../../workbench/contrib/sessions/common/github/types.js';
+import type { IResolvedSessionPullRequest } from '../../../../../workbench/contrib/sessions/browser/github/pullRequestIconStatus.js';
+import { IGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { GitHubPullRequestModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestModel.js';
+import { GitHubIssueModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubIssueModel.js';
 import { buildSessionIssueSections, buildSessionPullRequestSections, computeSessionInputPillStats, findSessionOfChat, readLoadedSessionInputPillStats, SessionChatInputToolbar } from '../../browser/sessionChatInputToolbar.js';
 import { buildSessionArtifactSections, type ISessionArtifactActions } from '../../browser/sessionArtifacts.js';
 import { ITestSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';

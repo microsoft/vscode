@@ -43,10 +43,10 @@ import { EditorInput } from '../../../../../workbench/common/editor/editorInput.
 import { DiffEditorInput } from '../../../../../workbench/common/editor/diffEditorInput.js';
 import { IEditorWillOpenEvent, isResourceEditorInput } from '../../../../../workbench/common/editor.js';
 import { DesktopLayoutController, TOGGLE_DETAILS_COMMAND_ID } from '../../browser/desktopLayoutController.js';
-import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID } from '../../../changes/common/changes.js';
+import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID } from '../../../../../workbench/contrib/sessions/common/changes.js';
 import { ChangesViewPane } from '../../../changes/browser/changesView.js';
 import { REVEAL_CI_CHECKS_COMMAND_ID } from '../../../changes/browser/checksActions.js';
-import { GitHubCheckConclusion, GitHubCheckStatus } from '../../../github/common/types.js';
+import { GitHubCheckConclusion, GitHubCheckStatus } from '../../../../../workbench/contrib/sessions/common/github/types.js';
 import '../../../changes/browser/changesActions.js';
 import { SESSIONS_FILES_CONTAINER_ID } from '../../../files/browser/files.contribution.js';
 import { NewChangesTabAction, NewFileTabAction } from '../../../editor/browser/addTabActions.js';

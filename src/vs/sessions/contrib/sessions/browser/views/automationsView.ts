@@ -66,7 +66,7 @@ import { SessionStatusIcon } from '../../../../browser/sessionStatusIcon.js';
 
 import { AbstractCustomView, ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
-import { Menus } from '../../../../browser/menus.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { Action2, MenuItemAction, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';

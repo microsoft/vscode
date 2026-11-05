@@ -30,7 +30,7 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
-import { IGitHubService } from '../../../../github/browser/githubService.js';
+import { IGitHubService } from '../../../../../../workbench/contrib/sessions/browser/github/githubService.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { IAutomationSchedule, IAutomationSessionTemplate } from '../../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationMutationUncertainError, AutomationUnavailableError } from '../../../../../../workbench/contrib/chat/common/automations/automationService.js';

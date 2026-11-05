@@ -24,7 +24,7 @@ import { IFocusedSessionHostService } from '../../../../workbench/contrib/sessio
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { WorkspaceHandoffState } from '../../sessions/browser/sessionsWindowOpenTelemetry.js';
 import { SessionsView, SessionsViewId } from '../../sessions/browser/views/sessionsView.js';
-import { INewSessionComposerService } from './newSessionComposerService.js';
+import { INewSessionComposerService } from '../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { IAgentsWindowDraft } from '../../../../platform/window/common/window.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { readNewChatDraftState } from '../common/newChatDraftState.js';

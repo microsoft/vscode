@@ -39,10 +39,10 @@ import { IRemoteTunnelService, TunnelStatus } from '../../../../../platform/remo
 import { IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { SessionsCategories } from '../../../../common/categories.js';
+import { SessionsCategories } from '../../../../../workbench/contrib/sessions/common/categories.js';
 import { categorizeSSHConnectError, logSSHConnectAttempt } from '../../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
 import { SessionWorkspacePickerGroupContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
-import { Menus } from '../../../../browser/menus.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';

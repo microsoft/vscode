@@ -15,7 +15,7 @@ import { IExtensionService } from '../../../../workbench/services/extensions/com
 import { resolveSessionCommandTarget } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
 import { IGitHubIssueRef, ISession } from '../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { OPEN_ISSUE_ACTION_ID } from '../common/types.js';
+import { OPEN_ISSUE_ACTION_ID } from '../../../../workbench/contrib/sessions/common/github/types.js';
 
 const githubPullRequestsExtensionId = 'github.vscode-pull-request-github';
 const openIssueWebviewPath = '/open-issue-webview';

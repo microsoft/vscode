@@ -36,7 +36,7 @@ import { isAgentHostProvider } from '../../../../workbench/contrib/sessions/comm
 import { AgentsWindowUsage } from '../../../../workbench/contrib/chat/common/agentsWindowUsage.js';
 import { ISessionsWindowOpenContext, ISessionsWindowOpenViewState, SessionsWindowOpenTelemetry, SessionsWindowSessionStartTelemetry } from '../../sessions/browser/sessionsWindowOpenTelemetry.js';
 import { getNonArchivedSessionListCount } from '../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
-import { INewSessionComposerService, NewSessionWorkspacePreselectionSource } from '../browser/newSessionComposerService.js';
+import { INewSessionComposerService, NewSessionWorkspacePreselectionSource } from '../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { getAgentsWindowWorkspaceArgumentKind, getAgentsWindowWorkspaceArgumentRemoteKind, resolveAgentsWindowFolderIntent } from '../browser/agentsWindowOpenIntent.js';
 import { findSessionForOpenSessionLink } from '../browser/openSessionLinkOpener.contribution.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';

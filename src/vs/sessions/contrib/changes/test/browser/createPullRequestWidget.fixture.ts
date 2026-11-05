@@ -18,7 +18,7 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IStorageService, InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { CreatePullRequestPreferences, ICreatePullRequestPreferences } from '../../common/createPullRequestPreferences.js';
-import { ISessionPullRequestAgentMergeOptions, ISessionPullRequestDetails } from '../../common/pullRequestCreation.js';
+import { ISessionPullRequestAgentMergeOptions, ISessionPullRequestDetails } from '../../../../../workbench/contrib/sessions/common/pullRequestCreation.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { CreatePullRequestWidget } from '../../browser/createPullRequestWidget.js';
 

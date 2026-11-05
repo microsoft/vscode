@@ -23,7 +23,7 @@ import { IsPhoneLayoutContext, SessionsWelcomeVisibleContext } from '../../../..
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { SessionChangesetOperationStatus, SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { IChangesViewService } from '../../changes/common/changesViewService.js';
+import { IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { GET_STARTED_CHECKLIST_SETTING, GET_STARTED_DEVELOPER_MODE_ID, GetStartedChecklistMode, GetStartedChecklistModel, GetStartedItemId, IGetStartedItemState, IGetStartedSignals, toGetStartedChecklistMode } from '../common/getStartedChecklist.js';
 import { GetStartedTourRunner } from './getStartedTourRunner.js';
 

@@ -32,8 +32,7 @@ import { IAgentFeedbackService } from '../../../../../sessions/contrib/agentFeed
 import { SESSION_CHAT_INPUT_TOOLBAR_HEIGHT, SessionChatInputToolbar } from '../../../../../sessions/contrib/chat/browser/sessionChatInputToolbar.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionChatPillsDebugData } from '../../../../../sessions/contrib/chat/browser/sessionChatInputToolbarDebug.js';
-// eslint-disable-next-line local/code-import-patterns
-import { IGitHubService } from '../../../../../sessions/contrib/github/browser/githubService.js';
+import { IGitHubService } from '../../../../contrib/sessions/browser/github/githubService.js';
 // eslint-disable-next-line local/code-import-patterns
 import { SessionInputBanners } from '../../../../../sessions/contrib/sessionInputBanners/browser/sessionInputBanners.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../contrib/sessions/common/agentHostSessionsProvider.js';

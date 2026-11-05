@@ -30,7 +30,7 @@ import { RemoteWorkspaceHandoffResult } from '../../../../../common/remoteWorksp
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { parseRemoteMachine, RemoteWorkspaceHandoffService } from '../../browser/remoteWorkspaceHandoffService.js';
-import { resolveRemoteAgentHostEntryAuthority } from '../../../../../browser/openInVSCodeUtils.js';
+import { resolveRemoteAgentHostEntryAuthority } from '../../../../../../workbench/contrib/sessions/browser/openInVSCodeUtils.js';
 
 suite('RemoteWorkspaceHandoffService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();

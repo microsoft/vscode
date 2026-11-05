@@ -24,7 +24,7 @@ import { InMemoryStorageService } from '../../../../../platform/storage/common/s
 import { IAgentsWindowWorkspaceHandoff } from '../../browser/agentsWindowWorkspaceHandoff.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { AGENT_HOST_SCHEME } from '../../../../../platform/agentHost/common/agentHostUri.js';
-import { DevContainerAgentHostEnabledSettingId } from '../../../../common/devContainerAgentHostService.js';
+import { DevContainerAgentHostEnabledSettingId } from '../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { IOpenNewSessionOptions } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { SessionsManagementService } from '../../../../../workbench/contrib/sessions/browser/sessionsManagementService.js';
 import { createTestSession } from '../../../sessions/test/browser/sessionsListTestUtils.js';

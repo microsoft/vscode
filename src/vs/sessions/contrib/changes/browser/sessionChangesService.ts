@@ -17,8 +17,8 @@ import { IDecorationData, IDecorationsProvider, IDecorationsService } from '../.
 import { IEditorGroup } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService, PreferredGroup } from '../../../../workbench/services/editor/common/editorService.js';
 import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
-import { getSessionChangesFileCountLabel } from '../common/changes.js';
-import { IChangesViewService } from '../common/changesViewService.js';
+import { getSessionChangesFileCountLabel } from '../../../../workbench/contrib/sessions/common/changes.js';
+import { IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { getHostOfSession, getMainWindowHost, IFocusedSessionHostService, ISessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';

@@ -38,9 +38,9 @@ import { ISessionsProvidersService } from '../../../../../workbench/contrib/sess
 import { IChat, ISessionChangeset, ISessionFileChange, ISessionWorkspace, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
-import { CHANGES_VIEW_ID } from '../../../changes/common/changes.js';
+import { CHANGES_VIEW_ID } from '../../../../../workbench/contrib/sessions/common/changes.js';
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../changes/common/sessionChangesService.js';
-import { WORKTREE_SUGGESTION_SETTING, WORKTREE_SUGGESTION_TOUR_ID, WorktreeSuggestionVariant } from '../../common/worktreeSuggestion.js';
+import { WORKTREE_SUGGESTION_SETTING, WORKTREE_SUGGESTION_TOUR_ID, WorktreeSuggestionVariant } from '../../../../../workbench/contrib/sessions/common/worktreeSuggestion.js';
 import { getChangedFileLabel, getInlineHintMessage } from '../../browser/worktreeSuggestionPresentation.js';
 import { IUncommittedChangesListItem, IWorktreeSuggestion, WorktreeSpotlightChoice, WorktreeSuggestionService } from '../../browser/worktreeSuggestionService.js';
 

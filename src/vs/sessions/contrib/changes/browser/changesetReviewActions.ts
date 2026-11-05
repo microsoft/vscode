@@ -10,7 +10,7 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { resolveSessionCommandTarget } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
-import { getChangesOfSession, IChangesViewService } from '../common/changesViewService.js';
+import { getChangesOfSession, IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { findChangesEditorFileChange, getChangesEditorFileResource } from './changesEditorLabels.js';
 import { SessionChangesFileResourceContext } from './changesMultiDiffSourceResolver.js';
 import { ChangesetReviewedFilesContext, ChangesetReviewSupportContext, mainWindowChangesOwner } from './changesViewService.js';

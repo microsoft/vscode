@@ -21,10 +21,8 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IWorkbenchGitHubService } from '../../../../services/github/common/githubService.js';
-// eslint-disable-next-line local/code-import-patterns
-import { IGitHubService } from '../../../../../sessions/contrib/github/browser/githubService.js';
-// eslint-disable-next-line local/code-import-patterns
-import { GitHubIssueState, GitHubIssueStateReason, GitHubPullRequestState, IGitHubIssue, IGitHubPullRequest } from '../../../../../sessions/contrib/github/common/types.js';
+import { IGitHubService } from '../../../../contrib/sessions/browser/github/githubService.js';
+import { GitHubIssueState, GitHubIssueStateReason, GitHubPullRequestState, IGitHubIssue, IGitHubPullRequest } from '../../../../contrib/sessions/common/github/types.js';
 import { ISessionArtifact, SessionArtifactKind } from '../../../../contrib/sessions/common/session.js';
 import { ISessionsService } from '../../../../contrib/sessions/browser/sessionsService.js';
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup, registerFixtureHoverService, waitForFixtureCondition, waitForFixtureDomCondition } from '../fixtureUtils.js';

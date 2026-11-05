@@ -24,7 +24,7 @@ import { IChatPhoneInputPresenter } from '../../../../../../workbench/contrib/ch
 import { getModelProviderIcon } from '../../../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelProviderIcons.js';
 import { ChatPetAchievementIds, didExplicitlySwitchChatPetModel } from '../../../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
 import { IChatPetService } from '../../../../../../workbench/contrib/chat/browser/chatPetService.js';
-import { Menus } from '../../../../../browser/menus.js';
+import { Menus } from '../../../../../../workbench/contrib/sessions/browser/menus.js';
 import { SessionUsesCombinedConfigPickerContext, IsPhoneLayoutContext } from '../../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { type IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { IHostSession } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
@@ -35,7 +35,7 @@ import { isWellKnownModeSchema } from '../agentHostPermissionPickerDelegate.js';
 import { getAgentHostModeIcon } from '../agentHostModeIcon.js';
 import { INewChatModelPickerService } from '../../../../chat/browser/newChatModelPicker.js';
 import { ISessionModelSelection } from '../../../../chat/browser/sessionModelSelection.js';
-import { reportNewChatPickerClosed } from '../../../../chat/browser/newChatPickerTelemetry.js';
+import { reportNewChatPickerClosed } from '../../../../../../workbench/contrib/sessions/browser/newChatPickerTelemetry.js';
 import { createChatPhoneInputSessionContext, createChatPhoneInputTarget, matchesChatPhoneInputTarget } from '../../../../../../workbench/contrib/sessions/browser/chatPhoneInputContext.js';
 
 const MOBILE_CHAT_INPUT_CONFIG_PICKER_ID = 'sessions.agentHost.mobileChatInputConfigPicker';

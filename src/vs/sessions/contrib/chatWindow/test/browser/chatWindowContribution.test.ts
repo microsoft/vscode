@@ -30,7 +30,7 @@ import { EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowCon
 import { KeybindingsRegistry } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ChatWindowLayoutMode } from '../../../../../workbench/contrib/chatWindow/common/chatWindowLayout.js';
-import { Menus } from '../../../../browser/menus.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { DesktopLayoutContext, IsQuickChatSessionContext, SessionHasWorkspaceContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { DesktopChangesTabAvailableContext, DesktopFilesTabAvailableContext } from '../../../../common/agentsWindowContextKeys.js';

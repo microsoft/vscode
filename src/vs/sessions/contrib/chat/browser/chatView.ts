@@ -56,7 +56,7 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../../
 import { getChatSessionType, getNewChatSessionResource } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { IChatSessionsService, localChatSessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatSessionHistoryStatus } from '../../../../platform/chat/common/chatSessionHistory.js';
-import { isPhoneLayout } from '../../../browser/parts/mobile/mobileLayout.js';
+import { isPhoneLayout } from '../../../../workbench/contrib/sessions/browser/mobileLayout.js';
 import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../../workbench/contrib/sessions/common/workspaceSelection.js';
 import { AbstractChatView, ChatViewKind, IChatViewOptions, IChatViewRequestOutcome, IChatViewRequestSubmission } from '../../../browser/parts/chatView.js';
 import { IsPhoneLayoutContext, SessionUsesExperimentalComposerLayoutContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
@@ -87,7 +87,7 @@ import { ISessionPickerVisibility, noSessionPickerVisibility } from '../../../..
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { IAgentsWindowDraft } from '../../../../platform/window/common/window.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../../common/layoutConstants.js';
-import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING } from '../common/constants.js';
+import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING } from '../../../../workbench/contrib/sessions/common/chatConstants.js';
 
 const SESSION_CHAT_RESPONSE_INTERNAL_HORIZONTAL_PADDING = 12;
 // 14px icon + 6px padding + 4px gap + breathing room. The percentage label expands over the editor on hover.

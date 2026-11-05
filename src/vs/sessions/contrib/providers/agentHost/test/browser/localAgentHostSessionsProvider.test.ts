@@ -80,7 +80,7 @@ import type { IChatModel, IChatModelInputState, IInputModel } from '../../../../
 import { ISessionChangeEvent, ISessionsProvider, type INestedChatWorkspace, NestedChatWorkspaceError, type ISessionsProviderCreateSessionOptions } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatModelSource, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, IChat, ISession, ISessionCanvas, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionStatus, TURN_CHANGES_CHANGESET_ID, toSessionId } from '../../../../../../workbench/contrib/sessions/common/session.js';
 import { readSessionChangesStats } from '../../../../../../workbench/contrib/sessions/common/sessionChangesStatsCache.js';
-import { getSessionGitHubReferences } from '../../../../github/common/sessionGitHubReferences.js';
+import { getSessionGitHubReferences } from '../../../../../../workbench/contrib/sessions/common/github/sessionGitHubReferences.js';
 import { IActiveSession, ISessionsManagementService, WorkspaceNotTrustedError } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { SessionsManagementService } from '../../../../../../workbench/contrib/sessions/browser/sessionsManagementService.js';
 import { ISessionsService } from '../../../../../../workbench/contrib/sessions/browser/sessionsService.js';
@@ -88,7 +88,7 @@ import { IFocusedSessionHostService, ISessionHostService } from '../../../../../
 import { focusedSessionHostServiceOf, sessionHostServiceOf } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsRecentWorkspacesService } from '../../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { DevContainerAgentHostEnabledSettingId, DevContainerSamplesEnabledSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostService } from '../../../../../common/devContainerAgentHostService.js';
+import { DevContainerAgentHostEnabledSettingId, DevContainerSamplesEnabledSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostService } from '../../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { devContainerSamples, devContainerSampleUri } from '../../../../../../platform/agentHost/common/devContainerSamples.js';
 import { IAgentCustomizationScope, IAgentHostActiveClientService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
@@ -98,10 +98,10 @@ import { AgentHostSessionAdapter, type IAgentHostAdapterOptions } from '../../br
 import { withSessionInitiator } from '../../../../../../platform/agentHost/common/meta/agentSessionInitiatorMeta.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
-import { IGitHubService } from '../../../../github/browser/githubService.js';
-import { GitHubPullRequestModel } from '../../../../github/browser/models/githubPullRequestModel.js';
-import { IPullRequestIconCache, PullRequestIconCache } from '../../../../github/browser/pullRequestIconCache.js';
-import { computePullRequestIcon, GitHubPullRequestState, type IGitHubPullRequest } from '../../../../github/common/types.js';
+import { IGitHubService } from '../../../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { GitHubPullRequestModel } from '../../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestModel.js';
+import { IPullRequestIconCache, PullRequestIconCache } from '../../../../../../workbench/contrib/sessions/browser/github/pullRequestIconCache.js';
+import { computePullRequestIcon, GitHubPullRequestState, type IGitHubPullRequest } from '../../../../../../workbench/contrib/sessions/common/github/types.js';
 import { IWorkbenchEnvironmentService } from '../../../../../../workbench/services/environment/common/environmentService.js';
 import { IAgentHostSessionsProvider } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ChatAgentFilesLocationsSettingId, ChatHookFilesLocationsSettingId } from '../../../../../../platform/chat/common/chatSettings.js';

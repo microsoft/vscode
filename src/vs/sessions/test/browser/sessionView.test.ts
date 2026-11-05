@@ -30,7 +30,7 @@ import { IWorkbenchLayoutService } from '../../../workbench/services/layout/brow
 import { AgentWorkbenchLayout } from '../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
-import { Menus } from '../../browser/menus.js';
+import { Menus } from '../../../workbench/contrib/sessions/browser/menus.js';
 import { LocalSelectionTransfer } from '../../../platform/dnd/browser/dnd.js';
 import { DraggedSessionIdentifier, SessionsDataTransfers } from '../../browser/dnd.js';
 import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';

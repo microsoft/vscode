@@ -28,7 +28,7 @@ import { maybeConfirmElevatedPermissionLevel } from '../../../../../workbench/co
 import { ChatConfiguration, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { getOrganizationDefaultApprovalLevel } from '../../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
 import { equalsUnavailablePermissionLevels, getOfferedPermissionLevels, getPermissionLevelBadge, getPermissionLevelUnavailablePresentation, IModePickerPermissions, IPermissionLevelUnavailablePresentation, IUnavailablePermissionLevel } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
-import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
+import { reportNewChatPickerClosed } from '../../../../../workbench/contrib/sessions/browser/newChatPickerTelemetry.js';
 
 const devContainerSandboxDocumentationUrl = 'https://aka.ms/vscode-sandboxing-devcontainers';
 

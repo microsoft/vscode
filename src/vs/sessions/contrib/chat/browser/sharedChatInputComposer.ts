@@ -51,7 +51,7 @@ import { ChatRequestSlashCommandPart, IParsedChatRequest } from '../../../../wor
 import { ChatRequestParser } from '../../../../workbench/contrib/chat/common/requestParser/chatRequestParser.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
-import { Menus } from '../../../browser/menus.js';
+import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { activeSessionViewBackground, activeSessionViewForeground, agentsPanelBackground, inactiveSessionViewBackground } from '../../../common/theme.js';
 import { IWorkspaceSelectionSnapshot } from '../../../../workbench/contrib/sessions/common/workspaceSelection.js';
 import { ISessionsProvidersService, observeSessionSandboxToggle } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
@@ -64,7 +64,7 @@ import { MobileSessionTypePicker } from './mobile/mobileSessionTypePicker.js';
 import { getLabeledPickerResponsiveItems, hasSendableNewChatContent, IComposerRepositoryControls, INewChatComposerInputOptions, syncInputGitHubContextAttachments } from './newChatComposerInput.js';
 import { createSessionModelCommands, INewChatModelPickerService, NewChatModelPickerService } from './newChatModelPicker.js';
 import { INewChatVoiceComposer, INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL, NewChatVoiceInputDecorations } from './newChatVoice.js';
-import { INewSessionComposer, INewSessionComposerPicker, INewSessionPromptOptionsController, NewSessionPromptOptionsState, NewSessionWorkspacePreselectionSource } from './newSessionComposerService.js';
+import { INewSessionComposer, INewSessionComposerPicker, INewSessionPromptOptionsController, NewSessionPromptOptionsState, NewSessionWorkspacePreselectionSource } from '../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { NewSessionPromptOptionsPresenter } from './newSessionPromptOptions.js';
 import { NewChatUserInteraction } from './newChatUserInteraction.js';
 import { hasSendableModelSelection } from './sessionModelPickerState.js';
@@ -73,7 +73,7 @@ import { SessionReferenceCompletions } from './sessionReferenceCompletions.js';
 import { SessionTypePicker } from './sessionTypePicker.js';
 import { ChatInputPickerResponsiveLayout } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerResponsiveLayout.js';
 import { markOnboardingTarget } from '../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
-import { isPhoneLayout } from '../../../browser/parts/mobile/mobileLayout.js';
+import { isPhoneLayout } from '../../../../workbench/contrib/sessions/browser/mobileLayout.js';
 import { installMobileChipLaneScroll } from '../../../browser/parts/mobile/mobileChipLaneScroll.js';
 
 /** Body height the composer lays its chat widget out with; the transcript is hidden, so it only bounds the input. */

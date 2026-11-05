@@ -25,7 +25,7 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
 import { ChatInputStackSlot, setChatInputStackSlot } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
-import { INewSessionPromptOption, INewSessionPromptOptionsController, NEW_SESSION_PROMPT_TYPING_DURATION_MS, NewSessionPromptOptionsState } from './newSessionComposerService.js';
+import { INewSessionPromptOption, INewSessionPromptOptionsController, NEW_SESSION_PROMPT_TYPING_DURATION_MS, NewSessionPromptOptionsState } from '../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { PromptTemplatePlaceholderController } from './promptTemplatePlaceholder.js';
 import { animatePromptTyping, IPromptTypingAnimation } from './promptTypingAnimation.js';
 

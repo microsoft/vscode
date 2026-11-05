@@ -27,7 +27,7 @@ import { IChatEntitlementService } from '../../../../workbench/services/chat/com
 import { getAgentHostProviderForTelemetry, IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
-import { Menus } from '../../../browser/menus.js';
+import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { IsPhoneLayoutContext, SessionUsesCombinedConfigPickerContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { COMPARE_SESSION_MODELS_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
@@ -39,7 +39,7 @@ import { createChatPhoneInputSessionContext } from '../../../../workbench/contri
 import { SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionModelSelection } from './sessionModelSelection.js';
 import { INewChatModelPickerService } from './newChatModelPicker.js';
-import { reportNewChatPickerClosed } from './newChatPickerTelemetry.js';
+import { reportNewChatPickerClosed } from '../../../../workbench/contrib/sessions/browser/newChatPickerTelemetry.js';
 
 /**
  * The sessions-core model picker. Unlike the previous per-provider pickers,

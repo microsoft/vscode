@@ -41,7 +41,7 @@ import { IDiffEditorOptionsService, SessionsWordWrap } from '../../../editor/com
 import { SessionChangesEditor } from '../../browser/sessionChangesEditor.js';
 import { SessionChangesEditorInput } from '../../browser/sessionChangesEditorInput.js';
 import { ISessionChangesService } from '../../browser/sessionChangesService.js';
-import { IChangesViewService } from '../../common/changesViewService.js';
+import { IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
 
 suite('SessionChangesEditorInput', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();

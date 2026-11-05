@@ -26,8 +26,8 @@ import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actio
 import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ModifiedFileEntryState } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
 import { GITHUB_REMOTE_FILE_SCHEME, ISessionFileChange } from '../../../../workbench/contrib/sessions/common/session.js';
-import { ActiveSessionContextKeys, ChangesContextKeys, ChangesViewMode } from '../common/changes.js';
-import { IChangesSessionScope, IChangesViewService } from '../common/changesViewService.js';
+import { ActiveSessionContextKeys, ChangesContextKeys, ChangesViewMode } from '../../../../workbench/contrib/sessions/common/changes.js';
+import { IChangesSessionScope, IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
 
 const $ = dom.$;
 

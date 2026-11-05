@@ -32,11 +32,11 @@ import { ChatHostOpenerService, IChatHostOpenerService } from '../../../../../wo
 import { ChatInteractivity, IChat, ISession, ISessionChangeset, ISessionChangesetOperation, SessionChangesetOperationScope, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../../common/chatWindows.js';
-import { SessionChangesEditorFileListContext } from '../../../changes/common/changes.js';
+import { SessionChangesEditorFileListContext } from '../../../../../workbench/contrib/sessions/common/changes.js';
 import { SessionChangesetOperationsContext } from '../../../changes/browser/changesActions.js';
-import { ActiveSessionState, IChangesSessionObservables, IChangesViewService } from '../../../changes/common/changesViewService.js';
-import { IGitHubService } from '../../../github/browser/githubService.js';
-import { GitHubPullRequestCIModel } from '../../../github/browser/models/githubPullRequestCIModel.js';
+import { ActiveSessionState, IChangesSessionObservables, IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
+import { IGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { GitHubPullRequestCIModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
 import { SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from '../../../../browser/parts/sessionActivityBarHost.js';
 import { AGENTS_CHAT_WINDOW_CLASS } from '../../browser/chatWindowTitleDoubleClick.js';
 import { alignChatWindowHeaderActions, CHAT_WINDOW_MAIN_PART_GROUP_VIEW_OPTIONS, focusChatWindowUnlessFocused, getChatWindowMainPartOptions, getChatWindowTitleHeight, isChatWindowStripInColumn, setChatWindowTitleInChatColumn, SessionsChatWindowContent, SessionsChatWindowProvider } from '../../browser/sessionsChatWindowProvider.js';

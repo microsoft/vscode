@@ -14,13 +14,13 @@ import { linesDiffComputers } from '../../../../editor/common/diff/linesDiffComp
 import { LineRangeMapping } from '../../../../editor/common/diff/rangeMapping.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IGitHubService } from '../../github/browser/githubService.js';
-import { IGitHubPullRequestReview, IGitHubPullRequestReviewThread } from '../../github/common/types.js';
+import { IGitHubService } from '../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { IGitHubPullRequestReview, IGitHubPullRequestReviewThread } from '../../../../workbench/contrib/sessions/common/github/types.js';
 import { getGitHubPullRequestRefs, IChat, IGitHubPullRequestRef, ISessionFileChange } from '../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IFocusedSessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { parsePRContentUri } from '../../github/common/utils.js';
+import { parsePRContentUri } from '../../../../workbench/contrib/sessions/common/github/utils.js';
 // --- Types -------------------------------------------------------------------
 
 export interface ICodeReviewSuggestion {

@@ -14,11 +14,11 @@ import { fromAgentHostUri, toAgentHostContentUri, toAgentHostUri } from '../../.
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { IChat, ISession, ISessionFileChange } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { ChangesMultiDiffSourceResolver } from '../../browser/changesMultiDiffSourceResolver.js';
-import { ChangesViewMode } from '../../common/changes.js';
+import { ChangesViewMode } from '../../../../../workbench/contrib/sessions/common/changes.js';
 import { ISessionChangesService } from '../../common/sessionChangesService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { IChangesSessionObservables, IChangesViewService } from '../../common/changesViewService.js';
+import { IChangesSessionObservables, IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { sessionHostServiceOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 function noSessions(): ISessionsService {

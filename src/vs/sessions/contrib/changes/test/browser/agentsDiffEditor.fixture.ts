@@ -39,7 +39,7 @@ import { AgentFeedbackEditorInputContribution } from '../../../agentFeedback/bro
 import { AgentFeedbackOverlayController, IAgentFeedbackOverlayEditorGroup } from '../../../agentFeedback/browser/agentFeedbackEditorOverlay.js';
 import { clearAllFeedbackActionId, navigateNextFeedbackActionId, navigatePreviousFeedbackActionId, navigationBearingFakeActionId, submitFeedbackActionId } from '../../../agentFeedback/browser/agentFeedbackEditorActions.js';
 import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackService } from '../../../agentFeedback/browser/agentFeedbackService.js';
-import { Menus } from '../../../../browser/menus.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { ISession, ISessionFileChange } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { ICodeReviewService } from '../../../codeReview/browser/codeReviewService.js';
 import { createMockCodeReviewService } from '../../../../../workbench/test/browser/componentFixtures/sessions/mockCodeReviewService.js';

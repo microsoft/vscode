@@ -11,13 +11,13 @@ import { IClipboardService } from '../../../../platform/clipboard/common/clipboa
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
+import { Menus, SessionActivityBarGroup } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { ISessionsHostLayoutService } from '../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
 import { sessionActivityBarChatActionContext, SessionHasPullRequestContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { resolveSessionCommandTarget } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
 import { getGitHubPullRequestRefs, IGitHubPullRequestRef, ISession } from '../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { OPEN_PULL_REQUEST_ACTION_ID, OPEN_PULL_REQUEST_CHANGES_ACTION_ID } from '../common/types.js';
+import { OPEN_PULL_REQUEST_ACTION_ID, OPEN_PULL_REQUEST_CHANGES_ACTION_ID } from '../../../../workbench/contrib/sessions/common/github/types.js';
 import { createPullRequestChangesEditorInput } from './pullRequestChangesMultiDiffSourceResolver.js';
 
 class PullRequestActionContext {

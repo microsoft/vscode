@@ -50,10 +50,10 @@ import { ISessionsManagementService } from '../../../../../workbench/contrib/ses
 import { getMainWindowHost, ISessionHost, ISessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
-import { Menus } from '../../../../browser/menus.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { MobileSessionFilterChips } from '../../../../browser/parts/mobile/mobileSessionFilterChips.js';
 import { IMobileSortGroupSheetItem, showMobileSortGroupSheet } from '../../../../browser/parts/mobile/mobileSortGroupSheet.js';
-import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
+import { isPhoneLayout } from '../../../../../workbench/contrib/sessions/browser/mobileLayout.js';
 import { IsPhoneLayoutContext, SessionsListRearrangeContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionsListPresentation } from '../../../../../workbench/contrib/sessions/browser/sessionsListPresentation.js';

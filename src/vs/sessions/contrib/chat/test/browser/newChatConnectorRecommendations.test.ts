@@ -17,7 +17,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { IChatTipProvider, IChatTipService } from '../../../../../workbench/contrib/chat/browser/chatTipService.js';
 import { NewChatConnectorRecommendations } from '../../browser/newChatConnectorRecommendations.js';
-import { NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING } from '../../common/constants.js';
+import { NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 
 const connectorRecommendations: NonNullable<IProductService['connectorRecommendations']> = {
 	linear: { name: 'Linear', description: 'Triage your open issues in Linear', iconUrl: 'https://example.com/linear.png', urls: ['linear.app'] },

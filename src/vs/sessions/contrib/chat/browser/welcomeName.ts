@@ -13,7 +13,7 @@ import { deriveGitHubEndpoints } from '../../../../platform/github/common/github
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { asJson, IRequestService, isSuccess } from '../../../../platform/request/common/request.js';
 import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
-import { NEW_SESSION_WELCOME_NAME_SETTING } from '../common/constants.js';
+import { NEW_SESSION_WELCOME_NAME_SETTING } from '../../../../workbench/contrib/sessions/common/chatConstants.js';
 
 const githubProfileNames = new Map<string, Promise<string | undefined>>();
 

@@ -19,10 +19,10 @@ import { AICustomizationManagementCommands, AICustomizationManagementOpenEditorT
 import { isCustomizationDiscoveryAvailable } from '../../../../workbench/contrib/chat/browser/aiCustomization/customizationMarketplaceConfiguration.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { INewSessionInAgentsWindowOptions } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
+import { Menus, SessionActivityBarGroup } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus, SessionCanvasMenuGroup } from '../../../browser/agentsWindowMenus.js';
 import { getCanvasInstanceLabels, getCanvasReferenceKey, ICanvasContextService, ICanvasReopenTarget, ICanvasService } from '../../../../workbench/contrib/canvases/common/canvas.js';
-import { NEW_SESSION_ACTION_ID } from '../../chat/common/constants.js';
+import { NEW_SESSION_ACTION_ID } from '../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { getSessionCanvasDefinitionInstanceId, getSessionCanvasDefinitionLabels, ISessionCanvasRegistryService, SessionCanvasActivityBarToggledContext, WindowCanvasesAvailableContext } from '../common/sessionCanvas.js';
 
 export const OPEN_SESSION_CANVAS_COMMAND_ID = 'workbench.action.agentSessions.openCanvas';

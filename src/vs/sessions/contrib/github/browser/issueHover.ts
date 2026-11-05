@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createIssueResourceHover, getIssueResourceStatus, type IGitHubIssueHoverModel, type IGitHubResourceHover } from '../../../../workbench/contrib/github/browser/githubResourceHover.js';
-import { GitHubIssueStateReason, type IGitHubIssue } from '../common/types.js';
+import { GitHubIssueStateReason, type IGitHubIssue } from '../../../../workbench/contrib/sessions/common/github/types.js';
 
 export interface IIssueHoverData {
 	readonly owner: string;

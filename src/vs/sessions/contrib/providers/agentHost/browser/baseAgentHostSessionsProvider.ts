@@ -95,7 +95,7 @@ import { IChatSendRequestOptions, IChatService, type IChatModelReference } from 
 import { IChatSessionFileChange, IChatSessionFileChange2, IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { assertAutomationSessionTemplate, IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { fromAgentHostFileUri, getAgentHostCustomizationUri } from '../../../../../workbench/contrib/chat/common/agentHostSessionCustomizations.js';
-import { AutomationModelConfiguration } from '../../../automations/browser/automationModelConfiguration.js';
+import { AutomationModelConfiguration } from '../../../../../workbench/contrib/sessions/browser/automationModelConfiguration.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, getChatPermissionLevelFromDefaultConfiguration, isChatPermissionLevel, type IChatDefaultConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { getAgentHostApprovalDefault, getChatDefaultConfiguration, isAutoApprovePolicyRestricted, normalizeAgentHostApprovalConfig, normalizeSessionConfigValue } from '../../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
@@ -104,7 +104,7 @@ import { canInitializeCodexWithoutGitHub } from '../../../../../workbench/servic
 import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvider, IAgentMergeClientState, resolvedConfigsEqual } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { agentHostSessionWorkspaceKey, buildAgentHostChatWorkspaceWithScratchFolders, type IFolderGitHubInfoResolver, withoutScratchFolders } from '../../../../../workbench/contrib/sessions/common/agentHostSessionWorkspace.js';
 import { USE_WORKTREE_SETTING, isSessionConfigComplete } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
-import { linkKey } from '../../../../common/sessionLinks.js';
+import { linkKey } from '../../../../../workbench/contrib/sessions/common/sessionLinks.js';
 import { ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionOwnedGitHubPullRequestRefs, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, isActiveSessionStatus, ISession, ISessionAgentRef, ISessionApplication, ISessionEnvironment, ISessionArtifact, ISessionCanvas, ISessionCanvasDefinition, ISessionCapabilities, ISessionChangesSummary, ISessionChatCustomization, ISessionChangeset, ISessionCreationReference, ISessionFileChange, ISessionPreparationProgress, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, SessionArtifactKind, sessionFileChangesEqual, sessionWorkspaceEqual, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus, SessionTypeAuthRequirement, toSessionId, type SessionCanvasDefinitionSnapshot } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { dedupeLinks, partitionSessionArtifacts, type IRecordedGitHubReference } from './agentHostSessionArtifacts.js';
 import { AgentHostArtifactIntegrations, mapArtifactModelChats } from './agentHostArtifactIntegrations.js';
@@ -120,10 +120,10 @@ import { LEGACY_MIGRATION_OPEN_TIMEOUT_MS, LEGACY_MIGRATION_RESTORE_TIMEOUT_MS, 
 import { AgentHostChatMoveTracker } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostChatMoveTracker.js';
 import type { AgentChatMoveDestination } from '../../../../../platform/agentHost/common/agentHostChatMove.js';
 import { toChatMoveError } from './agentHostChatMoveErrors.js';
-import { IGitHubService } from '../../../github/browser/githubService.js';
-import { computePullRequestRefPresentation } from '../../../github/browser/pullRequestIconStatus.js';
-import { IPullRequestIconCache } from '../../../github/browser/pullRequestIconCache.js';
-import { computePullRequestIcon, GitHubPullRequestState } from '../../../github/common/types.js';
+import { IGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { computePullRequestRefPresentation } from '../../../../../workbench/contrib/sessions/browser/github/pullRequestIconStatus.js';
+import { IPullRequestIconCache } from '../../../../../workbench/contrib/sessions/browser/github/pullRequestIconCache.js';
+import { computePullRequestIcon, GitHubPullRequestState } from '../../../../../workbench/contrib/sessions/common/github/types.js';
 import { mapProtocolStatus } from './agentHostDiffs.js';
 import { createActiveSessionSubscriptionObs, createChangesets, createChatChangesets, type IAgentHostCurrentTurnChanges } from './agentHostSessionChangesets.js';
 import { createSessionOutputObs, ISessionOutputObs } from './agentHostSessionFiles.js';

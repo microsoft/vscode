@@ -15,12 +15,12 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { ISession } from '../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IFocusedSessionHostService, ISessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
-import { GitHubPullRequestState } from '../common/types.js';
-import { getSessionGitHubReferences } from '../common/sessionGitHubReferences.js';
-import { getPullRequestKey } from '../common/utils.js';
-import { AUTO_DELETE_MARKED_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_MARK_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING } from '../common/sessionLifecycleSettings.js';
-import { GitHubService, IGitHubService, isGitHubReferenceSupported } from './githubService.js';
-import { IPullRequestIconCache, PullRequestIconCache } from './pullRequestIconCache.js';
+import { GitHubPullRequestState } from '../../../../workbench/contrib/sessions/common/github/types.js';
+import { getSessionGitHubReferences } from '../../../../workbench/contrib/sessions/common/github/sessionGitHubReferences.js';
+import { getPullRequestKey } from '../../../../workbench/contrib/sessions/common/github/utils.js';
+import { AUTO_DELETE_MARKED_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_MARK_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING } from '../../../../workbench/contrib/sessions/common/github/sessionLifecycleSettings.js';
+import { GitHubService, IGitHubService, isGitHubReferenceSupported } from '../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { IPullRequestIconCache, PullRequestIconCache } from '../../../../workbench/contrib/sessions/browser/github/pullRequestIconCache.js';
 import { PullRequestChangesMultiDiffSourceResolver } from './pullRequestChangesMultiDiffSourceResolver.js';
 
 import './pullRequestActions.js';

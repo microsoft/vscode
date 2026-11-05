@@ -29,7 +29,7 @@ import { ChatShownContext, ChatWindowCategory, ChatWindowLayoutCommandsContext, 
 import { ChatWindowLayoutMode } from '../../../../workbench/contrib/chatWindow/common/chatWindowLayout.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
+import { Menus, SessionActivityBarGroup } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 import { SessionWithWorkspaceContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { SessionActivityBarLayoutActionsContext } from '../../../common/agentsWindowContextKeys.js';

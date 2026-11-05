@@ -125,8 +125,8 @@ import { IEditorService } from '../../../../../workbench/services/editor/common/
 import { ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../automationsConstants.js';
 import { IOpenAICustomizationsCommandOptions, OPEN_AI_CUSTOMIZATIONS_COMMAND_ID } from '../customizationsConstants.js';
-import { NEW_SESSION_ACTION_ID } from '../../../chat/common/constants.js';
-import { Menus } from '../../../../browser/menus.js';
+import { NEW_SESSION_ACTION_ID } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { getSessionConversationStatusAriaLabel } from '../../../../browser/sessionConversationGroups.js';
 import { getAgentMergeAwarePullRequestIcon, getSessionAgentMergeConfigurationObservable, ISessionAgentMergeConfiguration, isAgentMergePullRequestIcon } from '../../../../browser/sessionAgentMerge.js';
 import { BlockedSessionReason, BlockedSessions } from '../../../blockedSessions/browser/blockedSessions.js';

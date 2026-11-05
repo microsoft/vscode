@@ -18,7 +18,7 @@ import { IWorkbenchLayoutService } from '../../../../../workbench/services/layou
 import { ChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { getPermissionLevelBadge } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { IPermissionPickerDelegate, PermissionPicker } from './permissionPicker.js';
-import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
+import { isPhoneLayout } from '../../../../../workbench/contrib/sessions/browser/mobileLayout.js';
 import { IMobilePickerSheetItem, showMobilePickerSheet } from '../../../../browser/parts/mobile/mobilePickerSheet.js';
 
 const LEARN_MORE_ID = 'learn-more';

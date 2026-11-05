@@ -21,7 +21,7 @@ import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actio
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { onboardingScenarioRegistry } from '../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
-import { SessionsCategories } from '../../../common/categories.js';
+import { SessionsCategories } from '../../../../workbench/contrib/sessions/common/categories.js';
 import { ISessionsListNoticeHost, registerSessionsListNotice } from '../../sessions/browser/views/sessionsListNotice.js';
 import { SessionsViewId } from '../../sessions/browser/views/sessionsView.js';
 import { GET_STARTED_CHECKLIST_SETTING, GET_STARTED_DEVELOPER_MODE_ID, GET_STARTED_STATE_STORAGE_KEY, GetStartedChecklistMode } from '../common/getStartedChecklist.js';

@@ -16,7 +16,7 @@ import { ISessionsService } from '../../../../../workbench/contrib/sessions/brow
 import { IChat, ISession, ISessionChangeset, ISessionFileChange, ISessionFolder, ISessionTurnFileChange, ISessionWorkspace, TURN_CHANGES_CHANGESET_ID } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
-import { IChangesViewService } from '../../../changes/common/changesViewService.js';
+import { IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { SessionsChatResponseFileChangesService } from '../../browser/sessionTurnChanges.js';
 import { focusedSessionHostServiceOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 

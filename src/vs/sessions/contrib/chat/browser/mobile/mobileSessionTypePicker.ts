@@ -18,7 +18,7 @@ import { ISessionsProvidersService } from '../../../../../workbench/contrib/sess
 import { ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IObservable } from '../../../../../base/common/observable.js';
 import { SessionTypePicker, ISessionTypePickerOptions } from '../sessionTypePicker.js';
-import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
+import { isPhoneLayout } from '../../../../../workbench/contrib/sessions/browser/mobileLayout.js';
 import { IMobilePickerSheetItem, showMobilePickerSheet } from '../../../../browser/parts/mobile/mobilePickerSheet.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';

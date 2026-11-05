@@ -22,7 +22,7 @@ import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/ser
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IVisibleEditorPane } from '../../../../../workbench/common/editor.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
-import { Menus } from '../../../../browser/menus.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionChangeset, ISessionChangesetOperation, SessionChangesetOperationScope } from '../../../../../workbench/contrib/sessions/common/session.js';
@@ -33,9 +33,9 @@ import { bindSessionActionContextKeys } from '../../../changes/browser/sessionAc
 import '../../../changes/browser/changesetReviewActions.js';
 import { ChangesetReviewSupportContext } from '../../../changes/browser/changesViewService.js';
 import { CHANGESET_REVIEW_ACTION_ID, SessionChangesEditor, SessionChangesUIElementFactory } from '../../../changes/browser/sessionChangesEditor.js';
-import { IGitHubService } from '../../../github/browser/githubService.js';
-import { GitHubPullRequestCIModel } from '../../../github/browser/models/githubPullRequestCIModel.js';
-import { ActiveSessionState, IChangesSessionObservables, IChangesSessionScope, IChangesViewService } from '../../../changes/common/changesViewService.js';
+import { IGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { GitHubPullRequestCIModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
+import { ActiveSessionState, IChangesSessionObservables, IChangesSessionScope, IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { bindSessionScopeContextKeys } from '../../../changes/browser/sessionActionsHost.js';
 import { ITestSessionsService, stubSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 

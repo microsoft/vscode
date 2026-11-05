@@ -7,7 +7,7 @@ import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { createPullRequestHover } from '../../browser/pullRequestHover.js';
-import { GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPullRequest } from '../../common/types.js';
+import { GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPullRequest } from '../../../../../workbench/contrib/sessions/common/github/types.js';
 
 function makePullRequest(overrides: Partial<IGitHubPullRequest> = {}): IGitHubPullRequest {
 	return {

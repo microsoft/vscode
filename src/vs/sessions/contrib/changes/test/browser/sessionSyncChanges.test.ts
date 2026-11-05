@@ -26,7 +26,7 @@ import { MockKeybindingService } from '../../../../../platform/keybinding/test/c
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { getNewSessionRepositoryConfigGroup, Menus } from '../../../../browser/menus.js';
+import { getNewSessionRepositoryConfigGroup, Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { SessionActiveChatResourceContext, SessionIdContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ISessionHost, SessionHostKind } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { ISessionsPartService } from '../../../../../workbench/contrib/sessions/browser/sessionsPartService.js';

@@ -26,7 +26,7 @@ import { ANY_AGENT_HOST_PROVIDER_RE, isAgentHostProvider } from '../../../../../
 import { SessionIsArchivedContext, SessionAgentMergeEnabledContext, SessionHasOpenPullRequestContext, SessionPrimaryPullRequestOperationContext, SessionProviderIdContext, DesktopChangesEditorTransitionContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { CHANGES_OPERATIONS_DROPDOWN_PRIMARY_GROUP } from '../../../changes/browser/changesView.js';
 import { ISessionActionContextKeysSource, registerSessionActionContextKeyBinder } from '../../../changes/browser/sessionActionContextKeys.js';
-import { Menus } from '../../../../browser/menus.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { resolveSessionCommandTarget } from '../../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
 import { getGlobalAgentMergeConfiguration, getSessionAgentMergeConfigurationObservable } from '../../../../browser/sessionAgentMerge.js';
