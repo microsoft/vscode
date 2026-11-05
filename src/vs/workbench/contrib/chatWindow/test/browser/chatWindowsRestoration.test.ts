@@ -19,7 +19,8 @@ import { EditorExtensions, IEditorFactoryRegistry, IEditorSerializer } from '../
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IContentPart, IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
 import { IChatWindow, IChatWindowOpenOptions, IChatWindowProvider } from '../../browser/chatWindow.js';
-import { ChatWindowsRestoration, OPEN_CHAT_WINDOWS_STORAGE_KEY } from '../../browser/chatWindowsRestoration.js';
+import { ChatWindowsRestoration, IChatWindowBounds, OPEN_CHAT_WINDOWS_STORAGE_KEY } from '../../browser/chatWindowsRestoration.js';
+import { AuxiliaryWindowMode } from '../../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 
 class TestStorageService extends InMemoryStorageService {
 	willSave(): void {
@@ -39,7 +40,7 @@ suite('ChatWindowsRestoration', () => {
 		}();
 	}
 
-	function createRestoration(options: { stored?: object[]; restoreEnabled?: boolean; registered?: boolean; gone?: string[]; canRestore?: (chat: URI) => Promise<boolean>; createdParts?: (window: IChatWindow) => readonly IContentPart[] }) {
+	function createRestoration(options: { stored?: object[]; restoreEnabled?: boolean; registered?: boolean; gone?: string[]; canRestore?: (chat: URI) => Promise<boolean>; createdParts?: (window: IChatWindow) => readonly IContentPart[]; windowState?: (window: IChatWindow) => IChatWindowBounds | undefined }) {
 		const storageService = disposables.add(new TestStorageService());
 		if (options.stored) {
 			storageService.store(OPEN_CHAT_WINDOWS_STORAGE_KEY, JSON.stringify(options.stored), StorageScope.WORKSPACE, StorageTarget.MACHINE);
@@ -69,6 +70,7 @@ suite('ChatWindowsRestoration', () => {
 			terminalsShown: () => true,
 			chatPart: window => window.chat.get().path === '/split' ? { state: { serializedGrid: {} }, chatGroup: 1 } : undefined,
 			createdParts: window => options.createdParts?.(window) ?? [],
+			windowState: window => options.windowState?.(window),
 		}));
 		const read = () => storageService.get(OPEN_CHAT_WINDOWS_STORAGE_KEY, StorageScope.WORKSPACE);
 		return { storageService, restoration, onDidRemoveChats, restoreEnabled, provider, providerObs, windows, opened, activated, read };
@@ -200,5 +202,28 @@ suite('ChatWindowsRestoration', () => {
 			stored: [{ chat: 'test:/a', editors: [], terminal: true, created: [[{ typeId, value: '/created.txt', active: true }]] }, { chat: 'test:/b', editors: [], terminal: true }],
 			restored: [{ chat: 'test:/a', createdParts: [{ editors: ['/created.txt'], active: '/created.txt' }] }, { chat: 'test:/b', createdParts: undefined }]
 		});
+	});
+
+	test('each window opens again where it showed on the screen, maximized or in full screen as it was; a stored state that is not one is left out', async () => {
+		const states: Record<string, IChatWindowBounds> = {
+			'/a': { bounds: { x: 100, y: 50, width: 900, height: 700 }, mode: AuxiliaryWindowMode.Normal },
+			'/b': { bounds: { x: -1200, y: 0, width: 1200, height: 800 }, mode: AuxiliaryWindowMode.Maximized },
+		};
+		const saving = createRestoration({ windowState: window => states[window.chat.get().path] });
+		await flush();
+		saving.windows.set([createWindow('test:/a'), createWindow('test:/b'), createWindow('test:/c')], undefined);
+		saving.storageService.willSave();
+		const stored = JSON.parse(saving.read()!);
+		saving.windows.set([], undefined);
+
+		const { opened } = createRestoration({ stored: [...stored, { chat: 'test:/invalid', window: { bounds: { x: 0, y: 0, width: 'wide' }, mode: AuxiliaryWindowMode.Fullscreen } }] });
+		await flush();
+
+		assert.deepStrictEqual(opened.map(window => ({ chat: window.chat, bounds: window.options.bounds, mode: window.options.mode })), [
+			{ chat: 'test:/a', bounds: { x: 100, y: 50, width: 900, height: 700 }, mode: AuxiliaryWindowMode.Normal },
+			{ chat: 'test:/b', bounds: { x: -1200, y: 0, width: 1200, height: 800 }, mode: AuxiliaryWindowMode.Maximized },
+			{ chat: 'test:/c', bounds: undefined, mode: undefined },
+			{ chat: 'test:/invalid', bounds: undefined, mode: undefined },
+		]);
 	});
 });

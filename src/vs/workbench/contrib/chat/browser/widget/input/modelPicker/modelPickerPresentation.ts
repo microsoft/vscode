@@ -24,6 +24,10 @@ export function isHydraFusionModel(model: ILanguageModelChatMetadataAndIdentifie
 	return model.metadata.modelGroup?.id === COPILOT_CLI_AGENT_PROVIDER_ID && isCopilotHydraFusionModelId(model.metadata.id);
 }
 
+export function isModelComparisonSupported(model: ILanguageModelChatMetadataAndIdentifier): boolean {
+	return !!model.metadata.autoModelFusion || !isAutoModel(model) && !isHydraFusionModel(model);
+}
+
 /** The label of a HydraFusion model as one of HydraFusion's own tiers, outside Fusion. */
 export function getHydraFusionTierLabel(hydraFusionModelId: string): string {
 	return hydraFusionModelId === COPILOT_HYDRA_FUSION_MAX_MODEL_ID

@@ -431,16 +431,19 @@ export class SessionsChatWindowContent extends Disposable implements IChatWindow
 		return chat;
 	}
 
-	/** Whether it shows `chat`, as one of its chats. */
+	/**
+	 * Whether it shows `chat`, as one of its chats, while the chat's editor is open in a group: not once the editor closed,
+	 * such as with its window as the window closes, and the window is still going away.
+	 */
 	showsChat(chat: URI): boolean {
-		return this._chats.get().some(candidate => isEqual(candidate.chat.get(), chat));
+		return this._chats.get().some(candidate => isEqual(candidate.chat.get(), chat) && this._editorGroupsService.groups.some(group => group.contains(candidate.input, { strictEquals: true })));
 	}
 
-	/** Closes the editor of `chat`, one of its chats. */
-	async closeChat(chat: URI): Promise<void> {
+	/** Closes the editor of `chat`, one of its chats; resolves whether it closed, not when its close is vetoed. */
+	async closeChat(chat: URI): Promise<boolean> {
 		const entry = this._chats.get().find(candidate => isEqual(candidate.chat.get(), chat));
 		const group = entry && this._editorGroupsService.groups.find(candidate => candidate.contains(entry.input, { strictEquals: true }));
-		await group?.closeEditor(entry!.input);
+		return !!group && await group.closeEditor(entry.input);
 	}
 
 	bind(window: IChatWindow, instantiationService: IInstantiationService): IDisposable {
@@ -555,7 +558,18 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 				const window = this._chatWindowService.windows.get().find(candidate => candidate.chats.get().some(shown => isEqual(shown, reference)));
 				await this._chatWindowService.open(chat, { window, beside: reference, preserveFocus: options?.preserveFocus });
 			},
-			close: async chat => { await this._contents.get().find(content => content.showsChat(chat))?.closeChat(chat); },
+			close: async chat => {
+				const content = this._contents.get().find(candidate => candidate.showsChat(chat));
+				if (!content) {
+					return undefined;
+				}
+				// The window it closed from, which only what closed it holds on to, to show it there again
+				const window = content.window.get();
+				if (!await content.closeChat(chat)) {
+					return undefined;
+				}
+				return { restore: async () => { await this._chatWindowService.open(chat, { window, preserveFocus: true }); } };
+			},
 		}));
 
 		const enabled = observableConfigValue<boolean>(CHAT_WINDOWS_ENABLED_SETTING, false, _configurationService);

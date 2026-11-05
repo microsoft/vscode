@@ -8703,7 +8703,10 @@ suite('SessionsManagementService', () => {
 				showsChat: shown => shown.toString() === peerB.resource.toString(),
 				reveal: async () => { },
 				openBeside: async () => { },
-				close: async closed => { closes.push(closed.path); },
+				close: async closed => {
+					closes.push(closed.path);
+					return { restore: async () => { } };
+				},
 			}));
 			const editorSession = upcastPartial<IActiveSession>({ sessionId: 'B', resource: sessionB.resource, scopedChatResource: peerB.resource, mainChat: sessionB.mainChat, chats: sessionB.chats });
 			const grid = () => ({ visible: view.visibleSessions.get().map(session => session?.sessionId), active: view.activeSession.get()?.sessionId, activeChat: view.activeSession.get()?.activeChat.get().title.get(), closed: closedTitles(view) });
@@ -8716,6 +8719,138 @@ suite('SessionsManagementService', () => {
 			assert.deepStrictEqual({ closes, grid: grid() }, { closes: ['/chat/peerB', '/chat/peerB'], grid: before });
 		});
 
+		for (const vetoed of [false, true]) {
+			test(`a chat that a chat window shows, dropped into the grid, leaves its window first and shows in the grid as that chat, not revealed in its window; while its close is vetoed, it stays in its window, out of the grid (vetoed: ${vetoed})`, async () => {
+				const sessionA = multiChatSession('A', [chat('mainA')]);
+				const sessionB = multiChatSession('B', [chat('mainB'), chat('peerB', SessionStatus.Completed, ChatOriginKind.SideChat)]);
+				const [, peerB] = sessionB.chats.get();
+				const { view } = setup([sessionA, sessionB]);
+				await view.openSession(sessionA.resource);
+				let inWindow = true;
+				const calls: string[] = [];
+				disposables.add(chatHostOpeners.get(view)!.register({
+					showsChat: shown => inWindow && shown.toString() === peerB.resource.toString(),
+					reveal: async shown => { calls.push(`reveal ${shown.path}`); },
+					openBeside: async () => { },
+					close: async closed => {
+						calls.push(`close ${closed.path}`);
+						inWindow = vetoed;
+						return vetoed ? undefined : { restore: async () => { } };
+					},
+				}));
+				const visibility = Reflect.get(view, '_visibility') as VisibleSessions;
+
+				await view.moveChatToGrid('B', peerB.resource, visibility.getGridSlots()[0].id, 'right');
+				await timeout(0);
+
+				// The panes of the grid that show a chat of their own, as a chat dropped into it shows
+				const chatPanes = visibility.getRenderedGridSlots().map(slot => visibility.getGridSession(slot.id)).filter(shown => !!shown).map(shown => `${shown.sessionId} ${shown.scopedChatResource?.path}`);
+				assert.deepStrictEqual({ calls, chatPanes }, { calls: ['close /chat/peerB'], chatPanes: vetoed ? [] : ['B /chat/peerB'] });
+			});
+		}
+
+		test('a chat that a chat window shows, dropped onto a pane that is gone, stays in its window: nothing closes', async () => {
+			const sessionA = multiChatSession('A', [chat('mainA')]);
+			const sessionB = multiChatSession('B', [chat('mainB'), chat('peerB', SessionStatus.Completed, ChatOriginKind.SideChat)]);
+			const [, peerB] = sessionB.chats.get();
+			const { view } = setup([sessionA, sessionB]);
+			await view.openSession(sessionA.resource);
+			const calls: string[] = [];
+			disposables.add(chatHostOpeners.get(view)!.register({
+				showsChat: shown => shown.toString() === peerB.resource.toString(),
+				reveal: async shown => { calls.push(`reveal ${shown.path}`); },
+				openBeside: async () => { },
+				close: async closed => {
+					calls.push(`close ${closed.path}`);
+					return { restore: async () => { } };
+				},
+			}));
+
+			await view.moveChatToGrid('B', peerB.resource, 'gone', 'right');
+
+			assert.deepStrictEqual(calls, []);
+		});
+
+		test('a chat that a chat window shows, dropped onto a pane that goes away as the chat leaves its window, goes back there rather than being lost', async () => {
+			const sessionA = multiChatSession('A', [chat('mainA')]);
+			const sessionB = multiChatSession('B', [chat('mainB'), chat('peerB', SessionStatus.Completed, ChatOriginKind.SideChat)]);
+			const sessionC = multiChatSession('C', [chat('mainC')]);
+			const [, peerB] = sessionB.chats.get();
+			const { view } = setup([sessionA, sessionB, sessionC]);
+			await view.openSessionsInGrid([sessionA, sessionC]);
+			const visibility = Reflect.get(view, '_visibility') as VisibleSessions;
+			const target = visibility.getGridSlots()[visibility.getSlot('C')!.index];
+			let inWindow = true;
+			const calls: string[] = [];
+			disposables.add(chatHostOpeners.get(view)!.register({
+				showsChat: shown => inWindow && shown.toString() === peerB.resource.toString(),
+				reveal: async shown => { calls.push(`reveal ${shown.path}`); },
+				openBeside: async () => { },
+				close: async closed => {
+					calls.push(`close ${closed.path}`);
+					inWindow = false;
+					// The pane it is dropped onto goes away meanwhile
+					view.closeSession(view.visibleSessions.get().find(session => session?.sessionId === 'C'));
+					return {
+						restore: async () => {
+							calls.push(`restore ${closed.path}`);
+							inWindow = true;
+						},
+					};
+				},
+			}));
+
+			await view.moveChatToGrid('B', peerB.resource, target.id, 'right');
+			await timeout(0);
+
+			const chatPanes = visibility.getRenderedGridSlots().map(slot => visibility.getGridSession(slot.id)).filter(shown => !!shown).map(shown => `${shown.sessionId} ${shown.scopedChatResource?.path}`);
+			assert.deepStrictEqual({ calls, inWindow, chatPanes }, { calls: ['close /chat/peerB', 'restore /chat/peerB'], inWindow: true, chatPanes: [] });
+		});
+
+		test('the main chat of a session that a chat window shows, dropped onto a pane that goes away as the grid opens the session, goes back to its window rather than being lost', async () => {
+			const sessionA = multiChatSession('A', [chat('mainA')]);
+			const sessionB = multiChatSession('B', [chat('mainB')]);
+			const sessionC = multiChatSession('C', [chat('mainC')]);
+			const [mainB] = sessionB.chats.get();
+			const { view } = setup([sessionA, sessionB, sessionC]);
+			await view.openSessionsInGrid([sessionA, sessionC]);
+			const visibility = Reflect.get(view, '_visibility') as VisibleSessions;
+			const target = visibility.getGridSlots()[visibility.getSlot('C')!.index];
+			let inWindow = true;
+			const calls: string[] = [];
+			disposables.add(chatHostOpeners.get(view)!.register({
+				showsChat: shown => inWindow && shown.toString() === mainB.resource.toString(),
+				reveal: async () => { },
+				openBeside: async () => { },
+				close: async closed => {
+					calls.push(`close ${closed.path}`);
+					inWindow = false;
+					return {
+						restore: async () => {
+							calls.push(`restore ${closed.path}`);
+							inWindow = true;
+						},
+					};
+				},
+			}));
+			// The pane it is dropped onto goes away as the grid opens the session there, once the chat left its window
+			type Prepare = (sessions: readonly ISession[], token: CancellationToken) => Promise<ISession[] | undefined>;
+			const prepare = (Reflect.get(view, 'prepareGridSessions') as Prepare).bind(view);
+			let prepares = 0;
+			Reflect.set(view, 'prepareGridSessions', async (sessions: readonly ISession[], token: CancellationToken) => {
+				const prepared = await prepare(sessions, token);
+				if (++prepares === 2) {
+					view.closeSession(view.visibleSessions.get().find(session => session?.sessionId === 'C'));
+				}
+				return prepared;
+			});
+
+			await view.moveChatToGrid('B', mainB.resource, target.id, 'right');
+			await timeout(0);
+
+			assert.deepStrictEqual({ calls, inWindow, inGrid: visibility.gridSessions.get().some(shown => shown?.sessionId === 'B') }, { calls: ['close /chat/mainB', 'restore /chat/mainB'], inWindow: true, inGrid: false });
+		});
+
 		test('activating the session of a chat that a chat editor shows, as its pills do before their actions, leaves the grid, its active session and the canvas as they are; the action runs', async () => {
 			const sessionA = multiChatSession('A', [chat('mainA')]);
 			const sessionB = multiChatSession('B', [chat('mainB'), chat('peerB', SessionStatus.Completed, ChatOriginKind.SideChat)]);
@@ -8726,7 +8861,7 @@ suite('SessionsManagementService', () => {
 				showsChat: shown => shown.toString() === peerB.resource.toString(),
 				reveal: async () => { },
 				openBeside: async () => { },
-				close: async () => { },
+				close: async () => ({ restore: async () => { } }),
 			}));
 			canvasService.activeCanvasOpen.set({ id: 'canvas' } as Parameters<typeof canvasService.activeCanvasOpen.set>[0], undefined);
 			const editorSession = upcastPartial<IActiveSession>({ sessionId: 'B', resource: sessionB.resource, scopedChatResource: peerB.resource, mainChat: sessionB.mainChat, chats: sessionB.chats });
@@ -8751,7 +8886,7 @@ suite('SessionsManagementService', () => {
 				showsChat: shown => shown.toString() === sessionB.mainChat.get().resource.toString(),
 				reveal: async (shown, options) => { revealed.push(`${shown.path}${options?.preserveFocus ? ' preserving focus' : ''}`); },
 				openBeside: async () => { },
-				close: async () => { },
+				close: async () => ({ restore: async () => { } }),
 			}));
 			const grid = () => ({ visible: view.visibleSessions.get().map(session => session?.sessionId), active: view.activeSession.get()?.sessionId });
 			const before = grid();
@@ -8780,7 +8915,7 @@ suite('SessionsManagementService', () => {
 				showsChat: shown => shown.toString() === sessionB.mainChat.get().resource.toString(),
 				reveal: async shown => { revealed.push(shown.path); },
 				openBeside: async () => { },
-				close: async () => { },
+				close: async () => ({ restore: async () => { } }),
 			}));
 
 			await view.openSession(sessionB.resource, { forceMainChat: true });

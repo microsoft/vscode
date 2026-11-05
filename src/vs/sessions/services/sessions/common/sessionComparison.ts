@@ -136,7 +136,7 @@ export interface ISessionComparisonSynthesisPlan {
 export interface ISessionComparison {
 	readonly id: string;
 	readonly groupId: string;
-	/** The first attempt's session, containing the other participants as nested chats. */
+	/** Legacy owning session for comparisons persisted with nested participants. */
 	readonly sessionResource?: URI;
 	readonly title: string;
 	readonly createdAt: number;
