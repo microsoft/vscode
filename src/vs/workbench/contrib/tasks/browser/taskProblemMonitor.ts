@@ -17,7 +17,7 @@ interface ITerminalMarkerData {
 export class TaskProblemMonitor extends Disposable {
 
 	private readonly terminalMarkerMap: Map<number, ITerminalMarkerData> = new Map();
-	private readonly terminalDisposables = new DisposableMap<number>();
+	private readonly terminalDisposables = this._register(new DisposableMap<number>());
 
 	constructor() {
 		super();

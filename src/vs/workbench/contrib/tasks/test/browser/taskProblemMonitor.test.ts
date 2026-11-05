@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -22,8 +21,6 @@ suite('TaskProblemMonitor', () => {
 		const invalidated = store.add(new Emitter<void>());
 		const disposed = store.add(new Emitter<ITerminalInstance>());
 		const monitor = store.add(new TaskProblemMonitor());
-		// The existing monitor does not register its map for disposal.
-		store.add(Reflect.get(monitor, 'terminalDisposables') as IDisposable);
 		monitor.addTerminal(upcastPartial<ITerminalInstance>({ instanceId: 1, onDisposed: disposed.event }), upcastPartial<AbstractProblemCollector>({ onDidFindErrors: errors.event, onDidRequestInvalidateLastMarker: invalidated.event }));
 		return { errors, invalidated, disposed, monitor };
 	}
@@ -31,6 +28,12 @@ suite('TaskProblemMonitor', () => {
 	function marker(message: string, line: number, resource = URI.file('/a.ts'), owner = 'compiler'): IMarker {
 		return { owner, resource, message, startLineNumber: line, startColumn: 1, endLineNumber: line, endColumn: 2, severity: MarkerSeverity.Error };
 	}
+
+	test('releases terminal and problem collector listeners when disposed', () => {
+		const { errors, invalidated, disposed, monitor } = createMonitor();
+		monitor.dispose();
+		assert.deepStrictEqual([errors.hasListeners(), invalidated.hasListeners(), disposed.hasListeners()], [false, false, false]);
+	});
 
 	test('retains distinct errors on the same file and their resource associations', () => {
 		const { errors, disposed, monitor } = createMonitor();
