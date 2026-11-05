@@ -5,19 +5,29 @@
 
 import * as nls from '../../../../../nls.js';
 import { registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { IAgentHostByokLmHandler } from '../../../../../platform/agentHost/common/agentHostByokLm.js';
 import { AgentHostLocalFilePermissionsSettingId } from '../../../../../platform/agentHost/common/agentHostResourceService.js';
 import { RemoteAgentHostAutoConnectSettingId, RemoteAgentHostsSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { TunnelAgentHostsSettingId } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { WslAutoStartSettingId } from '../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { OpenAgentHostStateFileAction } from '../../../../../workbench/contrib/sessions/providers/agentHost/browser/openAgentHostStateFileAction.js';
+import { AgentHostByokLmHandler } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostByokLmHandler.js';
 import '../../../../../workbench/contrib/chat/browser/remoteAgentHost/remoteAgentHost.contribution.js';
 import './remoteAgentHostActions.js';
 import './missionControlAgentHost.contribution.js';
 import '../../agentHost/browser/agentHostAgentPicker.contribution.js';
 
 registerAction2(OpenAgentHostStateFileAction);
+
+// The Sessions windows load `RemoteAgentHostContribution` through the workbench
+// contribution above without loading our workbench DI file that registers its
+// BYOK handler - register it here too, or the contribution's instantiation fails.
+// Sessions Desktop already registers the identical singleton via its chat
+// contribution; the duplicate is a benign last-wins override.
+registerSingleton(IAgentHostByokLmHandler, AgentHostByokLmHandler, InstantiationType.Delayed);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	properties: {
