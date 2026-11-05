@@ -48,8 +48,11 @@ export interface IComputerUseActivationChat {
 	requestInput(request: ChatInputRequest): void;
 	/** Reports the state of Computer Use as the chat's session launches, while VS Code offers it. */
 	reportLaunchState(state: ComputerUseLaunchState): void;
-	/** Reports how a request to turn on Computer Use ended. Calls that wait for the same answer share one report. */
-	reportActivation(report: ComputerUseActivationReport): void;
+	/**
+	 * Starts the report of a request to turn on Computer Use while its turn is current, and returns the function that
+	 * reports how it ended. Calls that wait for the same answer share one report.
+	 */
+	startActivationReport(): (report: ComputerUseActivationReport) => void;
 }
 
 /**
@@ -182,19 +185,19 @@ export class CopilotComputerUseActivation {
 
 	/** A call made while the user decides waits for the same answer, and shares its report. */
 	private _activate(reason: string | undefined): Promise<ComputerUseActivationOutcome> {
-		this._asking ??= this._askAndReport(reason).finally(() => this._asking = undefined);
+		this._asking ??= this._askAndReport(reason, this._chat.startActivationReport()).finally(() => this._asking = undefined);
 		return this._asking;
 	}
 
-	private async _askAndReport(reason: string | undefined): Promise<ComputerUseActivationOutcome> {
+	private async _askAndReport(reason: string | undefined, reportOutcome: (report: ComputerUseActivationReport) => void): Promise<ComputerUseActivationOutcome> {
 		let outcome: ComputerUseActivationOutcome;
 		try {
 			outcome = await this._ask(reason);
 		} catch (error) {
-			this._chat.reportActivation('error');
+			reportOutcome('error');
 			throw error;
 		}
-		this._chat.reportActivation(outcome);
+		reportOutcome(outcome);
 		return outcome;
 	}
 

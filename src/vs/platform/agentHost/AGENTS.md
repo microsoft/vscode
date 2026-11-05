@@ -655,9 +655,9 @@ A HydraFusion phase that renders in its own child chat (judge, critic, repair, r
 Four events from `node/copilot/copilotComputerUseTelemetry.ts` track Computer Use. They carry only categories, counts and durations, never app names, window titles or typed text. Tool calls are in `agentHost.toolInvoked`, with a `toolId` that starts with `computer-use-` and `mcpSourceKind` `builtin`.
 
 - `agentHost.computerUseState` is reported each time a Copilot chat launches while VS Code offers Computer Use, that is while the setting is on and the chat uses the shared runtime. Its `state` is `on`, `off`, `notInstalled` or `unknown`. It is the only signal for `/computer on` and `/computer off`, which the runtime handles. Linux has no plugin build, so its chats report `notInstalled`.
-- `agentHost.computerUseActivation` is reported once for each request of `enable_computer_use`, with its outcome, or `error` when checking or turning on Computer Use threw. Calls that wait for the same card share one report.
+- `agentHost.computerUseActivation` is reported once for each request of `enable_computer_use`, with its outcome, or `error` when checking or turning on Computer Use threw. Calls that wait for the same card share one report. It carries the turn that made the request, also when that turn's end cancels it.
 - `agentHost.computerUsePluginInstall` is reported for each download of the plugin, with the result, the HTTP status of a refused download, the duration, the pinned version and the build.
-- `agentHost.computerUseSetup` is reported when a macOS permission setup becomes ready or ends, with the reason, the permissions missing at its start and at its end, how many times the plugin asked and the duration.
+- `agentHost.computerUseSetup` is reported when a macOS permission setup becomes ready or ends, also when Computer Use is turned off while it waits. It has the reason, the permissions missing at its start and at its end, how many times the plugin asked and the duration.
 
 #### Session pre-warming
 

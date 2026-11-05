@@ -26629,6 +26629,20 @@ Use the attached image as context.
 			});
 		});
 
+		test('reports a request that the end of its turn cancels against that turn', async () => {
+			const telemetry = new TestDataTelemetryService();
+			const { runtime, mockSession, waitForSignal } = await createActivationSession({ telemetryService: telemetry });
+			const [tool] = await runtime.createComputerUseActivationTools!();
+			const result = invokeClientToolHandler(tool, 'tc-activate', { reason: 'Open Calculator' });
+			await waitForSignal(signal => isAction(signal, ActionType.ChatInputRequested));
+			// Ending a turn clears it before it cancels the request.
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+			await result;
+			assert.deepStrictEqual(telemetry.events.filter(event => event.name === 'agentHost.computerUseActivation').map(({ data }) => ({ outcome: data.outcome, turnId: data.turnId })), [
+				{ outcome: 'cancelled', turnId: 'turn-computer-use' },
+			]);
+		});
+
 		test('shows no card outside a running turn, also when the turn stops while the plugin is checked', async () => {
 			const idle = await createActivationSession({ activeTurn: false });
 			const [idleTool] = await idle.runtime.createComputerUseActivationTools!();

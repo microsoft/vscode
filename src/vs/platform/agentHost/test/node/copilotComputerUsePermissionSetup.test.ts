@@ -370,10 +370,16 @@ suite('CopilotComputerUsePermissionSetup', () => {
 				setup.cancelChat(chat);
 				await pending.done;
 			}),
+			turnedOff: await report(async (setup, chat) => {
+				const pending = prompt(setup, chat, ['screenRecording']);
+				setup.dispose();
+				await pending.done;
+			}),
 		}, {
 			ready: [{ name: 'agentHost.computerUseSetup', result: 'ready', missingAtStart: 'accessibility,screenRecording', missingAtEnd: 'none', rounds: 2, durationMs: 1500 }],
 			declined: [{ name: 'agentHost.computerUseSetup', result: 'decline', missingAtStart: 'screenRecording', missingAtEnd: 'screenRecording', rounds: 1, durationMs: 0 }],
 			chatStopped: [{ name: 'agentHost.computerUseSetup', result: 'notWaiting', missingAtStart: 'accessibility,screenRecording', missingAtEnd: 'accessibility,screenRecording', rounds: 1, durationMs: 2000 }],
+			turnedOff: [{ name: 'agentHost.computerUseSetup', result: 'notWaiting', missingAtStart: 'screenRecording', missingAtEnd: 'screenRecording', rounds: 1, durationMs: 0 }],
 		});
 	}));
 

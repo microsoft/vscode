@@ -334,6 +334,10 @@ export class CopilotComputerUsePermissionSetup extends Disposable {
 		}));
 		this._register(toDisposable(() => {
 			for (const setup of this._setups.values()) {
+				// Turning Computer Use off, or shutting down, ends the setups that still wait.
+				if (setup.state === 'needsPermissions' || setup.state === 'working') {
+					this._report(setup, 'notWaiting');
+				}
 				setup.prompt?.result.complete({ action: 'cancel' });
 			}
 			this._setups.clear();

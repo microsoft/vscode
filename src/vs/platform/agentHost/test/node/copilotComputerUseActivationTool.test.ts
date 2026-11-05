@@ -66,8 +66,8 @@ class TestActivationChat implements IComputerUseActivationChat {
 		this.launchStates.push(state);
 	}
 
-	reportActivation(report: ComputerUseActivationReport): void {
-		this.activations.push(report);
+	startActivationReport(): (report: ComputerUseActivationReport) => void {
+		return report => this.activations.push(report);
 	}
 
 	/** The `index`th request, once the activation made it. */

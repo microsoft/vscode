@@ -96,8 +96,8 @@ export function reportComputerUsePluginInstall(telemetryService: ITelemetryServi
  * How a macOS permission setup ended: `ready` once the plugin verified both permissions, or why it ended without them:
  * - `decline`: the user turned setup down.
  * - `cancel`: a client closed it without declining, or answered with a choice the plugin doesn't know.
- * - `notWaiting`: the chat stopped waiting, because its turn ended or the plugin's tool call completed, for example after
- *   Copilot's timeout.
+ * - `notWaiting`: the chat stopped waiting, because its turn ended, Computer Use was turned off, or the plugin's tool
+ *   call completed, for example after Copilot's timeout.
  * - `unconfirmed`: the tool call failed after an action, so nothing proves the permissions.
  * - `unsupportedPrompt`: the plugin asked in a form this version doesn't know.
  */
@@ -122,7 +122,7 @@ type ComputerUseSetupEvent = {
 };
 
 type ComputerUseSetupClassification = {
-	result: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the setup ended: ready (both permissions verified), decline (the user turned setup down), cancel (closed without declining), notWaiting (the turn ended or the waiting tool call completed, for example after a timeout), unconfirmed (the tool call failed after an action) or unsupportedPrompt (the plugin asked in an unknown form).' };
+	result: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the setup ended: ready (both permissions verified), decline (the user turned setup down), cancel (closed without declining), notWaiting (the turn ended, Computer Use was turned off, or the waiting tool call completed, for example after a timeout), unconfirmed (the tool call failed after an action) or unsupportedPrompt (the plugin asked in an unknown form).' };
 	missingAtStart: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The macOS permissions missing when the setup started: accessibility, screenRecording, or both separated by a comma.' };
 	missingAtEnd: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The macOS permissions still missing when the setup ended, as last verified: none, accessibility, screenRecording, or both separated by a comma.' };
 	rounds: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How many times the plugin asked for permissions during the setup.' };

@@ -2279,7 +2279,11 @@ export class CopilotAgentSession extends Disposable {
 			canAskUser: () => this.hasActiveTurn && !this._abortToken.isCancellationRequested && !this._isAutopilotMode() && !this._isAutoReplyEnabled(),
 			requestInput: request => this._emitAction({ type: ActionType.ChatInputRequested, request }),
 			reportLaunchState: state => reportComputerUseState(this._telemetryService, state, computerUseCorrelation()),
-			reportActivation: report => reportComputerUseActivation(this._telemetryService, report, computerUseCorrelation()),
+			startActivationReport: () => {
+				// Read now: a turn that ends clears its context before it cancels the request.
+				const correlation = computerUseCorrelation();
+				return report => reportComputerUseActivation(this._telemetryService, report, correlation);
+			},
 		}, `[Copilot:${this.sessionId}]`, this._logService);
 		this._shellManager = options.shellManager;
 		this._nonPtyShellTerminals = this._register(this._instantiationService.createInstance(NonPtyShellTerminalStreams, options.owner, this._storageUri, options.chatChannelUri));
