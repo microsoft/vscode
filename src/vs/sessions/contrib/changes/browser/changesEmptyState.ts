@@ -5,16 +5,11 @@
 
 import { $, append } from '../../../../base/browser/dom.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { localize, localize2 } from '../../../../nls.js';
-import { MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { searchViewIcon } from '../../../../workbench/contrib/search/browser/searchIcons.js';
-import { OpenEditorCommandId } from '../../../../workbench/contrib/searchEditor/browser/constants.js';
 import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { SessionsEmptyStateActions } from '../../../browser/parts/sessionsEmptyStateActions.js';
 import { SessionsEmptyStateLayout } from '../../../browser/parts/sessionsEmptyStateLayout.js';
-import { NEW_FILE_TAB_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
-import { EmptyFileEditorInput } from '../../editor/browser/emptyFileEditorInput.js';
 
 export class ChangesEmptyState extends Disposable {
 	private readonly emptyStateLayout: SessionsEmptyStateLayout;
@@ -38,22 +33,3 @@ export class ChangesEmptyState extends Disposable {
 		this.emptyStateLayout.layout();
 	}
 }
-
-MenuRegistry.appendMenuItems([
-	{
-		id: Menus.EmptyChangesActions,
-		item: {
-			command: { id: NEW_FILE_TAB_COMMAND_ID, title: localize2('changes.openFiles', "Open Files"), icon: EmptyFileEditorInput.ICON },
-			group: 'navigation',
-			order: 1,
-		},
-	},
-	{
-		id: Menus.EmptyChangesActions,
-		item: {
-			command: { id: OpenEditorCommandId, title: localize2('changes.searchFiles', "Search in Files"), icon: searchViewIcon },
-			group: 'navigation',
-			order: 2,
-		},
-	},
-]);

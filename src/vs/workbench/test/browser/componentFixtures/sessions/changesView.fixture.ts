@@ -37,6 +37,8 @@ import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesViewMode, IsolationM
 // eslint-disable-next-line local/code-import-patterns
 import { DesktopChangesViewPane } from '../../../../../sessions/contrib/changes/browser/changesView.js';
 // eslint-disable-next-line local/code-import-patterns
+import '../../../../../sessions/contrib/changes/browser/changesView.contribution.js';
+// eslint-disable-next-line local/code-import-patterns
 import { ISessionChangesService, SessionChangesService } from '../../../../../sessions/contrib/changes/browser/sessionChangesService.js';
 import { GitHubPullRequestCIModel } from '../../../../contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
 import { IGitHubService } from '../../../../contrib/sessions/browser/github/githubService.js';

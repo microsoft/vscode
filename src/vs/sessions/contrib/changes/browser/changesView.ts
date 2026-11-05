@@ -25,11 +25,9 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { IButtonConfig, MenuWorkbenchButtonBar, WorkbenchButtonBar } from '../../../../platform/actions/browser/buttonbar.js';
 import { getActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
-import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { ActionWidgetDropdownActionViewItem } from '../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
-import { MenuId, Action2, MenuItemAction, registerAction2, IMenuService, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { MenuId, Action2, MenuItemAction, IMenuService, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownAction, IActionWidgetDropdownActionProvider } from '../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -99,7 +97,6 @@ import { ChangesViewSection, findDefaultChangeset, IChangesDetailsViewState, ICh
 import { ChangesSummaryWidget } from './changesSummaryWidget.js';
 import { ChangesStatsWidget, IChangesStats } from '../../../../workbench/browser/changesStatsWidget.js';
 import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
-import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 import { ISessionsHostLayoutService } from '../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
 import { CreatePullRequestContextView } from './createPullRequestContextView.js';
 import { CreatePullRequestChatRequest } from './createPullRequestChatRequest.js';
@@ -110,7 +107,7 @@ const $ = dom.$;
 // --- Constants
 
 const RUN_SESSION_CODE_REVIEW_ACTION_ID = 'sessions.codeReview.run';
-const VERSIONS_PICKER_ACTION_ID = 'chatEditing.versionsPicker';
+export const VERSIONS_PICKER_ACTION_ID = 'chatEditing.versionsPicker';
 const desktopChangesEditorHeader = ContextKeyExpr.and(
 	DesktopLayoutContext,
 	ContextKeyExpr.or(ActiveEditorContext.isEqualTo(SessionChangesEditorInput.EDITOR_ID), DesktopChangesEditorTransitionContext)
@@ -735,7 +732,7 @@ interface IChangesPickerLabel {
 	readonly isNonDefault: boolean;
 }
 
-function createChangesPickerLabelObservable(owner: object, changes: IChangesSessionObservables): IObservable<IChangesPickerLabel | undefined> {
+export function createChangesPickerLabelObservable(owner: object, changes: IChangesSessionObservables): IObservable<IChangesPickerLabel | undefined> {
 	return derivedObservableWithCache<IChangesPickerLabel | undefined>(owner, (reader, lastValue) => {
 		const changeset = changes.changesetObs.read(reader);
 		if (!changeset && changes.changesetsLoadingObs.read(reader)) {
@@ -752,50 +749,6 @@ function createChangesPickerLabelObservable(owner: object, changes: IChangesSess
 		};
 	});
 }
-
-/** Registers custom Changes action view items. */
-class ChangesActionViewItemsContribution extends Disposable implements IWorkbenchContribution {
-
-	static readonly ID = 'workbench.contrib.changesEditorHeader';
-
-	constructor(
-		@IActionViewItemService actionViewItemService: IActionViewItemService,
-		@IChangesViewService changesViewService: IChangesViewService,
-		@IInstantiationService instantiationService: IInstantiationService,
-	) {
-		super();
-
-		const onDidRegister = this._register(new Emitter<void>());
-		const activeChanges = getActiveSessionChanges(changesViewService);
-		const headerLabelObs = createChangesPickerLabelObservable(this, activeChanges);
-		const headerSummary = this._register(instantiationService.createInstance(ChangesPickerSummary, activeChanges.changesSummaryObs));
-
-		this._register(actionViewItemService.register(Menus.SessionsEditorHeaderPrimary, VERSIONS_PICKER_ACTION_ID, (action, _options, instantiationService) => {
-			if (!(action instanceof MenuItemAction)) {
-				return undefined;
-			}
-			// The shared summary and label follow the active session; other sessions get their own.
-			const scope = instantiationService.invokeFunction(accessor => createChangesSessionScope(changesViewService, accessor.get(ISessionHost)));
-			if (scope.isMainWindow) {
-				return instantiationService.createInstance(ChangesPickerActionItem, action, headerSummary, headerLabelObs, undefined);
-			}
-			const summary = instantiationService.createInstance(ChangesPickerSummary, scope.changes.changesSummaryObs);
-			const item = instantiationService.createInstance(ChangesPickerActionItem, action, summary, createChangesPickerLabelObservable(summary, scope.changes), scope);
-			item.own(summary);
-			return item;
-		}, onDidRegister.event));
-
-		this._register(actionViewItemService.register(AgentsWindowMenus.TitleBarSessionMenu, CHANGES_HEADER_ACTIONS_ID, (action, options, instantiationService) => {
-			if (!(action instanceof MenuItemAction)) {
-				return undefined;
-			}
-			return instantiationService.createInstance(ChangesActionsBarActionViewItem, action, options);
-		}, onDidRegister.event));
-
-		onDidRegister.fire();
-	}
-}
-registerWorkbenchContribution2(ChangesActionViewItemsContribution.ID, ChangesActionViewItemsContribution, WorkbenchPhase.BlockRestore);
 
 // --- View Pane
 
@@ -2104,7 +2057,7 @@ class ChangesTreeSorter implements ITreeSorter<ChangesTreeElement> {
 
 // --- View Mode Actions
 
-class SetChangesListViewModeAction extends ViewAction<ChangesViewPane> {
+export class SetChangesListViewModeAction extends ViewAction<ChangesViewPane> {
 	constructor() {
 		super({
 			id: 'workbench.changesView.action.setListViewMode',
@@ -2127,7 +2080,7 @@ class SetChangesListViewModeAction extends ViewAction<ChangesViewPane> {
 	}
 }
 
-class SetChangesTreeViewModeAction extends ViewAction<ChangesViewPane> {
+export class SetChangesTreeViewModeAction extends ViewAction<ChangesViewPane> {
 	constructor() {
 		super({
 			id: 'workbench.changesView.action.setTreeViewMode',
@@ -2150,12 +2103,9 @@ class SetChangesTreeViewModeAction extends ViewAction<ChangesViewPane> {
 	}
 }
 
-registerAction2(SetChangesListViewModeAction);
-registerAction2(SetChangesTreeViewModeAction);
-
 // --- Versions Picker Action
 
-class VersionsPickerAction extends Action2 {
+export class VersionsPickerAction extends Action2 {
 	static readonly ID = 'chatEditing.versionsPicker';
 
 	constructor() {
@@ -2181,7 +2131,6 @@ class VersionsPickerAction extends Action2 {
 
 	override async run(): Promise<void> { }
 }
-registerAction2(VersionsPickerAction);
 
 /** A {@link ChangesPickerSummary} lease: the summary elements to host in a picker label. */
 interface IChangesPickerSummaryLease extends IDisposable {
@@ -2461,7 +2410,7 @@ function getChangesSummaryLabel({ files, additions, deletions }: ISessionChanges
 
 // --- Diff Stats Actions
 
-class ChangesDiffStatsAction extends Action2 {
+export class ChangesDiffStatsAction extends Action2 {
 	static readonly ID = 'workbench.changesView.action.viewChanges';
 
 	constructor() {
@@ -2484,12 +2433,11 @@ class ChangesDiffStatsAction extends Action2 {
 		await view?.openChanges();
 	}
 }
-registerAction2(ChangesDiffStatsAction);
 
 /**
  * Opens the Changes view and reveals (expands + focuses) the CI checks section.
  */
-class RevealCIChecksAction extends Action2 {
+export class RevealCIChecksAction extends Action2 {
 	static readonly ID = REVEAL_CI_CHECKS_COMMAND_ID;
 
 	constructor() {
@@ -2507,7 +2455,6 @@ class RevealCIChecksAction extends Action2 {
 		view?.revealChecks();
 	}
 }
-registerAction2(RevealCIChecksAction);
 
 class ChangesDiffStatsActionItem extends ActionViewItem {
 	protected readonly _widget: ChangesSummaryWidget;

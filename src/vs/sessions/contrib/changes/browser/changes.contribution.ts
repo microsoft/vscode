@@ -16,6 +16,7 @@ import { EditorExtensions, IEditorFactoryRegistry } from '../../../../workbench/
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../../../../workbench/contrib/sessions/common/changes.js';
 import { ChangesViewPane, DesktopChangesViewPane, ChangesViewPaneContainer } from './changesView.js';
+import './changesView.contribution.js';
 import { SessionChangesEditor } from './sessionChangesEditor.js';
 import { SessionChangesEditorInput, SessionChangesEditorSerializer } from './sessionChangesEditorInput.js';
 import { IsPhoneLayoutContext, SessionHasWorkspaceContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
