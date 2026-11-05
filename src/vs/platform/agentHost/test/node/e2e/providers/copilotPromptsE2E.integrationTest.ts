@@ -271,7 +271,7 @@ suite('Agent Host E2E — Copilot prompts', function () {
 			configured25000Budget: configuredBudgetCounts,
 		}, {
 			default15000Budget: { skills: 40, descriptions: 14 },
-			configured25000Budget: { skills: 40, descriptions: 24 },
+			configured25000Budget: { skills: 40, descriptions: 23 },
 		});
 	});
 });

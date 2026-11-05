@@ -930,7 +930,7 @@ suite('ChatWidget', () => {
 		const input = mockObject<ChatInputPart>()({
 			element: mainWindow.document.createElement('div'),
 			inputEditor: upcastPartial<ChatInputPart['inputEditor']>({ getValue: () => text, getModel: () => model, focus: () => { } }),
-			attachmentModel: upcastPartial<ChatInputPart['attachmentModel']>({ getAttachmentIDs: () => new Set() }),
+			attachmentModel: upcastPartial<ChatInputPart['attachmentModel']>({ getAttachmentIDs: () => new Set(), addContext: () => { } }),
 			dnd: upcastPartial<ChatInputPart['dnd']>({ setDisabledOverlay: () => { } }),
 			onDidClickOverlay: Event.None,
 		});
