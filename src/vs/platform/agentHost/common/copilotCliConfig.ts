@@ -39,6 +39,8 @@ export const enum CopilotCliConfigKey {
 	CopilotSdkLogLevel = 'copilotSdkLogLevel',
 	/** Explicit local Copilot runtime executable path. Empty uses the bundled runtime. */
 	RuntimePath = 'runtimePath',
+	/** Copilot runtime policy helper executable. An empty path disables it. */
+	PolicyHelper = 'policyHelper',
 	/** Enable the rubber duck critic subagent. */
 	RubberDuck = 'rubberDuck',
 	/** Enable the provider-native Claude Advisor tool. Off by default. */
@@ -63,6 +65,10 @@ export const enum CopilotCliConfigKey {
 	Opus48Prompt = 'opus48Prompt',
 	/** Send the system prompt in the runtime's stability-ordered prompt-cache layout. Off by default. */
 	StabilityOrderedPrompt = 'stabilityOrderedPrompt',
+	/** Ask GPT and Auto sessions for brief user-visible progress updates before and between tool calls. Off by default. */
+	ProgressUpdatesPrompt = 'progressUpdatesPrompt',
+	/** Whether the workbench progress-update prompt value is controlled by its configuration default. */
+	ProgressUpdatesPromptDefaultControlled = 'progressUpdatesPromptDefaultControlled',
 	/** Enable runtime tool search (deferred-tool loading) for Copilot SDK sessions. On by default. */
 	ToolSearchEnabled = 'toolSearchEnabled',
 	/** Minimum tool count before MCP/external tools are deferred behind tool search. 0 = always defer. */
@@ -100,6 +106,22 @@ export const AgentHostCopilotSdkLogLevelSettingId = 'chat.agentHost.copilotSdk.l
 
 export const AgentHostCopilotRuntimePathSettingId = 'chat.agentHost.copilot.runtimePath';
 
+export const AgentHostCopilotPolicyHelperSettingId = 'chat.agentHost.copilot.policyHelper';
+
+/** Policy helper executable for the Copilot runtime, subject to device and server policy precedence. */
+export interface ICopilotPolicyHelperConfig {
+	readonly path: string;
+	readonly args?: readonly string[];
+}
+
+/** Normalizes policy helper arguments and treats invalid or empty paths as unset. */
+export function normalizeCopilotPolicyHelperConfig(value: unknown): ICopilotPolicyHelperConfig | undefined {
+	if (!copilotCliConfigSchema.validate(CopilotCliConfigKey.PolicyHelper, value) || !value.path.trim()) {
+		return undefined;
+	}
+	return { path: value.path, args: value.args ?? [] };
+}
+
 export const CopilotClaudeAdvisorEnabledSettingId = 'chat.copilot.claudeAdvisor.enabled';
 
 export const CopilotSearchSubagentEnabledSettingId = 'chat.copilot.searchSubagent.enabled';
@@ -124,6 +146,8 @@ export const CopilotLocalIndexEnabledSettingId = 'github.copilot.chat.localIndex
 export const AgentHostOpus48PromptEnabledSettingId = 'chat.agentHost.opus48Prompt.enabled';
 
 export const CopilotStabilityOrderedPromptEnabledSettingId = 'chat.copilot.stabilityOrderedPrompt.enabled';
+
+export const AgentHostCopilotProgressUpdatesPromptSettingId = 'chat.agentHost.copilot.progressUpdatesPrompt.enabled';
 
 export const AgentHostToolSearchEnabledSettingId = 'chat.agentHost.copilot.toolSearch.enabled';
 
@@ -254,6 +278,25 @@ export const copilotCliConfigSchema = createSchema({
 		description: localize('agentHost.config.copilotRuntimePath.description', "Absolute path to a local Copilot runtime executable. Empty uses the bundled runtime."),
 		default: '',
 	}),
+	[CopilotCliConfigKey.PolicyHelper]: schemaProperty<ICopilotPolicyHelperConfig>({
+		type: 'object',
+		title: localize('agentHost.config.copilotPolicyHelper.title', "Copilot Policy Helper"),
+		description: localize('agentHost.config.copilotPolicyHelper.description', "Policy helper executable for the Copilot runtime. Device and server policies take precedence. An empty path disables it. Changes restart the runtime after active turns and subagents finish."),
+		properties: {
+			path: {
+				type: 'string',
+				title: localize('agentHost.config.copilotPolicyHelper.path.title', "Path"),
+				description: localize('agentHost.config.copilotPolicyHelper.path.description', "Absolute path to the policy helper executable."),
+			},
+			args: {
+				type: 'array',
+				items: { type: 'string', title: localize('agentHost.config.copilotPolicyHelper.args.item.title', "Argument") },
+				title: localize('agentHost.config.copilotPolicyHelper.args.title', "Arguments"),
+				description: localize('agentHost.config.copilotPolicyHelper.args.description', "Arguments passed to the policy helper executable."),
+			},
+		},
+		required: ['path'],
+	}),
 	[CopilotCliConfigKey.RubberDuck]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.rubberDuck.title', "Rubber Duck Agent"),
@@ -324,6 +367,18 @@ export const copilotCliConfigSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.stabilityOrderedPrompt.title', "Stability-Ordered System Prompt"),
 		description: localize('agentHost.config.stabilityOrderedPrompt.description', "When enabled, Copilot SDK sessions order the system prompt by how often each section changes, so sessions with the same tools and workspace can reuse each other's prompt cache. This moves per-session sections, such as the environment and session folder, to the end of the system prompt."),
+		default: false,
+	}),
+	[CopilotCliConfigKey.ProgressUpdatesPrompt]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.progressUpdatesPrompt.title', "Progress Updates Prompt"),
+		description: localize('agentHost.config.progressUpdatesPrompt.description', "When enabled, Copilot SDK sessions running a GPT model or Auto are asked to send brief user-visible progress updates before and between tool calls."),
+		default: false,
+	}),
+	[CopilotCliConfigKey.ProgressUpdatesPromptDefaultControlled]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.progressUpdatesPromptDefaultControlled.title', "Progress Updates Prompt Default Control"),
+		description: localize('agentHost.config.progressUpdatesPromptDefaultControlled.description', "Whether the workbench progress updates prompt setting has no explicit override. Used only to gate setting experiment telemetry."),
 		default: false,
 	}),
 	[CopilotCliConfigKey.ToolSearchEnabled]: schemaProperty<boolean>({

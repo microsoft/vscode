@@ -7,15 +7,17 @@ import { $, size } from '../../../base/browser/dom.js';
 import { ISerializableView, IViewSize } from '../../../base/browser/ui/grid/grid.js';
 import { ProgressBar } from '../../../base/browser/ui/progressbar/progressbar.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
 import { IAction } from '../../../base/common/actions.js';
 import { constObservable, IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
+import { IEditorOptions } from '../../../editor/common/config/editorOptions.js';
 import { IAgentsWindowDraft } from '../../../platform/window/common/window.js';
 import { defaultProgressBarStyles } from '../../../platform/theme/browser/defaultStyles.js';
 import { IProgressScope, ScopedProgressIndicator } from '../../../workbench/services/progress/browser/progressIndicator.js';
 import { IChat, ISession } from '../../services/sessions/common/session.js';
+import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { WorkspaceSelectionOrigin } from '../../common/workspaceSelection.js';
 import { ISessionPickerVisibility, noSessionPickerVisibility } from '../../services/sessions/common/sessionPickerVisibility.js';
 import type { IChatSessionHistoryStatus } from '../../../platform/chat/common/chatSessionHistory.js';
@@ -26,10 +28,23 @@ import type { IChatSessionHistoryStatus } from '../../../platform/chat/common/ch
  */
 export type ChatViewKind = 'newSession' | 'newChatInSession' | 'chat';
 
+export interface IChatViewRequestOutcome {
+	readonly error?: string;
+	readonly canceled?: boolean;
+}
+
+export interface IChatViewRequestSubmission {
+	readonly sessionResource: URI;
+	readonly completion: Promise<IChatViewRequestOutcome>;
+}
+
 /**
  * Options passed to a chat view when it is created.
  */
 export interface IChatViewOptions {
+	readonly inputEditorOptions?: Pick<IEditorOptions, 'fontSize' | 'lineHeight'>;
+	readonly showEmptyStateIcon?: boolean;
+	readonly renderNewSessionHeader?: (container: HTMLElement, before: HTMLElement) => IDisposable;
 	/** Visibility of the owning session slot, preserved across composer/preparation/transcript handoffs. */
 	readonly hostVisible?: IObservable<boolean>;
 	/** Keep the custom view hosting this composer visible while preparing its draft. */
@@ -37,8 +52,38 @@ export interface IChatViewOptions {
 	/** Send new-session requests without navigating away from the hosting view. */
 	readonly backgroundSend?: boolean;
 	readonly renderChatPet?: boolean;
+	readonly renderAquarium?: boolean;
 	/** Host only the composer, without transcript content, input interactions, or transcript view-state persistence. */
 	readonly inputOnly?: boolean;
+	/** Options of the chat input of a chat view that hosts a session's chat. */
+	readonly input?: IChatViewInputOptions;
+	/** The session of the pane that hosts the view, such as the draft its new-session composer shows. */
+	readonly session?: IObservable<IActiveSession | undefined>;
+}
+
+/**
+ * Options of the chat input of a chat view that hosts a session's chat.
+ */
+export interface IChatViewInputOptions {
+	/** Shown in the empty input instead of the chat's own placeholder. */
+	readonly placeholder?: string;
+	/** The fewest lines the input shows; 2 by default. */
+	readonly minLines?: number;
+	/** Whether the status pills of the session show above the input; `true` by default. */
+	readonly showPills?: boolean;
+}
+
+/**
+ * How a session view shows its session, for a session view outside the Sessions part's grid, such as in a chat window.
+ * By default, it shows its session as the Sessions part does.
+ */
+export interface ISessionViewHostOptions {
+	/** Whether the session header shows above the chats; `true` by default. */
+	readonly showHeader?: boolean;
+	/** Whether the Session Activity Bar shows beside the chats; `true` by default. */
+	readonly showActivityBar?: boolean;
+	/** Options of the inputs of the chats. */
+	readonly input?: IChatViewInputOptions;
 }
 
 export interface ISelectWorkspaceOptions {
@@ -52,6 +97,8 @@ export interface ISelectWorkspaceOptions {
 export interface ISelectNoWorkspaceOptions {
 	readonly userSelection?: boolean;
 	readonly preserveNavigation?: boolean;
+	/** Only replace an automatic default in a fresh, empty composer. */
+	readonly isDefault?: boolean;
 }
 
 export type WorkspaceSelectionResult = 'applied' | 'notReady' | 'preserved';
@@ -79,7 +126,7 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	readonly onDidChange: Event<IViewSize | undefined> = this._onDidChange.event;
 
 	/** A user request accepted for sending or queuing from this view, identified by its originating chat. */
-	readonly onDidSubmitRequest: Event<URI> = Event.None;
+	readonly onDidSubmitRequest: Event<IChatViewRequestSubmission> = Event.None;
 
 	/**
 	 * Lazily-created progress indicator scoped to this leaf. Mirrors how each
@@ -183,7 +230,54 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 		return Promise.resolve('notReady');
 	}
 
-	selectNoWorkspace(_options?: ISelectNoWorkspaceOptions): void {
+	/**
+	 * Start without a workspace, acknowledging application or preservation of an existing choice.
+	 * Views without a ready workspace picker return notReady.
+	 */
+	selectNoWorkspace(_options?: ISelectNoWorkspaceOptions): WorkspaceSelectionResult {
+		return 'notReady';
+	}
+
+	/**
+	 * Whether the view shows only its chat input, without the conversation. In that mode the view shows the
+	 * chat's progress and its approvals above the input, and shows the conversation again when the chat needs
+	 * input that can only be given there. Hosts size the view to {@link inputOnlyHeight} while it is set.
+	 */
+	readonly inputOnly: IObservable<boolean> = constObservable(false);
+
+	/**
+	 * The height the view needs to show only its input, whether or not it shows only the input now, once
+	 * {@link enableInputOnly} was called.
+	 */
+	readonly inputOnlyHeight: IObservable<number> = constObservable(0);
+
+	/** Whether the view can show only its input: not while the chat needs input that only the conversation shows. */
+	readonly canShowInputOnly: IObservable<boolean> = constObservable(false);
+
+	/**
+	 * Lets the user switch between showing only the input and showing the conversation, and shows only the input unless
+	 * `inputOnly` is `false`. The input, with what is shown above it, grows to at most `maxHeight`. Views without a
+	 * conversation ignore this.
+	 */
+	enableInputOnly(_options: { readonly maxHeight: number; readonly inputOnly?: boolean }): void {
+		// no-op by default
+	}
+
+	/** Shows only the input, or the conversation, once {@link enableInputOnly} was called. */
+	setInputOnly(_inputOnly: boolean): void {
+		// no-op by default
+	}
+
+	/** Shows the conversation, and no longer lets the user switch to showing only the input. */
+	disableInputOnly(): void {
+		// no-op by default
+	}
+
+	/**
+	 * Saves what the view shows of its chat, such as where it is scrolled to, so that another view of the chat shows the
+	 * same, such as after the chat moved. The default implementation is a no-op.
+	 */
+	saveViewState(): void {
 		// no-op by default
 	}
 

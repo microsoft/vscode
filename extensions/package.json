@@ -6,9 +6,6 @@
   "dependencies": {
     "typescript": "^6.0.3"
   },
-  "scripts": {
-    "postinstall": "node ./postinstall.mjs"
-  },
   "devDependencies": {
     "@parcel/watcher": "^2.5.6",
     "esbuild": "0.28.1",

@@ -649,6 +649,7 @@ suite('Remote agent host provider ownership', () => {
 			override readonly hosts = observableValue(this, [
 				{ id: 'native', name: 'Native', kind: 'user-local', status: 'offline' },
 			]);
+			override readonly ownEnvironmentId = observableValue<string | undefined>(this, undefined);
 		}();
 		owner._profileService = new class extends mock<IUserDataProfileService>() {
 			override readonly currentProfile = new class extends mock<IUserDataProfile>() {

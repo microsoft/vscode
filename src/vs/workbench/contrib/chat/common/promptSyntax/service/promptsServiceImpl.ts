@@ -53,6 +53,7 @@ import { COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG, COPILOT_STRICT_PLUGIN_ONLY_CUS
 import { isPromptTypeBlocked, StrictPluginOnlyCustomization } from '../../customizationLockdown.js';
 import { isAgentPluginForceEnabledByPolicy } from '../../plugins/agentPluginEnablement.js';
 import { ChatConfiguration } from '../../constants.js';
+import { isValidSlashCommandName, sanitizeSlashCommandName } from '../utils/promptsServiceUtils.js';
 
 /**
  * Maximum number of prompt files to read in parallel during discovery.
@@ -667,7 +668,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	public isValidSlashCommandName(command: string): boolean {
-		return command.match(/^[\p{L}\d_\-\.:]+$/u) !== null;
+		return isValidSlashCommandName(command);
 	}
 
 	public hasPromptSlashCommand(name: string): boolean {
@@ -706,8 +707,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	private asChatPromptSlashCommand(argumentHint: string | undefined, userInvocable: boolean | undefined, promptPath: IPromptPath): IChatPromptSlashCommand {
-		let name = promptPath.name ?? getCleanPromptName(promptPath.uri);
-		name = name.replace(/[^\p{L}\d_\-\.:]+/gu, '-'); // replace spaces with dashes
+		const name = sanitizeSlashCommandName(promptPath.name ?? getCleanPromptName(promptPath.uri));
 		return {
 			uri: promptPath.uri,
 			name: name,
@@ -1782,7 +1782,8 @@ export namespace CustomAgent {
 		if (target === Target.Claude && tools) {
 			tools = mapClaudeTools(tools);
 		}
-		return { id, uri, name, description, model, tools, handOffs, argumentHint, target, visibility, agents, agentInstructions, source, sessionTypes, hooks, enabled };
+		const reasoningEffort = ast.header.reasoningEffort;
+		return { id, uri, name, description, model, ...(reasoningEffort !== undefined ? { reasoningEffort } : {}), ...(ast.header.modelPolicy ? { modelPolicy: ast.header.modelPolicy } : {}), tools, handOffs, argumentHint, target, visibility, agents, agentInstructions, source, sessionTypes, hooks, enabled };
 
 	}
 }

@@ -6,7 +6,7 @@
 import type { ChatPetState } from './chatPetWidget.js';
 
 export type ChatPetAccessoryRigPose = 'upright' | 'sleeping' | 'airborne' | 'impact' | 'splat';
-export type ChatPetAccessoryTrack = 'idle' | 'sleep' | 'waking' | 'typing' | 'rendering' | 'painting' | 'buttonPress' | 'love' | 'clapping' | 'jump' | 'cool' | 'yapping' | 'sing' | 'speechless' | 'worry' | 'dizzy' | 'falling' | 'wallImpact' | 'splat' | 'search';
+export type ChatPetAccessoryTrack = 'idle' | 'sleep' | 'waking' | 'typing' | 'rendering' | 'painting' | 'buttonPress' | 'love' | 'clapping' | 'jump' | 'cool' | 'yapping' | 'sing' | 'speechless' | 'worry' | 'dizzy' | 'falling' | 'wallImpact' | 'splat';
 
 export interface IChatPetAccessoryAnchor {
 	readonly x: number;
@@ -125,10 +125,6 @@ export function getChatPetAccessoryTrack(state: ChatPetState): ChatPetAccessoryT
 			return 'yapping';
 		case 'wallImpact':
 			return 'wallImpact';
-		case 'onTheRun':
-		case 'searching':
-		case 'searchingDown':
-			return 'search';
 		case 'complete':
 		case 'yapping':
 		case 'idle':

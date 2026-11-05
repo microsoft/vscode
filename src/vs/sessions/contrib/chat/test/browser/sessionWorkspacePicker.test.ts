@@ -3901,6 +3901,97 @@ suite('WorkspacePicker - Path validation', () => {
 	teardown(() => disposables.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('removes missing local history and session-only folders without checking remote or virtual workspaces', async () => {
+		const providersService = disposables.add(new MockSessionsProvidersService());
+		const missingWorktree = URI.file('/local/project.worktrees/deleted');
+		const missingSessionFolder = URI.file('/local/deleted-session');
+		const existing = URI.file('/local/existing');
+		const remote = URI.parse('vscode-remote://ssh-remote+host/project');
+		const virtual = URI.parse('github-remote://owner/repository');
+		const unavailable = URI.file('/local/unavailable');
+		const provider = createMockProvider('provider', {
+			getSessions: () => [createMockSession(provider, missingSessionFolder, 1)],
+		});
+		providersService.setProviders([provider]);
+		const storage = disposables.add(new TestStorageService());
+		seedStorage(storage, [missingWorktree, existing, remote, virtual, unavailable].map(uri => ({ uri, providerId: provider.id, checked: false })));
+		const removed: string[] = [];
+		const checked: string[] = [];
+		const workspacesService = upcastPartial<IWorkspacesService>({
+			getRecentlyOpened: async () => ({ workspaces: [], files: [] }),
+			onDidChangeRecentlyOpened: Event.None,
+			removeRecentlyOpened: async folders => { removed.push(...folders.map(folder => folder.toString())); },
+		});
+		const recents = await createResolvedRecentWorkspacesService(disposables, storage, providersService, workspacesService);
+		const picker = createTestPicker(
+			disposables, providersService, storage, undefined, DispatchingWorkspacePicker, {}, workspacesService, recents,
+			undefined,
+			upcastPartial<IFileService>({
+				onDidChangeFileSystemProviderRegistrations: Event.None,
+				hasProvider: folder => !extUri.isEqual(folder, unavailable),
+				exists: async folder => {
+					checked.push(folder.toString());
+					return extUri.isEqual(folder, existing);
+				},
+			}),
+		) as DispatchingWorkspacePicker;
+
+		const removedMissingFolders = Event.toPromise(Event.filter(recents.onDidRemoveRecentWorkspaces, () => removed.length === 2));
+		picker.showPicker(false, document.createElement('button'));
+		await removedMissingFolders;
+
+		assert.deepStrictEqual({
+			checked: checked.sort(),
+			removed: removed.sort(),
+			folders: picker.getItems().flatMap(item => item.item?.folderUri?.toString() ?? []).sort(),
+			sessionDismissed: recents.isWorkspaceDismissed(missingSessionFolder),
+		}, {
+			checked: [missingWorktree, existing, missingSessionFolder].map(uri => uri.toString()).sort(),
+			removed: [missingWorktree, missingSessionFolder].map(uri => uri.toString()).sort(),
+			folders: [existing, remote, virtual, unavailable].map(uri => uri.toString()).sort(),
+			sessionDismissed: true,
+		});
+	});
+
+	test('rechecks a selected worktree before submission without replacing its draft when deleted', async () => {
+		const providersService = disposables.add(new MockSessionsProvidersService());
+		const provider = createMockProvider('local-1');
+		providersService.setProviders([provider]);
+		const folder = URI.file('/local/project.worktrees/deleted');
+		let exists = true;
+		const dialogs: string[] = [];
+		const picker = createTestPicker(
+			disposables, providersService, undefined, undefined, undefined, {},
+			upcastPartial<IWorkspacesService>({
+				getRecentlyOpened: async () => ({ workspaces: [], files: [] }),
+				onDidChangeRecentlyOpened: Event.None,
+				removeRecentlyOpened: async () => { },
+			}),
+			undefined, { restoreFromSessions: false },
+			upcastPartial<IFileService>({
+				onDidChangeFileSystemProviderRegistrations: Event.None,
+				hasProvider: () => true,
+				exists: async () => exists,
+			}),
+			undefined,
+			upcastPartial<IDialogService>({ info: async message => { dialogs.push(message); } }),
+		);
+		picker.setSelectedWorkspace(folder);
+		let selectionChanges = 0;
+		disposables.add(picker.onDidSelectWorkspace(() => selectionChanges++));
+		const beforeDeletion = await picker.validateSelectedWorkspace();
+		exists = false;
+		const afterDeletion = await picker.validateSelectedWorkspace();
+
+		assert.deepStrictEqual({ beforeDeletion, afterDeletion, selected: picker.selectedFolderUri, selectionChanges, dialogs }, {
+			beforeDeletion: true,
+			afterDeletion: false,
+			selected: folder,
+			selectionChanges: 0,
+			dialogs: ['Path does not exist'],
+		});
+	});
+
 	for (const alreadySelected of [false, true]) {
 		test(`rejects and removes a missing local directory ${alreadySelected ? 'that is already selected' : 'before changing selection'}`, async () => {
 			const providersService = disposables.add(new MockSessionsProvidersService());

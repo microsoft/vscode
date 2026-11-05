@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { IObservable } from '../../../../base/common/observable.js';
+import { IObservable, IReader } from '../../../../base/common/observable.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { localize } from '../../../../nls.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { getReasoningEffortLabel, isReasoningEffortLevel, ReasoningEffortConfigKey } from '../../../../platform/agentHost/common/reasoningEffort.js';
+import { IChat, ISession } from './session.js';
 
 export const enum SessionComparisonParticipantRole {
 	Coordinator = 'coordinator',
@@ -70,6 +72,8 @@ export interface ISessionComparisonParticipant {
 	readonly role: SessionComparisonParticipantRole;
 	readonly harness: ISessionComparisonHarness;
 	readonly sessionResource?: URI;
+	/** Exact participant chat; absent in comparisons created before nested participants. */
+	readonly chatResource?: URI;
 	readonly launchError?: string;
 	readonly missingSession?: boolean;
 	readonly completion?: {
@@ -115,6 +119,7 @@ export const SESSION_COMPARISON_SYNTHESIS_INSTRUCTIONS_MAX_LENGTH = 4000;
 export const SESSION_COMPARISON_MIN_ATTEMPTS = 2;
 export const SESSION_COMPARISON_MAX_ATTEMPTS = 10;
 export const COMPARE_AGENTS_ENABLED_SETTING = 'sessions.chat.compareAgents.enabled';
+export const COMPARE_AGENTS_TOOLS_ENABLED_SETTING = 'sessions.chat.compareAgents.tools.enabled';
 
 export function getBoundedSessionComparisonManifestText(value: string): string {
 	return value.length <= SESSION_COMPARISON_MANIFEST_TEXT_MAX_LENGTH ? value : value.slice(0, SESSION_COMPARISON_MANIFEST_TEXT_MAX_LENGTH);
@@ -131,6 +136,8 @@ export interface ISessionComparisonSynthesisPlan {
 export interface ISessionComparison {
 	readonly id: string;
 	readonly groupId: string;
+	/** The first attempt's session, containing the other participants as nested chats. */
+	readonly sessionResource?: URI;
 	readonly title: string;
 	readonly createdAt: number;
 	readonly workspace?: URI;
@@ -162,6 +169,13 @@ export interface IStartSessionComparisonOptions {
 	readonly branch?: string;
 }
 
+export class SessionComparisonLaunchError extends Error {
+	constructor(message: string, readonly participants: readonly ISessionComparisonParticipant[]) {
+		super(message);
+		this.name = 'SessionComparisonLaunchError';
+	}
+}
+
 export interface ISessionComparisonService {
 	readonly _serviceBrand: undefined;
 	readonly comparisons: IObservable<readonly ISessionComparison[]>;
@@ -169,6 +183,8 @@ export interface ISessionComparisonService {
 	startComparison(options: IStartSessionComparisonOptions, token?: CancellationToken): Promise<ISessionComparison>;
 	getComparison(comparisonId: string): ISessionComparison | undefined;
 	getComparisonForSession(resource: URI): ISessionComparison | undefined;
+	/** Resolves an exact participant chat, including the live request model retained across its move. */
+	getParticipantForChat(comparisonId: string, resource: URI): ISessionComparisonParticipant | undefined;
 	cancelComparison(comparisonId: string): void;
 	archiveComparison(comparisonId: string): void;
 	/** Restores an automatically removed comparison group for bulk archive Undo and returns its group ID. */
@@ -182,6 +198,12 @@ export interface ISessionComparisonService {
 }
 
 export const ISessionComparisonService = createDecorator<ISessionComparisonService>('sessionComparisonService');
+
+export function getSessionComparisonChat(participant: ISessionComparisonParticipant, session: ISession | undefined, reader?: IReader): IChat | undefined {
+	return participant.chatResource
+		? session?.chats.read(reader).find(chat => isEqual(chat.resource, participant.chatResource))
+		: session?.mainChat.read(reader);
+}
 
 export function getSessionComparisonWorkspaceError(branch: string | undefined): string | undefined {
 	if (!branch) {

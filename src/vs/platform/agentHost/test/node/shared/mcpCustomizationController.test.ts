@@ -9,6 +9,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { AgentSession } from '../../../common/agent.js';
+import { buildMcpResourceUri } from '../../../common/mcpResourceUri.js';
 import { isCustomizationEnabled } from '../../../common/customizationEnablement.js';
 import { readMcpServerDisplayName, readMcpServerSource, readMcpServerSourcePlugin, withMcpServerSourceMeta, withMcpServerSourcePluginMeta } from '../../../common/meta/mcpCustomizationMeta.js';
 import { readCustomizationDiscoveryMeta, withCustomizationDiscoveryMeta } from '../../../common/meta/customizationDiscoveryMeta.js';
@@ -17,7 +18,7 @@ import { CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType
 import { buildDefaultChatUri, buildChatUri } from '../../../common/state/sessionState.js';
 import type { SessionAction } from '../../../common/state/sessionActions.js';
 import { AgentHostStateManager } from '../../../node/agentHostStateManager.js';
-import { applyMcpServerEnablement, applyMcpServerRuntimeStates, buildMcpChannel, getEffectiveMcpServerCustomizations, mergeMcpServerCustomizations, McpCustomizationController, findMcpChildId, findMcpServerName, parseMcpChannelUri, type IMcpServerProvenance, type ISdkMcpServer } from '../../../node/shared/mcpCustomizationController.js';
+import { applyMcpServerEnablement, applyMcpServerRuntimeStates, buildMcpChannel, getEffectiveMcpServerCustomizations, mergeMcpServerCustomizations, McpCustomizationController, findMcpChildId, findMcpServerName, parseMcpChannelUri, type IMcpServerProvenance, type IMcpSkill, type ISdkMcpServer } from '../../../node/shared/mcpCustomizationController.js';
 
 const SESSION_URI = AgentSession.uri('copilot', 'session-1');
 const CHAT_URI = URI.parse(buildChatUri(SESSION_URI, 'chat-1'));
@@ -127,6 +128,140 @@ suite('McpCustomizationController', () => {
 	}
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const nested of [false, true]) {
+		test(`publishes mapped MCP skills on a ${nested ? 'plugin child' : 'top-level'} server and preserves them on republish`, () => {
+			const { controller, actions, setCustomizations } = harness(store, { customizations: nested ? PLUGIN_CUSTOMIZATIONS : [] });
+			store.add(controller);
+			controller.applyOne({ ...server('fs', ready()), displayName: 'Friendly File Server' });
+			const base = nested ? PLUGIN_CUSTOMIZATIONS[0] : controller.topLevelCustomizations()[0];
+			const serverId = nested ? 'mcp-child:demo:fs' : 'mcp-top-level:copilot:session-1:fs';
+			setCustomizations([base]);
+			const skill: IMcpSkill = {
+				name: 'mcp1:fs:review', declaredName: 'Review',
+				description: 'Reviews files', uri: 'skill://review/SKILL.md', enabled: false, userInvocable: false, argumentHint: '<path>',
+			};
+			controller.setSkills(new Map([['fs', [skill]], ['other-server', [{ ...skill, name: 'other' }]]]));
+			const updated = applyMcpServerRuntimeStates(base, controller.runtimeStates.get());
+			const customization = updated.type === CustomizationType.McpServer ? updated : updated.children?.[0];
+			const publication = actions.filter(action => action.type === ActionType.SessionCustomizationUpdated).at(-1)?.customization;
+			const publishedServer = publication?.type === CustomizationType.McpServer ? publication : publication?.children?.[0];
+			const expected = [{
+				type: CustomizationType.Skill,
+				id: `${serverId}#skill=${encodeURIComponent(skill.uri)}`,
+				name: 'fs:Review', description: 'Reviews files', enabled: false, disableUserInvocation: true,
+				uri: buildMcpResourceUri(MCP_FS_CHANNEL, 'skill://review/SKILL.md', 'Review'),
+			}];
+			assert.deepStrictEqual({
+				children: customization?.type === CustomizationType.McpServer ? customization.children : undefined,
+				publishedChildren: publishedServer?.type === CustomizationType.McpServer ? publishedServer.children : undefined,
+				qualifiedName: controller.skillNameForCustomizationId(expected[0].id),
+				qualifiedNameByName: controller.skillNameForPublishedName('FS:REVIEW'),
+			}, { children: expected, publishedChildren: expected, qualifiedName: 'mcp1:fs:review', qualifiedNameByName: 'mcp1:fs:review' });
+		});
+	}
+
+	test('rebuilds skill resource references as a channel appears and removes vanished skills', () => {
+		const { controller } = harness(store);
+		store.add(controller);
+		controller.setSkills(new Map([['fs', [{
+			name: 'mcp1:fs:review', description: 'Reviews files', uri: 'skill://demo/release-notes/SKILL.md', enabled: true, userInvocable: true,
+		}]]]));
+		controller.applyOne(server('fs', starting()));
+		const cold = controller.topLevelCustomizations()[0].children;
+		controller.applyOne(server('fs', ready()));
+		const warm = controller.topLevelCustomizations()[0].children;
+		controller.setSkills(new Map());
+		assert.deepStrictEqual({ cold, warm, cleared: controller.topLevelCustomizations()[0].children }, {
+			cold: [{
+				type: CustomizationType.Skill, id: 'mcp-top-level:copilot:session-1:fs#skill=skill%3A%2F%2Fdemo%2Frelease-notes%2FSKILL.md',
+				name: 'fs:release-notes', description: 'Reviews files', uri: 'agent-discovery://demo/release-notes/SKILL.md',
+			}],
+			warm: [{
+				type: CustomizationType.Skill, id: 'mcp-top-level:copilot:session-1:fs#skill=skill%3A%2F%2Fdemo%2Frelease-notes%2FSKILL.md',
+				name: 'fs:release-notes', description: 'Reviews files', uri: buildMcpResourceUri(MCP_FS_CHANNEL, 'skill://demo/release-notes/SKILL.md', 'release-notes'),
+			}],
+			cleared: [],
+		});
+	});
+
+	test('retains published skill identity when the session-scoped runtime name changes', () => {
+		const { controller } = harness(store);
+		store.add(controller);
+		controller.applyOne(server('fs', ready()));
+		const skill: IMcpSkill = {
+			name: 'mcp1:first:review', declaredName: 'Review', description: 'Reviews files',
+			uri: 'skill://demo/review/SKILL.md', enabled: true, userInvocable: true,
+		};
+		controller.setSkills(new Map([['fs', [skill]]]));
+		const initial = controller.topLevelCustomizations()[0].children?.[0];
+		controller.setSkills(new Map([['fs', [{ ...skill, name: 'mcp1:second:review' }]]]));
+		const refreshed = controller.topLevelCustomizations()[0].children?.[0];
+		const lookups = {
+			id: initial && controller.skillNameForCustomizationId(initial.id),
+			name: controller.skillNameForPublishedName('FS:review'),
+			commands: [...controller.skillCommandNames()],
+			unknown: controller.skillNameForPublishedName('other:Review'),
+		};
+		controller.clearSkills();
+		assert.deepStrictEqual({
+			stable: initial?.id === refreshed?.id && initial?.name === refreshed?.name,
+			lookups,
+			cleared: {
+				id: initial && controller.skillNameForCustomizationId(initial.id),
+				name: controller.skillNameForPublishedName('fs:Review'),
+				commands: [...controller.skillCommandNames()],
+			},
+		}, {
+			stable: true,
+			lookups: { id: 'mcp1:second:review', name: 'mcp1:second:review', commands: ['mcp1:second:review'], unknown: undefined },
+			cleared: { id: undefined, name: undefined, commands: [] },
+		});
+	});
+
+	test('publishes skill children only once a server is ready or reports skills', () => {
+		const { controller } = harness(store);
+		store.add(controller);
+		controller.setSkills(new Map());
+		controller.applyOne(server('fs', starting()));
+		const beforeReady = controller.topLevelCustomizations()[0].children;
+		controller.applyOne(server('fs', ready()));
+		assert.deepStrictEqual({ beforeReady, ready: controller.topLevelCustomizations()[0].children }, { beforeReady: undefined, ready: [] });
+	});
+
+	test('does not add skill children when no provider skill snapshot is supplied', () => {
+		const { controller } = harness(store);
+		store.add(controller);
+		controller.applyOne(server('fs', ready()));
+		assert.deepStrictEqual({
+			hasChildren: Object.hasOwn(controller.topLevelCustomizations()[0], 'children'),
+			runtimeHasChildren: Object.hasOwn(controller.runtimeStates.get().values().next().value ?? {}, 'children'),
+		}, { hasChildren: false, runtimeHasChildren: false });
+	});
+
+	test('withdraws retained skill children from both top-level and plugin servers when support is off', () => {
+		const skill = { type: CustomizationType.Skill as const, id: 'old-skill', uri: 'skill://review/SKILL.md', name: 'Review' };
+		const top: McpServerCustomization = { type: CustomizationType.McpServer, id: 'top', uri: 'top', name: 'fs', state: ready(), children: [skill] };
+		const plugin: PluginCustomization = { type: CustomizationType.Plugin, id: 'plugin', uri: 'file:///plugin', name: 'Plugin', children: [{ ...top, id: 'nested' }] };
+		const { controller, actions } = harness(store, { customizations: [top, plugin] });
+		store.add(controller);
+		controller.clearSkills();
+		const { children: _children, ...withoutSkills } = top;
+		assert.deepStrictEqual(actions, [
+			{ type: ActionType.SessionCustomizationUpdated, customization: withoutSkills },
+			{ type: ActionType.SessionCustomizationUpdated, customization: { ...plugin, children: [{ ...withoutSkills, id: 'nested' }] } },
+		]);
+	});
+
+	test('retains live skill children when merging a fresh server declaration', () => {
+		const declaration: McpServerCustomization = { type: CustomizationType.McpServer, id: 'server', uri: 'server', name: 'fs', state: stopped(), children: [] };
+		const live: McpServerCustomization = {
+			...declaration, state: ready(), channel: MCP_FS_CHANNEL,
+			children: [{ type: CustomizationType.Skill, id: 'skill', uri: 'skill://review/SKILL.md', name: 'Review' }],
+		};
+		const merged = mergeMcpServerCustomizations([declaration], [live]);
+		assert.deepStrictEqual(merged.map(server => server.type === CustomizationType.McpServer ? server.children : undefined), [live.children]);
+	});
 
 	test('confirmed SDK defaults update nested publication and survive later runtime updates', () => {
 		const child: McpServerCustomization = {

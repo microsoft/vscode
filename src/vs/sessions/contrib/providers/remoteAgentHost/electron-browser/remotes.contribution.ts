@@ -15,6 +15,8 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { logSettingExperimentTrigger } from '../../../../../platform/telemetry/common/experimentTrigger.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../../../workbench/browser/editor.js';
 import { EditorExtensions } from '../../../../../workbench/common/editor.js';
 import { AccessibilityVerbositySettingId } from '../../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
@@ -27,7 +29,7 @@ import { IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
 import { Menus } from '../../../../browser/menus.js';
 import { RemotesEditorInput } from '../browser/remotesEditorInput.js';
 import { RemotesEditor, RemotesEditorFocusedContext } from './remotesEditor.js';
-import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../../chat/common/constants.js';
+import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING } from '../../../chat/common/constants.js';
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(RemotesEditor, RemotesEditor.ID, localize('remotes.editorLabel', "Remote Environments")),
@@ -85,11 +87,17 @@ class RemotesAccessibleView implements IAccessibleViewImplementation {
 			return undefined;
 		}
 		const focused = dom.getActiveElement();
+		if (this.type === AccessibleViewType.Help) {
+			// The help describes the This Computer section only in the treatment arm.
+			logSettingExperimentTrigger(accessor.get(ITelemetryService), REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING);
+		}
+		const showThisComputer = accessor.get(IConfigurationService).getValue<boolean>(REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING);
 		return new AccessibleContentProvider(
 			AccessibleViewProviderId.Remotes,
 			{ type: this.type },
 			() => this.type === AccessibleViewType.Help ? [
-				localize('remotes.help.overview', "Remote Environments lists known SSH hosts and Dev Tunnels in a table grouped by connection type. Open it with Manage Remote Environments in the Command Palette, from the Sessions section's More Actions menu, or with Manage Remote Environments in the Environment picker. WSL distributions are also available on Windows. When enabled and available, GitHub Environments lists known user-shared machines, including offline machines. The columns are Name, Status, and Actions."),
+				localize('remotes.help.overview', "Remote Environments lists known SSH hosts and Dev Tunnels in a table grouped by connection type. Open it with Manage Remote Environments in the Command Palette, from the Sessions section's More Actions menu, from the Remote Connections menu in the title bar, or with Manage Remote Environments in the Environment picker. WSL distributions are also available on Windows. When enabled and available, GitHub Environments lists known user-shared machines, including offline machines. The columns are Name, Status, and Actions. This computer's own Dev Tunnel and GitHub environment are not listed, because this window already runs sessions on this computer."),
+				...(showThisComputer ? [localize('remotes.help.thisComputer', "The This Computer section above the table shows how this computer is shared with other clients. Its Remote Connections options are Off, GitHub Environments when available, and Dev Tunnels; they match the Remote Connections menu in the title bar. Use Tab to reach the options and the arrow keys to move between them, then press Enter or Space to choose one. Choosing an option starts or stops sharing; the status below the options announces the result. Rename Sharing Name changes the name other clients see. Local sessions keep running directly on this computer whether sharing is on or off.")] : []),
 				localize('remotes.help.environments', "For GitHub Environments, Connect is disabled when the owning application is offline. Disconnect retains the environment and follows its existing reconnection preferences. Rename applies only to the current account and profile. Delete asks for confirmation before removing the user-shared environment registration and disconnecting this client. It does not delete files on the machine. The environment can reappear if its owning application registers it again. The GitHub Environments gear opens its settings."),
 				localize('remotes.help.navigation', "Type in Search to filter remotes by name, address, or connection type. Clear Search and Collapse All are at the right of the search field; use Tab to reach these actions and Left and Right Arrow to move between them. Clear Search returns focus to the input. Collapse All preserves the search text. Groups without matches are hidden while searching. Use Down Arrow from Search to enter the table. Use Up and Down Arrow to navigate rows. On a group, use Left and Right Arrow to collapse or expand it, or press Enter to toggle it. Visibility icons are always shown; other row actions appear on hover or keyboard focus. On a remote, press Tab to reach its actions and use Left and Right Arrow to move between Connect or Disconnect and Rename. Use Enter or Space to activate an action. Resize columns by dragging their boundaries. Narrow windows scroll horizontally."),
 				localize('remotes.help.connection', "Status labels include Connected, Connecting, and Disconnected. A warning indicates that a connection you requested failed. Hover the warning or open the Accessible View to read the error. Automatic connection failures do not create a warning, but automatic retries retain an existing warning until they finish. A failed retry updates the error; a successful retry clears it. GitHub environments whose owning application is not online show Offline. Use Connect or Disconnect to manage the connection. Connection actions are unavailable while connecting or reconnecting. Disconnect follows the existing remote behavior and may remove it from the picker."),

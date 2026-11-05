@@ -367,12 +367,15 @@ function getFinishedThinkingTitle(parts: readonly IChatThinkingPart[]): string {
 }
 
 /**
- * Labels a recorded reasoning duration, rounded up to whole seconds so that
- * short reasoning never reads as "Thought for 0s".
+ * Formats recorded reasoning time, rounding up so short reasoning never displays as zero.
  */
-function getReasoningDurationLabel(duration: number): string {
+function formatReasoningDuration(duration: number): string {
 	const seconds = Math.max(1, Math.ceil(duration / 1000));
-	return localize('chat.thinking.thoughtFor', "Thought for {0}", formatElapsedTime(seconds * 1000));
+	return formatElapsedTime(seconds * 1000);
+}
+
+function getReasoningDurationLabel(duration: number): string {
+	return localize('chat.thinking.thoughtFor', "Thought for {0}", formatReasoningDuration(duration));
 }
 
 export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implements IChatContentPart {
@@ -414,7 +417,6 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 	private textContainer!: HTMLElement;
 	private readonly _markdownResult = this._register(new MutableDisposable<IRenderedMarkdown>());
 	private readonly renderedThinkingHeaders = new Map<HTMLElement, { title: string; element: HTMLElement }>();
-	private readonly renderedThinkingParts = new Map<HTMLElement, { part: IChatThinkingPart; label?: HTMLElement }>();
 	private readonly reasoningDurationSnapshots = new Map<string | IChatThinkingPart, number>();
 	private summaryRowItems: HTMLElement[] = [];
 	private summaryRowResults: (IRenderedMarkdown | undefined)[] = [];
@@ -1179,21 +1181,12 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 		}
 		const cleanedContent = content.trim();
 		if (!cleanedContent) {
-			this.renderedThinkingParts.delete(this.textContainer);
 			this._markdownResult.clear();
 			this.clearSummaryRows();
 			if (this.textContainer) {
 				clearNode(this.textContainer);
 			}
 			return;
-		}
-		if (this.textContainer) {
-			const rendered = this.renderedThinkingParts.get(this.textContainer);
-			if (rendered) {
-				rendered.part = this.content;
-			} else {
-				this.renderedThinkingParts.set(this.textContainer, { part: this.content });
-			}
 		}
 
 		const headers = getThinkingHeaders(cleanedContent);
@@ -1351,7 +1344,10 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 		}
 		this.interruptConversationTitle();
 
-		const displayTitle = title;
+		const duration = this.getGeneratedTitleDuration();
+		const displayTitle = duration === undefined
+			? title
+			: localize('chat.thinking.titleWithDuration', "{0} - {1}", title, formatReasoningDuration(duration));
 		this.clearTitleDetail();
 		const labelElement = this._collapseButton.labelElement;
 		labelElement.textContent = '';
@@ -1510,7 +1506,6 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 				this.showFinalizedTitle(title);
 			}
 		}
-		this.updateReasoningDurationLabels();
 		this.updateToolChainVisibility();
 		if (this.isVerboseToolChain) {
 			return;
@@ -1662,6 +1657,9 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 		if (matched) {
 			this.reasoningDurationSnapshots.set(key, duration);
 			this.updateDropdownClickability();
+			if (this.streamingCompleted && this.fallbackTitle === undefined) {
+				this.showFinalizedTitle(this.currentTitle);
+			}
 			this._onDidChangeHeight.fire();
 		}
 	}
@@ -1687,10 +1685,6 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 				}
 				this.allThinkingParts[index] = content;
 			}
-		}
-		const rendered = this.renderedThinkingParts.get(this.textContainer);
-		if (rendered) {
-			rendered.part = content;
 		}
 		this.content = content;
 
@@ -2024,37 +2018,25 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 			: localize('chat.thinking.finished', 'Finished Working');
 	}
 
-	private updateReasoningDurationLabels(): void {
-		if (!this.renderedThinkingParts.size) {
-			return;
+	/** Counts each provider-recorded reasoning run once, excluding tool time and incomplete timing. */
+	private getGeneratedTitleDuration(): number | undefined {
+		if (!this.streamingCompleted || this.fallbackTitle !== undefined) {
+			return undefined;
 		}
-		const sources = new Set([...this.renderedThinkingParts.values()].map(({ part }) => this.thinkingPartSources?.get(part) ?? part));
-		const shown = new Set<IChatThinkingPart>();
-		for (const [container, rendered] of this.renderedThinkingParts) {
-			const part = rendered.part;
-			const source = this.thinkingPartSources?.get(part) ?? part;
+		let totalDuration: number | undefined;
+		const sources = new Set(this.allThinkingParts.map(part => this.thinkingPartSources?.get(part) ?? part));
+		for (const source of sources) {
+			if (!extractTextFromPart(source)) {
+				continue;
+			}
 			const duration = source.reasoningDurationMs;
-			let label = rendered.label;
-			if (duration === undefined || !Number.isFinite(duration) || duration < 0 || shown.has(source)) {
-				label?.remove();
-				continue;
+			if (source.generatedTitle !== this.currentTitle || source.reasoningTimingSource !== 'provider'
+				|| duration === undefined || !Number.isFinite(duration) || duration < 0) {
+				return undefined;
 			}
-			shown.add(source);
-			const text = getReasoningDurationLabel(duration);
-			if (sources.size === 1 && this.currentTitle === text) {
-				label?.remove();
-				continue;
-			}
-			if (!label) {
-				label = rendered.label = $('.chat-thinking-run-duration');
-			}
-			if (label.parentElement !== container) {
-				container.prepend(label);
-			}
-			if (label.textContent !== text) {
-				label.textContent = text;
-			}
+			totalDuration = (totalDuration ?? 0) + duration;
 		}
+		return totalDuration !== undefined && Number.isFinite(totalDuration) ? totalDuration : undefined;
 	}
 
 	private setFallbackTitle(): void {
@@ -2081,7 +2063,6 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 
 	/** Shows a finished section's title, which a conversation section wipes in after its last activity. */
 	private showFinalizedTitle(title: string): void {
-		this.updateReasoningDurationLabels();
 		if (this.isConversation) {
 			this.showConversationTitle({ title, key: conversationFinishedKey, finished: true }, true);
 		} else {
@@ -2962,7 +2943,6 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 
 	override dispose(): void {
 		this.reasoningDurationSnapshots.clear();
-		this.renderedThinkingParts.clear();
 		this.isActive = false;
 		this.thinkingPartSources = undefined;
 		if (this.workingSpinnerElement) {

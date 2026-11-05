@@ -346,6 +346,9 @@ class SectionItemRenderer implements IListRenderer<ISectionItem, ISectionItemTem
 	renderElement(element: ISectionItem, index: number, templateData: ISectionItemTemplateData): void {
 		templateData.templateDisposables.clear();
 		templateData.container.classList.toggle('section-separator-before', element.separatorBefore === true);
+		// Leaves the separator's spacing above the row's box, so the row's hover, selection, and focus look like the other rows'.
+		templateData.container.style.marginTop = element.separatorBefore ? `${SECTION_ITEM_SEPARATOR_SPACING}px` : '';
+		templateData.container.style.maxHeight = element.separatorBefore ? `${SECTION_ITEM_HEIGHT}px` : '';
 		templateData.label.textContent = element.label;
 		templateData.badge.style.display = element.badge ? '' : 'none';
 		if (element.count > 0) {
@@ -1325,6 +1328,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.mcpContentContainer = DOM.append(contentInner, $('.mcp-content-container'));
 			this.mcpListWidget = this.editorDisposables.add(this.instantiationService.createInstance(McpListWidget));
 			this.mcpListWidget.setMcpServerMigrationCandidates(this.getMcpServerMigrationCandidates());
+			this.mcpListWidget.setShowSkillBundle(bundleId => void this.showMcpServerSkills(bundleId));
 			this.mcpListWidget.setCloseCustomizationEditor(async () => {
 				if (this.input) {
 					await this.group.closeEditor(this.input);
@@ -4379,7 +4383,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.storageService.store(AI_CUSTOMIZATION_MANAGEMENT_SELECTED_SECTION_KEY, sectionId, StorageScope.PROFILE, StorageTarget.USER);
 			this.updateContentVisibility();
 			if (this.isPromptsSection(sectionId)) {
-				void this.listWidget.setSection(sectionId);
+				this.listWidgetSectionLoad = this.listWidget.setSection(sectionId);
 			}
 			// Re-layout after visibility change so the newly-visible widget
 			// can measure its flex-computed container height correctly.
@@ -4466,6 +4470,19 @@ export class AICustomizationManagementEditor extends EditorPane {
 	 */
 	public refreshList(): void {
 		this.listWidget.refresh();
+	}
+
+	/** Opens Skills filtered to the MCP server's host-published bundle identity. */
+	public async showMcpServerSkills(bundleId: string): Promise<void> {
+		if (!this.selectSectionById(AICustomizationManagementSection.Skills)) {
+			return;
+		}
+		const navigationGeneration = this.contentNavigationGeneration;
+		const sessionResource = this.harnessService.activeSessionResource.get();
+		await this.listWidgetSectionLoad;
+		if (navigationGeneration === this.contentNavigationGeneration && this.selectedSection === AICustomizationManagementSection.Skills && isEqual(sessionResource, this.harnessService.activeSessionResource.get())) {
+			this.listWidget.showSkillBundle(bundleId);
+		}
 	}
 
 	public setSearchQuery(query: string, preserveFocus?: boolean): void {

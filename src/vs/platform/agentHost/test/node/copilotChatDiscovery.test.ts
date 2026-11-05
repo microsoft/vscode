@@ -260,6 +260,30 @@ suite('CopilotChatDiscovery', () => {
 		});
 	});
 
+	testDiscovery('a scan reading history publishes it at startup unless its metadata really changed', async (files, catalog, discovery) => {
+		for (const id of ['read', 'rewritten']) {
+			files.mkdir(id, false);
+			files.write(id, 'events.jsonl', false);
+			files.write(id, 'vscode.metadata.json', false);
+			catalog.sessions.add(id);
+		}
+		catalog.onListed = call => {
+			if (call === 1) {
+				// Windows reports the scan's own read of a marker as a change, without changing the file.
+				files.change(URI.joinPath(root, 'read', 'vscode.metadata.json'), FileChangeType.UPDATED);
+				files.write('rewritten', 'vscode.metadata.json');
+			}
+		};
+		await discovery.start();
+		const publishedAtStartup = [...catalog.published];
+		await timeout(60_001);
+		assert.deepStrictEqual({ publishedAtStartup, published: catalog.published, scans: catalog.calls.map(call => call.ids) }, {
+			publishedAtStartup: ['read'],
+			published: ['read', 'rewritten'],
+			scans: [undefined, ['rewritten']],
+		});
+	});
+
 	testDiscovery('opening a new empty CLI does not scan history before its first request', async (files, catalog, discovery) => {
 		await discovery.start();
 		files.mkdir('empty');

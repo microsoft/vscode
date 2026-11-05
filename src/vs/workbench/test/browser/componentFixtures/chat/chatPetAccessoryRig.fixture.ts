@@ -155,9 +155,6 @@ const allChatPetStates: readonly ChatPetState[] = [
 	'falling',
 	'wallImpact',
 	'splat',
-	'onTheRun',
-	'searching',
-	'searchingDown',
 ];
 
 export default defineThemedFixtureGroup({ path: 'chat/chatPetAccessoryRig/' }, {
