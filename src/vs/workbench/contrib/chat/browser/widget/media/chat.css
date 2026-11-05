@@ -127,7 +127,6 @@
 
 .interactive-session .interactive-item-container.chat-sticky-progress:not(:empty) {
 	padding-block: var(--vscode-spacing-size20);
-	background-color: var(--vscode-chat-list-background, var(--vscode-editor-background));
 	border-radius: var(--vscode-cornerRadius-medium);
 
 	> .chat-working-progress {
@@ -135,13 +134,21 @@
 	}
 }
 
+/* Mask the backing surface rather than the progress text or the transcript. */
 .interactive-session .chat-sticky-progress:not(:empty)::before {
-	bottom: 100%;
-	height: var(--vscode-spacing-size160);
+	content: '';
+	position: absolute;
+	inset: calc(-1 * var(--vscode-spacing-size320)) 0 0;
+	z-index: -1;
+	pointer-events: none;
+	border-radius: inherit;
+	background-color: var(--vscode-chat-list-background, var(--vscode-editor-background));
+	mask-image: linear-gradient(to bottom, transparent, black var(--vscode-spacing-size320));
 }
 
 .hc-black .interactive-session .chat-sticky-progress:not(:empty),
 .hc-light .interactive-session .chat-sticky-progress:not(:empty) {
+	background-color: var(--vscode-chat-list-background, var(--vscode-editor-background));
 	outline: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder);
 	outline-offset: -1px;
 }
@@ -149,6 +156,7 @@
 .hc-black .interactive-session .chat-sticky-progress:not(:empty)::before,
 .hc-light .interactive-session .chat-sticky-progress:not(:empty)::before {
 	content: none;
+	mask-image: none;
 }
 
 .interactive-item-container {
@@ -2504,7 +2512,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 /* Separate floating controls from transcript content without masking the list,
 	so the treatment remains stable while content streams or scrolls. */
-.interactive-session .chat-sticky-progress:not(:empty)::before,
 .interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content.chat-persistent-content-visible::before {
 	content: '';
 	position: absolute;

@@ -263,7 +263,7 @@ import { BrowserPluginGitCommandService } from './pluginGitCommandService.js';
 import { PluginInstallService } from './pluginInstallService.js';
 import { PluginUrlHandler } from './pluginUrlHandler.js';
 import './promptSyntax/promptCodingAgentActionContribution.js';
-import './promptSyntax/promptToolsCodeLensProvider.js';
+import { PromptToolsCodeLensProvider } from './promptSyntax/promptToolsCodeLensProvider.js';
 import './promptSyntax/promptToolSetsCodeLensProvider.js';
 import { PromptUrlHandler } from './promptSyntax/promptUrlHandler.js';
 import './promptTimeline/promptTimeline.contribution.js';
@@ -1099,8 +1099,7 @@ configurationRegistry.registerConfiguration({
 		[CodexPreferAgentHostEditorSettingId]: {
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.editor.codex.preferAgentHost', "When enabled, Codex sessions opened from the regular workbench (sidebar chat) run inside the agent host process using the Codex App Server instead of the OpenAI extension. Only one Codex implementation surfaces per window. Requires `#chat.agentHost.codexAgent.enabled#`."),
-			default: product.quality !== 'stable',
-			tags: ['experimental'],
+			default: true,
 			experiment: { mode: 'startup' },
 		},
 		[CODEX_CONTINUATION_SETTING]: {
@@ -3296,6 +3295,7 @@ AccessibleViewRegistry.register(new ChatPetJumpGameAccessibleView(AccessibleView
 AccessibleViewRegistry.register(new ChatPetJumpGameAccessibleView(AccessibleViewType.View));
 
 registerEditorFeature(ChatInputBoxContentProvider);
+registerEditorFeature(PromptToolsCodeLensProvider);
 registerEditorFeature(ChatInputSessionLinkProvider);
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(ChatEditorInput.TypeID, ChatEditorInputSerializer);
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(ChatDebugEditorInput.ID, ChatDebugEditorInputSerializer);

@@ -11,6 +11,17 @@ interface NodeBuffer {
 	isBuffer(obj: unknown): obj is NodeBuffer;
 	from(arrayBuffer: ArrayBufferLike, byteOffset?: number, length?: number): Uint8Array;
 	from(data: string): Uint8Array;
+	byteLength(string: string): number;
+}
+
+interface Uint8ArrayWithEncoding extends Uint8Array {
+	toBase64?(options?: { alphabet?: 'base64' | 'base64url'; omitPadding?: boolean }): string;
+	toHex?(): string;
+}
+
+interface Uint8ArrayConstructorWithEncoding {
+	fromBase64?(string: string, options?: { alphabet?: 'base64' | 'base64url'; lastChunkHandling?: 'loose' | 'strict' | 'stop-before-partial' }): Uint8Array;
+	fromHex?(string: string): Uint8Array;
 }
 
 declare const Buffer: NodeBuffer;
@@ -18,7 +29,7 @@ declare const Buffer: NodeBuffer;
 const hasBuffer = (typeof Buffer !== 'undefined');
 const indexOfTable = new Lazy(() => new Uint8Array(256));
 
-let textEncoder: { encode: (input: string) => Uint8Array } | null;
+let textEncoder: { encode: (input: string) => Uint8Array; encodeInto?: (source: string, destination: Uint8Array) => { read: number; written: number } } | null;
 let textDecoder: { decode: (input: Uint8Array) => string } | null;
 
 export class VSBuffer {
@@ -61,6 +72,24 @@ export class VSBuffer {
 			if (!textEncoder) {
 				textEncoder = new TextEncoder();
 			}
+			if (source.length > 65536 && typeof textEncoder.encodeInto === 'function') {
+				const dst = new Uint8Array(VSBuffer.byteLength(source));
+				let offset = 0;
+				let i = 0;
+				while (i < source.length) {
+					let end = Math.min(i + 65536, source.length);
+					if (end < source.length) {
+						const last = source.charCodeAt(end - 1);
+						if (last >= 0xD800 && last <= 0xDBFF) {
+							end--;
+						}
+					}
+					const { written } = textEncoder.encodeInto(source.slice(i, end), dst.subarray(offset));
+					offset += written;
+					i = end;
+				}
+				return new VSBuffer(offset === dst.byteLength ? dst : dst.subarray(0, offset));
+			}
 			return new VSBuffer(textEncoder.encode(source));
 		}
 	}
@@ -102,6 +131,35 @@ export class VSBuffer {
 
 	static isNativeBuffer(buffer: unknown): boolean {
 		return hasBuffer && Buffer.isBuffer(buffer);
+	}
+
+	/**
+	 * Computes the UTF-8 byte length of `source` without allocating a backing buffer.
+	 */
+	static byteLength(source: string): number {
+		if (hasBuffer) {
+			return Buffer.byteLength(source);
+		}
+		let bytes = 0;
+		for (let i = 0, len = source.length; i < len; i++) {
+			const code = source.charCodeAt(i);
+			if (code < 0x80) {
+				bytes += 1;
+			} else if (code < 0x800) {
+				bytes += 2;
+			} else if (code >= 0xD800 && code <= 0xDBFF && i + 1 < len) {
+				const next = source.charCodeAt(i + 1);
+				if (next >= 0xDC00 && next <= 0xDFFF) {
+					bytes += 4;
+					i++;
+				} else {
+					bytes += 3;
+				}
+			} else {
+				bytes += 3;
+			}
+		}
+		return bytes;
 	}
 
 	readonly buffer: Uint8Array;
@@ -316,7 +374,7 @@ export interface VSBufferWriteableStream extends streams.WriteableStream<VSBuffe
 export interface VSBufferReadableBufferedStream extends streams.ReadableBufferedStream<VSBuffer> { }
 
 export function readableToBuffer(readable: VSBufferReadable): VSBuffer {
-	return streams.consumeReadable<VSBuffer>(readable, chunks => VSBuffer.concat(chunks));
+	return streams.consumeReadable<VSBuffer>(readable, chunks => chunks.length === 1 ? chunks[0] : VSBuffer.concat(chunks));
 }
 
 export function bufferToReadable(buffer: VSBuffer): VSBufferReadable {
@@ -324,7 +382,7 @@ export function bufferToReadable(buffer: VSBuffer): VSBufferReadable {
 }
 
 export function streamToBuffer(stream: streams.ReadableStream<VSBuffer>): Promise<VSBuffer> {
-	return streams.consumeStream<VSBuffer>(stream, chunks => VSBuffer.concat(chunks));
+	return streams.consumeStream<VSBuffer>(stream, chunks => chunks.length === 1 ? chunks[0] : VSBuffer.concat(chunks));
 }
 
 export async function bufferedStreamToBuffer(bufferedStream: streams.ReadableBufferedStream<VSBuffer>): Promise<VSBuffer> {
@@ -364,6 +422,16 @@ export function prefixedBufferStream(prefix: VSBuffer, stream: VSBufferReadableS
 
 /** Decodes base64 to a uint8 array. URL-encoded and unpadded base64 is allowed. */
 export function decodeBase64(encoded: string) {
+	const fromBase64 = (Uint8Array as unknown as Uint8ArrayConstructorWithEncoding).fromBase64;
+	if (typeof fromBase64 === 'function' && encoded.length >= 64 && !/[\t\n\f\r ]/.test(encoded)) {
+		try {
+			const alphabet = (encoded.includes('-') || encoded.includes('_')) ? 'base64url' : 'base64';
+			return VSBuffer.wrap(fromBase64.call(Uint8Array, encoded, { alphabet, lastChunkHandling: 'loose' }));
+		} catch {
+			// Fall back to the permissive character loop below (e.g. mixed alphabet or trailing chars after '=').
+		}
+	}
+
 	let building = 0;
 	let remainder = 0;
 	let bufi = 0;
@@ -429,6 +497,11 @@ const base64UrlSafeAlphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvw
 
 /** Encodes a buffer to a base64 string. */
 export function encodeBase64({ buffer }: VSBuffer, padded = true, urlSafe = false) {
+	const toBase64 = (buffer as Uint8ArrayWithEncoding).toBase64;
+	if (typeof toBase64 === 'function') {
+		return toBase64.call(buffer, { alphabet: urlSafe ? 'base64url' : 'base64', omitPadding: !padded });
+	}
+
 	const dictionary = urlSafe ? base64UrlSafeAlphabet : base64Alphabet;
 	let output = '';
 
@@ -465,6 +538,11 @@ export function encodeBase64({ buffer }: VSBuffer, padded = true, urlSafe = fals
 
 const hexChars = '0123456789abcdef';
 export function encodeHex({ buffer }: VSBuffer): string {
+	const toHex = (buffer as Uint8ArrayWithEncoding).toHex;
+	if (typeof toHex === 'function') {
+		return toHex.call(buffer);
+	}
+
 	let result = '';
 	for (let i = 0; i < buffer.length; i++) {
 		const byte = buffer[i];
@@ -475,6 +553,11 @@ export function encodeHex({ buffer }: VSBuffer): string {
 }
 
 export function decodeHex(hex: string): VSBuffer {
+	const fromHex = (Uint8Array as unknown as Uint8ArrayConstructorWithEncoding).fromHex;
+	if (typeof fromHex === 'function') {
+		return VSBuffer.wrap(fromHex.call(Uint8Array, hex));
+	}
+
 	if (hex.length % 2 !== 0) {
 		throw new SyntaxError('Hex string must have an even length');
 	}

@@ -23,12 +23,14 @@ export interface IChatViewFactory {
 
 	/**
 	 * Creates a "new chat" view that lets the user pick a workspace and
-	 * start a new chat. This is the view the grid is seeded with on startup.
+	 * start a new chat. This is the view the grid is seeded with on startup. `instantiationService` is the scope of the
+	 * surface that shows it, which provides its session host.
 	 */
-	createNewChatView(isNewChatInSession: boolean, options: IChatViewOptions, instantiationService?: IInstantiationService): AbstractChatView;
+	createNewChatView(isNewChatInSession: boolean, options: IChatViewOptions, instantiationService: IInstantiationService): AbstractChatView;
 
 	/**
 	 * Creates a chat view that hosts a chat widget for an active session, with the given options for its input.
+	 * `instantiationService` is the scope of the surface that shows it, which provides its session host.
 	 */
-	createChatView(instantiationService?: IInstantiationService, options?: IChatViewOptions): AbstractChatView;
+	createChatView(instantiationService: IInstantiationService, options?: IChatViewOptions): AbstractChatView;
 }

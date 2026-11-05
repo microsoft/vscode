@@ -43,7 +43,6 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { HoverStyle } from '../../../../base/browser/ui/hover/hover.js';
 import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
@@ -84,7 +83,7 @@ import { AutomationCronInput } from './automationCronInput.js';
 import { NewChatModelPickerService, INewChatModelPickerService } from '../../chat/browser/newChatModelPicker.js';
 import { createNewSessionControlToolbar } from '../../chat/browser/newSessionConfigToolbars.js';
 import { ISessionModelSelection, SessionModelSelection } from '../../chat/browser/sessionModelSelection.js';
-import { ISessionContext, SessionContext } from '../../../services/sessions/browser/sessionContext.js';
+import { ActiveSessionHost, createSessionHostServices, getMainWindowHost, ISessionHostService, SessionHostKind } from '../../../services/sessions/browser/sessionHost.js';
 import { VisibleSession } from '../../../services/sessions/browser/visibleSessions.js';
 import { setActiveSessionContextKeys } from '../../../services/sessions/common/sessionContextKeys.js';
 import { SessionUsesCombinedConfigPickerContext } from '../../../common/contextkeys.js';
@@ -1758,12 +1757,17 @@ export function renderForm(
 	ChatContextKeys.inAutomationsDialog.bindTo(scopedContextKeyService).set(true);
 	const newChatModelPickerService = new NewChatModelPickerService();
 	const sessionModelSelection = disposables.add(instantiationService.createInstance(SessionModelSelection, activeAutomationSession, { modelConfiguration: true }));
-	const scopedInstantiationService = disposables.add(instantiationService.createChild(new ServiceCollection(
-		[IContextKeyService, scopedContextKeyService],
-		[ISessionContext, new SessionContext(activeAutomationSession)],
-		[INewChatModelPickerService, newChatModelPickerService],
-		[ISessionModelSelection, sessionModelSelection],
-	)));
+	// The dialog drafts in the host of the window it shows in: the window of its form.
+	const automationHost = instantiationService.invokeFunction(accessor => {
+		const sessionHostService = accessor.get(ISessionHostService);
+		const parent = sessionHostService.getHostOfWindow(DOM.getWindow(form).vscodeWindowId) ?? getMainWindowHost(sessionHostService);
+		return new ActiveSessionHost({ kind: SessionHostKind.AutomationDialog, parent, session: activeAutomationSession, contextKeyService: scopedContextKeyService });
+	});
+	disposables.add(instantiationService.invokeFunction(accessor => accessor.get(ISessionHostService).registerHost(automationHost)));
+	const services = createSessionHostServices(scopedContextKeyService, automationHost);
+	services.set(INewChatModelPickerService, newChatModelPickerService);
+	services.set(ISessionModelSelection, sessionModelSelection);
+	const scopedInstantiationService = disposables.add(instantiationService.createChild(services));
 	const usesCombinedConfigPicker = SessionUsesCombinedConfigPickerContext.bindTo(scopedContextKeyService);
 	disposables.add(autorun(reader => {
 		sessionTypesChanged.read(reader);

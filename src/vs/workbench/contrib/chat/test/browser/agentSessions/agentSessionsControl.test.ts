@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { EventType, scheduleAtNextAnimationFrame } from '../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
-import { Event } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { HoverPosition } from '../../../../../../base/browser/ui/hover/hoverWidget.js';
@@ -14,7 +14,7 @@ import { AgentSessionsControl } from '../../../browser/agentSessions/agentSessio
 import { IAgentSession, IAgentSessionsModel } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../browser/agentSessions/agentSessionsService.js';
 import { IAgentSessionsFilter } from '../../../browser/agentSessions/agentSessionsViewer.js';
-import { ChatSessionRefreshReason, ChatSessionStatus, IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { ChatSessionRefreshReason, ChatSessionStatus, IChatSessionItemArchiveState, IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { IVoicePlaybackService } from '../../../common/voicePlaybackService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -24,6 +24,7 @@ import { timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { AgentSessionsGrouping } from '../../../browser/agentSessions/agentSessionsFilter.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { MockChatSessionsService } from '../../common/mockChatSessionsService.js';
 
 suite('AgentSessionsControl', () => {
 
@@ -59,6 +60,127 @@ suite('AgentSessionsControl', () => {
 		};
 	}
 
+	for (const { filtered, initiallyVisible } of [
+		{ filtered: false, initiallyVisible: true },
+		{ filtered: true, initiallyVisible: true },
+		{ filtered: false, initiallyVisible: false },
+	]) {
+		test(`lazy archive discovery keeps its header reachable (filtered=${filtered}, initiallyVisible=${initiallyVisible})`, async () => {
+			const model: IAgentSessionsModel = {
+				sessions: filtered ? [createSession(URI.parse('test:/filtered'), 'Filtered')] : [], resolved: true, getSession: () => undefined,
+				observeSession: () => { throw new Error('Not implemented'); },
+				onWillResolve: Event.None, onDidResolve: Event.None,
+				onDidChangeSessions: Event.None, onDidChangeSessionArchivedState: Event.None,
+				resolve: async () => { },
+			};
+			let requests = 0;
+			const service = new class extends MockChatSessionsService {
+				override readonly archivedSessionItems = observableValue<IChatSessionItemArchiveState>(this, { available: true, state: 'idle' });
+				override acquireArchivedSessionItems() {
+					requests++;
+					return toDisposable(() => requests--);
+				}
+			}();
+			const instantiation = workbenchInstantiationService(undefined, store);
+			instantiation.stub(IChatSessionsService, service);
+			instantiation.stub(IVoicePlaybackService, new class extends mock<IVoicePlaybackService>() { });
+			instantiation.stub(IAgentSessionsService, new class extends mock<IAgentSessionsService>() {
+				override readonly model = model;
+				override readonly onDidChangeSessionArchivedState = Event.None;
+			});
+			const container = document.createElement('div');
+			document.body.appendChild(container);
+			store.add(toDisposable(() => container.remove()));
+			const control = store.add(instantiation.createInstance(AgentSessionsControl, container, {
+				overrideStyles: {}, source: 'test', initiallyVisible,
+				filter: {
+					...createFilter(), groupResults: () => AgentSessionsGrouping.Date,
+					exclude: () => filtered,
+					isDefault: () => !filtered,
+					getExcludes: () => ({ providers: [], states: [], archived: initiallyVisible, read: false, repositoryGroupCapped: true }),
+				},
+				createNewChat: () => { }, getHoverPosition: () => HoverPosition.BELOW, trackActiveEditorSession: () => false,
+			}));
+			control.layout(300, 400);
+			await control.update();
+			const before = requests;
+			const treeAvailable = container.querySelector<HTMLElement>('.monaco-list')?.style.display !== 'none';
+			if (initiallyVisible) {
+				control.focus();
+				container.querySelector<HTMLElement>('.agent-session-section-label')?.click();
+			} else {
+				control.setVisible(true);
+				await control.update();
+			}
+			await timeout(0);
+			const expanded = requests;
+			control.setVisible(false);
+			const hidden = requests;
+			control.setVisible(true);
+			await control.update();
+			const reopened = requests;
+			control.dispose();
+			assert.deepStrictEqual({ before, treeAvailable, expanded, hidden, reopened, disposed: requests }, {
+				before: 0, treeAvailable: true, expanded: 1, hidden: 0, reopened: 1, disposed: 0,
+			});
+		});
+	}
+
+	test('lazy archive discovery shows local rows immediately and adds cloud rows without loading UI', async () => {
+		const local = { ...createSession(URI.parse('test:/local-archive'), 'Local archive'), isArchived: () => true };
+		const cloud = { ...createSession(URI.parse('test:/cloud-archive'), 'Cloud archive'), isArchived: () => true };
+		const sessions: IAgentSession[] = [local];
+		const changes = store.add(new Emitter<void>());
+		const model: IAgentSessionsModel = {
+			sessions, resolved: true, getSession: resource => sessions.find(session => session.resource.toString() === resource.toString()),
+			observeSession: () => { throw new Error('Not implemented'); },
+			onWillResolve: Event.None, onDidResolve: Event.None,
+			onDidChangeSessions: changes.event, onDidChangeSessionArchivedState: Event.None,
+			resolve: async () => { },
+		};
+		const service = new class extends MockChatSessionsService {
+			override readonly archivedSessionItems = observableValue<IChatSessionItemArchiveState>(this, { available: true, state: 'loading' });
+		}();
+		const instantiation = workbenchInstantiationService(undefined, store);
+		instantiation.stub(IChatSessionsService, service);
+		instantiation.stub(IVoicePlaybackService, new class extends mock<IVoicePlaybackService>() {
+			override readonly pendingResponseVersion = observableValue(this, 0);
+			override hasPendingResponse = () => false;
+		});
+		instantiation.stub(IAgentSessionsService, new class extends mock<IAgentSessionsService>() {
+			override readonly model = model;
+			override readonly onDidChangeSessionArchivedState = Event.None;
+		});
+		const container = document.createElement('div');
+		const control = store.add(instantiation.createInstance(AgentSessionsControl, container, {
+			overrideStyles: {}, source: 'test',
+			filter: { ...createFilter(), groupResults: () => AgentSessionsGrouping.Date },
+			createNewChat: () => { }, getHoverPosition: () => HoverPosition.BELOW, trackActiveEditorSession: () => false,
+		}));
+		control.layout(300, 400);
+		const snapshot = () => ({
+			local: !!control.getSessionElement(local.resource),
+			cloud: !!control.getSessionElement(cloud.resource),
+			header: container.querySelector('.agent-session-section-label')?.textContent,
+			count: container.querySelector('.agent-session-section-count')?.textContent,
+			busy: !!container.querySelector('[aria-busy="true"]'),
+		});
+		await control.update();
+		const loading = snapshot();
+		service.archivedSessionItems.set({ available: true, state: 'error' }, undefined);
+		await control.update();
+		const failed = snapshot();
+		sessions.push(cloud);
+		service.archivedSessionItems.set({ available: true, state: 'loaded' }, undefined);
+		changes.fire();
+		await control.update();
+		assert.deepStrictEqual([loading, failed, snapshot()], [
+			{ local: true, cloud: false, header: 'Archived', count: '1', busy: false },
+			{ local: true, cloud: false, header: 'Archived', count: '1', busy: false },
+			{ local: true, cloud: true, header: 'Archived', count: '2', busy: false },
+		]);
+	});
+
 	test('forwards automatic refresh intent without changing explicit Refresh', async () => {
 		const calls: { provider: string | string[] | undefined; reason: ChatSessionRefreshReason | undefined }[] = [];
 		const model: IAgentSessionsModel = {
@@ -70,7 +192,7 @@ suite('AgentSessionsControl', () => {
 			resolve: async (provider, _onError, reason) => { calls.push({ provider, reason }); },
 		};
 		const instantiationService = workbenchInstantiationService(undefined, store);
-		instantiationService.stub(IChatSessionsService, new class extends mock<IChatSessionsService>() { });
+		instantiationService.stub(IChatSessionsService, new MockChatSessionsService());
 		instantiationService.stub(IVoicePlaybackService, new class extends mock<IVoicePlaybackService>() { });
 		instantiationService.stub(IAgentSessionsService, new class extends mock<IAgentSessionsService>() {
 			override readonly model = model;
@@ -108,7 +230,7 @@ suite('AgentSessionsControl', () => {
 		};
 		const filter = createFilter();
 		const instantiationService = workbenchInstantiationService(undefined, store);
-		instantiationService.stub(IChatSessionsService, new class extends mock<IChatSessionsService>() { });
+		instantiationService.stub(IChatSessionsService, new MockChatSessionsService());
 		instantiationService.stub(IVoicePlaybackService, new class extends mock<IVoicePlaybackService>() { });
 		instantiationService.stub(IAgentSessionsService, new class extends mock<IAgentSessionsService>() {
 			override readonly model = model;
@@ -150,7 +272,7 @@ suite('AgentSessionsControl', () => {
 			resolve: async () => { },
 		};
 		const instantiationService = workbenchInstantiationService(undefined, store);
-		instantiationService.stub(IChatSessionsService, new class extends mock<IChatSessionsService>() {
+		instantiationService.stub(IChatSessionsService, new class extends MockChatSessionsService {
 			override getChatSessionContribution() { return undefined; }
 			override resolveChatSessionItem = async () => undefined;
 		});
@@ -211,7 +333,7 @@ suite('AgentSessionsControl', () => {
 			resolve: async () => { },
 		};
 		const instantiationService = workbenchInstantiationService(undefined, store);
-		instantiationService.stub(IChatSessionsService, new class extends mock<IChatSessionsService>() {
+		instantiationService.stub(IChatSessionsService, new class extends MockChatSessionsService {
 			override getChatSessionContribution() { return undefined; }
 			override resolveChatSessionItem = async () => undefined;
 		});
@@ -270,7 +392,7 @@ suite('AgentSessionsControl', () => {
 			resolve: async () => { },
 		};
 		const instantiation = workbenchInstantiationService(undefined, store);
-		instantiation.stub(IChatSessionsService, new class extends mock<IChatSessionsService>() {
+		instantiation.stub(IChatSessionsService, new class extends MockChatSessionsService {
 			override getChatSessionContribution() { return undefined; }
 			override resolveChatSessionItem = async () => undefined;
 		});
@@ -331,7 +453,7 @@ suite('AgentSessionsControl', () => {
 			resolve: async () => { },
 		};
 		const instantiation = workbenchInstantiationService(undefined, store);
-		instantiation.stub(IChatSessionsService, new class extends mock<IChatSessionsService>() {
+		instantiation.stub(IChatSessionsService, new class extends MockChatSessionsService {
 			override getChatSessionContribution() { return undefined; }
 			override resolveChatSessionItem = async () => undefined;
 		});
@@ -392,7 +514,7 @@ suite('AgentSessionsControl', () => {
 			resolve: async () => { },
 		};
 		const instantiationService = workbenchInstantiationService(undefined, store);
-		instantiationService.stub(IChatSessionsService, new class extends mock<IChatSessionsService>() {
+		instantiationService.stub(IChatSessionsService, new class extends MockChatSessionsService {
 			override getChatSessionContribution() { return undefined; }
 			override resolveChatSessionItem = async () => undefined;
 		});
@@ -458,7 +580,7 @@ suite('AgentSessionsControl', () => {
 			resolve: async () => { },
 		};
 		const instantiationService = workbenchInstantiationService(undefined, store);
-		instantiationService.stub(IChatSessionsService, new class extends mock<IChatSessionsService>() {
+		instantiationService.stub(IChatSessionsService, new class extends MockChatSessionsService {
 			override getChatSessionContribution() { return undefined; }
 			override resolveChatSessionItem = async () => undefined;
 		});

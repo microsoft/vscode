@@ -22,7 +22,7 @@ import { EditorAreaFocusContext, IsAuxiliaryWindowContext, LayoutModeContext } f
 import { IsPhoneLayoutContext, SessionsWelcomeVisibleContext } from '../../common/contextkeys.js';
 import { logSessionsInteraction } from '../../common/sessionsTelemetry.js';
 import { Menus } from '../../browser/menus.js';
-import { getFocusedWindowSession } from '../../services/sessions/browser/sessionScope.js';
+import { resolveSessionCommandTarget } from '../../services/sessions/browser/sessionCommandTarget.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
 import { IWorkbenchContribution } from '../../../workbench/common/contributions.js';
 import { OpenInVSCodeTitleBarWidget } from '../../browser/widget/openInVSCodeWidget.js';
@@ -62,8 +62,9 @@ export class OpenSessionInVSCodeAction extends Action2 {
 
 		const instantiationService = accessor.get(IInstantiationService);
 
-		// The session of the window it is invoked from, such as from the title row of a chat window.
-		return instantiationService.invokeFunction(openSessionInVSCode, context?.session ?? instantiationService.invokeFunction(getFocusedWindowSession), context?.chat);
+		// The session of the window it is invoked from, such as from the title row of a chat window, else of the focused window.
+		const target = context?.session ? context : instantiationService.invokeFunction(accessor => resolveSessionCommandTarget(accessor, []));
+		return instantiationService.invokeFunction(openSessionInVSCode, target?.session, target?.chat);
 	}
 }
 

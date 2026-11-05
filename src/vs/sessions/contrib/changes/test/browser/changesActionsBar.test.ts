@@ -32,7 +32,7 @@ import { IActiveSession, ISessionsManagementService } from '../../../../services
 import { IChat, ISessionChangeset, ISessionChangesetOperation, ISessionWorkspace, ISessionFolder, SessionChangesetOperationScope, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IChangesSessionObservables, IChangesSessionScope, IChangesViewService } from '../../common/changesViewService.js';
 import { actionsNamingSession, ChangesActionsBar, createChangesSessionScope } from '../../browser/changesView.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ActiveSessionHost, SessionHostKind } from '../../../../services/sessions/browser/sessionHost.js';
 
 suite('ChangesActionsBar', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -68,11 +68,12 @@ suite('ChangesActionsBar', () => {
 			activeChat: constObservable(upcastPartial<IChat>({ workspace: constObservable(upcastPartial<ISessionWorkspace>({ folders: [upcastPartial<ISessionFolder>({ workingDirectory: URI.file('/worktree') })] })) })),
 		});
 		const sessionObs = constObservable(session);
-		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({ mainWindowActiveSession: isMainWindowSession ? sessionObs : constObservable(undefined) }));
 		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({ onDidChangeWorkspaceFolders: Event.None, getWorkspace: () => ({ folders: [] }) as never }));
 
 		const source: IChangesSessionScope = {
 			session: sessionObs,
+			chat: constObservable(session.activeChat.get()),
+			isMainWindow: isMainWindowSession,
 			changes: upcastPartial<IChangesSessionObservables>({
 				stateObs: constObservable(undefined),
 				resourceObs: constObservable(undefined),
@@ -136,25 +137,30 @@ suite('ChangesActionsBar', () => {
 		assert.deepStrictEqual({ argIsBarSession: options?.arg === session, shouldForwardArgs: options?.shouldForwardArgs }, { argIsBarSession: true, shouldForwardArgs: true });
 	});
 
-	test('creates the scope from the active session observables only for the active session', () => {
-		const active = constObservable<IActiveSession | undefined>(undefined);
-		const other = constObservable<IActiveSession | undefined>(undefined);
+	test('creates the scope from the active session observables only for the main window, from the window host of a pane', () => {
 		const activeChanges = upcastPartial<IChangesSessionObservables>({ resourceObs: constObservable(undefined) });
 		const otherChanges = upcastPartial<IChangesSessionObservables>({ resourceObs: constObservable(undefined) });
+		const requested: unknown[] = [];
 		const changesViewService = upcastPartial<IChangesViewService>({
 			activeSessionResourceObs: activeChanges.resourceObs,
-			getSessionChanges: () => otherChanges,
+			getSessionChanges: (session, chat) => { requested.push(session, chat); return otherChanges; },
 		});
-		const sessionsService = upcastPartial<ISessionsService>({ activeSession: active, mainWindowActiveSession: active });
+		const contextKeyService = upcastPartial<IContextKeyService>({});
+		const mainHost = new ActiveSessionHost({ kind: SessionHostKind.MainWindow, parent: undefined, session: constObservable<IActiveSession | undefined>(undefined), contextKeyService });
+		const pane = new ActiveSessionHost({ kind: SessionHostKind.Pane, parent: mainHost, session: constObservable<IActiveSession | undefined>(undefined), contextKeyService });
+		const chatWindowHost = new ActiveSessionHost({ kind: SessionHostKind.ChatWindow, parent: undefined, session: constObservable<IActiveSession | undefined>(undefined), contextKeyService });
 
-		const activeScope = createChangesSessionScope(changesViewService, sessionsService, { _serviceBrand: undefined, session: active });
-		const otherScope = createChangesSessionScope(changesViewService, sessionsService, { _serviceBrand: undefined, session: other });
+		const mainScope = createChangesSessionScope(changesViewService, pane);
+		const windowScope = createChangesSessionScope(changesViewService, chatWindowHost);
 
 		assert.deepStrictEqual({
-			activeSession: activeScope.session === active,
-			activeResource: activeScope.changes.resourceObs === activeChanges.resourceObs,
-			otherSession: otherScope.session === other,
-			otherChanges: otherScope.changes === otherChanges,
-		}, { activeSession: true, activeResource: true, otherSession: true, otherChanges: true });
+			mainWindow: mainScope.isMainWindow,
+			mainSession: mainScope.session === mainHost.session,
+			mainResource: mainScope.changes.resourceObs === activeChanges.resourceObs,
+			chatWindow: windowScope.isMainWindow,
+			windowSession: windowScope.session === chatWindowHost.session,
+			windowChanges: windowScope.changes === otherChanges,
+			requested: requested[0] === chatWindowHost.session && requested[1] === chatWindowHost.chat,
+		}, { mainWindow: true, mainSession: true, mainResource: true, chatWindow: false, windowSession: true, windowChanges: true, requested: true });
 	});
 });

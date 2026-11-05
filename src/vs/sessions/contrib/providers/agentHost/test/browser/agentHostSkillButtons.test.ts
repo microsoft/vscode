@@ -26,6 +26,7 @@ import { BaseAgentHostSessionsProvider } from '../../browser/baseAgentHostSessio
 // Importing this contribution registers the apply submenu on the changes toolbar,
 // which is the slot that hosts our skill buttons as a dropdown.
 import '../../../../applyCommitsToParentRepo/browser/applyChangesToParentRepo.js';
+import { ITestSessionsService, stubFocusedSessionHostFromSessionsService, stubSessionHostsFromSessionsService } from '../../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 function makeActiveSession(providerId: string): IActiveSession {
 	const chat = {
@@ -94,9 +95,8 @@ class FakeNonAgentHostProvider {
 
 class FakeSessionsService extends mock<ISessionsService>() {
 	declare readonly _serviceBrand: undefined;
-	override readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
-	override readonly mainWindowActiveSession = this.activeSession;
-	override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
+	readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+	readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
 	setActiveSession(s: IActiveSession | undefined): void {
 		this.activeSession.set(s, undefined);
 	}
@@ -128,6 +128,8 @@ suite('agentHostSkillButtons - IsAgentHostSession context key', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IContextKeyService, contextKeyService);
 		instantiationService.stub(ISessionsService, sessions);
+		stubSessionHostsFromSessionsService(instantiationService);
+		stubFocusedSessionHostFromSessionsService(instantiationService);
 		instantiationService.stub(ISessionsProvidersService, providers);
 
 		store.add(instantiationService.createInstance(IsAgentHostSessionContextContribution));
@@ -252,7 +254,8 @@ suite('agentHostSkillButtons - target', () => {
 		(chatWindowSession.activeChat as ReturnType<typeof observableValue<IChat>>).set(otherChat, undefined);
 		const sent: string[] = [];
 		const instantiationService = store.add(new TestInstantiationService());
-		instantiationService.stub(ISessionsService, sessions);
+		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({ activeSession: sessions.activeSession, mainWindowActiveSession: sessions.activeSession, windowSessions: constObservable([chatWindowSession]) }));
+		stubSessionHostsFromSessionsService(instantiationService);
 		instantiationService.stub(IChatService, new class extends mock<IChatService>() {
 			override async acquireOrLoadSession() { return undefined; }
 			override async sendRequest(resource: URI, message: string) {

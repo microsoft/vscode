@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { autorun, IObservable, ISettableObservable } from '../../../../../base/common/observable.js';
+import { autorun, ISettableObservable } from '../../../../../base/common/observable.js';
 import { MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -18,7 +18,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IChatInputPickerOptions } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
 import { IChatInputPickerResponsiveState } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerResponsiveLayout.js';
 import { PermissionPickerActionItem } from '../../../../../workbench/contrib/chat/browser/widget/input/permissionPickerActionItem.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionChatSource } from '../../../../services/sessions/browser/sessionHost.js';
 import { AgentHostPermissionPickerDelegate } from './agentHostPermissionPickerDelegate.js';
 
 /**
@@ -37,7 +37,7 @@ export class AgentHostPermissionPickerActionItem extends PermissionPickerActionI
 	constructor(
 		action: MenuItemAction,
 		pickerOptions: IChatInputPickerOptions & { readonly compact: ISettableObservable<boolean> },
-		session: IObservable<IActiveSession | undefined>,
+		source: ISessionChatSource,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -49,7 +49,7 @@ export class AgentHostPermissionPickerActionItem extends PermissionPickerActionI
 		@IStorageService storageService: IStorageService,
 		@IHoverService hoverService: IHoverService,
 	) {
-		const delegate = instantiationService.createInstance(AgentHostPermissionPickerDelegate, session);
+		const delegate = instantiationService.createInstance(AgentHostPermissionPickerDelegate, source);
 		super(
 			action,
 			delegate,

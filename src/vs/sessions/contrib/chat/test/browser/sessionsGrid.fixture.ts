@@ -22,7 +22,7 @@ import { ISessionsChatBackground } from '../../../../services/chatBackground/bro
 import { IChatViewFactory } from '../../../../services/chatView/browser/chatViewFactory.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ChatOriginKind, IChat, ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, IHostSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../../../../common/layoutConstants.js';
 import { SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
@@ -208,11 +208,20 @@ async function renderSessionsGrid(context: ComponentFixtureContext, options: { b
 	const [left, top, bottom] = sessions;
 	const multipleChatsSession = options.multipleChats ? sessions[multipleChatsIndex] : undefined;
 	const sessionsService = new class extends mock<ISessionsService>() {
-		override readonly activeSession = observableValue<IActiveSession | undefined>(this, left);
-		override readonly mainWindowActiveSession = this.activeSession;
+		readonly activeSession = observableValue<IActiveSession | undefined>(this, left);
 		override readonly visibleSessions = observableValue<readonly IActiveSession[]>(this, sessions);
 		override setActive(session: IActiveSession | undefined): void {
 			this.activeSession.set(session, undefined);
+		}
+		// Its panes are the grid's slots: none is detached.
+		override isGridPane(pane: IHostSession | undefined): boolean {
+			return !!pane && this.visibleSessions.get().some(session => session === pane);
+		}
+		override isActivePane(pane: IHostSession | undefined): boolean {
+			return !!pane && this.activeSession.get() === pane;
+		}
+		override isDetachedPane(): boolean {
+			return false;
 		}
 		override toggleSessionStickiness(session: ISession): void {
 			const target = sessions.find(candidate => candidate.sessionId === session.sessionId);

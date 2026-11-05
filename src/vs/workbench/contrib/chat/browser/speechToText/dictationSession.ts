@@ -380,11 +380,17 @@ export async function startDictation(service: IChatSpeechToTextService, editor: 
 	// not appear during microphone acquisition. It remains visible until
 	// transcript text is inserted, and is restored to its previous value when the
 	// session ends.
-	const previousPlaceholder = editor.getOption(EditorOption.placeholder);
+	let previousPlaceholder: string | undefined;
 	const listeningPlaceholder = localize('chatStt.listening', "Listening…");
 	// The placeholder we last applied, so we only ever restore the previous
 	// placeholder when it was ours to restore.
 	let appliedPlaceholder: string | undefined;
+	const restorePlaceholder = () => {
+		if (appliedPlaceholder !== undefined && editor.getOption(EditorOption.placeholder) === appliedPlaceholder) {
+			editor.updateOptions({ placeholder: previousPlaceholder });
+		}
+		appliedPlaceholder = undefined;
+	};
 	const applyPlaceholder = () => {
 		if (!editor.getModel()) {
 			return;
@@ -397,12 +403,12 @@ export async function startDictation(service: IChatSpeechToTextService, editor: 
 			: undefined;
 		if (desired !== undefined) {
 			if (appliedPlaceholder !== desired) {
+				previousPlaceholder = editor.getOption(EditorOption.placeholder);
 				editor.updateOptions({ placeholder: desired });
 				appliedPlaceholder = desired;
 			}
-		} else if (appliedPlaceholder !== undefined) {
-			editor.updateOptions({ placeholder: previousPlaceholder });
-			appliedPlaceholder = undefined;
+		} else {
+			restorePlaceholder();
 		}
 	};
 	disposables.add(toDisposable(() => {
@@ -412,8 +418,7 @@ export async function startDictation(service: IChatSpeechToTextService, editor: 
 		if (!editor.getModel() || appliedPlaceholder === undefined) {
 			return;
 		}
-		editor.updateOptions({ placeholder: previousPlaceholder });
-		appliedPlaceholder = undefined;
+		restorePlaceholder();
 	}));
 	disposables.add(service.onDidUpdateTranscript(update => {
 		logService.trace(`${LOG_PREFIX} onDidUpdateTranscript len=${update.text.length} finalized=${update.finalizedText.length} state=${service.state}`);

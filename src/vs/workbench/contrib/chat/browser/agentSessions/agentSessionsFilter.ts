@@ -42,13 +42,10 @@ export interface IAgentSessionsFilterOptions extends Partial<IAgentSessionsFilte
 	 */
 	readonly providerLabelOverrides?: ReadonlyMap<string, string>;
 
-	readonly limitResults?: () => number | undefined;
 	notifyResults?(count: number): void;
 
 	readonly groupResults?: () => AgentSessionsGrouping | undefined;
 	readonly sortResults?: () => AgentSessionsSorting | undefined;
-
-	overrideExclude?(session: IAgentSession): boolean | undefined;
 }
 
 const DEFAULT_EXCLUDES: IAgentSessionsFilterExcludes = Object.freeze({
@@ -67,7 +64,6 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
 
-	readonly limitResults = () => this.options.limitResults?.();
 	readonly groupResults = () => this.options.groupResults?.();
 	readonly sortResults = (): AgentSessionsSorting | undefined => this.options.sortResults?.() ?? this.currentSorting;
 
@@ -381,11 +377,6 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 	}
 
 	exclude(session: IAgentSession): boolean {
-		const overrideExclude = this.options?.overrideExclude?.(session);
-		if (typeof overrideExclude === 'boolean') {
-			return overrideExclude;
-		}
-
 		const providerFilter = this.chatSessionsService.getChatSessionContribution(session.providerType)?.sessionListGroup ?? session.providerType;
 		if (this.options.allowedProviders && !this.options.allowedProviders.includes(providerFilter as AgentSessionProviders)) {
 			return true;

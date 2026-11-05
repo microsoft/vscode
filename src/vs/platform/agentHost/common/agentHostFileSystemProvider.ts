@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { decodeBase64, VSBuffer } from '../../../base/common/buffer.js';
-import { disposableTimeout } from '../../../base/common/async.js';
+import { disposableTimeout, Limiter } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
@@ -215,6 +215,9 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 	 * Tests can override this via the constructor parameter.
 	 */
 	private static readonly _DEFAULT_CONNECTION_GRACE_MS = 5000;
+	private static readonly _READ_FILE_CONCURRENCY = 10;
+
+	private readonly _readLimiter = this._register(new Limiter<Uint8Array>(AHPFileSystemProvider._READ_FILE_CONCURRENCY));
 
 	constructor(
 		private readonly _connectionGraceMs: number = AHPFileSystemProvider._DEFAULT_CONNECTION_GRACE_MS,
@@ -493,16 +496,18 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 	}
 
 	async readFile(resource: URI): Promise<Uint8Array> {
-		try {
-			const originalUri = this._decodeUri(resource);
-			const result = await this._readFromConnection(resource.authority, connection => connection.resourceRead(originalUri, ContentEncoding.Base64));
-			if (result.encoding === ContentEncoding.Base64) {
-				return decodeBase64(result.data).buffer;
+		return this._readLimiter.queue(async () => {
+			try {
+				const originalUri = this._decodeUri(resource);
+				const result = await this._readFromConnection(resource.authority, connection => connection.resourceRead(originalUri, ContentEncoding.Base64));
+				if (result.encoding === ContentEncoding.Base64) {
+					return decodeBase64(result.data).buffer;
+				}
+				return VSBuffer.fromString(result.data).buffer;
+			} catch (err) {
+				throw this._mapError(err, FileSystemProviderErrorCode.FileNotFound);
 			}
-			return VSBuffer.fromString(result.data).buffer;
-		} catch (err) {
-			throw this._mapError(err, FileSystemProviderErrorCode.FileNotFound);
-		}
+		});
 	}
 
 	async writeFile(resource: URI, content: Uint8Array, _opts: IFileWriteOptions): Promise<void> {

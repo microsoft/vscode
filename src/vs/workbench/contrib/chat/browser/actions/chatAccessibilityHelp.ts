@@ -100,6 +100,9 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 	}
 	if (type !== 'inlineChat') {
 		content.push(getChatInputSessionLinkAccessibilityHelp());
+		if (!isSessionsWindow) {
+			content.push(localize('chat.pasteOptions', "When the paste options button is available, Change Paste Type{0} opens paste choices instead of the agent picker. Use Up or Down Arrow to choose, Enter to apply, and Escape to close the choices and return to the input.", '<keybinding:editor.changePasteType>'));
+		}
 	}
 	content.push(localize('chat.attachments.filesPicker', "To attach files without searching a workspace, open Add Context{0} and choose Files. Select one or more files in the file dialog and choose Attach. In the simplified file dialog, use the checkboxes or Space to select items and Enter to attach them. Images can also be attached when the chat and selected model support them. Closing the dialog returns focus to the chat input.", '<keybinding:workbench.action.chat.attachContext>'));
 	if (!isSessionsWindow && type !== 'inlineChat' && type !== 'quickChat') {
