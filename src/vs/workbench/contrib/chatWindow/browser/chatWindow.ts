@@ -44,6 +44,8 @@ export interface IChatWindowOpenOptions {
 	readonly chats?: readonly URI[];
 	/** With {@link window}: one of its chats, beside which the chat opens, in a group of its own to the right. */
 	readonly beside?: URI;
+	/** With {@link window}: one of its chats, in whose group the chat opens as a tab. */
+	readonly tabOf?: URI;
 	/** The editors its main part starts with. */
 	readonly editors?: IChatWindowEditors;
 	/**

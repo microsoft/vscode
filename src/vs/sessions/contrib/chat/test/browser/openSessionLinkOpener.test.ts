@@ -26,6 +26,7 @@ import { IAgentSubscription } from '../../../../../platform/agentHost/common/sta
 import { ILinkPresentationProvider, ILinkPresentationService } from '../../../../../platform/dataChannel/common/dataChannel.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IOpener, IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { IChatWindow, IChatWindowOpenOptions, IChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { ISessionSummaryHoverProvider, ISessionSummaryHoverService } from '../../../../../workbench/contrib/chat/browser/agentSessions/sessionSummaryHoverService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
@@ -176,6 +177,7 @@ suite('OpenSessionLinkOpenerContribution', () => {
 			sessionsProvidersService,
 			sessionSummaryHoverService,
 			new class extends mock<ILabelService>() { },
+			new class extends mock<IChatWindowService>() { },
 		));
 
 		if (!registeredOpener) {
@@ -199,6 +201,88 @@ suite('OpenSessionLinkOpenerContribution', () => {
 				'chatSide:copilotcli:/session-1#chat-2',
 			],
 		});
+	});
+
+	test('links activated by the user in a chat window open in that window, anything else as before', async () => {
+		let registeredOpener: IOpener | undefined;
+		const openerService = new class extends mock<IOpenerService>() {
+			override registerOpener(opener: IOpener): IDisposable {
+				registeredOpener = opener;
+				return Disposable.None;
+			}
+		};
+		const sessionResource = URI.parse('copilotcli:/session-1');
+		const chatResource = sessionResource.with({ fragment: 'chat-2' });
+		const clickedChat = URI.parse('copilotcli:/session-0');
+		const mainChat = upcastPartial<IChat>({ resource: sessionResource });
+		const chat = upcastPartial<IChat>({ resource: chatResource });
+		const session = upcastPartial<ISession>({ resource: sessionResource, mainChat: observableValue('mainChat', mainChat), chats: observableValue('chats', [chat]) });
+		const sessionsManagementService = new class extends mock<ISessionsManagementService>() {
+			override getSessions(): ISession[] {
+				return [session];
+			}
+		};
+		const log: string[] = [];
+		const sessionsService = new class extends mock<ISessionsService>() {
+			override async openChat(_session: ISession, resource: URI): Promise<void> {
+				log.push(`main:${resource.toString()}`);
+			}
+		};
+		const chatWindow = upcastPartial<IChatWindow>({ windowId: 42, chat: observableValue('chat', clickedChat) });
+		const chatWindowService = new class extends mock<IChatWindowService>() {
+			override getWindow(windowId: number): IChatWindow | undefined {
+				return windowId === 42 ? chatWindow : undefined;
+			}
+
+			override async open(resource: URI, options?: IChatWindowOpenOptions): Promise<IChatWindow | undefined> {
+				log.push(`window:${resource.toString()}:tabOf=${options?.tabOf?.toString()}:beside=${options?.beside?.toString()}:in=${options?.window === chatWindow}`);
+				return undefined;
+			}
+		};
+		const connectionsService = new class extends mock<IAgentHostConnectionsService>() {
+			override readonly onDidChangeSessionResolution = Event.None;
+			override resolveSessionResourceIdentity() {
+				return undefined;
+			}
+			override resolveSessionResource() {
+				return undefined;
+			}
+		};
+		store.add(new OpenSessionLinkOpenerContribution(
+			openerService,
+			sessionsManagementService,
+			sessionsService,
+			connectionsService,
+			new class extends mock<ILinkPresentationService>() {
+				override registerLinkPresentationProvider(): IDisposable {
+					return Disposable.None;
+				}
+			},
+			sessionsProvidersService,
+			createSessionSummaryHoverService().service,
+			new class extends mock<ILabelService>() { },
+			chatWindowService,
+		));
+		if (!registeredOpener) {
+			throw new Error('Expected the contribution to register an opener');
+		}
+
+		const link = buildOpenSessionLinkUri(sessionResource, 'chat-2', 'turn-1');
+		// The canvas of a chat window names its window, as its page has the focus.
+		await registeredOpener.open(link, { fromUserGesture: true, sourceWindowId: 42 });
+		await registeredOpener.open(link, { fromUserGesture: true, sourceWindowId: 42, openToSide: true });
+		await registeredOpener.open(buildOpenSessionLinkUri(sessionResource), { fromUserGesture: true, sourceWindowId: 42 });
+		// A link of the main window, and one a tool or command opens, whichever window has focus.
+		await registeredOpener.open(link, { fromUserGesture: true, sourceWindowId: 1 });
+		await registeredOpener.open(link, { sourceWindowId: 42 });
+
+		assert.deepStrictEqual(log, [
+			`window:copilotcli:/session-1#chat-2:tabOf=${clickedChat}:beside=undefined:in=true`,
+			`window:copilotcli:/session-1#chat-2:tabOf=undefined:beside=${clickedChat}:in=true`,
+			`window:copilotcli:/session-1:tabOf=${clickedChat}:beside=undefined:in=true`,
+			'main:copilotcli:/session-1#chat-2',
+			'main:copilotcli:/session-1#chat-2',
+		]);
 	});
 
 	test('a request-origin link to the default chat switches away from a different active chat', async () => {
@@ -251,6 +335,7 @@ suite('OpenSessionLinkOpenerContribution', () => {
 			sessionsProvidersService,
 			sessionSummaryHoverService,
 			new class extends mock<ILabelService>() { },
+			new class extends mock<IChatWindowService>() { },
 		));
 
 		if (!registeredOpener) {
@@ -296,6 +381,7 @@ suite('OpenSessionLinkOpenerContribution', () => {
 				sessionsProvidersService,
 				createSessionSummaryHoverService().service,
 				new class extends mock<ILabelService>() { },
+				new class extends mock<IChatWindowService>() { },
 			));
 			const results = [
 				await registeredOpener!.open(buildOpenSessionLinkUri(sessionResource, defaultId)),
@@ -370,6 +456,7 @@ suite('OpenSessionLinkOpenerContribution', () => {
 			sessionsProvidersService,
 			sessionSummaryHoverService,
 			new class extends mock<ILabelService>() { },
+			new class extends mock<IChatWindowService>() { },
 		));
 
 		const watcher = presentationProvider?.createLinkPresentationWatcher(URI.parse(buildOpenSessionLinkUri(sessionResource, 'chat-2')));
@@ -433,6 +520,7 @@ suite('OpenSessionLinkOpenerContribution', () => {
 			sessionsProvidersService,
 			hover.service,
 			new class extends mock<ILabelService>() { },
+			new class extends mock<IChatWindowService>() { },
 		));
 
 		const provider = hover.provider();

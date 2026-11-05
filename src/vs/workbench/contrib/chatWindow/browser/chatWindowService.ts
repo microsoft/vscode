@@ -915,7 +915,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		};
 		// The group the replaced editor was in goes away with it if that was its only editor
 		const given = group && this._editorGroupsService.parts.some(part => part.groups.includes(group)) ? group : undefined;
-		const target = given ?? this._besideGroup(window, options?.beside) ?? window.chatPart.groups.find(candidate => candidate.contains(window.chatEditor)) ?? window.chatPart.activeGroup;
+		const target = given ?? this._besideGroup(window, options?.beside) ?? this._groupOfChat(window, options?.tabOf) ?? window.chatPart.groups.find(candidate => candidate.contains(window.chatEditor)) ?? window.chatPart.activeGroup;
 		try {
 			await target.openEditor(added.input, { pinned: true, preserveFocus: options?.preserveFocus, inactive: options?.preserveFocus, index: target === group ? index : undefined });
 		} catch (error) {
@@ -929,10 +929,15 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		return window;
 	}
 
+	/** The group of the window that shows `reference`, one of its chats. */
+	private _groupOfChat(window: ChatWindow, reference: URI | undefined): IEditorGroup | undefined {
+		const input = reference && window.chatsOfWindow.find(chat => isEqual(chat.chat.get(), reference))?.input;
+		return input && this._editorGroupsService.groups.find(group => group.windowId === window.windowId && group.contains(input));
+	}
+
 	/** A new group to the right of the group of the window that shows `reference`, one of its chats. */
 	private _besideGroup(window: ChatWindow, reference: URI | undefined): IEditorGroup | undefined {
-		const input = reference && window.chatsOfWindow.find(chat => isEqual(chat.chat.get(), reference))?.input;
-		const referenceGroup = input && this._editorGroupsService.groups.find(group => group.windowId === window.windowId && group.contains(input));
+		const referenceGroup = this._groupOfChat(window, reference);
 		return referenceGroup ? this._editorGroupsService.addGroup(referenceGroup, GroupDirection.RIGHT) : undefined;
 	}
 

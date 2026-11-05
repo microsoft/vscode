@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getActiveWindow, getWindowId } from '../../../../base/browser/dom.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { derivedOpts, IObservable, IReader, observableSignalFromEvent } from '../../../../base/common/observable.js';
@@ -13,8 +14,9 @@ import { IAgentHostConnectionsService, isDefaultChatLinkId } from '../../../../p
 import { AGENT_HOST_CHAT_LINK_PATTERN, AGENT_HOST_SESSION_ONLY_LINK_PATTERN, AgentSessionLinkStatus, buildAgentSessionLinkPresentation, parseOpenSessionLinkChatId, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkUri } from '../../../../platform/agentHost/common/openSessionLink.js';
 import { ILinkPresentation, ILinkPresentationService, ILinkPresentationWatcher } from '../../../../platform/dataChannel/common/dataChannel.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
-import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IOpenerService, OpenOptions } from '../../../../platform/opener/common/opener.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
+import { IChatWindow, IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { ISessionSummaryHoverService } from '../../../../workbench/contrib/chat/browser/agentSessions/sessionSummaryHoverService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
@@ -47,10 +49,11 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@ISessionSummaryHoverService sessionSummaryHoverService: ISessionSummaryHoverService,
 		@ILabelService labelService: ILabelService,
+		@IChatWindowService private readonly _chatWindowService: IChatWindowService,
 	) {
 		super();
 		this._register(openerService.registerOpener({
-			open: async (resource, options) => this._open(resource, { openToSide: false, ...options }.openToSide === true),
+			open: async (resource, options: OpenOptions = {}) => this._open(resource, options.openToSide === true, this._getSourceChatWindow(options)),
 		}));
 		this._register(linkPresentationService.registerLinkPresentationProvider({
 			id: 'sessions.agentSessionLinkPresentation',
@@ -89,7 +92,19 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 		return !!resolution && await isDefaultChatLinkId(resolution.connection, resolution.backendSession, chatId);
 	}
 
-	private async _open(resource: URI | string, openToSide: boolean): Promise<boolean> {
+	/**
+	 * The chat window the user activated the link in, if one. Only a user gesture redirects: a link a tool, an extension
+	 * or a command opens keeps opening in the main window, whichever window has focus.
+	 */
+	private _getSourceChatWindow(options: OpenOptions): IChatWindow | undefined {
+		if (!options.fromUserGesture) {
+			return undefined;
+		}
+		// A page such as a canvas has focus outside the workbench, so it names its window.
+		return this._chatWindowService.getWindow(options.sourceWindowId ?? getWindowId(getActiveWindow()));
+	}
+
+	private async _open(resource: URI | string, openToSide: boolean, chatWindow: IChatWindow | undefined): Promise<boolean> {
 		const session = this._findSessionForLink(resource);
 		if (!session) {
 			return false;
@@ -97,7 +112,11 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 		// An absent chat id means the session's main/default chat, not "no target chat" (see buildOpenSessionLinkUri).
 		const chatId = parseOpenSessionLinkChatId(resource);
 		const chatResource = chatId && !await this._isDefaultChatId(session, chatId) ? session.resource.with({ fragment: chatId }) : session.mainChat.get().resource;
-		if (openToSide) {
+		if (chatWindow) {
+			// Shown in another chat window, it is revealed there; in the main window's grid, it moves into this one.
+			const clicked = chatWindow.chat.get();
+			await this._chatWindowService.open(chatResource, openToSide ? { window: chatWindow, beside: clicked } : { window: chatWindow, tabOf: clicked });
+		} else if (openToSide) {
 			if (chatId) {
 				await this._sessionsService.openChatToSide(session, chatResource);
 			} else {

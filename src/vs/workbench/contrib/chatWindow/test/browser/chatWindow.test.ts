@@ -565,7 +565,7 @@ suite('Chat window', () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const windows: ChatWindow[] = [];
 		const parts: IContentPart[] = [];
-		instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({ get parts() { return parts as unknown as IEditorPart[]; } }));
+		instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({ get parts() { return parts as unknown as IEditorPart[]; }, get groups() { return parts.flatMap(part => part.groups); } }));
 		const service = store.add(instantiationService.createInstance(ChatWindowService));
 		store.add(service.registerProvider(upcastPartial<IChatWindowProvider>({
 			onDidRemoveChats: Event.None,
@@ -639,6 +639,36 @@ suite('Chat window', () => {
 			shown: ['b', 'adopted a'],
 			targetShowsItsChats: { chats: ['/b', '/a'], editors: ['/b', '/a'] },
 			events: ['b takes /a', 'close window a'],
+		});
+	});
+
+	test('a chat opened as a tab of one of the chats of a window opens in the group that chat is in, not the active one; a chat another window shows is revealed there, not added', async () => {
+		const { service, events, windows: [target, other] } = createService(['a', 'b']);
+		await service.open(URI.parse('test:/c'), { window: target.window });
+		const [, cInput] = target.chat.group.testEditors;
+		// The group of the chat part where the user split `a` off, while `c`, the window's active chat, stays in the first group
+		const split = new TestGroup(events, 'split');
+		split.windowId = target.chat.group.windowId;
+		target.chat.part.groups.push(split);
+		target.chat.group.testEditors = [cInput];
+		split.testEditors.push(target.input);
+
+		await service.open(URI.parse('test:/d'), { window: target.window, tabOf: URI.parse('test:/a') });
+		await service.open(URI.parse('test:/b'), { window: target.window, tabOf: URI.parse('test:/a') });
+
+		const names = (group: TestGroup) => group.testEditors.map(editor => (editor as ChatViewInput).chatResource.path);
+		assert.deepStrictEqual({
+			active: names(target.chat.group),
+			split: names(split),
+			targetChats: target.window.chats.get().map(chat => chat.path),
+			otherChats: other.window.chats.get().map(chat => chat.path),
+			otherEditors: names(other.chat.group),
+		}, {
+			active: ['/c'],
+			split: ['/a', '/d'],
+			targetChats: ['/a', '/c', '/d'],
+			otherChats: ['/b'],
+			otherEditors: ['/b'],
 		});
 	});
 
