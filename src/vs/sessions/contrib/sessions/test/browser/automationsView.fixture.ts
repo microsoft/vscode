@@ -37,6 +37,7 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { ContributionEnablementState } from '../../../../../workbench/contrib/chat/common/enablement.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
+import { stubSessionHosts } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { CustomViewNode } from '../../../../browser/parts/customViewNode.js';
 import { CustomViewService, ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
@@ -396,6 +397,7 @@ function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFi
 			});
 		},
 	});
+	stubSessionHosts(instantiationService, ctx.disposableStore);
 
 	ctx.disposableStore.add(instantiationService.createInstance(AutomationsCustomViewContribution));
 	customViewService.showCustomView(AUTOMATIONS_CUSTOM_VIEW_ID);

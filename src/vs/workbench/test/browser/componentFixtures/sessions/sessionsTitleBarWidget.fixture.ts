@@ -37,6 +37,8 @@ import { SessionsTitleBarWidget } from '../../../../../sessions/contrib/sessions
 import { BlockedSessionsCIFixModel } from '../../../../../sessions/contrib/sessions/browser/blockedSessionsCIFixModel.js';
 // eslint-disable-next-line local/code-import-patterns
 import { BlockedSessionsIndicatorModel } from '../../../../../sessions/contrib/sessions/browser/blockedSessionsIndicatorModel.js';
+// eslint-disable-next-line local/code-import-patterns
+import { stubSessionHosts } from '../../../../../sessions/services/sessions/test/browser/sessionHostTestUtils.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 
@@ -76,6 +78,7 @@ function createMockActiveSession(title: string, workspaceLabel?: string, branch?
 		override readonly title: IObservable<string> = constObservable(title);
 		override readonly workspace: IObservable<ISessionWorkspace | undefined> = constObservable(workspace);
 		override readonly activeChat: IObservable<IChat> = constObservable(activeChat);
+		override readonly isCreated: IObservable<boolean> = constObservable(true);
 		override readonly isQuickChat: IObservable<boolean> = constObservable<boolean>(workspace === undefined);
 	}();
 }
@@ -210,6 +213,8 @@ function renderTitleBar(ctx: ComponentFixtureContext, state: ITitleBarState): vo
 		override readonly blockedSessions: IObservable<readonly ISession[]> = constObservable(blocked.map(entry => entry.session));
 		override readonly blockedSessionsWithReasons: IObservable<readonly IBlockedSession[]> = constObservable(blocked);
 	}();
+
+	stubSessionHosts(instantiationService, disposableStore, { session: constObservable(state.activeSession) });
 
 	// A no-op CI-fix model seam: the fixture never clicks "Fix CI", so it only
 	// needs to report no sessions hidden. Supplying it avoids the real model,
