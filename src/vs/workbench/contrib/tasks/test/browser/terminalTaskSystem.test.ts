@@ -44,7 +44,7 @@ suite('TerminalTaskSystem process executable', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const workspaceFolder = toWorkspaceFolder(URI.file('C:\\work'));
 
-	function createSystem(values: Map<string, string>, options: { withSystemInfo?: boolean; foundExecutable?: string; configurationProperties?: IConfigurationProperties } = {}) {
+	function createSystem(values: Map<string, string>, options: { withSystemInfo?: boolean; foundExecutable?: string; configurationProperties?: IConfigurationProperties; args?: string[] } = {}) {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stubInstance(TaskProblemMonitor, { dispose() { }, addTerminal() { } });
 		instantiationService.stubInstance(TaskTerminalStatus, { dispose() { }, addTerminal() { } });
@@ -140,7 +140,7 @@ suite('TerminalTaskSystem process executable', () => {
 						kind: 'workspace', label: 'workspace',
 						config: { workspaceFolder, file: '.vscode/tasks.json', index: 0, element: {} }
 					}, 'test', 'process', {
-						runtime: RuntimeType.Process, name: command, args: ['argument'],
+						runtime: RuntimeType.Process, name: command, args: options.args ?? ['argument'],
 						options: { cwd, env }, presentation: PresentationOptions.defaults
 					}, false, RunOptions.defaults, options.configurationProperties ?? {});
 					const resolver = { resolve: async () => undefined };
@@ -203,9 +203,10 @@ suite('TerminalTaskSystem process executable', () => {
 	});
 
 	test('resolves nested acquired variables in command, cwd and PATH without acquiring them again', async () => {
+		const cwd = '/work';
 		const system = createSystem(new Map([
 			['input:tool', '${config:tool}'], ['config:tool', 'run'],
-			['input:cwd', '${config:cwd}'], ['config:cwd', 'C:\\work'],
+			['input:cwd', '${config:cwd}'], ['config:cwd', cwd],
 			['input:path', '${config:paths}'], ['config:paths', '${config:tools};C:\\other'],
 			['config:tools', 'C:\\tools']
 		]), { foundExecutable: 'C:\\tools\\run.exe' });
@@ -217,9 +218,31 @@ suite('TerminalTaskSystem process executable', () => {
 			lookupCalls: system.lookupCalls,
 			resolutionCalls: system.resolutionCalls
 		}, {
-			executable: 'C:\\tools\\run.exe', cwd: URI.from({ scheme: Schemas.file, path: 'C:\\work' }).toString(), path: 'C:\\tools;C:\\other',
-			lookupCalls: [{ command: 'run', cwd: 'C:\\work', paths: ['C:\\tools', 'C:\\other'] }],
+			executable: 'C:\\tools\\run.exe', cwd: URI.from({ scheme: Schemas.file, path: cwd }).toString(), path: 'C:\\tools;C:\\other',
+			lookupCalls: [{ command: 'run', cwd, paths: ['C:\\tools', 'C:\\other'] }],
 			resolutionCalls: 1
+		});
+	});
+
+	test('preserves literal dollar sequences in acquired process values', async () => {
+		const executable = 'C:\\tools$$\\run$&.exe';
+		const literal = 'literal $$ $& $` $\'';
+		const paths = ['C:\\path$$', 'C:\\path$&'];
+		const system = createSystem(new Map([
+			['input:tool', executable], ['input:argument', literal],
+			['input:env', literal], ['input:path', paths.join(';')]
+		]), { args: ['${input:argument}'] });
+		const config = await system.execute('${input:tool}', 'C:\\work', { LITERAL: '${input:env}', Path: '${input:path}' });
+		assert.deepStrictEqual({
+			executable: config?.executable,
+			args: config?.args,
+			env: { ...config?.env },
+			lookupCalls: system.lookupCalls
+		}, {
+			executable,
+			args: [literal],
+			env: { LITERAL: literal, Path: paths.join(';') },
+			lookupCalls: [{ command: executable, cwd: 'C:\\work', paths }]
 		});
 	});
 
