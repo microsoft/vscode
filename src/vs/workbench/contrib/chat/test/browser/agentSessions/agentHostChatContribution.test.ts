@@ -18748,19 +18748,27 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(session.isCompleteObs?.get(), true, 'Should be complete after turnComplete');
 		}));
 
-		for (const quotaExceeded of [false, true]) {
-			test(`reconnected failures use structured error details (quota=${quotaExceeded})`, async () => {
+		for (const publication of ['beforeFailure', 'afterFailure', 'beforeRequest'] as const) {
+			for (const quotaExceeded of [false, true]) {
+				test(`reconnected failures use structured error details (quota=${quotaExceeded}, publication=${publication})`, async () => {
 				const { sessionHandler, agentHostService, chatService, instantiationService } = createContribution(disposables, { backendSessionScheme: 'unused-allocation-scheme' });
 				const backendSession = URI.parse('ahp-session:/reconnected-failure');
 				const chatUri = 'ahp-chat:/host-assigned-failure-chat';
 				const resource = URI.parse('agent-host-copilot:/reconnected-failure');
+				const turnId = 'turn-active';
 				const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, {
 					initialLocation: ChatAgentLocation.Chat, canUseTools: false, resource, disableBackgroundKeepAlive: true,
 				}));
-				const request = model.addRequest({ text: 'Continue working', parts: [] }, { variables: [] }, 0);
-				assert.ok(request.response);
-				request.response.setResult({ metadata: { existing: true } });
-				chatService.setSession(resource, model);
+				const addRequest = () => {
+					const request = model.addRequest({ text: 'Continue working', parts: [] }, { variables: [] }, 0,
+						undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, turnId);
+					request.response?.setResult({ metadata: { existing: true } });
+					return request;
+				};
+				let request = publication !== 'beforeRequest' ? addRequest() : undefined;
+				if (publication === 'beforeFailure') {
+					chatService.setSession(resource, model);
+				}
 
 				const state = makeSessionStateWithActiveTurn(backendSession.toString());
 				agentHostService.seedSessionMetadata(backendSession, 'copilot');
@@ -18769,7 +18777,7 @@ suite('AgentHostChatContribution', () => {
 					defaultChat: chatUri,
 					chats: [{ resource: chatUri, title: state.title, status: SessionStatus.InProgress, modifiedAt: '2025-01-01T00:00:00.000Z', origin: { kind: ChatOriginKind.User } }],
 					turns: [],
-					activeTurn: { ...state.activeTurn!, id: request.id },
+					activeTurn: { ...state.activeTurn!, id: turnId },
 				});
 				const session = disposables.add(await sessionHandler.provideChatSessionContent(resource, CancellationToken.None));
 				assert.ok(session.isCompleteObs);
@@ -18777,7 +18785,7 @@ suite('AgentHostChatContribution', () => {
 				agentHostService.fireAction({
 					channel: chatUri,
 					action: {
-						type: ActionType.ChatError, turnId: request.id, duration: 1000,
+						type: ActionType.ChatError, turnId, duration: 1000,
 						part: {
 							kind: ResponsePartKind.Error,
 							error: quotaExceeded
@@ -18789,6 +18797,15 @@ suite('AgentHostChatContribution', () => {
 					serverSeq: 100, origin: undefined,
 				});
 				await completed;
+				if (publication !== 'beforeFailure') {
+					chatService.setSession(resource, model);
+					await timeout(0);
+					if (publication === 'beforeRequest') {
+						request = addRequest();
+						await timeout(0);
+					}
+				}
+				assert.ok(request?.response);
 
 				assert.deepStrictEqual({
 					errorDetails: request.response.result?.errorDetails,
@@ -18806,8 +18823,37 @@ suite('AgentHostChatContribution', () => {
 					markdown: ['Partial response so far'],
 					complete: true,
 				});
-			});
+				});
+			}
 		}
+
+		test('discarding a reconnect before model publication does not apply its failure to a later model', async () => {
+			const { sessionHandler, agentHostService, chatService, instantiationService } = createContribution(disposables);
+			const backendSession = AgentSession.uri('copilot', 'discarded-reconnect');
+			const resource = URI.parse('agent-host-copilot:/discarded-reconnect');
+			agentHostService.sessionStates.set(backendSession.toString(), makeSessionStateWithActiveTurn(backendSession.toString()));
+			const session = disposables.add(await sessionHandler.provideChatSessionContent(resource, CancellationToken.None));
+			assert.ok(session.isCompleteObs);
+			const completed = waitForState(session.isCompleteObs, complete => complete);
+			agentHostService.fireAction({
+				channel: backendSession.toString(),
+				action: {
+					type: ActionType.ChatError, turnId: 'turn-active', duration: 1000,
+					part: { kind: ResponsePartKind.Error, error: { errorType: 'query', message: 'Discarded failure' } },
+				},
+				serverSeq: 100, origin: undefined,
+			});
+			await completed;
+			session.dispose();
+			const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, {
+				initialLocation: ChatAgentLocation.Chat, canUseTools: false, resource, disableBackgroundKeepAlive: true,
+			}));
+			const request = model.addRequest({ text: 'Continue working', parts: [] }, { variables: [] }, 0,
+				undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, 'turn-active');
+			chatService.setSession(resource, model);
+			await timeout(0);
+			assert.strictEqual(request.response?.result, undefined);
+		});
 
 		test('handles active turn with running tool call', async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);

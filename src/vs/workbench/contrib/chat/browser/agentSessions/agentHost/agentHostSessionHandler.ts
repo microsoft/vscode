@@ -1423,6 +1423,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private readonly _clientDispatchedTurnIds = new Set<string>();
 	/** Observations of turns awaited by {@link _invokeAgent}; see {@link _createTurnObservation}. */
 	private readonly _turnObservations = this._register(new DisposableSet<DisposableStore>());
+	private readonly _pendingObservedTurnResults = this._register(new DisposableSet<DisposableStore>());
 	/** Cancelled when this handler is disposed, so waits that outlive a replaced connection settle. */
 	private readonly _lifetime = new CancellationTokenSource();
 	private readonly _turnStopWatches = new Map<string, StopWatch>();
@@ -3630,18 +3631,58 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const errorDetails = this._getTurnErrorDetails(lastTurn, !this._isChatReadOnly(backendSession.toString(), chatURI));
 		const metadata = turnToResultMetadata(lastTurn);
 		if (details || errorDetails || metadata) {
-			const response = this._chatService.getSession(chatSession.sessionResource)
-				?.getRequests()
-				.find(request => request.id === turnId)
-				?.response;
-			response?.setResult({
-				...response.result,
+			void this._applyObservedTurnResult(chatSession, turnId, {
 				...(details ? { details } : {}),
 				...(errorDetails ? { errorDetails } : {}),
-				...(metadata ? { metadata: { ...response.result?.metadata, ...metadata } } : {}),
-			});
+				...(metadata ? { metadata } : {}),
+			}).catch(error => this._logService.error('[AgentHost] Failed to apply observed turn result', error));
 		}
 		this._completeSessionTurn(backendSession, chatSession.sessionResource, turnId, chatSession);
+	}
+
+	private async _applyObservedTurnResult(chatSession: AgentHostChatSession, turnId: string, result: IChatAgentResult): Promise<void> {
+		const applyResult = (model: IChatModel | undefined): boolean => {
+			const response = model?.getRequests().find(request => request.id === turnId)?.response;
+			if (!response) {
+				return false;
+			}
+			response.setResult({
+				...response.result,
+				...result,
+				...(result.metadata ? { metadata: { ...response.result?.metadata, ...result.metadata } } : {}),
+			});
+			return true;
+		};
+		if (applyResult(this._chatService.getSession(chatSession.sessionResource))) {
+			return;
+		}
+
+		const store = new DisposableStore();
+		this._pendingObservedTurnResults.add(store);
+		const dispose = () => this._pendingObservedTurnResults.deleteAndDispose(store);
+		store.add(Event.once(chatSession.onWillDispose)(dispose));
+		try {
+			const model = await this._acquireOrWaitForSession(chatSession.sessionResource, store);
+			if (!model || store.isDisposed) {
+				return;
+			}
+			const applyWhenReady = () => {
+				if (!store.isDisposed && applyResult(model)) {
+					dispose();
+				}
+			};
+			store.add(Event.once(model.onDidDispose)(dispose));
+			store.add(model.onDidChange(event => {
+				if (event.kind === 'addRequest' && event.request.id === turnId) {
+					// History replay can still set the response result immediately after adding its request.
+					queueMicrotask(applyWhenReady);
+				}
+			}));
+			applyWhenReady();
+		} catch (error) {
+			dispose();
+			throw error;
+		}
 	}
 
 	private _completeSessionTurn(backendSession: URI, sessionResource: URI, turnId: string, chatSession = this._activeSessions.get(sessionResource)): void {
