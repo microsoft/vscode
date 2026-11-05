@@ -70,6 +70,7 @@ const getComputedDuration = <T extends object>(accessor: IComputedStateAndDurati
 		const own = accessor.getOwnDuration(node);
 		if (own !== undefined) {
 			computed = own;
+			durationChildrenCounts.delete(node);
 		} else {
 			computed = undefined;
 			let childrenWithDuration = 0;

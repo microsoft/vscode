@@ -406,3 +406,50 @@ suite('Workbench - Testing Explorer result clearing', () => {
 		});
 	}
 });
+
+suite('Workbench - Testing Explorer result durations', () => {
+	const ds = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const ownDuration of [0, 20]) {
+		test(`recomputes suite duration across results after an own duration of ${ownDuration}`, () => {
+			const results = ds.add(new TestResultService(
+				new MockContextKeyService(),
+				upcastPartial<ITestResultStorage>({ read: async () => [], persist: async () => { } }),
+				upcastPartial<ITestProfileService>({}),
+				NullTelemetryService,
+			));
+			const harness = ds.add(new TestTreeTestHarness(l => new TreeProjection({}, l, results)));
+			harness.flush();
+			const suite = harness.projection.getElementByTestId('ctrlId\0id-a')!;
+			harness.tree.expand(suite);
+			harness.flush();
+			const child = harness.projection.getElementByTestId('ctrlId\0id-a\0id-aa')!;
+			const root = harness.projection.getElementByTestId('ctrlId')!;
+			const createResult = () => {
+				const result = ds.add(results.createLiveResult({ group: TestRunProfileBitset.Run, targets: [] }));
+				result.addTask({ id: 'task', name: 'task', running: true, ctrlId: 'ctrlId' });
+				result.addTestChainToRun('ctrlId', [root.test.item, suite.test.item, child.test.item]);
+				result.updateState(suite.test.item.extId, 'task', TestResultState.Running);
+				return result;
+			};
+
+			const first = createResult();
+			first.updateState(child.test.item.extId, 'task', TestResultState.Passed, 5);
+			first.updateState(suite.test.item.extId, 'task', TestResultState.Passed, ownDuration);
+			first.markComplete();
+			const durations = [[suite.duration, child.duration]];
+
+			const second = createResult();
+			second.updateState(child.test.item.extId, 'task', TestResultState.Passed, 3);
+			durations.push([suite.duration, child.duration]);
+			second.markComplete();
+
+			const third = createResult();
+			third.updateState(child.test.item.extId, 'task', TestResultState.Passed, 4);
+			durations.push([suite.duration, child.duration]);
+			third.markComplete();
+
+			assert.deepStrictEqual(durations, [[ownDuration, 5], [3, 3], [4, 4]]);
+		});
+	}
+});
