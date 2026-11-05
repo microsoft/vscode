@@ -7,6 +7,7 @@ import * as assert from 'assert';
 import { disposableTimeout } from '../../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
+import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
 import { parseLinkedText } from '../../../../../../../base/common/linkedText.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
@@ -26,7 +27,7 @@ import { IAgentHostCustomizationService } from '../../../../browser/agentSession
 import { IAgentPlugin, IAgentPluginService } from '../../../../common/plugins/agentPluginService.js';
 import { ContributionEnablementState, EnablementModel } from '../../../../common/enablement.js';
 import { InMemoryStorageService } from '../../../../../../../platform/storage/common/storage.js';
-import { IInputOptions, IPickOptions, IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../../../../platform/quickinput/common/quickInput.js';
+import { IInputBox, IQuickInputButton, IQuickInputHideEvent, IQuickInputService, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickItem, QuickInputHideReason } from '../../../../../../../platform/quickinput/common/quickInput.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../../../platform/workspace/common/workspaceTrust.js';
 
 interface ITestProviderOptions {
@@ -1550,13 +1551,23 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			installation: { kind: 'providerCatalog', resourceKind: 'mcp', selectionId: 'selection' },
 		} as const;
 
-		function createFlow(options: { readonly trusted?: boolean; readonly grantTrust?: boolean; readonly confirm?: boolean; readonly cancelAt?: string; readonly configuration?: IAgentCustomizationInstallationConfigurationRequest } = {}) {
+		/** One quick input step as the user saw it. */
+		interface IShownStep {
+			readonly step: string | undefined;
+			readonly back: boolean;
+			readonly description: string | undefined;
+			readonly prompt: string | undefined;
+			readonly placeholder: string | undefined;
+			/** The pre-filled text, or the label of the preselected item. */
+			readonly value: string | undefined;
+		}
+
+		function createFlow(options: { readonly trusted?: boolean; readonly grantTrust?: boolean; readonly confirm?: boolean; readonly cancelAt?: string; readonly backAt?: readonly number[]; readonly configuration?: IAgentCustomizationInstallationConfigurationRequest } = {}) {
 			const calls: unknown[] = [];
-			const prompts: (string | undefined)[] = [];
 			const details: string[] = [];
 			const validation: (string | undefined)[] = [];
 			const secretValidation: (string | undefined)[] = [];
-			const prompts: { readonly title?: string; readonly prompt?: string; readonly placeHolder?: string }[] = [];
+			const shown: IShownStep[] = [];
 			const host = new class extends mock<IAgentHostService>() {
 				override readonly onAgentHostStart = Event.None;
 				override readonly onAgentHostExit = Event.None;
@@ -1569,31 +1580,109 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 					return { kind: 'receipt' as const, installationId: 'installation' };
 				}
 			}();
+			const backButton: IQuickInputButton = { tooltip: 'Back' };
+			/** Records a step; returns whether the user goes back from it. */
+			const show = (step: IShownStep) => {
+				shown.push(step);
+				return options.backAt?.includes(shown.length - 1) ?? false;
+			};
+			const stepOf = (input: { readonly step: number | undefined; readonly totalSteps: number | undefined }) => input.step !== undefined ? `${input.step}/${input.totalSteps}` : undefined;
 			const quickInput = new class extends mock<IQuickInputService>() {
-				cancelAt = options.cancelAt;
-				override async pick<T extends IQuickPickItem>(picks: QuickPickInput<T>[], pickOptions?: IPickOptions<T>): Promise<T | undefined> {
-					const items = picks as (T & { readonly value?: string })[];
-					calls.push(['pick', items.map(item => item.label)]);
-					prompts.push(pickOptions?.placeHolder);
-					// The transport pick preselects the recommendation; value picks choose the enum's sentinel.
-					return pickOptions?.activeItem ? await pickOptions.activeItem : items.find(item => item.value === sentinels.region);
-				}
-				override async input(inputOptions?: IInputOptions): Promise<string | undefined> {
-					prompts.push(inputOptions?.prompt);
-					if (inputOptions?.password) {
-						for (const probe of ['', 'a\0b', 'x'.repeat(8193), sentinels.secret]) {
-							const message = await inputOptions.validateInput?.(probe);
-							secretValidation.push(typeof message === 'string' ? message : undefined);
+				override readonly backButton = backButton;
+				override createQuickPick<T extends IQuickPickItem>(options: { useSeparators: true }): IQuickPick<T, { useSeparators: true }>;
+				override createQuickPick<T extends IQuickPickItem>(options?: { useSeparators: boolean }): IQuickPick<T, { useSeparators: false }>;
+				override createQuickPick<T extends IQuickPickItem>(_options?: { useSeparators: boolean }): IQuickPick<T, { useSeparators: true }> | IQuickPick<T, { useSeparators: false }> {
+					const disposables = new DisposableStore();
+					const accept = disposables.add(new Emitter<IQuickPickDidAcceptEvent>());
+					const button = disposables.add(new Emitter<IQuickInputButton>());
+					return new class extends mock<IQuickPick<T>>() {
+						override title: string | undefined;
+						override description: string | undefined;
+						override step: number | undefined;
+						override totalSteps: number | undefined;
+						override placeholder: string | undefined;
+						override buttons: readonly IQuickInputButton[] = [];
+						override items: readonly T[] = [];
+						override activeItems: readonly T[] = [];
+						override selectedItems: readonly T[] = [];
+						override ignoreFocusOut = false;
+						override readonly onDidAccept = accept.event;
+						override readonly onDidTriggerButton = button.event;
+						override readonly onDidHide = Event.None;
+						override show(): void {
+							const items = this.items as readonly (T & { readonly value?: string })[];
+							calls.push(['pick', items.map(item => item.label)]);
+							if (show({ step: stepOf(this), back: this.buttons.includes(backButton), description: this.description, prompt: undefined, placeholder: this.placeholder, value: this.activeItems[0]?.label })) {
+								button.fire(backButton);
+								return;
+							}
+							// The transport pick preselects the recommendation; value picks choose the enum's sentinel.
+							this.selectedItems = [this.activeItems[0] ?? items.find(item => item.value === sentinels.region)!];
+							accept.fire({ inBackground: false });
 						}
-						return this.cancelAt === 'secret' ? undefined : sentinels.secret;
-					}
-					prompts.push({ title: inputOptions?.title, prompt: inputOptions?.prompt, placeHolder: inputOptions?.placeHolder });
-					const tenant = inputOptions?.prompt?.includes(`'TENANT'`);
-					for (const probe of tenant ? ['$HOME', '${HOME}', sentinels.tenant, ''] : ['1.0', ' 1', '0x1', '-1.5e3']) {
-						const message = await inputOptions?.validateInput?.(probe);
-						validation.push(typeof message === 'string' ? message : undefined);
-					}
-					return tenant ? sentinels.tenant : '';
+						override dispose(): void {
+							disposables.dispose();
+						}
+					}();
+				}
+				override createInputBox(): IInputBox {
+					const disposables = new DisposableStore();
+					const accept = disposables.add(new Emitter<void>());
+					const change = disposables.add(new Emitter<string>());
+					const hide = disposables.add(new Emitter<IQuickInputHideEvent>());
+					const button = disposables.add(new Emitter<IQuickInputButton>());
+					const cancelAt = options.cancelAt;
+					return new class extends mock<IInputBox>() {
+						override title: string | undefined;
+						override description: string | undefined;
+						override step: number | undefined;
+						override totalSteps: number | undefined;
+						override placeholder: string | undefined;
+						override prompt: string | undefined;
+						override buttons: readonly IQuickInputButton[] = [];
+						override value = '';
+						override password = false;
+						override validationMessage: string | undefined;
+						override ignoreFocusOut = false;
+						override readonly onDidAccept = accept.event;
+						override readonly onDidChangeValue = change.event;
+						override readonly onDidHide = hide.event;
+						override readonly onDidTriggerButton = button.event;
+						private enter(value: string): void {
+							this.value = value;
+							change.fire(value);
+						}
+						override show(): void {
+							if (show({ step: stepOf(this), back: this.buttons.includes(backButton), description: this.description, prompt: this.prompt, placeholder: this.placeholder, value: this.password ? undefined : this.value })) {
+								button.fire(backButton);
+								return;
+							}
+							if (this.password) {
+								if (cancelAt === 'secret') {
+									hide.fire({ reason: QuickInputHideReason.Other });
+									return;
+								}
+								for (const probe of ['', 'a\0b', 'x'.repeat(8193)]) {
+									this.enter(probe);
+									secretValidation.push(this.validationMessage);
+								}
+								this.enter(sentinels.secret);
+								secretValidation.push(this.validationMessage);
+								accept.fire();
+								return;
+							}
+							const tenant = this.prompt?.includes(`'TENANT'`);
+							for (const probe of tenant ? ['$HOME', '${HOME}', sentinels.tenant, ''] : ['1.0', ' 1', '0x1', '-1.5e3']) {
+								this.enter(probe);
+								validation.push(this.validationMessage);
+							}
+							this.enter(tenant ? sentinels.tenant : '');
+							accept.fire();
+						}
+						override dispose(): void {
+							disposables.dispose();
+						}
+					}();
 				}
 			}();
 			const provider = store.add(createTestProvider(
@@ -1618,7 +1707,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 					requestTrust: async () => { calls.push('requestTrust'); return options.grantTrust; },
 				},
 			));
-			return { provider, calls, details, validation, secretValidation, prompts, quickInput };
+			return { provider, calls, details, validation, secretValidation, shown, quickInput };
 		}
 
 		test('installs once through the local host with exact submitted values after a sanitized review', async () => {
@@ -1667,7 +1756,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 
 		test('shows command links from untrusted plan text as plain text', async () => {
 			const link = '[Continue setup](command:workbench.action.files.newUntitledFile)';
-			const { provider, prompts } = createFlow({
+			const { provider, shown } = createFlow({
 				configuration: {
 					...configuration,
 					recommendedChoiceId: undefined,
@@ -1679,16 +1768,17 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 				},
 			});
 			await provider.install(URI.parse('agent-host-copilotcli:/frontend'), resource, CancellationToken.None);
-			assert.deepStrictEqual(prompts.map(prompt => parseLinkedText(prompt ?? '').nodes.filter(node => typeof node !== 'string').length), [0, 0]);
+			const links = (text: string | undefined) => parseLinkedText(text ?? '').nodes.filter(node => typeof node !== 'string').length;
+			assert.deepStrictEqual(shown.map(step => links(step.prompt) + links(step.placeholder) + links(step.description)), [0, 0]);
 		});
 
 		test('reviews a local package choice by its command and sends its values once', async () => {
-			const { provider, calls, details, prompts } = createFlow({
+			const { provider, calls, details, shown } = createFlow({
 				configuration: {
 					...configuration,
 					recommendedChoiceId: undefined,
 					choices: [{
-						choiceId: 'package:0', transport: 'stdio', command: 'npx @example/local@1.2.3 --port ${input:port}', configurationFields: ['args', 'command', 'env'],
+						choiceId: 'package:0', transport: 'stdio', command: 'npx @example/local@1.2.3 --port ${input:port} -d ${input:domain}', configurationFields: ['args', 'command', 'env'],
 						values: [
 							{ key: 'LOG_LEVEL', category: 'environment-variable', valueType: 'enum', required: true, isRepeated: false, enumValues: ['info', sentinels.region] },
 							{ key: '--port', category: 'package-argument', valueType: 'number', required: false, isRepeated: false, defaultValue: '3000' },
@@ -1699,10 +1789,11 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 				},
 			});
 			await provider.install(URI.parse('agent-host-copilotcli:/frontend'), resource, CancellationToken.None);
-			assert.deepStrictEqual({ prompts, apply: calls.find(call => Array.isArray(call) && call[0] === 'apply'), detail: details[0].split('\n').slice(2) }, {
-				prompts: [
-					{ title: `Configure 'Configured MCP' (2/3)`, prompt: `Value for command-line option '--port'. Leave empty to use the default.`, placeHolder: 'Default: 3000' },
-					{ title: `Configure 'Configured MCP' (3/3)`, prompt: `Value for command-line option '-d'. Optional: leave empty to skip.`, placeHolder: 'Optional' },
+			assert.deepStrictEqual({ shown, apply: calls.find(call => Array.isArray(call) && call[0] === 'apply'), detail: details[0].split('\n').slice(2) }, {
+				shown: [
+					{ step: '1/3', back: false, description: 'Command: npx @example/local@1.2.3 --port <port> -d <domain>', prompt: undefined, placeholder: `Environment variable 'LOG_LEVEL'`, value: undefined },
+					{ step: '2/3', back: true, description: 'Command: npx @example/local@1.2.3 --port ▶<port> -d <domain>', prompt: `Value for command-line option '--port'. Leave empty to use the default.`, placeholder: 'Default: 3000', value: '' },
+					{ step: '3/3', back: true, description: 'Command: npx @example/local@1.2.3 --port <port> ▶-d <domain>', prompt: `Value for command-line option '-d'. Optional: leave empty to skip.`, placeholder: 'Optional', value: '' },
 				],
 				apply: ['apply', {
 					hostGeneration: 'generation', ownershipToken: 'token', operationId: 'preparation',
@@ -1711,10 +1802,37 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 				detail: [
 					'Server: owner/configured',
 					'Destination: owner/configured',
-					'Command (your values replace the placeholders): npx @example/local@1.2.3 --port ${input:port}',
+					'Command (your values replace the placeholders): npx @example/local@1.2.3 --port ${input:port} -d ${input:domain}',
 					'Configured values: LOG_LEVEL (environment-variable)',
 					'Configuration fields: args, command, env',
 				],
+			});
+		});
+
+		test('going back returns to the previous step with its answer kept', async () => {
+			// Back from the first value returns to the transport pick; back from LIMIT returns to TENANT.
+			const { provider, calls, shown } = createFlow({ backAt: [1, 5] });
+			await provider.install(URI.parse('agent-host-copilotcli:/frontend'), resource, CancellationToken.None);
+			assert.deepStrictEqual({ shown: shown.map(step => [step.step, step.back, step.value]), apply: calls.find(call => Array.isArray(call) && call[0] === 'apply') }, {
+				shown: [
+					[undefined, false, 'streamable-http'],
+					['2/5', true, undefined],
+					[undefined, false, 'streamable-http'],
+					['2/5', true, undefined],
+					['3/5', true, ''],
+					['4/5', true, ''],
+					['3/5', true, sentinels.tenant],
+					['4/5', true, ''],
+					['5/5', true, undefined],
+				],
+				apply: ['apply', {
+					hostGeneration: 'generation', ownershipToken: 'token', operationId: 'preparation',
+					answers: {
+						choiceId: 'remote:1',
+						inputs: [{ key: 'X-Region', category: 'header', value: sentinels.region }, { key: 'TENANT', category: 'url-variable', value: sentinels.tenant }],
+						secrets: [{ placeholder: '${secret:a}', value: sentinels.secret }],
+					},
+				}],
 			});
 		});
 

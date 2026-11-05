@@ -2167,31 +2167,47 @@ suite('CopilotCustomizationInstallations', () => {
 		const errorMessage = (error: unknown) => error instanceof Error ? error.message : String(error);
 		const cardUrl = 'https://api.mcp.github.com/v0.1/servers/io.github.example%2Flocal/versions/latest';
 
-		function createPackageFixture(options: { readonly requiredValues?: McpInstallPlan['transportChoices'][number]['requiredValues']; readonly secret?: boolean } = {}) {
+		const remoteValues: McpInstallPlan['transportChoices'][number]['requiredValues'] = [
+			{ kind: 'enum', key: 'region', category: 'url-variable', valueType: 'enum', required: true, enumValues: ['us', 'eu'], isRepeated: false },
+			{ kind: 'scalar', key: 'X-Tenant', category: 'header', valueType: 'string', required: true, isRepeated: false },
+			{ kind: 'scalar', key: 'X-Debug', category: 'header', valueType: 'boolean', required: false, defaultValue: 'false', isRepeated: false },
+		];
+
+		function createPackageFixture(options: { readonly requiredValues?: McpInstallPlan['transportChoices'][number]['requiredValues']; readonly secret?: boolean; readonly remote?: boolean } = {}) {
 			const expiresAt = new Date(Date.now() + 60_000).toISOString();
 			const observedAt = new Date().toISOString();
+			const secretHeader = { name: 'Authorization', value: 'Bearer {api_key}', isRequired: true, variables: { api_key: { isRequired: true, isSecret: true } } };
 			const document = {
 				_meta: {},
 				server: {
 					name: 'io.github.example/local',
 					description: 'Local MCP',
 					version: '1.0.0',
-					packages: [{
-						registryType: 'npm',
-						identifier: '@example/local',
-						version: '1.2.3',
-						transport: { type: 'stdio' },
-						packageArguments: options.requiredValues ? [
-							{ type: 'positional', valueHint: 'directory', description: 'Root directory' },
-							{ type: 'named', name: '--port', description: 'Port', default: '3000' },
-							{ type: 'named', name: '--headless', description: 'Run headless' },
-							{ type: 'named', name: '--verbose', description: 'Verbose logging' },
-						] : [{ type: 'named', name: '--headless' }],
-						environmentVariables: options.requiredValues ? [
-							{ name: 'LOG_LEVEL', description: 'Log level', choices: ['info', 'debug'] },
-							{ name: 'OPTIONAL_TAG', description: 'Optional tag' },
-						] : [{ name: 'MODE', value: 'stdio' }],
-					}],
+					...(options.remote ? {
+						remotes: [{
+							type: 'streamable-http',
+							url: 'https://example.test/{region}/mcp',
+							variables: { region: { isRequired: true, choices: ['us', 'eu'] } },
+							headers: [{ name: 'X-Tenant', isRequired: true }, { name: 'X-Debug', format: 'boolean', default: 'false' }, ...(options.secret ? [secretHeader] : [])],
+						}],
+					} : {
+						packages: [{
+							registryType: 'npm',
+							identifier: '@example/local',
+							version: '1.2.3',
+							transport: { type: 'stdio' },
+							packageArguments: options.requiredValues ? [
+								{ type: 'positional', valueHint: 'directory', description: 'Root directory' },
+								{ type: 'named', name: '--port', description: 'Port', default: '3000' },
+								{ type: 'named', name: '--headless', description: 'Run headless' },
+								{ type: 'named', name: '--verbose', description: 'Verbose logging' },
+							] : [{ type: 'named', name: '--headless' }],
+							environmentVariables: options.requiredValues ? [
+								{ name: 'LOG_LEVEL', description: 'Log level', choices: ['info', 'debug'] },
+								{ name: 'OPTIONAL_TAG', description: 'Optional tag' },
+							] : [{ name: 'MODE', value: 'stdio' }],
+						}],
+					}),
 				},
 			};
 			const candidate: McpCatalogCandidate = {
@@ -2205,14 +2221,20 @@ suite('CopilotCustomizationInstallations', () => {
 				planHandleExpiresAt: expiresAt,
 				identity: { canonicalName: document.server.name, serverName: document.server.name, version: document.server.version },
 				provenance: { authority: 'api.mcp.github.com', validatedAt: observedAt, cardDigest: { algorithm: 'sha256-rfc8785', value: createHash('sha256').update(stableStringify(document)).digest('hex') }, mediaType: 'application/mcp-server+json' },
-				transportChoices: [{
+				transportChoices: [options.remote ? {
+					choiceId: 'remote:0', transport: 'streamable-http', installMethod: 'remote', endpoint: 'https://example.test/{region}/mcp',
+					requiredValues: remoteValues,
+					secretPlaceholders: options.secret ? [{ key: 'api_key', placeholder: '${secret:abc}' }] : [],
+				} : {
 					choiceId: 'package:0', transport: 'stdio', installMethod: 'package', packageType: 'npm', packageIdentifier: '@example/local',
 					requiredValues: options.requiredValues ?? [],
 					secretPlaceholders: options.secret ? [{ key: 'API_KEY', placeholder: '${secret:abc}' }] : [],
 				}],
 				target: { scope: 'user', configKey: document.server.name },
 				policy: { decision: 'allowed', source: 'none' },
-				configurationChanges: [{ operation: 'add', scope: 'user', configKey: document.server.name, changedFields: ['args', 'command', 'env', 'tools', 'type'], secretReferences: [] }],
+				configurationChanges: [options.remote
+					? { operation: 'add', scope: 'user', configKey: document.server.name, changedFields: ['headers', 'tools', 'type', 'url'], secretReferences: options.secret ? ['${secret:abc}'] : [] }
+					: { operation: 'add', scope: 'user', configKey: document.server.name, changedFields: ['args', 'command', 'env', 'tools', 'type'], secretReferences: [] }],
 				reloadRequired: true,
 				requiresInteractiveConfiguration: !!options.requiredValues?.length,
 			};
@@ -2283,6 +2305,25 @@ suite('CopilotCustomizationInstallations', () => {
 				},
 				added: [{ name: 'io.github.example/local', config: { type: 'stdio', command: 'npx', args: ['@example/local@1.2.3', 'C:\\work', '--port', '3000', '--headless'], env: { LOG_LEVEL: 'debug' }, tools: ['*'] } }],
 				duplicate: 'This customization installation review expired. Start the operation again.',
+			});
+		});
+
+		test('configures an MCP Gallery remote with non-secret values and refuses one that needs a secret', async () => {
+			const galleryCard = { kind: 'mcp' as const, source: { kind: 'url' as const, mediaType: 'application/mcp-server+json' as const, url: cardUrl } };
+			const { service, request, added } = createPackageFixture({ remote: true });
+			const configuration = await service.prepare({ ...request, installation: galleryCard });
+			assert.strictEqual(configuration.kind, 'configuration');
+			await service.apply({
+				hostGeneration: configuration.hostGeneration, ownershipToken: configuration.ownershipToken, operationId: configuration.operationId,
+				answers: { choiceId: 'remote:0', inputs: [{ category: 'url-variable', key: 'region', value: 'eu' }, { category: 'header', key: 'X-Tenant', value: 'contoso' }], secrets: [] },
+			});
+			const withSecret = createPackageFixture({ remote: true, secret: true });
+			const refused = await withSecret.service.prepare({ ...withSecret.request, installation: galleryCard }).then(prepared => prepared.kind, errorMessage);
+			assert.deepStrictEqual({ choice: configuration.choices.map(choice => [choice.choiceId, choice.endpointSummary, choice.command]), added, refused, secretAdded: withSecret.added }, {
+				choice: [['remote:0', 'https://example.test/{region}/mcp', undefined]],
+				added: [{ name: 'io.github.example/local', config: { type: 'http', url: 'https://example.test/eu/mcp', headers: { 'X-Tenant': 'contoso', 'X-Debug': 'false' }, tools: ['*'] } }],
+				refused: 'This MCP server requires an installation choice or additional values that Browse cannot collect yet.',
+				secretAdded: [],
 			});
 		});
 

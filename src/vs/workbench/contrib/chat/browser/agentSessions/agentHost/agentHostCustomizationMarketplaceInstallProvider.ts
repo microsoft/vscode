@@ -23,7 +23,8 @@ import { CustomizationMarketplaceMediaType, CustomizationMarketplaceRecoveryGrou
 import { CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
-import { IQuickInputService, IQuickPickItem } from '../../../../../../platform/quickinput/common/quickInput.js';
+import { IInputBox, IQuickInput, IQuickInputService, IQuickPick, IQuickPickItem } from '../../../../../../platform/quickinput/common/quickInput.js';
+import Severity from '../../../../../../base/common/severity.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import type { IMcpServerConfiguration } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { IRecordedCustomizationMarketplaceResource, ICustomizationMarketplaceInstallProvider } from '../../../common/customizationMarketplaceInstallService.js';
@@ -39,8 +40,61 @@ const githubLoginPattern = /^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}$/
 type AppliedPluginIdentity = Extract<IAgentCustomizationInstallationApplyResult, { readonly kind: 'plugin' }>;
 const maxPromptLabelLength = 200;
 
+/** Marks the part of a command preview that the current step fills in. */
+const currentCommandPartMarker = '▶';
+/** How much of a long command preview to keep before the marked part. */
+const commandPreviewLeadingContext = 80;
+
 /** The user's answers to a configuration request and the choice they answer. */
 type ICustomizationInstallationAnswers = Omit<IAgentCustomizationInstallationAnswers, 'choiceId'> & { readonly choice: IAgentCustomizationInstallationChoice };
+
+/** The outcome of one configuration step. */
+type ConfigurationStepResult<T> = { readonly kind: 'value'; readonly value: T } | { readonly kind: 'back' } | { readonly kind: 'cancel' };
+
+/** Header shared by every configuration step. */
+interface IConfigurationStep {
+	readonly title: string;
+	/** 1-based; omitted for a step whose position is not yet known. */
+	readonly step?: number;
+	readonly totalSteps?: number;
+	readonly canGoBack: boolean;
+	/** Shown below the input. */
+	readonly description?: string;
+}
+
+/**
+ * Previews where values go for a choice: a package's command, with pending
+ * values as `<name>` and the part {@link value} fills marked, or a remote endpoint.
+ */
+function formatChoicePreview(choice: IAgentCustomizationInstallationChoice, value: IAgentCustomizationInstallationValuePrompt | undefined): string | undefined {
+	if (choice.command === undefined) {
+		return choice.endpointSummary !== undefined
+			? localize('agentHost.customizationInstall.endpointPreview', "Endpoint: {0}", toPlainLabel(choice.endpointSummary))
+			: undefined;
+	}
+	const isArgument = value?.category === 'package-argument' || value?.category === 'runtime-argument';
+	const names = isArgument ? [value.key, value.key.replace(/^-+/, '')] : [];
+	let marked = false;
+	let preview = choice.command.replace(/\$\{input:([^}]*)\}/g, (_match, name: string) => {
+		if (!marked && names.includes(name)) {
+			marked = true;
+			return `${currentCommandPartMarker}<${name}>`;
+		}
+		return `<${name}>`;
+	});
+	// A flag without its own placeholder, such as `-d`, appears in the command as written.
+	if (!marked && isArgument && value.key.startsWith('-')) {
+		const parts = preview.split(' ');
+		const index = parts.indexOf(value.key);
+		if (index >= 0) {
+			parts[index] = `${currentCommandPartMarker}${parts[index]}`;
+			preview = parts.join(' ');
+			marked = true;
+		}
+	}
+	const start = marked ? Math.max(0, preview.indexOf(currentCommandPartMarker) - commandPreviewLeadingContext) : 0;
+	return localize('agentHost.customizationInstall.commandPreview', "Command: {0}", toPlainLabel(start > 0 ? `…${preview.slice(start)}` : preview));
+}
 
 /** Renders untrusted plan text as a bounded plain-text label. Quick Input turns `[text](command:…)` into links, so `](` is split apart. */
 function toPlainLabel(value: string): string {
@@ -574,68 +628,107 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 		}
 	}
 
-	/** Collects the transport choice, values and secrets in plan order. Returns `undefined` when the user cancels. */
+	/**
+	 * Collects the transport choice, values and secrets in plan order, one
+	 * step at a time. Back returns to the previous step with its answer kept;
+	 * choosing a different transport discards the answers for the previous one.
+	 * Returns `undefined` when the user cancels.
+	 */
 	private async collectConfiguration(request: IAgentCustomizationInstallationConfigurationRequest, token: CancellationToken): Promise<ICustomizationInstallationAnswers | undefined> {
 		const title = localize('agentHost.customizationInstall.configureTitle', "Configure '{0}'", toPlainLabel(request.displayName));
-		let choice = request.choices.length === 1 ? request.choices[0] : undefined;
-		if (!choice) {
-			const items = request.choices.map(candidate => {
-				const summary = candidate.endpointSummary ?? candidate.command;
-				return {
-					label: toPlainLabel(candidate.transport),
-					description: candidate.choiceId === request.recommendedChoiceId ? localize('agentHost.customizationInstall.recommended', "Recommended") : undefined,
-					detail: summary !== undefined ? toPlainLabel(summary) : undefined,
-					choice: candidate,
-				};
-			});
-			const picked = await this.quickInputService.pick(items, {
+		const choosesTransport = request.choices.length > 1;
+		const firstStep = choosesTransport ? -1 : 0;
+		let choice: IAgentCustomizationInstallationChoice | undefined = choosesTransport ? undefined : request.choices[0];
+		let values = new Map<number, string | undefined>();
+		let secrets = new Map<number, string>();
+		let index = firstStep;
+		while (true) {
+			if (index < 0 || !choice) {
+				const picked = await this.pickTransport(request, title, choice, token);
+				if (picked.kind !== 'value') {
+					return undefined;
+				}
+				if (picked.value !== choice) {
+					values = new Map();
+					secrets = new Map();
+				}
+				choice = picked.value;
+				index = 0;
+			}
+			if (choice.values.some(value => value.isRepeated)) {
+				throw new Error(localize('agentHost.customizationInstall.repeatedUnsupported', "This MCP server requires configuration that cannot be collected yet."));
+			}
+			if (index >= choice.values.length + choice.secrets.length) {
+				break;
+			}
+			const offset = choosesTransport ? 1 : 0;
+			const value = index < choice.values.length ? choice.values[index] : undefined;
+			const step: IConfigurationStep = {
 				title,
-				placeHolder: localize('agentHost.customizationInstall.pickTransport', "Select how to connect to this MCP server"),
-				activeItem: items.find(item => item.choice.choiceId === request.recommendedChoiceId),
-				ignoreFocusLost: true,
-			}, token);
-			choice = picked?.choice;
-		}
-		if (!choice) {
-			return undefined;
-		}
-		if (choice.values.some(value => value.isRepeated)) {
-			throw new Error(localize('agentHost.customizationInstall.repeatedUnsupported', "This MCP server requires configuration that cannot be collected yet."));
-		}
-		const totalSteps = choice.values.length + choice.secrets.length;
-		let step = 0;
-		const stepTitle = () => totalSteps > 1
-			? localize('agentHost.customizationInstall.configureStepTitle', "Configure '{0}' ({1}/{2})", toPlainLabel(request.displayName), ++step, totalSteps)
-			: title;
-		const inputs: IAgentCustomizationInstallationAnswers['inputs'][number][] = [];
-		for (const value of choice.values) {
-			const answer = await this.collectValue(stepTitle(), value, token);
-			if (answer === undefined) {
+				step: offset + index + 1,
+				totalSteps: offset + choice.values.length + choice.secrets.length,
+				canGoBack: index > firstStep,
+				description: formatChoicePreview(choice, value),
+			};
+			let result: ConfigurationStepResult<string | undefined>;
+			if (value) {
+				result = await this.collectValue(step, value, values.has(index) ? { value: values.get(index) } : undefined, token);
+				if (result.kind === 'value') {
+					values.set(index, result.value);
+				}
+			} else {
+				const secret = choice.secrets[index - choice.values.length];
+				const secretResult = await this.showInputStep(step, {
+					prompt: localize('agentHost.customizationInstall.secretPrompt', "Enter the secret for {0}. It is stored by the Agent Host and never shown again.", toPlainLabel(secret.title ?? secret.key)),
+					value: secrets.get(index) ?? '',
+					password: true,
+					validate: input => validateSecret(input),
+				}, token);
+				if (secretResult.kind === 'value') {
+					secrets.set(index, secretResult.value);
+				}
+				result = secretResult;
+			}
+			if (result.kind === 'cancel') {
 				return undefined;
 			}
-			if (answer.value !== undefined) {
-				inputs.push({ key: value.key, category: value.category, value: answer.value });
-			}
+			index += result.kind === 'back' ? -1 : 1;
 		}
-		const secrets: IAgentCustomizationInstallationAnswers['secrets'][number][] = [];
-		for (const secret of choice.secrets) {
-			const value = await this.quickInputService.input({
-				title: stepTitle(),
-				prompt: localize('agentHost.customizationInstall.secretPrompt', "Enter the secret for {0}. It is stored by the Agent Host and never shown again.", toPlainLabel(secret.title ?? secret.key)),
-				password: true,
-				ignoreFocusLost: true,
-				validateInput: async input => validateSecret(input),
-			}, token);
-			if (!value) {
-				return undefined;
-			}
-			secrets.push({ placeholder: secret.placeholder, value });
-		}
-		return { choice, inputs, secrets };
+		const selected = choice;
+		return {
+			choice: selected,
+			inputs: selected.values.flatMap((value, i) => {
+				const answer = values.get(i);
+				return answer !== undefined ? [{ key: value.key, category: value.category, value: answer }] : [];
+			}),
+			secrets: selected.secrets.map((secret, i) => ({ placeholder: secret.placeholder, value: secrets.get(selected.values.length + i)! })),
+		};
 	}
 
-	/** Returns `{ value: undefined }` for an omitted field and `undefined` when the user cancels. */
-	private async collectValue(title: string, value: IAgentCustomizationInstallationValuePrompt, token: CancellationToken): Promise<{ readonly value: string | undefined } | undefined> {
+	/** Asks how to connect, preselecting the previous choice or else the recommendation. */
+	private async pickTransport(request: IAgentCustomizationInstallationConfigurationRequest, title: string, previous: IAgentCustomizationInstallationChoice | undefined, token: CancellationToken): Promise<ConfigurationStepResult<IAgentCustomizationInstallationChoice>> {
+		const items = request.choices.map(candidate => {
+			const summary = candidate.endpointSummary ?? candidate.command;
+			return {
+				label: toPlainLabel(candidate.transport),
+				description: candidate.choiceId === request.recommendedChoiceId ? localize('agentHost.customizationInstall.recommended', "Recommended") : undefined,
+				detail: summary !== undefined ? toPlainLabel(summary) : undefined,
+				choice: candidate,
+			};
+		});
+		const picked = await this.showPickStep({ title, canGoBack: false }, {
+			placeholder: localize('agentHost.customizationInstall.pickTransport', "Select how to connect to this MCP server"),
+			items,
+			activeItem: items.find(item => item.choice === previous) ?? items.find(item => item.choice.choiceId === request.recommendedChoiceId),
+		}, token);
+		return picked.kind === 'value' ? { kind: 'value', value: picked.value.choice } : picked;
+	}
+
+	/**
+	 * Asks for one value, pre-filled with {@link previous} when returning to
+	 * the step. An omitted field yields `undefined`.
+	 */
+	private async collectValue(step: IConfigurationStep, value: IAgentCustomizationInstallationValuePrompt, previous: { readonly value: string | undefined } | undefined, token: CancellationToken): Promise<ConfigurationStepResult<string | undefined>> {
 		const kind = describeConfiguredValue(value);
 		const label = value.title !== undefined
 			? localize('agentHost.customizationInstall.titledValue', "{0} ({1})", toPlainLabel(value.title), kind)
@@ -657,29 +750,115 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 					value: undefined,
 				});
 			}
-			const picked = await this.quickInputService.pick(items, { title, placeHolder: prompt, ignoreFocusLost: true }, token);
-			return picked ? { value: picked.value } : undefined;
+			const picked = await this.showPickStep(step, {
+				placeholder: prompt,
+				items,
+				activeItem: previous ? items.find(item => item.value === previous.value) : undefined,
+			}, token);
+			return picked.kind === 'value' ? { kind: 'value', value: picked.value.value } : picked;
 		}
 		const fieldPrompt = (value.valueType === 'path'
 			? localize('agentHost.customizationInstall.pathPrompt', "{0} (a path on the Agent Host machine)", prompt)
 			: prompt).replace(/[.\s]+$/, '');
-		const entered = await this.quickInputService.input({
-			title,
+		const entered = await this.showInputStep(step, {
 			prompt: value.defaultValue !== undefined
 				? localize('agentHost.customizationInstall.defaultPrompt', "{0}. Leave empty to use the default.", fieldPrompt)
 				: omittable
 					? localize('agentHost.customizationInstall.optionalPrompt', "{0}. Optional: leave empty to skip.", fieldPrompt)
 					: fieldPrompt,
-			placeHolder: value.defaultValue !== undefined
+			placeholder: value.defaultValue !== undefined
 				? localize('agentHost.customizationInstall.defaultPlaceholder', "Default: {0}", toPlainLabel(value.defaultValue))
 				: omittable ? localize('agentHost.customizationInstall.optionalPlaceholder', "Optional") : undefined,
-			ignoreFocusLost: true,
-			validateInput: async input => validateConfiguredValue(value, input, omittable),
+			value: previous?.value ?? '',
+			password: false,
+			validate: input => validateConfiguredValue(value, input, omittable),
 		}, token);
-		if (entered === undefined) {
-			return undefined;
+		return entered.kind === 'value' ? { kind: 'value', value: entered.value === '' ? undefined : entered.value } : entered;
+	}
+
+	private applyStep(input: IQuickInput, step: IConfigurationStep): void {
+		input.title = step.title;
+		input.step = step.step;
+		input.totalSteps = step.totalSteps;
+		input.description = step.description;
+		input.buttons = step.canGoBack ? [this.quickInputService.backButton] : [];
+		input.ignoreFocusOut = true;
+	}
+
+	/** Shows one quick-pick step and resolves with the accepted item, Back or cancellation. */
+	private async showPickStep<T extends IQuickPickItem>(step: IConfigurationStep, options: { readonly placeholder: string; readonly items: readonly T[]; readonly activeItem: T | undefined }, token: CancellationToken): Promise<ConfigurationStepResult<T>> {
+		if (token.isCancellationRequested) {
+			return { kind: 'cancel' };
 		}
-		return { value: entered === '' ? undefined : entered };
+		const store = new DisposableStore();
+		const picker: IQuickPick<T> = store.add(this.quickInputService.createQuickPick<T>());
+		this.applyStep(picker, step);
+		picker.placeholder = options.placeholder;
+		picker.items = options.items;
+		if (options.activeItem) {
+			picker.activeItems = [options.activeItem];
+		}
+		try {
+			return await new Promise<ConfigurationStepResult<T>>(resolve => {
+				store.add(token.onCancellationRequested(() => resolve({ kind: 'cancel' })));
+				store.add(picker.onDidTriggerButton(button => {
+					if (button === this.quickInputService.backButton) {
+						resolve({ kind: 'back' });
+					}
+				}));
+				store.add(picker.onDidAccept(() => {
+					const [selected] = picker.selectedItems;
+					if (selected) {
+						resolve({ kind: 'value', value: selected });
+					}
+				}));
+				store.add(picker.onDidHide(() => resolve({ kind: 'cancel' })));
+				picker.show();
+			});
+		} finally {
+			store.dispose();
+		}
+	}
+
+	/** Shows one input step and resolves with the accepted text, Back or cancellation. Invalid text cannot be accepted. */
+	private async showInputStep(step: IConfigurationStep, options: { readonly prompt: string; readonly placeholder?: string; readonly value: string; readonly password: boolean; readonly validate: (input: string) => string | undefined }, token: CancellationToken): Promise<ConfigurationStepResult<string>> {
+		if (token.isCancellationRequested) {
+			return { kind: 'cancel' };
+		}
+		const store = new DisposableStore();
+		const box: IInputBox = store.add(this.quickInputService.createInputBox());
+		this.applyStep(box, step);
+		box.prompt = options.prompt;
+		box.placeholder = options.placeholder;
+		box.value = options.value;
+		box.password = options.password;
+		// Validated only after the user types or accepts, so the prompt stays visible until then.
+		const validate = () => {
+			const message = options.validate(box.value);
+			box.validationMessage = message;
+			box.severity = message ? Severity.Error : Severity.Ignore;
+			return message;
+		};
+		try {
+			return await new Promise<ConfigurationStepResult<string>>(resolve => {
+				store.add(token.onCancellationRequested(() => resolve({ kind: 'cancel' })));
+				store.add(box.onDidChangeValue(() => validate()));
+				store.add(box.onDidTriggerButton(button => {
+					if (button === this.quickInputService.backButton) {
+						resolve({ kind: 'back' });
+					}
+				}));
+				store.add(box.onDidAccept(() => {
+					if (!validate()) {
+						resolve({ kind: 'value', value: box.value });
+					}
+				}));
+				store.add(box.onDidHide(() => resolve({ kind: 'cancel' })));
+				box.show();
+			});
+		} finally {
+			store.dispose();
+		}
 	}
 
 	/**
