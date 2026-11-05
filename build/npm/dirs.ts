@@ -93,11 +93,10 @@ export const separateRootMembers: Readonly<Record<string, readonly string[]>> = 
 };
 
 /**
- * Separate pnpm install roots that are installed on demand, not by the root postinstall:
- * `build/npm/gyp` by the root preinstall, the others by the scripts or CI jobs that use them.
+ * Separate pnpm install roots that are installed on demand, not by the root postinstall, by the
+ * scripts or CI jobs that use them.
  */
 export const standaloneRoots = [
-	'build/npm/gyp',
 	'test/sanity',
 ];
 
