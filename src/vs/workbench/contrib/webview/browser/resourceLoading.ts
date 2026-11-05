@@ -12,7 +12,7 @@ import { isWindows, OperatingSystem } from '../../../../base/common/platform.js'
 import { originalFSPath } from '../../../../base/common/resources.js';
 import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
-import { FileOperationError, FileOperationResult, FileType, hasFileRealpathCapability, IFileService, IWriteFileOptions } from '../../../../platform/files/common/files.js';
+import { FileOperationError, FileOperationResult, FileSystemProviderErrorCode, FileType, hasFileRealpathCapability, IFileService, IWriteFileOptions, toFileSystemProviderErrorCode } from '../../../../platform/files/common/files.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -75,7 +75,12 @@ export async function loadLocalResource(
 		return WebviewResourceResponse.AccessDenied;
 	}
 
-	if (!await isResolvedResourceInAnyRoot(request, fileService, uriIdentityService, options.remoteOS)) {
+	const containment = await checkResolvedContainment(request, fileService, uriIdentityService, options.remoteOS);
+	if (containment === Containment.NotFound) {
+		logService.trace(`Webview.loadLocalResource - not found. requestUri=${requestUri}, resourceToLoad=${resourceToLoad}`);
+		return WebviewResourceResponse.Failed;
+	}
+	if (containment === Containment.NotContained) {
 		logService.trace(`Webview.loadLocalResource - access denied, resolved resource is outside of all roots. requestUri=${requestUri}, resourceToLoad=${resourceToLoad}`);
 		return WebviewResourceResponse.AccessDenied;
 	}
@@ -157,71 +162,95 @@ function isContainedInAnyRoot(resource: URI, roots: ReadonlyArray<URI>, uriIdent
 	return roots.some(root => containsResource(root, resource, uriIdentityService, forcePosixSemantics));
 }
 
+const enum Containment { Contained, NotContained, NotFound }
+
 /**
  * The lexical check does not see symbolic links or junctions inside a root that point outside of it,
  * while reading the resource follows them. On file systems that can resolve links, also require the
  * resolved resource to be inside a root, or inside the resolved location of a root (roots may be
  * links themselves). File systems without link resolution keep the lexical check only.
  */
-async function isResolvedResourceInAnyRoot(
+async function checkResolvedContainment(
 	request: IContainmentRequest,
 	fileService: IFileService,
 	uriIdentityService: IUriIdentityService,
 	remoteOS: OperatingSystem | undefined,
-): Promise<boolean> {
+	resource: URI = request.resource,
+): Promise<Containment> {
 	let resolvedResource: URI | undefined;
 	try {
-		resolvedResource = await resolveRealpath(request.resource, fileService, remoteOS);
+		resolvedResource = await resolveRealpath(resource, fileService, remoteOS);
 	} catch {
-		// Unresolvable (e.g. a dangling link): never fall back to the unresolved resource.
-		return false;
+		if (await isMissing(resource, fileService)) {
+			// Reading would fail as well. Report it as before resolving links, unless the closest
+			// existing folder already resolves outside of all roots.
+			const parent = uriIdentityService.extUri.dirname(resource);
+			if (!isContainedInAnyRoot(parent, request.roots, uriIdentityService, request.forcePosixSemantics)) {
+				return Containment.NotFound; // the parent is a root
+			}
+			const parentContainment = await checkResolvedContainment(request, fileService, uriIdentityService, remoteOS, parent);
+			return parentContainment === Containment.Contained ? Containment.NotFound : parentContainment;
+		}
+		// Dangling links, and file systems that cannot resolve some links of readable paths.
+		// Never fall back to the unresolved resource if a link is involved.
+		return checkUnresolvedContainment(request, resource, fileService, uriIdentityService);
 	}
 	if (!resolvedResource) {
-		return true;
-	}
-
-	// Disk file systems return the unresolved path when resolving fails but the path is readable,
-	// so an unchanged path only proves containment if no link was involved.
-	if (uriIdentityService.extUri.isEqual(resolvedResource, request.resource)) {
-		return !await hasLinkBelowRoot(request, fileService, uriIdentityService);
+		return Containment.Contained;
 	}
 
 	if (isContainedInAnyRoot(resolvedResource, request.roots, uriIdentityService, request.forcePosixSemantics)) {
-		return true;
+		return Containment.Contained;
 	}
 
 	const resolvedRoots = await Promise.all(request.roots
 		.filter(root => root.scheme === request.resource.scheme)
 		.map(root => resolveRealpath(root, fileService, remoteOS).catch(() => undefined)));
-	return isContainedInAnyRoot(resolvedResource, resolvedRoots.filter(isDefined), uriIdentityService, request.forcePosixSemantics);
+	return isContainedInAnyRoot(resolvedResource, resolvedRoots.filter(isDefined), uriIdentityService, request.forcePosixSemantics)
+		? Containment.Contained
+		: Containment.NotContained;
 }
 
 /**
- * Whether the resource, or a folder between it and the closest root containing it, is a link.
- * Links in the path of a root itself are allowed. Paths that cannot be checked count as links.
+ * Checks a resource whose links could not be resolved: it is contained only if neither the resource
+ * nor a folder between it and the closest root containing it is a link. Links in the path of a root
+ * itself are allowed.
  */
-async function hasLinkBelowRoot(request: IContainmentRequest, fileService: IFileService, uriIdentityService: IUriIdentityService): Promise<boolean> {
+async function checkUnresolvedContainment(request: IContainmentRequest, resource: URI, fileService: IFileService, uriIdentityService: IUriIdentityService): Promise<Containment> {
 	const extUri = uriIdentityService.extUri;
-	const containingRoots = request.roots.filter(root => containsResource(root, request.resource, uriIdentityService, request.forcePosixSemantics));
+	const containingRoots = request.roots.filter(root => containsResource(root, resource, uriIdentityService, request.forcePosixSemantics));
 	const closestRoot = containingRoots.reduce<URI | undefined>((closest, root) => !closest || extUri.isEqualOrParent(root, closest) ? root : closest, undefined);
-	const provider = fileService.getProvider(request.resource.scheme);
+	const provider = fileService.getProvider(resource.scheme);
 	if (!closestRoot || !provider) {
-		return true;
+		return Containment.NotContained;
 	}
 
 	const candidates: URI[] = [];
-	for (let current = request.resource; !extUri.isEqualOrParent(closestRoot, current); current = extUri.dirname(current)) {
+	for (let current = resource; !extUri.isEqualOrParent(closestRoot, current); current = extUri.dirname(current)) {
 		if (extUri.isEqual(extUri.dirname(current), current)) {
-			return true;
+			return Containment.NotContained;
 		}
 		candidates.push(current);
 	}
 
 	try {
 		const stats = await Promise.all(candidates.map(candidate => provider.stat(candidate)));
-		return stats.some(stat => (stat.type & FileType.SymbolicLink) !== 0);
+		return stats.some(stat => (stat.type & FileType.SymbolicLink) !== 0) ? Containment.NotContained : Containment.Contained;
 	} catch {
-		return true;
+		return Containment.NotContained;
+	}
+}
+
+async function isMissing(resource: URI, fileService: IFileService): Promise<boolean> {
+	const provider = fileService.getProvider(resource.scheme);
+	if (!provider) {
+		return false;
+	}
+	try {
+		await provider.stat(resource);
+		return false;
+	} catch (error) {
+		return toFileSystemProviderErrorCode(error) === FileSystemProviderErrorCode.FileNotFound;
 	}
 }
 
@@ -238,7 +267,7 @@ async function resolveRealpath(resource: URI, fileService: IFileService, remoteO
 	}
 
 	// Providers return a path in the format of the (possibly remote) operating system.
-	const realpath = await provider.realpath(resource.with({ query: '', fragment: '' }));
+	const realpath = await provider.realpath(resource.with({ query: '', fragment: '' }), { strict: true });
 	if (resource.scheme === Schemas.file) {
 		return URI.file(realpath);
 	}

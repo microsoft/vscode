@@ -11,7 +11,7 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { isWindows, OperatingSystem } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { createFileSystemProviderError, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileService, IStat } from '../../../../../platform/files/common/files.js';
+import { createFileSystemProviderError, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileRealpathOptions, IFileService, IStat } from '../../../../../platform/files/common/files.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -445,9 +445,12 @@ suite('Webview Resource Loading - getResourceToLoad', () => {
 suite('Webview Resource Loading - resolved links', () => {
 	const disposableStore = ensureNoDisposablesAreLeakedInTestSuite();
 
-	/** A link whose resolution fails silently: `realpath` returns the unresolved path, like the disk provider. */
-	const silentlyUnresolved = { silentlyUnresolved: true } as const;
-	type LinkTarget = string | undefined | typeof silentlyUnresolved;
+	/**
+	 * A link that the file system cannot resolve although the path is readable: `realpath` returns the
+	 * unresolved path, or with `strict` fails with `code`, like the disk provider.
+	 */
+	interface IUnresolvable { readonly unresolvable: FileSystemProviderErrorCode; readonly isLink: boolean }
+	type LinkTarget = string | undefined | IUnresolvable;
 
 	/**
 	 * Simulates a file system with links: `realpath` maps a lexical link prefix to its target,
@@ -464,21 +467,27 @@ suite('Webview Resource Loading - resolved links', () => {
 
 		override async stat(resource: URI): Promise<IStat> {
 			const stat = await super.stat(resource);
-			return this.links.has(resource.path) ? { ...stat, type: stat.type | FileType.SymbolicLink } : stat;
+			const target = this.links.get(resource.path);
+			const isLink = this.links.has(resource.path) && (typeof target !== 'object' || target.isLink);
+			return isLink ? { ...stat, type: stat.type | FileType.SymbolicLink } : stat;
 		}
 
-		async realpath(resource: URI): Promise<string> {
+		async realpath(resource: URI, options?: IFileRealpathOptions): Promise<string> {
 			for (const [link, target] of this.links) {
 				if (resource.path === link || resource.path.startsWith(link + '/')) {
 					if (target === undefined) {
 						throw createFileSystemProviderError('dangling link', FileSystemProviderErrorCode.FileNotFound);
 					}
-					if (target === silentlyUnresolved) {
+					if (typeof target === 'object') {
+						if (options?.strict) {
+							throw createFileSystemProviderError('cannot resolve', target.unresolvable);
+						}
 						return toProviderPath(resource.path);
 					}
 					return toProviderPath(target + resource.path.substring(link.length));
 				}
 			}
+			await super.stat(resource); // missing resources cannot be resolved
 			return toProviderPath(resource.path);
 		}
 	}
@@ -486,7 +495,7 @@ suite('Webview Resource Loading - resolved links', () => {
 	let providerPathStyle: 'posix' | 'windows' = 'posix';
 	const toProviderPath = (path: string) => providerPathStyle === 'windows' ? path.replace(/^\//, '').replace(/\//g, '\\') : path;
 
-	async function loadAll(scheme: string, links: ReadonlyMap<string, LinkTarget>, roots: readonly URI[], resources: readonly URI[], options?: { canResolve?: boolean; remoteOS?: OperatingSystem }) {
+	async function loadAll(scheme: string, links: ReadonlyMap<string, LinkTarget>, roots: readonly URI[], resources: readonly URI[], options?: { canResolve?: boolean; remoteOS?: OperatingSystem; missing?: readonly URI[] }) {
 		const instantiationService = disposableStore.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, NullLogService);
 		const fileService = disposableStore.add(new FileService(new NullLogService()));
@@ -494,7 +503,9 @@ suite('Webview Resource Loading - resolved links', () => {
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IUriIdentityService, disposableStore.add(new UriIdentityService(fileService)));
 		for (const resource of resources) {
-			await fileService.writeFile(resource.with({ query: '' }), VSBuffer.fromString('content'));
+			if (!options?.missing?.some(missing => missing.toString() === resource.toString())) {
+				await fileService.writeFile(resource.with({ query: '' }), VSBuffer.fromString('content'));
+			}
 		}
 
 		const results = [];
@@ -541,21 +552,43 @@ suite('Webview Resource Loading - resolved links', () => {
 		]);
 	});
 
-	test('Denies links whose resolution silently returns the unresolved path', async () => {
+	test('Denies links that cannot be resolved, and allows readable paths without links that cannot be resolved', async () => {
 		const links = new Map<string, LinkTarget>([
-			['/ws/unresolved-file.svg', silentlyUnresolved],
-			['/ws/unresolved-folder', silentlyUnresolved],
+			['/ws/unresolvable-file.svg', { unresolvable: FileSystemProviderErrorCode.Unavailable, isLink: true }],
+			// e.g. a link to the descriptor of an open, deleted file on Linux
+			['/ws/unresolvable-folder', { unresolvable: FileSystemProviderErrorCode.FileNotFound, isLink: true }],
+			// e.g. file systems on which resolving fails for every path
+			['/ws/unusual-file-system', { unresolvable: FileSystemProviderErrorCode.Unavailable, isLink: false }],
 		]);
 		const file = (path: string) => URI.from({ scheme: 'test-links', path });
 
 		assert.deepStrictEqual(await loadAll('test-links', links, [file('/ws')], [
 			file('/ws/nested/inside.svg'),
-			file('/ws/unresolved-file.svg'),
-			file('/ws/unresolved-folder/canary.svg'),
+			file('/ws/unresolvable-file.svg'),
+			file('/ws/unresolvable-folder/canary.svg'),
+			file('/ws/unusual-file-system/inside.svg'),
 		]), [
 			{ resource: '/ws/nested/inside.svg', type: 'Success' },
-			{ resource: '/ws/unresolved-file.svg', type: 'AccessDenied' },
-			{ resource: '/ws/unresolved-folder/canary.svg', type: 'AccessDenied' },
+			{ resource: '/ws/unresolvable-file.svg', type: 'AccessDenied' },
+			{ resource: '/ws/unresolvable-folder/canary.svg', type: 'AccessDenied' },
+			{ resource: '/ws/unusual-file-system/inside.svg', type: 'Success' },
+		]);
+	});
+
+	test('Reports missing resources inside a root as not found without reading them', async () => {
+		const links = new Map<string, LinkTarget>([['/ws/outside-link', '/outside'], ['/ws/inner-link', '/ws/sub']]);
+		const file = (path: string) => URI.from({ scheme: 'test-links', path });
+		const missing = [file('/ws/missing.svg'), file('/ws/missing-folder/missing.svg'), file('/ws/inner-link/missing.svg'), file('/ws/outside-link/missing.svg')];
+
+		assert.deepStrictEqual(await loadAll('test-links', links, [file('/ws')], [
+			file('/ws/inside.svg'),
+			...missing,
+		], { missing }), [
+			{ resource: '/ws/inside.svg', type: 'Success' },
+			{ resource: '/ws/missing.svg', type: 'Failed' },
+			{ resource: '/ws/missing-folder/missing.svg', type: 'Failed' },
+			{ resource: '/ws/inner-link/missing.svg', type: 'Failed' },
+			{ resource: '/ws/outside-link/missing.svg', type: 'AccessDenied' },
 		]);
 	});
 
