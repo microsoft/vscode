@@ -24,6 +24,7 @@ import { gitHubCopilotResource } from '../../../../../../platform/agentHost/comm
 import { copilotEntraAuthorizationServer, copilotEntraClientId, copilotEntraDiscoveryResource, copilotEntraResources, isCopilotEntraResource } from '../../../../../../platform/agentHost/common/copilotEntraAuthentication.js';
 import { type McpAuthRequirement, type McpOAuthClient, type ModelSelection, type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import type { AuthenticateTarget, McpServerAuthenticateTarget } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
+import { AuthRequiredReason } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -91,8 +92,8 @@ interface IForwardedAuthenticationIdentity {
  * when the connection is disposed.
  */
 export class AgentHostAuthTokenCache {
-	private readonly _completedTokens = new Map<string, { readonly credentialKey?: string; readonly identity?: IForwardedAuthenticationIdentity }>();
-	private readonly _pendingAuthentications = new Map<string, { readonly credentialKey: string; readonly promise: Promise<void>; readonly identity?: IForwardedAuthenticationIdentity }>();
+	private readonly _completedTokens = new Map<string, { readonly credentialKey?: string; readonly token?: string; readonly identity?: IForwardedAuthenticationIdentity }>();
+	private readonly _pendingAuthentications = new Map<string, { readonly credentialKey: string; readonly token: string; readonly promise: Promise<void>; readonly identity?: IForwardedAuthenticationIdentity }>();
 	private readonly _keyGenerations = new Map<string, number>();
 	private readonly _rejectedSessions = new Map<string, RejectedAuthenticationSession>();
 	private _globalGeneration = 0;
@@ -113,7 +114,7 @@ export class AgentHostAuthTokenCache {
 				if (!this._isCurrentGeneration(key, globalGeneration, keyGeneration)) {
 					throw new CancellationError();
 				}
-				this._completedTokens.set(key, { credentialKey, identity });
+				this._completedTokens.set(key, { credentialKey, token, identity });
 				return false;
 			}
 
@@ -129,7 +130,7 @@ export class AgentHostAuthTokenCache {
 		}
 
 		if (this._completedTokens.get(key)?.credentialKey === credentialKey) {
-			this._completedTokens.set(key, { credentialKey, identity });
+			this._completedTokens.set(key, { credentialKey, token, identity });
 			return false;
 		}
 
@@ -138,9 +139,9 @@ export class AgentHostAuthTokenCache {
 			if (!this._isCurrentGeneration(key, globalGeneration, keyGeneration)) {
 				throw new CancellationError();
 			}
-			this._completedTokens.set(key, { credentialKey, identity });
+			this._completedTokens.set(key, { credentialKey, token, identity });
 		})();
-		this._pendingAuthentications.set(key, { credentialKey, promise, identity });
+		this._pendingAuthentications.set(key, { credentialKey, token, promise, identity });
 		try {
 			await promise;
 			return true;
@@ -193,18 +194,29 @@ export class AgentHostAuthTokenCache {
 		return (this._pendingAuthentications.get(key)?.identity ?? this._completedTokens.get(key)?.identity)?.accountId;
 	}
 
-	/** Allows a retry while retaining the identity this connection must still revoke on sign-out. */
+	/** Allows a retry while retaining sign-out ownership and the last token for freshness challenges. */
 	invalidate(resource: string, scopes: readonly string[] | undefined): void {
 		const key = this._key(resource, scopes);
-		const identity = this._completedTokens.get(key)?.identity;
+		const previous = this._pendingAuthentications.get(key) ?? this._completedTokens.get(key);
 		this.clear(resource, scopes ?? []);
-		if (identity) {
-			this._completedTokens.set(key, { identity });
+		if (previous?.identity) {
+			this._completedTokens.set(key, { identity: previous.identity, token: previous.token });
 		}
 	}
 
 	rejectSession(resource: string, scopes: readonly string[] | undefined, session: AuthenticationSession): void {
 		this._rejectedSessions.set(this._key(resource, scopes), { id: session.id, accessToken: session.accessToken, accountId: session.account.id });
+	}
+
+	/** Quarantines the credential previously sent for an expired challenge without losing sign-out ownership. */
+	rejectForwardedSession(resource: string, scopes: readonly string[] | undefined): boolean {
+		const key = this._key(resource, scopes);
+		const current = this._pendingAuthentications.get(key) ?? this._completedTokens.get(key);
+		if (!current?.token || !current.identity) {
+			return this._rejectedSessions.has(key);
+		}
+		this._rejectedSessions.set(key, { id: current.identity.sessionId, accountId: current.identity.accountId, accessToken: current.token });
+		return true;
 	}
 
 	getRejectedSession(resource: string, scopes: readonly string[] | undefined): RejectedAuthenticationSession | undefined {
@@ -333,7 +345,7 @@ export class AgentHostAuthenticationRecovery {
 	}
 
 	recover(accessor: ServicesAccessor, resource: ProtectedResourceMetadata, options: IAgentHostAuthenticationOptions): Promise<void> {
-		const key = protectedResourceAuthenticationKey(resource);
+		const key = protectedResourceAuthenticationKey(resource) + (isCopilotEntraResource(resource) ? `:${options.challengeReason ?? AuthRequiredReason.Required}` : '');
 		const pendingRecovery = this._pendingRecoveries.get(key);
 		if (pendingRecovery) {
 			return pendingRecovery;
@@ -355,15 +367,16 @@ export class AgentHostAuthenticationRecovery {
 		const authenticationService = accessor.get(IAuthenticationService);
 		const defaultAccountService = accessor.get(IDefaultAccountService);
 		const commandService = accessor.get(ICommandService);
+		if (isCopilotEntraResource(resource)) {
+			await recoverCopilotEntraAuthentication(authenticationService, defaultAccountService, logService, resource, options);
+			return;
+		}
 		if (await options.renewAuthentication?.(resource)) {
 			throwIfAuthenticationStale(options);
 			logService.info(`${options.logPrefix} Renewed authentication for resource: ${resource.resource}`);
 			return;
 		}
 		throwIfAuthenticationStale(options);
-		if (await revokeChangedCopilotEntraAccount(authenticationService, defaultAccountService, resource, options)) {
-			return;
-		}
 		const scopes = resource.scopes_supported ?? [];
 		const quarantinePresent = options.authTokenCache?.getRejectedSession(resource.resource, scopes) !== undefined;
 		const resolution = await resolveSessionForProtectedResource(authenticationService, defaultAccountService, logService, resource, options, null);
@@ -373,10 +386,6 @@ export class AgentHostAuthenticationRecovery {
 		}
 		if (resolution.kind !== 'resolved') {
 			logAuthenticationSessionResolution(logService, options.logPrefix, resource.resource, resolution);
-			if (requiresCopilotEntraInteraction(resource, resolution)) {
-				await forceAuthenticationInteractively(authenticationService, defaultAccountService, commandService, logService, this._telemetryService, resource, options, 'hostChallenge');
-				return;
-			}
 			reportAgentHostAuthRecovery(this._telemetryService, {
 				trigger: 'hostChallenge',
 				action: resolution.kind === 'signedOut' ? 'noSession' : 'defer',
@@ -605,6 +614,7 @@ export interface IAgentHostAuthenticateRequest {
 export interface IAgentHostAuthenticationOptions {
 	readonly authTokenCache?: AgentHostAuthTokenCache;
 	readonly logPrefix: string;
+	readonly challengeReason?: AuthRequiredReason;
 	/** Prefer this signed-in session's account when several accounts can satisfy the resource. */
 	readonly preferredSessionId?: string;
 	readonly isCurrent?: () => boolean;
@@ -671,7 +681,7 @@ async function forwardAuthenticationToken(
 	const token = session?.accessToken ?? '';
 	const rejectedSession = options.target ? undefined : options.authTokenCache?.getRejectedSession(resource, scopes);
 	// The lookup may have started before this session was quarantined.
-	if (rejectedSession && rejectedSession.id === session?.id && rejectedSession.accessToken === token) {
+	if (rejectedSession && rejectedSession.accessToken === token && (providerId === 'microsoft' || rejectedSession.id === session?.id)) {
 		throw new CancellationError();
 	}
 	const request = {
@@ -1039,8 +1049,13 @@ async function resolveSessionForProtectedResource(
 	};
 }
 
-function requiresCopilotEntraInteraction(resource: ProtectedResourceMetadata, resolution: AuthenticationSessionResolution): boolean {
-	return isCopilotEntraResource(resource) && resolution.kind === 'signedOut' && !resolution.accountMismatch;
+async function recoverCopilotEntraAuthentication(authenticationService: IAuthenticationService, defaultAccountService: IDefaultAccountService, logService: ILogService, resource: ProtectedResourceMetadata, options: IResolvedAgentHostAuthenticationOptions): Promise<void> {
+	if (options.challengeReason === AuthRequiredReason.Expired && !options.authTokenCache?.rejectForwardedSession(resource.resource, resource.scopes_supported)) {
+		logService.info(`${options.logPrefix} Microsoft credential freshness cannot be established silently; explicit authentication is required.`);
+		return;
+	}
+	options.authTokenCache?.invalidate(resource.resource, resource.scopes_supported);
+	await authenticateProtectedResourceWithServices(authenticationService, defaultAccountService, logService, resource, options);
 }
 
 function isCurrentCopilotEntraAccount(defaultAccount: IDefaultAccount | null, identity: AuthenticationSession): boolean {
@@ -1061,7 +1076,7 @@ async function resolveCopilotEntraSession(authenticationService: IAuthentication
 	if (!isCurrentCopilotEntraAccount(defaultAccountService.currentDefaultAccount, identity)) {
 		return { kind: 'signedOut', accountMismatch: true };
 	}
-	const selection = selectAuthenticationSession(sessions.filter(session => isAuthenticationSessionCandidate(session, rejectedSession)), resource.scopes_supported ?? [], {
+	const selection = selectAuthenticationSession(sessions.filter(session => rejectedSession === null || session.accessToken !== rejectedSession.accessToken), resource.scopes_supported ?? [], {
 		accountId: identity.account.id,
 		fallbackToSoleAccount: false,
 	});
@@ -1213,15 +1228,7 @@ async function forceAuthenticationInteractively(
 	try {
 		const scopes = resource.scopes_supported ?? [];
 		if (isCopilotEntraResource(resource)) {
-			if (await revokeChangedCopilotEntraAccount(authenticationService, defaultAccountService, resource, options)) {
-				return undefined;
-			}
-			const session = await createCopilotEntraSession(authenticationService, defaultAccountService, resource, options);
-			options.authTokenCache?.invalidate(resource.resource, scopes);
-			await forwardAuthenticationToken(options, resource.resource, scopes, session, 'microsoft');
-			data.result = 'tokenForwarded';
-			data.credentialChanged = challengedToken === undefined ? undefined : session.accessToken !== challengedToken;
-			return session;
+			return await forceCopilotEntraAuthenticationInteractively(authenticationService, defaultAccountService, resource, options, data, challengedToken);
 		}
 		const setupResult = await commandService.executeCommand<IChatSetupResult>(CHAT_SETUP_ACTION_ID, undefined, {
 			telemetrySource: 'agentHost',
@@ -1267,6 +1274,26 @@ async function forceAuthenticationInteractively(
 	} finally {
 		reportAgentHostAuthSignInResult(telemetryService, data, watch.elapsed());
 	}
+}
+
+async function forceCopilotEntraAuthenticationInteractively(
+	authenticationService: IAuthenticationService,
+	defaultAccountService: IDefaultAccountService,
+	resource: ProtectedResourceMetadata,
+	options: IResolvedAgentHostAuthenticationOptions,
+	data: AgentHostAuthSignInData,
+	challengedToken: string | undefined,
+): Promise<AuthenticationSession | undefined> {
+	if (await revokeChangedCopilotEntraAccount(authenticationService, defaultAccountService, resource, options)) {
+		return undefined;
+	}
+	const scopes = resource.scopes_supported ?? [];
+	const session = await createCopilotEntraSession(authenticationService, defaultAccountService, resource, options);
+	options.authTokenCache?.invalidate(resource.resource, scopes);
+	await forwardAuthenticationToken(options, resource.resource, scopes, session, 'microsoft');
+	data.result = 'tokenForwarded';
+	data.credentialChanged = challengedToken === undefined ? undefined : session.accessToken !== challengedToken;
+	return session;
 }
 
 /**

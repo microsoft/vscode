@@ -6,9 +6,10 @@
 import assert from 'assert';
 import { mkdtemp, rm } from 'fs/promises';
 import { tmpdir } from 'os';
-import { CopilotClient, RuntimeConnection, approveAll, type CopilotSession } from '@github/copilot-sdk';
+import { CopilotClient, RuntimeConnection, approveAll, type CopilotSession, type EntraTokenProvider } from '@github/copilot-sdk';
 import { Event } from '../../../../base/common/event.js';
-import type { CancellationToken } from '../../../../base/common/cancellation.js';
+import { raceTimeout } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { join } from '../../../../base/common/path.js';
@@ -51,8 +52,8 @@ suite('Copilot Entra authentication transport', () => {
 		const log = new NullLogService();
 		const state = store.add(new AgentHostStateManager(log));
 		const connections = store.add(new AgentHostClientConnectionService());
-		const bridge = store.add(new CopilotEntraAuthentication(connections));
 		const authentication = store.add(new AgentHostAuthenticationService(log));
+		const bridge = store.add(new CopilotEntraAuthentication(connections, authentication));
 		const provider = new class extends mock<IAgent>() {
 			override readonly id = 'copilotcli';
 			override getProtectedResources() { return bridge.getProtectedResources(); }
@@ -118,22 +119,25 @@ suite('Copilot Entra authentication transport', () => {
 				configDirectory: root, availableTools: [], disabledMcpServers: ['github-mcp-server'],
 				enableConfigDiscovery: false, onPermissionRequest: approveAll,
 			});
-			const login = await session.rpc.accounts.login.begin({ kind: 'entra' });
 			const accountSession = session;
-			const completed = (async () => {
+			const login = async () => {
+				const flow = await accountSession.rpc.accounts.login.begin({ kind: 'entra' });
 				for (let step = 0; step < 4; step++) {
-					const result = await accountSession.rpc.accounts.login.advance({ flowId: login.flowId });
+					const result = await accountSession.rpc.accounts.login.advance({ flowId: flow.flowId });
 					if (result.kind === 'completed') {
 						return result;
 					}
 				}
 				throw new Error('Entra login did not reach a terminal result');
-			})().catch((error: unknown) => {
-				if (error instanceof Error) {
-					return error;
+			};
+			const completeWithoutCredential = () => raceTimeout(login().catch((error: unknown) => {
+				if (!(error instanceof Error)) {
+					throw error;
 				}
-				throw error;
-			});
+				return error;
+			}), 5_000);
+			const noIdentity = await completeWithoutCredential();
+			assert.ok(noIdentity instanceof Error, 'Absent identity must finish without waiting for authenticate');
 			const identityChallenge = await client.waitForNotification(n => n.method === 'auth/required');
 			assert.deepStrictEqual(identityChallenge.params, {
 				channel: ROOT_STATE_URI,
@@ -145,12 +149,17 @@ suite('Copilot Entra authentication transport', () => {
 				token: 'synthetic-graph-credential', expiresIn: 3600,
 				_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: 'transport-selected-account' }),
 			});
+			const result = await completeWithoutCredential();
+			assert.ok(result, 'Missing resource credentials must complete without waiting for a negative AHP reply');
 			await client.waitForNotification(n => n.method === 'auth/required' && JSON.stringify(n.params).includes(copilotEntraEmuAudience));
 			const required = bridge.authenticationRequired.get();
 			assert.deepStrictEqual(required?.resource.scopes_supported, [`${copilotEntraEmuAudience}/user_impersonation`]);
+			assert.strictEqual(stopping, undefined, 'An unavailable resource must not revoke the signed-in identity');
+			assert.deepStrictEqual(await bridge.options.tokenProvider?.({ kind: 'identity', clientId: bridge.options.clientId, accountId: 'transport-selected-account', reason: 'renewal' }, CancellationToken.None as Parameters<EntraTokenProvider>[1]), {
+				kind: 'identity', accountId: 'transport-selected-account',
+			});
 			// No synthetic resource token is sent to Microsoft or GitHub.
 			await client.call('authenticate', { channel: ROOT_STATE_URI, resource: copilotEntraDiscoveryResource, token: '' });
-			const result = await completed;
 			assert.ok(result instanceof Error || result.result.status !== 'completed', 'Unavailable credentials must not report a completed login');
 			assert.ok(stopping);
 			assert.deepStrictEqual(await stopping, [], 'Withdrawing authority must stop the runtime connection');
