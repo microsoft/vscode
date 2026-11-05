@@ -46,6 +46,7 @@ import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSetting
 import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { resolveSessionActionTarget } from '../../../../services/sessions/browser/sessionActionTarget.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { registerExternalSessionsFilterMenu } from '../../../../../workbench/contrib/chat/browser/agentSessions/externalSessionsFilterMenu.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
@@ -1848,13 +1849,26 @@ registerAction2(class MarkAllNestedSessionsReadAction extends Action2 {
 	}
 });
 
+for (const [menu, submenu] of [
+	[Menus.SessionItemContextMenu, Menus.SessionItemOpenIn],
+	[Menus.SessionChatItemContext, Menus.SessionChatItemOpenIn],
+]) {
+	MenuRegistry.appendMenuItem(menu, {
+		title: localize2('openIn', "Open in"),
+		submenu,
+		group: 'navigation',
+		order: 1,
+		when: ContextKeyExpr.and(ChatContextKeys.enabled, IsSessionsWindowContext),
+	});
+}
+
 registerAction2(class OpenSessionToTheSideAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessionsViewPane.openToTheSide',
-			title: localize2('openToTheSide', "Open to the Side"),
+			title: localize2('splitView', "Split View"),
 			menu: [{
-				id: SessionItemContextMenuId,
+				id: Menus.SessionItemOpenIn,
 				group: 'navigation',
 				order: 1,
 				when: IsSessionsWindowContext,
@@ -1896,15 +1910,14 @@ abstract class BaseUnarchiveActiveSessionAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
+	async run(accessor: ServicesAccessor, sessionArg?: unknown): Promise<void> {
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		const sessionsService = accessor.get(ISessionsService);
-		const activeSession = sessionsService.activeSession.get();
-		if (!activeSession || activeSession.status.get() === SessionStatus.Untitled) {
+		const session = resolveSessionActionTarget(accessor, sessionArg);
+		if (!session || session.status.get() === SessionStatus.Untitled) {
 			return;
 		}
 
-		await sessionsManagementService.unarchiveSession(activeSession);
+		await sessionsManagementService.unarchiveSession(session);
 	}
 }
 

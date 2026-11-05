@@ -11,7 +11,7 @@ import { CancellationTokenSource } from '../../../../../../base/common/cancellat
 import { URI } from '../../../../../../base/common/uri.js';
 import { Action, IAction, Separator } from '../../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { Disposable, DisposableStore, isDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, isDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { IManagedHoverContent } from '../../../../../../base/browser/ui/hover/hover.js';
@@ -19,6 +19,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpAuthRequiredReason, McpServerStatus, type Customization, type CustomizationEnablement } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IOpenerService, OpenOptions } from '../../../../../../platform/opener/common/opener.js';
+import { COPILOT_COMMUNICATION_SUPPORT_URL_KEY, IManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceIconUri, ICustomizationMarketplaceResource } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { ContributionEnablementState, EnablementModel } from '../../../common/enablement.js';
@@ -196,6 +198,12 @@ type McpAccessTestWidget = {
 	disabledMessage: HTMLElement;
 	disabledLinkListener: MutableDisposable<{ dispose(): void }>;
 	commandService: ICommandService;
+	managedSettingsService: Pick<IManagedSettingsService, 'getManagedSettingValue'>;
+	openerService: Pick<IOpenerService, 'open'>;
+	hoverService: Pick<IHoverService, 'setupDelayedHover'>;
+	opened: { target: string; openExternal: boolean | undefined }[];
+	hovers: string[];
+	supportUrl: string | undefined;
 	refreshCount: number;
 	refreshConnectorsCount: number;
 	refresh(): Promise<void>;
@@ -236,6 +244,18 @@ function createMcpAccessTestWidget(access: McpAccessValue, policyAccess: McpAcce
 	widget.disabledMessage = document.createElement('div');
 	widget.disabledLinkListener = store.add(new MutableDisposable());
 	widget.commandService = { executeCommand: async () => undefined } as unknown as ICommandService;
+	widget.supportUrl = undefined;
+	widget.managedSettingsService = { getManagedSettingValue: key => key === COPILOT_COMMUNICATION_SUPPORT_URL_KEY ? widget.supportUrl : undefined };
+	widget.opened = [];
+	widget.openerService = { open: async (target: URI | string, options?: OpenOptions) => { widget.opened.push({ target: target.toString(), openExternal: options?.openExternal }); return true; } };
+	widget.hovers = [];
+	widget.hoverService = {
+		setupDelayedHover: (_target, options) => {
+			const content = typeof options === 'function' ? options().content : options.content;
+			widget.hovers.push(typeof content === 'string' ? content : '');
+			return Disposable.None;
+		},
+	};
 	widget.refreshCount = 0;
 	widget.refreshConnectorsCount = 0;
 	widget.refresh = async () => { widget.refreshCount++; };
@@ -1405,6 +1425,54 @@ suite('mcpListWidget', () => {
 		});
 	});
 
+	test('links the policy explanation to the organization support page when one is configured', () => {
+		const widget = createMcpAccessTestWidget(McpAccessValue.None, McpAccessValue.None, disposables);
+		const capture = () => ({
+			message: widget.disabledMessage.textContent,
+			link: widget.disabledMessage.querySelector('a')?.getAttribute('href') ?? null,
+		});
+		widget.supportUrl = 'https://example.com/copilot-help';
+		widget.updateAccessState();
+		const linked = capture();
+		widget.disabledMessage.querySelector('a')!.click();
+		const middleClick = new MouseEvent('auxclick', { button: 1, cancelable: true });
+		widget.disabledMessage.querySelector('a')!.dispatchEvent(middleClick);
+		widget.supportUrl = 'javascript:alert(1)';
+		widget.updateAccessState();
+		const invalid = capture();
+		widget.supportUrl = 'https://example.com/copilot-help';
+		widget.policyAccess = undefined;
+		widget.updateAccessState();
+		const userDisabled = capture();
+		assert.deepStrictEqual({ linked, invalid, userDisabled, middleClickNavigates: !middleClick.defaultPrevented, opened: widget.opened, hovers: widget.hovers }, {
+			linked: { message: 'Access to MCP servers is disabled by your organization. Contact your administrator for more information.', link: 'https://example.com/copilot-help' },
+			invalid: { message: 'Access to MCP servers is disabled by your organization. Contact your administrator for more information.', link: null },
+			userDisabled: { message: 'MCP servers are disabled in settings. Configure in settings.', link: '#' },
+			middleClickNavigates: false,
+			opened: [{ target: 'https://example.com/copilot-help', openExternal: true }, { target: 'https://example.com/copilot-help', openExternal: true }],
+			hovers: ['Opens your organization\'s help page (example.com)'],
+		});
+	});
+
+	test('keeps the policy link and its focus when nothing it shows changes, and refocuses the new link when the URL changes', () => {
+		const widget = createMcpAccessTestWidget(McpAccessValue.None, McpAccessValue.None, disposables);
+		document.body.appendChild(widget.disabledMessage);
+		disposables.add(toDisposable(() => widget.disabledMessage.remove()));
+		widget.supportUrl = 'https://example.com/copilot-help';
+		widget.updateAccessState();
+		const link = widget.disabledMessage.querySelector('a')!;
+		link.focus();
+		widget.updateAccessState();
+		const unchanged = { sameLink: widget.disabledMessage.querySelector('a') === link, focused: document.activeElement === link };
+		widget.supportUrl = 'https://example.com/other-help';
+		widget.updateAccessState();
+		const replaced = widget.disabledMessage.querySelector('a')!;
+		assert.deepStrictEqual({ unchanged, replaced: { href: replaced.getAttribute('href'), focused: document.activeElement === replaced } }, {
+			unchanged: { sameLink: true, focused: true },
+			replaced: { href: 'https://example.com/other-help', focused: true },
+		});
+	});
+
 	test('cancels delayed and in-flight gallery work when access is revoked', () => {
 		const widget = createMcpAccessTestWidget(McpAccessValue.All, undefined, disposables);
 		widget.updateAccessState();
@@ -2201,6 +2269,7 @@ suite('mcpListWidget', () => {
 			const outputActions: string[] = [];
 			const managementClicks: string[] = [];
 			const openedPlugins: string[] = [];
+			const shownSkillBundles: string[] = [];
 			const openedExtensions: string[] = [];
 			const executedCommands: unknown[][] = [];
 			let migrationRequests = 0;
@@ -2293,6 +2362,7 @@ suite('mcpListWidget', () => {
 				() => migrationAvailable,
 				plugin => openedPlugins.push(plugin.label),
 				() => migrationRequests++,
+				bundleId => shownSkillBundles.push(bundleId),
 				{ isSessionsWindow } as IAICustomizationWorkspaceService,
 				agentPluginService,
 				hoverService,
@@ -2301,6 +2371,7 @@ suite('mcpListWidget', () => {
 				labelService,
 				extensionsWorkbenchService,
 				themeService,
+				new class extends mock<IOpenerService>() { }(),
 			));
 
 			const container = document.createElement('div');
@@ -2347,6 +2418,7 @@ suite('mcpListWidget', () => {
 				outputActions,
 				managementClicks,
 				openedPlugins,
+				shownSkillBundles,
 				openedExtensions,
 				executedCommands,
 				migrationRequests: () => migrationRequests,
@@ -3156,6 +3228,53 @@ suite('mcpListWidget', () => {
 			assert.deepStrictEqual(observed, [undefined, 'Native connection failed', undefined]);
 		});
 
+		test('shows localized skill counts only for active-session servers with a skill bundle', () => {
+			const render = (count: number | undefined, kind: 'session' | 'matched' | 'local' = 'session') => {
+				const server = createAgentHostServer({ name: 'test-skills', skillBundle: count === undefined ? undefined : { id: 'opaque/server', count } });
+				const ctx = createRenderer(server);
+				disposables.add(ctx.store);
+				const entry: Entry = { type: 'session-server-item', server };
+				ctx.render(kind === 'session' ? entry : {
+					type: 'builtin-item', id: 'native', collectionId: 'native', label: 'Native', description: '', activeSessionServer: kind === 'matched' ? server : undefined,
+				});
+				const link = ctx.templateData.skillsLinkElement;
+				const visible = link.style.display !== 'none';
+				const focusedTabIndex = link.tabIndex;
+				ctx.setFocusedIndex(-1);
+				return { visible, text: visible ? link.textContent : undefined, ariaLabel: visible ? link.getAttribute('aria-label') : undefined, focusedTabIndex, unfocusedTabIndex: link.tabIndex };
+			};
+			assert.deepStrictEqual([render(undefined), render(0), render(1), render(4), render(4, 'matched'), render(4, 'local')], [
+				{ visible: false, text: undefined, ariaLabel: undefined, focusedTabIndex: -1, unfocusedTabIndex: -1 },
+				{ visible: false, text: undefined, ariaLabel: undefined, focusedTabIndex: -1, unfocusedTabIndex: -1 },
+				{ visible: true, text: '• 1 Skill', ariaLabel: 'Show 1 skill from test-skills', focusedTabIndex: 0, unfocusedTabIndex: -1 },
+				{ visible: true, text: '• 4 Skills', ariaLabel: 'Show 4 skills from test-skills', focusedTabIndex: 0, unfocusedTabIndex: -1 },
+				{ visible: true, text: '• 4 Skills', ariaLabel: 'Show 4 skills from test-skills', focusedTabIndex: 0, unfocusedTabIndex: -1 },
+				{ visible: false, text: undefined, ariaLabel: undefined, focusedTabIndex: -1, unfocusedTabIndex: -1 },
+			]);
+		});
+
+		test('skill links request bundle navigation and update without rebuilding row actions', () => {
+			const server = createAgentHostServer({ name: 'test-skills', skillBundle: { id: 'opaque/server', count: 4 } });
+			const ctx = createRenderer(server);
+			disposables.add(ctx.store);
+			ctx.render();
+			const action = ctx.actionNode();
+			ctx.templateData.skillsLinkElement.click();
+			ctx.setServers([{ ...server, skillBundle: { id: 'opaque/server', count: 1 } }]);
+			ctx.notifyUnchanged();
+			const updated = ctx.templateData.skillsLinkElement.textContent;
+			ctx.setServers([{ ...server, skillBundle: undefined }]);
+			ctx.notifyUnchanged();
+			ctx.templateData.skillsLinkElement.click();
+			assert.deepStrictEqual({
+				requests: ctx.shownSkillBundles,
+				updated,
+				hidden: ctx.templateData.skillsLinkElement.style.display,
+				tabIndex: ctx.templateData.skillsLinkElement.tabIndex,
+				actionsPreserved: action === ctx.actionNode(),
+			}, { requests: ['opaque/server'], updated: '• 1 Skill', hidden: 'none', tabIndex: -1, actionsPreserved: true });
+		});
+
 		test('installed rows use compact density', () => {
 			const ctx = createRenderer(createAgentHostServer());
 			disposables.add(ctx.store);
@@ -3194,6 +3313,8 @@ suite('mcpListWidget', () => {
 					secondaryOrder: [
 						'mcp-server-compatibility-message unsupported',
 						'mcp-server-source-path middle-ellipsis-path-label',
+						'mcp-server-description',
+						'monaco-link mcp-server-source-path source-link mcp-server-skills',
 					],
 					badges: 0,
 					focusedLinkTabIndex: 0,
@@ -3207,6 +3328,8 @@ suite('mcpListWidget', () => {
 					secondaryOrder: [
 						'mcp-server-compatibility-message partially-supported',
 						'mcp-server-source-path middle-ellipsis-path-label',
+						'mcp-server-description',
+						'monaco-link mcp-server-source-path source-link mcp-server-skills',
 					],
 					badges: 0,
 					focusedLinkTabIndex: 0,

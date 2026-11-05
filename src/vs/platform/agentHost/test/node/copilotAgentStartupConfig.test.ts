@@ -28,4 +28,27 @@ suite('CopilotAgentStartupConfig', () => {
 		});
 	});
 
+	test('compares policy helper additions, changes and removal without disclosing values', () => {
+		const config = (policyHelper?: string) => new CopilotAgentStartupConfig(
+			true, false, false, 30_000, 'info', undefined, undefined, true, true, false, {}, true,
+			false, '', false, false, undefined, false, policyHelper,
+		);
+		const unset = config();
+		const initial = config('{"path":"/private/helper","args":[]}');
+		const pathChanged = config('{"path":"/private/other-helper","args":[]}');
+		const argsChanged = config('{"path":"/private/helper","args":["private-argument"]}');
+		assert.deepStrictEqual({
+			same: initial.equals(config(initial.policyHelper)),
+			changes: [[initial, unset], [pathChanged, initial], [argsChanged, initial], [unset, initial]]
+				.map(([current, previous]) => ({
+					equal: current.equals(previous),
+					proxyChanged: current.proxyTargetChangedFrom(previous),
+					description: current.describeChangesFrom(previous),
+				})),
+		}, {
+			same: true,
+			changes: Array.from({ length: 4 }, () => ({ equal: false, proxyChanged: false, description: 'policyHelper' })),
+		});
+	});
+
 });

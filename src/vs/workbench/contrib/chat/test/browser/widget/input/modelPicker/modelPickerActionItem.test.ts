@@ -23,6 +23,7 @@ import { IDefaultAccountService } from '../../../../../../../../platform/default
 import { MockContextKeyService, MockKeybindingService } from '../../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestInstantiationService } from '../../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IOpenerService } from '../../../../../../../../platform/opener/common/opener.js';
+import { IManagedSettingsService, NullManagedSettingsService } from '../../../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { IProductService } from '../../../../../../../../platform/product/common/productService.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../../../platform/telemetry/common/telemetry.js';
@@ -71,7 +72,7 @@ suite('ModelPickerActionItem', () => {
 	 * name followed by its thinking effort / context size readout. By default the
 	 * name has no icon, so it keeps its label even when the picker is compact.
 	 */
-	function renderPicker(model: ILanguageModelChatMetadataAndIdentifier, options: { readonly compact?: boolean; readonly minimal?: boolean; readonly comparison?: IModelPickerComparison; readonly comparisonBusy?: IObservable<boolean>; readonly comparisonKeybindingLabel?: string; readonly itemWidth?: number; readonly models?: readonly ILanguageModelChatMetadataAndIdentifier[]; readonly showModelIcon?: boolean; readonly configurationService?: TestConfigurationService } = {}) {
+	function renderPicker(model: ILanguageModelChatMetadataAndIdentifier, options: { readonly compact?: boolean; readonly minimal?: boolean; readonly comparison?: IModelPickerComparison; readonly comparisonBusy?: IObservable<boolean>; readonly comparisonKeybindingLabel?: string; readonly itemWidth?: number; readonly models?: readonly ILanguageModelChatMetadataAndIdentifier[]; readonly showModelIcon?: boolean; readonly configurationService?: TestConfigurationService; readonly showPicker?: IModelPickerDelegate['showPicker'] } = {}) {
 		const models = options.models ? [...options.models] : [model];
 		let modelReads = 0;
 		const modelsChanged = disposables.add(new Emitter<string>());
@@ -92,6 +93,7 @@ suite('ModelPickerActionItem', () => {
 		instantiationService.stub(IUpdateService, {});
 		instantiationService.stub(IUriIdentityService, {});
 		instantiationService.stub(IDefaultAccountService, {});
+		instantiationService.stub(IManagedSettingsService, new NullManagedSettingsService());
 		instantiationService.stub(IWorkspaceTrustManagementService, disposables.add(new TestWorkspaceTrustManagementService()));
 		instantiationService.stub(IWorkspaceTrustRequestService, {});
 		instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
@@ -100,6 +102,7 @@ suite('ModelPickerActionItem', () => {
 		const action: IAction = { id: 'test.modelPicker', label: '', tooltip: '', class: undefined, enabled: true, run: async () => { } };
 		const currentModel = observableValue<ILanguageModelChatMetadataAndIdentifier | undefined>('currentModel', model);
 		const delegate: IModelPickerDelegate = {
+			showPicker: options.showPicker,
 			comparison: options.comparison,
 			comparisonBusy: options.comparisonBusy,
 			currentModel,
@@ -190,6 +193,18 @@ suite('ModelPickerActionItem', () => {
 		};
 		return { configuration, changePolicy };
 	}
+
+	test('model name and configuration badge share the entry-owned presentation', () => {
+		const calls: boolean[] = [];
+		const { domNode } = renderPicker(createModel('o3'), {
+			showPicker: (_anchor, configuration) => { calls.push(configuration); return true; },
+		});
+		const buttons = Array.from(domNode.querySelectorAll<HTMLElement>('.model-picker-section'));
+		for (const button of buttons) {
+			button.dispatchEvent(new mainWindow.MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0 }));
+		}
+		assert.deepStrictEqual({ buttons: buttons.length, calls }, { buttons: 2, calls: [false, true] });
+	});
 
 	for (const policyDefault of [undefined, '', '   ', 'First']) {
 		test(`reads the catalog once per label render with policy ${JSON.stringify(policyDefault)}`, () => {

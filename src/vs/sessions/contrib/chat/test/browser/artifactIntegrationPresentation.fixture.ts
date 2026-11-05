@@ -540,6 +540,7 @@ async function render(context: ComponentFixtureContext, data: IArtifactFixtureDa
 			}());
 			registration.defineInstance(ISessionsService, new class extends mock<ISessionsService>() {
 				override readonly activeSession = constObservable(activeSession);
+				override readonly mainWindowActiveSession = this.activeSession;
 				override async openChat(_session: ISession, _resource: URI): Promise<void> { }
 			}());
 			registration.defineInstance(IChatWidgetService, new class extends mock<IChatWidgetService>() {

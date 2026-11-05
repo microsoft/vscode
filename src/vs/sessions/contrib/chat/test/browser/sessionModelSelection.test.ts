@@ -29,7 +29,7 @@ import { ILanguageModelsConfigurationService, ILanguageModelsProviderGroup } fro
 import { isInConversationModelChoice, resolveModelIdentifier } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
 import { conformanceInputs, IModelSelectionConformanceScenario, ModelSelectionConformanceModel, modelSelectionConformanceScenarios } from '../../../../../workbench/contrib/chat/test/browser/widget/input/modelSelectionConformance.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsProvider, ISessionModelPickerOptions } from '../../../../services/sessions/common/sessionsProvider.js';
+import { ISessionsProvider, ISessionModelPickerOptions, ISessionModelsSnapshot } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ChatModelSource, IChat, ISessionWorkspace, SessionStatus, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { restoreReasonForSource, SessionModelSelection } from '../../browser/sessionModelSelection.js';
@@ -72,6 +72,7 @@ const auto = {
 };
 
 interface ITestChat extends IChat {
+	readonly mode: ISettableObservable<{ readonly id: string; readonly kind: string } | undefined>;
 	readonly status: ISettableObservable<SessionStatus>;
 	readonly modelId: ISettableObservable<string | undefined>;
 	readonly modelSource: ISettableObservable<ChatModelSource | undefined>;
@@ -84,6 +85,7 @@ function createChat(resource: string, selectedModelId?: string, source = ChatMod
 		status: observableValue<SessionStatus>(`${resource}.status`, status),
 		modelId: observableValue<string | undefined>(`${resource}.model`, selectedModelId),
 		modelSource: observableValue<ChatModelSource | undefined>(`${resource}.modelSource`, selectedModelId ? source : undefined),
+		mode: observableValue<{ readonly id: string; readonly kind: string } | undefined>(`${resource}.mode`, undefined),
 	} as ITestChat;
 }
 
@@ -128,6 +130,7 @@ function createSession(providerId: string, status: SessionStatus, selectedModelI
 }
 
 interface ITestProvider extends ISessionsProvider {
+	agentModelPreferences?: ISessionModelsSnapshot['agentModelPreferences'];
 	models: readonly ILanguageModelChatMetadataAndIdentifier[];
 	readonly modelChanges: Emitter<void>;
 	readonly writes: string[];
@@ -159,6 +162,7 @@ function createProvider(id: string, onSetModel?: (modelIdentifier: string, sourc
 			const resolved = desiredModelId ? provider.resolveDesired?.(desiredModelId) : undefined;
 			return {
 				models: provider.models,
+				agentModelPreferences: provider.agentModelPreferences,
 				desiredModelResolution: resolved
 					? { kind: 'available' as const, model: resolved }
 					: resolveModelIdentifier(provider.models, desiredModelId, provider.modelsResolved),
@@ -359,6 +363,20 @@ suite('SessionModelSelection', () => {
 					sessionType: provider.getSessionTypes(workspaceUri)[1],
 					model: claude,
 				},
+			});
+			const chat = testSession.activeChat.get() as ITestChat;
+			provider.agentModelPreferences = { models: [second.metadata.id], required: true };
+			chat.mode.set({ id: 'file:///required.agent.md', kind: 'agent' }, undefined);
+			const required = {
+				comparison: selection.getComparisonModels().map(model => model.identifier),
+				disallowed: selection.resolveComparisonModel(copilot.identifier),
+				blocked: !!selection.state.get().agentModelPolicyError,
+			};
+			provider.agentModelPreferences = undefined;
+			chat.mode.set(undefined, undefined);
+			assert.deepStrictEqual({ required, cleared: selection.state.get().agentModelPolicyError, comparisonCount: selection.getComparisonModels().length }, {
+				required: { comparison: [claude.identifier, codex.identifier], disallowed: undefined, blocked: true },
+				cleared: undefined, comparisonCount: 4,
 			});
 		});
 	}

@@ -503,6 +503,25 @@ suite('AgentFeedbackService - getSessionForFile', () => {
 		]);
 	});
 
+	test('a file in a window that shows a session of its own belongs to that session, whichever session is active or opened the file', () => {
+		// S1 is active, as while its window has focus, and the file was opened while it was; the window shows S2.
+		setActiveSession(sessions.get(sessionS1.toString()));
+		setVisibleEditors([pane(fileA)]);
+		const windowSession = sessions.get(sessionS2.toString())!;
+
+		assert.deepStrictEqual({
+			inTheWindow: service.getFeedbackSessionResource(fileA, windowSession)?.toString(),
+			sessionInTheWindow: service.getSessionForFile(fileA, windowSession)?.resource.toString(),
+			elsewhere: service.getFeedbackSessionResource(fileA)?.toString(),
+			untitledWindow: service.getFeedbackSessionResource(fileB, makeSession(sessionS2, SessionStatus.Untitled))?.toString(),
+		}, {
+			inTheWindow: sessionS2.toString(),
+			sessionInTheWindow: sessionS2.toString(),
+			elsewhere: sessionS1.toString(),
+			untitledWindow: undefined,
+		});
+	});
+
 	test('uses one shared feedback scope for undefined and workspace-less drafts', () => {
 		const firstDraft = makeSession(sessionS1, SessionStatus.Untitled);
 		const secondDraft = makeSession(sessionS2, SessionStatus.Untitled);
@@ -1084,6 +1103,37 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 			state: AgentFeedbackState.Submitted,
 		});
 	});
+
+	for (const accepted of [true, false]) {
+		test(`background submission attaches selected feedback without looking up or modifying a widget: ${accepted}`, async () => {
+			const first = service.addFeedback(session, fileA, r(10), 'Fix this comment');
+			const second = service.addFeedback(session, fileA, r(20), 'Leave this comment');
+			let request: { query: string; attachment: IAgentFeedbackVariableEntry } | undefined;
+			let acknowledged = 0;
+			sessionLoaded = false;
+			const submitted = await service.submitFeedback(session, {
+				query: '/fix-ci\n\n/act-on-feedback',
+				feedbackIds: [first.id],
+				backgroundSubmit: async (query, attachment) => {
+					request = { query, attachment };
+					return accepted;
+				},
+				onRequestAccepted: () => acknowledged++,
+			});
+			assert.deepStrictEqual({
+				submitted, acknowledged, lookups: widgetLookups, widgetOps,
+				query: request?.query, attached: request?.attachment.feedbackItems.map(item => item.id),
+				states: service.getFeedback(session).map(item => ({ id: item.id, state: item.state })),
+			}, {
+				submitted: accepted, acknowledged: accepted ? 1 : 0, lookups: [], widgetOps: [],
+				query: '/fix-ci\n\n/act-on-feedback', attached: [first.id],
+				states: [
+					{ id: first.id, state: accepted ? AgentFeedbackState.Submitted : AgentFeedbackState.Accepted },
+					{ id: second.id, state: AgentFeedbackState.Accepted },
+				],
+			});
+		});
+	}
 
 	test('non-agent-host submissions preserve the complete reactive feedback attachment', async () => {
 		providerId = 'test-provider';

@@ -52,6 +52,7 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatSessionItemArchiveState } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatEntitlementService, IChatSentiment } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
@@ -63,6 +64,8 @@ import { TestQuickInputService } from '../../../../../workbench/test/browser/wor
 import { Menus } from '../../../../browser/menus.js';
 import { IsPhoneLayoutContext, SessionsListRearrangeContext } from '../../../../common/contextkeys.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
+import { ISessionsListPresentation } from '../../../../services/presentation/browser/sessionsListPresentation.js';
+import { DefaultSessionsListPresentation } from '../../../../services/presentation/browser/defaultSessionsListPresentation.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { getSessionGroupSectionId, ISessionGroupsService, SessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionsListModelService, SessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
@@ -430,6 +433,7 @@ function getArchiveWordingCommands(wording: ChatSessionArchiveActionWording): Re
 
 /** A live sessions catalog: renames, archiving, and read state update the rendered sessions. */
 class FixtureSessionsManagementService extends mock<ISessionsManagementService>() {
+	override readonly archivedSessionItems = constObservable<IChatSessionItemArchiveState>({ available: false, state: 'loaded' });
 	private readonly store = new DisposableStore();
 	private readonly changeEmitter = this.store.add(new Emitter<ISessionsChangeEvent>());
 	private readonly archiveEmitter = this.store.add(new Emitter<ISession>());
@@ -629,6 +633,7 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 			reg.define(IMarkdownRendererService, MarkdownRendererService);
 			reg.defineInstance(IProductService, TestProductService);
 			reg.defineInstance(ISessionsManagementService, new FixtureSessionsManagementService(sessions));
+			reg.define(ISessionsListPresentation, DefaultSessionsListPresentation);
 			reg.define(ISessionsListModelService, SessionsListModelService);
 			reg.define(ISessionGroupsService, SessionGroupsService);
 			reg.define(ISessionSectionOrderService, SessionSectionOrderService);
@@ -663,6 +668,7 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 			reg.defineInstance(ISessionsService, new class extends mock<ISessionsService>() {
 				override readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> = constObservable(visibleSessions);
 				override readonly activeSession: IObservable<IActiveSession | undefined> = constObservable(undefined);
+				override readonly mainWindowActiveSession = this.activeSession;
 			}());
 			reg.defineInstance(IAgentHostFilterService, new class extends mock<IAgentHostFilterService>() {
 				override readonly onDidChange = Event.None;
@@ -702,6 +708,7 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 			}());
 			reg.defineInstance(IInboxNotificationsService, new class extends mock<IInboxNotificationsService>() {
 				override readonly notifications = constObservable([]);
+				override readonly attentionCount = constObservable(0);
 				override readonly isLoading = constObservable(false);
 				override readonly sortMode = constObservable(InboxNotificationsSortMode.Priority);
 				override setSortMode(): void { }

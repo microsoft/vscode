@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import * as fs from 'fs';
 import * as path from 'path';
 import { Application, Chat, Logger } from '../../../../automation';
-import { dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, installAllHandlers, MockLlmServer, preseedChatExtensionEnablement } from '../../utils';
+import { dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, getMockLlmServerUrl, installAllHandlers, MockLlmServer, preseedChatExtensionEnablement } from '../../utils';
 import { runInTerminalScenario, shellEchoResponseMatcher, shellEchoScenario } from './shellScenarios';
 
 /**
@@ -17,7 +17,7 @@ import { runInTerminalScenario, shellEchoResponseMatcher, shellEchoScenario } fr
  * prompts per session to also exercise the follow-up message path.
  *
  * `kind` selects between the two chat surfaces in the VS Code window:
- *  - 'editor': the chat opens as an editor tab (Copilot CLI).
+ *  - 'editor': the chat opens as an editor tab (Copilot CLI, Agent Host Copilot).
  *  - 'view':   the default chat panel in the sidebar / aux bar (Local).
  */
 interface SessionConfig {
@@ -30,6 +30,12 @@ interface SessionConfig {
 	readonly reply2: string;
 	/** Skip the second message/assertion (e.g. while a known flake is being investigated). */
 	readonly skipReply2?: boolean;
+	/**
+	 * An Agent Host session: its chat editor keeps its untitled resource
+	 * instead of swapping to a committed one, and each response bubble is
+	 * marked complete when its turn ends.
+	 */
+	readonly agentHost?: boolean;
 }
 
 const SESSIONS: readonly SessionConfig[] = [
@@ -59,11 +65,73 @@ const SHELL_SESSIONS: readonly ShellSessionConfig[] = [
 ];
 
 /**
+ * Agent Host Copilot sessions in a chat editor of the VS Code window. They
+ * replace the extension-host Copilot CLI rows above once that provider is
+ * removed. The Agent Host's shell tool is covered by the
+ * `Agents Window (local AgentHost, SDK sandbox)` suite.
+ */
+const AGENT_HOST_SESSIONS: readonly SessionConfig[] = [
+	{ name: 'Agent Host Copilot', command: 'smoketest.openAgentHostChat', kind: 'editor', agentHost: true, scenarioId: 'smoke-chat-sessions-agent-host', reply: 'MOCKED_CHAT_SESSIONS_AGENT_HOST_RESPONSE', scenarioId2: 'smoke-chat-sessions-agent-host-2', reply2: 'MOCKED_CHAT_SESSIONS_AGENT_HOST_RESPONSE_2' },
+];
+
+const AGENT_HOST_COPILOT_SCHEME = 'agent-host-copilotcli';
+const AGENT_HOST_TOKEN = 'smoketest-fake-agent-host-token';
+const AGENT_HOST_WARMUP_SCENARIO_ID = 'smoke-chat-sessions-agent-host-warmup';
+const AGENT_HOST_WARMUP_REPLY = 'MOCKED_CHAT_SESSIONS_AGENT_HOST_WARMUP_RESPONSE';
+
+/**
+ * What differs between the Chat Sessions suites: the sessions they test and
+ * the app profile those sessions need.
+ */
+interface ChatSessionsSuite {
+	readonly title: string;
+	readonly sessions: readonly SessionConfig[];
+	readonly shellSessions: readonly ShellSessionConfig[];
+	/** Extra environment for the app, on top of the Copilot extension's mock setup. */
+	readonly env?: (mockServerUrl: string) => Record<string, string>;
+	/** Extra settings written before VS Code starts. */
+	readonly settings?: Record<string, unknown>;
+	/** Extra scenarios for {@link warmUp}. */
+	readonly registerScenarios?: (api: { ScenarioBuilder: any; registerScenario: (id: string, scenario: unknown) => void }) => void;
+	/** Runs once after the app started, before the first test. */
+	readonly warmUp?: (app: Application, logger: Logger) => Promise<void>;
+}
+
+const CHAT_SESSIONS_SUITES: readonly ChatSessionsSuite[] = [
+	{ title: 'Chat Sessions', sessions: SESSIONS, shellSessions: SHELL_SESSIONS },
+	{
+		title: 'Chat Sessions (Agent Host)',
+		sessions: AGENT_HOST_SESSIONS,
+		shellSessions: [],
+		// Point the Agent Host's Copilot SDK and its CAPI client at the mock
+		// server, authenticated with a fake token the mock accepts.
+		env: mockServerUrl => ({
+			COPILOT_API_URL: mockServerUrl,
+			COPILOT_DEBUG_GITHUB_API_URL: mockServerUrl,
+			GITHUB_COPILOT_API_TOKEN: AGENT_HOST_TOKEN,
+			VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE: mockServerUrl,
+		}),
+		settings: {
+			'chat.agentHost.unsafeTestToken': AGENT_HOST_TOKEN,
+			'chat.agentHost.ahpJsonlLoggingEnabled': true,
+			// Verbose Copilot runtime logging for capturable failure diagnostics.
+			'chat.agentHost.copilotSdk.logLevel': 'trace',
+			// This suite exercises the Agent Host session, not Auto routing.
+			'chat.defaultModel': 'gpt-5.3-codex',
+		},
+		registerScenarios: ({ ScenarioBuilder, registerScenario }) => {
+			registerScenario(AGENT_HOST_WARMUP_SCENARIO_ID, new ScenarioBuilder().emit(AGENT_HOST_WARMUP_REPLY).build());
+		},
+		warmUp: warmUpAgentHost,
+	},
+];
+
+/**
  * Write all activation-sensitive settings before VS Code starts. Pre-seeding
  * only the enablement migration can activate Copilot Chat before its mock
  * endpoints are configured.
  */
-async function preseedChatSessionProfile(userDataDir: string | undefined, mockServerUrl: string): Promise<void> {
+async function preseedChatSessionProfile(userDataDir: string | undefined, mockServerUrl: string, settings: Record<string, unknown> | undefined): Promise<void> {
 	if (!userDataDir) {
 		throw new Error('Cannot pre-seed Chat Sessions profile without a user data directory');
 	}
@@ -82,9 +150,43 @@ async function preseedChatSessionProfile(userDataDir: string | undefined, mockSe
 		'chat.agentHost.claudeAgent.enabled': true,
 		'github.copilot.chat.backgroundAgent.enabled': true,
 		'chat.tools.riskAssessment.enabled': false,
+		...settings,
 	}, undefined, '\t'));
 
 	await preseedChatExtensionEnablement(userDataDir);
+}
+
+/**
+ * Pays the Agent Host's cold-start costs before the first test, so they cannot
+ * make it flaky: the Agent Host registers its Copilot agent asynchronously
+ * after the window opens, and the first query of a fresh Agent Host can reach
+ * the Copilot SDK before its model list has resolved, which fails that turn
+ * with "No model available" (github/copilot-agent-runtime#9876). A second
+ * session succeeds because the model list is cached by then. Every wait ends
+ * on a condition; a warm-up that cannot get a reply fails the suite.
+ */
+async function warmUpAgentHost(app: Application, logger: Logger): Promise<void> {
+	for (let attempt = 1; ; attempt++) {
+		// The command retries until the Agent Host has registered its Copilot agent (up to 5 minutes).
+		await app.workbench.quickaccess.runCommand('smoketest.openAgentHostChat');
+		await app.workbench.chat.waitForChatEditor(5 * 60 * 10);
+		const sessionResource = await app.workbench.chat.waitForChatEditorSessionResource();
+		if (!sessionResource.startsWith(`${AGENT_HOST_COPILOT_SCHEME}:`)) {
+			throw new Error(`The Agent Host Copilot warm-up editor is bound to ${sessionResource} instead of an ${AGENT_HOST_COPILOT_SCHEME} session (likely the local fallback)`);
+		}
+		await app.workbench.chat.sendEditorMessage(`hello world [scenario:${AGENT_HOST_WARMUP_SCENARIO_ID}]`);
+		// Wait until the turn has finished, with the reply or an error, so it cannot overlap the first test.
+		await app.workbench.chat.waitForEditorResponse(2 * 60 * 10);
+		const response = (await app.workbench.chat.getLatestEditorResponseText()).trim();
+		await app.workbench.quickaccess.runCommand('workbench.action.closeAllEditors');
+		if (response.includes(AGENT_HOST_WARMUP_REPLY)) {
+			return;
+		}
+		if (attempt === 2) {
+			throw new Error(`Agent Host Copilot did not reply to the warm-up prompt in two sessions. Last response:\n${response}`);
+		}
+		logger.log(`[Chat Sessions (Agent Host)] warm-up session ${attempt} failed (likely the cold-start model race); retrying in a new session. Response:\n${response}`);
+	}
 }
 
 async function openSession(app: Application, session: { readonly command: string; readonly kind: 'editor' | 'view' }): Promise<void> {
@@ -102,7 +204,7 @@ async function openSession(app: Application, session: { readonly command: string
 	}
 }
 
-async function sendAndWaitForReply(chat: Chat, session: SessionConfig, message: string, expectedReply: string): Promise<string> {
+async function sendAndWaitForReply(chat: Chat, session: SessionConfig, message: string, expectedReply: string, expectedResponses: number): Promise<string> {
 	if (session.kind === 'editor') {
 		await chat.sendEditorMessage(message);
 		// Poll for the actual reply text rather than just waiting for a
@@ -111,15 +213,28 @@ async function sendAndWaitForReply(chat: Chat, session: SessionConfig, message: 
 		// finishes, which would otherwise cause the follow-up assertion to
 		// time out. Each scenario emits a unique reply so a single text
 		// match unambiguously identifies the current response.
-		return (await chat.waitForEditorResponseText(expectedReply, 120_000)).trim();
+		const text = (await chat.waitForEditorResponseText(expectedReply, 120_000, { waitForCommittedResource: !session.agentHost })).trim();
+		if (session.agentHost) {
+			// Agent Host chat editors keep their untitled resource, so there is
+			// no editor swap to wait for. Wait for the turn to end instead, so a
+			// follow-up is not sent into a turn that is still running.
+			await chat.waitForEditorResponse(60 * 10, expectedResponses);
+		}
+		return text;
 	}
 	await chat.sendMessage(message);
 	return (await chat.waitForResponseText(expectedReply, 120_000)).trim();
 }
 
 export function setup(logger: Logger) {
+	for (const suite of CHAT_SESSIONS_SUITES) {
+		setupChatSessionsSuite(logger, suite);
+	}
+}
 
-	describe('Chat Sessions', function () {
+function setupChatSessionsSuite(logger: Logger, suite: ChatSessionsSuite) {
+
+	describe(suite.title, function () {
 		this.timeout(5 * 60 * 1000);
 		this.retries(0);
 
@@ -137,7 +252,7 @@ export function setup(logger: Logger) {
 			// One scenario per session type, each emitting a distinct reply
 			// so the assertion is unambiguous. A second scenario per session
 			// covers the follow-up message in the same chat surface.
-			for (const session of SESSIONS) {
+			for (const session of suite.sessions) {
 				registerScenario(session.scenarioId, new ScenarioBuilder().emit(session.reply).build());
 				registerScenario(session.scenarioId2, new ScenarioBuilder().emit(session.reply2).build());
 			}
@@ -146,32 +261,47 @@ export function setup(logger: Logger) {
 			// `chat.tools.terminal.autoApprove` list, so no extra settings
 			// are required to auto-approve the command — these tests
 			// deliberately exercise the non-sandbox shell-tool path.
-			for (const shellSession of SHELL_SESSIONS) {
+			for (const shellSession of suite.shellSessions) {
 				registerScenario(shellSession.scenarioId, shellSession.scenarioFactory(shellSession.reply));
 			}
+			suite.registerScenarios?.({ ScenarioBuilder, registerScenario });
 
 			mockServer = await startServer(0, { logger: (msg: string) => logger.log(`[mock-llm] ${msg}`) });
-			logger.log(`[Chat Sessions] mock LLM server started at ${mockServer.url} (platform=${process.platform}, arch=${process.arch}, node=${process.version})`);
-			logger.log(`[Chat Sessions] env: VSCODE_DEV=${process.env.VSCODE_DEV ?? '<unset>'}, VSCODE_QUALITY=${process.env.VSCODE_QUALITY ?? '<unset>'}, BUILD_SOURCEBRANCH=${process.env.BUILD_SOURCEBRANCH ?? '<unset>'}, GITHUB_RUN_ID=${process.env.GITHUB_RUN_ID ?? '<unset>'}, GITHUB_ACTIONS=${process.env.GITHUB_ACTIONS ?? '<unset>'}`);
+			logger.log(`[${suite.title}] mock LLM server started at ${mockServer.url} (platform=${process.platform}, arch=${process.arch}, node=${process.version})`);
+			logger.log(`[${suite.title}] env: VSCODE_DEV=${process.env.VSCODE_DEV ?? '<unset>'}, VSCODE_QUALITY=${process.env.VSCODE_QUALITY ?? '<unset>'}, BUILD_SOURCEBRANCH=${process.env.BUILD_SOURCEBRANCH ?? '<unset>'}, GITHUB_RUN_ID=${process.env.GITHUB_RUN_ID ?? '<unset>'}, GITHUB_ACTIONS=${process.env.GITHUB_ACTIONS ?? '<unset>'}`);
 		});
 
 		installAllHandlers(logger, opts => {
 			const copilotEnv = getCopilotSmokeTestEnv(mockServer, { userDataDir: opts.userDataDir });
-			logger.log(`[Chat Sessions] extraEnv keys for app: ${Object.keys(copilotEnv).join(', ')} (token len=${(copilotEnv.VSCODE_COPILOT_CHAT_TOKEN ?? '').length})`);
+			logger.log(`[${suite.title}] extraEnv keys for app: ${Object.keys(copilotEnv).join(', ')} (token len=${(copilotEnv.VSCODE_COPILOT_CHAT_TOKEN ?? '').length})`);
 			return {
 				...opts,
 				extraEnv: {
 					...(opts.extraEnv ?? {}),
 					...copilotEnv,
+					...suite.env?.(getMockLlmServerUrl(mockServer)),
 				},
 			};
-		}, app => preseedChatSessionProfile(app.userDataPath, mockServer.url));
+		}, app => preseedChatSessionProfile(app.userDataPath, mockServer.url, suite.settings));
+
+		if (suite.warmUp) {
+			before(async function () {
+				const app = this.app as Application;
+				try {
+					await suite.warmUp?.(app, logger);
+				} catch (error) {
+					logger.log(`[${suite.title}] warm-up FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+					await dumpFailureDiagnostics(app, logger, `${suite.title} warm-up`);
+					throw error;
+				}
+			});
+		}
 
 		after(async function () {
 			await mockServer?.close();
 		});
 
-		for (const session of SESSIONS) {
+		for (const session of suite.sessions) {
 			it(`Test ${session.name} session`, async function () {
 				const app = this.app as Application;
 				const requestsBefore = mockServer.requestCount();
@@ -179,10 +309,20 @@ export function setup(logger: Logger) {
 
 				try {
 					await openSession(app, session);
+					if (session.agentHost) {
+						// The editor falls back to a local chat session when the Agent Host
+						// session cannot be created, and this profile points Local chat at
+						// the same mock server, so a reply alone does not prove which one ran.
+						const sessionResource = await app.workbench.chat.waitForChatEditorSessionResource();
+						assert.ok(
+							sessionResource.startsWith(`${AGENT_HOST_COPILOT_SCHEME}:`),
+							`Expected the ${session.name} editor to be bound to an ${AGENT_HOST_COPILOT_SCHEME} session, but it is bound to ${sessionResource} (likely the local fallback)`
+						);
+					}
 
 					// First message + first scenario reply.
 					logger.log(`[Chat Sessions/${session.name}] running command and waiting for chat editor`);
-					const responseText = await sendAndWaitForReply(app.workbench.chat, session, `hello world [scenario:${session.scenarioId}]`, session.reply);
+					const responseText = await sendAndWaitForReply(app.workbench.chat, session, `hello world [scenario:${session.scenarioId}]`, session.reply, 1);
 					logger.log(`Chat Sessions (${session.name}) response 1: ${responseText}`);
 
 					assert.ok(
@@ -194,7 +334,7 @@ export function setup(logger: Logger) {
 					// chat surface to exercise the follow-up code path.
 					if (!session.skipReply2) {
 						logger.log(`[Chat Sessions/${session.name}] running second command and waiting for chat editor`);
-						const responseText2 = await sendAndWaitForReply(app.workbench.chat, session, `hello again [scenario:${session.scenarioId2}]`, session.reply2);
+						const responseText2 = await sendAndWaitForReply(app.workbench.chat, session, `hello again [scenario:${session.scenarioId2}]`, session.reply2, 2);
 						logger.log(`Chat Sessions (${session.name}) response 2: ${responseText2}`);
 
 						assert.ok(
@@ -227,7 +367,7 @@ export function setup(logger: Logger) {
 		// contains the echoed marker) and that the reply was rendered in the
 		// chat. `echo` is in the default `chat.tools.terminal.autoApprove`
 		// list, so no extra auto-approve settings are required.
-		for (const shellSession of SHELL_SESSIONS) {
+		for (const shellSession of suite.shellSessions) {
 			it(`Test ${shellSession.name} session run in terminal`, async function () {
 				const app = this.app as Application;
 				const requestsBefore = mockServer.requestCount();

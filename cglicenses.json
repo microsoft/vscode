@@ -33,6 +33,12 @@
 		"fullLicenseTextUri": "https://raw.githubusercontent.com/DefinitelyTyped/DefinitelyTyped/master/LICENSE"
 	},
 	{
+		// Reason: @unicode/unicode-15.0.0@2.1.0 declares MIT in its generated README,
+		// but omits LICENSE from its tarball. Use the upstream data generator's MIT license.
+		"name": "@unicode/unicode-15.0.0",
+		"fullLicenseTextUri": "https://raw.githubusercontent.com/node-unicode/node-unicode-data/3fc20740869e4d4eb5a74759c824c019de9b0fb4/LICENSE-MIT.txt"
+	},
+	{
 		"name": "tunnel-agent",
 		"prependLicenseText": [
 			"Copyright (c) tunnel-agent authors"
@@ -1093,6 +1099,13 @@
 		"fullLicenseTextUri": "https://raw.githubusercontent.com/xtermjs/xterm.js/master/LICENSE"
 	},
 	{
+		// Reason: @xterm/headless does not include a LICENSE file in its npm tarball, and CG has
+		// no license text for it.
+		// Source: https://github.com/xtermjs/xterm.js/blob/master/LICENSE
+		"name": "@xterm/headless",
+		"fullLicenseTextUri": "https://raw.githubusercontent.com/xtermjs/xterm.js/master/LICENSE"
+	},
+	{
 		// Reason: @github/copilot-sdk does not ship a LICENSE file in its npm tarball,
 		// and ClearlyDefined has not harvested it, so CG emits no license text and the
 		// on-disk scanner finds nothing. The source repo is public MIT with a LICENSE file.
@@ -1108,6 +1121,15 @@
 		// Source: https://github.com/microsoft/vscode-windows-ca-certs/blob/main/LICENSE
 		"name": "@vscode/windows-ca-certs",
 		"fullLicenseTextUri": "https://raw.githubusercontent.com/microsoft/vscode-windows-ca-certs/main/LICENSE"
+	},
+	{
+		// Reason: windows-foreground-love ships in the win32 product only. pnpm skips installing it
+		// on the Linux NOTICE agent (its lockfile entry records no `os`), and CG has no license text
+		// for it. Section 6 of scan-licenses.ts seeds it into the presence index from pnpm's
+		// `skipped` list so this override can inject the MIT text below.
+		// Source: https://github.com/the-ress/node-windows-foreground-love/blob/main/LICENSE
+		"name": "windows-foreground-love",
+		"fullLicenseTextUri": "https://raw.githubusercontent.com/the-ress/node-windows-foreground-love/main/LICENSE"
 	},
 	{
 		// Reason: @vscode/markdown-editor comes from a private repo (microsoft/vscode-packages).
