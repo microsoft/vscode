@@ -152,7 +152,7 @@ export function getCaches(job: ICacheWarmingJob, readFile: ReadRepositoryFile): 
 	const cache = (key: string, cachePath: string, enableCrossOsArchive?: boolean): ICache => ({ key, version: getCacheVersion(job.os, cachePath, enableCrossOsArchive) });
 	const caches = [cache(`${job.nodeModules.prefix}-${hashFiles(Buffer.from(computeNodeModulesCacheKey(job.nodeModules.args, readFile)))}`, '.build/node_modules_cache')];
 	if (job.electron) {
-		caches.push(cache(`electron-download-v1-${job.os}-${job.electron.arch}-${hashFiles(readFile('.npmrc'), readFile('build/checksums/electron.txt'))}`, electronCachePaths[job.os]));
+		caches.push(cache(`electron-download-v1-${job.os}-${job.electron.arch}-${hashFiles(readFile('build/checksums/electron.txt'))}`, electronCachePaths[job.os]));
 	}
 	if (job.builtInExtensions) {
 		const target = job.builtInExtensions.target;

@@ -608,6 +608,26 @@ suite('LanguageModelToolsService', () => {
 		assert.deepStrictEqual(preparedRequestIds, [undefined, 'subagent-request']);
 	});
 
+	test('preserves the originating chat during headless preparation without creating rendering context', async () => {
+		const origin = URI.parse('agent-host-test:/session#peer');
+		const observed: { origin?: string; presentation?: string }[] = [];
+		const tool = registerToolForTest(service, store, 'originatingChatTool', {
+			prepareToolInvocation: async context => {
+				observed.push({ origin: context.originatingChatResource?.toString(), presentation: context.chatSessionResource?.toString() });
+				return undefined;
+			},
+			invoke: async invocation => {
+				observed.push({ origin: invocation.originatingChatResource?.toString(), presentation: invocation.context?.sessionResource.toString() });
+				return { content: [{ kind: 'text', value: 'ok' }] };
+			},
+		});
+		await service.invokeTool({ ...tool.makeDto({}), originatingChatResource: origin }, async () => 0, CancellationToken.None);
+		assert.deepStrictEqual(observed, [
+			{ origin: origin.toString(), presentation: undefined },
+			{ origin: origin.toString(), presentation: undefined },
+		]);
+	});
+
 	test('invocation parameters are overridden by input toolSpecificData', async () => {
 		const rawInput = { b: 2 };
 		const tool = registerToolForTest(service, store, 'testToolInputOverride', {

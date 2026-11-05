@@ -23,7 +23,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IHostService } from '../../../services/host/browser/host.js';
-import { ShowCurrentReleaseNotesActionId } from '../common/update.js';
+import { PostUpdateReleaseNotesSource, ShowCurrentReleaseNotesActionId } from '../common/update.js';
 import { IParsedUpdateInfoInput, parseUpdateInfoInput } from '../common/updateInfoParser.js';
 import { getUpdateInfoUrl, isMajorMinorVersionChange } from '../common/updateUtils.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -263,7 +263,7 @@ export class PostUpdateWidgetContribution extends Disposable implements IWorkben
 						{ id: commandId, from: 'postUpdateWidget' }
 					);
 
-					void this.commandService.executeCommand(commandId, ...(args ?? []));
+					void this.commandService.executeCommand(commandId, ...(commandId === ShowCurrentReleaseNotesActionId ? [args?.[0], PostUpdateReleaseNotesSource] : args ?? []));
 					this.hoverService.hideHover(true);
 				}));
 			}

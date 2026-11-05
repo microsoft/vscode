@@ -887,7 +887,16 @@ export const enum EditorInputCapabilities {
 	 * click, or close commands. Callers with an explicit lifecycle
 	 * requirement can force the editor to close.
 	 */
-	CannotClose = 1 << 13
+	CannotClose = 1 << 13,
+
+	/**
+	 * Signals that the editor renders its own title, as its pane does
+	 * (`IEditorPane.providesTitle`), such as a view shown as an editor.
+	 * A group that holds it, other than in the main part of its window,
+	 * hands editors opened in it without a group of their own to that
+	 * main part, also while another editor is active in the group.
+	 */
+	ProvidesTitle = 1 << 14
 }
 
 export type IUntypedEditorInput = IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput | IResourceMultiDiffEditorInput | IResourceSideBySideEditorInput | IResourceMergeEditorInput;

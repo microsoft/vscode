@@ -240,7 +240,7 @@ async function renderFilesEmptyState(context: ComponentFixtureContext, searchVal
 			}],
 			requiresWorkspaceTrust: false,
 			isVirtualWorkspace: false,
-		}, layoutService));
+		}, layoutService, new class extends mock<IEditorGroupsService>() { override readonly parts = []; }()));
 		await editor.setInput(input, undefined, {}, CancellationToken.None);
 		const searchInput = container.querySelector<HTMLInputElement>('.empty-file-editor-search input');
 		if (!searchInput) {

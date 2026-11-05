@@ -956,7 +956,6 @@ export class GettingStartedPage extends EditorPane {
 		const agentsBanner = createAgentsBanner(
 			{
 				cssClass: 'getting-started-category.agents-banner',
-				source: 'welcomePage',
 				graphic: { element: agentsWindowGraphic.element, shownDesign: agentsWindowGraphic.shownDesign, isExposed: this.categoriesSlideShown },
 			},
 			this.commandService,

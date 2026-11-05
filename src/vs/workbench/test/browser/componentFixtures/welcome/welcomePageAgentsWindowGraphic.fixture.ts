@@ -12,6 +12,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { defaultToggleStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { createAgentsBanner } from '../../../../contrib/chat/browser/agentSessions/agentSessionsBanner.js';
@@ -97,6 +98,7 @@ async function renderWelcomePageFooter({ container, disposableStore, theme }: Co
 	const instantiationService = createEditorServices(disposableStore, { colorTheme: theme });
 	const configurationService = new TestConfigurationService({
 		[ChatConfiguration.WelcomePageAgentsWindowGraphic]: variant,
+		[ChatConfiguration.WelcomePageSignInEnabled]: false,
 		...(sectionStyle ? { [ChatConfiguration.WelcomePageAgentsWindowSectionStyle]: sectionStyle } : {}),
 	});
 	const chatEntitlementService = new class extends mock<IChatEntitlementService>() {
@@ -118,13 +120,13 @@ async function renderWelcomePageFooter({ container, disposableStore, theme }: Co
 	const banner = createAgentsBanner(
 		{
 			cssClass: 'getting-started-category.agents-banner',
-			source: 'welcomePage',
 			graphic: { element: graphic.element, shownDesign: graphic.shownDesign, isExposed: constObservable(true) },
 		},
 		instantiationService.get(ICommandService),
 		NullTelemetryService,
 		configurationService,
 		chatEntitlementService,
+		instantiationService.get(IDefaultAccountService),
 	);
 	disposableStore.add(banner.disposables);
 

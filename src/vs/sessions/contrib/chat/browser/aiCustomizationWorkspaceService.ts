@@ -9,7 +9,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IAICustomizationWorkspaceService, AICustomizationManagementSection } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IChatPromptSlashCommand, IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { CustomizationCreatorService } from '../../../../workbench/contrib/chat/browser/aiCustomization/customizationCreatorService.js';
 import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
@@ -45,7 +45,7 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 	private readonly _overrideRoot: ISettableObservable<URI | undefined>;
 
 	constructor(
-		@ISessionsService private readonly sessionsService: ISessionsService,
+		@IFocusedSessionHostService private readonly _focusedSessionHostService: IFocusedSessionHostService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@IGitService private readonly gitService: IGitService,
@@ -61,8 +61,7 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 			if (override) {
 				return override;
 			}
-			const session = this.sessionsService.activeSession.read(reader);
-			const folder = session?.activeChat.read(reader).workspace.read(reader)?.folders[0];
+			const folder = this._focusedSessionHostService.focusedHost.read(reader).chat.read(reader)?.workspace.read(reader)?.folders[0];
 			const root = folder?.workingDirectory;
 			if (root?.scheme === AGENT_HOST_SCHEME) {
 				return undefined;
@@ -75,8 +74,7 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 			if (override) {
 				return this.labelService.getUriBasenameLabel(override);
 			}
-			const session = this.sessionsService.activeSession.read(reader);
-			const workspace = session?.activeChat.read(reader).workspace.read(reader);
+			const workspace = this._focusedSessionHostService.focusedHost.read(reader).chat.read(reader)?.workspace.read(reader);
 			return workspace?.isVirtualWorkspace ? workspace.label : workspace?.folders[0]?.name;
 		});
 
@@ -90,8 +88,7 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 		if (override) {
 			return override;
 		}
-		const session = this.sessionsService.activeSession.get();
-		const folder = session?.activeChat.get().workspace.get()?.folders[0];
+		const folder = this._focusedSessionHostService.focusedHost.get().chat.get()?.workspace.get()?.folders[0];
 		const root = folder?.workingDirectory;
 		if (root?.scheme === AGENT_HOST_SCHEME) {
 			return undefined;
@@ -133,8 +130,7 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 	 * the file is also committed there so the session sees it immediately.
 	 */
 	async commitFiles(_projectRoot: URI, fileUris: URI[]): Promise<boolean> {
-		const session = this.sessionsService.activeSession.get();
-		const folder = session?.activeChat.get().workspace.get()?.folders[0];
+		const folder = this._focusedSessionHostService.focusedHost.get().chat.get()?.workspace.get()?.folders[0];
 		if (!folder?.root) {
 			return true;
 		}
@@ -152,8 +148,7 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 	 * in the worktree if one is active.
 	 */
 	async deleteFiles(_projectRoot: URI, fileUris: URI[]): Promise<boolean> {
-		const session = this.sessionsService.activeSession.get();
-		const folder = session?.activeChat.get().workspace.get()?.folders[0];
+		const folder = this._focusedSessionHostService.focusedHost.get().chat.get()?.workspace.get()?.folders[0];
 		if (!folder?.root) {
 			return true;
 		}

@@ -12,7 +12,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { AgentsWindowOpenSource } from '../../../../platform/window/common/window.js';
 import { ILifecycleService, ShutdownReason } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { IWorkspaceSelectionSnapshot, WorkspaceSelectionOrigin } from '../../../common/workspaceSelection.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISendRequestOptions } from '../../../services/sessions/common/sessionsProvider.js';
 import { INewSessionComposerService } from '../../chat/browser/newSessionComposerService.js';
@@ -36,6 +36,7 @@ interface IRequestSelection {
 type WorkspaceSelectionOutcomeEvent = {
 	source: AgentsWindowOpenSource;
 	workspaceArgumentKind: ISessionsWindowOpenContext['workspaceArgumentKind'];
+	workspaceArgumentRemoteKind: NonNullable<ISessionsWindowOpenContext['workspaceArgumentRemoteKind']>;
 	workspaceArgumentIsDefault: boolean;
 	observationReason: ObservationReason;
 	observationDurationMs: number;
@@ -54,6 +55,7 @@ type WorkspaceSelectionOutcomeClassification = {
 	comment: 'Reports workspace-default acceptance and first-request conversion for first-time Agents window openings within three minutes. No request in that interval is not proof of permanent abandonment.';
 	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Entry point of the initial Agents window opening.' };
 	workspaceArgumentKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Original workspace argument category; never a resource identifier.' };
+	workspaceArgumentRemoteKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Kind of VS Code remote hosting the original workspace argument (none, ssh, wsl, tunnel, codespaces, attachedContainer, or other; for Dev Containers, the host of the source folder); never an authority.' };
 	workspaceArgumentIsDefault: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the workspace argument was inferred from the invoking editor.' };
 	observationReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Observation ended at firstRequest, timer, close, quit, reload, or otherShutdown.' };
 	observationDurationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Observation duration, capped at three minutes.' };
@@ -80,7 +82,7 @@ export class SessionsWorkspaceSelectionTelemetry extends Disposable {
 		private readonly source: AgentsWindowOpenSource,
 		private readonly context: ISessionsWindowOpenContext,
 		@INewSessionComposerService private readonly composerService: INewSessionComposerService,
-		@ISessionsService sessionsService: ISessionsService,
+		@IFocusedSessionHostService focusedSessionHostService: IFocusedSessionHostService,
 		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -91,7 +93,7 @@ export class SessionsWorkspaceSelectionTelemetry extends Disposable {
 		this._observation.add(autorun(reader => {
 			const version = composerService.userWorkspaceSelectionVersion.read(reader);
 			const selection = composerService.workspaceSelection.read(reader);
-			const session = sessionsService.activeSession.read(reader);
+			const session = focusedSessionHostService.focusedHost.read(reader).session.read(reader);
 			const created = session?.isCreated.read(reader);
 			const loading = session?.loading.read(reader);
 			const folderUri = session?.workspace.read(reader)?.folders[0]?.root;
@@ -140,6 +142,7 @@ export class SessionsWorkspaceSelectionTelemetry extends Disposable {
 		this.telemetryService.publicLog2<WorkspaceSelectionOutcomeEvent, WorkspaceSelectionOutcomeClassification>('agents/workspaceSelectionOutcome', {
 			source: this.source,
 			workspaceArgumentKind: this.context.workspaceArgumentKind,
+			workspaceArgumentRemoteKind: this.context.workspaceArgumentRemoteKind ?? 'none',
 			workspaceArgumentIsDefault: this.context.workspaceArgumentIsDefault ?? false,
 			observationReason: reason,
 			observationDurationMs: this._elapsed(),

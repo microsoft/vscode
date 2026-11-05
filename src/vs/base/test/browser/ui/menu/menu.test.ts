@@ -7,7 +7,7 @@ import assert from 'assert';
 import sinon from 'sinon';
 import { $, append, EventType, getWindow, ModifierKeyEmitter } from '../../../../browser/dom.js';
 import { getMenuWidgetCSS, Menu, unthemedMenuStyles } from '../../../../browser/ui/menu/menu.js';
-import { Action, ActionRunner, SubmenuAction, toAction } from '../../../../common/actions.js';
+import { Action, ActionRunner, IAction, Separator, SubmenuAction, toAction } from '../../../../common/actions.js';
 import { EventType as TouchEventType } from '../../../../browser/touch.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../common/lifecycle.js';
 import { isLinux, isWindows } from '../../../../common/platform.js';
@@ -149,6 +149,101 @@ suite('Menu', () => {
 		host.querySelector<HTMLElement>('.action-item')!.dispatchEvent(new MouseEvent(EventType.MOUSE_UP, { altKey: true, bubbles: true }));
 		await clock.tickAsync(1);
 		assert.deepStrictEqual(runs, ['primary']);
+	});
+
+	test('renders group headers as labels that navigation, mnemonics and clicks skip', async () => {
+		const clock = sinon.useFakeTimers();
+		const host = append(document.body, $('div'));
+		disposables.add(toDisposable(() => host.remove()));
+		const runs: string[] = [];
+		const runner = disposables.add(new ActionRunner());
+		disposables.add(runner.onWillRun(e => runs.push(e.action.id)));
+		const groupTitles = new Map<IAction, string>();
+		const action = (id: string, label: string, groupTitle?: string) => {
+			const result = toAction({ id, label, run: () => { } });
+			if (groupTitle) {
+				groupTitles.set(result, groupTitle);
+			}
+			return result;
+		};
+		const menu = disposables.add(new Menu(host, [
+			// The first group's title, from its first action
+			action('open', '&Open', 'Recent'),
+			new Separator(),
+			// A separator with a label
+			new Separator('Discover More'),
+			action('create', '&Create'),
+			new SubmenuAction('browse', '&Browse', [action('marketplace', 'Marketplace')]),
+			// The header of an emptied group does not label the next group
+			new Separator('Empty Group'),
+			new Separator(),
+			action('settings', '&Settings'),
+			// A group title replaces the plain separator before its group
+			new Separator(),
+			action('help', '&Help', 'Support'),
+			new Separator('Trailing'),
+		], { actionRunner: runner, enableMnemonics: true, getGroupTitle: action => groupTitles.get(action) }, unthemedMenuStyles));
+		await clock.tickAsync(100);
+
+		const rowElements = Array.from(host.querySelectorAll<HTMLElement>('.actions-container > .action-item'));
+		const rows = rowElements.map(row => {
+			const header = row.querySelector('.menu-header-title');
+			const line = row.querySelector<HTMLElement>('.action-label.separator');
+			if (line) {
+				return { header: header?.textContent, line: getWindow(row).getComputedStyle(line).display !== 'none', lineText: line.textContent, enabled: !row.classList.contains('disabled') };
+			}
+			const item = row.querySelector<HTMLElement>('.action-menu-item')!;
+			const describedBy = item.getAttribute('aria-describedby');
+			return {
+				item: item.querySelector('.action-label')?.textContent,
+				role: item.getAttribute('role'),
+				position: `${item.getAttribute('aria-posinset')}/${item.getAttribute('aria-setsize')}`,
+				describedBy: describedBy ? host.ownerDocument.getElementById(describedBy)?.textContent : undefined,
+			};
+		});
+
+		const focused = () => rows[rowElements.findIndex((_, index) => menu.isFocused(index))];
+		const press = (key: string, keyCode: number) => host.querySelector('.monaco-action-bar')!.dispatchEvent(new KeyboardEvent(EventType.KEY_DOWN, { key, keyCode, bubbles: true }));
+		menu.focus(true);
+		const navigation = [focused()];
+		for (const [key, keyCode] of [['ArrowDown', 40], ['ArrowDown', 40], ['ArrowDown', 40], ['ArrowDown', 40], ['ArrowDown', 40], ['ArrowUp', 38]] as const) {
+			press(key, keyCode);
+			navigation.push(focused());
+		}
+
+		// The first letters of headers are not mnemonics
+		press('r', 82);
+		press('d', 68);
+		for (const header of host.querySelectorAll('.menu-header')) {
+			header.dispatchEvent(new MouseEvent(EventType.MOUSE_UP, { bubbles: true }));
+			header.dispatchEvent(new MouseEvent(EventType.CLICK, { bubbles: true }));
+		}
+		await clock.tickAsync(1);
+		const runsBeforeMnemonic = [...runs];
+		press('c', 67);
+		await clock.tickAsync(1);
+
+		const open = { item: 'Open', role: 'menuitem', position: '1/5', describedBy: 'Recent' };
+		const create = { item: 'Create', role: 'menuitem', position: '2/5', describedBy: 'Discover More' };
+		const browse = { item: 'Browse', role: 'menuitem', position: '3/5', describedBy: 'Discover More' };
+		const settings = { item: 'Settings', role: 'menuitem', position: '4/5', describedBy: undefined };
+		const help = { item: 'Help', role: 'menuitem', position: '5/5', describedBy: 'Support' };
+		assert.deepStrictEqual({ rows, navigation, runsBeforeMnemonic, runs }, {
+			rows: [
+				{ header: 'Recent', line: false, lineText: '', enabled: false },
+				open,
+				{ header: 'Discover More', line: true, lineText: '', enabled: false },
+				create,
+				browse,
+				{ header: undefined, line: true, lineText: '', enabled: false },
+				settings,
+				{ header: 'Support', line: true, lineText: '', enabled: false },
+				help,
+			],
+			navigation: [open, create, browse, settings, help, open, help],
+			runsBeforeMnemonic: [],
+			runs: ['create'],
+		});
 	});
 
 	// A menu positioned under a resting pointer can receive synthetic pointer events,
