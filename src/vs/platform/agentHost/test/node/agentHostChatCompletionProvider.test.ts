@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { CompletionItemKind } from '../../common/state/protocol/commands.js';
@@ -94,9 +93,7 @@ class FakeStateManager extends AgentHostStateManager {
 
 suite('AgentHostChatCompletionProvider', () => {
 
-	const disposables = new DisposableStore();
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('announces only "#" as a trigger character via IAgentHostCompletions', () => {
 		const stateManager = disposables.add(new FakeStateManager([]));

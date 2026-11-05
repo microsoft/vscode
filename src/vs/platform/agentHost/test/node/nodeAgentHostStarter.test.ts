@@ -18,7 +18,8 @@ import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.j
 import { createCopilotCliEnvironment } from '../../node/copilot/copilotCliEnvironment.js';
 import { NodeAgentHostStarter } from '../../node/nodeAgentHostStarter.js';
 import { AgentHostAhpJsonlLoggingEnvVar } from '../../common/ahpJsonlLogger.js';
-import { AgentHostAhpJsonlLoggingSettingId } from '../../common/agentService.js';
+import { AgentHostAhpJsonlLoggingSettingId, AgentHostMultipleChatProvidersEnabledEnvVar } from '../../common/agentService.js';
+import { ChatProvidersSettingId } from '../../common/agentHostChatProviders.js';
 
 class TestNodeAgentHostStarter extends NodeAgentHostStarter {
 	readonly environments: IProcessEnvironment[] = [];
@@ -57,6 +58,15 @@ suite('NodeAgentHostStarter', () => {
 		await configuration.setUserConfiguration(AgentHostAhpJsonlLoggingSettingId, false);
 		disposables.add((await starter.start()).store);
 		assert.deepStrictEqual(starter.environments.map(env => env[AgentHostAhpJsonlLoggingEnvVar]), ['true', 'false']);
+	});
+
+	test('forwards chats with their own agents to the host only while the setting is on', async () => {
+		const configuration = new TestConfigurationService({ [ChatProvidersSettingId.Enabled]: true });
+		const starter = createStarter(configuration);
+		disposables.add((await starter.start()).store);
+		await configuration.setUserConfiguration(ChatProvidersSettingId.Enabled, false);
+		disposables.add((await starter.start()).store);
+		assert.deepStrictEqual(starter.environments.map(env => env[AgentHostMultipleChatProvidersEnabledEnvVar]), ['true', undefined]);
 	});
 
 	test('applies resolver overrides without replacing launcher-owned environment values', async () => {

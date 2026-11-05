@@ -193,7 +193,7 @@ export class ChatSuggestNextWidget extends Disposable {
 				this.contextMenuService.showContextMenu({
 					getAnchor: () => anchor || dropdownContainer,
 					getActions: () => actions,
-					autoSelectFirstItem: true,
+					autoSelectItem: true,
 				});
 			};
 

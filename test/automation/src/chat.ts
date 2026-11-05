@@ -7,6 +7,11 @@ import { Code } from './code';
 import { closeModelConfigDetails, IModelConfigSection, openModelConfigDetails, readModelConfigSections, selectModelConfigDetailsOption } from './modelConfigPicker';
 
 const CHAT_VIEW = 'div[id="workbench.panel.chat"]';
+// The chat view sets `data-bound-chat-resource` once its widget is bound to a
+// chat session and clears it while it rebinds to another one.
+const CHAT_VIEW_BOUND_SESSION = `${CHAT_VIEW} .chat-viewpane[data-bound-chat-resource]`;
+// The resource of a local chat session (`LocalChatSessionUri`).
+const LOCAL_CHAT_SESSION_RESOURCE_PREFIX = 'vscode-chat-session://local/';
 const CHAT_EDITOR = '.editor-instance .interactive-session';
 const CHAT_INPUT_EDITOR = `${CHAT_VIEW} .interactive-input-part .monaco-editor[role="code"]`;
 const CHAT_INPUT_EDITOR_FOCUSED = `${CHAT_VIEW} .interactive-input-part .monaco-editor.focused[role="code"]`;
@@ -55,6 +60,42 @@ export class Chat {
 		await this.code.waitForElement(CHAT_VIEW);
 	}
 
+	/**
+	 * Returns the chat session resource the chat view is bound to, or
+	 * `undefined` when the view is not open or is rebinding to another session.
+	 */
+	async getChatViewSessionResource(): Promise<string | undefined> {
+		const [element] = await this.code.getElements(CHAT_VIEW_BOUND_SESSION, false) ?? [];
+		return element?.attributes['data-bound-chat-resource'];
+	}
+
+	/**
+	 * Waits until the chat view is bound to a chat session other than
+	 * `previousSessionResource`. Commands that start a new chat in the view
+	 * keep running after the command palette closes, so a message sent before
+	 * the new session is bound lands in the outgoing session and its response
+	 * is never shown.
+	 */
+	async waitForChatViewSessionChange(previousSessionResource: string | undefined, retryCount?: number): Promise<void> {
+		await this.code.waitForElement(CHAT_VIEW_BOUND_SESSION, element => !!element && element.attributes['data-bound-chat-resource'] !== previousSessionResource, retryCount);
+	}
+
+	/**
+	 * Waits until the chat view is bound to a local chat session other than
+	 * `previousSessionResource`, such as the one `smoketest.openLocalChat`
+	 * opens. That command keeps running after the command palette closes, and
+	 * first waits for the command that opens a local chat to be registered: a
+	 * message sent before then goes to the session the view had, such as the
+	 * Agent Host Copilot session that is its default, and never gets the
+	 * response the test expects.
+	 */
+	async waitForNewLocalChatViewSession(previousSessionResource: string | undefined, retryCount?: number): Promise<void> {
+		await this.code.waitForElement(CHAT_VIEW_BOUND_SESSION, element => {
+			const sessionResource = element?.attributes['data-bound-chat-resource'];
+			return !!sessionResource && sessionResource !== previousSessionResource && sessionResource.startsWith(LOCAL_CHAT_SESSION_RESOURCE_PREFIX);
+		}, retryCount);
+	}
+
 	async waitForChatEditor(retryCount?: number): Promise<void> {
 		await this.code.waitForElement(CHAT_EDITOR, undefined, retryCount);
 	}
@@ -69,9 +110,22 @@ export class Chat {
 			.waitFor({ state: 'visible' });
 	}
 
+	/**
+	 * Focuses a chat input by clicking near its bottom-right corner, past the end of its content.
+	 * Attachments can show as inline pills in the input, and clicking a pill opens its attachment
+	 * in an editor, so a click at the center could replace the active editor instead.
+	 */
+	private async clickInputPastContent(inputSelector: string): Promise<void> {
+		await this.code.waitForElement(inputSelector);
+		const box = await this.code.driver.currentPage.locator(inputSelector).first().boundingBox();
+		if (!box) {
+			throw new Error(`Chat input is not visible: ${inputSelector}`);
+		}
+		await this.code.waitAndClick(inputSelector, Math.max(box.width - 30, 1), Math.max(box.height - 5, 1));
+	}
+
 	async sendMessage(message: string): Promise<void> {
-		// Click on the chat input to focus it
-		await this.code.waitAndClick(CHAT_INPUT_EDITOR);
+		await this.clickInputPastContent(CHAT_INPUT_EDITOR);
 
 		// Wait for the editor to be focused
 		await this.waitForInputFocus();
@@ -92,7 +146,7 @@ export class Chat {
 	}
 
 	async sendEditorMessage(message: string): Promise<void> {
-		await this.code.waitAndClick(CHAT_EDITOR_INPUT_EDITOR);
+		await this.clickInputPastContent(CHAT_EDITOR_INPUT_EDITOR);
 		await this.code.waitForElement(CHAT_EDITOR_INPUT_EDITOR_FOCUSED);
 
 		// Insert via Monaco's executeEdits rather than character-by-character

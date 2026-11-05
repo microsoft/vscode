@@ -34,7 +34,7 @@ export class PullRequestsClient implements IPullRequestsClient {
 		return this._client.graphqlPages(
 			'pullRequests',
 			listPullRequestsQuery,
-			{ owner: repository.owner, name: repository.name, ...cursorVariables(query) },
+			{ owner: repository.owner, name: repository.repo, ...cursorVariables(query) },
 			signal,
 			data => parsePullRequestsQuery(data)?.repository?.pullRequests ?? null,
 			requestOptions

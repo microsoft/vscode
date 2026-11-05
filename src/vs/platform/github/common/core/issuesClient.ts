@@ -53,10 +53,10 @@ export class IssuesClient implements IIssuesClient {
 
 			const issues = await this._client.graphql(
 				'issues',
-				`query IssueClosingPullRequestCounts($owner: String!, $name: String!) {
-					repository(owner: $owner, name: $name) { ${selections} }
+				`query IssueClosingPullRequestCounts($owner: String!, $repo: String!) {
+					repository(owner: $owner, name: $repo) { ${selections} }
 				}`,
-				{ owner: repository.owner, name: repository.name },
+				repository,
 				signal,
 				data => parseClosingPullRequestCountsQuery(data).repository,
 				options

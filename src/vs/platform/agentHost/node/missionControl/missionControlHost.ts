@@ -30,8 +30,8 @@ import { IAgentHostProviderService } from '../agentHostProviderService.js';
 import { IAgentHostProxyResolver } from '../agentHostProxyResolver.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
 import { ProtocolServerHandler } from '../protocolServerHandler.js';
-import { MissionControlEnvironment } from './missionControlEnvironment.js';
-import type { MissionControlProtocolServer, MissionControlPublishDiagnostic } from './missionControlProtocolServer.js';
+import { MissionControlEnvironment, type IMissionControlRelayDiagnostic } from './missionControlEnvironment.js';
+import { toMissionControlSocket, type MissionControlProtocolServer, type MissionControlPublishDiagnostic, type MissionControlRelayCloseReason } from './missionControlProtocolServer.js';
 import { MissionControlSdkEventSource } from './missionControlSdkEventSource.js';
 import { MissionControlSessionMirror } from './missionControlSessionMirror.js';
 import { MissionControlSessionPublisher } from './missionControlSessionPublisher.js';
@@ -59,20 +59,30 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 type MissionControlOperationEvent = IConnectionTelemetryError & {
-	operation: 'configure' | 'checkIn' | 'register' | 'heartbeat' | 'token' | 'signingKeys' | 'relay' | 'relayDisconnected';
+	operation: 'configure' | 'checkIn' | 'register' | 'heartbeat' | 'token' | 'signingKeys' | 'relay' | 'relayDisconnected' | 'relayRecovery';
 	outcome: 'succeeded' | 'failed' | 'info';
 	durationMs: number | undefined;
 	statusCode: number | undefined;
 	hostLaunchKind: AgentHostLaunchKind;
+	closeReason?: MissionControlRelayCloseReason;
+	closeCode?: number;
+	activeClients?: number;
+	recoveryAttempts?: number;
+	interruptedClients?: number;
 };
 
 export type MissionControlOperationClassification = ConnectionTelemetryErrorClassification & {
 	owner: 'roblourens';
 	comment: 'Mission Control host registration and relay health; routine successful heartbeats are excluded.';
-	operation: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Bounded registration, heartbeat, token, signing key, relay establishment or unexpected relay loss operation.' };
-	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Operation success or failure, or an unexpected relay loss (info).' };
-	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Operation milliseconds, or ready relay milliseconds before an unexpected loss.' };
+	operation: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Bounded registration, heartbeat, token, signing key, relay establishment, relay socket recovery or unrecovered relay loss operation.' };
+	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Operation success or failure, or an unrecovered relay loss (info).' };
+	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Operation milliseconds, ready relay milliseconds before an unrecovered loss, or milliseconds from socket loss to resumption.' };
 	hostLaunchKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the native Agent Host was launched.' };
+	closeReason?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Bounded trigger for a relay loss or recovery: socket close or error, liveness or acknowledgement timeout, rejected publish, send, protocol or queue failure, or a host-initiated close.' };
+	closeCode?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'WebSocket close code when the relay socket closed.' };
+	activeClients?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Client lanes open when the relay socket was lost.' };
+	recoveryAttempts?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Connection resumption attempts made for the relay loss.' };
+	interruptedClients?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Client lanes closed after a resumed relay because a chunked transfer spanned the loss.' };
 };
 
 type MissionControlPublishSummaryEvent = {
@@ -304,11 +314,14 @@ export class MissionControlHost extends Disposable {
 		this._projects = this._register(this._instantiationService.createInstance(MissionControlProjects, {
 			getRoots: () => this._grantedRoots(),
 			getProjectRoots: () => this._projectRoots(),
+			getCloneRoot: () => this.environment.cloneRoot,
 		}));
 		this.environment = this._register(this._instantiationService.createInstance(MissionControlEnvironment, {
 			userDataPath: environmentService.userDataPath,
 			name: getMissionControlEnvironmentName(productService),
 			fetch: (input, init) => proxyResolver.fetch(input, init),
+			// The relay must honor the same proxy and certificate configuration as registration requests.
+			socketFactory: (url, protocol) => toMissionControlSocket(proxyResolver.createWebSocket(url, protocol)),
 			attach: (relay, roots, getRoots, getProjects, defaultDirectory, useLocalCredentials) => this._attachRelay(relay, roots, getRoots, getProjects, defaultDirectory, useLocalCredentials),
 			updateProjects: () => this._projects.initialize(),
 			onError: error => {
@@ -320,6 +333,8 @@ export class MissionControlHost extends Disposable {
 				this._publishTelemetry.record(event);
 				if (event.phase === 'relayPublish' && event.outcome === 'succeeded') {
 					this._logService.trace(`[AgentHost] Mission Control publish ${event.detail}; durationMs=${event.durationMs}`);
+				} else if (event.phase === 'relayPublish' && event.outcome === 'failed' && event.failure !== 'mirrorBackpressure') {
+					this._logService.warn(`[AgentHost] Mission Control publish failed; reason=${event.failure}${event.detail ? `; ${event.detail}` : ''}`);
 				}
 			},
 			getSessionCount: () => this._agentService.getSessionCount(),
@@ -340,6 +355,13 @@ export class MissionControlHost extends Disposable {
 	}
 
 	private _reportOperation(event: IConnectionDiagnosticEvent): void {
+		if (event.phase === 'heartbeat' && event.outcome === 'started') {
+			this._logService.debug('[AgentHost] Mission Control heartbeat started');
+		}
+		if (event.phase === 'heartbeatResponse') {
+			this._logService.info(`[AgentHost] Mission Control heartbeat response; ${event.detail ?? ''}`);
+			return;
+		}
 		if (event.phase === 'relayDisconnected') {
 			this._publishTelemetry.flush();
 		}
@@ -351,11 +373,13 @@ export class MissionControlHost extends Disposable {
 			case 'token':
 			case 'signingKeys':
 			case 'relay':
-			case 'relayDisconnected': {
+			case 'relayDisconnected':
+			case 'relayRecovery': {
 				if (event.outcome === 'started' || ((event.phase === 'heartbeat' || event.phase === 'checkIn') && event.outcome === 'succeeded')) {
 					return;
 				}
 				const failure = getConnectionTelemetryError(event.error);
+				const relay = (event as IMissionControlRelayDiagnostic).relay;
 				this._telemetryService.publicLog2<MissionControlOperationEvent, MissionControlOperationClassification>('agentHost.missionControlOperation', {
 					...failure,
 					operation: event.phase,
@@ -363,8 +387,16 @@ export class MissionControlHost extends Disposable {
 					durationMs: event.durationMs,
 					statusCode: failure.statusCode,
 					hostLaunchKind: this._options.hostLaunchKind,
+					...(relay ? {
+						closeReason: relay.reason,
+						closeCode: relay.closeCode,
+						activeClients: relay.activeClients,
+						recoveryAttempts: relay.attempts,
+						interruptedClients: relay.interruptedClients,
+					} : {}),
 				});
-				const message = `[AgentHost] Mission Control ${event.phase} ${event.outcome}; durationMs=${event.durationMs ?? 'unknown'}`;
+				const relayDetail = relay ? `; reason=${relay.reason}${relay.closeCode === undefined ? '' : ` code=${relay.closeCode}`} clients=${relay.activeClients} attempts=${relay.attempts}${relay.interruptedClients === undefined ? '' : ` interrupted=${relay.interruptedClients}`}` : '';
+				const message = `[AgentHost] Mission Control ${event.phase} ${event.outcome}; durationMs=${event.durationMs ?? 'unknown'}${relayDetail}`;
 				if (event.error) {
 					this._logService.warn(`${message}: ${formatConnectionDiagnosticError(event.error)}`);
 				} else if (event.phase === 'relayDisconnected') {
@@ -437,7 +469,7 @@ export class MissionControlHost extends Disposable {
 		const mirror = this._instantiationService.createInstance(MissionControlSessionMirror, environmentId, {});
 		const sources = new DisposableStore();
 		try {
-			const publisher = sources.add(this._instantiationService.createInstance(MissionControlSessionPublisher, mirror, () => this.environment.isEnabled));
+			const publisher = sources.add(this._instantiationService.createInstance(MissionControlSessionPublisher, mirror, () => this.environment.isEnabled, () => this.environment.isRepositoryMetadataEnabled));
 			const sdk = sources.add(this._instantiationService.createInstance(MissionControlSdkEventSource, environmentId, mirror, () => this.environment.isEnabled, session => publisher.registerSession(session)));
 			const attachPlanHints = (provider: IAgent) => {
 				if (provider.getSessionPlan && provider.onDidChatSessionEvent) {

@@ -7,6 +7,7 @@
 import { deepStrictEqual, ok, strictEqual } from 'assert';
 import { realpathSync, rmSync } from 'fs';
 import { homedir, tmpdir, userInfo } from 'os';
+import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { FileAccess } from '../../../../base/common/network.js';
 import { join } from '../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -32,7 +33,7 @@ function deepStrictEqualIgnoreStableVar(actual: IShellIntegrationConfigInjection
 }
 
 suite('platform - terminalEnvironment', async () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	suite('getShellIntegrationInjection', async () => {
 		suite('should not enable', async () => {
 			// This test is only expected to work on Windows 10 build 18309 and above
@@ -160,16 +161,13 @@ suite('platform - terminalEnvironment', async () => {
 						const applicationName = `vscode-zsh-test-${process.pid}`;
 						const zdotdir = join(realpathSync(tmpdir()), `${username}-${applicationName}-zsh`);
 						rmSync(zdotdir, { recursive: true, force: true });
-						try {
-							const productService = { applicationName } as IProductService;
-							const results = await Promise.all([
-								getShellIntegrationInjection({ executable: 'zsh', args: [] }, enabledProcessOptions, defaultEnvironment, logService, productService),
-								getShellIntegrationInjection({ executable: 'zsh', args: [] }, enabledProcessOptions, defaultEnvironment, logService, productService),
-							]);
-							deepStrictEqual(results.map(result => result.type), ['injection', 'injection']);
-						} finally {
-							rmSync(zdotdir, { recursive: true, force: true });
-						}
+						store.add(toDisposable(() => rmSync(zdotdir, { recursive: true, force: true })));
+						const productService = { applicationName } as IProductService;
+						const results = await Promise.all([
+							getShellIntegrationInjection({ executable: 'zsh', args: [] }, enabledProcessOptions, defaultEnvironment, logService, productService),
+							getShellIntegrationInjection({ executable: 'zsh', args: [] }, enabledProcessOptions, defaultEnvironment, logService, productService),
+						]);
+						deepStrictEqual(results.map(result => result.type), ['injection', 'injection']);
 					});
 					suite('should incorporate login arg', async () => {
 						test('when array', async () => {

@@ -15,7 +15,8 @@ import { CommandsRegistry } from '../../../../../platform/commands/common/comman
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
-import { IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { IChatModel, IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { ChatRequestQueueKind } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatViewModel } from '../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
 import { IVoiceSessionController } from '../../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
 import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
@@ -43,6 +44,7 @@ suite('SessionsVoiceBridgeContribution - input ownership', () => {
 			}(),
 			new class extends mock<ISessionsService>() {
 				override readonly activeSession = constObservable(undefined);
+				override readonly mainWindowActiveSession = this.activeSession;
 			}(),
 			sessionsManagementService,
 			new class extends mock<INewChatVoiceTargetService>() {
@@ -61,7 +63,12 @@ suite('SessionsVoiceBridgeContribution - input ownership', () => {
 		let resource = URI.parse('chat-session:/a');
 		const inputs: string[] = [];
 		const widget = new class extends mock<IChatWidget>() {
-			override get viewModel() { return upcastPartial<IChatViewModel>({ sessionResource: resource }); }
+			override get viewModel() {
+				return upcastPartial<IChatViewModel>({
+					sessionResource: resource,
+					model: upcastPartial<IChatModel>({ requestInProgress: constObservable(false) }),
+				});
+			}
 			override getInput() { return 'Already typed'; }
 			override async acceptInput(text?: string) {
 				inputs.push(text ?? '');
@@ -75,6 +82,57 @@ suite('SessionsVoiceBridgeContribution - input ownership', () => {
 		assert.deepStrictEqual({ inputs, first, stale }, {
 			inputs: ['Already typed First request'], first: { id: 'response' }, stale: false,
 		});
+	});
+
+	for (const inProgress of [false, true]) {
+		test(`voice bridge ${inProgress ? 'steers ongoing work' : 'sends normally when idle'}`, async () => {
+			const resource = URI.parse('chat-session:/a');
+			const inputs: { text: string | undefined; options: Parameters<IChatWidget['acceptInput']>[1] }[] = [];
+			const widget = new class extends mock<IChatWidget>() {
+				override readonly viewModel = upcastPartial<IChatViewModel>({
+					sessionResource: resource,
+					model: upcastPartial<IChatModel>({ requestInProgress: constObservable(inProgress) }),
+				});
+				override getInput() { return 'Typed draft'; }
+				override async acceptInput(text?: string, options?: Parameters<IChatWidget['acceptInput']>[1]) {
+					inputs.push({ text, options });
+					return undefined;
+				}
+			}();
+			await registerBridge(widget, undefined)('Voice request', resource.toString());
+			assert.deepStrictEqual(inputs, [{
+				text: 'Typed draft Voice request',
+				options: { preserveFocus: true, ...(inProgress ? { queue: ChatRequestQueueKind.Steering } : {}) },
+			}]);
+		});
+	}
+
+	for (const hasModel of [false, true]) {
+		test(`voice bridge submits normally when ${hasModel ? 'request progress' : 'the model'} is unavailable`, async () => {
+			const resource = URI.parse('chat-session:/a');
+			const inputs: { text: string | undefined; options: Parameters<IChatWidget['acceptInput']>[1] }[] = [];
+			const widget = new class extends mock<IChatWidget>() {
+				override readonly viewModel = upcastPartial<IChatViewModel>({
+					sessionResource: resource,
+					...(hasModel ? { model: upcastPartial<IChatModel>({}) } : {}),
+				});
+				override getInput() { return 'Typed draft'; }
+				override async acceptInput(text?: string, options?: Parameters<IChatWidget['acceptInput']>[1]) {
+					inputs.push({ text, options });
+					return undefined;
+				}
+			}();
+			await registerBridge(widget, undefined)('Voice request', resource.toString());
+			assert.deepStrictEqual(inputs, [{
+				text: 'Typed draft Voice request',
+				options: { preserveFocus: true },
+			}]);
+		});
+	}
+
+	test('voice bridge rejects input when the widget has no view model', async () => {
+		const widget = new class extends mock<IChatWidget>() { }();
+		assert.strictEqual(await registerBridge(widget, undefined)('Voice request', 'chat-session:/a'), false);
 	});
 
 	test('does not redirect an existing session turn to a new composer and reports a busy composer honestly', async () => {
@@ -194,6 +252,7 @@ suite('SessionsVoiceBridgeContribution - input ownership', () => {
 			new class extends mock<IChatWidgetService>() { }(),
 			new class extends mock<ISessionsService>() {
 				override readonly activeSession = constObservable(upcastPartial<IActiveSession>({ resource: activeResource }));
+				override readonly mainWindowActiveSession = this.activeSession;
 			}(),
 			new class extends mock<ISessionsManagementService>() {
 				override getSessions(): ISession[] {
@@ -257,6 +316,7 @@ suite('SessionsVoiceActiveSessionContribution', () => {
 			}(),
 			new class extends mock<ISessionsService>() {
 				override readonly activeSession = activeSession;
+				override readonly mainWindowActiveSession = this.activeSession;
 			}(),
 			new class extends mock<ISessionsManagementService>() {
 				override readonly onDidSendRequest = didSend.event;
@@ -368,6 +428,7 @@ suite('SessionsVoiceNewComposerContribution', () => {
 	function createTarget(): NewChatVoiceTargetService {
 		const sessionsService = new class extends mock<ISessionsService>() {
 			override readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+			override readonly mainWindowActiveSession = this.activeSession;
 		}();
 		const chatWidgetService = new class extends mock<IChatWidgetService>() {
 			override readonly onDidChangeFocusedSession = Event.None;
@@ -493,6 +554,7 @@ suite('SessionsVoiceNewComposerContribution', () => {
 		let openOptions: IOpenNewSessionOptions | undefined;
 		const sessionsService = new class extends mock<ISessionsService>() {
 			override readonly activeSession = constObservable(activeSession);
+			override readonly mainWindowActiveSession = this.activeSession;
 			override async openNewSession(options?: IOpenNewSessionOptions) {
 				openOptions = options;
 				return { session: createdSession, trustDeclined: false };
@@ -500,6 +562,7 @@ suite('SessionsVoiceNewComposerContribution', () => {
 		}();
 		const sent: { session: ISession; query: string }[] = [];
 		const sessionsManagementService = new class extends mock<ISessionsManagementService>() {
+			override getNewSessionTarget() { return undefined; }
 			override isNewSessionTargetAvailable(): boolean { return false; }
 			override async sendNewChatRequest(session: ISession, options: { query: string }): Promise<void> {
 				sent.push({ session, query: options.query });
@@ -560,12 +623,14 @@ suite('SessionsVoiceNewComposerContribution', () => {
 		let openOptions: IOpenNewSessionOptions | undefined;
 		const sessionsService = new class extends mock<ISessionsService>() {
 			override readonly activeSession = constObservable(activeSession);
+			override readonly mainWindowActiveSession = this.activeSession;
 			override async openNewSession(options?: IOpenNewSessionOptions) {
 				openOptions = options;
 				return { session: createdSession, trustDeclined: false };
 			}
 		}();
 		const sessionsManagementService = new class extends mock<ISessionsManagementService>() {
+			override getNewSessionTarget() { return undefined; }
 			override isNewSessionTargetAvailable(_folderUri: URI, options?: ICreateNewSessionOptions): boolean {
 				return options?.providerId === 'selected-provider' && options.sessionTypeId === 'selected-type';
 			}
@@ -607,6 +672,7 @@ suite('SessionsVoiceNewComposerContribution', () => {
 		}();
 		const sessionsService = new class extends mock<ISessionsService>() {
 			override readonly activeSession = constObservable(activeSession);
+			override readonly mainWindowActiveSession = this.activeSession;
 			override async openNewSession() {
 				return { session: undefined, trustDeclined: true };
 			}

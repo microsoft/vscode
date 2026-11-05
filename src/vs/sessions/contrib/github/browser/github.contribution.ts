@@ -21,6 +21,7 @@ import { getPullRequestKey } from '../common/utils.js';
 import { AUTO_DELETE_MARKED_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_MARK_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING } from '../common/sessionLifecycleSettings.js';
 import { GitHubService, IGitHubService, isGitHubReferenceSupported } from './githubService.js';
 import { IPullRequestIconCache, PullRequestIconCache } from './pullRequestIconCache.js';
+import { PullRequestChangesMultiDiffSourceResolver } from './pullRequestChangesMultiDiffSourceResolver.js';
 
 import './pullRequestActions.js';
 import './createSessionFromPullRequestAction.js';
@@ -330,6 +331,7 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 }
 
 registerWorkbenchContribution2(GitHubPullRequestPollingContribution.ID, GitHubPullRequestPollingContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(PullRequestChangesMultiDiffSourceResolver.ID, PullRequestChangesMultiDiffSourceResolver, WorkbenchPhase.BlockRestore);
 
 registerSingleton(IGitHubService, GitHubService, InstantiationType.Delayed);
 

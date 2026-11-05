@@ -8,6 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { NullLogService } from '../../../../../log/common/log.js';
 import { PromptInputModel, type IPromptInputModelState } from '../../../../common/capabilities/commandDetection/promptInputModel.js';
 import { Emitter } from '../../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import type { ITerminalCommand } from '../../../../common/capabilities/capabilities.js';
 import { ok, notDeepStrictEqual, strictEqual } from 'assert';
 import { useFakeTimers } from 'sinon';
@@ -169,12 +170,9 @@ suite('PromptInputModel', () => {
 		await assertPromptInput('foo|');
 
 		const clock = useFakeTimers({ now: Date.now() - 10_000, toFake: ['Date'] });
-		try {
-			await writePromise(' bar');
-			await assertPromptInput('foo bar|');
-		} finally {
-			clock.restore();
-		}
+		store.add(toDisposable(() => clock.restore()));
+		await writePromise(' bar');
+		await assertPromptInput('foo bar|');
 	});
 
 	test('cursor navigation', async () => {

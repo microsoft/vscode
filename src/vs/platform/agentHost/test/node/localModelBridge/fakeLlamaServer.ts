@@ -7,24 +7,6 @@ import type { IDisposable } from '../../../../../base/common/lifecycle.js';
 import type { ILongLivedProcess, ILongLivedProcessExit, ILongLivedProcessOptions, ILongLivedProcessSpawner, IProcessControl, IProcessInfo } from '../../../node/copilot/localModelBridge/shim/processRunner.js';
 import type { FakeClock } from './fakeServingAccess.js';
 
-/** Yields to pending promise callbacks and I/O a few times. */
-export async function settle(rounds = 5): Promise<void> {
-	for (let i = 0; i < rounds; i++) {
-		await new Promise<void>(resolve => setImmediate(resolve));
-	}
-}
-
-/** Waits (yielding to real I/O) until `predicate` holds; fails after `timeoutMs` of real time. */
-export async function waitFor(predicate: () => boolean, timeoutMs = 10_000): Promise<void> {
-	const deadline = Date.now() + timeoutMs;
-	while (!predicate()) {
-		if (Date.now() > deadline) {
-			throw new Error('Condition not reached');
-		}
-		await new Promise<void>(resolve => setImmediate(resolve));
-	}
-}
-
 class Listeners {
 	private readonly _listeners = new Set<(chunk: string) => void>();
 	add(listener: (chunk: string) => void): IDisposable {

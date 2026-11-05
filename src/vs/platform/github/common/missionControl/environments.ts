@@ -203,6 +203,9 @@ export type EnvironmentConnectResult =
 
 /** Operations for listing environments and requesting connection credentials. */
 export interface IEnvironmentsClient {
+	/** POST /agents/environments/tokens: mint a short-lived identity credential for host authentication. */
+	mintIdentityToken(signal: AbortSignal, options?: ApiRequestOptions): Promise<EnvironmentIdentityToken>;
+
 	/** GET /agents/environments: list the authenticated account's environments with optional filters. */
 	list(signal: AbortSignal, options?: ListEnvironmentsOptions): Promise<readonly Environment[]>;
 
@@ -214,4 +217,11 @@ export interface IEnvironmentsClient {
 
 	/** GET /agents/environments/{environment_id}/reconnect: refresh an existing client's credentials, or report that the environment is waking. */
 	reconnect(environmentId: string, clientId: string, signal: AbortSignal, options?: EnvironmentConnectionOptions): Promise<EnvironmentConnectResult>;
+}
+
+/** An identity credential that must be sealed before transmission to an environment host. */
+export interface EnvironmentIdentityToken {
+	readonly token: string;
+	readonly expires_at?: string;
+	readonly expires_in?: number;
 }

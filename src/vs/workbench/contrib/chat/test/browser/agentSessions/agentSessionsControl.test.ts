@@ -13,7 +13,7 @@ import { AgentSessionsControl } from '../../../browser/agentSessions/agentSessio
 import { IAgentSession, IAgentSessionsModel } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../browser/agentSessions/agentSessionsService.js';
 import { IAgentSessionsFilter } from '../../../browser/agentSessions/agentSessionsViewer.js';
-import { ChatSessionStatus, IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { ChatSessionRefreshReason, ChatSessionStatus, IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { IVoicePlaybackService } from '../../../common/voicePlaybackService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -57,6 +57,41 @@ suite('AgentSessionsControl', () => {
 			reset: () => { },
 		};
 	}
+
+	test('forwards automatic refresh intent without changing explicit Refresh', async () => {
+		const calls: { provider: string | string[] | undefined; reason: ChatSessionRefreshReason | undefined }[] = [];
+		const model: IAgentSessionsModel = {
+			sessions: [], resolved: true,
+			getSession: () => undefined,
+			observeSession: () => { throw new Error('Not implemented'); },
+			onWillResolve: Event.None, onDidResolve: Event.None,
+			onDidChangeSessions: Event.None, onDidChangeSessionArchivedState: Event.None,
+			resolve: async (provider, _onError, reason) => { calls.push({ provider, reason }); },
+		};
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(IChatSessionsService, new class extends mock<IChatSessionsService>() { });
+		instantiationService.stub(IVoicePlaybackService, new class extends mock<IVoicePlaybackService>() { });
+		instantiationService.stub(IAgentSessionsService, new class extends mock<IAgentSessionsService>() {
+			override readonly model = model;
+			override readonly onDidChangeSessionArchivedState = Event.None;
+		});
+		const control = store.add(instantiationService.createInstance(AgentSessionsControl, document.createElement('div'), {
+			overrideStyles: {}, filter: createFilter(), source: 'test',
+			createNewChat: () => { },
+			getHoverPosition: () => HoverPosition.BELOW,
+			trackActiveEditorSession: () => false,
+		}));
+
+		await control.refresh('automatic');
+		await control.refresh();
+		await control.refresh('manual');
+
+		assert.deepStrictEqual(calls, [
+			{ provider: undefined, reason: 'automatic' },
+			{ provider: undefined, reason: 'manual' },
+			{ provider: undefined, reason: 'manual' },
+		]);
+	});
 
 	test('creates a new chat when double-clicking empty list space', () => {
 		const model: IAgentSessionsModel = {
@@ -222,6 +257,62 @@ suite('AgentSessionsControl', () => {
 		await timeout(0);
 		assert.deepStrictEqual({ opened, observed, filteredAgain: !control.getSessionElement(target.resource), stillExcluded: filter.exclude(target) }, {
 			opened: [target.resource.toString()], observed: [target.resource.toString()], filteredAgain: true, stillExcluded: true,
+		});
+	});
+
+	test('single click on a section header toggles it', async () => {
+		const sessions = Array.from({ length: 5 }, (_, index) => ({
+			...createSession(URI.parse(`test:/section-session-${index}`), `Session ${index}`),
+			timing: { created: 10 - index, lastRequestStarted: undefined, lastRequestEnded: undefined },
+		}));
+		const model: IAgentSessionsModel = {
+			sessions, resolved: true,
+			getSession: resource => sessions.find(session => session.resource.toString() === resource.toString()),
+			observeSession: () => { throw new Error('Not implemented'); },
+			onWillResolve: Event.None, onDidResolve: Event.None,
+			onDidChangeSessions: Event.None, onDidChangeSessionArchivedState: Event.None,
+			resolve: async () => { },
+		};
+		const instantiation = workbenchInstantiationService(undefined, store);
+		instantiation.stub(IChatSessionsService, new class extends mock<IChatSessionsService>() {
+			override getChatSessionContribution() { return undefined; }
+			override resolveChatSessionItem = async () => undefined;
+		});
+		instantiation.stub(IVoicePlaybackService, new class extends mock<IVoicePlaybackService>() {
+			override readonly pendingResponseVersion = observableValue(this, 0);
+			override hasPendingResponse = () => false;
+		});
+		instantiation.stub(IAgentSessionsService, new class extends mock<IAgentSessionsService>() {
+			override readonly model = model;
+			override readonly onDidChangeSessionArchivedState = Event.None;
+			override getSession = (resource: URI) => model.getSession(resource);
+		});
+		const container = document.body.appendChild(document.createElement('div'));
+		container.style.cssText = 'width: 500px; height: 500px;';
+		store.add(toDisposable(() => container.remove()));
+		const control = store.add(instantiation.createInstance(AgentSessionsControl, container, {
+			overrideStyles: {}, filter: { ...createFilter(), groupResults: () => AgentSessionsGrouping.Capped }, source: 'test',
+			createNewChat: () => { }, getHoverPosition: () => HoverPosition.BELOW,
+			trackActiveEditorSession: () => false,
+		}));
+		await timeout(0);
+		control.layout(500, 500);
+		await control.update();
+
+		const clickSectionHeader = async () => {
+			control.element?.querySelector('.agent-session-section-row .agent-session-section-label')?.dispatchEvent(new MouseEvent(EventType.CLICK, { bubbles: true, button: 0, detail: 1 }));
+			await timeout(0);
+			return control.element?.querySelector('.agent-session-section-row')?.getAttribute('aria-expanded');
+		};
+
+		assert.deepStrictEqual({
+			initial: control.element?.querySelector('.agent-session-section-row')?.getAttribute('aria-expanded'),
+			afterFirstClick: await clickSectionHeader(),
+			afterSecondClick: await clickSectionHeader(),
+		}, {
+			initial: 'false',
+			afterFirstClick: 'true',
+			afterSecondClick: 'false',
 		});
 	});
 

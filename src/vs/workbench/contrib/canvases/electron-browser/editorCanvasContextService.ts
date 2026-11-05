@@ -9,6 +9,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { autorun, derived, IReader, observableFromEvent, observableSignal, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IEditorGroup, IEditorGroupsService, preferredSideBySideGroupDirection } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -120,6 +121,15 @@ export class EditorCanvasContextService extends Disposable implements ICanvasCon
 
 	getContext(owner: ICanvasOwner, reader?: IReader): ICanvasContext | undefined {
 		return this.contexts.read(reader).find(context => isCanvasOwner(context.owner, owner));
+	}
+
+	getFrontendSessionResource(owner: ICanvasOwner): URI | undefined {
+		for (const [resource, candidate] of this.modelOwners) {
+			if (isCanvasOwner(candidate, owner)) {
+				return resource;
+			}
+		}
+		return undefined;
 	}
 
 	getEditorGroup(owner: ICanvasOwner, input: CanvasInput): IEditorGroup | undefined {

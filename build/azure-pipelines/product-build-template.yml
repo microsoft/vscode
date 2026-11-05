@@ -180,6 +180,7 @@ stages:
                   VSCODE_JOB_DISPLAY_NAME: Smoke Tests (Electron)
                   VSCODE_TEST_IDS:
                     - smoke-electron
+                    - smoke-wsl-kerberos-proxy
 
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32, true)) }}:
               - template: win32/product-build-win32.yml@self
@@ -243,6 +244,8 @@ stages:
                     VSCODE_JOB_DISPLAY_NAME: Smoke Tests (Electron)
                     VSCODE_TEST_IDS:
                       - smoke-electron
+                      - smoke-wsl-kerberos-proxy
+                    VSCODE_LINUX_X64_COMPILATION_ARTIFACT: ${{ eq(variables['VSCODE_BUILD_STAGE_LINUX_X64'], true) }}
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS_ARM64'], true) }}:
         - stage: WindowsARM64
@@ -765,15 +768,6 @@ stages:
                   poolName: 1es-ubuntu-22.04-x64
                   container: debian-13
                   arch: amd64
-
-            - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true) }}:
-              - template: common/sanity-tests.yml@self
-                parameters:
-                  name: debian_13_arm32
-                  displayName: Debian 13 arm32
-                  poolName: 1es-azure-linux-3-arm64
-                  container: debian-13
-                  arch: arm
 
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}:
               - template: common/sanity-tests.yml@self

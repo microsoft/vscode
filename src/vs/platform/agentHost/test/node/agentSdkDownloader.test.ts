@@ -552,4 +552,25 @@ suite('AgentSdkDownloader', () => {
 		assert.strictEqual(root, target);
 		assert.strictEqual(server.requestCount, 0);
 	});
+
+	const DAY_MS = 24 * 60 * 60 * 1000;
+
+	test('loadSdkRoot records its use so that other processes keep the version', async () => {
+		const root = await makeDownloader().loadSdkRoot(ClaudeSdkPackage, newToken());
+		const sentinel = path.join(root, '.complete');
+		const monthAgo = new Date(Date.now() - 30 * DAY_MS);
+		await fsp.utimes(sentinel, monthAgo, monthAgo);
+
+		await makeDownloader().loadSdkRoot(ClaudeSdkPackage, newToken());
+
+		const now = Date.now();
+		const lastUsed = (await fsp.stat(sentinel)).mtimeMs;
+		assert.deepStrictEqual({
+			requests: server.requestCount,
+			usedToday: now - lastUsed < DAY_MS,
+		}, {
+			requests: 1,
+			usedToday: true,
+		});
+	});
 });

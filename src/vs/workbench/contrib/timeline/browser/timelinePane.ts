@@ -19,7 +19,9 @@ import { Schemas } from '../../../../base/common/network.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IconLabel } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
+import { basenameOrAuthority } from '../../../../base/common/resources.js';
+import { IResourceLabel, ResourceLabels } from '../../../browser/labels.js';
+import { FileKind } from '../../../../platform/files/common/files.js';
 import { IListVirtualDelegate, IIdentityProvider, IKeyboardNavigationLabelProvider } from '../../../../base/browser/ui/list/list.js';
 import { ITreeNode, ITreeRenderer, ITreeContextMenuEvent, ITreeElement } from '../../../../base/browser/ui/tree/tree.js';
 import { ViewPane, IViewPaneOptions } from '../../../browser/parts/views/viewPane.js';
@@ -71,6 +73,18 @@ function isLoadMoreCommand(item: TreeElement | undefined): item is LoadMoreComma
 
 function isTimelineItem(item: TreeElement | null | undefined): item is TimelineItem {
 	return !!item && !item.handle.startsWith('vscode-command:');
+}
+
+/**
+ * The resource an element represents, which its label, icon and file decorations are derived from, see `vscode.TimelineItem.resourceUri`.
+ */
+function getLabelResource(element: TreeElement): URI | undefined {
+	return element.label ? undefined : element.resourceUri;
+}
+
+function getLabel(element: TreeElement): string {
+	const resource = getLabelResource(element);
+	return resource ? basenameOrAuthority(resource) : element.label ?? '';
 }
 
 function updateRelativeTime(item: TimelineItem, lastRelativeTime: string | undefined): string | undefined {
@@ -206,6 +220,7 @@ class LoadMoreCommand {
 	readonly id = undefined;
 	readonly icon = undefined;
 	readonly iconDark = undefined;
+	readonly resourceUri = undefined;
 	readonly source = undefined;
 	readonly relativeTime = undefined;
 	readonly relativeTimeFullWord = undefined;
@@ -416,6 +431,11 @@ export class TimelinePane extends ViewPane {
 	private onConfigurationChanged(e: IConfigurationChangeEvent) {
 		if (e.affectsConfiguration('timeline.pageOnScroll')) {
 			this._pageOnScroll = undefined;
+		}
+
+		// Items representing a resource show its file decorations as configured when rendered
+		if (e.affectsConfiguration('explorer.decorations')) {
+			this.tree?.rerender();
 		}
 	}
 
@@ -1054,11 +1074,11 @@ export class TimelinePane extends ViewPane {
 		this.message = localize('timeline.editorCannotProvideTimeline', "The active editor cannot provide timeline information.");
 
 		this.$tree = document.createElement('div');
-		this.$tree.classList.add('customview-tree', 'file-icon-themable-tree', 'hide-arrows');
-		// this.treeElement.classList.add('show-file-icons');
+		this.$tree.classList.add('customview-tree', 'file-icon-themable-tree', 'show-file-icons', 'hide-arrows');
 		container.appendChild(this.$tree);
 
-		this.treeRenderer = this._register(this.instantiationService.createInstance(TimelineTreeRenderer, this.commands, this.viewDescriptorService.getViewLocationById(this.id), this.$tree, () => this.tree.getSelection()));
+		const labels = this._register(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility }));
+		this.treeRenderer = this._register(this.instantiationService.createInstance(TimelineTreeRenderer, this.commands, labels, this.viewDescriptorService.getViewLocationById(this.id), this.$tree, () => this.tree.getSelection()));
 		this._register(this.treeRenderer.onDidScrollToEnd(item => {
 			if (this.pageOnScroll) {
 				this.loadMore(item);
@@ -1073,7 +1093,7 @@ export class TimelinePane extends ViewPane {
 					if (isLoadMoreCommand(element)) {
 						return element.ariaLabel;
 					}
-					return element.accessibilityInformation ? element.accessibilityInformation.label : localize('timeline.aria.item', "{0}: {1}", element.relativeTimeFullWord ?? '', element.label);
+					return element.accessibilityInformation ? element.accessibilityInformation.label : localize('timeline.aria.item', "{0}: {1}", element.relativeTimeFullWord ?? '', getLabel(element));
 				},
 				getRole(element: TreeElement): AriaRole {
 					if (isLoadMoreCommand(element)) {
@@ -1090,6 +1110,9 @@ export class TimelinePane extends ViewPane {
 		});
 
 		TimelineViewFocusedContext.bindTo(this.tree.contextKeyService);
+
+		// Items representing a resource align differently depending on whether the file icon theme shows an icon for them
+		this._register(this.themeService.onDidFileIconThemeChange(() => this.tree.rerender()));
 
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(this.commands, e)));
 		this._register(this.tree.onDidChangeSelection(() => this.onSelectionChanged()));
@@ -1181,10 +1204,12 @@ export class TimelinePane extends ViewPane {
 			return;
 		}
 
+		// Items without a label are named after their resource, so describe them by their time instead
+		const describe = (item: TimelineItem) => item.label || fromNow(item.timestamp, true);
 		await this.editorService.openEditor({
 			original: { resource: older.resourceUri },
 			modified: { resource: newer.resourceUri },
-			label: localize('timeline.compareSelectedLabel', "{0} ({1}) ↔ {2} ({3})", this.labelService.getUriBasenameLabel(older.resourceUri), older.label, this.labelService.getUriBasenameLabel(newer.resourceUri), newer.label)
+			label: localize('timeline.compareSelectedLabel', "{0} ({1}) ↔ {2} ({3})", this.labelService.getUriBasenameLabel(older.resourceUri), describe(older), this.labelService.getUriBasenameLabel(newer.resourceUri), describe(newer))
 		});
 	}
 
@@ -1236,12 +1261,13 @@ class TimelineElementTemplate implements IDisposable {
 	readonly container: HTMLElement;
 	readonly actionBar: ActionBar;
 	readonly icon: HTMLElement;
-	readonly iconLabel: IconLabel;
+	readonly resourceLabel: IResourceLabel;
 	readonly timestamp: HTMLSpanElement;
 	readonly elementDisposables = new DisposableStore();
 
 	constructor(
 		container: HTMLElement,
+		labels: ResourceLabels,
 		actionViewItemProvider: IActionViewItemProvider,
 		hoverDelegate: IHoverDelegate,
 	) {
@@ -1249,18 +1275,18 @@ class TimelineElementTemplate implements IDisposable {
 		container.classList.add('custom-view-tree-node-item');
 		this.icon = DOM.append(container, DOM.$('.custom-view-tree-node-item-icon'));
 
-		this.iconLabel = new IconLabel(container, { supportHighlights: true, supportIcons: true, hoverDelegate });
+		this.resourceLabel = labels.create(container, { supportHighlights: true, supportIcons: true, hoverDelegate });
 
-		const timestampContainer = DOM.append(this.iconLabel.element, DOM.$('.timeline-timestamp-container'));
+		const timestampContainer = DOM.append(this.resourceLabel.element, DOM.$('.timeline-timestamp-container'));
 		this.timestamp = DOM.append(timestampContainer, DOM.$('span.timeline-timestamp'));
 
-		const actionsContainer = DOM.append(this.iconLabel.element, DOM.$('.actions'));
+		const actionsContainer = DOM.append(this.resourceLabel.element, DOM.$('.actions'));
 		this.actionBar = new ActionBar(actionsContainer, { actionViewItemProvider });
 	}
 
 	dispose() {
 		this.elementDisposables.dispose();
-		this.iconLabel.dispose();
+		this.resourceLabel.dispose();
 		this.actionBar.dispose();
 	}
 
@@ -1317,7 +1343,7 @@ function toActionContext(item: TimelineItem, uri: URI | undefined) {
 
 export class TimelineKeyboardNavigationLabelProvider implements IKeyboardNavigationLabelProvider<TreeElement> {
 	getKeyboardNavigationLabel(element: TreeElement): { toString(): string } {
-		return element.label;
+		return getLabel(element);
 	}
 }
 
@@ -1331,7 +1357,7 @@ export class TimelineListVirtualDelegate implements IListVirtualDelegate<TreeEle
 	}
 }
 
-class TimelineTreeRenderer extends Disposable implements ITreeRenderer<TreeElement, FuzzyScore, TimelineElementTemplate> {
+export class TimelineTreeRenderer extends Disposable implements ITreeRenderer<TreeElement, FuzzyScore, TimelineElementTemplate> {
 	private readonly _onDidScrollToEnd = this._register(new Emitter<LoadMoreCommand>());
 	readonly onDidScrollToEnd: Event<LoadMoreCommand> = this._onDidScrollToEnd.event;
 
@@ -1343,17 +1369,19 @@ class TimelineTreeRenderer extends Disposable implements ITreeRenderer<TreeEleme
 
 	constructor(
 		private readonly commands: TimelinePaneCommands,
+		private readonly labels: ResourceLabels,
 		private readonly viewContainerLocation: ViewContainerLocation | null,
 		clippingElement: HTMLElement,
 		private readonly getSelection: () => readonly (TreeElement | null)[],
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IThemeService private themeService: IThemeService,
 		@ITimelineService private readonly timelineService: ITimelineService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 		this.actionViewItemProvider = createActionViewItem.bind(undefined, this.instantiationService);
 
-		this._hoverDelegate = this.instantiationService.createInstance(
+		this._hoverDelegate = this._register(this.instantiationService.createInstance(
 			WorkbenchHoverDelegate,
 			this.viewContainerLocation === ViewContainerLocation.Panel ? 'mouse' : 'element',
 			{
@@ -1364,7 +1392,7 @@ class TimelineTreeRenderer extends Disposable implements ITreeRenderer<TreeEleme
 				// Rows can be wider than the view when list horizontal scrolling is enabled
 				clippingElement
 			}
-		});
+		}));
 	}
 
 	private uri: URI | undefined;
@@ -1373,7 +1401,7 @@ class TimelineTreeRenderer extends Disposable implements ITreeRenderer<TreeEleme
 	}
 
 	renderTemplate(container: HTMLElement): TimelineElementTemplate {
-		return new TimelineElementTemplate(container, this.actionViewItemProvider, this._hoverDelegate);
+		return new TimelineElementTemplate(container, this.labels, this.actionViewItemProvider, this._hoverDelegate);
 	}
 
 	renderElement(
@@ -1384,16 +1412,22 @@ class TimelineTreeRenderer extends Disposable implements ITreeRenderer<TreeEleme
 		template.reset();
 
 		const { element: item } = node;
+		const resource = getLabelResource(item);
 
 		const theme = this.themeService.getColorTheme();
 		const icon = isDark(theme.type) ? item.iconDark : item.icon;
 		const iconUrl = icon ? URI.revive(icon) : null;
 
+		// Like tree items, an item representing a resource gets its icon from the file icon theme,
+		// unless it has an icon other than the `file` or `folder` theme icon
+		const fileKind = ThemeIcon.isFolder(item.themeIcon) ? FileKind.FOLDER : FileKind.FILE;
+		const hasFileIcon = !!resource && !iconUrl && (!item.themeIcon || ThemeIcon.isFile(item.themeIcon) || ThemeIcon.isFolder(item.themeIcon));
+
 		if (iconUrl) {
 			template.icon.className = 'custom-view-tree-node-item-icon';
 			template.icon.style.backgroundImage = css.asCSSUrl(iconUrl);
 			template.icon.style.color = '';
-		} else if (item.themeIcon) {
+		} else if (item.themeIcon && !hasFileIcon) {
 			template.icon.className = `custom-view-tree-node-item-icon ${ThemeIcon.asClassName(item.themeIcon)}`;
 			if (item.themeIcon.color) {
 				template.icon.style.color = theme.getColor(item.themeIcon.color.id)?.toString() ?? '';
@@ -1402,7 +1436,10 @@ class TimelineTreeRenderer extends Disposable implements ITreeRenderer<TreeEleme
 			}
 			template.icon.style.backgroundImage = '';
 		} else {
-			template.icon.className = 'custom-view-tree-node-item-icon';
+			// Keep the space of the icon to align the labels, unless the file icon theme shows an icon in its place
+			const fileIconTheme = this.themeService.getFileIconTheme();
+			const showsFileIcon = hasFileIcon && fileIconTheme.hasFileIcons && (fileKind !== FileKind.FOLDER || fileIconTheme.hasFolderIcons);
+			template.icon.className = showsFileIcon ? '' : 'custom-view-tree-node-item-icon';
 			template.icon.style.backgroundImage = '';
 			template.icon.style.color = '';
 		}
@@ -1412,10 +1449,24 @@ class TimelineTreeRenderer extends Disposable implements ITreeRenderer<TreeEleme
 				: { markdown: item.tooltip, markdownNotSupportedFallback: renderAsPlaintext(item.tooltip) }
 			: undefined;
 
-		template.iconLabel.setLabel(item.label, item.description, {
-			title: tooltip,
-			matches: createMatches(node.filterData)
-		});
+		const matches = createMatches(node.filterData);
+		if (resource) {
+			template.resourceLabel.setResource({ name: getLabel(item), description: item.description, resource }, {
+				fileKind,
+				hideIcon: !hasFileIcon,
+				fileDecorations: this.configurationService.getValue<{ colors: boolean; badges: boolean }>('explorer.decorations'),
+				title: tooltip,
+				matches,
+				// File names are shown as is, e.g. `$(check).txt` is not rendered as an icon
+				supportIcons: false
+			});
+		} else {
+			template.resourceLabel.setResource({ name: item.label, description: item.description }, {
+				hideIcon: true,
+				title: tooltip,
+				matches
+			});
+		}
 
 		template.timestamp.textContent = item.relativeTime ?? '';
 		template.timestamp.ariaLabel = item.relativeTimeFullWord ?? '';

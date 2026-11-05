@@ -16,6 +16,7 @@ import { getNotificationTelemetrySource, NotificationTelemetryId } from '../../.
 import { ExtHostProgress } from '../../common/extHostProgress.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
 import { ProgressLocation as ExtensionProgressLocation } from '../../common/extHostTypes.js';
+import { nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
 
 suite('MainThreadProgress', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -58,6 +59,52 @@ suite('MainThreadProgress', () => {
 			{ origin: 'extension', notificationId: 'extension.progress', extensionId: 'publisher.extension' },
 			{ origin: 'extension', notificationId: 'extension.progress', extensionId: 'unknown' },
 			{ origin: 'core', notificationId: 'authentication.signIn', extensionId: 'none' },
+			{ origin: 'extension', notificationId: 'extension.progress', extensionId: 'unknown' }
+		]);
+	});
+
+	test('requires the notification telemetry proposal before forwarding a progress ID', async () => {
+		const extHost = new ExtHostProgress(SingleProxyRPCProtocol(new class extends mock<MainThreadProgress>() { }));
+		await assert.rejects(extHost.withProgress(nullExtensionDescription, {
+			location: ExtensionProgressLocation.Notification,
+			notificationId: 'githubAuthentication.signIn.browser'
+		}, async () => { }), /notificationTelemetry/);
+	});
+
+	test('round-trips approved progress IDs without accepting message IDs, foreign IDs, or development sources', async () => {
+		const options: IProgressOptions[] = [];
+		const mainThread = store.add(new MainThreadProgress(
+			SingleProxyRPCProtocol(new class extends mock<ExtHostProgressShape>() { }),
+			new class extends mock<IProgressService>() {
+				override withProgress<R>(value: IProgressOptions, task: (progress: IProgress<IProgressStep>) => Promise<R>): Promise<R> {
+					options.push(value);
+					return task({ report: () => { } });
+				}
+			},
+			new class extends mock<ICommandService>() { },
+		));
+		const extHost = new ExtHostProgress(SingleProxyRPCProtocol(mainThread));
+		for (const { identifier, notificationId, isUnderDevelopment } of [
+			{ identifier: 'vscode.github-authentication', notificationId: 'githubAuthentication.signIn.browser', isUnderDevelopment: false },
+			{ identifier: 'vscode.github-authentication', notificationId: 'githubAuthentication.signIn.deviceCode', isUnderDevelopment: false },
+			{ identifier: 'vscode.github-authentication', notificationId: 'githubAuthentication.signIn.retryAfterCancel', isUnderDevelopment: false },
+			{ identifier: 'publisher.extension', notificationId: 'githubAuthentication.signIn.browser', isUnderDevelopment: false },
+			{ identifier: 'vscode.github-authentication', notificationId: 'private/path', isUnderDevelopment: false },
+			{ identifier: 'vscode.github-authentication', notificationId: 'githubAuthentication.signIn.browser', isUnderDevelopment: true }
+		]) {
+			const extension: IExtensionDescription = {
+				...nullExtensionDescription, identifier: new ExtensionIdentifier(identifier),
+				enabledApiProposals: ['notificationTelemetry'], isUnderDevelopment
+			};
+			await extHost.withProgress(extension, { location: ExtensionProgressLocation.Notification, title: 'private title', notificationId }, async () => { });
+		}
+
+		assert.deepStrictEqual(options.map(value => getNotificationTelemetrySource(value.telemetry)), [
+			{ origin: 'extension', notificationId: 'githubAuthentication.signIn.browser', extensionId: 'vscode.github-authentication' },
+			{ origin: 'extension', notificationId: 'githubAuthentication.signIn.deviceCode', extensionId: 'vscode.github-authentication' },
+			{ origin: 'extension', notificationId: 'extension.progress', extensionId: 'vscode.github-authentication' },
+			{ origin: 'extension', notificationId: 'extension.progress', extensionId: 'publisher.extension' },
+			{ origin: 'extension', notificationId: 'extension.progress', extensionId: 'vscode.github-authentication' },
 			{ origin: 'extension', notificationId: 'extension.progress', extensionId: 'unknown' }
 		]);
 	});

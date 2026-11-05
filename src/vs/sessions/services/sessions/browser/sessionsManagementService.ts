@@ -7,11 +7,13 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { raceCancellationError } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
-import { toErrorMessage } from '../../../../base/common/errorMessage.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { isErrorWithActions, toErrorMessage } from '../../../../base/common/errorMessage.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable, IReference } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
+import { IArtifactModel } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
+import { hasKey } from '../../../../base/common/types.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { agentHostAuthority } from '../../../../platform/agentHost/common/agentHostUri.js';
@@ -24,10 +26,10 @@ import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/co
 import { ICopilotHomeService } from '../../../../workbench/services/environment/common/copilotHomeService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { getSessionReferenceResource } from './sessionReference.js';
-import { IChatDeletedEvent, ISessionChatMoveTarget, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IDeferredNewSessionRequestOptions, IMarkSessionReadOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, NewSessionRequestOptions, WorkspaceNotTrustedError } from '../common/sessionsManagement.js';
+import { IChatDeletedEvent, ISessionCanvasClosedEvent, ISessionChatMoveTarget, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IDeferredNewSessionRequestOptions, IManagedSessionWorktree, IMarkSessionReadOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, NewSessionRequestOptions, WorkspaceNotTrustedError } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
-import { IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, IPreparedNewSession, SessionMoveRefusedError, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISessionsProvider, type ISessionsProviderCreateSessionOptions, type SessionResourceResolveReason } from '../common/sessionsProvider.js';
-import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionWorkspace, ISideChatSelection, isActiveSessionStatus, SessionStatus, ISessionType } from '../common/session.js';
+import { IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, type INestedChatWorkspace, IPreparedNewSession, NestedChatWorkspaceError, SessionMoveRefusedError, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISessionCreationTarget, ISessionsProvider, type ISessionsProviderCreateSessionOptions, type SessionResourceResolveReason } from '../common/sessionsProvider.js';
+import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionWorkspace, ISideChatSelection, isActiveSessionStatus, SESSION_WORKSPACE_GROUP_REMOTE, SessionStatus, ISessionType, type SessionCanvasDefinitionSnapshot, getChatHarness } from '../common/session.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
@@ -58,6 +60,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	readonly onDidDeleteSession: Event<ISession> = this._onDidDeleteSession.event;
 	private readonly _onDidDeleteChat = this._register(new Emitter<IChatDeletedEvent>());
 	readonly onDidDeleteChat = this._onDidDeleteChat.event;
+	private readonly _onDidCloseCanvas = this._register(new Emitter<ISessionCanvasClosedEvent>());
+	readonly onDidCloseCanvas = this._onDidCloseCanvas.event;
 	private readonly _onDidRenameChat = this._register(new Emitter<ISession>());
 	readonly onDidRenameChat: Event<ISession> = this._onDidRenameChat.event;
 	private readonly _onDidRenameSession = this._register(new Emitter<ISession>());
@@ -393,6 +397,10 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return this._isTargetAvailable(this.getSessionTypesForFolder(folderUri), options);
 	}
 
+	getNewSessionTarget(providerId: string, sessionResource: URI): ISessionCreationTarget | undefined {
+		return this.sessionsProvidersService.getProvider(providerId)?.getNewSessionTarget?.(sessionResource);
+	}
+
 	isQuickChatTargetAvailable(options?: ICreateNewSessionOptions): boolean {
 		return this._isTargetAvailable(this.getQuickChatSessionTypes(), options);
 	}
@@ -419,6 +427,13 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			}
 		}
 		return undefined;
+	}
+
+	getRemoteHostLabel(workspace: ISessionWorkspace, providerId: string): string | undefined {
+		if (workspace.group !== SESSION_WORKSPACE_GROUP_REMOTE) {
+			return undefined;
+		}
+		return this.sessionsProvidersService.getProvider(providerId)?.label ?? localize('sessionsManagement.remoteAgentEnvironment', "Remote Agent Environment");
 	}
 
 	private _collectSessionTypes(): ISessionType[] {
@@ -637,7 +652,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 		const previousNewSession = this._newSession.get();
 		const session = provider.createQuickChat(sessionTypeId, this._providerCreateSessionOptions(provider, sessionTypeId, options));
-		this._newSession.set(session, undefined);
 		this.storageService.store(LAST_USED_QUICK_CHAT_SESSION_TYPE_STORAGE_KEY, sessionTypeId, StorageScope.PROFILE, StorageTarget.USER);
 
 		// Mirror `createNewSession`: dispose the previous new session this
@@ -645,7 +659,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		// create so a throw above leaves the previous one intact.
 		if (previousNewSession && previousNewSession.sessionId !== session.sessionId) {
 			this._getProvider(previousNewSession)?.deleteNewSession(previousNewSession.sessionId);
+			this._onDidReplaceNewDraftSession.fire({ from: previousNewSession, to: session });
 		}
+		this._newSession.set(session, undefined);
 		return session;
 	}
 
@@ -718,13 +734,23 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		// `forceNew` skips reuse so callers can reset the composer right after
 		// sending a chat (which may still transiently report `Untitled`).
 		if (!options?.forceNew) {
-			const existingUntitled = session.chats.get().find(c => c.status.get() === SessionStatus.Untitled);
+			// Reuse only a draft using the requested harness; a different harness needs a chat of its own.
+			const requestedHarness = options?.harness ?? session.harness;
+			const existingUntitled = session.chats.get().find(c => c.status.get() === SessionStatus.Untitled && getChatHarness(session, c) === requestedHarness);
 			if (existingUntitled) {
 				return existingUntitled;
 			}
 		}
-		const created = await provider.createNewChat(session.sessionId);
+		const created = await provider.createNewChat(session.sessionId, undefined, options);
 		return created;
+	}
+
+	async applyNestedChatWorkspace(session: ISession, chat: IChat, workspace: INestedChatWorkspace, prompt: string): Promise<void> {
+		const provider = this._getProvider(session);
+		if (!provider) {
+			throw NestedChatWorkspaceError.notSupported();
+		}
+		return provider.applyNestedChatWorkspace(session.sessionId, chat.resource, workspace, prompt);
 	}
 
 	async forkChatInSession(session: ISession, sourceChat: URI, turnId: string, options?: IForkChatOptions): Promise<IChat> {
@@ -821,7 +847,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				.catch(e => {
 					if (!isCancellationError(e) && !(e instanceof WorkspaceNotTrustedError)) {
 						this.logService.error('[SessionsManagement] Failed to send background request:', e);
-						this.notificationService.error(localize('newSession.sendFailed', "Failed to start session: {0}", toErrorMessage(e)));
+						this.notificationService.error(isErrorWithActions(e) ? e : localize('newSession.sendFailed', "Failed to start session: {0}", toErrorMessage(e)));
 					}
 				})
 				.finally(() => inFlightRequest?.dispose());
@@ -1199,9 +1225,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	async sendRequest(session: ISession, chat: IChat, options: ISendRequestOptions): Promise<void> {
-		// Sending into an existing session abandons any in-progress new session,
-		// so dispose it to release its eager backend session.
-		this.discardNewSession();
+		if (!options.background) {
+			this.discardNewSession();
+		}
 
 		const provider = this._getProvider(session);
 		if (!provider) {
@@ -1238,6 +1264,14 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 
 		this._onDidSendRequest.fire({ session: updatedSession, chat, isNewSession: false, isNewChat: true, options });
+	}
+
+	async sendRequestInBackground(session: ISession, chat: IChat, options: ISendRequestOptions): Promise<void> {
+		const provider = this._getProvider(session);
+		if (!provider) {
+			throw new Error(`Sessions provider '${session.providerId}' not found`);
+		}
+		await this._sendRequestInBackground(provider, session, chat, { ...options, background: true });
 	}
 
 	/**
@@ -1301,6 +1335,47 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	getSessionWorktreeDiskUsage(session: ISession, token?: CancellationToken): Promise<number | undefined> {
 		return this._getProvider(session)?.getSessionWorktreeDiskUsage?.(session.sessionId, token) ?? Promise.resolve(undefined);
+	}
+
+	sessionWorktreeExists(session: ISession, token?: CancellationToken): Promise<boolean | undefined> {
+		return this._getProvider(session)?.sessionWorktreeExists?.(session.sessionId, token) ?? Promise.resolve(undefined);
+	}
+
+	canForceWorktreeCleanup(owner: ISession | IManagedSessionWorktree): boolean {
+		const provider = hasKey(owner, { sessionId: true }) ? this._getProvider(owner) : this.sessionsProvidersService.getProvider(owner.providerId);
+		return provider?.supportsForceWorktreeCleanup === true;
+	}
+
+	async sessionWorktreeCleanup(session: ISession, retry: boolean, force?: boolean) {
+		const provider = this._getProvider(session);
+		if (retry && !provider?.sessionWorktreeCleanup) {
+			throw new Error(localize('sessions.worktreeCleanupUnavailable', "Retrying worktree cleanup is unavailable for this session."));
+		}
+		return provider?.sessionWorktreeCleanup?.(session.sessionId, retry, force);
+	}
+
+	async listManagedWorktrees(knownWorktrees: readonly IManagedSessionWorktree[] = []): Promise<IManagedSessionWorktree[]> {
+		const inventories = await Promise.all(this.sessionsProvidersService.getProviders({ includeSessionBackends: true }).map(async provider => {
+			try {
+				return (await provider.listManagedWorktrees?.(knownWorktrees.filter(worktree => worktree.providerId === provider.id).map(worktree => URI.parse(worktree.repository))) ?? []).map(worktree => ({ ...worktree, providerId: provider.id }));
+			} catch (error) {
+				this.logService.warn(`[SessionsManagement] Failed to list managed worktrees for provider '${provider.id}'`, error);
+				return [];
+			}
+		}));
+		return inventories.flat();
+	}
+
+	async managedWorktreeExists(worktree: IManagedSessionWorktree): Promise<boolean | undefined> {
+		return this.sessionsProvidersService.getProvider(worktree.providerId)?.managedWorktreeExists?.(worktree);
+	}
+
+	async cleanupManagedWorktree(worktree: IManagedSessionWorktree, force?: boolean): Promise<void> {
+		const provider = this.sessionsProvidersService.getProvider(worktree.providerId);
+		if (!provider?.cleanupManagedWorktree) {
+			throw new Error(localize('sessions.managedWorktreeCleanupUnavailable', "Connect to this worktree's host to clean it up."));
+		}
+		await provider.cleanupManagedWorktree(worktree, force);
 	}
 
 	async unarchiveSession(session: ISession): Promise<void> {
@@ -1421,7 +1496,25 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	async markAllRead(sessions: readonly ISession[]): Promise<void> {
-		await Promise.all(sessions.map(session => this.setSessionReadState(session, true)));
+		// Hand each provider its sessions in one call so it can publish a single
+		// change instead of one per session, which listeners answer with a full refresh.
+		const byProvider = new Map<ISessionsProvider, string[]>();
+		for (const session of sessions) {
+			this._explicitlyMarkedUnreadChats.delete(session.resource);
+			const provider = this._getProvider(session);
+			if (!provider) {
+				continue;
+			}
+			const sessionIds = byProvider.get(provider);
+			if (sessionIds) {
+				sessionIds.push(session.sessionId);
+			} else {
+				byProvider.set(provider, [session.sessionId]);
+			}
+		}
+		await Promise.all(Array.from(byProvider, ([provider, sessionIds]) => provider.setSessionsReadState
+			? provider.setSessionsReadState(sessionIds, true)
+			: Promise.all(sessionIds.map(sessionId => provider.setSessionReadState(sessionId, true)))));
 	}
 
 	async deleteSession(session: ISession): Promise<void> {
@@ -1464,6 +1557,11 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	async deleteChat(session: ISession, chatUri: URI, options?: IDeleteChatOptions): Promise<boolean> {
+		if (options?.skipConfirmation && !this._isUnsentChat(session, chatUri)) {
+			// Deleting without confirmation is only for drafts with nothing to lose.
+			this.logService.warn(`[SessionsManagement] deleteChat: refusing to delete chat '${chatUri.toString()}' without confirmation: it has been sent`);
+			return false;
+		}
 		const deletedChat = Object.freeze({ session, sessionResource: session.resource, chatResource: chatUri });
 		const deleted = await this._getProvider(session)?.deleteChat(session.sessionId, chatUri, options) ?? false;
 		if (deleted) {
@@ -1471,6 +1569,12 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			this._onDidDeleteChat.fire(deletedChat);
 		}
 		return deleted;
+	}
+
+	/** Whether `chatUri` is an `Untitled` chat of `session` without any request. */
+	private _isUnsentChat(session: ISession, chatUri: URI): boolean {
+		const chat = session.chats.get().find(candidate => this.uriIdentityService.extUri.isEqual(candidate.resource, chatUri));
+		return chat?.status.get() === SessionStatus.Untitled && !this.chatService.getSession(chatUri)?.hasRequests;
 	}
 
 	async renameChat(session: ISession, chatUri: URI, title: string): Promise<void> {
@@ -1484,7 +1588,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	canMoveChat(session: ISession, chat: IChat): boolean {
-		return this._getProvider(session)?.canMoveChat(session.sessionId, chat.resource) === true;
+		return chat.status.get() !== SessionStatus.Untitled && this._getProvider(session)?.canMoveChat(session.sessionId, chat.resource) === true;
 	}
 
 	async moveChat(session: ISession, chat: IChat, destination: ISessionChatMoveTarget): Promise<void> {
@@ -1509,7 +1613,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		await provider.moveSessionUnder(session.sessionId, destination.sessionId, after?.resource);
 	}
 
-	async listCanvases(session: ISession, chat: IChat): Promise<readonly ISessionCanvasDefinition[]> {
+	async listCanvases(session: ISession, chat: IChat): Promise<SessionCanvasDefinitionSnapshot> {
 		const provider = this._getProvider(session);
 		if (!session.capabilities.get().supportsCanvases || !provider?.listCanvases) {
 			return [];
@@ -1531,6 +1635,23 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			throw new Error(localize('sessions.closeCanvas.unsupported', "Closing canvases is not supported for this session."));
 		}
 		await provider.closeCanvas(session.sessionId, chat.resource, canvas);
+		this._onDidCloseCanvas.fire({ session, chatResource: chat.resource, canvasResource: canvas.resource });
+	}
+
+	observeCanvas(session: ISession, chatResource: URI, canvasResource: URI): IReference<IObservable<ISessionCanvas | undefined>> | undefined {
+		const provider = this._getProvider(session);
+		if (!session.capabilities.get().supportsCanvases || !provider?.observeCanvas) {
+			return undefined;
+		}
+		return provider.observeCanvas(session.sessionId, chatResource, canvasResource);
+	}
+
+	observeChatCanvases(session: ISession, chatResource: URI): IReference<IObservable<readonly ISessionCanvas[] | undefined>> | undefined {
+		const provider = this._getProvider(session);
+		if (!session.capabilities.get().supportsCanvases || !provider?.observeChatCanvases) {
+			return undefined;
+		}
+		return provider.observeChatCanvases(session.sessionId, chatResource);
 	}
 
 	async removeSessionArtifact(session: ISession, artifactId: string): Promise<void> {
@@ -1550,6 +1671,10 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			throw new Error(localize('sessions.importSession.unsupported', "Importing is not supported for this session."));
 		}
 		await provider.importSession(session.sessionId);
+	}
+
+	async acquireArtifactIntegration(session: ISession, artifactId: string): Promise<IReference<IArtifactModel> | undefined> {
+		return this._getProvider(session)?.acquireArtifactIntegration?.(session.sessionId, artifactId);
 	}
 }
 

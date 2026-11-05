@@ -76,7 +76,7 @@ export class GitHubRecentUserWorkFetcher {
 
 	getPullRequestReviewThreads(owner: string, repo: string, pullRequestNumber: number, token: CancellationToken, options?: ApiRequestOptions): Promise<readonly IGitHubRecentPullRequestReviewThread[]> {
 		return this._client.withClient(async (client, signal) => {
-			const pullRequest = await client.pullRequests.get({ owner, name: repo }, pullRequestNumber, signal, options);
+			const pullRequest = await client.pullRequests.get({ owner, repo }, pullRequestNumber, signal, options);
 			const threads = await client.reviews.listThreadSummaries(pullRequest.node_id, signal, {
 				...options,
 				query: { first: 100 },
@@ -100,7 +100,7 @@ export class GitHubRecentUserWorkFetcher {
 			return Promise.resolve(new Set());
 		}
 		return this._client.withClient(async (client, signal) => {
-			const counts = await client.issues.getClosingPullRequestCounts({ owner, name: repo }, issueNumbers, signal, options);
+			const counts = await client.issues.getClosingPullRequestCounts({ owner, repo }, issueNumbers, signal, options);
 			if (counts === null) {
 				throw new GitHubRequestError(`GitHub repository not found: ${owner}/${repo}`, 'notFound');
 			}

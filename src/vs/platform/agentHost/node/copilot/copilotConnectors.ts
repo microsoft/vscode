@@ -111,7 +111,8 @@ export async function reconcileCopilotConnectors(
 	};
 }
 
-function copilotConnectorServers(status: ConnectorStatus): ICopilotConnectorServers {
+/** Reads the Connector-owned runtime servers from the runtime's authoritative Connector state. */
+export function copilotConnectorServers(status: ConnectorStatus): ICopilotConnectorServers {
 	const names = new Map(status.catalog?.connectors.map(connector => [connector.name, connector.displayName.trim() || connector.name]));
 	return {
 		servers: new Map(status.runtimeServers.map(server => [server.runtimeServerId, {

@@ -27,18 +27,25 @@ Use -g or -f command-line options to filter tests to match the host platform.
 |`--grep <pattern>`|`-g`|Only run tests matching the given pattern (Mocha grep)|
 |`--fgrep <string>`|`-f`|Only run tests containing the given string (Mocha fgrep)|
 |`--test-results <path>`|`-t`|Output test results in JUnit format to the specified path|
+|`--screenshots-dir <path>`|`-s`|Save failure screenshots, and the app logs of failed desktop UI tests, to the specified directory.|
 |`--timeout <sec>`||Set the test-case timeout in seconds (default: 600 seconds)|
 |`--artifacts-dir <path>`||Resolve builds from downloaded pipeline artifacts instead of the update service|
 |`--setuid-sandbox`||Launch installed DEB/RPM desktop apps with the namespace sandbox disabled; requires a non-root runner and a root owned `4755` sandbox helper|
 |`--verbose`|`-v`|Enable verbose logging|
 |`--help`|`-h`|Show this help message|
 
+### Failure Logs
+
+When a desktop UI test fails, the app is closed and VS Code's own process logs (main, shared process, renderer, extension host, pty host, agent host and network) are copied from the test's throwaway profile into `<screenshots-dir>/<test>-logs`, so they are uploaded with the screenshots. Each file keeps its last 2 MB, up to 10 MB per test, and extension output logs are not copied. The desktop app also runs with `--log-net-log`, and the gzipped Chromium NetLog is saved as `<test>-netlog.json.gz` (open it in the [NetLog viewer](https://netlog-viewer.appspot.com/)). Treat the screenshots directory as internal.
+
+When installing the extension from the Marketplace fails in any UI test, `<test>-gallery.json` lists the app's gallery requests that failed or returned an error status. Each failed URL is also requested once from the test's Node process, with the same request headers, as soon as it fails, and that response's status and headers are saved next to it. The CORS preflight (`OPTIONS`) that the app sends first is replayed with curl too, directly and, for desktop tests, through the proxy that the app resolved for the URL, and the start of each raw response is saved. This tells a Marketplace, CDN or proxy response apart from a failure in the app's own request.
+
 ### Example
 
 To run CLI tests for all platforms on given commit of Insiders build, from the root directory run:
 
 ```bash
-npm run sanity-test -- --commit 19228f26df517fecbfda96c20956f7c521e072be --quality insider -g "cli*"
+pnpm run sanity-test --commit 19228f26df517fecbfda96c20956f7c521e072be --quality insider -g "cli*"
 ```
 
 ### Testing Unpublished Builds
@@ -49,7 +56,7 @@ passing `--artifacts-dir`, which resolves each target from downloaded build pipe
 as `<artifacts-dir>/<artifact-name>/<file>`:
 
 ```bash
-npm run sanity-test -- --commit <commit> --quality insider --artifacts-dir /tmp/artifacts -g "linux.*x64"
+pnpm run sanity-test --commit <commit> --quality insider --artifacts-dir /tmp/artifacts -g "linux.*x64"
 ```
 
 Every target has a `targetArtifacts` mapping in `src/context.ts`; an unmapped target fails with an
@@ -57,11 +64,15 @@ explicit error rather than falling back to the update service, so runs must be s
 to the artifacts that were actually downloaded. The SHA-256 check is skipped in this mode because
 there is no update service metadata to compare against.
 
+Server-web previews also require the tested commit's webview bootstrap assets on the CDN; downloading the server archive alone is not sufficient. Pipeline artifact-sanity runs selecting server-web targets must use `VSCODE_BUILD_TYPE=Product` and explicitly set `VSCODE_BUILD_WEB=true`. Invalid configurations are rejected during template expansion, and artifact-sanity stages wait for Web to finish. ARM32-only runs, which do not run server-web, do not require Web. **The Web stage uploads to the shared CDN even with `VSCODE_PUBLISH=false`**; that flag controls product publishing, not webview asset preparation. Do not substitute assets from another commit to make a run green.
+
 ### Timeouts
 
 The UI tests open a Markdown preview and wait up to one minute for its webview to render, then up to one minute for its document to finish loading. Resource monitoring remains active through document loading so delayed script failures are also detected. This catches webview resource loading failures (for example 401 responses for remote authorities with uppercase letters such as `wsl+Ubuntu`), and any webview resource response with an error status fails the test. Browsers that refuse to register the webview service worker (such as Chromium on Debian 12) cannot load any webview, so the check is skipped there with a pipeline warning.
 
-Synchronous `wsl` commands issued by the tests, and the Ubuntu import, startup, conversion and listing commands in the Windows setup script, have a five-minute timeout. The setup wrapper normalizes nonzero exit codes (including `-1`) to `1` so batch error checks detect them. Setup emits a pipeline warning when Ubuntu cannot run; this does not install a missing WSL2 kernel or re-enable unavailable WSL coverage.
+HTTP errors and failed requests for CDN webview bootstrap files also interrupt the render/load wait immediately. A `Webview fatal error:` console message interrupts the wait too, including service-worker installation failures that page network listeners do not observe; it does not add a failed resource, preserving the unsupported-browser skip above. Failure messages include status, URL (without credentials/query/fragment), frame URLs, console errors and page errors, rather than reporting only a heading timeout. Newly attached frames without a URL use a fixed placeholder so formatting cannot mask the original failure. A missing bootstrap asset is a failure, not a reason to skip the preview check or increase its timeout.
+
+Synchronous `wsl` commands issued by the tests, and the Ubuntu import, startup, conversion and listing commands in the Windows setup script, have a five-minute timeout. The setup wrapper normalizes nonzero exit codes (including `-1`) to `1` so batch error checks detect them. Setup emits a pipeline warning when Ubuntu cannot run. On x64, setup first installs the pinned WSL release, including its WSL2 kernel.
 
 Extension installation makes at most three attempts, each allowing 30 seconds to click Install, 30 seconds for installation to start, and one minute to wait for completion, with a five-second delay between attempts. These waits total at most 6 minutes 10 seconds, leaving room for setup, the Markdown preview check and cleanup within the default ten-minute test timeout. Mocha does not cancel timed-out async tests, so increasing these waits can cause a retry to start before the previous attempt has cleaned up.
 
@@ -71,7 +82,7 @@ Platform-specific scripts are provided in the `scripts/` directory to set up the
 
 |Script|Platform|Description|
 |--------|----------|-------------|
-|`run-win32.cmd`|Windows|Runs tests using Edge as the Playwright browser|
+|`run-win32.cmd`|Windows|On x64, installs the WSL release pinned in `build/checksums/wsl.txt` and imports Ubuntu into WSL2, then runs tests using Edge as the Playwright browser|
 |`run-macOS.sh`|macOS|Installs Playwright WebKit and runs tests|
 |`run-ubuntu.sh`|Ubuntu|Sets up X11, Chromium, and Snap daemon, then runs tests|
 |`run-docker.sh`|Linux (Docker)|Pulls a prebuilt image and runs tests inside a Docker container|
@@ -99,7 +110,7 @@ The marker is created only by `scripts/provision-copilot-shim-runner.sh`. It req
 For a prepared workspace, the safe source-only helper check is:
 
 ```bash
-npm run test-copilot-shim-rendering
+pnpm run test-copilot-shim-rendering
 ```
 
 It verifies the checked-in `resources/linux/copilot-link.sh` source has no unresolved rendering markers or RPM macros, has literal Stable/Insiders targets, and defines `vscode_copilot_link`. It does not invoke a package manager or mutate package state.
@@ -107,7 +118,7 @@ It verifies the checked-in `resources/linux/copilot-link.sh` source has no unres
 On Linux, this check runs the same helper with `sh` and `bash` against stub shims and a temporary link path. It covers the `CopilotCliCommand` policy that each shim reports, the DEB `add-copilot-command` debconf answer, and hand-over on removal. It doesn't need root and doesn't touch `/usr/bin/copilot`:
 
 ```bash
-npm run test-copilot-shim-helper
+pnpm run test-copilot-shim-helper
 ```
 
 ### Fixture Manifest and Generation
@@ -132,8 +143,8 @@ Keep every entry in its own parent directory so its prepared payload cannot be c
 From `test/sanity`, after compiling this package and preparing the disposable inputs:
 
 ```bash
-npm run compile
-npm run generate-copilot-shim-fixtures -- \
+pnpm run compile
+pnpm run generate-copilot-shim-fixtures \
 	--plan ./fixtures/copilot-shim-fixture-plan.json \
 	--output ./artifacts/copilot-shim-fixtures
 ```
@@ -145,12 +156,12 @@ This creates `./artifacts/copilot-shim-fixtures/copilot-shim-fixtures.json`. A `
 Use one disposable Debian-family runner and one disposable RPM-family runner. The exact focused commands are:
 
 ```bash
-npm run test-copilot-shim -- \
+pnpm run test-copilot-shim \
 	--fixtures ./artifacts/copilot-shim-fixtures/copilot-shim-fixtures.json \
 	--format deb \
 	--grep 'DEB (K[1-9]|OSS|warns)'
 
-npm run test-copilot-shim -- \
+pnpm run test-copilot-shim \
 	--fixtures ./artifacts/copilot-shim-fixtures/copilot-shim-fixtures.json \
 	--format rpm \
 	--grep 'RPM (K[1-9]|OSS|warns)'
@@ -231,7 +242,7 @@ Linux x64 and ARM64 builds receive a separate container only DEB/RPM desktop pas
 
 The dedicated container pass grants `SYS_ADMIN` so the setuid helper can create its PID/network namespaces, and runs the test runner as a non-root `sanity` user. The images must include `sudo`, `useradd`, and `runuser`; missing prerequisites fail explicitly rather than installing packages at test startup. The entrypoint allows that user to invoke only `dpkg` and `rpm` as root for package installation/removal. These changes apply only to the disposable setuid test container; running as root would cause Playwright to inject `--no-sandbox` and bypass the check.
 
-Artifact sanity runs retain the native x64 job for Snap coverage and add a separate Ubuntu x64 DEB container job. The Ubuntu ARM64 job exercises its DEB, and Fedora x64/ARM64 container jobs exercise RPMs. These package container jobs run both the normal and setuid passes. ARM32 remains download/CLI-only: its QEMU emulated containers cannot execute Chromium's setuid sandbox.
+Artifact sanity runs retain the native x64 job for Snap coverage and add a separate Ubuntu x64 DEB container job. The Ubuntu ARM64 job exercises its DEB, and Fedora x64/ARM64 container jobs exercise RPMs. These package container jobs run both the normal and setuid passes. The Ubuntu 24.04 ARM32 image has no desktop environment, so its artifact sanity job exercises only the CLI. Published sanity runs retain ARM32 desktop archive and DEB coverage on Debian 12 and Ubuntu 22.04, without the additional setuid sandbox pass.
 
 ### Pipeline Parameters
 
@@ -262,16 +273,20 @@ For the following platforms only downloads are validated (and not install/runtim
 
 - Alpine 3.22
 - CentOS Stream 9
-- Debian 12 and 13 (also arm32)
+- Debian 12 (also arm32) and Debian 13
 - Fedora 42 and 43
 - openSUSE Leap 16.0
 - Red Hat UBI 9
 - Ubuntu 22.04 and 24.04 (also arm32)
 
+Debian 13 ARM32 is excluded because its time64 libraries do not satisfy the ARMHF DEB's legacy package dependencies. Debian 12 and Ubuntu 22.04 retain ARMHF desktop and package coverage pending removal of 32-bit ARM support.
+
 ### Pipeline Files
 
 - [product-sanity-tests.yml](../../build/azure-pipelines/product-sanity-tests.yml) - Main pipeline definition
 - [sanity-tests.yml](../../build/azure-pipelines/common/sanity-tests.yml) - Reusable job template
+
+In the product build pipeline, the native Linux x64 sanity job excludes `desktop-linux-snap-x64` when `VSCODE_BUILD_LINUX_SNAP=false`, because no Snap artifact is built or published for that commit. Other native Linux sanity tests still run. With Snap building enabled, the job retains its full test selection.
 
 ### macOS Diagnostics
 

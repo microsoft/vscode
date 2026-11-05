@@ -8,7 +8,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import type { ISessionDatabase } from '../../common/sessionDataService.js';
 import { FileEditKind, type ISessionFileDiff } from '../../common/state/sessionState.js';
-import { createFileEditAcceptRecord, FILE_EDIT_ACCEPT_TOOL_CALL_ID_PREFIX, getUnacceptedFileEditRecords, isFileEditAcceptRecord, readFileEditEndContent } from '../../node/fileEditAccept.js';
+import { createFileEditAcceptRecord, createPartialFileEditAcceptRecord, FILE_EDIT_ACCEPT_TOOL_CALL_ID_PREFIX, getUnacceptedFileEditRecords, isFileEditAcceptRecord, readFileEditEndContent } from '../../node/fileEditAccept.js';
 import { SessionDbResourceProvider } from '../../node/resourceProviders/sessionDbResourceProvider.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { computeSessionDiffs, computeTurnDiffs, computeUnionedDiffs, computeWorkingSetDiffs, type ISessionDiffSource } from '../../node/sessionDiffAggregator.js';
@@ -276,22 +276,52 @@ suite('fileEditAccept', () => {
 		});
 	});
 
-	test('splits a file\'s records at its latest accept row into the unaccepted records and the accepted turns', () => {
+	test('a partial accept row starts the working set at the accepted content, keeping the other changes in it', async () => {
+		const db = disposables.add(await SessionDatabase.open(':memory:'));
+		const sources = [{ sessionUri: SESSION, db }];
+		const diffService = new InProcessDiffComputeService();
+		const workingSet = async () => readDiffs(sources, await computeWorkingSetDiffs(sources, diffService));
+		await storeEdit(db, 't1', 'tc1', FileEditKind.Edit, lines(), lines({ 0: 'L1', 4: 'L5' }));
+		// Only the change to the first line is accepted.
+		await db.storeFileEdits([createPartialFileEditAcceptRecord('t1', FILE, encode(lines({ 0: 'L1' })), encode(lines({ 0: 'L1', 4: 'L5' })))]);
+		const afterPartialAccept = await workingSet();
+		// The user changes the third line before the next edit.
+		await storeEdit(db, 't2', 'tc2', FileEditKind.Edit, lines({ 0: 'L1', 2: 'U3', 4: 'L5' }), lines({ 0: 'L1', 2: 'U3', 4: 'L5', 5: 'L6' }));
+		const afterEdit = await workingSet();
+		const session = await readDiffs(sources, await computeSessionDiffs(SESSION, db, diffService));
+		const firstTurn = await readDiffs(sources, await computeTurnDiffs(SESSION, db, diffService, 't1'));
+		await accept(db);
+
+		const file = 'file:///repo/file.ts';
+		assert.deepStrictEqual({ afterPartialAccept, afterEdit, session, firstTurn, afterAccept: await workingSet() }, {
+			afterPartialAccept: [{ file, before: lines({ 0: 'L1' }), after: lines({ 0: 'L1', 4: 'L5' }) }],
+			afterEdit: [{ file, before: lines({ 0: 'L1', 2: 'U3' }), after: lines({ 0: 'L1', 2: 'U3', 4: 'L5', 5: 'L6' }) }],
+			session: [{ file, before: lines(), after: lines({ 0: 'L1', 2: 'U3', 4: 'L5', 5: 'L6' }) }],
+			firstTurn: [{ file, before: lines(), after: lines({ 0: 'L1', 4: 'L5' }) }],
+			afterAccept: [],
+		});
+	});
+
+	test('splits a file\'s records at its latest accept row into the unaccepted records and the accepted turns', async () => {
 		const record = (turnId: string, toolCallId: string) => ({ turnId, toolCallId, filePath: FILE, kind: FileEditKind.Edit, addedLines: undefined, removedLines: undefined });
 		const acceptRecord = (turnId: string) => record(turnId, `${FILE_EDIT_ACCEPT_TOOL_CALL_ID_PREFIX}${turnId}`);
-		const split = (records: ReturnType<typeof record>[]) => {
-			const { records: unaccepted, acceptedTurns } = getUnacceptedFileEditRecords(records);
+		// Only the accept row of `t-partial` accepted some of the changes, so its content differs from the content then.
+		const db = { readFileEditContent: async (toolCallId: string) => ({ beforeContent: encode('accepted'), afterContent: encode(toolCallId.endsWith('t-partial') ? 'current' : 'accepted') }) };
+		const split = async (records: ReturnType<typeof record>[]) => {
+			const { records: unaccepted, acceptedTurns } = await getUnacceptedFileEditRecords(db, records);
 			return { unaccepted: unaccepted.map(unacceptedRecord => unacceptedRecord.toolCallId), acceptedTurns: [...acceptedTurns] };
 		};
 
 		assert.deepStrictEqual({
-			neverAccepted: split([record('t1', 'tc1'), record('t2', 'tc2')]),
-			acceptedTwice: split([record('t1', 'tc1'), acceptRecord('t1'), record('t2', 'tc2'), acceptRecord('t2'), record('t3', 'tc3')]),
-			allAccepted: split([record('t1', 'tc1'), acceptRecord('t1')]),
+			neverAccepted: await split([record('t1', 'tc1'), record('t2', 'tc2')]),
+			acceptedTwice: await split([record('t1', 'tc1'), acceptRecord('t1'), record('t2', 'tc2'), acceptRecord('t2'), record('t3', 'tc3')]),
+			allAccepted: await split([record('t1', 'tc1'), acceptRecord('t1')]),
+			partiallyAccepted: await split([record('t1', 'tc1'), acceptRecord('t-partial'), record('t2', 'tc2')]),
 		}, {
 			neverAccepted: { unaccepted: ['tc1', 'tc2'], acceptedTurns: [] },
 			acceptedTwice: { unaccepted: ['tc3'], acceptedTurns: ['t1', 't2'] },
 			allAccepted: { unaccepted: [], acceptedTurns: ['t1'] },
+			partiallyAccepted: { unaccepted: [`${FILE_EDIT_ACCEPT_TOOL_CALL_ID_PREFIX}t-partial`, 'tc2'], acceptedTurns: ['t1'] },
 		});
 	});
 

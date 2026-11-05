@@ -5,8 +5,8 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
-import { $ } from '../../../../../../../base/browser/dom.js';
-import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
+import { $, EventType } from '../../../../../../../base/browser/dom.js';
+import { timeout } from '../../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
@@ -17,18 +17,21 @@ import { workbenchInstantiationService } from '../../../../../../test/browser/wo
 import { isResourceMultiDiffEditorInput } from '../../../../../../common/editor.js';
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { IAccessibilityService } from '../../../../../../../platform/accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
-import { NullTelemetryServiceShape } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { TestTelemetryService } from '../../../../../../../platform/telemetry/test/common/testTelemetryService.js';
 import { ChatCollapsibleContentPart } from '../../../../browser/widget/chatContentParts/chatCollapsibleContentPart.js';
 import { ChatThinkingContentPart, maybePickFunWorkingMessage, splitReasoningSummaryRows } from '../../../../browser/widget/chatContentParts/chatThinkingContentPart.js';
 import { getToolInvocationIcon } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolPartUtilities.js';
-import { IChatExternalEdit, IChatMarkdownContent, IChatTerminalToolInvocationData, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
+import { IChatExternalEdit, IChatMarkdownContent, IChatTerminalToolInvocationData, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { IChatContentPartDiffData, IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { IChatRendererContent, IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
 import { ChatToolInvocation } from '../../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { IChatMarkdownAnchorService } from '../../../../browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { ChatUtilityModelService, IChatUtilityModelService } from '../../../../common/chatUtilityModelService.js';
+import { IChatThinkingTitleRequest } from '../../../../common/chatThinkingTitleService.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IRenderedMarkdown, MarkdownRenderOptions, renderMarkdown } from '../../../../../../../base/browser/markdownRenderer.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
@@ -42,6 +45,7 @@ import { URI } from '../../../../../../../base/common/uri.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
 import { chatSessionResourceToId } from '../../../../common/model/chatUri.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
+import '../../../../browser/widget/media/chat.css';
 
 suite('ChatThinkingContentPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -84,6 +88,21 @@ suite('ChatThinkingContentPart', () => {
 			value: value ?? '',
 			id: id ?? 'test-thinking-id'
 		};
+	}
+
+	function createThinkingContentPart(
+		content: IChatThinkingPart,
+		context: IChatContentPartRenderContext,
+		markdownRenderer: IMarkdownRenderer = mockMarkdownRenderer,
+		isComplete = false
+	): ChatThinkingContentPart {
+		return store.add(instantiationService.createInstance(
+			ChatThinkingContentPart,
+			content,
+			context,
+			markdownRenderer,
+			isComplete
+		));
 	}
 
 	function createDiffData(added: number, removed: number, resourceName = 'file.ts', version = '1'): IChatContentPartDiffData {
@@ -233,7 +252,7 @@ suite('ChatThinkingContentPart', () => {
 
 		function createToolChain(complete = false) {
 			const context = { ...createMockRenderContext(complete), suppressProgressShimmer: true, isToolChain: true };
-			const part = store.add(instantiationService.createInstance(ChatThinkingContentPart, createThinkingPart(), context, mockMarkdownRenderer, complete));
+			const part = createThinkingContentPart(createThinkingPart(), context, mockMarkdownRenderer, complete);
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
 			return part;
@@ -656,7 +675,7 @@ suite('ChatThinkingContentPart', () => {
 		});
 
 		test('does not turn legacy thinking groups into persistent tool previews', () => {
-			const part = store.add(instantiationService.createInstance(ChatThinkingContentPart, createThinkingPart('Reviewing the renderer'), createMockRenderContext(), mockMarkdownRenderer, false));
+			const part = createThinkingContentPart(createThinkingPart('Reviewing the renderer'), createMockRenderContext(), mockMarkdownRenderer, false);
 			assert.deepStrictEqual({
 				toolChain: part.isToolChain,
 				preview: part.domNode.classList.contains('chat-tool-chain-preview'),
@@ -674,13 +693,7 @@ suite('ChatThinkingContentPart', () => {
 			const content = createThinkingPart('**Analyzing code**');
 			const context = createMockRenderContext(false);
 
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				false
-			));
+			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -701,23 +714,10 @@ suite('ChatThinkingContentPart', () => {
 		});
 
 		test('logs telemetry when the user toggles the header', () => {
-			const telemetryService = new class extends NullTelemetryServiceShape {
-				readonly events: { readonly name: string; readonly data: unknown }[] = [];
-				override publicLog2(eventName?: string, data?: unknown): void {
-					if (eventName) {
-						this.events.push({ name: eventName, data });
-					}
-				}
-			}();
+			const telemetryService = new TestTelemetryService();
 			instantiationService.stub(ITelemetryService, telemetryService);
 
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				createThinkingPart('**Analyzing code**'),
-				createMockRenderContext(false),
-				mockMarkdownRenderer,
-				false
-			));
+			const part = createThinkingContentPart(createThinkingPart('**Analyzing code**'), createMockRenderContext(false), mockMarkdownRenderer, false);
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
 
@@ -736,13 +736,7 @@ suite('ChatThinkingContentPart', () => {
 			const content = createThinkingPart('**Processing**');
 			const context = createMockRenderContext(false);
 
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				false
-			));
+			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -754,13 +748,7 @@ suite('ChatThinkingContentPart', () => {
 			const content = createThinkingPart('**Reading configuration files**');
 			const context = createMockRenderContext(false);
 
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				false
-			));
+			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -777,13 +765,7 @@ suite('ChatThinkingContentPart', () => {
 			const content = createThinkingPart('**Initial thinking content**');
 			const context = createMockRenderContext(false);
 
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				false
-			));
+			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -797,13 +779,7 @@ suite('ChatThinkingContentPart', () => {
 			const content = createThinkingPart('**Thinking content to render**');
 			const context = createMockRenderContext(false);
 
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				false
-			));
+			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -821,13 +797,7 @@ suite('ChatThinkingContentPart', () => {
 		test('user toggle event bubbles before expansion changes', () => {
 			const content = createThinkingPart('**Thinking content to render**');
 			const context = createMockRenderContext(false);
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				false
-			));
+			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
 			const ancestor = mainWindow.document.createElement('div');
 			ancestor.appendChild(part.domNode);
 			mainWindow.document.body.appendChild(ancestor);
@@ -863,13 +833,7 @@ suite('ChatThinkingContentPart', () => {
 			test(`uses collapsed preview instead of ${configuredMode} without changing the setting`, () => {
 				mockConfigurationService.setUserConfiguration(ChatConfiguration.ThinkingStyle, configuredMode);
 				const states = [false, true].map(isComplete => {
-					const part = store.add(instantiationService.createInstance(
-						ChatThinkingContentPart,
-						createThinkingPart('**Reviewing changes**\nChecking the implementation'),
-						{ ...createMockRenderContext(isComplete), readOnly: true },
-						mockMarkdownRenderer,
-						isComplete,
-					));
+					const part = createThinkingContentPart(createThinkingPart('**Reviewing changes**\nChecking the implementation'), { ...createMockRenderContext(isComplete), readOnly: true }, mockMarkdownRenderer, isComplete);
 					return {
 						collapsed: part.domNode.classList.contains('chat-used-context-collapsed'),
 						fixedScrolling: part.domNode.classList.contains('chat-thinking-fixed-mode'),
@@ -899,13 +863,7 @@ suite('ChatThinkingContentPart', () => {
 			const content = createThinkingPart('**Analyzing**\nSome detailed reasoning about the code structure');
 			const context = createMockRenderContext(false);
 
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				false
-			));
+			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -919,13 +877,7 @@ suite('ChatThinkingContentPart', () => {
 			const content = createThinkingPart('**Completed task**');
 			const context = createMockRenderContext(true); // isComplete = true
 
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				true // streamingCompleted
-			));
+			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, true);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -942,13 +894,7 @@ suite('ChatThinkingContentPart', () => {
 			const content = createThinkingPart('**Finished analyzing**');
 			const context = createMockRenderContext(false); // element.isComplete = false
 
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				true // streamingCompleted = true (look-ahead detected this thinking is done)
-			));
+			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, true);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -964,13 +910,7 @@ suite('ChatThinkingContentPart', () => {
 			const content = createThinkingPart('**Looking ahead completed**');
 			const context = createMockRenderContext(false); // element.isComplete = false
 
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				true // streamingCompleted = true
-			));
+			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, true);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -990,13 +930,7 @@ suite('ChatThinkingContentPart', () => {
 			const content = createThinkingPart('**Scrolling content**');
 			const context = createMockRenderContext(false);
 
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				false
-			));
+			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -1011,13 +945,7 @@ suite('ChatThinkingContentPart', () => {
 			const content = createThinkingPart('**Fixed scrolling content**');
 			const context = createMockRenderContext(false);
 
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				false
-			));
+			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -1032,13 +960,7 @@ suite('ChatThinkingContentPart', () => {
 			const content = createThinkingPart('**Content with scrolling**');
 			const context = createMockRenderContext(false);
 
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				false
-			));
+			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -1047,19 +969,40 @@ suite('ChatThinkingContentPart', () => {
 			assert.ok(scrollable, 'Should have scrollable container');
 		});
 
+		test('fenced thinking content paints the code-block background only once', () => {
+			const container = $('.interactive-session');
+			disposables.add(toDisposable(() => container.remove()));
+			container.style.setProperty('--vscode-textPreformat-background', 'rgba(0, 0, 0, 0.12)');
+			container.style.setProperty('--vscode-textCodeBlock-background', '#ececec');
+			const response = container.appendChild($('.interactive-item-container.interactive-response'));
+			const value = response.appendChild($('.value'));
+			mainWindow.document.body.appendChild(container);
+			const renderer: IMarkdownRenderer = {
+				render: (markdown, options, target) => renderMarkdown(markdown, options, target),
+			};
+			const part = createThinkingContentPart(createThinkingPart('**Inspecting code**\n\nUse `inline`.\n\n```\nblock code\n```'), createMockRenderContext(false), renderer, false);
+			value.appendChild(part.domNode);
+			const block = part.domNode.querySelector<HTMLElement>('[data-code]')!;
+			const code = block.querySelector('code')!;
+			const inline = part.domNode.querySelector('p code')!;
+			assert.deepStrictEqual({
+				block: mainWindow.getComputedStyle(block).backgroundColor,
+				code: mainWindow.getComputedStyle(code).backgroundColor,
+				inline: mainWindow.getComputedStyle(inline).backgroundColor,
+			}, {
+				block: 'rgb(236, 236, 236)',
+				code: 'rgba(0, 0, 0, 0)',
+				inline: 'rgba(0, 0, 0, 0.12)',
+			});
+		});
+
 		test('splits summary headers as they stream without replacing the scroll container', () => {
 			const markdownRenderer: IMarkdownRenderer = {
 				render: (markdown, options, target) => renderMarkdown(markdown, options, target),
 			};
 			const firstSummary = '**Evaluating issue and PR status**';
 			const content = createThinkingPart('**Evaluating issue and PR sta');
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				createMockRenderContext(false),
-				markdownRenderer,
-				false
-			));
+			const part = createThinkingContentPart(content, createMockRenderContext(false), markdownRenderer, false);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -1089,11 +1032,11 @@ suite('ChatThinkingContentPart', () => {
 			}, {
 				scrollContainerPreserved: true,
 				firstRowPreserved: true,
-				rowTexts: ['Analyzing code fix and lifecycle nuances', 'Evaluating PR merge status'],
+				rowTexts: ['Evaluating issue and PR status', 'Analyzing code fix and lifecycle nuances', 'Evaluating PR merge status'],
 				hasLiteralMarkers: false,
 				initialTitle: 'Thinking',
-				streamingTitle: 'Thinking: Evaluating issue and PR status',
-				streamingAriaLabel: 'Thinking: Evaluating issue and PR status',
+				streamingTitle: 'Thinking',
+				streamingAriaLabel: 'Thinking',
 			});
 		});
 
@@ -1106,13 +1049,7 @@ suite('ChatThinkingContentPart', () => {
 				'**Analyzing code fix and lifecycle nuances**',
 				'**Evaluating PR merge status**',
 			].join('\n\n'));
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				createMockRenderContext(true),
-				markdownRenderer,
-				true
-			));
+			const part = createThinkingContentPart(content, createMockRenderContext(true), markdownRenderer, true);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -1125,8 +1062,8 @@ suite('ChatThinkingContentPart', () => {
 				title: part.domNode.querySelector('.chat-used-context-label .monaco-button')?.textContent?.trim(),
 			}, {
 				hasScrollContainer: true,
-				rowTexts: ['Analyzing code fix and lifecycle nuances', 'Evaluating PR merge status'],
-				title: 'Evaluating issue and PR status',
+				rowTexts: ['Evaluating issue and PR status', 'Analyzing code fix and lifecycle nuances', 'Evaluating PR merge status'],
+				title: 'Finished thinking',
 			});
 		});
 
@@ -1134,13 +1071,7 @@ suite('ChatThinkingContentPart', () => {
 			const content = createThinkingPart('**Content with scrolling**');
 			const context = createMockRenderContext(false);
 
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				false
-			));
+			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -1185,13 +1116,7 @@ suite('ChatThinkingContentPart', () => {
 		test('should animate the first expansion and subsequent collapse of restored content', async () => {
 			const content = createThinkingPart('**Restored content**');
 			const context = createMockRenderContext(false);
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				true
-			));
+			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, true);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -1240,13 +1165,7 @@ suite('ChatThinkingContentPart', () => {
 			const content = createThinkingPart('**Initial**');
 			const context = createMockRenderContext(false);
 
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				false
-			));
+			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -1270,13 +1189,7 @@ suite('ChatThinkingContentPart', () => {
 			};
 			const firstSummary = '**Refactoring session policy and cleanup**';
 			const content = createThinkingPart(firstSummary);
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				createMockRenderContext(false),
-				markdownRenderer,
-				false
-			));
+			const part = createThinkingContentPart(content, createMockRenderContext(false), markdownRenderer, false);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -1292,22 +1205,16 @@ suite('ChatThinkingContentPart', () => {
 				rowTexts: rows.map(row => row.textContent?.trim()),
 				hasLiteralMarkers: part.domNode.textContent?.includes('**') ?? false,
 			}, {
-				rowTexts: ['Updating session token handling'],
+				rowTexts: ['Refactoring session policy and cleanup', 'Updating session token handling'],
 				hasLiteralMarkers: false,
 			});
 		});
 
-		test('should track multiple title extractions', () => {
+		test('keeps content usable as reasoning headings change', () => {
 			const content = createThinkingPart('**First title**');
 			const context = createMockRenderContext(false);
 
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				false
-			));
+			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -1320,20 +1227,14 @@ suite('ChatThinkingContentPart', () => {
 			part.updateThinking(createThinkingPart('**Second title**', content.id));
 			part.updateThinking(createThinkingPart('**Third title**', content.id));
 
-			// The part should track these titles for finalization
-			assert.ok(part.domNode, 'Part should still be valid');
+			part.finalizeTitleIfDefault();
+			assert.strictEqual(button.textContent, 'Third title');
 		});
 
 		test('should restore the descriptive title after expand and collapse', () => {
 			const content = createThinkingPart('**Read chatListRenderer.ts, lines 2230 to 2270**\nInspect grouping logic');
 			const context = createMockRenderContext(false);
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				false
-			));
+			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -1357,13 +1258,7 @@ suite('ChatThinkingContentPart', () => {
 			const markdownRenderer: IMarkdownRenderer = {
 				render: (markdown, options, target) => renderMarkdown(markdown, options, target),
 			};
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				createThinkingPart(value),
-				createMockRenderContext(false),
-				markdownRenderer,
-				false
-			));
+			const part = createThinkingContentPart(createThinkingPart(value), createMockRenderContext(false), markdownRenderer, false);
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
 			part.domNode.querySelector<HTMLElement>('.monaco-button')?.click();
@@ -1394,13 +1289,7 @@ suite('ChatThinkingContentPart', () => {
 			const markdownRenderer: IMarkdownRenderer = {
 				render: (markdown, options, target) => renderMarkdown(markdown, options, target),
 			};
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				createThinkingPart('**Reviewing the plan**\n\n**Weighing tradeoffs**'),
-				createMockRenderContext(false),
-				markdownRenderer,
-				false
-			));
+			const part = createThinkingContentPart(createThinkingPart('**Reviewing the plan**\n\n**Weighing tradeoffs**'), createMockRenderContext(false), markdownRenderer, false);
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
 			part.domNode.querySelector<HTMLElement>('.monaco-button')?.click();
@@ -1415,14 +1304,12 @@ suite('ChatThinkingContentPart', () => {
 				rowTexts,
 				hasLiteralMarkers: part.domNode.textContent?.includes('**') ?? false,
 			}, {
-				// First block drops its title header ("Reviewing the plan"); the grouped
-				// block keeps both of its headers so neither is lost.
-				rowTexts: ['Weighing tradeoffs', 'Editing files', 'Verifying the change'],
+				rowTexts: ['Reviewing the plan', 'Weighing tradeoffs', 'Editing files', 'Verifying the change'],
 				hasLiteralMarkers: false,
 			});
 		});
 
-		test('renders each summary header as its own row and drops the leading header', () => {
+		test('renders every summary header as its own row', () => {
 			const rows = expandedSummaryRows([
 				'**Analyzing bold syntax with spaces**',
 				'**Examining special stripping logic**',
@@ -1434,7 +1321,7 @@ suite('ChatThinkingContentPart', () => {
 				hasLiteralMarkers: rows.some(row => row.textContent?.includes('**')),
 				anyRowBold: rows.some(row => !!row.querySelector('strong')),
 			}, {
-				rowTexts: ['Examining special stripping logic', 'Explaining Markdown bold whitespace nuances'],
+				rowTexts: ['Analyzing bold syntax with spaces', 'Examining special stripping logic', 'Explaining Markdown bold whitespace nuances'],
 				hasLiteralMarkers: false,
 				anyRowBold: false,
 			});
@@ -1447,7 +1334,7 @@ suite('ChatThinkingContentPart', () => {
 				strong: Array.from(row.querySelectorAll('strong'), element => element.textContent),
 				text: row.textContent?.replace(/\s+/g, ' ').trim(),
 			})), [
-				{ strong: [], text: 'Weigh the tradeoffs' },
+				{ strong: ['Reviewing the plan'], text: 'Reviewing the planWeigh the tradeoffs' },
 				{ strong: ['Applying the change'], text: 'Applying the changeEdit the file' },
 			]);
 		});
@@ -1466,18 +1353,12 @@ suite('ChatThinkingContentPart', () => {
 			});
 		});
 
-		test('surfaces the dropped leading header as the finalized title', () => {
+		test('preserves the leading header in the body after finalizing the duration', () => {
 			const markdownRenderer: IMarkdownRenderer = {
 				render: (markdown, options, target) => renderMarkdown(markdown, options, target),
 			};
 			const content = createThinkingPart('**Reviewing the plan**');
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				createMockRenderContext(false),
-				markdownRenderer,
-				false
-			));
+			const part = createThinkingContentPart(content, createMockRenderContext(false), markdownRenderer, false);
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
 			part.domNode.querySelector<HTMLElement>('.monaco-button')?.click();
@@ -1490,24 +1371,18 @@ suite('ChatThinkingContentPart', () => {
 				title: titleButton?.textContent?.trim(),
 				rows: Array.from(part.domNode.querySelectorAll<HTMLElement>('.chat-thinking-item.markdown-content'), row => row.textContent?.trim()),
 			}, {
-				title: 'Reviewing the plan',
-				rows: ['Weighing tradeoffs', 'Applying the change'],
+				title: 'Finished thinking',
+				rows: ['Reviewing the plan', 'Weighing tradeoffs', 'Applying the change'],
 			});
 		});
 
-		test('keeps the dropped header as the title over a restored content title', () => {
+		test('reuses a restored generated title without changing history or hiding headings', () => {
 			const markdownRenderer: IMarkdownRenderer = {
 				render: (markdown, options, target) => renderMarkdown(markdown, options, target),
 			};
 			const content = createThinkingPart('**Reviewing the plan**\n\n**Applying the change**');
 			content.generatedTitle = 'Reviewed implementation details';
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				createMockRenderContext(true),
-				markdownRenderer,
-				true
-			));
+			const part = createThinkingContentPart(content, createMockRenderContext(true), markdownRenderer, true);
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
 
@@ -1519,24 +1394,18 @@ suite('ChatThinkingContentPart', () => {
 				rows: Array.from(part.domNode.querySelectorAll<HTMLElement>('.chat-thinking-item.markdown-content'), row => row.textContent?.trim()),
 				generatedTitle: content.generatedTitle,
 			}, {
-				title: 'Reviewing the plan',
-				rows: ['Applying the change'],
-				generatedTitle: 'Reviewing the plan',
+				title: 'Reviewed implementation details',
+				rows: ['Reviewing the plan', 'Applying the change'],
+				generatedTitle: 'Reviewed implementation details',
 			});
 		});
 
-		test('keeps the dropped header as the title when a titled tool joins the group', () => {
+		test('reuses a previously titled tool when it joins the group', () => {
 			const markdownRenderer: IMarkdownRenderer = {
 				render: (markdown, options, target) => renderMarkdown(markdown, options, target),
 			};
 			const content = createThinkingPart('**Analyzing the request**');
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				createMockRenderContext(false),
-				markdownRenderer,
-				false
-			));
+			const part = createThinkingContentPart(content, createMockRenderContext(false), markdownRenderer, false);
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
 			part.domNode.querySelector<HTMLElement>('.monaco-button')?.click();
@@ -1573,12 +1442,12 @@ suite('ChatThinkingContentPart', () => {
 				title: titleButton?.textContent?.trim(),
 				summaryRows: Array.from(part.domNode.querySelectorAll<HTMLElement>('.chat-thinking-item.markdown-content'), row => row.textContent?.trim()),
 			}, {
-				title: 'Analyzing the request',
-				summaryRows: ['Planning the edits'],
+				title: 'Edited implementation details',
+				summaryRows: ['Analyzing the request', 'Planning the edits'],
 			});
 		});
 
-		test('keeps the dropped header as the title over a cached title', () => {
+		test('defers persisted-cache lookup to viewport registration and retains every heading', () => {
 			const markdownRenderer: IMarkdownRenderer = {
 				render: (markdown, options, target) => renderMarkdown(markdown, options, target),
 			};
@@ -1592,13 +1461,7 @@ suite('ChatThinkingContentPart', () => {
 				StorageTarget.MACHINE
 			);
 			const content = createThinkingPart('**Analyzing the request**\n\n**Verifying the result**', thinkingId);
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				markdownRenderer,
-				true
-			));
+			const part = createThinkingContentPart(content, context, markdownRenderer, true);
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
 
@@ -1610,24 +1473,18 @@ suite('ChatThinkingContentPart', () => {
 				rows: Array.from(part.domNode.querySelectorAll<HTMLElement>('.chat-thinking-item.markdown-content'), row => row.textContent?.trim()),
 				generatedTitle: content.generatedTitle,
 			}, {
-				title: 'Analyzing the request',
-				rows: ['Verifying the result'],
-				generatedTitle: 'Analyzing the request',
+				title: 'Finished thinking',
+				rows: ['Analyzing the request', 'Verifying the result'],
+				generatedTitle: undefined,
 			});
 		});
 
-		test('surfaces the dropped header as the title when collapsed through completion', () => {
+		test('finalizes the fallback without expanding a collapsed section', () => {
 			const markdownRenderer: IMarkdownRenderer = {
 				render: (markdown, options, target) => renderMarkdown(markdown, options, target),
 			};
 			const content = createThinkingPart('**Analyzing the request**');
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				createMockRenderContext(false),
-				markdownRenderer,
-				false
-			));
+			const part = createThinkingContentPart(content, createMockRenderContext(false), markdownRenderer, false);
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
 
@@ -1659,22 +1516,16 @@ suite('ChatThinkingContentPart', () => {
 			part.finalizeTitleIfDefault();
 
 			const titleButton = part.domNode.querySelector('.chat-used-context-label .monaco-button');
-			assert.strictEqual(titleButton?.textContent?.trim(), 'Analyzing the request');
+			assert.strictEqual(titleButton?.textContent?.trim(), 'Finished thinking');
 		});
 
-		test('tracks the dropped header off a later grouped block when the first has one header', () => {
+		test('uses a duration header for grouped reasoning blocks', () => {
 			const markdownRenderer: IMarkdownRenderer = {
 				render: (markdown, options, target) => renderMarkdown(markdown, options, target),
 			};
 			// The first block is a single-header block (renders as one block, drops nothing).
 			const content = createThinkingPart('**Reading the file**', 'block-0');
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				createMockRenderContext(false),
-				markdownRenderer,
-				false
-			));
+			const part = createThinkingContentPart(content, createMockRenderContext(false), markdownRenderer, false);
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
 
@@ -1683,22 +1534,16 @@ suite('ChatThinkingContentPart', () => {
 			part.finalizeTitleIfDefault();
 
 			const titleButton = part.domNode.querySelector('.chat-used-context-label .monaco-button');
-			assert.strictEqual(titleButton?.textContent?.trim(), 'Analyzing the request');
+			assert.strictEqual(titleButton?.textContent?.trim(), 'Finished thinking');
 		});
 
-		test('does not drop a grouped block header that is not the tracked title', () => {
+		test('keeps grouped block headings after expanding a completed section', () => {
 			const markdownRenderer: IMarkdownRenderer = {
 				render: (markdown, options, target) => renderMarkdown(markdown, options, target),
 			};
 			// Two multi-header summary blocks grouped, collapsed through completion.
 			const content = createThinkingPart('**Analyzing the request**\n\n**Reviewing constraints**', 'block-0');
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				createMockRenderContext(false),
-				markdownRenderer,
-				false
-			));
+			const part = createThinkingContentPart(content, createMockRenderContext(false), markdownRenderer, false);
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
 
@@ -1711,10 +1556,9 @@ suite('ChatThinkingContentPart', () => {
 			const rows = Array.from(part.domNode.querySelectorAll<HTMLElement>('.chat-thinking-item.markdown-content'), row => row.textContent?.trim());
 			assert.deepStrictEqual({
 				title: titleButton?.textContent?.trim(),
-				// The later block's leading header is not the tracked title, so it is kept as a row.
 				keepsLaterHeader: rows.includes('Editing files'),
 			}, {
-				title: 'Analyzing the request',
+				title: 'Finished thinking',
 				keepsLaterHeader: true,
 			});
 		});
@@ -1725,7 +1569,7 @@ suite('ChatThinkingContentPart', () => {
 			render: (markdown, options, target) => renderMarkdown(markdown, options, target),
 		}): ChatThinkingContentPart {
 			const context = { ...createMockRenderContext(complete), suppressProgressShimmer: true };
-			const part = store.add(instantiationService.createInstance(ChatThinkingContentPart, content, context, markdownRenderer, complete));
+			const part = createThinkingContentPart(content, context, markdownRenderer, complete);
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
 			return part;
@@ -1740,7 +1584,7 @@ suite('ChatThinkingContentPart', () => {
 			};
 		}
 
-		test('promotes a streamed single heading only after completion and removes its body duplicate', () => {
+		test('uses a single extracted header after completion without changing streamed reasoning', () => {
 			const part = createPersistentReasoning(createThinkingPart('**Evaluating code and'));
 			const initial = snapshot(part);
 			const wrapper = part.domNode.querySelector('.chat-thinking-collapsible');
@@ -1764,13 +1608,13 @@ suite('ChatThinkingContentPart', () => {
 				initialTitle: 'Thinking',
 				streaming: { title: 'Thinking', ariaLabel: 'Thinking', body: ['Evaluating code and build processes', 'Read the build documentation.'] },
 				collapsedTitle: 'Thinking',
-				completed: { title: 'Evaluating code and build processes', ariaLabel: 'Evaluating code and build processes', body: ['Read the build documentation.'] },
+				completed: { title: 'Evaluating code and build processes', ariaLabel: 'Evaluating code and build processes', body: ['Evaluating code and build processes', 'Read the build documentation.'] },
 				generatedTitle: 'Evaluating code and build processes',
 				sameWrapper: true,
 			});
 		});
 
-		test('a restored single heading replaces an old generated title and is not repeated on expansion', () => {
+		test('prefers a single extracted heading over an older generated title', () => {
 			const content = createThinkingPart('**Evaluating code and build processes**\n\nRead the build documentation.');
 			content.generatedTitle = 'An older summary';
 			const part = createPersistentReasoning(content, true);
@@ -1780,17 +1624,17 @@ suite('ChatThinkingContentPart', () => {
 			assert.deepStrictEqual(snapshot(part), {
 				title: 'Evaluating code and build processes',
 				ariaLabel: 'Evaluating code and build processes',
-				body: ['Read the build documentation.'],
+				body: ['Evaluating code and build processes', 'Read the build documentation.'],
 			});
 		});
 
-		test('preserves matching inline bold text when removing the promoted heading', () => {
+		test('preserves both inline bold text and matching reasoning headings', () => {
 			const part = createPersistentReasoning(createThinkingPart('**Review** appears inline.\n\n**Review**\n\nCheck the renderer.'));
 			part.finalizeTitleIfDefault();
 			assert.deepStrictEqual(snapshot(part), {
 				title: 'Review',
 				ariaLabel: 'Review',
-				body: ['Review appears inline.', 'Check the renderer.'],
+				body: ['Review appears inline.', 'Review', 'Check the renderer.'],
 			});
 		});
 
@@ -1825,8 +1669,8 @@ suite('ChatThinkingContentPart', () => {
 					assert.deepStrictEqual({
 						title: snapshot(part).title,
 						code: Array.from(part.domNode.querySelectorAll('[data-code]'), element => element.textContent).join('\n'),
-						duplicateHeading: snapshot(part).body.includes(example.title),
-					}, { title: example.title, code: example.code, duplicateHeading: false });
+						hasHeading: snapshot(part).body.includes(example.title),
+					}, { title: example.title, code: example.code, hasHeading: example.title === 'Review' });
 				});
 			}
 		}
@@ -1851,7 +1695,7 @@ suite('ChatThinkingContentPart', () => {
 			}, { sameWrapper: true, reusedTargets: [true, true] });
 		});
 
-		test('preserves a focused heading link until focus moves into the body', () => {
+		test('preserves heading links and keyboard focus when reasoning completes', () => {
 			const part = createPersistentReasoning(createThinkingPart('**Review `renderer.ts` and [tests](https://example.com/tests)**\n\nKeep the [build](https://example.com/build) in view.'));
 			const [headingLink, bodyLink] = part.domNode.querySelectorAll<HTMLAnchorElement>('.chat-thinking-item a');
 			assert.ok(headingLink && bodyLink);
@@ -1870,14 +1714,14 @@ suite('ChatThinkingContentPart', () => {
 				completed: {
 					title: 'Review renderer.ts and tests',
 					ariaLabel: 'Review renderer.ts and tests',
-					body: ['Keep the build in view.'],
+					body: ['Review renderer.ts and tests', 'Keep the build in view.'],
 				},
-				headingRemoved: true,
+				headingRemoved: false,
 				bodyFocusKept: true,
 			});
 		});
 
-		test('removes the owned header without relying on the markdown renderer markup', () => {
+		test('preserves headings and body focus with custom markdown markup', () => {
 			const part = createPersistentReasoning(createThinkingPart('**Review [tests](https://example.com/tests)**\n\nKeep the [build](https://example.com/build) in view.'), false, {
 				render: (markdown, options, target) => renderMarkdown(markdown, {
 					...options,
@@ -1903,16 +1747,16 @@ suite('ChatThinkingContentPart', () => {
 				completed: {
 					title: 'Review tests',
 					ariaLabel: 'Review tests',
-					body: ['Keep the build in view.'],
+					body: ['Review tests', 'Keep the build in view.'],
 				},
-				headingRemoved: true,
+				headingRemoved: false,
 				bodyConnected: true,
 				bodyFocusKept: true,
 			});
 		});
 
 		for (const complete of [false, true]) {
-			test(`keeps grouped reasoning while promoting its only heading (restored=${complete})`, () => {
+			test(`keeps all grouped reasoning under its single extracted header (restored=${complete})`, () => {
 				const part = createPersistentReasoning(createThinkingPart('**Reviewing the implementation**\n\nCheck the renderer.', 'first'), complete);
 				part.setupThinkingContainer(createThinkingPart('Check the tests.', 'second'));
 				part.finalizeTitleIfDefault();
@@ -1920,12 +1764,12 @@ suite('ChatThinkingContentPart', () => {
 				assert.deepStrictEqual(snapshot(part), {
 					title: 'Reviewing the implementation',
 					ariaLabel: 'Reviewing the implementation',
-					body: ['Check the renderer.', 'Check the tests.'],
+					body: ['Reviewing the implementation', 'Check the renderer.', 'Check the tests.'],
 				});
 			});
 		}
 
-		test('a heading without a body becomes a non-expandable completed label', () => {
+		test('a heading without a body remains available through the completed disclosure', () => {
 			const part = createPersistentReasoning(createThinkingPart('**Reviewed the implementation**'));
 			part.finalizeTitleIfDefault();
 			part.expandContent();
@@ -1935,22 +1779,17 @@ suite('ChatThinkingContentPart', () => {
 			}, {
 				title: 'Reviewed the implementation',
 				ariaLabel: 'Reviewed the implementation',
-				body: [],
-				expanded: 'false',
+				body: ['Reviewed the implementation'],
+				expanded: 'true',
 			});
 		});
 
 		for (const restoredTitle of ['none', 'content', 'cache'] as const) {
-			test(`summarizes every heading instead of promoting the first (restored title=${restoredTitle})`, async () => {
-				const title = new DeferredPromise<string>();
-				const prompts: string[] = [];
-				mockLanguageModelsService.selectLanguageModels = async () => ['utility'];
-				mockLanguageModelsService.sendChatRequest = async (_model, _extension, messages) => {
-					prompts.push(messages.flatMap(message => message.content.flatMap(part => part.type === 'text' ? [part.value] : [])).join('\n'));
-					return {
-						stream: (async function* () { yield { type: 'text' as const, value: await title.p }; })(),
-						result: Promise.resolve({}),
-					};
+			test(`reuses model titles while deferring missing titles until viewed (restored title=${restoredTitle})`, async () => {
+				let modelSelections = 0;
+				mockLanguageModelsService.selectLanguageModels = async () => {
+					modelSelections++;
+					return [];
 				};
 				const content = createThinkingPart('**Evaluating `code`**\n\nCheck the renderer.');
 				if (restoredTitle === 'content') {
@@ -1969,29 +1808,22 @@ suite('ChatThinkingContentPart', () => {
 				const streaming = snapshot(part);
 				part.finalizeTitleIfDefault();
 				await timeout(0);
-				const awaitingSummary = snapshot(part).title;
-				await title.complete('Reviewed code and build processes');
-				await timeout(0);
 
 				assert.deepStrictEqual({
 					streaming,
-					awaitingSummary,
 					completed: snapshot(part),
-					promptCount: prompts.length,
-					usedEveryHeading: prompts[0]?.endsWith('Content: Evaluating code, Reviewing build processes'),
+					modelSelections,
 					generatedTitle: content.generatedTitle,
 				}, {
 					streaming: { title: 'Thinking', ariaLabel: 'Thinking', body: ['Evaluating code', 'Check the renderer.', 'Reviewing build processes', 'Check the build.'] },
-					awaitingSummary: 'Thinking',
-					completed: { title: 'Reviewed code and build processes', ariaLabel: 'Reviewed code and build processes', body: ['Evaluating code', 'Check the renderer.', 'Reviewing build processes', 'Check the build.'] },
-					promptCount: 1,
-					usedEveryHeading: true,
-					generatedTitle: 'Reviewed code and build processes',
+					completed: { title: 'Finished thinking', ariaLabel: 'Finished thinking', body: ['Evaluating code', 'Check the renderer.', 'Reviewing build processes', 'Check the build.'] },
+					modelSelections: 0,
+					generatedTitle: restoredTitle === 'content' ? 'Evaluating `code`' : undefined,
 				});
 			});
 		}
 
-		test('restores a generated summary across separate thinking blocks without hiding any headings', () => {
+		test('reuses a generated summary across separate thinking blocks without hiding any headings', () => {
 			const content = createThinkingPart('**Evaluating code**\n\nCheck the renderer.', 'first');
 			content.generatedTitle = 'Reviewed code and build processes';
 			const part = createPersistentReasoning(content, true);
@@ -2022,40 +1854,30 @@ suite('ChatThinkingContentPart', () => {
 			});
 		});
 
-		test('shows the fallback title while a title is queued and caches a title that arrives after dispose', async () => {
-			const clock = sinon.useFakeTimers();
-			try {
-				const title = new DeferredPromise<string>();
-				mockLanguageModelsService.selectLanguageModels = async () => ['utility'];
-				mockLanguageModelsService.sendChatRequest = async () => ({
-					stream: (async function* () { yield { type: 'text' as const, value: await title.p }; })(),
-					result: Promise.resolve({}),
-				});
-				const content = createThinkingPart('**Evaluating code**\n\n**Reviewing build processes**');
-				const part = createPersistentReasoning(content);
+		test('does not request titles or read and rewrite the title cache while restoring large history', async () => {
+			mockConfigurationService.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, true);
+			const storage = instantiationService.get(IStorageService);
+			storage.store('chat.thinkingTitleCache', JSON.stringify(Object.fromEntries(
+				Array.from({ length: 1000 }, (_, index) => [`old-${index}`, { title: 'Old summary', storedAt: 0 }])
+			)), StorageScope.PROFILE, StorageTarget.MACHINE);
+			const reads = sinon.spy(storage, 'getObject');
+			const writes = sinon.spy(storage, 'store');
+			const requests = sinon.spy(instantiationService.get(IChatUtilityModelService), 'sendRequest');
+			const selections = sinon.spy(mockLanguageModelsService, 'selectLanguageModels');
+			const titles = new Set<string | undefined>();
+			for (let index = 0; index < 200; index++) {
+				const part = createPersistentReasoning(createThinkingPart('**Evaluating code**\n\n**Reviewing build processes**', `thinking-${index}`), true);
 				part.finalizeTitleIfDefault();
-				await clock.tickAsync(1999);
-				const beforeDelay = snapshot(part).title;
-				await clock.tickAsync(1);
-				const afterDelay = snapshot(part).title;
+				titles.add(snapshot(part).title);
 				part.dispose();
-				await title.complete('Reviewed code and build processes');
-				await clock.tickAsync(0);
-
-				const cacheKey = `${chatSessionResourceToId(createMockRenderContext().element.sessionResource)}:${content.id}`;
-				const cache = instantiationService.get(IStorageService).getObject<Record<string, { title: string }>>('chat.thinkingTitleCache', StorageScope.PROFILE);
-				assert.deepStrictEqual({ beforeDelay, afterDelay, generatedTitle: content.generatedTitle, cachedTitle: cache?.[cacheKey]?.title }, {
-					beforeDelay: 'Thinking',
-					afterDelay: 'Finished thinking',
-					generatedTitle: 'Reviewed code and build processes',
-					cachedTitle: 'Reviewed code and build processes',
-				});
-			} finally {
-				clock.restore();
 			}
+			await timeout(0);
+			assert.deepStrictEqual({ titles: [...titles], reads: reads.callCount, writes: writes.callCount, requests: requests.callCount, selections: selections.callCount }, {
+				titles: ['Finished thinking'], reads: 0, writes: 0, requests: 0, selections: 0,
+			});
 		});
 
-		test('uses a generic title when reasoning title generation fails', async () => {
+		test('finalizes reasoning without selecting a utility model', async () => {
 			let modelSelections = 0;
 			mockLanguageModelsService.selectLanguageModels = async () => {
 				modelSelections++;
@@ -2070,9 +1892,422 @@ suite('ChatThinkingContentPart', () => {
 				title: 'Finished thinking',
 				ariaLabel: 'Finished thinking',
 				body: ['Consider how to update the progress renderer.'],
-				modelSelections: 1,
+				modelSelections: 0,
 			});
 		});
+
+		test('shows individual run durations instead of a grouped total', async () => {
+			const first = createThinkingPart('Consider how to update the progress renderer.', 'first');
+			first.reasoningStartedAt = 1000;
+			first.reasoningDurationMs = 400;
+			const part = createPersistentReasoning(first);
+			const second = createThinkingPart('Then check the tests.', 'second');
+			second.reasoningStartedAt = 2500;
+			second.reasoningDurationMs = 2000;
+			part.setupThinkingContainer(second);
+
+			part.finalizeTitleIfDefault();
+			await timeout(0);
+			part.expandContent();
+
+			assert.deepStrictEqual({
+				title: snapshot(part).title,
+				ariaLabel: snapshot(part).ariaLabel,
+				runs: Array.from(part.domNode.querySelectorAll('.chat-thinking-run-duration'), label => label.textContent),
+			}, {
+				title: 'Finished thinking',
+				ariaLabel: 'Finished thinking',
+				runs: ['Thought for 1s', 'Thought for 2s'],
+			});
+		});
+	});
+
+	suite('Conversation sections', () => {
+		const readFile = { id: 'read_file', displayName: 'Read file', modelDescription: 'Read file', source: ToolDataSource.Internal };
+
+		function createConversationSection(content: IChatThinkingPart, complete = false): ChatThinkingContentPart {
+			const context = { ...createMockRenderContext(complete), suppressProgressShimmer: true, isConversation: true };
+			const markdownRenderer: IMarkdownRenderer = { render: (markdown, options, target) => renderMarkdown(markdown, options, target) };
+			const part = createThinkingContentPart(content, context, markdownRenderer, complete);
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+			return part;
+		}
+
+		function getButton(part: ChatThinkingContentPart): HTMLElement {
+			return part.domNode.querySelector<HTMLElement>(':scope > .chat-used-context-label .monaco-button')!;
+		}
+
+		function snapshot(part: ChatThinkingContentPart) {
+			const button = getButton(part);
+			return { title: button.textContent?.trim(), ariaLabel: button.ariaLabel, expanded: part.expanded.get() };
+		}
+
+		function appendTool(part: ChatThinkingContentPart, tool: IChatToolInvocation | IChatToolInvocationSerialized, label: string): void {
+			part.appendItem(() => ({ domNode: $('div.test-tool', undefined, label) }), tool.toolId, tool);
+		}
+
+		function createSerializedTool(toolCallId: string, startedAt?: number, completedAt?: number): IChatToolInvocationSerialized {
+			return {
+				kind: 'toolInvocationSerialized', toolId: 'read_file', toolCallId, invocationMessage: `Read ${toolCallId}`, pastTenseMessage: `Read ${toolCallId}`,
+				originMessage: undefined, presentation: undefined, isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded }, isComplete: true,
+				source: ToolDataSource.Internal, startedAt, completedAt,
+			};
+		}
+
+		test('collapses reasoning and tool calls into one section that names the current activity', async () => {
+			const clock = sinon.useFakeTimers({ now: 10_000, toFake: ['Date'] });
+			store.add(toDisposable(() => clock.restore()));
+			const first = createThinkingPart('**Planning the fix**\n\nCheck the renderer.', 'first');
+			const part = createConversationSection(first);
+			const thinking = snapshot(part);
+			first.reasoningStartedAt = 10_000;
+			first.reasoningDurationMs = 1200;
+			clock.tick(1200);
+			const tool = new ChatToolInvocation({ invocationMessage: 'Reading renderer.ts' }, readFile, 'read', undefined, {});
+			appendTool(part, tool, 'Read renderer.ts');
+			const reading = snapshot(part);
+			clock.tick(800);
+			await tool.didExecuteTool(undefined);
+			const second = createThinkingPart('Compare the results.', 'second');
+			part.setupThinkingContainer(second);
+			const thinkingAgain = snapshot(part);
+			second.reasoningStartedAt = 14_000;
+			second.reasoningDurationMs = 1500;
+
+			part.finalizeTitleIfDefault();
+			const finished = snapshot(part);
+			getButton(part).click();
+
+			assert.deepStrictEqual({
+				thinking,
+				reading,
+				thinkingAgain,
+				finished,
+				sectionClasses: ['chat-persistent-reasoning', 'chat-thinking-conversation'].filter(name => part.domNode.classList.contains(name)),
+				headerIcons: Array.from(getButton(part).querySelectorAll('.codicon'), icon => [...icon.classList].filter(name => name !== 'codicon').join(' ')),
+				body: Array.from(part.domNode.querySelectorAll('.chat-thinking-collapsible p, .chat-thinking-collapsible .test-tool'), element => element.textContent?.trim()),
+			}, {
+				thinking: { title: 'Planning the fix', ariaLabel: 'Planning the fix', expanded: false },
+				reading: { title: 'Reading renderer.ts', ariaLabel: 'Reading renderer.ts', expanded: false },
+				thinkingAgain: { title: 'Thinking', ariaLabel: 'Thinking', expanded: false },
+				finished: { title: 'Planning the fix', ariaLabel: 'Planning the fix', expanded: false },
+				sectionClasses: ['chat-thinking-conversation'],
+				headerIcons: ['codicon-chevron-right-compact'],
+				body: ['Planning the fix', 'Check the renderer.', 'Read renderer.ts', 'Compare the results.'],
+			});
+		});
+
+		test('only the current tool call updates the title, and collapsing shows the latest activity', () => {
+			const part = createConversationSection(createThinkingPart());
+			const search = ChatToolInvocation.createStreaming({ toolCallId: 'search', toolId: 'search', toolData: { ...readFile, id: 'search', displayName: 'Search' } });
+			appendTool(part, search, 'Search');
+			search.updateStreamingMessage('Searching for the renderer');
+			const searching = snapshot(part).title;
+			part.setupThinkingContainer(createThinkingPart('Compare the results.', 'next'));
+			search.updateStreamingMessage('Searching for the renderer tests');
+			const thinking = snapshot(part).title;
+
+			getButton(part).click();
+			const expanded = snapshot(part);
+			appendTool(part, new ChatToolInvocation({ invocationMessage: 'Reading renderer.ts' }, readFile, 'read', undefined, {}), 'Read renderer.ts');
+			const appendedWhileExpanded = snapshot(part).title;
+			getButton(part).click();
+
+			assert.deepStrictEqual({ searching, thinking, expanded, appendedWhileExpanded, collapsed: snapshot(part) }, {
+				searching: 'Searching for the renderer',
+				thinking: 'Thinking',
+				expanded: { title: 'Working', ariaLabel: 'Working', expanded: true },
+				appendedWhileExpanded: 'Working',
+				collapsed: { title: 'Reading renderer.ts', ariaLabel: 'Reading renderer.ts', expanded: false },
+			});
+		});
+
+		test('wipes the header to the latest activity and then its summary, but not when the user toggles it', () => {
+			instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+				override isMotionReduced(): boolean { return false; }
+			});
+			const container = $('.monaco-enable-motion');
+			mainWindow.document.body.appendChild(container);
+			disposables.add(toDisposable(() => container.remove()));
+			const part = createConversationSection(createThinkingPart());
+			container.appendChild(part.domNode);
+			const getWiping = () => part.domNode.querySelector<HTMLElement>('.chat-activity-label-wipe-out, .chat-activity-label-wipe-in');
+			const state = () => ({ title: getButton(part).textContent?.trim(), wipe: getWiping()?.classList.contains('chat-activity-label-wipe-out') ? 'out' : getWiping() ? 'in' : undefined });
+			const endWipe = () => {
+				const wiping = getWiping()!;
+				wiping.dispatchEvent(new AnimationEvent(EventType.ANIMATION_END, { animationName: wiping.classList.contains('chat-activity-label-wipe-out') ? 'chat-activity-label-wipe-out' : 'chat-activity-label-wipe-in' }));
+			};
+
+			appendTool(part, new ChatToolInvocation({ invocationMessage: 'Reading renderer.ts' }, readFile, 'read', undefined, {}), 'Read renderer.ts');
+			const first = state();
+			part.setupThinkingContainer(createThinkingPart('Compare the results.', 'next'));
+			const leaving = state();
+			appendTool(part, new ChatToolInvocation({ invocationMessage: 'Searching the workspace' }, { ...readFile, id: 'search' }, 'search', undefined, {}), 'Search');
+			endWipe();
+			const arriving = state();
+			endWipe();
+			const settled = state();
+			getButton(part).click();
+			const expanded = state();
+			getButton(part).click();
+			const collapsed = state();
+			part.finalizeTitleIfDefault();
+			const finishing = state();
+			endWipe();
+			const summary = state();
+			endWipe();
+
+			assert.deepStrictEqual({ first, leaving, arriving, settled, expanded, collapsed, finishing, summary, finished: state() }, {
+				first: { title: 'Reading renderer.ts', wipe: undefined },
+				leaving: { title: 'Reading renderer.ts', wipe: 'out' },
+				arriving: { title: 'Searching the workspace', wipe: 'in' },
+				settled: { title: 'Searching the workspace', wipe: undefined },
+				expanded: { title: 'Working', wipe: undefined },
+				collapsed: { title: 'Searching the workspace', wipe: undefined },
+				finishing: { title: 'Searching the workspace', wipe: 'out' },
+				summary: { title: 'Finished thinking', wipe: 'in' },
+				finished: { title: 'Finished thinking', wipe: undefined },
+			});
+		});
+
+		test('places link titles beside the button only while they are shown', () => {
+			const part = createConversationSection(createThinkingPart());
+			const besideButton = () => part.domNode.querySelector(':scope > .chat-used-context-label')?.classList.contains('chat-thinking-title-beside-button');
+			appendTool(part, new ChatToolInvocation({ invocationMessage: new MarkdownString('Read [the guide](https://example.com/guide)') }, readFile, 'read', undefined, {}), 'Read the guide');
+			const linkTitle = { besideButton: besideButton(), title: part.domNode.querySelector(':scope > .chat-used-context-label > .chat-thinking-title-detail')?.textContent?.trim() };
+			appendTool(part, new ChatToolInvocation({ invocationMessage: 'Searching the workspace' }, { ...readFile, id: 'search' }, 'search', undefined, {}), 'Search');
+			const plainTitle = besideButton();
+			appendTool(part, new ChatToolInvocation({ invocationMessage: new MarkdownString('Read [the notes](https://example.com/notes)') }, readFile, 'notes', undefined, {}), 'Read the notes');
+			part.finalizeTitleIfDefault();
+
+			assert.deepStrictEqual({ linkTitle, plainTitle, finished: besideButton() }, {
+				linkTitle: { besideButton: true, title: 'Read the guide' },
+				plainTitle: false,
+				finished: false,
+			});
+		});
+
+		test('follows the disclosure when its title text toggles it, beside or inside the button', () => {
+			const part = createConversationSection(createThinkingPart());
+			const getTitleText = () => part.domNode.querySelector<HTMLElement>(':scope > .chat-used-context-label .chat-thinking-title-detail')!;
+			const getPlainTitle = () => getButton(part).querySelector<HTMLElement>('.monaco-button-mdlabel > span')!;
+			appendTool(part, new ChatToolInvocation({ invocationMessage: new MarkdownString('Read [the guide](https://example.com/guide)') }, readFile, 'guide', undefined, {}), 'Read the guide');
+			getTitleText().click();
+			const expandedFromLinkTitle = snapshot(part);
+			appendTool(part, new ChatToolInvocation({ invocationMessage: 'Searching the workspace' }, { ...readFile, id: 'search' }, 'search', undefined, {}), 'Search');
+			getPlainTitle().click();
+			const collapsed = snapshot(part);
+			getTitleText().click();
+
+			assert.deepStrictEqual({ expandedFromLinkTitle, collapsed, expandedFromTitle: snapshot(part) }, {
+				expandedFromLinkTitle: { title: 'Working', ariaLabel: 'Working', expanded: true },
+				collapsed: { title: 'Searching the workspace', ariaLabel: 'Searching the workspace', expanded: false },
+				expandedFromTitle: { title: 'Working', ariaLabel: 'Working', expanded: true },
+			});
+		});
+
+		test('keeps reasoning queued after the only tool call when the section ends', () => {
+			const response = $('div.test-response');
+			mainWindow.document.body.appendChild(response);
+			disposables.add(toDisposable(() => response.remove()));
+			const part = createConversationSection(createThinkingPart(), true);
+			part.appendItem(() => ({ domNode: $('div.test-tool', undefined, 'Read read') }), 'read_file', createSerializedTool('read'), response);
+			part.setupThinkingContainer(createThinkingPart('Compare the results.', 'compare'));
+			part.finalizeTitleIfDefault();
+			const visible = part.domNode.style.display !== 'none';
+			getButton(part).click();
+
+			assert.deepStrictEqual({
+				visible,
+				title: snapshot(part).title,
+				movedOut: response.querySelectorAll('.test-tool').length,
+				body: Array.from(part.domNode.querySelectorAll('.chat-thinking-collapsible p, .chat-thinking-collapsible .test-tool'), element => element.textContent?.trim()),
+			}, {
+				visible: true,
+				title: 'Finished thinking',
+				movedOut: 0,
+				body: ['Read read', 'Compare the results.'],
+			});
+		});
+
+		test('names reasoning once text follows a whitespace-only first chunk', () => {
+			const part = createConversationSection(createThinkingPart());
+			appendTool(part, new ChatToolInvocation({ invocationMessage: 'Reading renderer.ts' }, readFile, 'read', undefined, {}), 'Read renderer.ts');
+			part.setupThinkingContainer(createThinkingPart('\n', 'compare'));
+			const whitespace = snapshot(part).title;
+			part.updateThinking(createThinkingPart('\nCompare the results.', 'compare'));
+
+			assert.deepStrictEqual({ whitespace, text: snapshot(part).title }, {
+				whitespace: 'Reading renderer.ts',
+				text: 'Thinking',
+			});
+		});
+
+		test('names reasoning by its latest summary heading while that reasoning is the current activity', () => {
+			const part = createConversationSection(createThinkingPart('**Inspecting', 'inspect'));
+			const partialHeading = snapshot(part).title;
+			const inspecting = '**Inspecting changes and sources**\n\nI need to read the source.';
+			part.updateThinking(createThinkingPart(inspecting, 'inspect'));
+			const heading = snapshot(part);
+			const reviewing = `${inspecting}\n\n**Reviewing \`chatModel.ts\`**\n\nThen the tests.`;
+			part.updateThinking(createThinkingPart(reviewing, 'inspect'));
+			const latestHeading = { title: snapshot(part).title, renderedAsMarkdown: !!getButton(part).querySelector('code') };
+			appendTool(part, new ChatToolInvocation({ invocationMessage: 'Reading renderer.ts' }, readFile, 'read', undefined, {}), 'Read renderer.ts');
+			part.updateThinking(createThinkingPart(`${reviewing}\n\n**Revisiting the plan**\n\nLate text.`, 'inspect'));
+			const lateEarlierReasoning = snapshot(part).title;
+			part.setupThinkingContainer(createThinkingPart('**Comparing the results**\n\nBoth paths match.', 'compare'));
+
+			assert.deepStrictEqual({ partialHeading, heading, latestHeading, lateEarlierReasoning, nextReasoning: snapshot(part).title }, {
+				partialHeading: 'Thinking',
+				heading: { title: 'Inspecting changes and sources', ariaLabel: 'Inspecting changes and sources', expanded: false },
+				latestHeading: { title: 'Reviewing chatModel.ts', renderedAsMarkdown: false },
+				lateEarlierReasoning: 'Reading renderer.ts',
+				nextReasoning: 'Comparing the results',
+			});
+		});
+
+		test('stops naming a tool call that leaves the section, without disturbing earlier calls to the same tool', () => {
+			const part = createConversationSection(createThinkingPart());
+			appendTool(part, new ChatToolInvocation({ invocationMessage: 'Reading first.ts' }, readFile, 'first', undefined, {}), 'Read first.ts');
+			const second = new ChatToolInvocation({ invocationMessage: 'Reading second.ts' }, readFile, 'second', undefined, {});
+			appendTool(part, second, 'Read second.ts');
+			const removed = part.removeLazyItem(second.toolId, second.toolCallId);
+			const title = snapshot(part).title;
+			getButton(part).click();
+
+			assert.deepStrictEqual({
+				removed,
+				title,
+				body: Array.from(part.domNode.querySelectorAll('.chat-thinking-collapsible .test-tool'), element => element.textContent?.trim()),
+			}, {
+				removed: true,
+				title: 'Working',
+				body: ['Read first.ts'],
+			});
+		});
+
+		test('finished sections report only recorded reasoning time and not tool time', () => {
+			type Case = { readonly reasoning: readonly { readonly startedAt?: number; readonly durationMs?: number; readonly text?: string }[]; readonly tools: readonly (readonly [startedAt?: number, completedAt?: number])[] };
+			const cases: Record<string, Case> = {
+				shortReasoning: { reasoning: [{ startedAt: 1000, durationMs: 400 }], tools: [] },
+				reasoningWithoutStart: { reasoning: [{ durationMs: 2600 }], tools: [] },
+				textlessReasoning: { reasoning: [{ startedAt: 1000, durationMs: 2400, text: '\n' }], tools: [] },
+				textlessReasoningAndTools: { reasoning: [{ startedAt: 1000, durationMs: 2000, text: ' ' }], tools: [[3000, 4500]] },
+				toolsOnly: { reasoning: [], tools: [[1000, 2000], [3000, 66_000]] },
+				reasoningAndTools: { reasoning: [{ startedAt: 1000, durationMs: 1500 }], tools: [[2500, 4000]] },
+				reasoningWithoutStartAndTools: { reasoning: [{ durationMs: 2600 }], tools: [[1000, 2000], [3000]] },
+				unfinishedTool: { reasoning: [{ startedAt: 1000, durationMs: 500 }], tools: [[1500]] },
+				restoredReasoning: { reasoning: [{}], tools: [] },
+				restoredTools: { reasoning: [], tools: [[], []] },
+				restoredReasoningThenLiveTool: { reasoning: [{}], tools: [[1000, 2000]] },
+				liveReasoningThenRestoredTool: { reasoning: [{ startedAt: 1000, durationMs: 1500 }], tools: [[]] },
+			};
+			const titles = Object.fromEntries(Object.entries(cases).map(([name, { reasoning, tools }]) => {
+				const [first, ...rest] = reasoning.length ? reasoning.map(({ startedAt, durationMs, text }, index) => ({ ...createThinkingPart(text ?? `Reasoning ${index}`, `reasoning-${index}`), reasoningStartedAt: startedAt, reasoningDurationMs: durationMs })) : [createThinkingPart()];
+				const part = createConversationSection(first, true);
+				for (const [index, [startedAt, completedAt]] of tools.entries()) {
+					appendTool(part, createSerializedTool(`tool-${index}`, startedAt, completedAt), `Read tool-${index}`);
+				}
+				for (const content of rest) {
+					part.setupThinkingContainer(content);
+				}
+				part.finalizeTitleIfDefault();
+				return [name, snapshot(part).title];
+			}));
+
+			assert.deepStrictEqual(titles, {
+				shortReasoning: 'Thought for 1s',
+				reasoningWithoutStart: 'Thought for 3s',
+				textlessReasoning: 'Finished thinking',
+				textlessReasoningAndTools: 'Finished thinking',
+				toolsOnly: 'Finished thinking',
+				reasoningAndTools: 'Thought for 2s',
+				reasoningWithoutStartAndTools: 'Thought for 3s',
+				unfinishedTool: 'Thought for 1s',
+				restoredReasoning: 'Finished thinking',
+				restoredTools: 'Finished thinking',
+				restoredReasoningThenLiveTool: 'Finished thinking',
+				liveReasoningThenRestoredTool: 'Thought for 2s',
+			});
+		});
+
+		test('split array reasoning does not combine distinct source durations', () => {
+			const cases: Record<string, { parts: IChatThinkingPart[]; title: string }> = {
+				equalDurations: {
+					parts: [
+						{ kind: 'thinking', value: ['First', 'Second'], reasoningDurationMs: 1200 },
+						{ kind: 'thinking', value: ['Third', 'Fourth'], reasoningDurationMs: 1200 },
+					],
+					title: 'Finished thinking',
+				},
+				knownSpan: {
+					parts: [
+						{ kind: 'thinking', value: ['First', 'Second'], reasoningStartedAt: 1000, reasoningDurationMs: 1200 },
+						{ kind: 'thinking', value: ['Third', 'Fourth'], reasoningStartedAt: 5000, reasoningDurationMs: 1200 },
+					],
+					title: 'Finished thinking',
+				},
+				unknownTiming: {
+					parts: [
+						{ kind: 'thinking', value: ['First', 'Second'], reasoningDurationMs: 1200 },
+						{ kind: 'thinking', value: ['Third', 'Fourth'] },
+					],
+					title: 'Finished thinking',
+				},
+			};
+			const titles = Object.fromEntries(Object.entries(cases).map(([name, { parts }]) => {
+				const [first, ...rest] = parts.flatMap(source => (Array.isArray(source.value) ? source.value : [source.value ?? ''])
+					.map(value => ({ source, rendered: { ...source, value } })));
+				const part = createConversationSection(first.rendered, true);
+				part.setThinkingPartSource(first.rendered, first.source);
+				for (const { rendered, source } of rest) {
+					part.setupThinkingContainer(rendered, source);
+				}
+				part.finalizeTitleIfDefault();
+				return [name, snapshot(part).title];
+			}));
+
+			assert.deepStrictEqual(titles, Object.fromEntries(Object.entries(cases).map(([name, { title }]) => [name, title])));
+		});
+
+		test('replacing a split reasoning fragment updates the recorded duration', () => {
+			const source = { ...createThinkingPart(undefined, 'shared'), value: ['First', 'Second'], reasoningDurationMs: 1200 };
+			const first = { ...source, value: 'First' };
+			const part = createConversationSection(first);
+			part.setThinkingPartSource(first, source);
+			part.setupThinkingContainer({ ...source, value: 'Second' }, source);
+			part.updateThinking({ ...source, value: 'Second updated', reasoningDurationMs: 2500 });
+			part.finalizeTitleIfDefault();
+
+			assert.deepStrictEqual({ title: snapshot(part).title, ariaLabel: snapshot(part).ariaLabel }, {
+				title: 'Thought for 3s',
+				ariaLabel: 'Thought for 3s',
+			});
+		});
+
+		test('does not request a title without viewport registration or remove reasoning headings', async () => {
+			let modelSelections = 0;
+			mockLanguageModelsService.selectLanguageModels = async () => {
+				modelSelections++;
+				return [];
+			};
+			const part = createConversationSection(createThinkingPart('**Evaluating code**\n\nCheck the renderer.\n\n**Reviewing build processes**\n\nCheck the build.'), true);
+			part.finalizeTitleIfDefault();
+			await timeout(0);
+			part.expandContent();
+
+			assert.deepStrictEqual({
+				title: snapshot(part).title,
+				modelSelections,
+				body: Array.from(part.domNode.querySelectorAll('.chat-thinking-collapsible p'), paragraph => paragraph.textContent?.trim()),
+			}, {
+				title: 'Finished thinking',
+				modelSelections: 0,
+				body: ['Evaluating code', 'Check the renderer.', 'Reviewing build processes', 'Check the build.'],
+			});
+		});
+
 	});
 
 	suite('Thinking group identity', () => {
@@ -2080,14 +2315,165 @@ suite('ChatThinkingContentPart', () => {
 			mockConfigurationService.setUserConfiguration('chat.agent.thinkingStyle', ThinkingDisplayMode.Collapsed);
 		});
 
+		for (const layout of ['legacy', 'persistent', 'conversation']) {
+			test(`a single extracted header is the completed title without generation (${layout})`, () => {
+				let registrations = 0;
+				const content = createThinkingPart('**Reviewed implementation details**\n\nThe full reasoning remains here.');
+				const part = createThinkingContentPart(content, {
+					...createMockRenderContext(true),
+					suppressProgressShimmer: layout !== 'legacy',
+					isConversation: layout === 'conversation',
+					registerThinkingTitle: () => { registrations++; return toDisposable(() => { }); },
+				}, mockMarkdownRenderer, true);
+				part.finalizeTitleIfDefault();
+				part.expandContent();
+				part.collapseContent();
+				assert.deepStrictEqual({
+					title: part.domNode.querySelector('.monaco-button')?.textContent,
+					modelTitle: content.generatedTitle,
+					registrations,
+				}, { title: 'Reviewed implementation details', modelTitle: 'Reviewed implementation details', registrations: 0 });
+			});
+
+			test(`multiple extracted headers are the summary prompt, not the reasoning body (${layout})`, () => {
+				let prepare: (() => IChatThinkingTitleRequest) | undefined;
+				let eligible: boolean | undefined;
+				let accept: ((title: string) => void) | undefined;
+				const content = createThinkingPart('**Analyzing the request**\n\nDetailed reasoning.\n\n**Planning the edits**\n\nMore detailed reasoning.');
+				content.generatedTitle = 'Analyzing the request';
+				const part = createThinkingContentPart(content, {
+					...createMockRenderContext(false),
+					suppressProgressShimmer: layout !== 'legacy',
+					isConversation: layout === 'conversation',
+					registerThinkingTitle: (_header, getRequest, acceptTitle, newlyCompleted) => {
+						prepare = getRequest;
+						eligible = newlyCompleted;
+						accept = acceptTitle;
+						return toDisposable(() => { });
+					},
+				}, mockMarkdownRenderer, false);
+				part.finalizeTitleIfDefault();
+				const input = prepare?.();
+				const before = part.domNode.querySelector('.monaco-button')?.textContent;
+				assert.ok(accept);
+				accept('Analyzed the request and planned edits');
+				assert.deepStrictEqual({
+					before, eligible, input: input?.content,
+					reusesOnlyFirstHeader: input?.isValidTitle?.('Analyzing the request'),
+					title: part.domNode.querySelector('.monaco-button')?.textContent,
+				}, {
+					before: 'Finished thinking', eligible: true, input: 'Analyzing the request\nPlanning the edits',
+					reusesOnlyFirstHeader: false, title: 'Analyzed the request and planned edits',
+				});
+			});
+
+			test(`a live completion registers once and retains its generated title after expansion (${layout})`, () => {
+				let registered = 0;
+				let removed = 0;
+				let eligible: boolean | undefined;
+				let acceptTitle: ((title: string) => void) | undefined;
+				let prepare: (() => { readonly content: string }) | undefined;
+				const source: IChatThinkingPart = { ...createThinkingPart(undefined, 'array'), value: ['First reasoning', 'Second reasoning'] };
+				const first = { ...source, value: 'First reasoning' };
+				const part = createThinkingContentPart(first, {
+					...createMockRenderContext(false),
+					suppressProgressShimmer: layout !== 'legacy',
+					isConversation: layout === 'conversation',
+					registerThinkingTitle: (_header, getRequest, accept, newlyCompleted) => {
+						registered++;
+						eligible = newlyCompleted;
+						prepare = getRequest;
+						acceptTitle = accept;
+						return toDisposable(() => removed++);
+					},
+				}, mockMarkdownRenderer, false);
+				part.setThinkingPartSource(first, source);
+				part.setupThinkingContainer({ ...source, value: 'Second reasoning' }, source);
+				part.finalizeTitleIfDefault();
+				part.finalizeTitleIfDefault();
+				const initial = part.domNode.querySelector('.monaco-button')?.textContent;
+				assert.ok(acceptTitle);
+				acceptTitle('Reviewed both approaches');
+				part.expandContent();
+				part.collapseContent();
+				part.finalizeTitleIfDefault();
+				assert.deepStrictEqual({
+					initial, registered, removed, eligible, content: prepare?.().content,
+					title: part.domNode.querySelector('.monaco-button')?.textContent,
+					modelTitle: source.generatedTitle,
+				}, {
+					initial: 'Finished thinking', registered: 1, removed: 1, eligible: true, content: 'First reasoning\nSecond reasoning',
+					title: 'Reviewed both approaches', modelTitle: 'Reviewed both approaches',
+				});
+			});
+		}
+
+		for (const { responseComplete, sectionComplete } of [
+			{ responseComplete: true, sectionComplete: true },
+			{ responseComplete: true, sectionComplete: false },
+			{ responseComplete: false, sectionComplete: true },
+		]) {
+			test(`existing sections can only reuse titles (response complete=${responseComplete}, section complete=${sectionComplete})`, () => {
+				const eligibility: boolean[] = [];
+				const part = createThinkingContentPart(createThinkingPart('Existing reasoning'), {
+					...createMockRenderContext(responseComplete),
+					registerThinkingTitle: (_header, _getRequest, _accept, newlyCompleted) => {
+						eligibility.push(newlyCompleted);
+						return toDisposable(() => { });
+					},
+				}, mockMarkdownRenderer, sectionComplete);
+				part.finalizeTitleIfDefault();
+				part.finalizeTitleIfDefault();
+				assert.deepStrictEqual(eligibility, [false]);
+			});
+		}
+
+		test('reuses generated headers in every thinking and progress style without model requests', async () => {
+			let modelSelections = 0;
+			mockLanguageModelsService.selectLanguageModels = async () => {
+				modelSelections++;
+				return [];
+			};
+			mockConfigurationService.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, true);
+			const titles: (string | null | undefined)[] = [];
+			for (const thinkingStyle of Object.values(ThinkingDisplayMode)) {
+				mockConfigurationService.setUserConfiguration(ChatConfiguration.ThinkingStyle, thinkingStyle);
+				for (const progress of ['legacy', 'persistent', 'conversation']) {
+					const context = {
+						...createMockRenderContext(true),
+						suppressProgressShimmer: progress !== 'legacy',
+						isConversation: progress === 'conversation',
+					};
+					for (const split of [false, true]) {
+						const values = ['**Reviewing code**\n\nDetails.', '**Planning tests**\n\nMore details.'];
+						const source: IChatThinkingPart = {
+							...createThinkingPart(),
+							value: split ? values : values.join('\n\n'),
+							reasoningDurationMs: 1200,
+							generatedTitle: 'Previously generated summary',
+						};
+						const content = split ? { ...source, value: values[0] } : source;
+						const part = createThinkingContentPart(content, context, mockMarkdownRenderer, true);
+						if (split) {
+							part.setThinkingPartSource(content, source);
+							part.setupThinkingContainer({ ...source, value: values[1] }, source);
+						}
+						part.finalizeTitleIfDefault();
+						part.expandContent();
+						part.collapseContent();
+						titles.push(part.domNode.querySelector('.monaco-button')?.textContent);
+					}
+				}
+			}
+			await timeout(0);
+			assert.deepStrictEqual({ titles, modelSelections }, {
+				titles: Array.from({ length: Object.values(ThinkingDisplayMode).length * 3 * 2 }, () => 'Previously generated summary'),
+				modelSelections: 0,
+			});
+		});
+
 		test('distinguishes reasoning from grouped tool content', () => {
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				createThinkingPart('**Reviewed the implementation**'),
-				createMockRenderContext(false),
-				mockMarkdownRenderer,
-				false
-			));
+			const part = createThinkingContentPart(createThinkingPart('**Reviewed the implementation**'), createMockRenderContext(false), mockMarkdownRenderer, false);
 
 			assert.deepStrictEqual({
 				hasReasoning: part.hasReasoningContent(),
@@ -2102,16 +2488,10 @@ suite('ChatThinkingContentPart', () => {
 			assert.strictEqual(part.hasGroupedItems(), true);
 		});
 
-		test('adds elapsed time to finalized reasoning-only headers', () => {
-			const content = createThinkingPart('**Reviewed the implementation**');
+		test('shows recorded reasoning duration in finalized headers and accessible labels', () => {
+			const content = createThinkingPart('Reviewed the implementation');
 			content.reasoningDurationMs = 1200;
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				createMockRenderContext(false),
-				mockMarkdownRenderer,
-				false
-			));
+			const part = createThinkingContentPart(content, createMockRenderContext(false), mockMarkdownRenderer, false);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -2122,55 +2502,65 @@ suite('ChatThinkingContentPart', () => {
 
 			assert.deepStrictEqual({
 				generatedTitle: content.generatedTitle,
-				labelHasDuration: /^Reviewed the implementation - \d+s$/.test(part.domNode.querySelector('.monaco-button')?.textContent ?? ''),
-				ariaLabelHasDuration: /^Reviewed the implementation - \d+s$/.test(button?.ariaLabel ?? ''),
+				label: part.domNode.querySelector('.monaco-button')?.textContent,
+				ariaLabel: button?.ariaLabel,
 			}, {
-				generatedTitle: 'Reviewed the implementation',
-				labelHasDuration: true,
-				ariaLabelHasDuration: true,
+				generatedTitle: undefined,
+				label: 'Thought for 2s',
+				ariaLabel: 'Thought for 2s',
 			});
 		});
 
-		test('restores the persisted duration when reasoning content is rehydrated', () => {
-			const content = createThinkingPart('**Reviewed the implementation**');
-			content.reasoningDurationMs = 2300;
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				createMockRenderContext(false),
-				mockMarkdownRenderer,
-				true
-			));
+		test('displays Thought for 45s when reasoning content is rehydrated', () => {
+			const content = createThinkingPart('Reviewed the implementation');
+			content.reasoningDurationMs = 45_000;
+			const part = createThinkingContentPart(content, createMockRenderContext(false), mockMarkdownRenderer, true);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
 			part.finalizeTitleIfDefault();
 
-			assert.strictEqual(part.domNode.querySelector('.monaco-button')?.textContent, 'Reviewed the implementation - 3s');
+			assert.strictEqual(part.domNode.querySelector('.monaco-button')?.textContent, 'Thought for 45s');
 		});
 
-		test('does not show zero or unknown reasoning duration', () => {
-			const titles = [undefined, 0].map(reasoningDurationMs => {
-				const content = createThinkingPart('**Reviewed the implementation**');
+		test('distinguishes zero reasoning duration from unavailable or invalid timing', () => {
+			const titles = [undefined, 0, 1, 999, 1000, 1001, 83_000, 83_001, -1, NaN, Infinity].map(reasoningDurationMs => {
+				const content = createThinkingPart('Reviewed the implementation');
 				content.reasoningDurationMs = reasoningDurationMs;
-				const part = store.add(instantiationService.createInstance(
-					ChatThinkingContentPart,
-					content,
-					createMockRenderContext(false),
-					mockMarkdownRenderer,
-					true
-				));
+				const part = createThinkingContentPart(content, createMockRenderContext(false), mockMarkdownRenderer, true);
 				part.finalizeTitleIfDefault();
 				return part.domNode.querySelector('.monaco-button')?.textContent;
 			});
 
-			assert.deepStrictEqual(titles, ['Reviewed the implementation', 'Reviewed the implementation']);
+			assert.deepStrictEqual(titles, ['Finished thinking', 'Thought for 1s', 'Thought for 1s', 'Thought for 1s', 'Thought for 1s', 'Thought for 2s', 'Thought for 1m 23s', 'Thought for 1m 24s', 'Finished thinking', 'Finished thinking', 'Finished thinking']);
 		});
 	});
 
 	suite('Tool invocation appending', () => {
 		setup(() => {
 			mockConfigurationService.setUserConfiguration('chat.agent.thinkingStyle', ThinkingDisplayMode.Collapsed);
+		});
+
+		test('does not render intermediate titles or materialize tools in a completed collapsed group', () => {
+			const render = sinon.spy(mockMarkdownRenderer, 'render');
+			const part = createThinkingContentPart(createThinkingPart(), createMockRenderContext(false), mockMarkdownRenderer, true);
+			let materialized = 0;
+			for (let index = 0; index < 200; index++) {
+				const tool: IChatToolInvocationSerialized = {
+					kind: 'toolInvocationSerialized', toolId: 'read_file', toolCallId: `read-${index}`,
+					invocationMessage: new MarkdownString(`Read \`file-${index}.ts\``),
+					source: ToolDataSource.Internal, isComplete: true, isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
+					originMessage: undefined, pastTenseMessage: undefined, presentation: undefined,
+				};
+				part.appendItem(() => {
+					materialized++;
+					return { domNode: $('div.test-tool') };
+				}, tool.toolId, tool);
+			}
+			part.finalizeTitleIfDefault();
+			assert.deepStrictEqual({ markdownRenders: render.callCount, materialized, title: part.domNode.querySelector('.monaco-button')?.textContent }, {
+				markdownRenders: 0, materialized: 0, title: 'Finished thinking',
+			});
 		});
 
 		for (const expanded of [false, true]) {
@@ -2225,13 +2615,7 @@ suite('ChatThinkingContentPart', () => {
 			const content = createThinkingPart('**Working**');
 			const context = createMockRenderContext(false);
 
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				false
-			));
+			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -2256,13 +2640,7 @@ suite('ChatThinkingContentPart', () => {
 			const content = createThinkingPart('**Working**\nSome detailed analysis of the problem');
 			const context = createMockRenderContext(false);
 
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				false
-			));
+			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -2290,13 +2668,7 @@ suite('ChatThinkingContentPart', () => {
 			const content = createThinkingPart('**Working**');
 			const context = createMockRenderContext(false);
 
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				false
-			));
+			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -2325,13 +2697,7 @@ suite('ChatThinkingContentPart', () => {
 			const content = createThinkingPart('**Working**');
 			const context = createMockRenderContext(false);
 
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				false
-			));
+			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -2358,13 +2724,7 @@ suite('ChatThinkingContentPart', () => {
 			const content = createThinkingPart('**Working**');
 			const context = createMockRenderContext(false);
 
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				false
-			));
+			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -2440,13 +2800,7 @@ suite('ChatThinkingContentPart', () => {
 			const initialContent = createThinkingPart('**Initial thinking**', 'thinking-1');
 			const context = createMockRenderContext(false);
 
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				initialContent,
-				context,
-				mockMarkdownRenderer,
-				false
-			));
+			const part = createThinkingContentPart(initialContent, context, mockMarkdownRenderer, false);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -2537,13 +2891,7 @@ suite('ChatThinkingContentPart', () => {
 			const initialContent = createThinkingPart('', 'thinking-1');
 			const context = createMockRenderContext(false);
 
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				initialContent,
-				context,
-				mockMarkdownRenderer,
-				false
-			));
+			const part = createThinkingContentPart(initialContent, context, mockMarkdownRenderer, false);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -2624,13 +2972,7 @@ suite('ChatThinkingContentPart', () => {
 			const initialContent = createThinkingPart('', 'thinking-1');
 			const context = createMockRenderContext(false);
 
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				initialContent,
-				context,
-				mockMarkdownRenderer,
-				false
-			));
+			const part = createThinkingContentPart(initialContent, context, mockMarkdownRenderer, false);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -2682,13 +3024,7 @@ suite('ChatThinkingContentPart', () => {
 			const initialContent = createThinkingPart('', 'thinking-1');
 			const context = createMockRenderContext(false);
 
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				initialContent,
-				context,
-				mockMarkdownRenderer,
-				false
-			));
+			const part = createThinkingContentPart(initialContent, context, mockMarkdownRenderer, false);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -2726,13 +3062,7 @@ suite('ChatThinkingContentPart', () => {
 			const content = createThinkingPart('**Active thinking**');
 			const context = createMockRenderContext(false);
 
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				false
-			));
+			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
 
 			assert.strictEqual(part.getIsActive(), true, 'Should start as active');
 
@@ -2767,13 +3097,7 @@ suite('ChatThinkingContentPart', () => {
 			// Use CollapsedPreview to start expanded
 			mockConfigurationService.setUserConfiguration('chat.agent.thinkingStyle', ThinkingDisplayMode.CollapsedPreview);
 
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				false
-			));
+			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -2791,13 +3115,7 @@ suite('ChatThinkingContentPart', () => {
 			const content = createThinkingPart('**Working**');
 			const context = createMockRenderContext(false);
 
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				false
-			));
+			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -2810,17 +3128,11 @@ suite('ChatThinkingContentPart', () => {
 			assert.ok(part.domNode.classList.contains('chat-collapsible-content-animated'), 'Should enable content animation after finalization');
 		});
 
-		test('finalizeTitleIfDefault should retain initial thinking title', () => {
+		test('finalizeTitleIfDefault reuses and persists a single extracted heading', () => {
 			const content = createThinkingPart('**Reviewed renderer state**\nChecked completed response rendering');
 			const context = createMockRenderContext(true);
 
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				true
-			));
+			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, true);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -2839,17 +3151,11 @@ suite('ChatThinkingContentPart', () => {
 			});
 		});
 
-		test('finalizeTitleIfDefault should retain restored terminal title', () => {
+		test('finalizeTitleIfDefault reuses restored terminal summaries without a request', () => {
 			const content = createThinkingPart('');
 			const context = createMockRenderContext(true);
 
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				true
-			));
+			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, true);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -2891,7 +3197,7 @@ suite('ChatThinkingContentPart', () => {
 			});
 		});
 
-		test('finalizeTitleIfDefault should restore cached title for a reasoning-only block keyed by thinking part id', () => {
+		test('finalizeTitleIfDefault defers cached reasoning titles without viewport registration', () => {
 			const context = createMockRenderContext(true);
 			const thinkingId = 'reasoning-part-1';
 
@@ -2907,13 +3213,7 @@ suite('ChatThinkingContentPart', () => {
 			);
 
 			const content = createThinkingPart('', thinkingId);
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				true
-			));
+			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, true);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -2926,9 +3226,9 @@ suite('ChatThinkingContentPart', () => {
 				label: button.textContent,
 				ariaLabel: button.ariaLabel,
 			}, {
-				generatedTitle: 'Analyzed authentication flow',
-				label: 'Analyzed authentication flow',
-				ariaLabel: 'Analyzed authentication flow',
+				generatedTitle: undefined,
+				label: 'Finished thinking',
+				ariaLabel: 'Finished thinking',
 			});
 		});
 	});
@@ -2942,13 +3242,7 @@ suite('ChatThinkingContentPart', () => {
 			const content = createThinkingPart('**Working**', 'id-1');
 			const context = createMockRenderContext(false);
 
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				false
-			));
+			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
 
 			const toolInvocation = {
 				kind: 'toolInvocation' as const,
@@ -2970,13 +3264,7 @@ suite('ChatThinkingContentPart', () => {
 				test(`should replace thinking when a tool becomes a parent subagent (complete=${isComplete}, serialized=${serialized})`, () => {
 					const content = createThinkingPart('**Working**', 'id-1');
 					const context = createMockRenderContext(isComplete);
-					const part = store.add(instantiationService.createInstance(
-						ChatThinkingContentPart,
-						content,
-						context,
-						mockMarkdownRenderer,
-						false
-					));
+					const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
 					const invocation = new ChatToolInvocation(
 						{ toolSpecificData: { kind: 'subagent' } },
 						{ id: 'task', displayName: 'Task', modelDescription: 'Delegate work', source: ToolDataSource.Internal },
@@ -2989,13 +3277,7 @@ suite('ChatThinkingContentPart', () => {
 
 			test(`should preserve thinking for ordinary and nested tools (complete=${isComplete})`, () => {
 				const context = createMockRenderContext(isComplete);
-				const part = store.add(instantiationService.createInstance(
-					ChatThinkingContentPart,
-					createThinkingPart('**Working**', 'id-1'),
-					context,
-					mockMarkdownRenderer,
-					false
-				));
+				const part = createThinkingContentPart(createThinkingPart('**Working**', 'id-1'), context, mockMarkdownRenderer, false);
 				const toolData = { id: 'task', displayName: 'Task', modelDescription: 'Delegate work', source: ToolDataSource.Internal };
 				const ordinary = new ChatToolInvocation(undefined, toolData, 'ordinary', undefined, {});
 				const nested = new ChatToolInvocation({ toolSpecificData: { kind: 'subagent' } }, toolData, 'nested', 'parent', {});
@@ -3011,13 +3293,7 @@ suite('ChatThinkingContentPart', () => {
 			const content = createThinkingPart('**Working**', 'id-1');
 			const context = createMockRenderContext(false);
 
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				false
-			));
+			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
 
 			const markdownContent = {
 				kind: 'markdownContent' as const,
@@ -3032,13 +3308,7 @@ suite('ChatThinkingContentPart', () => {
 			const content = createThinkingPart('**Working**', 'id-1');
 			const context = createMockRenderContext(false);
 
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				false
-			));
+			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
 
 			const otherThinking: IChatRendererContent = createThinkingPart('**Different**', 'id-1');
 
@@ -3051,13 +3321,7 @@ suite('ChatThinkingContentPart', () => {
 			const content = createThinkingPart('**Working**', 'id-1');
 			const context = createMockRenderContext(false);
 
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				false
-			));
+			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
 
 			const otherThinking: IChatRendererContent = createThinkingPart('**Different**', 'id-2');
 
@@ -3075,13 +3339,7 @@ suite('ChatThinkingContentPart', () => {
 			const content = createThinkingPart('**Content**\nSome detailed reasoning that differs from the title');
 			const context = createMockRenderContext(false);
 
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				false
-			));
+			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -3100,13 +3358,7 @@ suite('ChatThinkingContentPart', () => {
 			const content = createThinkingPart('**Streaming content**');
 			const context = createMockRenderContext(false);
 
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				false // not streaming completed
-			));
+			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -3194,7 +3446,7 @@ suite('ChatThinkingContentPart', () => {
 		test('reuses identical tool titles without reparsing markdown and restores detail after expansion', () => {
 			mockConfigurationService.setUserConfiguration('chat.agent.thinkingStyle', ThinkingDisplayMode.Collapsed);
 			const renderer = sinon.spy(mockMarkdownRenderer, 'render');
-			const part = store.add(instantiationService.createInstance(ChatThinkingContentPart, createThinkingPart(''), createMockRenderContext(), mockMarkdownRenderer, false));
+			const part = createThinkingContentPart(createThinkingPart(''), createMockRenderContext(), mockMarkdownRenderer, false);
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
 			const append = (index: number) => {
@@ -3231,7 +3483,7 @@ suite('ChatThinkingContentPart', () => {
 		test('invalidates reused titles when markdown rendering metadata or mutable input changes', () => {
 			mockConfigurationService.setUserConfiguration('chat.agent.thinkingStyle', ThinkingDisplayMode.Collapsed);
 			const renderer = sinon.spy(mockMarkdownRenderer, 'render');
-			const part = store.add(instantiationService.createInstance(ChatThinkingContentPart, createThinkingPart(''), createMockRenderContext(), mockMarkdownRenderer, false));
+			const part = createThinkingContentPart(createThinkingPart(''), createMockRenderContext(), mockMarkdownRenderer, false);
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
 			const title = new MarkdownString('Reading **file**');
@@ -3269,13 +3521,7 @@ suite('ChatThinkingContentPart', () => {
 			const content = createThinkingPart('');
 			const context = createMockRenderContext(false);
 
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				false
-			));
+			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -3323,13 +3569,7 @@ suite('ChatThinkingContentPart', () => {
 			const content = createThinkingPart('');
 			const context = createMockRenderContext(false);
 
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				false
-			));
+			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -3362,13 +3602,7 @@ suite('ChatThinkingContentPart', () => {
 			const content = createThinkingPart('');
 			const context = createMockRenderContext(false);
 
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				false
-			));
+			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
 
 			const originalParent = $('div.original-parent');
 			const toolInvocationPart = $('div.chat-tool-invocation-part');
@@ -3399,13 +3633,7 @@ suite('ChatThinkingContentPart', () => {
 			const content = createThinkingPart('');
 			const context = createMockRenderContext(false);
 
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				false
-			));
+			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
 
 			const originalParent = $('div.original-parent');
 			const hiddenToolInvocationPart = $('div.chat-tool-invocation-part');
@@ -3443,13 +3671,7 @@ suite('ChatThinkingContentPart', () => {
 			const content = createThinkingPart('');
 			const context = createMockRenderContext(false);
 
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				false
-			));
+			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
 
 			const originalParent = $('div.original-parent');
 			const originalToolInvocationPart = $('div.chat-tool-invocation-part');
@@ -3485,13 +3707,7 @@ suite('ChatThinkingContentPart', () => {
 			const content = createThinkingPart('**Working**');
 			const context = createMockRenderContext(false);
 
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				false
-			));
+			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -3517,13 +3733,7 @@ suite('ChatThinkingContentPart', () => {
 			const content = createThinkingPart('**Working**');
 			const context = createMockRenderContext(false);
 
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				false
-			));
+			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -3548,13 +3758,7 @@ suite('ChatThinkingContentPart', () => {
 			const content = createThinkingPart('**Working**');
 			const context = createMockRenderContext(false);
 
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				false
-			));
+			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -3580,13 +3784,7 @@ suite('ChatThinkingContentPart', () => {
 			const markdownRenderer: IMarkdownRenderer = {
 				render: (markdown, options) => renderMarkdown(markdown, options),
 			};
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				createThinkingPart('**Working**'),
-				createMockRenderContext(false),
-				markdownRenderer,
-				false
-			));
+			const part = createThinkingContentPart(createThinkingPart('**Working**'), createMockRenderContext(false), markdownRenderer, false);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -3627,13 +3825,7 @@ suite('ChatThinkingContentPart', () => {
 			const content = createThinkingPart('**Working**');
 			const context = createMockRenderContext(false);
 
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				false
-			));
+			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -3658,13 +3850,7 @@ suite('ChatThinkingContentPart', () => {
 			const content = createThinkingPart('**Working**');
 			const context = createMockRenderContext(false);
 
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				false
-			));
+			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -3696,13 +3882,7 @@ suite('ChatThinkingContentPart', () => {
 		test('should not show external resources for terminal tools that render their own image pills', () => {
 			const content = createThinkingPart('**Working**');
 			const context = createMockRenderContext(false);
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				false
-			));
+			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -3738,13 +3918,7 @@ suite('ChatThinkingContentPart', () => {
 			const content = createThinkingPart('**Editing files**');
 			const context = createMockRenderContext(true);
 
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				true
-			));
+			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, true);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -3796,13 +3970,7 @@ suite('ChatThinkingContentPart', () => {
 			const content = createThinkingPart('**Editing files**');
 			const context = createMockRenderContext(true);
 
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				true
-			));
+			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, true);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -3841,13 +4009,7 @@ suite('ChatThinkingContentPart', () => {
 			const content = createThinkingPart('**Editing files**');
 			const context = createMockRenderContext(true);
 
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				true
-			));
+			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, true);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -3875,13 +4037,7 @@ suite('ChatThinkingContentPart', () => {
 			const content = createThinkingPart('**Editing files**');
 			const context = createMockRenderContext(true);
 
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				true
-			));
+			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, true);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -3908,13 +4064,7 @@ suite('ChatThinkingContentPart', () => {
 			const content = createThinkingPart('**Analyzing code**');
 			const context = createMockRenderContext(true);
 
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				true
-			));
+			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, true);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -3934,13 +4084,7 @@ suite('ChatThinkingContentPart', () => {
 				}
 			}());
 
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				createThinkingPart('**Editing files**'),
-				createMockRenderContext(true),
-				mockMarkdownRenderer,
-				true
-			));
+			const part = createThinkingContentPart(createThinkingPart('**Editing files**'), createMockRenderContext(true), mockMarkdownRenderer, true);
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
 
@@ -3989,13 +4133,7 @@ suite('ChatThinkingContentPart', () => {
 			const content = createThinkingPart('**Editing files**');
 			const context = createMockRenderContext(true);
 
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				true
-			));
+			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, true);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));

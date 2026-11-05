@@ -9,6 +9,7 @@ import { autorun, constObservable, observableValue } from '../../../../../base/c
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
+import { getChatPillEntryToolbarActions } from '../../../../browser/chatPills.js';
 import { createSessionPullRequestPillData, type IChatPullRequestPillSection } from '../../browser/sessionPullRequestPill.js';
 import { SessionChatPillVisibility } from '../../common/sessionChatPills.js';
 
@@ -123,7 +124,7 @@ suite('SessionPullRequestPillData', () => {
 		}]);
 		const data = createSessionPullRequestPillData(input, visibility);
 		const read = () => ({
-			toolbars: data.sections.get().flatMap(section => section.entries.map(entry => entry.toolbarActions?.map(action => action.id) ?? [])),
+			rowActions: data.sections.get().flatMap(section => section.entries.map(entry => getChatPillEntryToolbarActions(entry).map(action => action.id))),
 			contextMenu: data.getContextMenuPrimaryActions().map(action => action.id),
 		});
 		const multiple = read();
@@ -140,11 +141,11 @@ suite('SessionPullRequestPillData', () => {
 		input.set([], undefined);
 
 		assert.deepStrictEqual({ multiple, singleVisible, singleRemaining, copyOnly, empty: read(), copied, removed }, {
-			multiple: { toolbars: [['copy', 'remove'], []], contextMenu: [] },
-			singleVisible: { toolbars: [['copy']], contextMenu: ['copy', 'remove'] },
-			singleRemaining: { toolbars: [['copy']], contextMenu: ['copy', 'remove'] },
-			copyOnly: { toolbars: [['copy']], contextMenu: ['copy'] },
-			empty: { toolbars: [], contextMenu: [] },
+			multiple: { rowActions: [['copy', 'remove'], []], contextMenu: [] },
+			singleVisible: { rowActions: [['copy', 'remove']], contextMenu: ['copy', 'remove'] },
+			singleRemaining: { rowActions: [['copy', 'remove']], contextMenu: ['copy', 'remove'] },
+			copyOnly: { rowActions: [['copy']], contextMenu: ['copy'] },
+			empty: { rowActions: [], contextMenu: [] },
 			copied: ['https://github.com/microsoft/vscode/pull/1'],
 			removed: ['open'],
 		});

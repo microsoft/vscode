@@ -6,7 +6,7 @@
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { isBrowserViewAssociatedResourceNavigation } from '../../../../../platform/browserView/common/browserView.js';
+import { IBrowserViewNetwork, isBrowserViewAssociatedResourceNavigation } from '../../../../../platform/browserView/common/browserView.js';
 import { BrowserViewUri } from '../../../../../platform/browserView/common/browserViewUri.js';
 import { IInvokeFunctionResult, IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { IAgentNetworkFilterService } from '../../../../../platform/networkFilter/common/networkFilterService.js';
@@ -257,12 +257,11 @@ export function getExternalTunnelNetworkPolicyError(
  */
 export function rewriteRemoteLocalhostUrl(
 	url: string,
-	browserViewService: IBrowserViewWorkbenchService,
 	remoteExplorerService: IRemoteExplorerService,
+	usesRemoteNetwork: boolean,
 ): { url: string; rewritten: boolean } {
-	// When proxying is enabled (or we are not in a remote workspace) the browser
-	// can reach the remote host directly, so no rewriting is needed.
-	if (browserViewService.willUseRemoteProxy()) {
+	// A page on the remote network reaches the remote's localhost directly, so no rewriting is needed.
+	if (usesRemoteNetwork) {
 		return { url, rewritten: false };
 	}
 
@@ -304,13 +303,32 @@ export function remoteUrlRewriteNotice(originalUrl: string, rewrittenUrl: string
 }
 
 /**
- * Checks whether a browser editor with the same host (hostname + port) already exists.
+ * A notice for pages that use the user's local network although the session
+ * requested a remote one (`requested`), for example because the agent host
+ * cannot proxy browsers. `used` is the network the pages actually use.
+ */
+export function localNetworkFallbackNotice(requested: IBrowserViewNetwork | undefined, used: IBrowserViewNetwork | undefined): { kind: 'text'; value: string } | undefined {
+	if (!requested || used) {
+		return undefined;
+	}
+	return {
+		kind: 'text',
+		value: 'Note: These browser pages load from the user\'s local network, not the remote host\'s network, so `localhost` refers to the user\'s machine. Services running on the remote host are not reachable from them.',
+	};
+}
+
+/**
+ * Checks whether a browser editor with the same host (hostname + port) on the
+ * same network already exists. Pages keep the network they were opened on, so
+ * the same URL on another network is a different destination.
  *
+ * @param network The network a new page would use, or `undefined` for the local network.
  * @returns All matching {@link BrowserEditorInput}s.
  */
 export function findExistingPagesByHost(
 	browserViewService: IBrowserViewWorkbenchService,
 	url: string,
+	network: IBrowserViewNetwork | undefined,
 	options?: {
 		includeBlank?: boolean;
 		sharingState?: BrowserViewSharingState;
@@ -323,6 +341,11 @@ export function findExistingPagesByHost(
 			continue;
 		}
 		if (options?.sharingState && editor.model?.sharingState !== options.sharingState) {
+			continue;
+		}
+		// A page uses the network of its model once created, which may be the local network it fell back to.
+		const pageNetwork = editor.model ? editor.model.network : editor.network;
+		if (pageNetwork?.authority !== network?.authority) {
 			continue;
 		}
 		if (browserViewUrlMatches(editor.url, url, options?.includeBlank)) {

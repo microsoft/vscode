@@ -15,6 +15,7 @@ import { isUriComponents, URI, UriComponents } from '../../../base/common/uri.js
 import { FileOperationResult, IFileService, IFileStatWithMetadata, toFileOperationResult } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { AHP_CANVAS_SCHEME } from './canvasUri.js';
+import { redactAgentPermissionFeedback } from './meta/agentPermissionResponseMeta.js';
 
 export type AhpLogDirection = 'c2s' | 's2c';
 
@@ -76,6 +77,7 @@ const MAX_LOG_LINE_LENGTH = 1024 * 1024;
 // length. Generous enough to keep messages useful for debugging.
 const MAX_LOGGED_STRING_LENGTH = 16 * 1024;
 const REDACTED_CANVAS_SOURCE = '<redacted canvas source>';
+const REDACTED_PERMISSION_FEEDBACK = '<redacted permission feedback>';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null;
@@ -425,6 +427,20 @@ function stringifyAhpLogEntryTruncated(value: unknown, maxStringLength: number):
  */
 function _ahpReplacer(this: unknown, _key: string, value: unknown): unknown {
 	if (isRecord(value)) {
+		if (typeof value.authorization === 'string') {
+			return { ...value, authorization: '<redacted>' };
+		}
+		// Assisted permissions feedback is restricted telemetry, wherever a confirmation carries it.
+		const redactedMeta = isRecord(value._meta) ? redactAgentPermissionFeedback(value._meta, REDACTED_PERMISSION_FEEDBACK) : undefined;
+		if (redactedMeta) {
+			return { ...value, _meta: redactedMeta };
+		}
+		if ((value.method === 'channel/frame' || value.method === 'tcp/data') && isRecord(value.params)) {
+			return { ...value, params: { ...value.params, data: '<redacted channel payload>' } };
+		}
+		if (isRecord(value.result) && Array.isArray(value.result.certificates)) {
+			return { ...value, result: { ...value.result, certificates: '<redacted>' } };
+		}
 		if (value.method === 'authenticate' && isRecord(value.params) && value.params.token !== undefined
 			&& value.params.token !== '<redacted>' && value.params.token !== '[REDACTED]') {
 			return { ...value, params: { ...value.params, token: '<redacted>' } };

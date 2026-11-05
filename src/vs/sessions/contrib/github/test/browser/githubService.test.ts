@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Event } from '../../../../../base/common/event.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
@@ -20,13 +19,19 @@ import { IStorageService } from '../../../../../platform/storage/common/storage.
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { GitHubService } from '../../browser/githubService.js';
+import { IPullRequestIconCache, PullRequestIconCache } from '../../browser/pullRequestIconCache.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { GITHUB_REMOTE_FILE_SCHEME } from '../../../../services/sessions/common/session.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 
 suite('GitHubService', () => {
 
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let service: GitHubService;
+	let activeSession: ISettableObservable<IActiveSession | undefined>;
+	let mainWindowActiveSession: ISettableObservable<IActiveSession | undefined>;
 	let domainCalls: { operation: string; args: readonly unknown[] }[];
 
 	setup(() => {
@@ -34,12 +39,20 @@ suite('GitHubService', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IStorageService, store.add(new TestStorageService()));
+		activeSession = observableValue<IActiveSession | undefined>('test.activeSession', undefined);
+		mainWindowActiveSession = observableValue<IActiveSession | undefined>('test.mainWindowActiveSession', undefined);
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = activeSession;
+			override readonly mainWindowActiveSession = mainWindowActiveSession;
+		}());
+		instantiationService.stub(IPullRequestIconCache, instantiationService.createInstance(PullRequestIconCache));
 		instantiationService.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
 			override readonly onDidChangeDefaultAccount = Event.None;
 			override readonly currentDefaultAccount = null;
 			override getDefaultAccountAuthenticationProvider() { return { id: 'github', name: 'GitHub', enterprise: false }; }
 		}());
 		instantiationService.stub(IWorkbenchGitHubService, new class extends mock<IWorkbenchGitHubService>() {
+			override readonly onDidChangeDefaultClient = Event.None;
 			override async acquireDefaultAccountApiClient() {
 				return upcastPartial<IGitHubAccountClient>({
 					onDidInvalidate: Event.None,
@@ -54,8 +67,8 @@ suite('GitHubService', () => {
 						},
 					}),
 					content: upcastPartial<IGitHubAccountClient['content']>({
-						getContent: async (owner, repo, path, _signal, options) => {
-							domainCalls.push({ operation: 'content.getContent', args: [owner, repo, path, options] });
+						getContent: async (repository, path, _signal, options) => {
+							domainCalls.push({ operation: 'content.getContent', args: [repository, path, options] });
 							return upcastPartial<FileContent>({ type: 'file', encoding: 'base64', content: 'aGVsbG8=' });
 						},
 					}),
@@ -72,10 +85,6 @@ suite('GitHubService', () => {
 		service = store.add(instantiationService.createInstance(GitHubService));
 	});
 
-	teardown(() => store.clear());
-
-	ensureNoDisposablesAreLeakedInTestSuite();
-
 	test('delegates commit, file, and branch lookup to typed domains and reuses successful branch lookups', async () => {
 		const commit = await service.getCommit('o', 'r', 'abc', CancellationToken.None);
 		const content = await service.getFileContent('o', 'r', 'dir/file #.txt', 'feature/branch');
@@ -85,10 +94,58 @@ suite('GitHubService', () => {
 			commit: { sha: 'abc', message: 'Message', url: 'https://github.com/o/r/commit/abc', author: { login: 'Author' }, committedAt: '2026-10-14T00:00:00Z' },
 			content: 'hello', pullRequest: 42, repeated: 42,
 			domainCalls: [
-				{ operation: 'repositories.getCommit', args: [{ owner: 'o', name: 'r' }, 'abc', { priority: 'enrichment' }] },
-				{ operation: 'content.getContent', args: ['o', 'r', 'dir/file #.txt', { query: { ref: 'feature/branch' } }] },
-				{ operation: 'pullRequests.list', args: [{ owner: 'o', name: 'r' }, { priority: 'background', query: { head: 'o:feature/branch', state: 'all', sort: 'updated', direction: 'desc', per_page: 1 } }] },
+				{ operation: 'repositories.getCommit', args: [{ owner: 'o', repo: 'r' }, 'abc', { priority: 'enrichment' }] },
+				{ operation: 'content.getContent', args: [{ owner: 'o', repo: 'r' }, 'dir/file #.txt', { query: { ref: 'feature/branch' } }] },
+				{ operation: 'pullRequests.list', args: [{ owner: 'o', repo: 'r' }, { priority: 'background', query: { head: 'o:feature/branch', state: 'all', sort: 'updated', direction: 'desc', per_page: 1 } }] },
 			],
+		});
+	});
+
+	function createPullRequestSession(prNumber: number): IActiveSession {
+		return upcastPartial<IActiveSession>({
+			workspace: observableValue('test.workspace', {
+				folders: [{
+					gitRepository: {
+						gitHubInfo: observableValue('test.gitHubInfo', { owner: 'o', repo: 'r', pullRequest: { number: prNumber, uri: URI.parse(`https://github.com/o/r/pull/${prNumber}`) } }),
+					},
+				}],
+			}) as unknown as IActiveSession['workspace'],
+		});
+	}
+
+	test('the pull request of the active session is that of the session of the main window, also while another window has focus', () => {
+		const mainSession = createPullRequestSession(3);
+		mainWindowActiveSession.set(mainSession, undefined);
+		activeSession.set(mainSession, undefined);
+		const main = service.activeSessionPullRequestObs.get()?.prNumber;
+		// The session of a chat window is active while its window has focus; the main window keeps showing its own.
+		activeSession.set(createPullRequestSession(9), undefined);
+		assert.deepStrictEqual({ main, whileAnotherWindowHasFocus: service.activeSessionPullRequestObs.get()?.prNumber }, { main: 3, whileAnotherWindowHasFocus: 3 });
+	});
+
+	test('getSessionPullRequest resolves the pull request of its own session independent of the active session', () => {
+		const createSession = (prNumber: number) => upcastPartial<IActiveSession>({
+			workspace: observableValue('test.workspace', {
+				folders: [{
+					gitRepository: {
+						gitHubInfo: observableValue('test.gitHubInfo', { owner: 'o', repo: 'r', pullRequest: { number: prNumber, uri: URI.parse(`https://github.com/o/r/pull/${prNumber}`) } }),
+					},
+				}],
+			}) as unknown as IActiveSession['workspace'],
+		});
+		const scopedSession = observableValue<IActiveSession | undefined>('test.scopedSession', createSession(7));
+		activeSession.set(createSession(3), undefined);
+		mainWindowActiveSession.set(activeSession.get(), undefined);
+
+		const scoped = service.getSessionPullRequest(scopedSession);
+		const numbers = () => ({ scoped: scoped.pullRequestObs.get()?.prNumber, active: service.activeSessionPullRequestObs.get()?.prNumber });
+		const initial = numbers();
+		scopedSession.set(undefined, undefined);
+		const scopedCleared = numbers();
+
+		assert.deepStrictEqual({ initial, scopedCleared }, {
+			initial: { scoped: 7, active: 3 },
+			scopedCleared: { scoped: undefined, active: 3 },
 		});
 	});
 

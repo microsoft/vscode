@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../nls.js';
-import { appendEscapedMarkdownInlineCode } from '../../../base/common/htmlContent.js';
+import { appendEscapedMarkdownInlineCode, escapeMarkdownLinkLabel, escapeMarkdownSyntaxTokens } from '../../../base/common/htmlContent.js';
 import { structuralEquals } from '../../../base/common/equals.js';
 import { createSchema, schemaProperty } from './agentHostSchema.js';
 import { GitHubActor, PullRequestCheck, PullRequestChecks, PullRequestSnapshot } from '../../github/common/githubPullRequestService.js';
+import { isPullRequestFeedbackAuthor } from '../../github/common/pullRequestFeedback.js';
+import { classifyRequiredPullRequestChecks, getPullRequestCheckState } from '../../github/common/pullRequestRequiredChecks.js';
 import { getWorkingDirectoryKey } from './agentHostWorkingDirectories.js';
+import { isPullRequestArtifactCheckExcluded } from './githubPullRequestArtifact.js';
 import { SessionConfigKey } from './sessionConfigKeys.js';
 import type { URI as ProtocolURI } from './state/sessionState.js';
 
@@ -108,6 +111,8 @@ export interface AgentMergeSessionState {
 	readonly enabled: boolean;
 	readonly overrides?: AgentMergeSessionOverrides;
 	readonly chat?: ProtocolURI;
+	/** See {@link AgentMergeFolderSessionState.readyIgnoredChecks}. */
+	readonly readyIgnoredChecks?: readonly string[];
 	readonly target?: AgentMergeTarget;
 	readonly injectedConfiguration?: AgentMergeInjectedConfiguration;
 	readonly lastPromptFingerprint?: string;
@@ -151,6 +156,13 @@ export interface AgentMergeFolderSessionState {
 	readonly enabled: boolean;
 	readonly overrides?: AgentMergeSessionOverrides;
 	readonly chat?: ProtocolURI;
+	/**
+	 * The folder's workspace value of
+	 * `chat.artifactIntegrations.githubPullRequests.autoMarkReadyIgnoredChecks`:
+	 * check name patterns that need not pass before the pull request counts as
+	 * ready for review. When absent, the user's value mirrored to the host applies.
+	 */
+	readonly readyIgnoredChecks?: readonly string[];
 }
 
 /** The host-owned Agent Merge lifecycle state of one folder. */
@@ -245,10 +257,6 @@ const maximumFailedChecks = 20;
 const maximumFeedbackBodyLength = 1_000;
 const maximumFeedbackBudget = 20_000;
 
-const maintainerAssociations = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
-const copilotPullRequestReviewerId = '175728472';
-const copilotPullRequestReviewerLogins = new Set(['copilot', 'copilot-pull-request-reviewer[bot]']);
-const successfulCheckConclusions = new Set(['SUCCESS', 'NEUTRAL', 'SKIPPED']);
 const mergeableStates = new Set(['CLEAN', 'HAS_HOOKS', 'UNSTABLE']);
 
 export function resolveAgentMergeConfiguration(defaults: AgentMergeConfiguration, overrides: AgentMergeSessionOverrides | undefined): AgentMergeConfiguration {
@@ -358,7 +366,7 @@ export function agentMergeEnabledNotice(target: Pick<AgentMergeTarget, 'branchNa
 		localize('agentMerge.notice.enabled.summary', "Agent Merge is enabled for {0}. {1}", appendEscapedMarkdownInlineCode(target.branchName), agentMergeMergeBehaviorSummary(configuration.mergePullRequest)),
 		target.pullRequestUrl
 			? localize('agentMerge.notice.enabled.withPullRequest', "It is monitoring the pull request for this branch.")
-			: localize('agentMerge.notice.enabled', "It will wait for a pull request on this branch, then monitor it."),
+			: localize('agentMerge.notice.enabled.waitingForPullRequest', "It will wait for a pull request on this branch, then monitor it."),
 	];
 	if (configuration.addressReviews) {
 		lines.push(localize('agentMerge.notice.enabled.addressReviews', "It will ask the agent to address new pull request review comments."));
@@ -517,6 +525,40 @@ export function agentMergeMergePullRequestDemotedNotice(): string {
 	return localize('agentMerge.notice.mergeDemoted', "Agent Merge changed this pull request, so automatic merging was disabled for this session. Review the changes, then enable it again if you want it merged automatically.");
 }
 
+/**
+ * The transcript notice shown when a chat that runs Agent Merge moves into a
+ * session where another chat already runs it for the same pull request.
+ */
+export function agentMergeMoveConflictNotice(): string {
+	return localize('agentMerge.notice.moveConflict', "Agent Merge was turned off for this chat: another chat in this session already runs it for this pull request.");
+}
+
+/**
+ * The transcript notice shown when GitHub refuses Agent Merge's credential for
+ * an organization that enforces SAML single sign-on.
+ *
+ * @param authorizationUrl The GitHub page that authorizes the refused
+ * credential for the organization, which the notice links to.
+ */
+export function agentMergeSingleSignOnNotice(organization: string, authorizationUrl: string | undefined): string {
+	const name = escapeMarkdownSyntaxTokens(organization);
+	if (!authorizationUrl) {
+		return localize('agentMerge.notice.singleSignOnWithoutLink', "Agent Merge can't read pull requests in {0} because your GitHub sign-in isn't authorized for the organization's single sign-on. Authorize it for {0} on GitHub, and Agent Merge continues on its own.", name);
+	}
+	// Parentheses would end the markdown link destination.
+	const target = authorizationUrl.replace(/\(/g, '%28').replace(/\)/g, '%29');
+	const link = `[${escapeMarkdownLinkLabel(localize('agentMerge.notice.singleSignOn.link', "Sign in to {0}", organization))}](${target})`;
+	return localize('agentMerge.notice.singleSignOn', "Agent Merge can't read pull requests in {0} because your GitHub sign-in isn't authorized for the organization's single sign-on. {1} to authorize it, and Agent Merge continues on its own.", name, link);
+}
+
+/**
+ * The transcript notice shown when Agent Merge has waited a while without
+ * finding a pull request for the branch it monitors.
+ */
+export function agentMergeMissingPullRequestNotice(branchName: string): string {
+	return localize('agentMerge.notice.missingPullRequest', "Agent Merge hasn't found a pull request for {0}, so it isn't monitoring one yet. It starts as soon as GitHub reports a pull request for this branch. If this branch is a local copy of a pull request, make it track the pull request's branch.", appendEscapedMarkdownInlineCode(branchName));
+}
+
 export function readAgentMergeSessionState(values: Record<string, unknown> | undefined, sessionFolderKey?: string): AgentMergeSessionState | undefined {
 	if (sessionFolderKey !== undefined) {
 		const folderState = readAgentMergeFolderState(values, sessionFolderKey, sessionFolderKey);
@@ -623,6 +665,7 @@ export function withAgentMergeFolderState(values: Record<string, unknown> | unde
 			enabled: state.enabled,
 			...(state.overrides ? { overrides: state.overrides } : {}),
 			...(state.chat ? { chat: state.chat } : {}),
+			...(state.readyIgnoredChecks ? { readyIgnoredChecks: state.readyIgnoredChecks } : {}),
 		});
 		const controller = toAgentMergeFolderControllerState(state);
 		if (Object.keys(controller).length > 0) {
@@ -666,6 +709,7 @@ export function withAgentMergeFolderControllerState(values: Record<string, unkno
 		enabled: current.enabled,
 		...(current.overrides ? { overrides: current.overrides } : {}),
 		...(current.chat ? { chat: current.chat } : {}),
+		...(current.readyIgnoredChecks ? { readyIgnoredChecks: current.readyIgnoredChecks } : {}),
 		...(controller ? toAgentMergeFolderControllerState(controller) : {}),
 	});
 }
@@ -825,6 +869,7 @@ function readLegacyAgentMergeSessionState(values: Record<string, unknown> | unde
 		enabled: value.enabled,
 		...(overrides ? { overrides } : {}),
 		...(typeof value.chat === 'string' ? { chat: value.chat } : {}),
+		...(Array.isArray(value.readyIgnoredChecks) && value.readyIgnoredChecks.every(pattern => typeof pattern === 'string') ? { readyIgnoredChecks: value.readyIgnoredChecks } : {}),
 		...(target ? { target } : {}),
 		...(injectedConfiguration ? { injectedConfiguration } : {}),
 		...(typeof controller.lastPromptFingerprint === 'string' ? { lastPromptFingerprint: controller.lastPromptFingerprint } : {}),
@@ -857,6 +902,7 @@ function readFolderClientState(value: unknown): AgentMergeFolderSessionState | u
 		enabled: value.enabled,
 		...(overrides ? { overrides } : {}),
 		...(typeof value.chat === 'string' ? { chat: value.chat } : {}),
+		...(Array.isArray(value.readyIgnoredChecks) && value.readyIgnoredChecks.every(pattern => typeof pattern === 'string') ? { readyIgnoredChecks: value.readyIgnoredChecks } : {}),
 	};
 }
 
@@ -893,12 +939,7 @@ function toAgentMergeFolderControllerState(state: AgentMergeFolderControllerStat
 }
 
 export function isAgentMergeFeedbackAuthor(actor: GitHubActor | undefined): boolean {
-	if (!actor) {
-		return false;
-	}
-	return maintainerAssociations.has(actor.association?.toUpperCase() ?? '')
-		|| actor.id === copilotPullRequestReviewerId
-		|| copilotPullRequestReviewerLogins.has(actor.login.toLowerCase());
+	return isPullRequestFeedbackAuthor(actor);
 }
 
 function readOverrides(value: unknown): AgentMergeSessionOverrides | undefined {
@@ -1176,8 +1217,11 @@ function getAgentMergeFeedback(snapshot: PullRequestSnapshot, commentWatermark: 
 /**
  * Returns whether a draft pull request has no pending or failed required checks
  * and no actionable review feedback, or `undefined` while that state is incomplete.
+ *
+ * @param ignoredChecks Check name patterns that need not pass, from
+ * `chat.artifactIntegrations.githubPullRequests.autoMarkReadyIgnoredChecks`.
  */
-export function isAgentMergePullRequestReadyForReview(snapshot: PullRequestSnapshot, commentWatermark: string): boolean | undefined {
+export function isAgentMergePullRequestReadyForReview(snapshot: PullRequestSnapshot, commentWatermark: string, ignoredChecks: readonly string[] = []): boolean | undefined {
 	const core = snapshot.core;
 	if (core.status !== 'ready' || !core.complete || !core.value || core.value.state !== 'open' || !core.value.draft) {
 		return undefined;
@@ -1190,7 +1234,7 @@ export function isAgentMergePullRequestReadyForReview(snapshot: PullRequestSnaps
 	if (!isCompleteHeadFragment(snapshot, 'checks', core.value.headSha)) {
 		return undefined;
 	}
-	const checks = classifyAgentMergeRequiredChecks(snapshot.checks.value!);
+	const checks = classifyAgentMergeRequiredChecks(snapshot.checks.value!, ignoredChecks);
 	if (checks.kind === 'indeterminate') {
 		return undefined;
 	}
@@ -1202,33 +1246,27 @@ export function isAgentMergePullRequestReadyForReview(snapshot: PullRequestSnaps
 		&& newComments.length === 0;
 }
 
-export function classifyAgentMergeRequiredChecks(checks: PullRequestChecks): AgentMergeRequiredChecks {
+/**
+ * Classifies the checks Agent Merge acts on, as every pull request surface
+ * does (see {@link classifyRequiredPullRequestChecks}): the required checks,
+ * and the checks an unfinished required check waits for. Like Fix CI, it
+ * repairs a failed check suite that reported no check run, such as a workflow
+ * that failed to start. When every check counts but GitHub refused to list the
+ * check suites, the checks stay pending, since a suite that has not reported
+ * may still fail; the known failures are repaired all the same.
+ *
+ * @param ignoredChecks Check name patterns to leave out, as when deciding
+ * whether a draft is ready for review.
+ */
+export function classifyAgentMergeRequiredChecks(checks: PullRequestChecks, ignoredChecks: readonly string[] = []): AgentMergeRequiredChecks {
 	if (!checks.requirednessComplete) {
 		return { kind: 'indeterminate', reason: 'Required check classification is incomplete' };
 	}
-	const required = checks.checks.filter(check => check.required === true);
 	if (checks.checks.some(check => check.required === undefined)) {
 		return { kind: 'indeterminate', reason: 'A check has unknown requiredness' };
 	}
-	const failed: PullRequestCheck[] = [];
-	let pending = false;
-	for (const check of required) {
-		const status = check.status?.toUpperCase();
-		if (check.type === 'statusContext') {
-			if (status === 'PENDING' || !status) {
-				pending = true;
-			} else if (status !== 'SUCCESS') {
-				failed.push(check);
-			}
-			continue;
-		}
-		if (status !== 'COMPLETED') {
-			pending = true;
-		} else if (!successfulCheckConclusions.has(check.conclusion?.toUpperCase() ?? '')) {
-			failed.push(check);
-		}
-	}
-	return { kind: 'ready', failed, pending };
+	const { everyCheck, failed, pending } = classifyRequiredPullRequestChecks(checks, name => isPullRequestArtifactCheckExcluded(name, ignoredChecks));
+	return { kind: 'ready', failed, pending: pending || (everyCheck && !checks.expectedSuitesComplete) };
 }
 
 const checkBlockerPrefix = 'check:';
@@ -1285,13 +1323,14 @@ export function hasAgentMergeRepairProgress(snapshot: PullRequestSnapshot, comme
 	}
 	const { reviewThreads, changesRequested, newComments } = getAgentMergeFeedback(snapshot, commentWatermark);
 	const unresolvedThreads = new Set(reviewThreads.map(thread => `${threadBlockerPrefix}${thread.id}`));
-	const checks = snapshot.checks.value?.checks.filter(check => check.required === true) ?? [];
+	// A failed check that a required check waits for is not reported as required itself.
+	const checks = snapshot.checks.value?.checks ?? [];
 	const mergeability = snapshot.mergeability.value;
 	return previous.blockers.some(blocker => {
 		if (blocker.startsWith(checkBlockerPrefix)) {
 			const name = blocker.slice(checkBlockerPrefix.length);
 			const named = checks.filter(check => check.name === name);
-			return named.length > 0 && named.every(isSuccessfulCheck);
+			return named.length > 0 && named.every(check => getPullRequestCheckState(check) === 'passed');
 		}
 		if (blocker.startsWith(threadBlockerPrefix)) {
 			return !unresolvedThreads.has(blocker);
@@ -1308,32 +1347,4 @@ export function hasAgentMergeRepairProgress(snapshot: PullRequestSnapshot, comme
 		}
 		return false;
 	});
-}
-
-function isSuccessfulCheck(check: PullRequestCheck): boolean {
-	const status = check.status?.toUpperCase();
-	return check.type === 'statusContext'
-		? status === 'SUCCESS'
-		: status === 'COMPLETED' && successfulCheckConclusions.has(check.conclusion?.toUpperCase() ?? '');
-}
-
-/**
- * Summarizes the checks of a head so a caller can tell when they last changed:
- * `digest` changes whenever any check or check suite changes state, and
- * `pending` is whether any of them has not finished. Covers all checks,
- * required or not, and suites that have not reported check runs yet, since any
- * of them moving means CI is still running.
- */
-export function getAgentMergeCheckActivity(checks: PullRequestChecks): { readonly digest: string; readonly pending: boolean } {
-	const states = [
-		...checks.checks.map(check => `check:${check.id}:${check.status?.toUpperCase() ?? ''}:${check.conclusion?.toUpperCase() ?? ''}`),
-		...checks.expectedSuites.map(suite => `suite:${suite.id}:${suite.status?.toUpperCase() ?? ''}:${suite.conclusion?.toUpperCase() ?? ''}:${suite.checkRunsReported}`),
-	].sort();
-	const pending = checks.checks.some(check => {
-		const status = check.status?.toUpperCase();
-		return check.type === 'statusContext'
-			? !status || status === 'PENDING' || status === 'EXPECTED'
-			: status !== 'COMPLETED';
-	}) || checks.expectedSuites.some(suite => !suite.checkRunsReported && suite.status?.toUpperCase() !== 'COMPLETED');
-	return { digest: states.join('|'), pending };
 }

@@ -25,7 +25,7 @@ import { isEqualOrParent, joinPath } from '../../../../base/common/resources.js'
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
-import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, ContextKeyExpression, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -35,11 +35,13 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { asJson, IRequestService } from '../../../../platform/request/common/request.js';
 import { IQuickInputService, IQuickPickItem, QuickInputHideReason } from '../../../../platform/quickinput/common/quickInput.js';
 import { ISecretStorageService } from '../../../../platform/secrets/common/secrets.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { isProfileUsingDefaultStorage, IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { TelemetryTrustedValue } from '../../../../platform/telemetry/common/telemetryUtils.js';
+import { IUserDataProfile } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { ExtensionsRegistry } from '../../../services/extensions/common/extensionsRegistry.js';
+import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { ChatContextKeys } from './actions/chatContextKeys.js';
 import { ChatAgentLocation } from './constants.js';
 import { ILanguageModelsProviderGroup, ILanguageModelsConfigurationService } from './languageModelsConfiguration.js';
@@ -256,8 +258,6 @@ export interface IAutoModelTierPromotion {
 	readonly tierIds: readonly string[];
 	readonly startsAt?: string;
 	readonly endsAt?: string;
-	/** Published with the promotion so the metadata changes, and pickers refresh, when it starts. */
-	readonly upcoming?: boolean;
 }
 
 export interface ILanguageModelChatMetadata {
@@ -279,8 +279,13 @@ export interface ILanguageModelChatMetadata {
 	 * in {@link tooltip} instead.
 	 */
 	readonly autoModelDiscountPercent?: number;
-	/** How the agent host presents its Auto model as Fusion, when it does. */
-	readonly autoModelFusion?: { readonly balanceUsesHydraFusion: boolean };
+	/** Whether the agent host presents its Auto model as Copilot Fusion. */
+	readonly autoModelFusion?: boolean;
+	/**
+	 * The tier the agent host runs Copilot Fusion at for editor and terminal inline chat, whatever
+	 * effort level is selected, so inline chat offers none. Absent when the host pins no tier there.
+	 */
+	readonly autoModelFusionInlineChatTier?: string;
 	/** Set only on the agent host's Auto model presented as Fusion. */
 	readonly autoModelTierPromotions?: readonly IAutoModelTierPromotion[];
 	/** Auto's tiers come from the provider, which may hide some, including HydraFusion ones. */
@@ -443,33 +448,30 @@ export namespace ILanguageModelChatMetadata {
 		return localize('chat.promo.endsAt', "Ends {0}.", formattedDate);
 	}
 
-	export function getPromoStartsAtLabel(startsAt: string | undefined): string | undefined {
-		const startsAtDate = startsAt ? new Date(startsAt) : undefined;
-		if (!startsAtDate || isNaN(startsAtDate.getTime())) {
+	export function isAutoTierPromotionActive(promotion: IAutoModelTierPromotion, now: number): boolean {
+		const startsAt = promotion.startsAt ? Date.parse(promotion.startsAt) : -Infinity;
+		const endsAt = promotion.endsAt ? Date.parse(promotion.endsAt) : Infinity;
+		// An unparsable boundary yields NaN, which fails both comparisons.
+		return now >= startsAt && now < endsAt;
+	}
+
+	/** The active promotion with the largest discount. */
+	export function getAutoTierPromotion(metadata: ILanguageModelChatMetadata, tier: unknown, now: number = Date.now()): IAutoModelTierPromotion | undefined {
+		if (typeof tier !== 'string') {
 			return undefined;
 		}
-		const formattedDate = startsAtDate.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
-		return localize('chat.promo.startsAt', "Starts {0}.", formattedDate);
-	}
-
-	export function isAutoTierPromotionActive(promotion: IAutoModelTierPromotion, now: number): boolean {
-		return !(promotion.startsAt && now < Date.parse(promotion.startsAt)) && !(promotion.endsAt && now >= Date.parse(promotion.endsAt));
-	}
-
-	export function isAutoTierPromotionUpcoming(promotion: IAutoModelTierPromotion, now: number): boolean {
-		return !!promotion.startsAt && now < Date.parse(promotion.startsAt) && !(promotion.endsAt && now >= Date.parse(promotion.endsAt));
-	}
-
-	/** The active promotion with the largest discount, else the one starting soonest. */
-	export function getAutoTierPromotion(metadata: ILanguageModelChatMetadata, tier: unknown, now: number = Date.now()): IAutoModelTierPromotion | undefined {
-		const promotions = (metadata.autoModelTierPromotions ?? []).filter(promotion => typeof tier === 'string' && promotion.tierIds.includes(tier));
-		const active = promotions.filter(promotion => isAutoTierPromotionActive(promotion, now)).sort((a, b) => b.discountPercent - a.discountPercent)[0];
-		return active ?? promotions.filter(promotion => isAutoTierPromotionUpcoming(promotion, now)).sort((a, b) => Date.parse(a.startsAt!) - Date.parse(b.startsAt!))[0];
+		let best: IAutoModelTierPromotion | undefined;
+		for (const promotion of metadata.autoModelTierPromotions ?? []) {
+			if ((!best || promotion.discountPercent > best.discountPercent) && promotion.tierIds.includes(tier) && isAutoTierPromotionActive(promotion, now)) {
+				best = promotion;
+			}
+		}
+		return best;
 	}
 
 	export function getAutoTierDiscountPercent(metadata: ILanguageModelChatMetadata, tier: unknown, now: number = Date.now()): number | undefined {
 		const promotion = getAutoTierPromotion(metadata, tier, now);
-		return promotion && promotion.discountPercent > 0 && isAutoTierPromotionActive(promotion, now) ? promotion.discountPercent : metadata.autoModelDiscountPercent;
+		return promotion && promotion.discountPercent > 0 ? promotion.discountPercent : metadata.autoModelDiscountPercent;
 	}
 
 	/**
@@ -478,19 +480,27 @@ export namespace ILanguageModelChatMetadata {
 	 */
 	export const autoModelSelectionDocsUrl = 'https://docs.github.com/en/copilot/concepts/models/auto-model-selection';
 
+	/** Where Copilot Fusion's description links for more about it. */
+	export const fusionDocsUrl = 'https://aka.ms/vscode-copilot-fusion';
+
 	/**
 	 * Builds the shared description shown for the Auto model, rendered as Markdown
-	 * (Auto's contains a "Learn More" link; Fusion's does not). The discount is
-	 * described separately by {@link getAutoModelDiscountDescription}.
+	 * with a "Learn More" link. The discount is described separately by
+	 * {@link getAutoModelDiscountDescription}.
 	 */
 	export function getAutoModelDescription(fusion?: boolean): string {
 		if (fusion) {
-			// The Auto docs don't describe Fusion, so it has no Learn More link.
-			return localize('autoModel.fusionDescription', "Fusion routes based on your task and real-time system health and model performance.");
+			const fusionLearnMore = localize('autoModel.fusionLearnMore', "[Learn more]({0})", fusionDocsUrl);
+			return `${getFusionSummary()} ${fusionLearnMore}`;
 		}
 		const base = localize('autoModel.description', "Auto routes based on your task and real-time system health and model performance.");
 		const learnMore = localize('autoModel.learnMore', "[Learn More]({0})", autoModelSelectionDocsUrl);
 		return `${base} ${learnMore}`;
+	}
+
+	/** Copilot Fusion's one-sentence description, as plain text without its "Learn more" link. */
+	export function getFusionSummary(): string {
+		return localize('autoModel.fusionDescription', "Copilot Fusion selects a single model or orchestrates multiple models to complete your task.");
 	}
 
 	/**
@@ -498,14 +508,8 @@ export namespace ILanguageModelChatMetadata {
 	 *
 	 * @param discountPercent Whole-number percentage (e.g. `10` for 10%).
 	 * @param tierLabel The label of Auto's selected tier, e.g. "Efficiency".
-	 * @param fusion Whether Auto is presented as Fusion.
 	 */
-	export function getAutoModelDiscountDescription(discountPercent: number, tierLabel?: string, fusion?: boolean): string {
-		if (fusion) {
-			return tierLabel
-				? localize('autoModel.fusionTierDiscount', "Models routed via Fusion {0} receive a {1}% discount.", tierLabel, discountPercent)
-				: localize('autoModel.fusionDiscount', "Models routed via Fusion receive a {0}% discount.", discountPercent);
-		}
+	export function getAutoModelDiscountDescription(discountPercent: number, tierLabel?: string): string {
 		return tierLabel
 			? localize('autoModel.tierDiscount', "Models routed via Auto {0} receive a {1}% discount.", tierLabel, discountPercent)
 			: localize('autoModel.discount', "Models routed via auto receive a {0}% discount.", discountPercent);
@@ -645,8 +649,11 @@ export interface IModelConfigurationAccess {
 	/** Applies values in this scope without persisting them or reporting them as a selection. */
 	presentModelConfiguration?(modelId: string, values: IStringDictionary<unknown>): void;
 	getModelConfigurationActions(modelId: string): IAction[];
-	/** Configuration changes within this scope; global access uses `onDidChangeLanguageModels`. */
-	readonly onDidChange?: Event<string>;
+	/**
+	 * Configuration changes within this scope, once per update with the models it changed, so an update covering
+	 * many models (such as a chat's snapshot) notifies once. Global access uses `onDidChangeLanguageModels`.
+	 */
+	readonly onDidChange?: Event<readonly string[]>;
 }
 
 /** Where a pin change was made, for telemetry. */
@@ -1067,8 +1074,11 @@ export const languageModelChatProviderExtensionPoint = ExtensionsRegistry.regist
 });
 
 const CHAT_MODEL_RECENTLY_USED_STORAGE_KEY = 'chatModelRecentlyUsed';
+const CHAT_MODEL_RECENTLY_USED_MAX = 20;
 const CHAT_MODEL_PINNED_STORAGE_KEY = 'chatModelPinned';
 const CHAT_MODEL_VISIBILITY_STORAGE_KEY = 'chatModelVisibility';
+/** Application-scoped marker set once the Agents window's own model preferences were merged into application storage. */
+const CHAT_MODEL_PREFERENCES_AGENTS_WINDOW_MIGRATED_STORAGE_KEY = 'chatModelPreferences.agentsWindowMigrated';
 
 /**
  * The identifier for the Auto model which dynamically routes to the best backend.
@@ -1213,6 +1223,13 @@ export function createModelConfigurationActions(
 	return actions;
 }
 
+/** A model resolution for a vendor that is waiting behind another one and can still be joined. */
+interface IQueuedModelResolution {
+	readonly provider: ILanguageModelChatProvider;
+	readonly silent: boolean;
+	readonly promise: Promise<void>;
+}
+
 export class LanguageModelsService implements ILanguageModelsService {
 
 	private static SECRET_KEY_PREFIX = 'chat.lm.secret.';
@@ -1224,6 +1241,8 @@ export class LanguageModelsService implements ILanguageModelsService {
 
 	private readonly _providers = new Map<string, ILanguageModelChatProvider>();
 	private readonly _vendors = new Map<string, ILanguageModelProviderDescriptor>();
+	/** Parsed `when` clauses of {@link _vendors}, by their source text, since {@link getVendors} is read for every model. */
+	private readonly _vendorWhenClauses = new Map<string, ContextKeyExpression | undefined>();
 
 	/** Vendors for which a deprecation notice has already been shown this session. */
 	private readonly _deprecationNoticeShownVendors = new Set<string>();
@@ -1234,6 +1253,11 @@ export class LanguageModelsService implements ILanguageModelsService {
 	private readonly _modelsGroups = new Map<string, ILanguageModelsGroup[]>();
 	private readonly _modelCache = new Map<string, ILanguageModelChatMetadata>();
 	private readonly _resolveLMSequencer = new SequencerByKey<string>();
+	/**
+	 * The resolution each vendor has queued but not started. Requests made meanwhile join it rather
+	 * than queue another, e.g. `selectChatModels` calls that each re-resolve every vendor.
+	 */
+	private readonly _queuedResolutions = new Map<string, IQueuedModelResolution>();
 	private readonly _modelConfigurations = new Map<string, IStringDictionary<unknown>>();
 	private readonly _hasUserSelectableModels: IContextKey<boolean>;
 	private readonly _hasNonCopilotUserSelectableModels: IContextKey<boolean>;
@@ -1241,6 +1265,8 @@ export class LanguageModelsService implements ILanguageModelsService {
 	private readonly _onLanguageModelChange = this._store.add(new Emitter<string>());
 	readonly onDidChangeLanguageModels: Event<string> = this._onLanguageModelChange.event;
 
+	/** Where pinned, recently used and hidden models are stored, see the constructor. */
+	private readonly _modelPreferencesScope: StorageScope.APPLICATION | StorageScope.PROFILE;
 	private _recentlyUsedModelIds: string[] = [];
 	private _pinnedModelIds: string[] = [];
 
@@ -1277,12 +1303,23 @@ export class LanguageModelsService implements ILanguageModelsService {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 	) {
 		this._hasUserSelectableModels = ChatContextKeys.languageModelsAreUserSelectable.bindTo(_contextKeyService);
 		this._hasNonCopilotUserSelectableModels = ChatContextKeys.nonCopilotLanguageModelsAreUserSelectable.bindTo(_contextKeyService);
+
+		// The Agents window always runs in its own `agents` profile, which has separate profile storage.
+		// It keeps model preferences in application storage instead, which is the default profile's
+		// storage, so they are shared with editor windows using the default profile.
+		const profile = userDataProfileService.currentProfile;
+		this._modelPreferencesScope = profile.isAgentsWindowProfile ? StorageScope.APPLICATION : StorageScope.PROFILE;
+		if (profile.isAgentsWindowProfile) {
+			this._mergeAgentsWindowModelPreferences(profile);
+		}
 		this._recentlyUsedModelIds = this._readRecentlyUsedModels();
 		this._pinnedModelIds = this._readPinnedModels();
-		this._readVisibility();
+		this._hiddenModelIds = new Set(this._readHiddenModelIds());
+		this._listenForModelPreferenceChanges();
 		this._initChatControlData();
 
 		this._store.add(this.onDidChangeLanguageModels(() => {
@@ -1407,7 +1444,11 @@ export class LanguageModelsService implements ILanguageModelsService {
 				if (!vendor.when) {
 					return true; // No when clause means always visible
 				}
-				const whenClause = ContextKeyExpr.deserialize(vendor.when);
+				let whenClause = this._vendorWhenClauses.get(vendor.when);
+				if (!this._vendorWhenClauses.has(vendor.when)) {
+					whenClause = ContextKeyExpr.deserialize(vendor.when);
+					this._vendorWhenClauses.set(vendor.when, whenClause);
+				}
 				return whenClause ? this._contextKeyService.contextMatchesRules(whenClause) : false;
 			});
 	}
@@ -1452,7 +1493,16 @@ export class LanguageModelsService implements ILanguageModelsService {
 			return;
 		}
 
-		return this._resolveLMSequencer.queue(vendorId, async () => {
+		// A resolution that has not started yet will see everything that changed before this request.
+		const queued = this._queuedResolutions.get(vendorId);
+		if (queued?.provider === provider && queued.silent === silent) {
+			return queued.promise;
+		}
+
+		const promise = this._resolveLMSequencer.queue(vendorId, async () => {
+			if (this._queuedResolutions.get(vendorId)?.promise === promise) {
+				this._queuedResolutions.delete(vendorId);
+			}
 			if (this._providers.get(vendorId) !== provider) {
 				return;
 			}
@@ -1597,6 +1647,8 @@ export class LanguageModelsService implements ILanguageModelsService {
 				this._logService.trace(`[LM] No changes in language models for vendor ${vendorId}`);
 			}
 		});
+		this._queuedResolutions.set(vendorId, { provider, silent, promise });
+		return promise;
 	}
 
 	private _hasGroupStructureChanged(oldGroups: readonly ILanguageModelsGroup[], newGroups: readonly ILanguageModelsGroup[]): boolean {
@@ -1839,16 +1891,14 @@ export class LanguageModelsService implements ILanguageModelsService {
 			group = allGroups.find(g => g.vendor === metadata.vendor);
 		}
 
-		// Merge new values into existing config, removing properties set to their schema default
+		// Reset keys must be removed from both persisted settings and the in-memory cache.
 		const existingConfig = this._modelConfigurations.get(modelId) ?? {};
 		const updatedConfig = { ...existingConfig, ...values };
 		const schema = metadata.configurationSchema;
-		if (schema?.properties) {
-			for (const [key, value] of Object.entries(updatedConfig)) {
-				const propSchema = schema.properties[key];
-				if (propSchema?.default !== undefined && propSchema.default === value && !metadata.configurationDefaultKeys?.includes(key)) {
-					delete updatedConfig[key];
-				}
+		for (const [key, value] of Object.entries(updatedConfig)) {
+			const propSchema = schema?.properties?.[key];
+			if (value === undefined || (propSchema?.default !== undefined && propSchema.default === value && !metadata.configurationDefaultKeys?.includes(key))) {
+				delete updatedConfig[key];
 			}
 		}
 
@@ -2565,14 +2615,74 @@ export class LanguageModelsService implements ILanguageModelsService {
 		await this.addLanguageModelsProviderGroup(name, vendor, configuration);
 	}
 
+	//#region Model preferences shared across windows
+
+	/**
+	 * Picks up pinned, recently used and hidden models that other windows changed, so this
+	 * window shows them and does not overwrite them with a stale list on its next write.
+	 */
+	private _listenForModelPreferenceChanges(): void {
+		const scope = this._modelPreferencesScope;
+		this._store.add(this._storageService.onDidChangeValue(scope, CHAT_MODEL_RECENTLY_USED_STORAGE_KEY, this._store)(() => {
+			this._recentlyUsedModelIds = this._readRecentlyUsedModels();
+		}));
+		this._store.add(this._storageService.onDidChangeValue(scope, CHAT_MODEL_PINNED_STORAGE_KEY, this._store)(() => {
+			const pinnedModelIds = this._readPinnedModels();
+			if (!equals(pinnedModelIds, this._pinnedModelIds)) {
+				this._pinnedModelIds = pinnedModelIds;
+				this._onDidChangePinnedModels.fire();
+			}
+		}));
+		this._store.add(this._storageService.onDidChangeValue(scope, CHAT_MODEL_VISIBILITY_STORAGE_KEY, this._store)(() => {
+			const hiddenModelIds = this._readHiddenModelIds();
+			if (!equals(hiddenModelIds, Array.from(this._hiddenModelIds))) {
+				this._hiddenModelIds = new Set(hiddenModelIds);
+				this._onDidChangeModelVisibility.fire();
+			}
+		}));
+	}
+
+	/**
+	 * The Agents window used to keep model preferences in its own profile storage. Merges them
+	 * into application storage once so they are not lost. Profile values are left in place for
+	 * older builds.
+	 */
+	private _mergeAgentsWindowModelPreferences(profile: IUserDataProfile): void {
+		if (isProfileUsingDefaultStorage(profile) || this._storageService.getBoolean(CHAT_MODEL_PREFERENCES_AGENTS_WINDOW_MIGRATED_STORAGE_KEY, StorageScope.APPLICATION, false)) {
+			return;
+		}
+
+		const merge = (key: string, read: (scope: StorageScope) => string[], toStorageValue: (ids: string[]) => object) => {
+			const profileIds = read(StorageScope.PROFILE);
+			if (profileIds.length === 0) {
+				return;
+			}
+			const applicationIds = read(StorageScope.APPLICATION);
+			const merged = [...applicationIds, ...profileIds.filter(id => !applicationIds.includes(id))];
+			this._storageService.store(key, toStorageValue(merged), StorageScope.APPLICATION, StorageTarget.USER);
+		};
+		merge(CHAT_MODEL_PINNED_STORAGE_KEY, scope => this._readPinnedModels(scope), ids => ids);
+		merge(CHAT_MODEL_RECENTLY_USED_STORAGE_KEY, scope => this._readRecentlyUsedModels(scope), ids => ids.slice(0, CHAT_MODEL_RECENTLY_USED_MAX));
+		merge(CHAT_MODEL_VISIBILITY_STORAGE_KEY, scope => this._readHiddenModelIds(scope), ids => ({ hiddenModels: ids }));
+
+		this._storageService.store(CHAT_MODEL_PREFERENCES_AGENTS_WINDOW_MIGRATED_STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+	}
+
+	private _readModelIds(key: string, scope: StorageScope): string[] {
+		const value = this._storageService.getObject<unknown[]>(key, scope, []);
+		return Array.isArray(value) ? value.filter(isString) : [];
+	}
+
+	//#endregion
+
 	//#region Recently used models
 
-	private _readRecentlyUsedModels(): string[] {
-		return this._storageService.getObject<string[]>(CHAT_MODEL_RECENTLY_USED_STORAGE_KEY, StorageScope.PROFILE, []);
+	private _readRecentlyUsedModels(scope: StorageScope = this._modelPreferencesScope): string[] {
+		return this._readModelIds(CHAT_MODEL_RECENTLY_USED_STORAGE_KEY, scope);
 	}
 
 	private _saveRecentlyUsedModels(): void {
-		this._storageService.store(CHAT_MODEL_RECENTLY_USED_STORAGE_KEY, this._recentlyUsedModelIds, StorageScope.PROFILE, StorageTarget.USER);
+		this._storageService.store(CHAT_MODEL_RECENTLY_USED_STORAGE_KEY, this._recentlyUsedModelIds, this._modelPreferencesScope, StorageTarget.USER);
 	}
 
 	getRecentlyUsedModelIds(): string[] {
@@ -2595,8 +2705,8 @@ export class LanguageModelsService implements ILanguageModelsService {
 		// Add to front
 		this._recentlyUsedModelIds.unshift(modelIdentifier);
 		// Cap at a reasonable max to avoid unbounded growth
-		if (this._recentlyUsedModelIds.length > 20) {
-			this._recentlyUsedModelIds.length = 20;
+		if (this._recentlyUsedModelIds.length > CHAT_MODEL_RECENTLY_USED_MAX) {
+			this._recentlyUsedModelIds.length = CHAT_MODEL_RECENTLY_USED_MAX;
 		}
 		this._saveRecentlyUsedModels();
 	}
@@ -2610,12 +2720,12 @@ export class LanguageModelsService implements ILanguageModelsService {
 
 	//#region Pinned models
 
-	private _readPinnedModels(): string[] {
-		return this._storageService.getObject<string[]>(CHAT_MODEL_PINNED_STORAGE_KEY, StorageScope.PROFILE, []);
+	private _readPinnedModels(scope: StorageScope = this._modelPreferencesScope): string[] {
+		return this._readModelIds(CHAT_MODEL_PINNED_STORAGE_KEY, scope);
 	}
 
 	private _savePinnedModels(): void {
-		this._storageService.store(CHAT_MODEL_PINNED_STORAGE_KEY, this._pinnedModelIds, StorageScope.PROFILE, StorageTarget.USER);
+		this._storageService.store(CHAT_MODEL_PINNED_STORAGE_KEY, this._pinnedModelIds, this._modelPreferencesScope, StorageTarget.USER);
 	}
 
 	getPinnedModelIds(): string[] {
@@ -2698,16 +2808,16 @@ export class LanguageModelsService implements ILanguageModelsService {
 		return result;
 	}
 
-	private _readVisibility(): void {
-		const raw = this._storageService.getObject<{ hiddenModels?: string[] }>(CHAT_MODEL_VISIBILITY_STORAGE_KEY, StorageScope.PROFILE, {});
-		this._hiddenModelIds = new Set(Array.isArray(raw?.hiddenModels) ? raw.hiddenModels : []);
+	private _readHiddenModelIds(scope: StorageScope = this._modelPreferencesScope): string[] {
+		const raw = this._storageService.getObject<{ hiddenModels?: unknown }>(CHAT_MODEL_VISIBILITY_STORAGE_KEY, scope, {});
+		return Array.isArray(raw?.hiddenModels) ? raw.hiddenModels.filter(isString) : [];
 	}
 
 	private _saveVisibility(): void {
 		this._storageService.store(
 			CHAT_MODEL_VISIBILITY_STORAGE_KEY,
 			{ hiddenModels: Array.from(this._hiddenModelIds) },
-			StorageScope.PROFILE,
+			this._modelPreferencesScope,
 			StorageTarget.USER,
 		);
 	}

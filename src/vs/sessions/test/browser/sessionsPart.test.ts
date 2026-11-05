@@ -8,7 +8,6 @@ import { EventType } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { timeout } from '../../../base/common/async.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
-import { SessionsPart } from '../../browser/parts/sessionsPart.js';
 import { SessionHarnessPickerVisibleContext, SessionIsolationPickerVisibleContext, SessionWorkspacePickerVisibleContext } from '../../common/contextkeys.js';
 import { noSessionPickerVisibility } from '../../services/sessions/common/sessionPickerVisibility.js';
 import { createSessionsPartTestHarness, createTestActiveSession, getSessionPickerVisibility } from './sessionViewTestUtils.js';
@@ -20,21 +19,9 @@ import { TestColorTheme, TestThemeService } from '../../../platform/theme/test/c
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { agentsCardBorder, agentsPanelBorder } from '../../common/theme.js';
 
-interface ICodiconActivationTestHarness {
-	readonly accessibilityService: {
-		isMotionReduced(): boolean;
-		status(message: string): void;
-	};
-	readonly telemetryService: {
-		publicLog2(eventName: string, data: object): void;
-	};
-}
-
 suite('Sessions - Sessions Part', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const pickerKeys = new Set([SessionWorkspacePickerVisibleContext.key, SessionHarnessPickerVisibleContext.key, SessionIsolationPickerVisibleContext.key]);
-
-	const activateCodicon = Reflect.get(SessionsPart.prototype, 'activateCodicon') as (this: ICodiconActivationTestHarness, element: HTMLElement) => void;
 
 	test('positional pane lookup distinguishes the empty composer from an absent pane', () => {
 		const { part } = createSessionsPartTestHarness(store);
@@ -396,18 +383,39 @@ suite('Sessions - Sessions Part', () => {
 			initial: [noSessionPickerVisibility, noSessionPickerVisibility],
 			afterInactiveRender: noSessionPickerVisibility,
 			afterActiveRender: {
-				global: { workspace: true, harness: false, isolation: false },
-				first: { workspace: true, harness: false, isolation: false },
-				second: { workspace: false, harness: true, isolation: true },
+				global: { ...noSessionPickerVisibility, workspace: true },
+				first: { ...noSessionPickerVisibility, workspace: true },
+				second: { ...noSessionPickerVisibility, harness: true, isolation: true },
 			},
-			afterSwitch: { workspace: false, harness: true, isolation: true },
-			afterSwitchBack: { workspace: true, harness: true, isolation: false },
+			afterSwitch: { ...noSessionPickerVisibility, harness: true, isolation: true },
+			afterSwitchBack: { ...noSessionPickerVisibility, workspace: true, harness: true },
 			changes: [
-				{ workspace: false, harness: true, isolation: true },
-				{ workspace: true, harness: true, isolation: false },
+				{ ...noSessionPickerVisibility, harness: true, isolation: true },
+				{ ...noSessionPickerVisibility, workspace: true, harness: true },
 			],
 		});
 	});
+
+	for (const picker of ['environment', 'branch', 'worktree', 'sync'] as const) {
+		test(`projects ${picker} availability only from the active composer`, () => {
+			const { part, chatViews, contextKeyService } = createSessionsPartTestHarness(store);
+			const first = createTestActiveSession('first', false);
+			const second = createTestActiveSession('second', false);
+			part.updateVisibleSessions([first, second], first);
+			chatViews[1].inputPickerVisibility.setVisible(picker, true);
+			const inactive = getSessionPickerVisibility(contextKeyService);
+			const secondScope = getSessionPickerVisibility(contextKeyService, part.getSessionView(second.sessionId)!.element);
+			part.updateVisibleSessions([first, second], second);
+			const active = getSessionPickerVisibility(contextKeyService);
+			part.updateVisibleSessions([first, second], first);
+			assert.deepStrictEqual({ inactive, secondScope, active, switchedBack: getSessionPickerVisibility(contextKeyService) }, {
+				inactive: noSessionPickerVisibility,
+				secondScope: { ...noSessionPickerVisibility, [picker]: true },
+				active: { ...noSessionPickerVisibility, [picker]: true },
+				switchedBack: noSessionPickerVisibility,
+			});
+		});
+	}
 
 	test('inactive picker updates and disposal never reset the active view globally', () => {
 		const { part, chatViews, contextKeyService } = createSessionsPartTestHarness(store);
@@ -434,7 +442,7 @@ suite('Sessions - Sessions Part', () => {
 			pickerSnapshots: changes,
 		}, {
 			disposed: true,
-			global: { workspace: true, harness: true, isolation: false },
+			global: { ...noSessionPickerVisibility, workspace: true, harness: true },
 			pickerSnapshots: [],
 		});
 	});
@@ -475,13 +483,13 @@ suite('Sessions - Sessions Part', () => {
 			}, {
 				beforeActivation: noSessionPickerVisibility,
 				active: {
-					global: { workspace: true, harness: false, isolation: false },
+					global: { ...noSessionPickerVisibility, workspace: true },
 					empty: true,
 					existing: false,
 					existingScope: noSessionPickerVisibility,
 				},
 				hidden: [noSessionPickerVisibility, noSessionPickerVisibility],
-				shown: { workspace: true, harness: true, isolation: true },
+				shown: { ...noSessionPickerVisibility, workspace: true, harness: true, isolation: true },
 				hiddenLeaf: noSessionPickerVisibility,
 				disposed: noSessionPickerVisibility,
 			});
@@ -511,7 +519,7 @@ suite('Sessions - Sessions Part', () => {
 		}, {
 			sent: [noSessionPickerVisibility, noSessionPickerVisibility],
 			rebound: noSessionPickerVisibility,
-			rendered: { workspace: true, harness: false, isolation: false },
+			rendered: { ...noSessionPickerVisibility, workspace: true },
 			disposed: noSessionPickerVisibility,
 		});
 	});
@@ -540,30 +548,6 @@ suite('Sessions - Sessions Part', () => {
 		}, {
 			sessionView: [false, false, false, true],
 			part: [false, true],
-		});
-	});
-
-	test('announces and logs Codicon confetti activation', () => {
-		const statuses: string[] = [];
-		const telemetryEvents: { name: string; data: object }[] = [];
-		const host: ICodiconActivationTestHarness = {
-			accessibilityService: {
-				isMotionReduced: () => true,
-				status: message => statuses.push(message),
-			},
-			telemetryService: {
-				publicLog2: (name, data) => telemetryEvents.push({ name, data }),
-			},
-		};
-
-		activateCodicon.call(host, document.createElement('span'));
-
-		assert.deepStrictEqual({
-			statuses,
-			telemetryEvents,
-		}, {
-			statuses: ['Confetti!'],
-			telemetryEvents: [{ name: 'vscodeAgents.codiconBackground/confetti', data: {} }],
 		});
 	});
 });

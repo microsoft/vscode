@@ -23,6 +23,7 @@ import { ISessionsProvidersService } from '../../../services/sessions/browser/se
 import { IConfigurationResolverService } from '../../../../workbench/services/configurationResolver/common/configurationResolver.js';
 import { IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
 import { basename } from '../../../../base/common/resources.js';
+import { IChatWindowTerminalsService } from './chatWindowTerminals.js';
 
 const LOG_PREFIX = '[AgentHostSessionTaskRunner]';
 
@@ -73,6 +74,7 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@ILogService private readonly _logService: ILogService,
+		@IChatWindowTerminalsService private readonly _chatWindowTerminalsService: IChatWindowTerminalsService,
 	) { }
 
 	canRun(session: ISession): boolean {
@@ -140,8 +142,12 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 		taskTerminal.isLaunching = true;
 		const executionId = ++taskTerminal.executionId;
 		try {
-			this._terminalService.setActiveInstance(instance);
-			await this._terminalGroupService.showPanel(true);
+			// Run for a session a chat window shows, such as from its Run menu: the task shows in the window's terminals, not
+			// in the main window's panel, which would take the focus to the main window.
+			if (!await this._chatWindowTerminalsService.showSessionTerminal(session, instance.instanceId, false)) {
+				this._terminalService.setActiveInstance(instance);
+				await this._terminalGroupService.showPanel(true);
+			}
 			if (isReused) {
 				// Discard anything typed at the prompt since the last run so it is
 				// not prepended to the task command, like `ITerminalInstance.runCommand`.
@@ -234,6 +240,7 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 		}
 		// Unwrap vscode-agent-host URIs to a host file path; pass file URIs through; omit unknown schemes.
 		if (cwd.scheme === AGENT_HOST_SCHEME) {
+			// eslint-disable-next-line local/code-agent-host-uri-mapping -- extracts a host-local cwd for remote task variable expansion and terminal creation
 			return fromAgentHostUri(cwd);
 		}
 		if (cwd.scheme === Schemas.file) {

@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { agentHostConnectionKinds } from '../common/testAgentHostResourceUriMappers.js';
+import { LoadClientCertificatesExtensionMethod, type IAgentHostClientCertificatesProvider } from '../../common/clientCertificatesProtocol.js';
 import sinon from 'sinon';
-import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { CancelablePromise, DeferredPromise, raceTimeout, timeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { CancellationError, getErrorCode, transformErrorForSerialization, transformErrorFromSerialization } from '../../../../base/common/errors.js';
-import { IPolicyData } from '../../../../base/common/defaultAccount.js';
+import { CancellationError, errorHandler, getErrorCode, setUnexpectedErrorHandler, transformErrorForSerialization, transformErrorFromSerialization } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../base/common/observable.js';
@@ -19,18 +20,27 @@ import { runWithFakedTimers } from '../../../../base/test/common/timeTravelSched
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
+import type { ArtifactIntegrationRequest, ArtifactIntegrationUpdate } from '../../../artifactIntegrations/common/artifactIntegrationProtocol.js';
+import { ArtifactIntegrationsSettingId, type ArtifactIntegrationDescriptor } from '../../../artifactIntegrations/common/artifactIntegration.js';
 import { AgentHostClientState, AgentHostProtocolClient, type IAgentHostProtocolClientOptions } from '../../browser/agentHostProtocolClient.js';
+import { AgentHostClientProxyCapabilityMetaKey } from '../../common/meta/agentHostClientProxyMeta.js';
+import { ClientProxyChangedExtensionMethod, LookupClientProxyKerberosAuthorizationExtensionMethod, ResolveClientProxyExtensionMethod, type IAgentHostClientProxyProvider } from '../../common/clientProxyProtocol.js';
 import { WebPubSubRelayTransport, type IWebSocketLike } from '../../browser/webPubSubRelayTransport.js';
-import { AgentHostSessionMoveUnsupportedError, DevContainerConnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, getAgentHostExtensionInitializeResultMeta, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, type IAgentHostMcpAuthenticationRequest } from '../../common/agentHostExtensionProtocol.js';
+import { AgentHostSessionMoveUnsupportedError, DevContainerConnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, getAgentHostExtensionInitializeResultMeta, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, type IAgentHostMcpAuthenticationRequest, ArtifactIntegrationUpdateNotification, ClientArtifactIntegrationExtensionMethod, ClientArtifactIntegrationUpdateExtensionMethod, RegisterClientArtifactIntegrationsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
 import { McpAuthRequiredReason } from '../../common/state/protocol/channels-session/state.js';
-import { AgentPolicyError, AuthenticateParams } from '../../common/agent.js';
+import { AgentPolicyError, AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { authenticationAccountMeta } from '../../common/meta/agentAuthenticationAccount.js';
 import { readAgentSandboxCertificate, withAgentSandboxCertificate, type IAgentSandboxCertificateStatus } from '../../common/meta/agentSandboxCertificate.js';
-import { agentHostAuthority, toAgentHostUri } from '../../common/agentHostUri.js';
+import { getAgentHostArtifactIntegrationsCapability } from '../../common/meta/agentHostArtifactIntegrationMeta.js';
+import { agentHostAuthority, createEditorRemoteAgentHostResourceUriMapper, toAgentHostUri } from '../../common/agentHostUri.js';
 import { AgentHostFileSystemProvider } from '../../common/agentHostFileSystemProvider.js';
+import { ChatProvidersConfigKey, ChatProvidersSettingId } from '../../common/agentHostChatProviders.js';
+import { agentHostStateReceiveLimits } from '../../common/agentHostChannel.js';
+import { negotiateAgentHostProtocolVersion } from '../../common/agentHostProtocolCompatibility.js';
 import { AgentHostPermissionMode, AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { CODEX_SESSION_MODEL_META_KEY, withCodexSessionModel } from '../../common/meta/codexSessionModel.js';
+import { toAgentPermissionResponseMeta } from '../../common/meta/agentPermissionResponseMeta.js';
 import { ConfigurationTarget, type IConfigurationValue } from '../../../configuration/common/configuration.js';
 import { ContentEncoding, ReconnectResultType } from '../../common/state/protocol/commands.js';
 import { ChatSourceKind } from '../../common/state/protocol/channels-chat/commands.js';
@@ -38,25 +48,28 @@ import { ChatInteractivity, ResourceChangeType, ResponsePartKind, SessionLifecyc
 import { AhpErrorCodes, JsonRpcErrorCodes } from '../../common/state/protocol/errors.js';
 import { deriveLegacyDefaultChat } from '../../common/agentHostLegacyDefaultChat.js';
 import { isActionKnownToVersion, PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
-import { ActionType, type ActionEnvelope, type ChatTurnCompleteAction, type ChatTurnStartedAction, type SessionActiveClientSetAction, type SessionActiveClientRemovedAction, type SessionTitleChangedAction } from '../../common/state/sessionActions.js';
+import { ActionType, AuthRequiredReason, type ActionEnvelope, type ChatTurnCompleteAction, type ChatTurnStartedAction, type SessionActiveClientSetAction, type SessionActiveClientRemovedAction, type SessionTitleChangedAction } from '../../common/state/sessionActions.js';
+import { chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
 import { chatReducer } from '../../common/state/sessionReducers.js';
-import { ProtocolError, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
+import { AuthenticateTargetKind, ProtocolError, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, createChatState, createSessionState, CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionExternal, readSessionWorkspaceless, ROOT_STATE_URI, SessionStatus, StateComponents, TurnState, customizationId, withSessionExternal, withSessionWorkspaceless, type ChatState, type Message, type SessionState } from '../../common/state/sessionState.js';
-import { AgentHostTransportFailureReason, NonReconnectableTransportError, type IClientTransport, type IProtocolTransport, type ITransportCloseDetails } from '../../common/state/sessionTransport.js';
+import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, createChatState, createSessionState, CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionExternal, readSessionWorkspaceless, ROOT_STATE_URI, SessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, TurnState, customizationId, withSessionExternal, withSessionWorkspaceless, type AgentInfo, type ChatState, type Message, type SessionState } from '../../common/state/sessionState.js';
+import { AgentHostTransportFailureReason, NonReconnectableTransportError, parseProtocolMessage, type IClientTransport, type IProtocolTransport, type ITransportCloseDetails } from '../../common/state/sessionTransport.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
-import { IDefaultAccountService } from '../../../defaultAccount/common/defaultAccount.js';
-import { AgentHostDynamicAutoTiersEnabledSettingId, AgentHostFusionEnabledSettingId, CopilotCliConfigKey } from '../../common/copilotCliConfig.js';
-import { fusionConfigurationProperties } from '../../common/fusionConfiguration.js';
+import { LegacyDynamicAutoTiersConfigKey } from '../../common/copilotCliConfig.js';
 import { ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_SETTING_ID } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
-import { AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostWorkspaceTrustConfigKey, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, type AgentHostTerminalAutoApproveRules } from '../../common/agentHostSchema.js';
+import { AgentHostArtifactIntegrationsConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostWorkspaceTrustConfigKey, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, type IAgentHostWorkspaceTrust } from '../../common/agentHostSchema.js';
 import { AgentSandboxSettingId } from '../../../sandbox/common/settings.js';
 import { AgentHostConfigurationSyncScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../configuration/common/configurationRegistry.js';
 import { Registry } from '../../../registry/common/platform.js';
+import { AgentMergeConfigKey, AgentMergeSettingId } from '../../common/agentMerge.js';
+import { artifactToolsConfigurationProperties } from '../../common/artifactToolsConfiguration.js';
 import type { IConnectionDiagnosticEvent } from '../../common/connectionDiagnostics.js';
 import type { IAgentHostFirstResponseDiagnostic } from '../../common/otel/agentHostTiming.js';
+import { AgentHostAuthenticationPendingError } from '../../common/agentHostAdvertisedAuthentication.js';
+import type { IMissionControlCredentialSealingRequest } from '../../common/agentService.js';
 
 // Settings used to exercise declarative agent-host mirroring. Registered by this
 // suite rather than pulling in a product configuration contribution: the
@@ -76,7 +89,8 @@ const syncTestConfigurationNode = {
 	id: 'testAgentHostProtocolClientSync',
 	type: 'object' as const,
 	properties: {
-		...fusionConfigurationProperties,
+		[ArtifactIntegrationsSettingId]: artifactToolsConfigurationProperties[ArtifactIntegrationsSettingId],
+		[AgentMergeSettingId.Enabled]: { type: 'boolean' as const, default: false, agentHost: { key: AgentMergeConfigKey.Enabled } },
 		[SYNC_SETTING_A]: {
 			type: 'boolean' as const,
 			default: false,
@@ -107,7 +121,7 @@ import { DEFAULT_RECONNECT_POLICY, type IRemoteAgentHostReconnectPolicy } from '
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, type ResourceTrustRequestOptions } from '../../../workspace/common/workspaceTrust.js';
 
 type ProtocolTransportMessage = ProtocolMessage | AhpServerNotification | JsonRpcNotification | JsonRpcResponse | JsonRpcRequest;
-type RootConfigValue = boolean | string | AgentHostTerminalAutoApproveRules | undefined;
+type RootConfigValue = boolean | string | IAgentHostWorkspaceTrust | undefined;
 
 class TestClientIdentityTelemetryService implements ITelemetryService {
 	declare readonly _serviceBrand: undefined;
@@ -174,19 +188,6 @@ function findLastRootConfigNotification(messages: readonly ProtocolTransportMess
 	return findRootConfigNotification([...messages].reverse(), configKey);
 }
 
-function getFusionUpdates(messages: readonly ProtocolTransportMessage[]): Record<string, RootConfigValue>[] {
-	return messages.flatMap(message => {
-		if (!hasKey(message, { method: true }) || message.method !== 'dispatchAction') {
-			return [];
-		}
-		const params = (message as JsonRpcNotification).params as ITestRootConfigNotificationParams | undefined;
-		const config = params?.action?.config;
-		return params?.action?.type === ActionType.RootConfigChanged && config && Object.hasOwn(config, CopilotCliConfigKey.Fusion)
-			? [{ fusion: config[CopilotCliConfigKey.Fusion], ensemble: config.ensemble }]
-			: [];
-	});
-}
-
 function getDynamicAutoTiersUpdates(messages: readonly ProtocolTransportMessage[]): RootConfigValue[] {
 	return messages.flatMap(message => {
 		if (!hasKey(message, { method: true }) || message.method !== 'dispatchAction') {
@@ -194,8 +195,8 @@ function getDynamicAutoTiersUpdates(messages: readonly ProtocolTransportMessage[
 		}
 		const params = (message as JsonRpcNotification).params as ITestRootConfigNotificationParams | undefined;
 		const config = params?.action?.config;
-		return params?.action?.type === ActionType.RootConfigChanged && config && Object.hasOwn(config, CopilotCliConfigKey.DynamicAutoTiers)
-			? [config[CopilotCliConfigKey.DynamicAutoTiers]]
+		return params?.action?.type === ActionType.RootConfigChanged && config && Object.hasOwn(config, LegacyDynamicAutoTiersConfigKey)
+			? [config[LegacyDynamicAutoTiersConfigKey]]
 			: [];
 	});
 }
@@ -238,14 +239,22 @@ class TestProtocolTransport extends Disposable implements IProtocolTransport {
 	private readonly _onClose = this._register(new Emitter<void>());
 	readonly onClose = this._onClose.event;
 
+	private readonly _onDidSend = this._register(new Emitter<void>());
+	readonly onDidSend = this._onDidSend.event;
+
 	readonly sentMessages: ProtocolTransportMessage[] = [];
 
 	send(message: ProtocolTransportMessage): void {
 		this.sentMessages.push(message);
+		this._onDidSend.fire();
 	}
 
 	fireMessage(message: ProtocolMessage): void {
 		this._onMessage.fire(message);
+	}
+
+	fireWireMessage(message: ProtocolTransportMessage): void {
+		this.fireMessage(parseProtocolMessage(JSON.stringify(message)));
 	}
 
 	fireData(): void {
@@ -289,23 +298,6 @@ class CountingLogService extends NullLogService {
 	}
 }
 
-class TerminalAutoApproveConfigurationService extends TestConfigurationService {
-
-	constructor(
-		configuration: Record<string, AgentHostTerminalAutoApproveRules | boolean>,
-		private readonly _terminalAutoApproveInspectValue: IConfigurationValue<Readonly<AgentHostTerminalAutoApproveRules>>,
-	) {
-		super(configuration);
-	}
-
-	override inspect<T>(key: string): IConfigurationValue<T> {
-		if (key === TERMINAL_AUTO_APPROVE_SETTING_ID) {
-			return this._terminalAutoApproveInspectValue as IConfigurationValue<T>;
-		}
-		return super.inspect<T>(key);
-	}
-}
-
 class ManagedPermissionsConfigurationService extends TestConfigurationService {
 	private globalAutoApprovePolicyValue: boolean | undefined = false;
 	private eligibleForAutoApprovalPolicyValue: Record<string, boolean> | undefined;
@@ -337,23 +329,6 @@ class ManagedPermissionsConfigurationService extends TestConfigurationService {
 
 suite('AgentHostProtocolClient', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
-	let accountPolicyData: IPolicyData | null;
-	let accountPolicyChanged: Emitter<IPolicyData | null>;
-	const defaultAccountService = new class extends mock<IDefaultAccountService>() {
-		override get policyData() { return accountPolicyData; }
-		override get onDidChangePolicyData() { return accountPolicyChanged.event; }
-	}();
-
-	setup(() => {
-		accountPolicyData = null;
-		accountPolicyChanged = disposables.add(new Emitter<IPolicyData | null>());
-	});
-
-	function setAccountPolicyData(data: IPolicyData | null): void {
-		accountPolicyData = data;
-		accountPolicyChanged.fire(data);
-	}
-
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 	suiteSetup(() => configurationRegistry.registerConfiguration(syncTestConfigurationNode));
 	suiteTeardown(() => configurationRegistry.deregisterConfigurations([syncTestConfigurationNode]));
@@ -459,7 +434,7 @@ suite('AgentHostProtocolClient', () => {
 		const options = loadEstimator !== undefined || clientId !== undefined || clientInfo !== undefined || reconnectPolicy !== undefined
 			? { loadEstimator, clientId, clientInfo, reconnectPolicy }
 			: undefined;
-		const client = disposables.add(new AgentHostProtocolClient(identity, transport, options, logService, permissionService, configurationService, telemetryService, workspaceTrustEnablementService, workspaceTrust.management, workspaceTrust.request, defaultAccountService));
+		const client = disposables.add(new AgentHostProtocolClient(identity, transport, options, logService, permissionService, configurationService, telemetryService, workspaceTrustEnablementService, workspaceTrust.management, workspaceTrust.request));
 		return { client, transport, configurationService };
 	}
 
@@ -481,7 +456,308 @@ suite('AgentHostProtocolClient', () => {
 		await connectPromise;
 	}
 
+	test('artifact integration capability is independent of timing and session import', async () => {
+		const capabilities: ReturnType<typeof getAgentHostArtifactIntegrationsCapability>[] = [];
+		for (const enabled of [false, true]) {
+			const { client, transport } = createClient();
+			await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, true, true, false, false, false, enabled));
+			capabilities.push(getAgentHostArtifactIntegrationsCapability(client.initializeResult.get()));
+		}
+		assert.deepStrictEqual(capabilities, ['unsupported', 'supported']);
+	});
+
+	test('validates private artifact integration notifications outside the upstream AHP shape', async () => {
+		const log = new NullLogService();
+		const errors = sinon.spy(log, 'error');
+		const { client, transport } = createClient(undefined, undefined, undefined, log);
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, false, false, false, false, false, true));
+		const received: ArtifactIntegrationUpdate[] = [];
+		disposables.add(client.artifactIntegrationTransport.onDidUpdate(update => received.push(update)));
+		const update: ArtifactIntegrationUpdate = {
+			kind: 'details', subscription: 'checks', revision: 0, canLoadMore: false,
+			details: { title: 'Checks', availability: { kind: 'available' }, links: [], items: [], completeness: 'complete' },
+		};
+		transport.fireExtensionNotification({ jsonrpc: '2.0', method: ArtifactIntegrationUpdateNotification, params: update });
+		transport.fireExtensionNotification({ jsonrpc: '2.0', method: ArtifactIntegrationUpdateNotification, params: { ...update, revision: -1 } });
+		assert.deepStrictEqual({ received, errors: errors.args }, {
+			received: [update], errors: [['[ArtifactIntegrations] Invalid update from the agent host']],
+		});
+	});
+
+	test('serves its own artifact integrations to the host until withdrawn', async () => {
+		const { client, transport } = createClient();
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, false, false, false, false, false, true));
+		const updates = disposables.add(new Emitter<ArtifactIntegrationUpdate>());
+		const requests: ArtifactIntegrationRequest[] = [];
+		let disposed = 0;
+		const integrations = observableValue<readonly ArtifactIntegrationDescriptor[]>('integrations', [{ id: 'exp', label: 'ExP', automationOptions: [] }]);
+		const sent = () => {
+			const message = transport.sentMessages.at(-1) as { readonly method?: string; readonly params?: unknown; readonly id?: number; readonly result?: unknown; readonly error?: { readonly message: string } };
+			return message.method ? { method: message.method, params: message.params } : { id: message.id, result: message.result, error: message.error?.message };
+		};
+		const serving = client.serveArtifactIntegrations(() => ({
+			onDidUpdate: updates.event,
+			request: async request => { requests.push(request); return { kind: 'ok' }; },
+			dispose: () => disposed++,
+		}), integrations);
+		const offered = sent();
+		const update: ArtifactIntegrationUpdate = {
+			kind: 'details', subscription: 'checks', revision: 0, canLoadMore: false,
+			details: { title: 'Checks', availability: { kind: 'available' }, links: [], items: [], completeness: 'complete' },
+		};
+		updates.fire(update);
+		const forwarded = sent();
+		transport.fireExtensionRequest(61, ClientArtifactIntegrationExtensionMethod, { kind: 'release', subscription: 'checks' });
+		await timeout(0);
+		const answered = sent();
+		integrations.set([{ id: 'exp', label: 'Experiments', automationOptions: [] }], undefined);
+		const reoffered = sent();
+		serving.dispose();
+		const withdrawn = sent();
+		transport.fireExtensionRequest(62, ClientArtifactIntegrationExtensionMethod, { kind: 'release', subscription: 'checks' });
+		await timeout(0);
+
+		assert.deepStrictEqual({ offered, forwarded, requests, answered, reoffered, withdrawn, disposed, rejected: sent() }, {
+			offered: { method: RegisterClientArtifactIntegrationsExtensionMethod, params: { integrations: [{ id: 'exp', label: 'ExP', automationOptions: [] }] } },
+			forwarded: { method: ClientArtifactIntegrationUpdateExtensionMethod, params: update },
+			requests: [{ kind: 'release', subscription: 'checks' }],
+			answered: { id: 61, result: { kind: 'ok' }, error: undefined },
+			reoffered: { method: RegisterClientArtifactIntegrationsExtensionMethod, params: { integrations: [{ id: 'exp', label: 'Experiments', automationOptions: [] }] } },
+			withdrawn: { method: RegisterClientArtifactIntegrationsExtensionMethod, params: { integrations: [] } },
+			disposed: 1,
+			rejected: { id: 62, result: undefined, error: 'This client is not serving artifact integrations' },
+		});
+	});
+
+	suite('client certificates', () => {
+		function createCertificateClient(provider?: IAgentHostClientCertificatesProvider) {
+			const transports: TestProtocolTransport[] = [];
+			const transportFactory = () => {
+				const transport = disposables.add(new class extends TestProtocolTransport implements IClientTransport {
+					readonly responses = new Map<number, DeferredPromise<ProtocolTransportMessage>>();
+					async connect(): Promise<void> { }
+					override send(message: ProtocolTransportMessage): void {
+						super.send(message);
+						if (hasKey(message, { id: true }) && typeof message.id === 'number') {
+							this.responses.get(message.id)?.complete(message);
+						}
+						if (hasKey(message, { id: true, method: true }) && typeof message.id === 'number') {
+							const result = message.method === 'initialize'
+								? { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] }
+								: message.method === 'reconnect'
+									? { type: ReconnectResultType.Replay, actions: [], missing: [] }
+									: message.method === 'authenticate' ? { authenticated: true } : {};
+							queueMicrotask(() => this.fireMessage({ jsonrpc: '2.0', id: message.id, result }));
+						}
+					}
+					requestCertificates(id: number): Promise<ProtocolTransportMessage> {
+						const response = new DeferredPromise<ProtocolTransportMessage>();
+						this.responses.set(id, response);
+						this.fireExtensionRequest(id, LoadClientCertificatesExtensionMethod, {});
+						return response.p;
+					}
+				}());
+				transports.push(transport);
+				return transport;
+			};
+			const connections: ReturnType<typeof transportFactory>[] = [];
+			const trust = createWorkspaceTrustServices();
+			const client = disposables.add(new AgentHostProtocolClient(
+				'test.example:1234', () => {
+					const transport = transportFactory();
+					connections.push(transport);
+					return transport;
+				},
+				{
+					clientCertificates: provider,
+					resolveInitialAuthentication: async () => ({ resource: 'https://api.github.com', token: 'test-token' }),
+					reconnectPolicy: { autoRestore: true, initialDelayMs: 1, maxDelayMs: 1, maxAttempts: 1 },
+				},
+				new NullLogService(), createPermissionService(), new TestConfigurationService(), NullTelemetryService,
+				workspaceTrustEnablementService, trust.management, trust.request,
+			));
+			return { client, connections };
+		}
+
+		for (const enabled of [false, true]) {
+			test(`advertises eligible certificate serving without loading on connect or reconnect (enabled=${enabled})`, async () => {
+				let loads = 0;
+				const { client, connections } = createCertificateClient({
+					isEnabled: () => enabled,
+					loadCertificates: async () => { loads++; return ['CLIENT CA']; },
+				});
+				await client.connect();
+				const reconnected = Event.toPromise(client.onDidReconnect);
+				connections[0].fireClose();
+				await reconnected;
+				assert.strictEqual(loads, 0);
+				const handshakes = connections.map(connection => connection.sentMessages[0]);
+				const response = await connections[1].requestCertificates(1000);
+				assert.deepStrictEqual({
+					loads,
+					capabilities: handshakes.map(message => hasKey(message, { params: true }) ? (message.params as { _meta: Record<string, unknown> })._meta['vscode.clientCertificates'] : undefined),
+					result: hasKey(response, { result: true }) ? response.result : undefined,
+				}, {
+					loads: enabled ? 1 : 0,
+					capabilities: [enabled ? true : undefined, enabled ? true : undefined],
+					result: { certificates: enabled ? ['CLIENT CA'] : [] },
+				});
+			});
+		}
+
+		test('does not serve certificates after forwarding is disabled', async () => {
+			let enabled = true;
+			const { client, connections } = createCertificateClient({
+				isEnabled: () => enabled,
+				loadCertificates: async () => { assert.fail('Disabled provider must not run'); },
+			});
+			await client.connect();
+			enabled = false;
+			const response = await connections[0].requestCertificates(1000);
+			assert.deepStrictEqual(hasKey(response, { result: true }) ? response.result : undefined, { certificates: [] });
+		});
+
+		test('a failed certificate request does not close the connection', async () => {
+			const { client, connections } = createCertificateClient({
+				isEnabled: () => true,
+				loadCertificates: async () => { throw new Error('Certificate loading failed'); },
+			});
+			await client.connect();
+			const response = await connections[0].requestCertificates(1000);
+			assert.deepStrictEqual({
+				state: client.connectionState,
+				message: hasKey(response, { error: true }) ? response.error.message : undefined,
+			}, { state: AgentHostClientState.Connected, message: 'Certificate loading failed' });
+		});
+
+		test('a delayed certificate response is not sent on a replacement transport', async () => {
+			const result = new DeferredPromise<readonly string[]>();
+			const started = new DeferredPromise<void>();
+			const { client, connections } = createCertificateClient({
+				isEnabled: () => true,
+				loadCertificates: async () => { started.complete(); return result.p; },
+			});
+			await client.connect();
+			connections[0].fireExtensionRequest(1000, LoadClientCertificatesExtensionMethod, {});
+			await started.p;
+			const reconnected = Event.toPromise(client.onDidReconnect);
+			connections[0].fireClose();
+			await reconnected;
+			result.complete(['STALE CA']);
+			await timeout(0);
+			assert.deepStrictEqual(connections.map(connection => connection.sentMessages.some(message => hasKey(message, { id: true }) && message.id === 1000)), [true, false]);
+		});
+	});
+
+	suite('worktree cleanup', () => {
+		test('never sends force cleanup to hosts without the explicit capability', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport, { 'vscode.worktreeCleanup': true, 'vscode.managedWorktrees': true });
+			const before = transport.sentMessages.length;
+			await assert.rejects(client.sessionWorktreeCleanup(URI.parse('opaque-session://tenant/session'), true, true), /does not support forced/);
+			await assert.rejects(client.cleanupManagedWorktree(URI.file('/repo'), URI.file('/repo.worktrees/recovered'), 'agents/recovered', true), /does not support forced/);
+			assert.deepStrictEqual(transport.sentMessages.slice(before), []);
+		});
+
+		test('forwards force cleanup without changing an opaque host session identity', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport, { 'vscode.worktreeCleanup': true, 'vscode.forceWorktreeCleanup': true });
+			const cleanup = client.sessionWorktreeCleanup(URI.parse('opaque-session://tenant/exact-id'), true, true);
+			const request = transport.sentMessages.at(-1) as JsonRpcRequest;
+			transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: { state: 'unknown' } });
+			await cleanup;
+			assert.deepStrictEqual(request.params, { session: 'opaque-session://tenant/exact-id', retry: true, force: true });
+		});
+
+		test('does not send managed cleanup requests without the capability', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport);
+			const before = transport.sentMessages.length;
+			const worktrees = await client.listManagedWorktrees([URI.file('/repo')]);
+			await assert.rejects(client.cleanupManagedWorktree(URI.file('/repo'), URI.file('/repo.worktrees/session'), 'agents/session'), /does not support/);
+			assert.deepStrictEqual({ worktrees, requests: transport.sentMessages.slice(before) }, { worktrees: [], requests: [] });
+		});
+
+		test('validates managed inventory and forwards an explicit branch-bound cleanup', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport, { 'vscode.managedWorktrees': true });
+			const inventory = client.listManagedWorktrees([URI.file('/repo')]);
+			const listRequest = transport.sentMessages.at(-1) as JsonRpcRequest;
+			transport.fireMessage({ jsonrpc: '2.0', id: listRequest.id, result: [{ repository: 'file:///repo', worktree: 'file:///repo.worktrees/recovered', branch: 'agents/recovered', cleanupStatus: { state: 'unknown' } }] });
+			const worktrees = await inventory;
+			const cleanup = client.cleanupManagedWorktree(URI.parse(worktrees[0].repository), URI.parse(worktrees[0].worktree), worktrees[0].branch);
+			const cleanupRequest = transport.sentMessages.at(-1) as JsonRpcRequest;
+			transport.fireMessage({ jsonrpc: '2.0', id: cleanupRequest.id, result: null });
+			await cleanup;
+			assert.deepStrictEqual({
+				list: { method: listRequest.method, params: listRequest.params },
+				cleanup: { method: cleanupRequest.method, params: cleanupRequest.params },
+			}, {
+				list: { method: 'vscode/listManagedWorktrees', params: { repositories: ['file:///repo'] } },
+				cleanup: { method: 'vscode/cleanupManagedWorktree', params: { repository: 'file:///repo', worktree: 'file:///repo.worktrees/recovered', branch: 'agents/recovered' } },
+			});
+		});
+
+		test('rejects malformed managed inventory', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport, { 'vscode.managedWorktrees': true });
+			const inventory = client.listManagedWorktrees([URI.file('/repo')]);
+			const request = transport.sentMessages.at(-1) as JsonRpcRequest;
+			transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: [{ worktree: 'file:///repo.worktrees/recovered' }] });
+			await assert.rejects(inventory, /invalid worktree inventory/);
+		});
+
+		for (const capability of [undefined, false, 'true', {}]) {
+			test(`does not offer retry without a valid capability (${JSON.stringify(capability)})`, async () => {
+				const { client, transport } = createClient();
+				await connectClient(client, transport, { 'vscode.worktreeCleanup': capability });
+				const before = transport.sentMessages.length;
+				const status = await client.sessionWorktreeCleanup(URI.parse('opaque-session://host/session'), false);
+				await assert.rejects(client.sessionWorktreeCleanup(URI.parse('opaque-session://host/session'), true), /does not support/);
+				assert.deepStrictEqual({ status, requests: transport.sentMessages.slice(before) }, { status: undefined, requests: [] });
+			});
+		}
+
+		for (const retry of [false, true]) {
+			test(`preserves the advertised opaque session URI for retry=${retry}`, async () => {
+				const { client, transport } = createClient();
+				await connectClient(client, transport, { 'vscode.worktreeCleanup': true });
+				const status = client.sessionWorktreeCleanup(URI.parse('opaque-session://tenant/exact-id'), retry);
+				const request = transport.sentMessages.at(-1) as JsonRpcRequest;
+				transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: { state: 'failed', message: 'permission denied' } });
+				assert.deepStrictEqual({
+					method: request.method, params: request.params, status: await status,
+				}, {
+					method: 'vscode/sessionWorktreeCleanup',
+					params: { session: 'opaque-session://tenant/exact-id', retry },
+					status: { state: 'failed', message: 'permission denied' },
+				});
+			});
+		}
+
+		test('rejects malformed cleanup outcomes', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport, { 'vscode.worktreeCleanup': true });
+			const status = client.sessionWorktreeCleanup(URI.parse('opaque-session://tenant/session'), false);
+			const request = transport.sentMessages.at(-1) as JsonRpcRequest;
+			transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: { state: 'failed', message: 123 } });
+			await assert.rejects(status, /invalid worktree cleanup status/);
+		});
+	});
+
 	suite('worktree disk usage', () => {
+		test('forwards an opaque host-advertised session identity for persistent caching', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport, { 'vscode.worktreeDiskUsage': true });
+			const session = URI.parse('other-host:/opaque/session');
+			const measurement = client.measureWorktreeDiskUsage(URI.file('/worktree'), CancellationToken.None, session);
+			const request = transport.sentMessages.at(-1) as JsonRpcRequest;
+			transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: { sizeBytes: 1234 } });
+			assert.deepStrictEqual({ size: await measurement, session: (request.params as { session: string }).session }, {
+				size: 1234, session: session.toString(),
+			});
+		});
+
 		for (const capability of [undefined, false, 'true', {}]) {
 			test(`does not fall back to filesystem RPCs without a valid capability (${JSON.stringify(capability)})`, async () => {
 				const { client, transport } = createClient();
@@ -615,7 +891,7 @@ suite('AgentHostProtocolClient', () => {
 				clientId: 'client',
 				reconnectPolicy: { autoRestore: true, initialDelayMs: 1, maxDelayMs: 1, maxAttempts: 1 },
 			}, logService, createPermissionService(), new TestConfigurationService(), NullTelemetryService, workspaceTrustEnablementService,
-				new TestWorkspaceTrustManagementService(), new class extends mock<IWorkspaceTrustRequestService>() { }(), defaultAccountService));
+				new TestWorkspaceTrustManagementService(), new class extends mock<IWorkspaceTrustRequestService>() { }()));
 			return { client, sockets };
 		}
 
@@ -650,6 +926,270 @@ suite('AgentHostProtocolClient', () => {
 				{ kind: 'capabilities', accepts: ['batch'] },
 			]);
 		});
+	});
+
+	suite('windowed state delivery', () => {
+		const channel = 'session-store://tenant/sessions/windowed?generation%3D2';
+		const flowControl = {
+			clientReceive: agentHostStateReceiveLimits,
+			hostReceive: { windowBytes: 64 * 1024, maximumFrameBytes: 1024 },
+		};
+		const state: SessionState = {
+			provider: 'other-agent', title: 'Initial', status: SessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready, activeClients: [], chats: [],
+		};
+
+		test('offers windowing only for non-root state subscriptions and accepts an ordinary snapshot', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport);
+			const offered: unknown[] = [];
+			const snapshots: IStateSnapshot[] = [];
+			for (const snapshot of [
+				{ resource: channel, state, fromSeq: 5 },
+				{ resource: ROOT_STATE_URI, state: { agents: [] }, fromSeq: 6 },
+			]) {
+				const pending = client.subscribe(URI.parse(snapshot.resource));
+				const request = transport.sentMessages.at(-1) as JsonRpcRequest;
+				offered.push(request.params);
+				transport.fireWireMessage({ jsonrpc: '2.0', id: request.id, result: { snapshot } });
+				snapshots.push(await pending);
+			}
+			const stateless = client.subscribeStateless(URI.parse('ahp-otlp://host/opaque-logs'));
+			const request = transport.sentMessages.at(-1) as JsonRpcRequest;
+			offered.push(request.params);
+			transport.fireWireMessage({ jsonrpc: '2.0', id: request.id, result: {} });
+			await stateless;
+			client.dispatch(channel, { type: ActionType.SessionTitleChanged, title: 'Ordinary' });
+			assert.deepStrictEqual({ offered, snapshots, dispatch: transport.sentMessages.at(-1) }, {
+				offered: [
+					{ channel, flowControl: { receive: agentHostStateReceiveLimits } },
+					{ channel: URI.parse(ROOT_STATE_URI).toString() },
+					{ channel: 'ahp-otlp://host/opaque-logs' },
+				],
+				snapshots: [{ resource: channel, state, fromSeq: 5 }, { resource: ROOT_STATE_URI, state: { agents: [] }, fromSeq: 6 }],
+				dispatch: { jsonrpc: '2.0', method: 'dispatchAction', params: { channel, clientSeq: 1, action: { type: ActionType.SessionTitleChanged, title: 'Ordinary' } } },
+			});
+		});
+
+		test('cancels a late subscribe reply after unsubscribe and starts fresh counters', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport);
+			const closed = sinon.spy(transport, 'dispose');
+			const resource = URI.parse(AUTOMATION_CATALOG_URI);
+			const automationChannel = resource.toString();
+			const stale = assert.rejects(client.subscribe(resource), error => error instanceof CancellationError);
+			const first = transport.sentMessages.at(-1) as JsonRpcRequest;
+			client.unsubscribe(resource);
+			const fresh = client.subscribe(resource);
+			const second = transport.sentMessages.at(-1) as JsonRpcRequest;
+			const snapshot = { resource: automationChannel, state: { entries: [] }, fromSeq: 2 };
+			const text = JSON.stringify({ jsonrpc: '2.0', method: 'channel/snapshot', params: { channel: automationChannel, snapshot } });
+			transport.fireWireMessage({ jsonrpc: '2.0', id: first.id, result: { flowControl } });
+			transport.fireWireMessage({ jsonrpc: '2.0', method: 'channel/frame', params: { channel: automationChannel, data: text.slice(0, 40), final: false } });
+			transport.fireWireMessage({ jsonrpc: '2.0', id: second.id, result: { flowControl } });
+			const frames = [text.slice(0, 40), text.slice(40)].map((data, index) => ({
+				jsonrpc: '2.0' as const, method: 'channel/frame', params: { channel: automationChannel, data, final: index === 1 },
+			}));
+			const credited = Event.toPromise(Event.filter(transport.onDidSend, () => transport.sentMessages.some(message => hasKey(message, { method: true }) && message.method === 'channel/credit')));
+			for (const frame of frames) {
+				transport.fireWireMessage(frame);
+			}
+			await stale;
+			const result = await fresh;
+			client['_windowedChannels'].get(automationChannel)?.flushCredit();
+			await credited;
+			assert.deepStrictEqual({ result, closed: closed.called, credit: transport.sentMessages.at(-1) }, {
+				result: snapshot, closed: false,
+				credit: { jsonrpc: '2.0', method: 'channel/credit', params: { channel: automationChannel, consumedBytes: frames.reduce((bytes, frame) => bytes + JSON.stringify(frame).length * 2, 0) } },
+			});
+		});
+
+		for (const reply of ['accepted', 'declined', 'failed'] as const) {
+			test(`holds dispatches until a windowed subscribe is ${reply}`, async () => {
+				const { client, transport } = createClient();
+				await connectClient(client, transport);
+				const closed = sinon.spy(transport, 'dispose');
+				const chat = 'chat-store://tenant/conversations/opaque';
+				const pending = client.subscribe(URI.parse(chat));
+				const rejected = reply === 'failed' ? assert.rejects(pending, /Subscription failed/) : undefined;
+				const request = transport.sentMessages.at(-1) as JsonRpcRequest;
+				// Equal sizes: the window fits exactly one whole dispatch, so the second waits for credit.
+				const dispatches = [1, 2].map(clientSeq => ({
+					jsonrpc: '2.0' as const, method: 'dispatchAction',
+					params: { channel: chat, clientSeq, action: { type: ActionType.ChatIsReadChanged, isRead: true } },
+				} as const));
+				for (const message of dispatches) {
+					client.dispatch(chat, message.params.action);
+				}
+				const getDispatches = () => transport.sentMessages.filter(message => hasKey(message, { method: true }) && message.method === 'dispatchAction' && (message.params as DispatchActionParams).channel === chat);
+				const beforeReply = getDispatches();
+				const snapshot = { resource: chat, state: createChatState({ resource: chat, title: 'Chat', status: SessionStatus.Idle, modifiedAt: new Date(0).toISOString() }), fromSeq: 0 };
+				if (reply === 'failed') {
+					transport.fireWireMessage({ jsonrpc: '2.0', id: request.id, error: { code: JsonRpcErrorCodes.InternalError, message: 'Subscription failed' } });
+				} else {
+					transport.fireWireMessage({
+						jsonrpc: '2.0', id: request.id, result: reply === 'accepted'
+							? { flowControl: { ...flowControl, hostReceive: { ...flowControl.hostReceive, windowBytes: JSON.stringify(dispatches[0]).length * 2 } } }
+							: { snapshot }
+					});
+				}
+				await flushMicrotasks();
+				const afterReply = getDispatches();
+				if (reply === 'accepted') {
+					transport.fireWireMessage({ jsonrpc: '2.0', method: 'channel/credit', params: { channel: chat, consumedBytes: JSON.stringify(dispatches[0]).length * 2 } });
+					transport.fireWireMessage({ jsonrpc: '2.0', method: 'channel/snapshot', params: { channel: chat, snapshot } });
+				}
+				await (rejected ?? pending);
+				await flushMicrotasks();
+				assert.deepStrictEqual({ beforeReply, afterReply, dispatches: getDispatches(), closed: closed.called }, {
+					beforeReply: [], afterReply: reply === 'accepted' ? dispatches.slice(0, 1) : dispatches, dispatches, closed: false,
+				});
+			});
+		}
+
+		test('drops dispatches held by a subscribe when the transport closes', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport);
+			const rejected = assert.rejects(client.subscribe(URI.parse(channel)), error => error instanceof ProtocolError && error.code === -32000);
+			client.dispatch(channel, { type: ActionType.SessionTitleChanged, title: 'Lost' });
+			transport.fireClose();
+			await rejected;
+			assert.deepStrictEqual({
+				state: client.connectionState,
+				dispatches: transport.sentMessages.filter(message => hasKey(message, { method: true }) && message.method === 'dispatchAction' && (message.params as DispatchActionParams).channel === channel),
+			}, { state: AgentHostClientState.Closed, dispatches: [] });
+		});
+
+		test('reports a throwing notification handler without closing the windowed transport', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport);
+			const closed = sinon.spy(transport, 'dispose');
+			const pending = client.subscribe(URI.parse(channel));
+			const request = transport.sentMessages.at(-1) as JsonRpcRequest;
+			transport.fireWireMessage({ jsonrpc: '2.0', id: request.id, result: { flowControl } });
+			transport.fireWireMessage({ jsonrpc: '2.0', method: 'channel/snapshot', params: { channel, snapshot: { resource: channel, state, fromSeq: 5 } } });
+			await pending;
+			const error = new Error('Notification handler failed');
+			const errors: Error[] = [];
+			const previousHandler = errorHandler.getUnexpectedErrorHandler();
+			const handler = sinon.stub(client['_devContainerService'], 'handleNotification').throws(error);
+			setUnexpectedErrorHandler(error => errors.push(error));
+			try {
+				transport.fireWireMessage({ jsonrpc: '2.0', method: 'action', params: { channel, serverSeq: 6, action: { type: ActionType.SessionTitleChanged, title: 'Throwing' } } });
+			} finally {
+				handler.restore();
+				setUnexpectedErrorHandler(previousHandler);
+			}
+			const actions: ActionEnvelope[] = [];
+			disposables.add(client.onDidAction(action => actions.push(action)));
+			const next = { channel, serverSeq: 7, action: { type: ActionType.SessionTitleChanged, title: 'Still connected' } } as const;
+			transport.fireWireMessage({ jsonrpc: '2.0', method: 'action', params: next });
+			assert.deepStrictEqual({ errors, actions, closed: closed.called }, { errors: [error], actions: [next], closed: false });
+		});
+
+		for (const fragmented of [false, true]) {
+			test(`waits for ${fragmented ? 'a fragmented' : 'an immediate same-batch'} snapshot and credits subsequent actions`, async () => {
+				const { client, transport } = createClient();
+				await connectClient(client, transport);
+				const subscription = disposables.add(client.getSubscription<SessionState>(StateComponents.Session, URI.parse(channel), 'test'));
+				await flushMicrotasks();
+				const request = transport.sentMessages.at(-1) as JsonRpcRequest;
+				transport.fireWireMessage({ jsonrpc: '2.0', id: request.id, result: { flowControl } });
+				const beforeSnapshot = subscription.object.verifiedValue;
+				const snapshot = { resource: channel, state: { ...state, title: 'Snapshot' }, fromSeq: 5 };
+				const message = { jsonrpc: '2.0' as const, method: 'channel/snapshot', params: { channel, snapshot } };
+				const messages: JsonRpcNotification[] = [];
+				if (fragmented) {
+					const text = JSON.stringify(message);
+					for (let offset = 0; offset < text.length; offset += 100) {
+						messages.push({ jsonrpc: '2.0', method: 'channel/frame', params: { channel, data: text.slice(offset, offset + 100), final: offset + 100 >= text.length } });
+					}
+				} else {
+					messages.push(message);
+				}
+				messages.push({ jsonrpc: '2.0', method: 'action', params: { channel, serverSeq: 6, action: { type: ActionType.SessionTitleChanged, title: 'Updated' } } });
+				const credited = Event.toPromise(Event.filter(transport.onDidSend, () => transport.sentMessages.some(message => hasKey(message, { method: true }) && message.method === 'channel/credit')));
+				for (const message of messages) {
+					transport.fireWireMessage(message);
+				}
+				client['_windowedChannels'].get(channel)?.flushCredit();
+				await credited;
+				await flushMicrotasks();
+				const credit = transport.sentMessages.findLast(message => hasKey(message, { method: true }) && message.method === 'channel/credit');
+				assert.deepStrictEqual({ beforeSnapshot, state: subscription.object.verifiedValue, credit }, {
+					beforeSnapshot: undefined,
+					state: { ...state, title: 'Updated' },
+					credit: { jsonrpc: '2.0', method: 'channel/credit', params: { channel, consumedBytes: messages.reduce((bytes, message) => bytes + JSON.stringify(message).length * 2, 0) } },
+				});
+			});
+		}
+
+		test('waits after acceptance, resolves all snapshot waiters, and fragments outgoing dispatches', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport);
+			let completed = 0;
+			const pending = [0, 1].map(async () => {
+				const snapshot = await client.subscribe(URI.parse(channel));
+				completed++;
+				return snapshot;
+			});
+			for (const request of transport.sentMessages.filter((message): message is JsonRpcRequest => 'method' in message && message.method === 'subscribe' && 'id' in message)) {
+				transport.fireWireMessage({ jsonrpc: '2.0', id: request.id, result: { flowControl } });
+			}
+			await flushMicrotasks();
+			const beforeSnapshot = completed;
+			const snapshot = { resource: channel, state, fromSeq: 5 };
+			transport.fireWireMessage({ jsonrpc: '2.0', method: 'channel/snapshot', params: { channel, snapshot } });
+			const snapshots = await Promise.all(pending);
+			const action = { type: ActionType.SessionTitleChanged, title: 'x'.repeat(1000) } as const;
+			client.dispatch(channel, action);
+			await flushMicrotasks();
+			const frames = transport.sentMessages.filter((message): message is JsonRpcNotification => 'method' in message && message.method === 'channel/frame');
+			assert.deepStrictEqual({ beforeSnapshot, snapshots, fragmented: frames.length > 1, dispatch: JSON.parse(frames.map(frame => (frame.params as { data: string }).data).join('')) }, {
+				beforeSnapshot: 0, snapshots: [snapshot, snapshot], fragmented: true,
+				dispatch: { jsonrpc: '2.0', method: 'dispatchAction', params: { channel, clientSeq: 1, action } },
+			});
+		});
+
+		for (const connectionKind of [AgentHostClientConnectionKind.WebPubSub, AgentHostClientConnectionKind.MissionControl]) {
+			test(`does not offer state windows on ${connectionKind}`, async () => {
+				const { client, transport } = createClient(disposables.add(new TestProtocolTransport(connectionKind)));
+				await connectClient(client, transport);
+				const pending = client.subscribe(URI.parse(channel));
+				const request = transport.sentMessages.at(-1) as JsonRpcRequest;
+				const snapshot = { resource: channel, state, fromSeq: 5 };
+				transport.fireWireMessage({ jsonrpc: '2.0', id: request.id, result: { snapshot } });
+				assert.deepStrictEqual({ params: request.params, snapshot: await pending }, { params: { channel }, snapshot });
+			});
+		}
+
+		for (const limit of ['windowBytes', 'maximumFrameBytes'] as const) {
+			test(`rejects a host that increases the offered ${limit}`, async () => {
+				const { client, transport } = createClient();
+				await connectClient(client, transport);
+				const rejected = assert.rejects(client.subscribe(URI.parse(channel)), /Host increased requested state receive limits/);
+				const request = transport.sentMessages.at(-1) as JsonRpcRequest;
+				transport.fireWireMessage({ jsonrpc: '2.0', id: request.id, result: { flowControl: { ...flowControl, clientReceive: { ...agentHostStateReceiveLimits, [limit]: agentHostStateReceiveLimits[limit] + 1 } } } });
+				await rejected;
+			});
+		}
+
+		for (const unsubscribe of [false, true]) {
+			test(`${unsubscribe ? 'unsubscribe' : 'transport loss'} rejects a pending channel snapshot`, async () => {
+				const { client, transport } = createClient();
+				await connectClient(client, transport);
+				const rejected = assert.rejects(client.subscribe(URI.parse(channel)), error => unsubscribe ? error instanceof CancellationError : error instanceof ProtocolError && error.code === -32000);
+				const request = transport.sentMessages.at(-1) as JsonRpcRequest;
+				transport.fireWireMessage({ jsonrpc: '2.0', id: request.id, result: { flowControl } });
+				await flushMicrotasks();
+				if (unsubscribe) {
+					client.unsubscribe(URI.parse(channel));
+				} else {
+					transport.fireClose();
+				}
+				await rejected;
+			});
+		}
 	});
 
 	suite('confirmed dispatch', () => {
@@ -1010,7 +1550,10 @@ suite('AgentHostProtocolClient', () => {
 				URI.parse('vscode-remote://ssh-remote+test/ssh/trusted'),
 				URI.parse('vscode-remote://ssh-remote+other/other/trusted'),
 			];
-			const client = disposables.add(new AgentHostProtocolClient(identity, transport, undefined, new NullLogService(), createPermissionService(), new TestConfigurationService(), NullTelemetryService, workspaceTrustEnablementService, trustService, createWorkspaceTrustServices().request, defaultAccountService));
+			const options = identity === 'vscode-remote://ssh-remote+test'
+				? { resourceUris: createEditorRemoteAgentHostResourceUriMapper('ssh-remote+test', agentHostAuthority(identity)) }
+				: undefined;
+			const client = disposables.add(new AgentHostProtocolClient(identity, transport, options, new NullLogService(), createPermissionService(), new TestConfigurationService(), NullTelemetryService, workspaceTrustEnablementService, trustService, createWorkspaceTrustServices().request));
 			await connectClient(client, transport);
 			const path = identity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY ? '/local/trusted' : identity === 'test.example:1234' ? '/remote/trusted' : '/ssh/trusted';
 			assert.deepStrictEqual(findRootConfigValue(transport.sentMessages, AgentHostWorkspaceTrustConfigKey), { enabled: true, trustedUris: [URI.file(path).toString()] });
@@ -1022,7 +1565,7 @@ suite('AgentHostProtocolClient', () => {
 		const trustService = new TestWorkspaceTrustManagementService();
 		const changed = disposables.add(new Emitter<void>());
 		trustService.onDidChangeTrustedFolders = changed.event;
-		const client = disposables.add(new AgentHostProtocolClient(LOCAL_AGENT_HOST_RESOURCE_IDENTITY, transport, undefined, new NullLogService(), createPermissionService(), new TestConfigurationService({ 'security.workspace.trust.enabled': false }), NullTelemetryService, workspaceTrustEnablementService, trustService, createWorkspaceTrustServices().request, defaultAccountService));
+		const client = disposables.add(new AgentHostProtocolClient(LOCAL_AGENT_HOST_RESOURCE_IDENTITY, transport, undefined, new NullLogService(), createPermissionService(), new TestConfigurationService({ 'security.workspace.trust.enabled': false }), NullTelemetryService, workspaceTrustEnablementService, trustService, createWorkspaceTrustServices().request));
 		await connectClient(client, transport);
 		const states = [findRootConfigValue(transport.sentMessages, AgentHostWorkspaceTrustConfigKey)];
 		for (const trustedUris of [[URI.file('/repo')], []]) {
@@ -1040,7 +1583,7 @@ suite('AgentHostProtocolClient', () => {
 
 	test('workspace trust forwards explicit disablement from the enablement service', async () => {
 		const transport = disposables.add(new TestProtocolTransport());
-		const client = disposables.add(new AgentHostProtocolClient(LOCAL_AGENT_HOST_RESOURCE_IDENTITY, transport, undefined, new NullLogService(), createPermissionService(), new TestConfigurationService(), NullTelemetryService, { _serviceBrand: undefined, isWorkspaceTrustEnabled: () => false }, new TestWorkspaceTrustManagementService(), createWorkspaceTrustServices().request, defaultAccountService));
+		const client = disposables.add(new AgentHostProtocolClient(LOCAL_AGENT_HOST_RESOURCE_IDENTITY, transport, undefined, new NullLogService(), createPermissionService(), new TestConfigurationService(), NullTelemetryService, { _serviceBrand: undefined, isWorkspaceTrustEnabled: () => false }, new TestWorkspaceTrustManagementService(), createWorkspaceTrustServices().request));
 		await connectClient(client, transport);
 		assert.deepStrictEqual(findRootConfigValue(transport.sentMessages, AgentHostWorkspaceTrustConfigKey), { enabled: false, trustedUris: [] });
 	});
@@ -1184,6 +1727,361 @@ suite('AgentHostProtocolClient', () => {
 		assert.deepStrictEqual([...client['_authentication'].values()], []);
 	});
 
+	test('retains targeted MCP authentication independently for reconnect replay', async () => {
+		const { client, transport } = createClient();
+		const resource = 'https://mcp.slack.com';
+		const target = (customizationId: string) => ({ kind: AuthenticateTargetKind.McpServer, session: 'other-agent://tenant/session', customizationId });
+		const send = async (params: AuthenticateParams) => {
+			const pending = client.authenticate(params);
+			const request = transport.sentMessages[transport.sentMessages.length - 1] as JsonRpcRequest;
+			transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: { authenticated: true } });
+			await pending;
+		};
+		await send({ resource, scopes: ['read'], token: 'provider-token' });
+		await send({ resource, scopes: ['read'], token: 'first-token', target: target('first') });
+		await send({ resource, scopes: ['read'], token: 'second-token', target: target('second') });
+		await send({ resource, scopes: ['read'], token: '', target: target('first') });
+
+		assert.deepStrictEqual([...client['_authentication'].values()].map(entry => [entry.params.token, entry.params.target?.customizationId]), [
+			['provider-token', undefined],
+			['second-token', 'second'],
+		]);
+	});
+
+	suite('authentication encryption', () => {
+		const resource = 'https://identity.example.test';
+		const challenge = '0123456789abcdef0123456789abcdef';
+		const keys = ['auth-token', 'mcp-auth-token'].map(use => ({ keyId: use, publicKey: `${use}-public-key`, use, algorithm: 'x25519-sealedbox' }));
+		const rootMeta = { 'copilot.encryptionKeys': keys };
+		const handshakeMeta = { 'copilot.encryptionRequired': ['auth-token', 'mcp-auth-token'], 'copilot.authChallenge': { challenge, required: true } };
+
+		async function initialize(client: AgentHostProtocolClient, transport: TestProtocolTransport, root = rootMeta, meta: Record<string, unknown> = handshakeMeta): Promise<void> {
+			const connecting = client.connect();
+			if (transport instanceof TestClientProtocolTransport) {
+				transport.connectDeferred.complete();
+			}
+			await flushMicrotasks();
+			const request = transport.sentMessages.find((message): message is JsonRpcRequest => hasKey(message, { id: true, method: true }) && message.method === 'initialize');
+			assert.ok(request);
+			transport.fireMessage({
+				jsonrpc: '2.0', id: request.id,
+				result: {
+					protocolVersion: PROTOCOL_VERSION, serverSeq: 0, _meta: meta,
+					snapshots: [{
+						resource: ROOT_STATE_URI, fromSeq: 0,
+						state: { agents: [{ provider: 'other-provider', displayName: 'Other', description: '', models: [], protectedResources: [{ resource }] }], activeSessions: 0, _meta: root },
+					}],
+				},
+			});
+			await connecting;
+		}
+
+		async function acknowledgeAuthentication(transport: TestProtocolTransport, work: Promise<AuthenticateResult>): Promise<AuthenticateParams> {
+			await flushMicrotasks();
+			const request = transport.sentMessages.findLast((message): message is JsonRpcRequest => hasKey(message, { id: true, method: true }) && message.method === 'authenticate');
+			assert.ok(request);
+			transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: {} });
+			await work;
+			return request.params as AuthenticateParams;
+		}
+
+		test('seals provider and targeted MCP credentials with separate keys without changing scopes or addressing', async () => {
+			const { client, transport } = createClient();
+			const sealed: IMissionControlCredentialSealingRequest[] = [];
+			disposables.add(client.registerAuthenticationTokenSealer(async request => {
+				sealed.push(request);
+				return `copilot-sealed.v1.${request.key.key_id}.ciphertext`;
+			}));
+			await initialize(client, transport);
+			const target = { kind: AuthenticateTargetKind.McpServer, session: 'opaque-session://tenant/id', customizationId: 'server/one' };
+			const provider = await acknowledgeAuthentication(transport, client.authenticate({ resource, token: 'provider-token', scopes: ['write', 'read'], expiresIn: 300 }));
+			const mcp = await acknowledgeAuthentication(transport, client.authenticate({ resource, token: 'mcp-token', scopes: ['read'], target }));
+			assert.deepStrictEqual({
+				sealed: sealed.map(request => [request.token, request.resource, request.key.use, request.challenge]),
+				provider, mcp,
+			}, {
+				sealed: [['provider-token', resource, 'auth-token', challenge], ['mcp-token', resource, 'mcp-auth-token', challenge]],
+				provider: { channel: ROOT_STATE_URI, resource, token: 'copilot-sealed.v1.auth-token.ciphertext', scopes: ['read', 'write'], expiresIn: 300 },
+				mcp: { channel: ROOT_STATE_URI, resource, token: 'copilot-sealed.v1.mcp-auth-token.ciphertext', scopes: ['read'], target },
+			});
+		});
+
+		test('preserves already sealed credentials and the empty revocation sentinel', async () => {
+			const { client, transport } = createClient();
+			disposables.add(client.registerAuthenticationTokenSealer(async () => { throw new Error('Must not encrypt twice'); }));
+			await initialize(client, transport);
+			const encrypted = 'copilot-sealed.v1.external.ciphertext';
+			const authenticate = await acknowledgeAuthentication(transport, client.authenticate({ resource, token: encrypted }));
+			const revoke = await acknowledgeAuthentication(transport, client.authenticate({ resource, token: '' }));
+			assert.deepStrictEqual([authenticate.token, revoke.token], [encrypted, '']);
+		});
+
+		test('waits for initialization before encrypting an early authentication request', async () => {
+			const transport = disposables.add(new TestClientProtocolTransport());
+			const { client } = createClient(transport);
+			const sealed: IMissionControlCredentialSealingRequest[] = [];
+			disposables.add(client.registerAuthenticationTokenSealer(async request => {
+				sealed.push(request);
+				return 'copilot-sealed.v1.key.ciphertext';
+			}));
+			const connecting = initialize(client, transport);
+			const authenticating = client.authenticate({ resource, token: 'early-token' });
+			await connecting;
+			const request = await acknowledgeAuthentication(transport, authenticating);
+			assert.deepStrictEqual({ token: request.token, challenge: sealed[0]?.challenge }, { token: 'copilot-sealed.v1.key.ciphertext', challenge });
+		});
+
+		test('does not send credentials if the connection is disposed while encryption is pending', async () => {
+			const { client, transport } = createClient();
+			const encryption = new DeferredPromise<string>();
+			disposables.add(client.registerAuthenticationTokenSealer(() => encryption.p));
+			await initialize(client, transport);
+			const rejected = assert.rejects(client.authenticate({ resource, token: 'must-not-leak' }), /disposed/i);
+			client.dispose();
+			await rejected;
+			encryption.complete('copilot-sealed.v1.key.ciphertext');
+			await flushMicrotasks();
+			assert.strictEqual(transport.sentMessages.some(message => hasKey(message, { method: true }) && message.method === 'authenticate'), false);
+		});
+
+		test('revocation cancels pending sealing without restoring the credential or cache', async () => {
+			const { client, transport } = createClient();
+			const encryption = new DeferredPromise<string>();
+			disposables.add(client.registerAuthenticationTokenSealer(() => encryption.p));
+			await initialize(client, transport);
+			const canceled = assert.rejects(client.authenticate({ resource, token: 'old-token', scopes: ['write', 'read', 'read'] }), CancellationError);
+			const revoking = client.authenticate({ resource, token: '', scopes: ['read', 'write'] });
+			await acknowledgeAuthentication(transport, revoking);
+			await canceled;
+			encryption.complete('copilot-sealed.v1.key.ciphertext');
+			await flushMicrotasks();
+			assert.deepStrictEqual({
+				tokens: transport.sentMessages.filter((message): message is JsonRpcRequest => hasKey(message, { id: true, method: true }) && message.method === 'authenticate')
+					.map(message => (message.params as AuthenticateParams).token),
+				cached: [...client['_authentication'].values()],
+			}, { tokens: [''], cached: [] });
+		});
+
+		test('revocation remains last on the wire across sealing-completion microtasks', async () => {
+			const results: { turns: number; lastToken: string | undefined; cached: number }[] = [];
+			for (let turns = 0; turns <= 8; turns++) {
+				const { client, transport } = createClient();
+				const encryption = new DeferredPromise<string>();
+				disposables.add(client.registerAuthenticationTokenSealer(() => encryption.p));
+				await initialize(client, transport);
+				const tokens: string[] = [];
+				disposables.add(transport.onDidSend(() => {
+					const request = transport.sentMessages.at(-1);
+					if (request && hasKey(request, { method: true, id: true }) && request.method === 'authenticate') {
+						tokens.push((request.params as AuthenticateParams).token);
+						queueMicrotask(() => transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: {} }));
+					}
+				}));
+				const authenticating = client.authenticate({ resource, token: 'old-token' }).catch(error => {
+					assert.ok(error instanceof CancellationError);
+				});
+				encryption.complete('copilot-sealed.v1.key.ciphertext');
+				for (let turn = 0; turn < turns; turn++) {
+					await Promise.resolve();
+				}
+				await Promise.all([authenticating, client.authenticate({ resource, token: '' })]);
+				results.push({ turns, lastToken: tokens.at(-1), cached: client['_authentication'].size });
+			}
+			assert.deepStrictEqual(results, Array.from({ length: 9 }, (_, turns) => ({ turns, lastToken: '', cached: 0 })));
+		});
+
+		test('a late revocation acknowledgement cannot remove a newer credential', async () => {
+			const { client, transport } = createClient();
+			disposables.add(client.registerAuthenticationTokenSealer(async () => 'copilot-sealed.v1.key.ciphertext'));
+			await initialize(client, transport);
+			const revoked = client.authenticate({ resource, token: '' });
+			const canceled = assert.rejects(revoked, CancellationError);
+			const revokeRequest = transport.sentMessages.findLast((message): message is JsonRpcRequest => hasKey(message, { id: true, method: true }) && message.method === 'authenticate');
+			assert.ok(revokeRequest);
+			await acknowledgeAuthentication(transport, client.authenticate({ resource, token: 'new-token' }));
+			transport.fireMessage({ jsonrpc: '2.0', id: revokeRequest.id, result: {} });
+			await canceled;
+			assert.deepStrictEqual([...client['_authentication'].values()].map(value => value.params.token), ['new-token']);
+		});
+
+		test('a late authentication acknowledgement cannot repopulate a revoked cache', async () => {
+			const { client, transport } = createClient();
+			disposables.add(client.registerAuthenticationTokenSealer(async () => 'copilot-sealed.v1.key.ciphertext'));
+			await initialize(client, transport);
+			const authenticating = client.authenticate({ resource, token: 'old-token' });
+			const canceled = assert.rejects(authenticating, CancellationError);
+			await flushMicrotasks();
+			const request = transport.sentMessages.findLast((message): message is JsonRpcRequest => hasKey(message, { id: true, method: true }) && message.method === 'authenticate');
+			assert.ok(request);
+			await acknowledgeAuthentication(transport, client.authenticate({ resource, token: '' }));
+			transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: {} });
+			await canceled;
+			assert.deepStrictEqual([...client['_authentication'].values()], []);
+		});
+
+		for (const failure of ['missing-key', 'invalid-recipient', 'invalid-challenge', 'encryption-failed', 'invalid-envelope']) {
+			test(`fails closed without sending a plaintext request: ${failure}`, async () => {
+				const { client, transport } = createClient();
+				if (failure !== 'invalid-recipient') {
+					disposables.add(client.registerAuthenticationTokenSealer(async () => {
+						if (failure === 'encryption-failed') {
+							throw new Error('Encryption failed');
+						}
+						return 'plaintext-result';
+					}));
+				}
+				await initialize(client, transport,
+					{ 'copilot.encryptionKeys': failure === 'missing-key' ? [] : keys },
+					failure === 'invalid-challenge' ? { ...handshakeMeta, 'copilot.authChallenge': { required: true } } : handshakeMeta,
+				);
+				await assert.rejects(client.authenticate({ resource, token: 'must-not-leak' }), /encryption|challenge|sealed token|recipient key/i);
+				assert.strictEqual(transport.sentMessages.some(message => hasKey(message, { method: true }) && message.method === 'authenticate'), false);
+			});
+		}
+
+		test('does not trust relay-advertised keys instead of independently authenticated recipient keys', async () => {
+			const transport = disposables.add(new TestProtocolTransport(AgentHostClientConnectionKind.MissionControl));
+			const { client } = createClient(transport);
+			disposables.add(client.registerAuthenticationTokenSealer(async () => { throw new Error('Must not seal to an untrusted relay key'); }));
+			await initialize(client, transport);
+			await assert.rejects(client.authenticate({ resource, token: 'must-not-leak' }), /independently trusted recipient key/);
+			assert.strictEqual(transport.sentMessages.some(message => hasKey(message, { method: true }) && message.method === 'authenticate'), false);
+		});
+	});
+
+	suite('connection resource URI mappers', () => {
+		for (const kind of agentHostConnectionKinds) {
+			function createMappedClient(permissionService = createPermissionService()) {
+				const identity = 'vscode-remote://ssh-remote+test';
+				const transport = disposables.add(new TestProtocolTransport());
+				const resourceUris = kind.resourceUris;
+				const trust = createWorkspaceTrustServices();
+				const client = disposables.add(new AgentHostProtocolClient(identity, transport, { resourceUris }, new NullLogService(), permissionService, new TestConfigurationService(), NullTelemetryService, workspaceTrustEnablementService, trust.management, trust.request));
+				return { client, transport };
+			}
+
+			test(`createSession maps working directories but retains client customization URIs and implicit grants (${kind.name})`, async () => {
+				const granted = new Set<string>();
+				const reads: string[] = [];
+				const permissionService = createResourceServiceStub({
+					granted: (_identity, uri, mode) => mode === AgentHostPermissionMode.Read && granted.has(uri.toString()),
+					onGrantImplicitRead: (_identity, uri) => granted.add(uri.toString()),
+					onRead: async (_identity, uri) => {
+						reads.push(uri.toString());
+						return { bytes: VSBuffer.fromString('plugin') };
+					},
+				});
+				const { client, transport } = createMappedClient(permissionService);
+				await connectClient(client, transport);
+				const customization = {
+					type: CustomizationType.Plugin as const,
+					id: customizationId(kind.toClient(URI.file('/plugins/foo')).toString()),
+					uri: kind.toClient(URI.file('/plugins/foo')).toString(),
+					name: 'Foo',
+				};
+				const session = URI.parse('session-store://tenant/editor-remote');
+				const creation = client.createSession({
+					provider: 'other-agent', session,
+					workingDirectories: [kind.toClient(URI.parse('file:///workspace?query=value#fragment'))],
+					activeClient: { clientId: 'c1', tools: [], customizations: [customization] },
+				});
+				const sent = transport.sentMessages.findLast((message): message is JsonRpcRequest => hasKey(message, { method: true, id: true }) && message.method === 'createSession');
+				assert.ok(sent);
+				transport.fireMessage({ jsonrpc: '2.0', id: sent.id, result: null });
+				await creation;
+				transport.fireMessage({ jsonrpc: '2.0', id: 42, method: 'resourceRead', params: { channel: ROOT_STATE_URI, uri: customization.uri } });
+				await flushMicrotasks();
+
+				assert.deepStrictEqual({
+					params: sent.params,
+					granted: [...granted],
+					reads,
+					response: transport.sentMessages.at(-1),
+				}, {
+					params: {
+						channel: session.toString(), _meta: undefined, provider: 'other-agent',
+						workingDirectories: [URI.parse('file:///workspace?query=value#fragment').toString()], config: undefined,
+						activeClient: { clientId: 'c1', tools: [], customizations: [customization] }, progressToken: undefined,
+					},
+					granted: [URI.parse(customization.uri).toString()],
+					reads: [URI.parse(customization.uri).toString()],
+					response: { jsonrpc: '2.0', id: 42, result: { data: 'cGx1Z2lu', encoding: ContentEncoding.Base64 } },
+				});
+			});
+
+			test(`listSessions returns client identities for host working directories and projects (${kind.name})`, async () => {
+				const { client, transport } = createMappedClient();
+				const listing = client.listSessions();
+				const sent = transport.sentMessages[0] as JsonRpcRequest;
+				const directorySets = [undefined, [], ['file:///workspace'], ['file:///workspace', 'file:///second']];
+				transport.fireMessage({
+					jsonrpc: '2.0', id: sent.id, result: {
+						items: directorySets.map((workingDirectories, index) => ({
+							resource: `session-store://tenant/session-${index}`, provider: 'other-agent', title: 'Session',
+							status: SessionStatus.Idle, createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
+							workingDirectories, project: { uri: 'file:///workspace', displayName: 'Workspace' },
+						})),
+					}
+				});
+
+				const workspace = kind.toClient(URI.file('/workspace')).toString();
+				const secondDirectory = kind.toClient(URI.file('/second')).toString();
+
+				assert.deepStrictEqual((await listing).map(session => ({
+					workingDirectory: session.workingDirectory?.toString(),
+					workingDirectories: session.workingDirectories?.map(uri => uri.toString()),
+					project: session.project?.uri.toString(),
+				})), [
+					{ workingDirectory: undefined, workingDirectories: undefined, project: workspace },
+					{ workingDirectory: undefined, workingDirectories: [], project: workspace },
+					{ workingDirectory: workspace, workingDirectories: [workspace], project: workspace },
+					{ workingDirectory: workspace, workingDirectories: [workspace, secondDirectory], project: workspace },
+				]);
+			});
+		}
+	});
+
+	for (const identity of [LOCAL_AGENT_HOST_RESOURCE_IDENTITY, 'test.example:1234'] as const) {
+		test(`resource mapping preserves wrapped inputs and non-file summaries (${String(identity)})`, async () => {
+			const { client, transport } = createClientForIdentity(identity);
+			const file = URI.file('/workspace');
+			const remote = URI.parse('vscode-remote://ssh-remote+other/workspace');
+			const opaque = URI.parse('workspace-store://tenant/project');
+			// The local client unwraps any legacy wrapper; remote clients unwrap only their own connection's resources.
+			const wrapped = toAgentHostUri(file, identity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY ? 'other-host' : agentHostAuthority(identity));
+			const creation = client.createSession({
+				provider: 'other-agent', session: URI.parse('session-store://tenant/session'),
+				workingDirectories: [wrapped, remote, opaque],
+			});
+			const createRequest = transport.sentMessages[0] as JsonRpcRequest;
+			transport.fireMessage({ jsonrpc: '2.0', id: createRequest.id, result: null });
+			await creation;
+			const listing = client.listSessions();
+			const listRequest = transport.sentMessages.at(-1) as JsonRpcRequest;
+			transport.fireMessage({
+				jsonrpc: '2.0', id: listRequest.id, result: {
+					items: [{
+						resource: 'session-store://tenant/session', provider: 'other-agent', title: 'Session',
+						status: SessionStatus.Idle, createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
+						workingDirectories: [file.toString(), remote.toString(), opaque.toString()],
+						project: { uri: opaque.toString(), displayName: 'Project' },
+					}]
+				}
+			});
+			const [session] = await listing;
+
+			assert.deepStrictEqual({
+				workingDirectories: (createRequest.params as { workingDirectories: string[] }).workingDirectories,
+				summaryDirectories: session.workingDirectories?.map(uri => uri.toString()),
+				project: session.project?.uri.toString(),
+			}, {
+				workingDirectories: [file.toString(), remote.toString(), opaque.toString()],
+				summaryDirectories: [identity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY ? file.toString() : toAgentHostUri(file, agentHostAuthority(identity)).toString(), remote.toString(), opaque.toString()],
+				project: opaque.toString(),
+			});
+		});
+	}
+
 	test('listSessions carries the workspace-less marker and compatible working directories', async () => {
 		// Regression: the sessions provider resolves a session's kind (quick
 		// chat vs. workspace) from `_meta.workspaceless`, and after a window
@@ -1308,13 +2206,44 @@ suite('AgentHostProtocolClient', () => {
 		}, {
 			session, provider: 'third-party', meta: undefined,
 			chats: [[chat, 'default']],
-			subscribe: { channel: chat },
+			subscribe: { channel: chat, flowControl: { receive: agentHostStateReceiveLimits } },
 			stateResource: chat,
 			dispatchChannel: chat,
 		});
 	});
 
 	suite('sandbox certificate transport', () => {
+		for (const fails of [false, true]) {
+			test(`refresh forwards the exact chat and scope and propagates ${fails ? 'failure' : 'success'}`, async () => {
+				const { client, transport } = createClient();
+				await connectClient(client, transport, { 'vscode.sandboxCertificate.refresh': true });
+				const refreshing = client.refreshSandboxCertificate('conversation://tenant/a%2Fb?revision%3D2#entry', 'runtime');
+				const completion = fails ? assert.rejects(refreshing, /Check failed/) : refreshing;
+				await flushMicrotasks();
+				const request = transport.sentMessages.findLast((message): message is JsonRpcRequest => hasKey(message, { method: true, id: true }) && message.method === 'vscode/refreshSandboxCertificate');
+				assert.ok(request);
+				transport.fireMessage(fails
+					? { jsonrpc: '2.0', id: request.id, error: { code: -32603, message: 'Check failed' } }
+					: { jsonrpc: '2.0', id: request.id, result: null });
+				await completion;
+				assert.deepStrictEqual({
+					supported: client.sandboxCertificateRefreshSupported.get(), installationSupported: client.sandboxCertificateInstallationSupported.get(), params: request.params,
+				}, { supported: true, installationSupported: false, params: { chat: 'conversation://tenant/a%2Fb?revision%3D2#entry', scopeId: 'runtime' } });
+			});
+		}
+
+		for (const capability of [undefined, false, 'true']) {
+			test(`does not infer refresh support from installation when refresh capability is ${capability}`, async () => {
+				const { client, transport } = createClient();
+				await connectClient(client, transport, { 'vscode.sandboxCertificate.install': true, 'vscode.sandboxCertificate.refresh': capability });
+				await assert.rejects(client.refreshSandboxCertificate('conversation://tenant/opaque', 'runtime'), /does not support/);
+				assert.deepStrictEqual({
+					supported: client.sandboxCertificateRefreshSupported.get(),
+					sent: transport.sentMessages.some(message => hasKey(message, { method: true }) && message.method === 'vscode/refreshSandboxCertificate'),
+				}, { supported: false, sent: false });
+			});
+		}
+
 		test('rotation uses its own capability and forwards the exact chat and scope', async () => {
 			const { client, transport } = createClient();
 			await connectClient(client, transport, { 'vscode.sandboxCertificate.rotate': true });
@@ -1445,7 +2374,7 @@ suite('AgentHostProtocolClient', () => {
 				transport.fireMessage({ jsonrpc: '2.0', method: 'action', params: envelope });
 				await flushMicrotasks();
 			}
-			const expected = { subscription: { channel: session }, chat, peer: peerStatus, unrelated: 'preserved' };
+			const expected = { subscription: { channel: session, flowControl: { receive: agentHostStateReceiveLimits } }, chat, peer: peerStatus, unrelated: 'preserved' };
 			assert.deepStrictEqual({ initial, updates, extraRequests: transport.sentMessages.length - requestsBefore }, {
 				initial: { ...expected, certificate },
 				updates: [{ ...expected, certificate: installed }, { ...expected, certificate: undefined }],
@@ -1460,7 +2389,7 @@ suite('AgentHostProtocolClient', () => {
 		] as const) {
 			test(`treats ${name} optional metadata as unavailable without failing the subscription`, async () => {
 				const { read } = await subscribe(meta);
-				assert.deepStrictEqual(read(), { subscription: { channel: session }, chat, certificate: undefined, peer: undefined, unrelated: undefined });
+				assert.deepStrictEqual(read(), { subscription: { channel: session, flowControl: { receive: agentHostStateReceiveLimits } }, chat, certificate: undefined, peer: undefined, unrelated: undefined });
 			});
 		}
 	});
@@ -1767,6 +2696,132 @@ suite('AgentHostProtocolClient', () => {
 		assert.strictEqual(await creation, session);
 	});
 
+	test('rejects an imported conversation it cannot carry instead of creating an empty session', async () => {
+		const { client, transport } = createClient();
+		await connectClient(client, transport);
+		assert.strictEqual(client.supportsConversationImport, false);
+		assert.throws(() => client.createSession({
+			provider: 'copilot',
+			session: URI.parse('ahp-session:/imported'),
+			importConversation: { turns: [] },
+		}), /Cannot import a conversation/);
+		assert.strictEqual(transport.sentMessages.some(message => hasKey(message, { method: true }) && message.method === 'createSession'), false);
+	});
+
+	test('maps an imported conversation into createSession metadata when the host advertises support', async () => {
+		const { client, transport } = createClient();
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta());
+		assert.strictEqual(client.supportsConversationImport, true);
+		const session = URI.parse('ahp-session:/imported');
+		const importConversation = {
+			title: 'Imported title',
+			model: { id: 'gpt-5' },
+			turns: [{
+				id: '11111111-1111-4111-8111-111111111111',
+				message: { text: 'Hello', origin: { kind: MessageKind.User } },
+				responseParts: [{ kind: ResponsePartKind.Markdown as const, id: 'm-1', content: 'Hi' }],
+				usage: undefined,
+				state: TurnState.Complete,
+			}],
+		};
+		const creation = client.createSession({
+			provider: 'copilot',
+			session,
+			_meta: { existing: true },
+			importConversation,
+		});
+
+		const request = transport.sentMessages.find((message): message is JsonRpcRequest =>
+			hasKey(message, { method: true }) && message.method === 'createSession');
+		assert.deepStrictEqual(request?.params, {
+			channel: session.toString(),
+			_meta: {
+				existing: true,
+				'vscode.importConversation': {
+					title: 'Imported title',
+					model: { id: 'gpt-5' },
+					turns: [{
+						id: '11111111-1111-4111-8111-111111111111',
+						message: { text: 'Hello', origin: { kind: MessageKind.User } },
+						responseParts: [{ kind: ResponsePartKind.Markdown, id: 'm-1', content: 'Hi' }],
+						state: TurnState.Complete,
+					}],
+				},
+			},
+			provider: 'copilot',
+			workingDirectories: undefined,
+			config: undefined,
+			activeClient: undefined,
+			progressToken: undefined,
+		});
+		assert.ok(request);
+		transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: null });
+		assert.strictEqual(await creation, session);
+	});
+
+	test('stages large imported conversations in bounded chunks before sending createSession', async () => {
+		const { client, transport } = createClient();
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta());
+		transport.sentMessages.length = 0;
+
+		const largeContent = 'x'.repeat(1_200_000);
+		const session = URI.parse('ahp-session:/large-imported');
+		const creation = client.createSession({
+			provider: 'copilot',
+			session,
+			_meta: { existing: true },
+			importConversation: {
+				title: 'Large imported title',
+				turns: [{
+					id: '11111111-1111-4111-8111-111111111111',
+					message: { text: 'Hello', origin: { kind: MessageKind.User } },
+					responseParts: [{ kind: ResponsePartKind.Markdown as const, id: 'm-1', content: largeContent }],
+					usage: undefined,
+					state: TurnState.Complete,
+				}],
+			},
+		});
+		assert.strictEqual(client.getInflightSessionCreate(session), creation);
+
+		const stagedChunks: string[] = [];
+		let transferId: string | undefined;
+		while (true) {
+			const lastMsg = transport.sentMessages.at(-1) as JsonRpcRequest | undefined;
+			assert.ok(lastMsg && hasKey(lastMsg, { method: true }));
+			if (lastMsg.method === 'vscode/stageCreateSessionImportChunk') {
+				const params = lastMsg.params as { transferId: string; chunk: string };
+				transferId ??= params.transferId;
+				assert.strictEqual(params.transferId, transferId);
+				assert.ok(params.chunk.length <= 1024 * 1024);
+				stagedChunks.push(params.chunk);
+				// Acknowledging the chunk makes the client send the next chunk or `createSession`.
+				const nextSend = Event.toPromise(transport.onDidSend);
+				transport.fireMessage({ jsonrpc: '2.0', id: lastMsg.id, result: null });
+				await nextSend;
+				continue;
+			}
+			assert.strictEqual(lastMsg.method, 'createSession');
+			assert.deepStrictEqual(lastMsg.params, {
+				channel: session.toString(),
+				_meta: {
+					existing: true,
+					'vscode.importConversation': { transferId },
+				},
+				provider: 'copilot',
+				workingDirectories: undefined,
+				config: undefined,
+				activeClient: undefined,
+				progressToken: undefined,
+			});
+			transport.fireMessage({ jsonrpc: '2.0', id: lastMsg.id, result: null });
+			break;
+		}
+
+		assert.strictEqual(await creation, session);
+		assert.strictEqual(stagedChunks.length, 2);
+		assert.strictEqual(JSON.parse(stagedChunks.join('')).turns[0].responseParts[0].content.length, largeContent.length);
+	});
+
 	suite('createChat', () => {
 		const sessionUri = URI.parse('ahp-session:/test');
 		const chatUri = URI.parse('ahp-session:/test/chat-1');
@@ -1932,6 +2987,58 @@ suite('AgentHostProtocolClient', () => {
 			await resultPromise;
 		});
 
+		test('sends a requested chat workspace only to a host that advertises it', async () => {
+			const unsupported = createClient();
+			await connectClient(unsupported.client, unsupported.transport, { 'vscode.detachedWorktrees': true });
+			unsupported.transport.sentMessages.length = 0;
+			const refusal = await unsupported.client.createChat(sessionUri, chatUri, { workspace: { kind: 'scratch' } }).then(() => undefined, error => error instanceof Error);
+
+			const supported = createClient();
+			await connectClient(supported.client, supported.transport, getAgentHostExtensionInitializeResultMeta());
+			supported.transport.sentMessages.length = 0;
+			const created = supported.client.createChat(sessionUri, chatUri, { workspace: { kind: 'folder', folder: workingDirectory, isolation: 'worktree', baseBranch: 'dev', prompt: 'Task' } });
+			const request = supported.transport.sentMessages[0];
+			assert.ok(hasKey(request, { id: true, params: true }));
+			supported.transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: null });
+			await created;
+
+			assert.deepStrictEqual({ refusal, unsupportedRequests: unsupported.transport.sentMessages, params: request.params }, {
+				refusal: true,
+				unsupportedRequests: [],
+				params: {
+					channel: sessionUri.toString(),
+					chat: chatUri.toString(),
+					_meta: { 'vscode.chatWorkspace': { kind: 'folder', folder: URI.file('/workspace').toString(), isolation: 'worktree', baseBranch: 'dev', prompt: 'Task' } },
+				},
+			});
+		});
+
+		test('applies a chat workspace through the extension request only on a host that advertises it, mapping the folder to the host', async () => {
+			const unsupported = createClient();
+			await connectClient(unsupported.client, unsupported.transport, { 'vscode.detachedWorktrees': true });
+			unsupported.transport.sentMessages.length = 0;
+			const refusal = await unsupported.client.setChatWorkspace(chatUri, { kind: 'scratch' }).then(() => undefined, error => error instanceof Error ? error.message : String(error));
+
+			const supported = createClient();
+			await connectClient(supported.client, supported.transport, getAgentHostExtensionInitializeResultMeta());
+			supported.transport.sentMessages.length = 0;
+			const applied = supported.client.setChatWorkspace(chatUri, { kind: 'folder', folder: workingDirectory, isolation: 'worktree', baseBranch: 'dev', prompt: 'Task' });
+			const request = supported.transport.sentMessages[0];
+			assert.ok(hasKey(request, { id: true, method: true, params: true }));
+			supported.transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: null });
+			await applied;
+
+			assert.deepStrictEqual({ refusal, unsupportedRequests: unsupported.transport.sentMessages, method: request.method, params: request.params }, {
+				refusal: 'This agent host can\'t move a chat into its own workspace.',
+				unsupportedRequests: [],
+				method: 'vscode/setChatWorkspace',
+				params: {
+					chat: chatUri.toString(),
+					workspace: { kind: 'folder', folder: URI.file('/workspace').toString(), isolation: 'worktree', baseBranch: 'dev', prompt: 'Task' },
+				},
+			});
+		});
+
 		test('omits source entirely when neither fork nor sideChat is requested', async () => {
 			const { client, transport } = createClient();
 
@@ -1970,7 +3077,7 @@ suite('AgentHostProtocolClient', () => {
 		});
 		await timeout(0);
 		assert.deepStrictEqual({ params: request.params, state: reference.object.value }, {
-			params: { channel: resource.toString() },
+			params: { channel: resource.toString(), flowControl: { receive: agentHostStateReceiveLimits } },
 			state: { instanceId: 'preview', extensionId: 'example:provider', canvasId: 'preview', url: 'https://example.test/preview' },
 		});
 	});
@@ -2092,7 +3199,7 @@ suite('AgentHostProtocolClient', () => {
 			'test.example:1234', transport,
 			{ onDispose: () => { callbackCount++; throw new Error('release failed'); } },
 			logService, createPermissionService(), new TestConfigurationService(), NullTelemetryService,
-			workspaceTrustEnablementService, trust.management, trust.request, defaultAccountService,
+			workspaceTrustEnablementService, trust.management, trust.request,
 		));
 		let closeCount = 0;
 		disposables.add(client.onDidClose(() => closeCount++));
@@ -2251,20 +3358,19 @@ suite('AgentHostProtocolClient', () => {
 		const { client } = createClient(transport);
 		let closeCount = 0;
 		disposables.add(client.onDidClose(() => closeCount++));
-		try {
-			await clock.tickAsync(60_000);
-
-			assert.deepStrictEqual({
-				sentPing: transport.sentMessages.some(isPingRequest),
-				closeCount,
-			}, {
-				sentPing: true,
-				closeCount: 0,
-			});
-		} finally {
+		disposables.add(toDisposable(() => {
 			client.dispose();
 			clock.restore();
-		}
+		}));
+		await clock.tickAsync(60_000);
+
+		assert.deepStrictEqual({
+			sentPing: transport.sentMessages.some(isPingRequest),
+			closeCount,
+		}, {
+			sentPing: true,
+			closeCount: 0,
+		});
 	});
 
 	test('liveness stops after the connection is closed', async () => {
@@ -2385,6 +3491,27 @@ suite('AgentHostProtocolClient', () => {
 		}));
 	}
 
+	test('initialize offers the current protocol version first only while chats may use their own agents', async () => {
+		const offer = async (enabled: boolean) => {
+			const transport = disposables.add(new TestClientProtocolTransport());
+			const { client } = createClientForIdentity('test.example:1234', transport, createPermissionService(), undefined, new NullLogService(), new TestConfigurationService({ [ChatProvidersSettingId.Enabled]: enabled }));
+			const connectPromise = client.connect();
+			transport.connectDeferred.complete();
+			while (transport.sentMessages.length === 0) {
+				await Promise.resolve();
+			}
+			const sent = transport.sentMessages[0] as JsonRpcRequest;
+			const offered = (sent.params as { protocolVersions: string[] }).protocolVersions;
+			transport.fireMessage({ jsonrpc: '2.0', id: sent.id, result: { protocolVersion: negotiateAgentHostProtocolVersion(offered)!, serverSeq: 0, snapshots: [] } });
+			await connectPromise;
+			return { offered, negotiated: negotiateAgentHostProtocolVersion(offered) };
+		};
+		assert.deepStrictEqual({ off: await offer(false), on: await offer(true) }, {
+			off: { offered: ['1.0.0', '0.10.0', '0.9.0'], negotiated: '1.0.0' },
+			on: { offered: [PROTOCOL_VERSION, '1.0.0', '0.10.0', '0.9.0'], negotiated: PROTOCOL_VERSION },
+		});
+	});
+
 	test('initialize handshake includes protocol version and client info', async () => {
 		const transport = disposables.add(new TestClientProtocolTransport(AgentHostClientConnectionKind.DevTunnel));
 		const clientInfo = agentsWindowAgentHostClientInfo;
@@ -2444,19 +3571,6 @@ suite('AgentHostProtocolClient', () => {
 				},
 			},
 		});
-		const terminalAutoApproveRules = findRootConfigNotification(transport.sentMessages, AgentHostTerminalAutoApproveRulesConfigKey);
-		assert.deepStrictEqual(terminalAutoApproveRules, {
-			jsonrpc: '2.0',
-			method: 'dispatchAction',
-			params: {
-				channel: ROOT_STATE_URI,
-				clientSeq: 0,
-				action: {
-					type: ActionType.RootConfigChanged,
-					config: { [AgentHostTerminalAutoApproveRulesConfigKey]: {} },
-				},
-			},
-		});
 	});
 
 	test('forwards the actual telemetry service restriction during initialization and config sync', async () => {
@@ -2474,7 +3588,6 @@ suite('AgentHostProtocolClient', () => {
 			workspaceTrustEnablementService,
 			workspaceTrust.management,
 			workspaceTrust.request,
-			defaultAccountService,
 		));
 
 		const connectPromise = client.connect();
@@ -2548,67 +3661,32 @@ suite('AgentHostProtocolClient', () => {
 		});
 	});
 
-	test('forwards the Fusion experiment default and its legacy key to a tunnel', async () => {
-		const configurationService = new class extends TestConfigurationService {
-			override inspect<T>(key: string): IConfigurationValue<T> {
-				const inspected = super.inspect<T>(key);
-				return key === AgentHostFusionEnabledSettingId
-					? { ...inspected, defaultValue: inspected.userValue, userValue: undefined, userLocalValue: undefined }
-					: inspected;
-			}
-		}({ [AgentHostFusionEnabledSettingId]: true });
-		const { client, transport } = createClientForIdentity('tunnel:host', undefined, undefined, undefined, undefined, configurationService);
-
-		await connectClient(client, transport);
-		await configurationService.setUserConfiguration(AgentHostFusionEnabledSettingId, false);
-		fireConfigurationChange(configurationService, AgentHostFusionEnabledSettingId, ConfigurationTarget.DEFAULT);
-
-		assert.deepStrictEqual(getFusionUpdates(transport.sentMessages), [
-			{ fusion: true, ensemble: true },
-			{ fusion: false, ensemble: false },
-		]);
-	});
-
-	test('does not forward ungated Fusion during initial connection', async () => {
-		setAccountPolicyData({ chat_preview_features_enabled: false });
-		const configurationService = new TestConfigurationService({ [AgentHostFusionEnabledSettingId]: true });
+	test('switching artifact integrations updates Agent Merge in the same root patch for older hosts', async () => {
+		const configurationService = new TestConfigurationService({ [AgentMergeSettingId.Enabled]: true });
 		const { client, transport } = createClient(undefined, undefined, undefined, undefined, configurationService);
 		await connectClient(client, transport);
-
-		assert.deepStrictEqual({
-			updates: getFusionUpdates(transport.sentMessages),
-			configuredValue: configurationService.getValue(AgentHostFusionEnabledSettingId),
-			policy: configurationService.inspect(AgentHostFusionEnabledSettingId).policyValue,
-			registeredPolicy: configurationRegistry.getPolicyConfigurations().has('CopilotFusion'),
-		}, {
-			updates: [{ fusion: false, ensemble: false }],
-			configuredValue: true,
-			policy: undefined,
-			registeredPolicy: false,
+		const patches: unknown[] = [];
+		for (const enabled of [true, false]) {
+			transport.sentMessages.length = 0;
+			await configurationService.setUserConfiguration(ArtifactIntegrationsSettingId, enabled);
+			fireConfigurationChange(configurationService, ArtifactIntegrationsSettingId);
+			patches.push(getRootConfig(findLastRootConfigNotification(transport.sentMessages, AgentHostArtifactIntegrationsConfigKey)));
+		}
+		assert.deepStrictEqual({ patches, preference: configurationService.getValue(AgentMergeSettingId.Enabled) }, {
+			patches: [
+				{ [AgentHostArtifactIntegrationsConfigKey]: true, [AgentMergeConfigKey.Enabled]: false },
+				{ [AgentHostArtifactIntegrationsConfigKey]: false, [AgentMergeConfigKey.Enabled]: true },
+			],
+			preference: true,
 		});
 	});
 
-	test('forwards Dynamic Auto Tiers to a tunnel only while the account allows preview features', async () => {
-		const configurationService = new TestConfigurationService({ [AgentHostDynamicAutoTiersEnabledSettingId]: true });
-		const { client, transport } = createClientForIdentity('tunnel:host', undefined, undefined, undefined, undefined, configurationService);
+	test('tells a tunnel to take Auto\'s tiers from the service, for hosts that still read the legacy key', async () => {
+		const { client, transport } = createClientForIdentity('tunnel:host');
 
 		await connectClient(client, transport);
-		setAccountPolicyData({ chat_preview_features_enabled: false });
-		setAccountPolicyData({});
-		await configurationService.setUserConfiguration(AgentHostDynamicAutoTiersEnabledSettingId, false);
-		fireConfigurationChange(configurationService, AgentHostDynamicAutoTiersEnabledSettingId);
-		fireConfigurationChange(configurationService, AgentHostDynamicAutoTiersEnabledSettingId, ConfigurationTarget.WORKSPACE);
 
-		assert.deepStrictEqual(getDynamicAutoTiersUpdates(transport.sentMessages), [true, false, true, false]);
-	});
-
-	test('does not forward ungated Dynamic Auto Tiers during initial connection', async () => {
-		setAccountPolicyData({ chat_preview_features_enabled: false });
-		const configurationService = new TestConfigurationService({ [AgentHostDynamicAutoTiersEnabledSettingId]: true });
-		const { client, transport } = createClient(undefined, undefined, undefined, undefined, configurationService);
-		await connectClient(client, transport);
-
-		assert.deepStrictEqual(getDynamicAutoTiersUpdates(transport.sentMessages), [false]);
+		assert.deepStrictEqual(getDynamicAutoTiersUpdates(transport.sentMessages), [true]);
 	});
 
 	test('ignores configuration changes from layers excluded by global mirroring', async () => {
@@ -2620,11 +3698,6 @@ suite('AgentHostProtocolClient', () => {
 		fireConfigurationChange(configurationService, SYNC_SETTING_A, ConfigurationTarget.WORKSPACE);
 		fireConfigurationChange(configurationService, SYNC_SETTING_A, ConfigurationTarget.WORKSPACE_FOLDER);
 		fireConfigurationChange(configurationService, SYNC_SETTING_A, ConfigurationTarget.MEMORY);
-		fireConfigurationChange(configurationService, AgentHostFusionEnabledSettingId, ConfigurationTarget.WORKSPACE);
-		fireConfigurationChange(configurationService, AgentHostFusionEnabledSettingId, ConfigurationTarget.WORKSPACE_FOLDER);
-		fireConfigurationChange(configurationService, AgentHostFusionEnabledSettingId, ConfigurationTarget.MEMORY);
-		fireConfigurationChange(configurationService, AgentHostDynamicAutoTiersEnabledSettingId, ConfigurationTarget.WORKSPACE);
-		fireConfigurationChange(configurationService, AgentHostDynamicAutoTiersEnabledSettingId, ConfigurationTarget.MEMORY);
 
 		assert.deepStrictEqual(transport.sentMessages, []);
 	});
@@ -2745,10 +3818,9 @@ suite('AgentHostProtocolClient', () => {
 		});
 	}
 
-	test('keeps personal terminal approval settings on the bypassable root-config path', async () => {
+	test('keeps the personal terminal approval toggle on the bypassable root-config path', async () => {
 		const configurationService = new TestConfigurationService({
 			[TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID]: false,
-			[TERMINAL_AUTO_APPROVE_SETTING_ID]: { ls: false, rm: false },
 		});
 		const { client, transport } = createClientForIdentity(
 			LOCAL_AGENT_HOST_RESOURCE_IDENTITY,
@@ -2764,19 +3836,15 @@ suite('AgentHostProtocolClient', () => {
 		const initial = {
 			managed: findLastManagedSettingsNotification(transport.sentMessages),
 			terminalEnabled: findRootConfigValue(transport.sentMessages, AgentHostTerminalAutoApproveEnabledConfigKey),
-			terminalRules: findRootConfigValue(transport.sentMessages, AgentHostTerminalAutoApproveRulesConfigKey),
 		};
 
 		transport.sentMessages.length = 0;
 		await configurationService.setUserConfiguration(TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, true);
 		fireConfigurationChange(configurationService, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID);
-		await configurationService.setUserConfiguration(TERMINAL_AUTO_APPROVE_SETTING_ID, { ls: true, rm: false });
-		fireConfigurationChange(configurationService, TERMINAL_AUTO_APPROVE_SETTING_ID);
 
 		const updated = {
 			managed: findLastManagedSettingsNotification(transport.sentMessages),
 			terminalEnabled: findRootConfigValue(transport.sentMessages, AgentHostTerminalAutoApproveEnabledConfigKey),
-			terminalRules: findRootConfigValue(transport.sentMessages, AgentHostTerminalAutoApproveRulesConfigKey),
 		};
 		const emptyManagedSettings = {
 			jsonrpc: '2.0',
@@ -2788,12 +3856,10 @@ suite('AgentHostProtocolClient', () => {
 			initial: {
 				managed: emptyManagedSettings,
 				terminalEnabled: false,
-				terminalRules: { ls: false, rm: false },
 			},
 			updated: {
 				managed: emptyManagedSettings,
 				terminalEnabled: true,
-				terminalRules: { ls: true, rm: false },
 			},
 		});
 	});
@@ -2828,63 +3894,6 @@ suite('AgentHostProtocolClient', () => {
 			jsonrpc: '2.0',
 			method: 'setClientManagedSettingsPermissions',
 			params: { permissions: {} },
-		});
-	});
-
-	test('forwards terminal auto-approve rules on connect', async () => {
-		const configurationService = new TestConfigurationService({
-			[TERMINAL_AUTO_APPROVE_SETTING_ID]: {
-				echo: null,
-				python: true,
-				'/^npm run build$/': { approve: true, matchCommandLine: true },
-			},
-		});
-		const { client, transport } = createClient(disposables.add(new TestProtocolTransport()), createPermissionService(), undefined, new NullLogService(), configurationService);
-
-		await connectClient(client, transport);
-
-		const terminalAutoApproveRules = findRootConfigNotification(transport.sentMessages, AgentHostTerminalAutoApproveRulesConfigKey);
-		assert.deepStrictEqual(getRootConfig(terminalAutoApproveRules), {
-			[AgentHostTerminalAutoApproveRulesConfigKey]: {
-				echo: null,
-				python: true,
-				'/^npm run build$/': { approve: true, matchCommandLine: true },
-			},
-		});
-	});
-
-	test('redispatches terminal auto-approve rules when the rule setting changes', async () => {
-		const configurationService = new TestConfigurationService();
-		const { client, transport } = createClient(disposables.add(new TestProtocolTransport()), createPermissionService(), undefined, new NullLogService(), configurationService);
-		await connectClient(client, transport);
-		transport.sentMessages.length = 0;
-
-		await configurationService.setUserConfiguration(TERMINAL_AUTO_APPROVE_SETTING_ID, { python: true });
-		fireConfigurationChange(configurationService, TERMINAL_AUTO_APPROVE_SETTING_ID);
-
-		const terminalAutoApproveRules = findLastRootConfigNotification(transport.sentMessages, AgentHostTerminalAutoApproveRulesConfigKey);
-		assert.deepStrictEqual(getRootConfig(terminalAutoApproveRules), {
-			[AgentHostTerminalAutoApproveRulesConfigKey]: { python: true },
-		});
-	});
-
-	test('redispatches terminal auto-approve rules when ignored defaults change', async () => {
-		const configurationService = new TerminalAutoApproveConfigurationService({
-			[TERMINAL_AUTO_APPROVE_SETTING_ID]: { echo: true, python: true },
-		}, {
-			default: { value: { echo: true } },
-			user: { value: { python: true } },
-		});
-		const { client, transport } = createClient(disposables.add(new TestProtocolTransport()), createPermissionService(), undefined, new NullLogService(), configurationService);
-		await connectClient(client, transport);
-		transport.sentMessages.length = 0;
-
-		await configurationService.setUserConfiguration(TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, true);
-		fireConfigurationChange(configurationService, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID);
-
-		const terminalAutoApproveRules = findLastRootConfigNotification(transport.sentMessages, AgentHostTerminalAutoApproveRulesConfigKey);
-		assert.deepStrictEqual(getRootConfig(terminalAutoApproveRules), {
-			[AgentHostTerminalAutoApproveRulesConfigKey]: { python: true },
 		});
 	});
 
@@ -3167,12 +4176,37 @@ suite('AgentHostProtocolClient', () => {
 	test('importSession sends the VS Code extension request without a turn', async () => {
 		const { client, transport } = createClient();
 		const result = client.importSession(URI.parse('copilotcli:/session-1'));
+		const takeOver = client.importSession(URI.parse('copilotcli:/session-2'), { takeOver: true });
 		assert.deepStrictEqual(transport.sentMessages, [{
 			jsonrpc: '2.0', id: 1, method: 'vscode/importSession',
 			params: { session: 'copilotcli:/session-1' },
+		}, {
+			jsonrpc: '2.0', id: 2, method: 'vscode/importSession',
+			params: { session: 'copilotcli:/session-2', takeOver: true },
 		}]);
 		transport.fireMessage({ jsonrpc: '2.0', id: 1, result: null });
-		await result;
+		transport.fireMessage({ jsonrpc: '2.0', id: 2, result: null });
+		await Promise.all([result, takeOver]);
+	});
+
+	test('importSession resolves to the session address the host reports, if any', async () => {
+		const { client, transport } = createClient();
+		const responses = [
+			{ session: 'ahp-session:/session-1' },
+			{ session: 'other-host://tenant/opaque' },
+			{},
+			null,
+			{ session: 42 },
+		];
+		const results = responses.map(() => client.importSession(URI.parse('copilotcli:/session-1')));
+		responses.forEach((result, index) => transport.fireMessage({ jsonrpc: '2.0', id: index + 1, result }));
+		assert.deepStrictEqual((await Promise.all(results)).map(uri => uri?.toString()), [
+			'ahp-session:/session-1',
+			'other-host://tenant/opaque',
+			undefined,
+			undefined,
+			undefined,
+		]);
 	});
 
 	test('importSession propagates unsupported host errors', async () => {
@@ -3181,6 +4215,212 @@ suite('AgentHostProtocolClient', () => {
 		const error = { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found' };
 		transport.fireMessage({ jsonrpc: '2.0', id: 1, error });
 		await assertRemoteProtocolError(result, error);
+	});
+
+	test('deleteAutomation sends exact session identities through the supported extension', async () => {
+		const { client, transport } = createClient();
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, false, false, false, false, false, false, false, true));
+		const before = transport.sentMessages.length;
+		const result = client.deleteAutomation('ahp-automation:/a', true, [URI.parse('ahp-session://tenant/opaque')], 'delete-request');
+		const sent = transport.sentMessages.at(-1) as JsonRpcRequest;
+		transport.fireMessage({ jsonrpc: '2.0', id: sent.id, result: ['ahp-session://tenant/opaque'] });
+		assert.deepStrictEqual(await result, ['ahp-session://tenant/opaque']);
+		assert.deepStrictEqual({ count: transport.sentMessages.length - before, method: sent.method, params: sent.params }, {
+			count: 1, method: 'vscode/deleteAutomation',
+			params: { automation: 'ahp-automation:/a', deleteHistory: true, legacySessions: ['ahp-session://tenant/opaque'], requestId: 'delete-request' },
+		});
+
+		const acknowledgement = client.acknowledgeAutomationDeletion('delete-request');
+		const acknowledgementSent = transport.sentMessages.at(-1) as JsonRpcRequest;
+		transport.fireMessage({ jsonrpc: '2.0', id: acknowledgementSent.id, result: null });
+		await acknowledgement;
+		assert.deepStrictEqual({ method: acknowledgementSent.method, params: acknowledgementSent.params }, {
+			method: 'vscode/acknowledgeAutomationDeletion',
+			params: { requestId: 'delete-request' },
+		});
+	});
+
+	test('deleteAutomation sends nothing without the history capability', async () => {
+		const { client, transport } = createClient();
+		await connectClient(client, transport);
+		const before = transport.sentMessages.length;
+		await assert.rejects(() => client.deleteAutomation('ahp-automation:/a', true));
+		assert.strictEqual(transport.sentMessages.length, before);
+	});
+
+	test('manages Copilot extensions through advertised extension methods', async () => {
+		const { client, transport } = createClient();
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, false, false, false, false, false, false, true));
+		transport.sentMessages.length = 0;
+
+		const session = URI.parse('copilotcli:/session-1');
+		const chat = URI.parse('vendor-chat://opaque.example/threads/chat-1');
+		const extensionInventory = client.listAgentExtensions(session, chat);
+		assert.deepStrictEqual(transport.sentMessages[0], {
+			jsonrpc: '2.0',
+			id: 2,
+			method: 'vscode/listAgentExtensions',
+			params: { session: session.toString(), chat: chat.toString() },
+		});
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: 2,
+			result: {
+				mode: 'load_and_augment',
+				extensions: [{
+					id: 'user:preview',
+					name: 'Preview',
+					resource: 'file:///home/test/.copilot/extensions/preview/extension.mjs',
+					source: 'user',
+					status: 'running',
+				}],
+			},
+		});
+
+		const toggle = client.setAgentExtensionEnabled('user:preview', false, session, chat);
+		assert.deepStrictEqual(transport.sentMessages[1], {
+			jsonrpc: '2.0',
+			id: 3,
+			method: 'vscode/setAgentExtensionEnabled',
+			params: { extensionId: 'user:preview', enabled: false, session: session.toString(), chat: chat.toString() },
+		});
+		transport.fireMessage({ jsonrpc: '2.0', id: 3, result: null });
+
+		const inventory = await extensionInventory;
+		await toggle;
+		assert.deepStrictEqual({
+			mode: inventory.mode,
+			extensions: inventory.extensions.map(extension => ({
+				id: extension.id,
+				resourceScheme: extension.resource?.scheme,
+				resourcePath: extension.resource?.path,
+				source: extension.source,
+				status: extension.status,
+			})),
+		}, {
+			mode: 'load_and_augment',
+			extensions: [{
+				id: 'user:preview',
+				resourceScheme: 'vscode-agent-host',
+				resourcePath: '/home/test/.copilot/extensions/preview/extension.mjs',
+				source: 'user',
+				status: 'running',
+			}],
+		});
+	});
+
+	test('does not call Copilot extension methods without the advertised capability', async () => {
+		const { client, transport } = createClient();
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta());
+		transport.sentMessages.length = 0;
+		const session = URI.parse('copilotcli:/session-1');
+
+		await assert.rejects(client.listAgentExtensions(), /does not support Copilot extension inventory/);
+		await assert.rejects(client.setAgentExtensionEnabled('user:preview', false, session), /does not support Copilot extension management/);
+		assert.strictEqual(transport.sentMessages.length, 0);
+	});
+
+	test('normalizes future Copilot extension inventory values and preserves entries with unsupported resources', async () => {
+		const { client, transport } = createClient();
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, false, false, false, false, false, false, true));
+		transport.sentMessages.length = 0;
+
+		const inventory = client.listAgentExtensions();
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: 2,
+			result: {
+				mode: 'future_mode',
+				extensions: [{
+					id: 'user:future',
+					name: 'Future',
+					resource: 'file:///home/test/.copilot/extensions/future/extension.mjs',
+					source: 'user',
+					status: 'paused',
+				}, {
+					id: 'user:preview',
+					name: 'Preview',
+					resource: 'https://example.test/extension.mjs',
+					source: 'user',
+					status: 'running',
+				}, {
+					id: 'session:preview',
+					name: 'Session Preview',
+					source: 'session',
+					status: 'running',
+				}, {
+					id: 'user:malformed',
+					name: '',
+					source: 'user',
+					status: 'running',
+				}, {
+					id: 'plugin:dashboard',
+					name: 'Dashboard',
+					source: 'plugin',
+					status: 'disabled',
+					pluginName: 'dashboard',
+				}],
+			},
+		});
+
+		const result = await inventory;
+		assert.deepStrictEqual({
+			mode: result.mode,
+			extensions: result.extensions.map(extension => ({
+				id: extension.id,
+				name: extension.name,
+				resourceScheme: extension.resource?.scheme,
+				resourcePath: extension.resource?.path,
+				source: extension.source,
+				status: extension.status,
+				pluginName: extension.pluginName,
+			})),
+		}, {
+			mode: 'unknown',
+			extensions: [{
+				id: 'user:future',
+				name: 'Future',
+				resourceScheme: 'vscode-agent-host',
+				resourcePath: '/home/test/.copilot/extensions/future/extension.mjs',
+				source: 'user',
+				status: 'unknown',
+				pluginName: undefined,
+			}, {
+				id: 'user:preview',
+				name: 'Preview',
+				resourceScheme: undefined,
+				resourcePath: undefined,
+				source: 'user',
+				status: 'running',
+				pluginName: undefined,
+			}, {
+				id: 'plugin:dashboard',
+				name: 'Dashboard',
+				resourceScheme: undefined,
+				resourcePath: undefined,
+				source: 'plugin',
+				status: 'disabled',
+				pluginName: 'dashboard',
+			}],
+		});
+	});
+
+	test('rejects invalid top-level Copilot extension inventory responses', async () => {
+		const { client, transport } = createClient();
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, false, false, false, false, false, false, true));
+		transport.sentMessages.length = 0;
+
+		const inventory = client.listAgentExtensions();
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: 2,
+			result: {
+				mode: 1,
+				extensions: [],
+			},
+		});
+
+		await assert.rejects(inventory, /invalid extension inventory/);
 	});
 
 	test('removeSessionArtifact sends the VS Code extension request', async () => {
@@ -3364,6 +4604,108 @@ suite('AgentHostProtocolClient', () => {
 		await rejected;
 	});
 
+	suite('client proxy', () => {
+		function createProxyClient(calls: string[][], enabled = true) {
+			const transport = disposables.add(new TestProtocolTransport());
+			const trust = createWorkspaceTrustServices();
+			const onDidChange = disposables.add(new Emitter<void>());
+			const clientProxy: IAgentHostClientProxyProvider = {
+				isEnabled: () => enabled,
+				onDidChange: onDidChange.event,
+				resolveProxy: async url => {
+					calls.push(['resolveProxy', url]);
+					return 'PROXY proxy.example:8080';
+				},
+				lookupKerberosAuthorization: async proxyUrl => {
+					calls.push(['lookupKerberosAuthorization', proxyUrl]);
+					if (proxyUrl.includes('failing')) {
+						throw new Error('secret failure detail');
+					}
+					return 'Negotiate ticket';
+				},
+			};
+			const client = disposables.add(new AgentHostProtocolClient('wsl-test', transport, { clientProxy }, new NullLogService(), createPermissionService(), new TestConfigurationService(), NullTelemetryService, workspaceTrustEnablementService, trust.management, trust.request));
+			return { client, transport, onDidChange };
+		}
+
+		async function sendRequest(transport: TestProtocolTransport, id: number, method: string, params: Record<string, unknown>): Promise<unknown> {
+			transport.fireExtensionRequest(id, method, params);
+			await timeout(0);
+			const response = transport.sentMessages.at(-1) as { result?: unknown; error?: { message: string } };
+			return response.error ? response.error.message : response.result;
+		}
+
+		test('advertises the capability and serves proxy resolution and Kerberos lookups', async () => {
+			const calls: string[][] = [];
+			const { client, transport } = createProxyClient(calls);
+			await connectClient(client, transport);
+			const initialize = transport.sentMessages[0] as JsonRpcRequest;
+			const results = [
+				await sendRequest(transport, 51, ResolveClientProxyExtensionMethod, { url: 'https://example.com/path' }),
+				await sendRequest(transport, 52, LookupClientProxyKerberosAuthorizationExtensionMethod, { proxyUrl: 'http://proxy.example:8080' }),
+				await sendRequest(transport, 53, LookupClientProxyKerberosAuthorizationExtensionMethod, { proxyUrl: 'http://failing.example:8080' }),
+			];
+			assert.deepStrictEqual({
+				advertised: (initialize.params as { _meta: Record<string, unknown> })._meta[AgentHostClientProxyCapabilityMetaKey],
+				calls,
+				results,
+			}, {
+				advertised: true,
+				calls: [
+					['resolveProxy', 'https://example.com/path'],
+					['lookupKerberosAuthorization', 'http://proxy.example:8080'],
+					['lookupKerberosAuthorization', 'http://failing.example:8080'],
+				],
+				results: [{ proxy: 'PROXY proxy.example:8080' }, { authorization: 'Negotiate ticket' }, 'Kerberos credential lookup failed'],
+			});
+		});
+
+		test('rejects Kerberos lookups for non-HTTP proxy URLs without invoking the provider', async () => {
+			const calls: string[][] = [];
+			const { client, transport } = createProxyClient(calls);
+			await connectClient(client, transport);
+			const proxyUrls = ['socks5://proxy.example:1080', 'HTTP/proxy.example', 'http://', ''];
+			const errors: unknown[] = [];
+			for (const [index, proxyUrl] of proxyUrls.entries()) {
+				errors.push(await sendRequest(transport, 60 + index, LookupClientProxyKerberosAuthorizationExtensionMethod, { proxyUrl }));
+			}
+			assert.deepStrictEqual({ calls, errors }, { calls: [], errors: Array(proxyUrls.length).fill('Unsupported proxy URL') });
+		});
+
+		test('neither advertises nor serves proxy lookups when disabled or not supplied', async () => {
+			const calls: string[][] = [];
+			const disabled = createProxyClient(calls, false);
+			await connectClient(disabled.client, disabled.transport);
+			const ordinary = createClient();
+			await connectClient(ordinary.client, ordinary.transport);
+			const meta = (transport: TestProtocolTransport) => ((transport.sentMessages[0] as JsonRpcRequest).params as { _meta: Record<string, unknown> })._meta[AgentHostClientProxyCapabilityMetaKey];
+			assert.deepStrictEqual({
+				advertised: [meta(disabled.transport), meta(ordinary.transport)],
+				errors: [
+					await sendRequest(disabled.transport, 51, ResolveClientProxyExtensionMethod, { url: 'https://example.com' }),
+					await sendRequest(ordinary.transport, 52, LookupClientProxyKerberosAuthorizationExtensionMethod, { proxyUrl: 'http://proxy.example:8080' }),
+				],
+				calls,
+			}, {
+				advertised: [undefined, undefined],
+				errors: ['This client does not resolve proxies for this agent host', 'This client does not provide Kerberos credentials for this agent host'],
+				calls: [],
+			});
+		});
+
+		test('reports proxy changes only to hosts that confirm serving the client proxy', async () => {
+			const sentChanges = (transport: TestProtocolTransport) => transport.sentMessages.filter(message => (message as JsonRpcRequest).method === ClientProxyChangedExtensionMethod).length;
+			const confirmed = createProxyClient([]);
+			await connectClient(confirmed.client, confirmed.transport, { [AgentHostClientProxyCapabilityMetaKey]: true });
+			const unconfirmed = createProxyClient([]);
+			await connectClient(unconfirmed.client, unconfirmed.transport);
+
+			confirmed.onDidChange.fire();
+			unconfirmed.onDidChange.fire();
+
+			assert.deepStrictEqual({ confirmed: sentChanges(confirmed.transport), unconfirmed: sentChanges(unconfirmed.transport) }, { confirmed: 1, unconfirmed: 0 });
+		});
+	});
 	suite('reverse MCP authentication', () => {
 		const request = {
 			serverName: 'Docs',
@@ -4074,46 +5416,296 @@ suite('AgentHostProtocolClient', () => {
 		});
 	});
 
+	suite('permission feedback dispatch', () => {
+
+		test('sends Assisted permissions feedback to the host without applying it to client state', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport);
+			const chat = 'copilot:/test-session/chat';
+			const subscription = disposables.add(client.getSubscription<ChatState>(StateComponents.Chat, URI.parse(chat), 'test'));
+			await flushMicrotasks();
+			const subscribeRequest = transport.sentMessages.findLast((message): message is JsonRpcRequest => hasKey(message, { method: true, id: true }) && message.method === 'subscribe');
+			assert.ok(subscribeRequest);
+			transport.fireMessage({
+				jsonrpc: '2.0', id: subscribeRequest.id,
+				result: {
+					snapshot: {
+						resource: chat, fromSeq: 0,
+						state: {
+							...createChatState({ resource: chat, title: 'Chat', status: SessionStatus.Idle, modifiedAt: new Date(0).toISOString() }),
+							activeTurn: {
+								id: 'turn-1', startedAt: new Date(0).toISOString(), message: { text: 'Push the branch', origin: { kind: MessageKind.User } },
+								responseParts: [{
+									kind: ResponsePartKind.ToolCall,
+									toolCall: { status: ToolCallStatus.PendingConfirmation, toolCallId: 'tc-push', toolName: 'shell', displayName: 'Shell', invocationMessage: 'Run git push', confirmationTitle: 'Allow git push?' },
+								}],
+								usage: undefined,
+							},
+						},
+					},
+				},
+			});
+			await flushMicrotasks();
+
+			client.dispatch(chat, {
+				type: ActionType.ChatToolCallConfirmed, turnId: 'turn-1', toolCallId: 'tc-push', approved: true, confirmed: ToolCallConfirmationReason.UserAction,
+				_meta: toAgentPermissionResponseMeta({ decisionSource: 'human_response', userFeedback: 'Pushes to feature branches are fine.' }),
+			});
+			const dispatch = transport.sentMessages.findLast((message): message is JsonRpcNotification => hasKey(message, { method: true }) && message.method === 'dispatchAction');
+			assert.ok(dispatch);
+			const state = subscription.object.value;
+			assert.ok(state && !(state instanceof Error));
+			const part = state.activeTurn?.responseParts[0];
+			assert.deepStrictEqual({
+				sent: (dispatch.params as { action: { _meta?: Record<string, unknown> } }).action._meta,
+				optimistic: part?.kind === ResponsePartKind.ToolCall ? { status: part.toolCall.status, _meta: part.toolCall._meta } : undefined,
+			}, {
+				sent: toAgentPermissionResponseMeta({ decisionSource: 'human_response', userFeedback: 'Pushes to feature branches are fine.' }),
+				optimistic: { status: ToolCallStatus.Running, _meta: toAgentPermissionResponseMeta({ decisionSource: 'human_response' }) },
+			});
+		});
+	});
+
 	suite('soft reconnect (transport factory)', () => {
+
+		async function createExpiringRelayClient(connectionKind: AgentHostClientConnectionKind) {
+			const transport = disposables.add(new TestProtocolTransport(connectionKind));
+			const workspaceTrust = createWorkspaceTrustServices();
+			const client = disposables.add(new AgentHostProtocolClient(
+				'relay.example', transport,
+				{ resolveInitialAuthentication: async () => ({ resource: 'https://api.github.com', token: 'copilot-sealed.v1.test.initial' }) },
+				new NullLogService(), createPermissionService(), new TestConfigurationService(), NullTelemetryService,
+				workspaceTrustEnablementService, workspaceTrust.management, workspaceTrust.request,
+			));
+			const root = { snapshot: { resource: ROOT_STATE_URI, fromSeq: 1, state: { agents: [] } } };
+			const connecting = client.connect();
+			const initialize = await waitForRequestAtWithin(transport, 'initialize', 0);
+			transport.fireMessage({
+				jsonrpc: '2.0', id: initialize.id,
+				result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 1, snapshots: [root.snapshot] },
+			});
+			const authentication = await waitForRequestAtWithin(transport, 'authenticate', 0);
+			transport.fireMessage({ jsonrpc: '2.0', id: authentication.id, result: {} });
+			const subscribe = await waitForRequestAtWithin(transport, 'subscribe', 0);
+			transport.fireMessage({ jsonrpc: '2.0', id: subscribe.id, result: root });
+			await connecting;
+			return { client, transport, root };
+		}
+
+		for (const connectionKind of [AgentHostClientConnectionKind.WebPubSub, AgentHostClientConnectionKind.MissionControl]) {
+			test(`${connectionKind} restores open sessions, chats and filesystem watches despite duplicate expiry during restoration`, async () => {
+				const { client, transport, root } = await createExpiringRelayClient(connectionKind);
+				const sessionUri = URI.parse('other-agent://tenant/conversations/opaque-session');
+				const chatUri = URI.parse('other-chat://tenant/opaque-thread');
+				const sessionState = createSessionState({
+					resource: sessionUri.toString(), provider: 'other-agent', title: 'Before expiry', status: SessionStatus.Idle,
+					createdAt: '2026-10-02T00:00:00.000Z', modifiedAt: '2026-10-02T00:00:00.000Z',
+				});
+				const chatState = createChatState({
+					resource: chatUri.toString(), title: 'Before expiry', status: SessionStatus.Idle, modifiedAt: '2026-10-02T00:00:00.000Z',
+				});
+				const snapshots = [
+					{ resource: sessionUri.toString(), state: sessionState },
+					{ resource: chatUri.toString(), state: chatState },
+				];
+				const session = disposables.add(client.getSubscription<SessionState>(StateComponents.Session, sessionUri, 'test'));
+				const chat = disposables.add(client.getSubscription<ChatState>(StateComponents.Chat, chatUri, 'test'));
+				for (const [index, snapshot] of snapshots.entries()) {
+					const subscribe = await waitForRequestAtWithin(transport, 'subscribe', index + 1);
+					transport.fireMessage({
+						jsonrpc: '2.0', id: subscribe.id,
+						result: { snapshot: { ...snapshot, fromSeq: 2 } },
+					});
+				}
+				const provider = disposables.add(new AgentHostFileSystemProvider());
+				disposables.add(provider.registerAuthority('relay', client));
+				disposables.add(provider.watch(toAgentHostUri(URI.file('/workspace'), 'relay'), { recursive: true, excludes: [] }));
+				const watch = await waitForRequestAtWithin(transport, 'createResourceWatch', 0);
+				transport.fireMessage({ jsonrpc: '2.0', id: watch.id, result: { channel: 'ahp-resource-watch:/initial' } });
+				const watchSubscription = await waitForRequestAtWithin(transport, 'subscribe', 3);
+				transport.fireMessage({ jsonrpc: '2.0', id: watchSubscription.id, result: {} });
+				await flushMicrotasks();
+
+				transport.fireMessage({
+					jsonrpc: '2.0', method: 'auth/required',
+					params: { channel: ROOT_STATE_URI, resource: { resource: 'https://api.github.com' }, reason: AuthRequiredReason.Expired },
+				});
+				const renewed = client.authenticate({ resource: 'https://api.github.com', token: 'copilot-sealed.v1.test.fresh' });
+				const authentication = await waitForRequestAtWithin(transport, 'authenticate', 1);
+				transport.fireMessage({ jsonrpc: '2.0', id: authentication.id, result: {} });
+				const rootSubscription = await waitForRequestAtWithin(transport, 'subscribe', 4);
+				transport.fireMessage({ jsonrpc: '2.0', id: rootSubscription.id, result: root });
+				for (const [index, snapshot] of snapshots.entries()) {
+					const subscribe = await waitForRequestAtWithin(transport, 'subscribe', index + 5);
+					assert.deepStrictEqual(subscribe.params, { channel: snapshot.resource });
+					if (index === 0) {
+						transport.fireMessage({
+							jsonrpc: '2.0', method: 'auth/required',
+							params: { channel: ROOT_STATE_URI, resource: { resource: 'https://api.github.com' }, reason: AuthRequiredReason.Expired },
+						});
+					}
+					transport.fireMessage({
+						jsonrpc: '2.0', id: subscribe.id,
+						result: { snapshot: { ...snapshot, state: { ...snapshot.state, title: 'After expiry' }, fromSeq: 3 } },
+					});
+				}
+				await renewed;
+				const restoredWatch = await waitForRequestAtWithin(transport, 'createResourceWatch', 1);
+				transport.fireMessage({ jsonrpc: '2.0', id: restoredWatch.id, result: { channel: 'ahp-resource-watch:/restored' } });
+				const restoredWatchSubscription = await waitForRequestAtWithin(transport, 'subscribe', 7);
+				transport.fireMessage({ jsonrpc: '2.0', id: restoredWatchSubscription.id, result: {} });
+				await flushMicrotasks();
+				assert.deepStrictEqual({
+					sessionTitle: session.object.verifiedValue?.title,
+					chatTitle: chat.object.verifiedValue?.title,
+					state: client.connectionState,
+					watch: restoredWatch.params,
+					watchSubscription: restoredWatchSubscription.params,
+					initializations: transport.sentMessages.filter(message => hasKey(message, { method: true }) && message.method === 'initialize').length,
+				}, {
+					sessionTitle: 'After expiry', chatTitle: 'After expiry', state: AgentHostClientState.Connected,
+					watch: watch.params,
+					watchSubscription: { channel: 'ahp-resource-watch:/restored' },
+					initializations: 1,
+				});
+			});
+		}
+
+		for (const kind of [StateComponents.Session, StateComponents.Chat]) {
+			test(`restores a ${kind === StateComponents.Session ? 'session' : 'chat'} opened while relay identity renewal is pending`, async () => {
+				const { client, transport, root } = await createExpiringRelayClient(AgentHostClientConnectionKind.MissionControl);
+				transport.fireMessage({
+					jsonrpc: '2.0', method: 'auth/required',
+					params: { channel: ROOT_STATE_URI, resource: { resource: 'https://api.github.com' }, reason: AuthRequiredReason.Expired },
+				});
+				const renewed = client.authenticate({ resource: 'https://api.github.com', token: 'copilot-sealed.v1.test.fresh' });
+				const authentication = await waitForRequestAtWithin(transport, 'authenticate', 1);
+				const resource = kind === StateComponents.Session
+					? 'other-agent://tenant/conversations/late-session'
+					: 'other-chat://tenant/late-thread';
+				const subscription = disposables.add(client.getSubscription<SessionState | ChatState>(kind, URI.parse(resource), 'test'));
+				const initialError = Event.toPromise(subscription.object.onDidError!);
+				const subscribe = await waitForRequestAtWithin(transport, 'subscribe', 1);
+				transport.fireMessage({
+					jsonrpc: '2.0', id: subscribe.id,
+					error: { code: AhpErrorCodes.AuthRequired, message: 'Relay identity authentication is required' },
+				});
+				await initialError;
+				transport.fireMessage({ jsonrpc: '2.0', id: authentication.id, result: {} });
+				const rootSubscription = await waitForRequestAtWithin(transport, 'subscribe', 2);
+				transport.fireMessage({ jsonrpc: '2.0', id: rootSubscription.id, result: root });
+				const restored = await waitForRequestAtWithin(transport, 'subscribe', 3);
+				const state = kind === StateComponents.Session
+					? createSessionState({
+						resource, provider: 'other-agent', title: 'After expiry', status: SessionStatus.Idle,
+						createdAt: '2026-10-02T00:00:00.000Z', modifiedAt: '2026-10-02T00:00:00.000Z',
+					})
+					: createChatState({
+						resource, title: 'After expiry', status: SessionStatus.Idle, modifiedAt: '2026-10-02T00:00:00.000Z',
+					});
+				transport.fireMessage({ jsonrpc: '2.0', id: restored.id, result: { snapshot: { resource, state, fromSeq: 2 } } });
+				await renewed;
+				assert.deepStrictEqual({ request: restored.params, state: subscription.object.value }, {
+					request: { channel: resource }, state,
+				});
+			});
+		}
+
+		test('failed identity renewal and revocation do not announce recovery; a later successful renewal does', async () => {
+			const { client, transport, root } = await createExpiringRelayClient(AgentHostClientConnectionKind.MissionControl);
+			let recovered = 0;
+			disposables.add(client.onDidReconnect(() => recovered++));
+			transport.fireMessage({
+				jsonrpc: '2.0', method: 'auth/required',
+				params: { channel: ROOT_STATE_URI, resource: { resource: 'https://api.github.com' }, reason: AuthRequiredReason.Expired },
+			});
+			const denied = assert.rejects(client.authenticate({ resource: 'https://api.github.com', token: 'copilot-sealed.v1.test.denied' }), /renewal refused/);
+			const authentication = await waitForRequestAtWithin(transport, 'authenticate', 1);
+			transport.fireMessage({ jsonrpc: '2.0', id: authentication.id, error: { code: AhpErrorCodes.AuthRequired, message: 'renewal refused' } });
+			await denied;
+			for (const [index, token] of ['', 'copilot-sealed.v1.test.fresh'].entries()) {
+				const work = client.authenticate({ resource: 'https://api.github.com', token });
+				const authenticate = await waitForRequestAtWithin(transport, 'authenticate', index + 2);
+				transport.fireMessage({ jsonrpc: '2.0', id: authenticate.id, result: {} });
+				const subscribe = await waitForRequestAtWithin(transport, 'subscribe', index + 1);
+				transport.fireMessage({ jsonrpc: '2.0', id: subscribe.id, result: root });
+				await work;
+				assert.strictEqual(recovered, index);
+			}
+		});
+
+		test('provider expiry does not restore subscriptions or announce relay recovery', async () => {
+			const { client, transport, root } = await createExpiringRelayClient(AgentHostClientConnectionKind.MissionControl);
+			let recovered = 0;
+			disposables.add(client.onDidReconnect(() => recovered++));
+			transport.fireMessage({
+				jsonrpc: '2.0', method: 'auth/required',
+				params: { channel: ROOT_STATE_URI, resource: { resource: 'https://provider.example' }, reason: AuthRequiredReason.Expired },
+			});
+			const renewed = client.authenticate({ resource: 'https://provider.example', token: 'copilot-sealed.v1.test.fresh' });
+			const authentication = await waitForRequestAtWithin(transport, 'authenticate', 1);
+			transport.fireMessage({ jsonrpc: '2.0', id: authentication.id, result: {} });
+			const subscribe = await waitForRequestAtWithin(transport, 'subscribe', 1);
+			transport.fireMessage({ jsonrpc: '2.0', id: subscribe.id, result: root });
+			await renewed;
+			assert.strictEqual(recovered, 0);
+		});
+
+		test('revocation during identity renewal prevents subscription recovery', async () => {
+			const { client, transport, root } = await createExpiringRelayClient(AgentHostClientConnectionKind.MissionControl);
+			let recovered = 0;
+			disposables.add(client.onDidReconnect(() => recovered++));
+			transport.fireMessage({
+				jsonrpc: '2.0', method: 'auth/required',
+				params: { channel: ROOT_STATE_URI, resource: { resource: 'https://api.github.com' }, reason: AuthRequiredReason.Expired },
+			});
+			const renewed = assert.rejects(client.authenticate({ resource: 'https://api.github.com', token: 'copilot-sealed.v1.test.fresh' }), CancellationError);
+			const authentication = await waitForRequestAtWithin(transport, 'authenticate', 1);
+			transport.fireMessage({ jsonrpc: '2.0', id: authentication.id, result: {} });
+			const rootSubscription = await waitForRequestAtWithin(transport, 'subscribe', 1);
+			const revoked = client.authenticate({ resource: 'https://api.github.com', token: '' });
+			const revocation = await waitForRequestAtWithin(transport, 'authenticate', 2);
+			transport.fireMessage({ jsonrpc: '2.0', id: revocation.id, result: {} });
+			transport.fireMessage({ jsonrpc: '2.0', id: rootSubscription.id, result: root });
+			await Promise.all([renewed, revoked]);
+			assert.strictEqual(recovered, 0);
+		});
 
 		test('WPS root refresh has a bounded hold and ignores a late response after timeout', async () => {
 			const clock = sinon.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
-			try {
-				const transport = disposables.add(new TestProtocolTransport(AgentHostClientConnectionKind.WebPubSub));
-				const { client } = createClient(transport);
-				const connecting = client.connect();
-				const initialize = await waitForRequest(transport, 'initialize');
-				transport.fireMessage({
-					jsonrpc: '2.0', id: initialize.id,
-					result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 1, snapshots: [{ resource: ROOT_STATE_URI, fromSeq: 1, state: { agents: [], activeSessions: 0 } }] },
-				});
-				await connecting;
-				const work = client.authenticate({ resource: 'https://api.github.com', token: 'copilot-sealed.v1.test.ciphertext' });
-				const rejected = assert.rejects(work, /subscribe response timed out/);
-				let finished = false;
-				void work.then(() => { finished = true; }, () => { finished = true; });
-				const authentication = await waitForRequest(transport, 'authenticate');
-				transport.fireMessage({ jsonrpc: '2.0', id: authentication.id, result: {} });
-				const rootSubscription = await waitForRequest(transport, 'subscribe');
-				await clock.tickAsync(20_000);
-				transport.fireMessage({
-					jsonrpc: '2.0', method: 'action',
-					params: { channel: ROOT_STATE_URI, serverSeq: 3, origin: undefined, action: { type: ActionType.RootActiveSessionsChanged, activeSessions: 4 } },
-				});
-				await clock.tickAsync(9_999);
-				assert.strictEqual(finished, false);
-				await clock.tickAsync(1);
-				await rejected;
-				transport.fireMessage({
-					jsonrpc: '2.0', id: rootSubscription.id,
-					result: { snapshot: { resource: ROOT_STATE_URI, fromSeq: 2, state: { agents: [], activeSessions: 0 } } },
-				});
-				const root = client.rootState.value;
-				assert.ok(root && !(root instanceof Error));
-				assert.strictEqual(root.activeSessions, 4);
-			} finally {
-				clock.restore();
-			}
+			disposables.add(toDisposable(() => clock.restore()));
+			const transport = disposables.add(new TestProtocolTransport(AgentHostClientConnectionKind.WebPubSub));
+			const { client } = createClient(transport);
+			const connecting = client.connect();
+			const initialize = await waitForRequest(transport, 'initialize');
+			transport.fireMessage({
+				jsonrpc: '2.0', id: initialize.id,
+				result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 1, snapshots: [{ resource: ROOT_STATE_URI, fromSeq: 1, state: { agents: [], activeSessions: 0 } }] },
+			});
+			await connecting;
+			const work = client.authenticate({ resource: 'https://api.github.com', token: 'copilot-sealed.v1.test.ciphertext' });
+			const rejected = assert.rejects(work, /subscribe response timed out/);
+			let finished = false;
+			void work.then(() => { finished = true; }, () => { finished = true; });
+			const authentication = await waitForRequest(transport, 'authenticate');
+			transport.fireMessage({ jsonrpc: '2.0', id: authentication.id, result: {} });
+			const rootSubscription = await waitForRequest(transport, 'subscribe');
+			await clock.tickAsync(20_000);
+			transport.fireMessage({
+				jsonrpc: '2.0', method: 'action',
+				params: { channel: ROOT_STATE_URI, serverSeq: 3, origin: undefined, action: { type: ActionType.RootActiveSessionsChanged, activeSessions: 4 } },
+			});
+			await clock.tickAsync(9_999);
+			assert.strictEqual(finished, false);
+			await clock.tickAsync(1);
+			await rejected;
+			transport.fireMessage({
+				jsonrpc: '2.0', id: rootSubscription.id,
+				result: { snapshot: { resource: ROOT_STATE_URI, fromSeq: 2, state: { agents: [], activeSessions: 0 } } },
+			});
+			const root = client.rootState.value;
+			assert.ok(root && !(root instanceof Error));
+			assert.strictEqual(root.activeSessions, 4);
 		});
 
 		for (const connectionKind of [AgentHostClientConnectionKind.WebPubSub, AgentHostClientConnectionKind.MissionControl]) {
@@ -4127,7 +5719,7 @@ suite('AgentHostProtocolClient', () => {
 					'test.example:1234', transport,
 					{ resolveInitialAuthentication: async () => ({ resource: 'https://api.github.com', token: 'copilot-sealed.v1.test.ciphertext' }) },
 					new NullLogService(), createPermissionService(), configurationService, NullTelemetryService,
-					workspaceTrustEnablementService, workspaceTrust.management, workspaceTrust.request, defaultAccountService,
+					workspaceTrustEnablementService, workspaceTrust.management, workspaceTrust.request,
 				));
 				const connecting = client.connect();
 				const initialize = await waitForRequest(transport, 'initialize');
@@ -4160,12 +5752,6 @@ suite('AgentHostProtocolClient', () => {
 				await connecting;
 				await configurationService.setUserConfiguration(SYNC_SETTING_A, false);
 				fireConfigurationChange(configurationService, SYNC_SETTING_A);
-				await configurationService.setUserConfiguration(AgentHostFusionEnabledSettingId, true);
-				fireConfigurationChange(configurationService, AgentHostFusionEnabledSettingId);
-				await configurationService.setUserConfiguration(AgentHostDynamicAutoTiersEnabledSettingId, true);
-				fireConfigurationChange(configurationService, AgentHostDynamicAutoTiersEnabledSettingId);
-				setAccountPolicyData({ chat_preview_features_enabled: false });
-				setAccountPolicyData({});
 				await configurationService.setUserConfiguration(TELEMETRY_SETTING_ID, TelemetryConfiguration.OFF);
 				fireConfigurationChange(configurationService, TELEMETRY_SETTING_ID);
 				await configurationService.setUserConfiguration(GLOBAL_AUTO_APPROVE_SETTING_ID, false);
@@ -4244,67 +5830,76 @@ suite('AgentHostProtocolClient', () => {
 			await Event.toPromise(Event.filter(client.onDidChangeConnectionState, s => s === AgentHostClientState.Reconnecting));
 		}
 
-		/** Wait for the next time a method-named request appears in the transport's outbox. */
+		/** Wait until a method-named request appears in the transport's outbox, re-checking after each send. */
 		async function waitForRequest(transport: TestProtocolTransport, method: string): Promise<JsonRpcRequest> {
-			while (true) {
-				const req = findRequest(transport, method);
-				if (req) {
-					return req;
-				}
-				await Promise.resolve();
+			let request = findRequest(transport, method);
+			while (!request) {
+				await Event.toPromise(transport.onDidSend);
+				request = findRequest(transport, method);
 			}
+			return request;
 		}
 
+		/** Wait until the `index`th method-named request appears in the transport's outbox, re-checking after each send. */
 		async function waitForRequestAt(transport: TestProtocolTransport, method: string, index: number): Promise<JsonRpcRequest> {
-			while (true) {
-				const requests = transport.sentMessages.filter(
-					(message): message is JsonRpcRequest => 'method' in message && message.method === method && 'id' in message,
-				);
-				if (requests[index]) {
-					return requests[index];
-				}
-				await Promise.resolve();
+			const requestAt = () => transport.sentMessages.filter(
+				(message): message is JsonRpcRequest => 'method' in message && message.method === method && 'id' in message,
+			).at(index);
+			let request = requestAt();
+			while (!request) {
+				await Event.toPromise(transport.onDidSend);
+				request = requestAt();
+			}
+			return request;
+		}
+
+		/**
+		 * Await `signal`, but fail with `describeTimeout()` instead of Mocha's
+		 * timeout if it has not fired within `timeoutMs` (virtual time in
+		 * faked-timer tests).
+		 */
+		async function awaitWithin(signal: CancelablePromise<unknown>, timeoutMs: number, describeTimeout: () => string): Promise<void> {
+			if (!await raceTimeout(signal.then(() => true), timeoutMs, () => signal.cancel())) {
+				throw new Error(describeTimeout());
 			}
 		}
 
 		/**
-		 * Like {@link waitForRequestAt}, but gives up instead of spinning forever.
-		 * Yields through the timer queue so a regression that never issues the
-		 * request fails with a readable assertion rather than starving Mocha's
-		 * own timeout.
+		 * Like {@link waitForRequestAt}, but waits for the transport to send the
+		 * request instead of spinning, and fails with a readable assertion if it
+		 * is not sent within `timeoutMs`.
 		 */
 		async function waitForRequestAtWithin(transport: TestProtocolTransport, method: string, index: number, timeoutMs = 8_000): Promise<JsonRpcRequest> {
-			const deadline = Date.now() + timeoutMs;
-			while (true) {
-				const requests = transport.sentMessages.filter(
-					(message): message is JsonRpcRequest => hasKey(message, { method: true, id: true }) && message.method === method,
-				);
-				if (requests[index]) {
-					return requests[index];
-				}
-				if (Date.now() > deadline) {
+			const requests = () => transport.sentMessages.filter(
+				(message): message is JsonRpcRequest => hasKey(message, { method: true, id: true }) && message.method === method,
+			);
+			if (!requests()[index]) {
+				await awaitWithin(Event.toPromise(Event.filter(transport.onDidSend, () => !!requests()[index])), timeoutMs, () => {
 					const sent = transport.sentMessages.map(m => hasKey(m, { method: true }) ? m.method : 'response').join(', ');
-					throw new Error(`Timed out waiting for '${method}' request #${index}; saw ${requests.length}. Sent: [${sent}]`);
-				}
-				await new Promise<void>(r => setTimeout(r, 5));
+					return `Timed out waiting for '${method}' request #${index}; saw ${requests().length}. Sent: [${sent}]`;
+				});
 			}
+			return requests()[index];
 		}
 
 		/** Wait for the client to reach {@link AgentHostClientState.Connected}, bounded. */
 		async function waitForConnectedWithin(client: AgentHostProtocolClient, timeoutMs = 8_000): Promise<void> {
-			const deadline = Date.now() + timeoutMs;
-			while (client.connectionState !== AgentHostClientState.Connected) {
-				if (Date.now() > deadline) {
-					throw new Error(`Timed out waiting for Connected; state is ${client.connectionState}`);
-				}
-				await new Promise<void>(r => setTimeout(r, 5));
+			if (client.connectionState !== AgentHostClientState.Connected) {
+				const connected = Event.toPromise(Event.filter(client.onDidChangeConnectionState, state => state === AgentHostClientState.Connected));
+				await awaitWithin(connected, timeoutMs, () => `Timed out waiting for Connected; state is ${client.connectionState}`);
 			}
 		}
 
-		/** Wait for the next time the new transport is created by the factory. */
+		/** Fires whenever a {@link createFactoryClient} factory hands out a transport. */
+		let onDidCreateTransport: Emitter<void>;
+		setup(() => {
+			onDidCreateTransport = disposables.add(new Emitter<void>());
+		});
+
+		/** Wait for the factory to hand out the transport at `index`. */
 		async function waitForTransport(transports: TestClientProtocolTransport[], index: number): Promise<TestClientProtocolTransport> {
-			while (transports.length <= index) {
-				await new Promise<void>(r => setTimeout(r, 25));
+			if (transports.length <= index) {
+				await Event.toPromise(Event.filter(onDidCreateTransport.event, () => transports.length > index));
 			}
 			return transports[index];
 		}
@@ -4315,17 +5910,18 @@ suite('AgentHostProtocolClient', () => {
 		 * client plus a `transports` array recording each transport handed
 		 * out, so tests can drive handshake/reconnect interactions.
 		 */
-		function createFactoryClient(permissionService = createPermissionService(), clientInfo?: Implementation, telemetryService: ITelemetryService = NullTelemetryService, reconnectPolicy?: IRemoteAgentHostReconnectPolicy, loadEstimator?: { hasHighLoad(): boolean }, prepareReconnect?: () => Promise<void>, authentication?: Pick<IAgentHostProtocolClientOptions, 'prepareAuthentication' | 'resolveInitialAuthentication'>, power?: { onDidSuspend: Event<void>; onDidResume: Event<void> }, connectionKind?: AgentHostClientConnectionKind): { client: AgentHostProtocolClient; transports: TestClientProtocolTransport[]; configurationService: TestConfigurationService } {
+		function createFactoryClient(permissionService = createPermissionService(), clientInfo?: Implementation, telemetryService: ITelemetryService = NullTelemetryService, reconnectPolicy?: IRemoteAgentHostReconnectPolicy, loadEstimator?: { hasHighLoad(): boolean }, prepareReconnect?: () => Promise<void>, authentication?: Pick<IAgentHostProtocolClientOptions, 'prepareAuthentication' | 'resolveInitialAuthentication' | 'resolveAdvertisedAuthentication' | 'sealAuthenticationToken'>, power?: { onDidSuspend: Event<void>; onDidResume: Event<void> }, connectionKind?: AgentHostClientConnectionKind): { client: AgentHostProtocolClient; transports: TestClientProtocolTransport[]; configurationService: TestConfigurationService } {
 			const transports: TestClientProtocolTransport[] = [];
 			const factory = () => {
 				const t = disposables.add(new TestClientProtocolTransport(connectionKind));
 				transports.push(t);
+				onDidCreateTransport.fire();
 				return t;
 			};
 			const workspaceTrust = createWorkspaceTrustServices();
 			const configurationService = new TestConfigurationService();
 			const client = disposables.add(new AgentHostProtocolClient(
-				'test.example:1234', factory, clientInfo !== undefined || reconnectPolicy !== undefined || loadEstimator !== undefined || prepareReconnect !== undefined || authentication !== undefined || power !== undefined ? { clientInfo, reconnectPolicy, loadEstimator, prepareReconnect, ...authentication, ...power } : undefined, new NullLogService(), permissionService, configurationService, telemetryService, workspaceTrustEnablementService, workspaceTrust.management, workspaceTrust.request, defaultAccountService,
+				'test.example:1234', factory, clientInfo !== undefined || reconnectPolicy !== undefined || loadEstimator !== undefined || prepareReconnect !== undefined || authentication !== undefined || power !== undefined ? { clientInfo, reconnectPolicy, loadEstimator, prepareReconnect, ...authentication, ...power } : undefined, new NullLogService(), permissionService, configurationService, telemetryService, workspaceTrustEnablementService, workspaceTrust.management, workspaceTrust.request,
 			));
 			return { client, transports, configurationService };
 		}
@@ -4342,6 +5938,993 @@ suite('AgentHostProtocolClient', () => {
 			});
 			await connectPromise;
 		}
+
+		/**
+		 * Connects a client whose host's `multipleChatProviders` gate is off at the handshake (no capability), then turns
+		 * the gate on through a root config action, as this client's own mirror does. Returns the requests each transport sent.
+		 */
+		async function connectWithHostGateTurningOn(clientSetting: boolean) {
+			const { client, transports, configurationService } = createFactoryClient(undefined, undefined, undefined, { autoRestore: true, initialDelayMs: 1, maxDelayMs: 1, maxAttempts: 3 });
+			configurationService.setUserConfiguration(ChatProvidersSettingId.Enabled, clientSetting);
+			const connecting = client.connect();
+			transports[0].connectDeferred.complete();
+			const initialize = await waitForRequest(transports[0], 'initialize');
+			transports[0].fireMessage({
+				jsonrpc: '2.0', id: initialize.id,
+				result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 1, snapshots: [{ resource: ROOT_STATE_URI, fromSeq: 1, state: { agents: [], config: { schema: { type: 'object', properties: {} }, values: { [ChatProvidersConfigKey.Enabled]: false } } } }] },
+			});
+			await connecting;
+			transports[0].fireMessage({
+				jsonrpc: '2.0', method: 'action', params: {
+					channel: ROOT_STATE_URI, serverSeq: 2, origin: undefined, action: { type: ActionType.RootConfigChanged, config: { [ChatProvidersConfigKey.Enabled]: true } },
+				},
+			});
+			await flushMicrotasks();
+			return { client, transports };
+		}
+
+		test('re-initializes once when the host enables chats with their own agents after the handshake', async () => {
+			const { client, transports } = await connectWithHostGateTurningOn(true);
+			const replacement = await waitForTransport(transports, 1);
+			replacement.connectDeferred.complete();
+			const initialize = await waitForRequest(replacement, 'initialize');
+			replacement.fireMessage({
+				jsonrpc: '2.0', id: initialize.id,
+				result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 3, multipleChatProviders: {}, snapshots: [{ resource: ROOT_STATE_URI, fromSeq: 3, state: { agents: [], config: { schema: { type: 'object', properties: {} }, values: { [ChatProvidersConfigKey.Enabled]: true } } } }] },
+			});
+			await waitForConnectedWithin(client);
+			// Another config change on the re-initialized connection does not re-initialize again.
+			replacement.fireMessage({
+				jsonrpc: '2.0', method: 'action', params: {
+					channel: ROOT_STATE_URI, serverSeq: 4, origin: undefined, action: { type: ActionType.RootConfigChanged, config: { other: 1 } },
+				},
+			});
+			await timeout(10);
+
+			assert.deepStrictEqual({
+				transports: transports.length,
+				replacementMethods: replacement.sentMessages.filter((message): message is JsonRpcRequest => 'id' in message && 'method' in message).map(message => message.method).filter(method => method === 'initialize' || method === 'reconnect'),
+				capability: client.initializeResult.get()?.multipleChatProviders,
+			}, { transports: 2, replacementMethods: ['initialize'], capability: {} });
+		});
+
+		test('a subscribe in flight when the host enables chats with their own agents succeeds after the re-initialize', async () => {
+			const { client, transports, configurationService } = createFactoryClient(undefined, undefined, undefined, { autoRestore: true, initialDelayMs: 1, maxDelayMs: 1, maxAttempts: 3 });
+			configurationService.setUserConfiguration(ChatProvidersSettingId.Enabled, true);
+			const connecting = client.connect();
+			transports[0].connectDeferred.complete();
+			const initialize = await waitForRequest(transports[0], 'initialize');
+			transports[0].fireMessage({
+				jsonrpc: '2.0', id: initialize.id,
+				result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 1, snapshots: [{ resource: ROOT_STATE_URI, fromSeq: 1, state: { agents: [], config: { schema: { type: 'object', properties: {} }, values: { [ChatProvidersConfigKey.Enabled]: false } } } }] },
+			});
+			await connecting;
+			const session = URI.parse('copilot:/in-flight');
+			const subscribed = client.subscribe(session);
+			await waitForRequest(transports[0], 'subscribe');
+			// The re-initialize drops the transport before the host answers the subscribe.
+			transports[0].fireMessage({
+				jsonrpc: '2.0', method: 'action', params: {
+					channel: ROOT_STATE_URI, serverSeq: 2, origin: undefined, action: { type: ActionType.RootConfigChanged, config: { [ChatProvidersConfigKey.Enabled]: true } },
+				},
+			});
+			const replacement = await waitForTransport(transports, 1);
+			replacement.connectDeferred.complete();
+			const reinitialize = await waitForRequest(replacement, 'initialize');
+			replacement.fireMessage({
+				jsonrpc: '2.0', id: reinitialize.id,
+				result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 3, multipleChatProviders: {}, snapshots: [{ resource: ROOT_STATE_URI, fromSeq: 3, state: { agents: [], config: { schema: { type: 'object', properties: {} }, values: { [ChatProvidersConfigKey.Enabled]: true } } } }] },
+			});
+			const retried = await waitForRequest(replacement, 'subscribe');
+			replacement.fireMessage({ jsonrpc: '2.0', id: retried.id, result: { snapshot: { resource: session.toString(), fromSeq: 3, state: { title: 'restored' } } } });
+
+			const snapshot = await subscribed;
+			assert.deepStrictEqual({ resource: snapshot.resource, title: (snapshot.state as { title?: string }).title, retriedChannel: (retried.params as { channel: string }).channel }, { resource: session.toString(), title: 'restored', retriedChannel: session.toString() });
+		});
+
+		test('does not re-initialize when the first handshake already advertises chats with their own agents (a local host seeded by its starter)', async () => {
+			const { client, transports, configurationService } = createFactoryClient(undefined, undefined, undefined, { autoRestore: true, initialDelayMs: 1, maxDelayMs: 1, maxAttempts: 3 });
+			configurationService.setUserConfiguration(ChatProvidersSettingId.Enabled, true);
+			const connecting = client.connect();
+			transports[0].connectDeferred.complete();
+			const initialize = await waitForRequest(transports[0], 'initialize');
+			transports[0].fireMessage({
+				jsonrpc: '2.0', id: initialize.id,
+				result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 1, multipleChatProviders: {}, snapshots: [{ resource: ROOT_STATE_URI, fromSeq: 1, state: { agents: [], config: { schema: { type: 'object', properties: {} }, values: { [ChatProvidersConfigKey.Enabled]: true } } } }] },
+			});
+			await connecting;
+			// The client's own mirror of the setting confirms the host's gate.
+			transports[0].fireMessage({
+				jsonrpc: '2.0', method: 'action', params: {
+					channel: ROOT_STATE_URI, serverSeq: 2, origin: undefined, action: { type: ActionType.RootConfigChanged, config: { [ChatProvidersConfigKey.Enabled]: true } },
+				},
+			});
+			await timeout(10);
+
+			assert.deepStrictEqual({ transports: transports.length, capability: client.initializeResult.get()?.multipleChatProviders }, { transports: 1, capability: {} });
+		});
+
+		test('does not re-initialize for chats with their own agents with the setting off', async () => {
+			const { transports } = await connectWithHostGateTurningOn(false);
+			await timeout(10);
+			assert.strictEqual(transports.length, 1);
+		});
+
+		/**
+		 * Connects a client with the `multipleChatProviders` setting off, so the handshake negotiates `1.0.0`, then turns
+		 * the setting on and lets the host echo the mirrored gate (unless it was already on). Returns the offered versions.
+		 */
+		async function connectBelowChatProvidersVersionThenEnable(hostGateAlreadyOn = false) {
+			const { client, transports, configurationService } = createFactoryClient(undefined, undefined, undefined, { autoRestore: true, initialDelayMs: 1, maxDelayMs: 1, maxAttempts: 3 });
+			configurationService.setUserConfiguration(ChatProvidersSettingId.Enabled, false);
+			const connecting = client.connect();
+			transports[0].connectDeferred.complete();
+			const initialize = await waitForRequest(transports[0], 'initialize');
+			transports[0].fireMessage({
+				jsonrpc: '2.0', id: initialize.id,
+				result: { protocolVersion: '1.0.0', serverSeq: 1, snapshots: [{ resource: ROOT_STATE_URI, fromSeq: 1, state: { agents: [], config: { schema: { type: 'object', properties: {} }, values: { [ChatProvidersConfigKey.Enabled]: hostGateAlreadyOn } } } }] },
+			});
+			await connecting;
+			configurationService.setUserConfiguration(ChatProvidersSettingId.Enabled, true);
+			fireConfigurationChange(configurationService, ChatProvidersSettingId.Enabled);
+			if (!hostGateAlreadyOn) {
+				transports[0].fireMessage({
+					jsonrpc: '2.0', method: 'action', params: {
+						channel: ROOT_STATE_URI, serverSeq: 2, origin: undefined, action: { type: ActionType.RootConfigChanged, config: { [ChatProvidersConfigKey.Enabled]: true } },
+					},
+				});
+			}
+			await flushMicrotasks();
+			return { client, transports, configurationService, firstOffered: (initialize.params as { protocolVersions: string[] }).protocolVersions };
+		}
+
+		async function completeChatProvidersReinitialize(transports: TestClientProtocolTransport[], client: AgentHostProtocolClient, advertise: boolean) {
+			const replacement = await waitForTransport(transports, 1);
+			replacement.connectDeferred.complete();
+			const initialize = await waitForRequest(replacement, 'initialize');
+			replacement.fireMessage({
+				jsonrpc: '2.0', id: initialize.id,
+				result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 3, ...(advertise ? { multipleChatProviders: {} } : {}), snapshots: [{ resource: ROOT_STATE_URI, fromSeq: 3, state: { agents: [], config: { schema: { type: 'object', properties: {} }, values: { [ChatProvidersConfigKey.Enabled]: true } } } }] },
+			});
+			await waitForConnectedWithin(client);
+			return { replacement, offered: (initialize.params as { protocolVersions: string[] }).protocolVersions };
+		}
+
+		for (const hostGateAlreadyOn of [false, true]) {
+			test(`re-initializes once offering ${PROTOCOL_VERSION} when the setting turns on after an older handshake (host gate already on: ${hostGateAlreadyOn})`, async () => {
+				const { client, transports, firstOffered } = await connectBelowChatProvidersVersionThenEnable(hostGateAlreadyOn);
+				const { offered } = await completeChatProvidersReinitialize(transports, client, true);
+
+				assert.deepStrictEqual({
+					transports: transports.length,
+					firstOffered: firstOffered.includes(PROTOCOL_VERSION),
+					offered: offered.includes(PROTOCOL_VERSION),
+					capability: client.initializeResult.get()?.multipleChatProviders,
+				}, { transports: 2, firstOffered: false, offered: true, capability: {} });
+			});
+		}
+
+		test('re-initializes at most once when the host still does not advertise chats with their own agents', async () => {
+			const { client, transports, configurationService } = await connectBelowChatProvidersVersionThenEnable();
+			const { replacement } = await completeChatProvidersReinitialize(transports, client, false);
+			replacement.fireMessage({
+				jsonrpc: '2.0', method: 'action', params: {
+					channel: ROOT_STATE_URI, serverSeq: 4, origin: undefined, action: { type: ActionType.RootConfigChanged, config: { other: 1 } },
+				},
+			});
+			fireConfigurationChange(configurationService, ChatProvidersSettingId.Enabled);
+			await timeout(10);
+
+			assert.deepStrictEqual({ transports: transports.length, capability: client.initializeResult.get()?.multipleChatProviders }, { transports: 2, capability: undefined });
+		});
+
+		test('does not reconnect when the setting turns off', async () => {
+			const { client, transports, configurationService } = await connectBelowChatProvidersVersionThenEnable();
+			await completeChatProvidersReinitialize(transports, client, true);
+			configurationService.setUserConfiguration(ChatProvidersSettingId.Enabled, false);
+			fireConfigurationChange(configurationService, ChatProvidersSettingId.Enabled);
+			transports[1].fireMessage({
+				jsonrpc: '2.0', method: 'action', params: {
+					channel: ROOT_STATE_URI, serverSeq: 4, origin: undefined, action: { type: ActionType.RootConfigChanged, config: { [ChatProvidersConfigKey.Enabled]: false } },
+				},
+			});
+			await timeout(10);
+
+			assert.deepStrictEqual({ transports: transports.length, state: client.connectionState }, { transports: 2, state: AgentHostClientState.Connected });
+		});
+
+		const advertisedAgent = {
+			provider: 'copilot' as const, displayName: 'Test', description: 'test', models: [],
+			protectedResources: [
+				{ resource: 'https://api.example.com', authorization_servers: ['https://example.com'], scopes_supported: ['read'] },
+				{ resource: 'https://api.example.com/repos', authorization_servers: ['https://example.com'], scopes_supported: ['repo'] },
+			],
+		};
+
+		async function initializeAdvertised(transport: TestClientProtocolTransport, rootMeta?: Record<string, unknown>, handshakeMeta?: Record<string, unknown>, agents: readonly AgentInfo[] = [advertisedAgent]): Promise<void> {
+			transport.connectDeferred.complete();
+			const initialize = await waitForRequestAtWithin(transport, 'initialize', 0);
+			transport.fireMessage({
+				jsonrpc: '2.0', id: initialize.id,
+				result: {
+					protocolVersion: PROTOCOL_VERSION, serverSeq: 0,
+					_meta: handshakeMeta,
+					snapshots: [{ resource: ROOT_STATE_URI, fromSeq: 0, state: { agents, activeSessions: 1, _meta: rootMeta } }],
+				},
+			});
+		}
+
+		for (const encryption of ['mcp-key', 'missing-key', 'provider-key-only'] as const) {
+			test(`untargeted non-GitHub MCP credentials require trusted relay encryption: ${encryption}`, async () => {
+				const sealed: IMissionControlCredentialSealingRequest[] = [];
+				const { client, transports } = createFactoryClient(undefined, undefined, undefined, undefined, undefined, undefined, {
+					sealAuthenticationToken: async request => {
+						sealed.push(request);
+						return 'copilot-sealed.v1.key.ciphertext';
+					},
+				}, undefined, AgentHostClientConnectionKind.MissionControl);
+				const key = { keyId: 'key', publicKey: 'public-key', algorithm: 'x25519-sealedbox', use: encryption === 'mcp-key' ? 'mcp-auth-token' : 'auth-token' };
+				const connecting = client.connect();
+				await initializeAdvertised(transports[0], { 'copilot.encryptionKeys': encryption === 'missing-key' ? [] : [key] });
+				await connecting;
+				const resource = 'https://mcp.example.test';
+				const authenticating = client.authenticate({ resource, scopes: ['read'], token: 'mcp-token' });
+				if (encryption === 'mcp-key') {
+					const request = await waitForRequestAtWithin(transports[0], 'authenticate', 0);
+					transports[0].fireMessage({ jsonrpc: '2.0', id: request.id, result: {} });
+					const subscription = await waitForRequestAtWithin(transports[0], 'subscribe', 0);
+					transports[0].fireMessage({ jsonrpc: '2.0', id: subscription.id, result: { snapshot: { resource: ROOT_STATE_URI, fromSeq: 0, state: client.rootState.value } } });
+					await authenticating;
+					assert.deepStrictEqual({
+						sealed: sealed.map(request => [request.token, request.resource, request.key.use]),
+						params: request.params,
+					}, {
+						sealed: [['mcp-token', resource, 'mcp-auth-token']],
+						params: { channel: ROOT_STATE_URI, resource, scopes: ['read'], token: 'copilot-sealed.v1.key.ciphertext' },
+					});
+				} else {
+					await assert.rejects(authenticating, /no supported credential encryption key/);
+					assert.deepStrictEqual({
+						sealed, authenticationSent: transports[0].sentMessages.some(message => hasKey(message, { method: true }) && message.method === 'authenticate'),
+					}, { sealed: [], authenticationSent: false });
+				}
+			});
+		}
+
+		test('initial encryption failures do not publish a ready connection or release protected requests', async () => {
+			const { client, transports } = createFactoryClient(undefined, undefined, undefined, undefined, undefined, undefined, {
+				resolveAdvertisedAuthentication: async () => [{ resource: advertisedAgent.protectedResources[0].resource, token: 'must-not-leak' }],
+			});
+			const connecting = assert.rejects(client.connect(), /requires authentication encryption/);
+			const subscription = client.subscribe(URI.parse('opaque-session://tenant/private'));
+			const rejectedSubscription = assert.rejects(subscription, /requires authentication encryption/);
+			await initializeAdvertised(transports[0], undefined, { 'copilot.encryptionRequired': ['auth-token'] });
+			await Promise.all([connecting, rejectedSubscription]);
+			assert.deepStrictEqual({
+				state: client.connectionState,
+				requests: transports[0].sentMessages.filter(message => hasKey(message, { method: true, id: true })).map(message => message.method),
+			}, { state: AgentHostClientState.Incompatible, requests: ['initialize'] });
+		});
+
+		test('reconnect encrypts cached credentials again with the replacement host key and challenge', async function () {
+			this.timeout(20_000);
+			const resource = advertisedAgent.protectedResources[0].resource;
+			const { client, transports } = createFactoryClient(undefined, undefined, undefined, immediateReconnectPolicy, undefined, undefined, {
+				resolveAdvertisedAuthentication: async () => [{ resource, token: 'raw-provider-token' }],
+			});
+			const sealed: IMissionControlCredentialSealingRequest[] = [];
+			disposables.add(client.registerAuthenticationTokenSealer(async request => {
+				sealed.push(request);
+				return `copilot-sealed.v1.${request.key.key_id}.ciphertext`;
+			}));
+			const rootMeta = (keyId: string) => ({ 'copilot.encryptionKeys': [{ keyId, publicKey: 'public-key', use: 'auth-token', algorithm: 'x25519-sealedbox' }] });
+			const handshakeMeta = (challenge: string) => ({ 'copilot.encryptionRequired': ['auth-token'], 'copilot.authChallenge': { challenge, required: true } });
+			const firstChallenge = '0123456789abcdef0123456789abcdef';
+			const nextChallenge = 'abcdef0123456789abcdef0123456789';
+			const connecting = client.connect();
+			await initializeAdvertised(transports[0], rootMeta('first-key'), handshakeMeta(firstChallenge));
+			const authenticate = await waitForRequestAtWithin(transports[0], 'authenticate', 0);
+			transports[0].fireMessage({ jsonrpc: '2.0', id: authenticate.id, result: {} });
+			await connecting;
+			transports[0].fireClose();
+			const replacement = await waitForTransport(transports, 1);
+			replacement.connectDeferred.complete();
+			const reconnect = await waitForRequestAtWithin(replacement, 'reconnect', 0);
+			replacement.fireMessage({ jsonrpc: '2.0', id: reconnect.id, error: { code: AhpErrorCodes.NotFound, message: 'Host restarted' } });
+			const initialize = await waitForRequestAtWithin(replacement, 'initialize', 0);
+			replacement.fireMessage({
+				jsonrpc: '2.0', id: initialize.id,
+				result: {
+					protocolVersion: PROTOCOL_VERSION, serverSeq: 0, _meta: handshakeMeta(nextChallenge),
+					snapshots: [{ resource: ROOT_STATE_URI, fromSeq: 0, state: { agents: [advertisedAgent], activeSessions: 0, _meta: rootMeta('replacement-key') } }],
+				},
+			});
+			const restored = await waitForRequestAtWithin(replacement, 'authenticate', 0);
+			replacement.fireMessage({ jsonrpc: '2.0', id: restored.id, result: {} });
+			await waitForConnectedWithin(client);
+			assert.deepStrictEqual({
+				sealed: sealed.map(request => [request.token, request.key.key_id, request.challenge]),
+				tokens: [authenticate, restored].map(request => (request.params as AuthenticateParams).token),
+			}, {
+				sealed: [['raw-provider-token', 'first-key', firstChallenge], ['raw-provider-token', 'replacement-key', nextChallenge]],
+				tokens: ['copilot-sealed.v1.first-key.ciphertext', 'copilot-sealed.v1.replacement-key.ciphertext'],
+			});
+		});
+
+		for (const resultType of [ReconnectResultType.Replay, ReconnectResultType.Snapshot]) {
+			test(`${resultType} recovery seals cached credentials with the new connection challenge`, async function () {
+				this.timeout(20_000);
+				const resource = advertisedAgent.protectedResources[0].resource;
+				const { client, transports } = createFactoryClient(undefined, undefined, undefined, immediateReconnectPolicy, undefined, undefined, {
+					resolveAdvertisedAuthentication: async () => [{ resource, token: 'cached-raw-token' }],
+				});
+				const challenges: (string | undefined)[] = [];
+				disposables.add(client.registerAuthenticationTokenSealer(async request => {
+					challenges.push(request.challenge);
+					return 'copilot-sealed.v1.key.ciphertext';
+				}));
+				const firstChallenge = '0123456789abcdef0123456789abcdef';
+				const nextChallenge = 'abcdef0123456789abcdef0123456789';
+				const metadata = (challenge: string) => ({ 'copilot.encryptionRequired': ['auth-token'], 'copilot.authChallenge': { challenge, required: true } });
+				const rootMeta = { 'copilot.encryptionKeys': [{ keyId: 'key', publicKey: 'public-key', use: 'auth-token', algorithm: 'x25519-sealedbox' }] };
+				const connecting = client.connect();
+				await initializeAdvertised(transports[0], rootMeta, metadata(firstChallenge));
+				const authenticate = await waitForRequestAtWithin(transports[0], 'authenticate', 0);
+				transports[0].fireMessage({ jsonrpc: '2.0', id: authenticate.id, result: {} });
+				await connecting;
+				transports[0].fireClose();
+				const replacement = await waitForTransport(transports, 1);
+				replacement.connectDeferred.complete();
+				const reconnect = await waitForRequestAtWithin(replacement, 'reconnect', 0);
+				replacement.fireMessage({
+					jsonrpc: '2.0', id: reconnect.id,
+					result: resultType === ReconnectResultType.Replay
+						? { type: resultType, actions: [], missing: [], _meta: metadata(nextChallenge) }
+						: { type: resultType, snapshots: [{ resource: ROOT_STATE_URI, fromSeq: 0, state: { agents: [advertisedAgent], activeSessions: 0, _meta: rootMeta } }], _meta: metadata(nextChallenge) },
+				});
+				const restored = await waitForRequestAtWithin(replacement, 'authenticate', 0);
+				replacement.fireMessage({ jsonrpc: '2.0', id: restored.id, result: {} });
+				await waitForConnectedWithin(client);
+				assert.deepStrictEqual(challenges, [firstChallenge, nextChallenge]);
+			});
+		}
+
+		for (const recovery of ['replay', 'snapshot', 'fresh initialize'] as const) {
+			test(`Mission Control ${recovery} reseals provider and targeted MCP credentials with the current challenge`, async function () {
+				this.timeout(20_000);
+				const resource = advertisedAgent.protectedResources[0].resource;
+				const sealed: IMissionControlCredentialSealingRequest[] = [];
+				const { client, transports } = createFactoryClient(undefined, undefined, undefined, immediateReconnectPolicy, undefined, undefined, {
+					resolveInitialAuthentication: async () => ({ resource, token: 'identity-token' }),
+					sealAuthenticationToken: async request => {
+						sealed.push(request);
+						return `copilot-sealed.v1.${request.key.key_id}.ciphertext`;
+					},
+				}, undefined, AgentHostClientConnectionKind.MissionControl);
+				const firstChallenge = '0123456789abcdef0123456789abcdef';
+				const nextChallenge = 'abcdef0123456789abcdef0123456789';
+				const metadata = (challenge: string) => ({ 'copilot.encryptionRequired': ['auth-token', 'mcp-auth-token'], 'copilot.authChallenge': { challenge, required: true } });
+				const rootMeta = { 'copilot.encryptionKeys': ['auth-token', 'mcp-auth-token'].map(use => ({ keyId: use, publicKey: 'public-key', use, algorithm: 'x25519-sealedbox' })) };
+				const root = { agents: [advertisedAgent], activeSessions: 0, _meta: rootMeta };
+				const acknowledgeRoot = async (transport: TestClientProtocolTransport, index: number) => {
+					const subscription = await waitForRequestAtWithin(transport, 'subscribe', index);
+					transport.fireMessage({ jsonrpc: '2.0', id: subscription.id, result: { snapshot: { resource: ROOT_STATE_URI, fromSeq: 0, state: root } } });
+				};
+				const connecting = client.connect();
+				await initializeAdvertised(transports[0], rootMeta, metadata(firstChallenge));
+				const first = await waitForRequestAtWithin(transports[0], 'authenticate', 0);
+				transports[0].fireMessage({ jsonrpc: '2.0', id: first.id, result: {} });
+				await acknowledgeRoot(transports[0], 0);
+				await connecting;
+				const target = { kind: AuthenticateTargetKind.McpServer, session: 'opaque-session://tenant/id', customizationId: 'mcp/server' };
+				const authenticatingMcp = client.authenticate({ resource, target, token: 'mcp-token' });
+				const mcp = await waitForRequestAtWithin(transports[0], 'authenticate', 1);
+				transports[0].fireMessage({ jsonrpc: '2.0', id: mcp.id, result: {} });
+				await acknowledgeRoot(transports[0], 1);
+				await authenticatingMcp;
+				transports[0].fireClose();
+				const replacement = await waitForTransport(transports, 1);
+				replacement.connectDeferred.complete();
+				const reconnect = await waitForRequestAtWithin(replacement, 'reconnect', 0);
+				if (recovery === 'fresh initialize') {
+					replacement.fireMessage({ jsonrpc: '2.0', id: reconnect.id, error: { code: AhpErrorCodes.NotFound, message: 'Host restarted' } });
+					const initialize = await waitForRequestAtWithin(replacement, 'initialize', 0);
+					replacement.fireMessage({ jsonrpc: '2.0', id: initialize.id, result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, _meta: metadata(nextChallenge), snapshots: [{ resource: ROOT_STATE_URI, fromSeq: 0, state: root }] } });
+				} else {
+					replacement.fireMessage({
+						jsonrpc: '2.0', id: reconnect.id,
+						result: recovery === 'replay'
+							? { type: ReconnectResultType.Replay, actions: [], missing: [], _meta: metadata(nextChallenge) }
+							: { type: ReconnectResultType.Snapshot, snapshots: [{ resource: ROOT_STATE_URI, fromSeq: 0, state: root }], _meta: metadata(nextChallenge) },
+					});
+				}
+				const provider = await waitForRequestAtWithin(replacement, 'authenticate', 0);
+				assert.strictEqual(replacement.sentMessages.filter(message => hasKey(message, { method: true }) && message.method === 'authenticate').length, 1);
+				replacement.fireMessage({ jsonrpc: '2.0', id: provider.id, result: {} });
+				const restoredMcp = await waitForRequestAtWithin(replacement, 'authenticate', 1);
+				replacement.fireMessage({ jsonrpc: '2.0', id: restoredMcp.id, result: {} });
+				await acknowledgeRoot(replacement, 0);
+				await waitForConnectedWithin(client);
+				assert.deepStrictEqual({
+					sealed: sealed.map(request => [request.token, request.key.use, request.challenge]),
+					target: (restoredMcp.params as AuthenticateParams).target,
+				}, {
+					sealed: [
+						['identity-token', 'auth-token', firstChallenge], ['mcp-token', 'mcp-auth-token', firstChallenge],
+						['identity-token', 'auth-token', nextChallenge], ['mcp-token', 'mcp-auth-token', nextChallenge],
+					],
+					target,
+				});
+			});
+		}
+
+		test('transport closure during reconnect sealing retries without waiting for encryption', async function () {
+			this.timeout(20_000);
+			const resource = advertisedAgent.protectedResources[0].resource;
+			const { client, transports } = createFactoryClient(undefined, undefined, undefined, immediateReconnectPolicy, undefined, undefined, {
+				resolveAdvertisedAuthentication: async () => [{ resource, token: 'raw-token' }],
+			});
+			const blocked = new DeferredPromise<string>();
+			const sealing = new DeferredPromise<void>();
+			let calls = 0;
+			disposables.add(client.registerAuthenticationTokenSealer(() => {
+				if (++calls === 2) {
+					sealing.complete();
+					return blocked.p;
+				}
+				return Promise.resolve('copilot-sealed.v1.key.ciphertext');
+			}));
+			const rootMeta = { 'copilot.encryptionKeys': [{ keyId: 'key', publicKey: 'public-key', use: 'auth-token', algorithm: 'x25519-sealedbox' }] };
+			const metadata = { 'copilot.encryptionRequired': ['auth-token'], 'copilot.authChallenge': { challenge: '0123456789abcdef0123456789abcdef', required: true } };
+			const connecting = client.connect();
+			await initializeAdvertised(transports[0], rootMeta, metadata);
+			const first = await waitForRequestAtWithin(transports[0], 'authenticate', 0);
+			transports[0].fireMessage({ jsonrpc: '2.0', id: first.id, result: {} });
+			await connecting;
+			transports[0].fireClose();
+			const replacement = await waitForTransport(transports, 1);
+			replacement.connectDeferred.complete();
+			const reconnect = await waitForRequestAtWithin(replacement, 'reconnect', 0);
+			replacement.fireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [], _meta: metadata } });
+			await sealing.p;
+			replacement.fireClose();
+			const retry = await waitForTransport(transports, 2);
+			retry.connectDeferred.complete();
+			const retried = await waitForRequestAtWithin(retry, 'reconnect', 0);
+			retry.fireMessage({ jsonrpc: '2.0', id: retried.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [], _meta: metadata } });
+			const authentication = await waitForRequestAtWithin(retry, 'authenticate', 0);
+			retry.fireMessage({ jsonrpc: '2.0', id: authentication.id, result: {} });
+			await waitForConnectedWithin(client);
+			blocked.complete('copilot-sealed.v1.key.stale');
+			await flushMicrotasks();
+			assert.deepStrictEqual({
+				closedTransportAuthentications: replacement.sentMessages.filter(message => hasKey(message, { method: true }) && message.method === 'authenticate').length,
+				state: client.connectionState,
+			}, { closedTransportAuthentications: 0, state: AgentHostClientState.Connected });
+		});
+
+		test('an optional cached credential encryption failure does not abort reconnect', async function () {
+			this.timeout(20_000);
+			const resource = advertisedAgent.protectedResources[0].resource;
+			const optionalResource = 'https://optional.example.test';
+			const { client, transports } = createFactoryClient(undefined, undefined, undefined, immediateReconnectPolicy, undefined, undefined, {
+				resolveAdvertisedAuthentication: async () => [{ resource, token: 'required-token' }],
+			});
+			let failOptional = false;
+			disposables.add(client.registerAuthenticationTokenSealer(async request => {
+				if (failOptional && request.resource === optionalResource) {
+					throw new Error('Optional encryption failed');
+				}
+				return 'copilot-sealed.v1.key.ciphertext';
+			}));
+			const rootMeta = { 'copilot.encryptionKeys': ['auth-token', 'mcp-auth-token'].map(use => ({ keyId: 'key', publicKey: 'public-key', use, algorithm: 'x25519-sealedbox' })) };
+			const metadata = { 'copilot.encryptionRequired': ['auth-token', 'mcp-auth-token'] };
+			const connecting = client.connect();
+			await initializeAdvertised(transports[0], rootMeta, metadata, [{
+				...advertisedAgent,
+				protectedResources: [...advertisedAgent.protectedResources, { resource: optionalResource, required: false }],
+			}]);
+			const first = await waitForRequestAtWithin(transports[0], 'authenticate', 0);
+			transports[0].fireMessage({ jsonrpc: '2.0', id: first.id, result: {} });
+			await connecting;
+			const optional = client.authenticate({ resource: optionalResource, token: 'optional-token' });
+			const optionalRequest = await waitForRequestAtWithin(transports[0], 'authenticate', 1);
+			transports[0].fireMessage({ jsonrpc: '2.0', id: optionalRequest.id, result: {} });
+			await optional;
+			failOptional = true;
+			transports[0].fireClose();
+			const replacement = await waitForTransport(transports, 1);
+			replacement.connectDeferred.complete();
+			const reconnect = await waitForRequestAtWithin(replacement, 'reconnect', 0);
+			replacement.fireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [], _meta: metadata } });
+			const required = await waitForRequestAtWithin(replacement, 'authenticate', 0);
+			replacement.fireMessage({ jsonrpc: '2.0', id: required.id, result: {} });
+			await waitForConnectedWithin(client);
+			assert.deepStrictEqual({
+				state: client.connectionState,
+				cached: [...client['_authentication'].values()].map(value => value.params.resource),
+			}, { state: AgentHostClientState.Connected, cached: [resource] });
+		});
+
+		test('revocation during reconnect sealing cancels restore before the old credential is sent', async function () {
+			this.timeout(20_000);
+			const resource = advertisedAgent.protectedResources[0].resource;
+			const { client, transports } = createFactoryClient(undefined, undefined, undefined, immediateReconnectPolicy, undefined, undefined, {
+				resolveAdvertisedAuthentication: async () => [{ resource, token: 'old-token' }],
+			});
+			const blocked = new DeferredPromise<string>();
+			const sealing = new DeferredPromise<void>();
+			let calls = 0;
+			disposables.add(client.registerAuthenticationTokenSealer(() => {
+				if (++calls > 1) {
+					sealing.complete();
+					return blocked.p;
+				}
+				return Promise.resolve('copilot-sealed.v1.key.ciphertext');
+			}));
+			const rootMeta = { 'copilot.encryptionKeys': [{ keyId: 'key', publicKey: 'public-key', use: 'auth-token', algorithm: 'x25519-sealedbox' }] };
+			const metadata = { 'copilot.encryptionRequired': ['auth-token'] };
+			const connecting = client.connect();
+			await initializeAdvertised(transports[0], rootMeta, metadata);
+			const first = await waitForRequestAtWithin(transports[0], 'authenticate', 0);
+			transports[0].fireMessage({ jsonrpc: '2.0', id: first.id, result: {} });
+			await connecting;
+			transports[0].fireClose();
+			const replacement = await waitForTransport(transports, 1);
+			replacement.connectDeferred.complete();
+			const reconnect = await waitForRequestAtWithin(replacement, 'reconnect', 0);
+			replacement.fireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [], _meta: metadata } });
+			await sealing.p;
+			const revoking = client.authenticate({ resource, token: '' });
+			const request = await waitForRequestAtWithin(replacement, 'authenticate', 0);
+			replacement.fireMessage({ jsonrpc: '2.0', id: request.id, result: {} });
+			await revoking;
+			blocked.complete('copilot-sealed.v1.key.stale');
+			await flushMicrotasks();
+			assert.deepStrictEqual({
+				tokens: replacement.sentMessages.filter((message): message is JsonRpcRequest => hasKey(message, { id: true, method: true }) && message.method === 'authenticate')
+					.map(message => (message.params as AuthenticateParams).token),
+				cached: [...client['_authentication'].values()],
+				state: client.connectionState,
+			}, { tokens: [''], cached: [], state: AgentHostClientState.Connected });
+		});
+
+		test('advertised authentication gates all protected requests until every credential is acknowledged', async () => {
+			const credentials = new DeferredPromise<readonly AuthenticateParams[]>();
+			const resolving = new DeferredPromise<void>();
+			const { client, transports } = createFactoryClient(undefined, undefined, undefined, undefined, undefined, undefined, {
+				resolveAdvertisedAuthentication: async agents => {
+					assert.deepStrictEqual(agents, [advertisedAgent]);
+					resolving.complete();
+					return credentials.p;
+				},
+			});
+			const transport = transports[0];
+			const connecting = client.connect();
+			await initializeAdvertised(transport);
+			await resolving.p;
+			const subscribing = client.subscribe(URI.parse('ahp-session:/ordinary-session'));
+			const stateBeforeCredentials = client.connectionState;
+			await credentials.complete(advertisedAgent.protectedResources.map(resource => ({
+				resource: resource.resource, scopes: resource.scopes_supported, token: 'existing-token',
+			})));
+			const first = await waitForRequestAtWithin(transport, 'authenticate', 0);
+			const second = await waitForRequestAtWithin(transport, 'authenticate', 1);
+			transport.fireMessage({ jsonrpc: '2.0', id: first.id, result: {} });
+			await flushMicrotasks();
+			const stateAfterOneCredential = client.connectionState;
+			const subscribedBeforeAuthentication = findRequest(transport, 'subscribe') !== undefined;
+			transport.fireMessage({ jsonrpc: '2.0', id: second.id, result: {} });
+			await connecting;
+			const subscribe = await waitForRequestAtWithin(transport, 'subscribe', 0);
+			transport.fireMessage({ jsonrpc: '2.0', id: subscribe.id, result: { snapshot: { resource: 'ahp-session:/ordinary-session', fromSeq: 0, state: {} } } });
+			await subscribing;
+			assert.deepStrictEqual({ stateBeforeCredentials, stateAfterOneCredential, subscribedBeforeAuthentication, state: client.connectionState }, {
+				stateBeforeCredentials: AgentHostClientState.Connecting,
+				stateAfterOneCredential: AgentHostClientState.Connecting,
+				subscribedBeforeAuthentication: false,
+				state: AgentHostClientState.Connected,
+			});
+		});
+
+		test('unavailable advertised authentication retries without publishing a ready or incompatible connection', async () => {
+			let ready = false;
+			const { client, transports } = createFactoryClient(undefined, undefined, undefined, immediateReconnectPolicy, undefined, undefined, {
+				resolveAdvertisedAuthentication: async () => {
+					if (!ready) {
+						throw new AgentHostAuthenticationPendingError('https://api.example.com');
+					}
+					return [{ resource: 'https://api.example.com', token: 'available-token' }];
+				},
+			});
+			const connecting = assert.rejects(client.connect(), AgentHostAuthenticationPendingError);
+			await initializeAdvertised(transports[0]);
+			await connecting;
+			const pendingState = client.connectionState;
+			ready = true;
+			const reconnected = Event.toPromise(client.onDidReconnect);
+			const replacement = await waitForTransport(transports, 1);
+			replacement.connectDeferred.complete();
+			const reconnect = await waitForRequestAtWithin(replacement, 'reconnect', 0);
+			replacement.fireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+			const authenticate = await waitForRequestAtWithin(replacement, 'authenticate', 0);
+			replacement.fireMessage({ jsonrpc: '2.0', id: authenticate.id, result: {} });
+			await reconnected;
+			assert.deepStrictEqual({ pendingState, state: client.connectionState }, {
+				pendingState: AgentHostClientState.Reconnecting, state: AgentHostClientState.Connected,
+			});
+		});
+
+		for (const lateCredentials of [false, true]) {
+			test(`replacement transport loss aborts advertised credential lookup (lateCredentials=${lateCredentials})`, async () => {
+				const blocked = new DeferredPromise<readonly AuthenticateParams[]>();
+				const resolving = new DeferredPromise<void>();
+				let resolutions = 0;
+				const credential = { resource: advertisedAgent.protectedResources[0].resource, scopes: ['read'], token: 'fresh-token' };
+				const { client, transports } = createFactoryClient(undefined, undefined, undefined, immediateReconnectPolicy, undefined, undefined, {
+					resolveAdvertisedAuthentication: async () => {
+						if (++resolutions === 1) {
+							return [];
+						}
+						if (resolutions === 2) {
+							resolving.complete();
+							return blocked.p;
+						}
+						return [credential];
+					},
+				});
+				const connecting = client.connect();
+				await initializeAdvertised(transports[0]);
+				await connecting;
+				const reconnected = Event.toPromise(client.onDidReconnect);
+				const firstRecovery = await beginRecovery(client, transports);
+				firstRecovery.transport.fireMessage({ jsonrpc: '2.0', id: firstRecovery.request.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+				await resolving.p;
+				firstRecovery.transport.fireClose();
+				try {
+					const replacement = await raceTimeout(waitForTransport(transports, 2), 1_000);
+					assert.ok(replacement, 'Transport loss must release credential lookup and schedule another attempt');
+					await blocked.complete(lateCredentials ? [{ ...credential, token: 'stale-token' }] : []);
+					replacement.connectDeferred.complete();
+					const reconnect = await waitForRequestAtWithin(replacement, 'reconnect', 0);
+					replacement.fireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+					const authenticate = await waitForRequestAtWithin(replacement, 'authenticate', 0);
+					replacement.fireMessage({ jsonrpc: '2.0', id: authenticate.id, result: {} });
+					await reconnected;
+					assert.deepStrictEqual({
+						oldAuthenticate: findRequest(firstRecovery.transport, 'authenticate'),
+						token: (authenticate.params as AuthenticateParams).token,
+						state: client.connectionState,
+					}, { oldAuthenticate: undefined, token: 'fresh-token', state: AgentHostClientState.Connected });
+				} finally {
+					client.dispose();
+					await blocked.complete([]);
+				}
+			});
+		}
+
+		test('watchdog invalidation aborts a pending advertised credential lookup and retries', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const blocked = new DeferredPromise<readonly AuthenticateParams[]>();
+			const resolving = new DeferredPromise<void>();
+			let resolutions = 0;
+			const credential = { resource: advertisedAgent.protectedResources[0].resource, scopes: ['read'], token: 'fresh-token' };
+			const { client, transports } = createFactoryClient(undefined, undefined, undefined, immediateReconnectPolicy, { hasHighLoad: () => false }, undefined, {
+				resolveAdvertisedAuthentication: async () => {
+					if (++resolutions === 1) {
+						return [];
+					}
+					if (resolutions === 2) {
+						resolving.complete();
+						return blocked.p;
+					}
+					return [credential];
+				},
+			});
+			try {
+				const connecting = client.connect();
+				await initializeAdvertised(transports[0]);
+				await connecting;
+				const reconnected = Event.toPromise(client.onDidReconnect);
+				const recovery = await beginRecovery(client, transports);
+				recovery.transport.fireMessage({ jsonrpc: '2.0', id: recovery.request.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+				await resolving.p;
+				await timeout(30_000);
+				assert.strictEqual(transports.length, 3, 'Watchdog invalidation must release credential lookup without waiting for the provider');
+				await blocked.complete([{ ...credential, token: 'stale-token' }]);
+				const replacement = transports[2];
+				replacement.connectDeferred.complete();
+				const reconnect = await waitForRequestAtWithin(replacement, 'reconnect', 0);
+				replacement.fireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+				const authenticate = await waitForRequestAtWithin(replacement, 'authenticate', 0);
+				replacement.fireMessage({ jsonrpc: '2.0', id: authenticate.id, result: {} });
+				await reconnected;
+				assert.deepStrictEqual({ token: (authenticate.params as AuthenticateParams).token, state: client.connectionState }, {
+					token: 'fresh-token', state: AgentHostClientState.Connected,
+				});
+			} finally {
+				client.dispose();
+				await blocked.complete([]);
+			}
+		}));
+
+		for (const cached of [false, true]) {
+			test(`required advertised authentication host faults retry before readiness (cached=${cached})`, async () => {
+				const credential = { resource: advertisedAgent.protectedResources[0].resource, scopes: ['read'], token: 'existing-token' };
+				const { client, transports } = createFactoryClient(undefined, undefined, undefined, immediateReconnectPolicy, undefined, undefined, {
+					resolveAdvertisedAuthentication: async () => [credential],
+				});
+				const connecting = client.connect();
+				const initialRejected = cached ? undefined : assert.rejects(connecting, /transient authentication fault/);
+				await initializeAdvertised(transports[0]);
+				const initialAuthenticate = await waitForRequestAtWithin(transports[0], 'authenticate', 0);
+				let failedTransport = transports[0];
+				let failedRequest = initialAuthenticate;
+				if (cached) {
+					transports[0].fireMessage({ jsonrpc: '2.0', id: initialAuthenticate.id, result: {} });
+					await connecting;
+					const recovery = await beginRecovery(client, transports);
+					recovery.transport.fireMessage({ jsonrpc: '2.0', id: recovery.request.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+					failedTransport = recovery.transport;
+					failedRequest = await waitForRequestAtWithin(failedTransport, 'authenticate', 0);
+				}
+				failedTransport.fireMessage({ jsonrpc: '2.0', id: failedRequest.id, error: { code: JsonRpcErrorCodes.InternalError, message: 'transient authentication fault' } });
+				await initialRejected;
+				await flushMicrotasks();
+				const stateAfterFault = client.connectionState;
+				const reconnected = Event.toPromise(client.onDidReconnect);
+				const replacement = await raceTimeout(waitForTransport(transports, cached ? 2 : 1), 1_000);
+				assert.ok(replacement, 'Authentication host faults must schedule another attempt');
+				replacement.connectDeferred.complete();
+				const reconnect = await waitForRequestAtWithin(replacement, 'reconnect', 0);
+				replacement.fireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+				const authentication = await waitForRequestAtWithin(replacement, 'authenticate', 0);
+				replacement.fireMessage({ jsonrpc: '2.0', id: authentication.id, result: {} });
+				await reconnected;
+				assert.deepStrictEqual({ stateAfterFault, token: (authentication.params as AuthenticateParams).token, state: client.connectionState }, {
+					stateAfterFault: AgentHostClientState.Reconnecting, token: credential.token, state: AgentHostClientState.Connected,
+				});
+			});
+		}
+
+		test('required credentials that expire during another resource lookup are refreshed before recovery becomes ready', async () => {
+			const clock = sinon.useFakeTimers({ toFake: ['Date'] });
+			const blocked = new DeferredPromise<readonly AuthenticateParams[]>();
+			const resolving = new DeferredPromise<void>();
+			let resolutions = 0;
+			const first = { resource: advertisedAgent.protectedResources[0].resource, scopes: ['read'], token: 'expiring-token', expiresIn: 1 };
+			const second = { resource: advertisedAgent.protectedResources[1].resource, scopes: ['repo'], token: 'second-token' };
+			const { client, transports } = createFactoryClient(undefined, undefined, undefined, immediateReconnectPolicy, undefined, undefined, {
+				resolveAdvertisedAuthentication: async () => {
+					if (++resolutions === 1) {
+						return [first];
+					}
+					if (resolutions === 2) {
+						resolving.complete();
+						return blocked.p;
+					}
+					return [{ ...first, token: 'refreshed-token', expiresIn: 60 }];
+				},
+			});
+			try {
+				const connecting = client.connect();
+				await initializeAdvertised(transports[0]);
+				const initial = await waitForRequestAtWithin(transports[0], 'authenticate', 0);
+				transports[0].fireMessage({ jsonrpc: '2.0', id: initial.id, result: {} });
+				await connecting;
+				const reconnected = Event.toPromise(client.onDidReconnect);
+				const recovery = await beginRecovery(client, transports);
+				recovery.transport.fireMessage({ jsonrpc: '2.0', id: recovery.request.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+				await resolving.p;
+				clock.tick(1_500);
+				await blocked.complete([second]);
+				await flushMicrotasks();
+				const pendingAuthentication = findRequest(recovery.transport, 'authenticate');
+				if (pendingAuthentication) {
+					recovery.transport.fireMessage({ jsonrpc: '2.0', id: pendingAuthentication.id, result: {} });
+					await flushMicrotasks();
+				}
+				const stateAfterExpiry = client.connectionState;
+				const replacement = await raceTimeout(waitForTransport(transports, 2), 1_000);
+				assert.ok(replacement, 'Expired required credentials must restart authentication before readiness');
+				replacement.connectDeferred.complete();
+				const reconnect = await waitForRequestAtWithin(replacement, 'reconnect', 0);
+				replacement.fireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+				const tokens: string[] = [];
+				for (let index = 0; index < 2; index++) {
+					const authentication = await waitForRequestAtWithin(replacement, 'authenticate', index);
+					tokens.push((authentication.params as AuthenticateParams).token);
+					replacement.fireMessage({ jsonrpc: '2.0', id: authentication.id, result: {} });
+				}
+				await reconnected;
+				assert.deepStrictEqual({ stateAfterExpiry, tokens: tokens.sort(), state: client.connectionState }, {
+					stateAfterExpiry: AgentHostClientState.Reconnecting,
+					tokens: ['refreshed-token', 'second-token'],
+					state: AgentHostClientState.Connected,
+				});
+			} finally {
+				client.dispose();
+				await blocked.complete([]);
+				clock.restore();
+			}
+		});
+
+		for (const closeTransport of [false, true]) {
+			test(`a stalled required authentication lookup is released by client disposal (closeTransport=${closeTransport})`, async () => {
+				const blocked = new DeferredPromise<readonly AuthenticateParams[]>();
+				const started = new DeferredPromise<void>();
+				const { client, transports } = createFactoryClient(undefined, undefined, undefined, immediateReconnectPolicy, undefined, undefined, {
+					resolveAdvertisedAuthentication: () => {
+						started.complete();
+						return blocked.p;
+					},
+				});
+				const connecting = assert.rejects(client.connect());
+				await initializeAdvertised(transports[0]);
+				await started.p;
+				const subscribing = assert.rejects(client.subscribe(URI.parse('ahp-session:/blocked-authentication')));
+				const beforeClose = client.connectionState;
+				if (closeTransport) {
+					transports[0].fireClose();
+				}
+				const beforeDispose = client.connectionState;
+				client.dispose();
+				await Promise.all([connecting, subscribing]);
+				await blocked.complete([]);
+				assert.deepStrictEqual({
+					beforeClose, beforeDispose, finalState: client.connectionState,
+					subscribeSent: transports.some(transport => findRequest(transport, 'subscribe') !== undefined),
+				}, {
+					beforeClose: AgentHostClientState.Connecting,
+					beforeDispose: closeTransport ? AgentHostClientState.Reconnecting : AgentHostClientState.Connecting,
+					finalState: AgentHostClientState.Closed,
+					subscribeSent: false,
+				});
+			});
+		}
+
+		test('unavailable required authentication exhausts the retry budget without issuing protected requests', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const policy = { ...immediateReconnectPolicy, maxAttempts: 2 };
+			const { client, transports } = createFactoryClient(undefined, undefined, undefined, policy, undefined, undefined, {
+				resolveAdvertisedAuthentication: async () => { throw new AgentHostAuthenticationPendingError('https://api.example.com'); },
+			});
+			const closed = Event.toPromise(client.onDidFatalClose);
+			const connecting = assert.rejects(client.connect(), AgentHostAuthenticationPendingError);
+			const subscribing = assert.rejects(client.subscribe(URI.parse('ahp-session:/unavailable-authentication')));
+			await initializeAdvertised(transports[0]);
+			await connecting;
+			for (let attempt = 1; attempt <= policy.maxAttempts; attempt++) {
+				const replacement = await waitForTransport(transports, attempt);
+				replacement.connectDeferred.complete();
+				const reconnect = await waitForRequestAtWithin(replacement, 'reconnect', 0);
+				replacement.fireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+			}
+			const error = await closed;
+			await subscribing;
+			assert.deepStrictEqual({
+				error: error.message, state: client.connectionState, transports: transports.length,
+				subscribeSent: transports.some(transport => findRequest(transport, 'subscribe') !== undefined),
+			}, {
+				error: 'Automatic reconnect gave up after 2 attempts.',
+				state: AgentHostClientState.Closed, transports: 3, subscribeSent: false,
+			});
+		}));
+
+		for (const rejected of [false, true]) {
+			test(`advertised authentication preserves reconnect credentials and removes rejected entries (rejected=${rejected})`, async () => {
+				let resolutions = 0;
+				const { client, transports } = createFactoryClient(undefined, undefined, undefined, immediateReconnectPolicy, undefined, undefined, {
+					resolveAdvertisedAuthentication: async agents => {
+						resolutions++;
+						return agents.flatMap(agent => agent.protectedResources ?? []).map(resource => ({
+							resource: resource.resource, scopes: resource.scopes_supported, token: 'resolved-token',
+						}));
+					},
+				});
+				const connecting = client.connect();
+				await initializeAdvertised(transports[0]);
+				for (let index = 0; index < 2; index++) {
+					const request = await waitForRequestAtWithin(transports[0], 'authenticate', index);
+					transports[0].fireMessage({ jsonrpc: '2.0', id: request.id, ...(rejected ? { error: { code: -32602, message: 'credential rejected' } } : { result: {} }) });
+				}
+				await connecting;
+				const readyState = client.connectionState;
+				const rotating = client.authenticate({ resource: advertisedAgent.protectedResources[0].resource, scopes: ['read'], token: 'rotated-token' });
+				const rotation = await waitForRequestAtWithin(transports[0], 'authenticate', 2);
+				transports[0].fireMessage({ jsonrpc: '2.0', id: rotation.id, result: {} });
+				await rotating;
+				const reconnected = Event.toPromise(client.onDidReconnect);
+				transports[0].fireClose();
+				const replacement = await waitForTransport(transports, 1);
+				replacement.connectDeferred.complete();
+				const reconnect = await waitForRequestAtWithin(replacement, 'reconnect', 0);
+				replacement.fireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+				const tokens: string[] = [];
+				for (let index = 0; index < 2; index++) {
+					const request = await waitForRequestAtWithin(replacement, 'authenticate', index);
+					tokens.push((request.params as AuthenticateParams).token);
+					replacement.fireMessage({ jsonrpc: '2.0', id: request.id, result: {} });
+				}
+				await reconnected;
+				assert.deepStrictEqual({ readyState, resolutions, tokens: tokens.sort() }, {
+					readyState: AgentHostClientState.Connected,
+					resolutions: rejected ? 2 : 1,
+					tokens: ['resolved-token', 'rotated-token'],
+				});
+			});
+		}
+
+		test('late authentication does not retry an existing session subscription that failed before authentication', async () => {
+			const { client, transports } = createFactoryClient();
+			const transport = transports[0];
+			await completeHandshake(transport, client.connect());
+			const resource = URI.parse('ahp-session:/ordinary-existing-session');
+			const reference = disposables.add(client.getSubscription(StateComponents.Session, resource, 'test'));
+			const subscribe = await waitForRequestAtWithin(transport, 'subscribe', 0);
+			transport.fireMessage({
+				jsonrpc: '2.0', id: subscribe.id,
+				error: { code: -32007, message: 'authentication required for https://api.github.com' },
+			});
+			await flushMicrotasks();
+			const authentication = client.authenticate({ resource: 'https://api.github.com', token: 'test-token' });
+			const authenticate = await waitForRequestAtWithin(transport, 'authenticate', 0);
+			transport.fireMessage({ jsonrpc: '2.0', id: authenticate.id, result: {} });
+			await authentication;
+			await flushMicrotasks();
+			assert.deepStrictEqual({
+				connectionState: client.connectionState,
+				subscriptionError: reference.object.value instanceof Error ? reference.object.value.message : undefined,
+				subscriptions: transport.sentMessages.filter(message => hasKey(message, { method: true }) && message.method === 'subscribe').length,
+			}, {
+				connectionState: AgentHostClientState.Connected,
+				subscriptionError: 'authentication required for https://api.github.com',
+				subscriptions: 1,
+			});
+		});
+
+		test('initial authentication gates existing session subscriptions until authentication succeeds', async () => {
+			const credentials = new DeferredPromise<AuthenticateParams>();
+			const resolving = new DeferredPromise<void>();
+			const { client, transports } = createFactoryClient(undefined, undefined, undefined, undefined, undefined, undefined, {
+				resolveInitialAuthentication: () => {
+					resolving.complete();
+					return credentials.p;
+				},
+			});
+			const transport = transports[0];
+			const connecting = client.connect();
+			transport.connectDeferred.complete();
+			const initialize = await waitForRequestAtWithin(transport, 'initialize', 0);
+			transport.fireMessage({
+				jsonrpc: '2.0', id: initialize.id,
+				result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] },
+			});
+			await resolving.p;
+			const subscribing = client.subscribe(URI.parse('ahp-session:/ordinary-existing-session'));
+			const stateBeforeAuthentication = client.connectionState;
+			const subscriptionBeforeAuthentication = findRequest(transport, 'subscribe') !== undefined;
+			await credentials.complete({ resource: 'https://api.github.com', token: 'test-token' });
+			const authenticate = await waitForRequestAtWithin(transport, 'authenticate', 0);
+			const subscriptionBeforeAcknowledgement = findRequest(transport, 'subscribe') !== undefined;
+			transport.fireMessage({ jsonrpc: '2.0', id: authenticate.id, result: {} });
+			await connecting;
+			const subscribe = await waitForRequestAtWithin(transport, 'subscribe', 0);
+			transport.fireMessage({
+				jsonrpc: '2.0', id: subscribe.id,
+				result: { snapshot: { resource: 'ahp-session:/ordinary-existing-session', fromSeq: 0, state: {} } },
+			});
+			await subscribing;
+			assert.deepStrictEqual({
+				stateBeforeAuthentication,
+				subscriptionBeforeAuthentication,
+				subscriptionBeforeAcknowledgement,
+				state: client.connectionState,
+			}, {
+				stateBeforeAuthentication: AgentHostClientState.Connecting,
+				subscriptionBeforeAuthentication: false,
+				subscriptionBeforeAcknowledgement: false,
+				state: AgentHostClientState.Connected,
+			});
+		});
 
 		test('refreshes the brokered ticket before opening a replacement transport', async () => {
 			const prepared = new DeferredPromise<void>();
@@ -4390,57 +6973,11 @@ suite('AgentHostProtocolClient', () => {
 			return { transport, request };
 		}
 
-		test('forwards Fusion setting and restriction changes across remote reconnect', async () => {
-			const { client, transports, configurationService } = createFactoryClient();
-			await configurationService.setUserConfiguration(AgentHostFusionEnabledSettingId, true);
-			await completeHandshake(transports[0], client.connect());
-			await configurationService.setUserConfiguration(AgentHostFusionEnabledSettingId, false);
-			fireConfigurationChange(configurationService, AgentHostFusionEnabledSettingId);
-			await configurationService.setUserConfiguration(AgentHostFusionEnabledSettingId, true);
-			fireConfigurationChange(configurationService, AgentHostFusionEnabledSettingId);
-			setAccountPolicyData({ chat_preview_features_enabled: false });
-			setAccountPolicyData({});
-
-			const { transport, request } = await beginRecovery(client, transports);
-			setAccountPolicyData({ chat_preview_features_enabled: false });
-			const whileDisconnected = getFusionUpdates(transport.sentMessages);
-			const reconnected = Event.toPromise(Event.filter(client.onDidChangeConnectionState, state => state === AgentHostClientState.Connected));
-			transport.fireMessage({
-				jsonrpc: '2.0', id: request.id,
-				result: { type: ReconnectResultType.Replay, actions: [], missing: [] },
-			});
-			await reconnected;
-			setAccountPolicyData(null);
-
-			assert.deepStrictEqual({
-				initialConnection: getFusionUpdates(transports[0].sentMessages),
-				whileDisconnected,
-				reconnected: getFusionUpdates(transport.sentMessages),
-				configuredValue: configurationService.getValue(AgentHostFusionEnabledSettingId),
-			}, {
-				initialConnection: [
-					{ fusion: true, ensemble: true },
-					{ fusion: false, ensemble: false },
-					{ fusion: true, ensemble: true },
-					{ fusion: false, ensemble: false },
-					{ fusion: true, ensemble: true },
-				],
-				whileDisconnected: [],
-				reconnected: [
-					{ fusion: false, ensemble: false },
-					{ fusion: true, ensemble: true },
-				],
-				configuredValue: true,
-			});
-		});
-
-		test('re-forwards gated Dynamic Auto Tiers to a remote after reconnect', async () => {
-			const { client, transports, configurationService } = createFactoryClient();
-			await configurationService.setUserConfiguration(AgentHostDynamicAutoTiersEnabledSettingId, true);
+		test('re-forwards the legacy Dynamic Auto Tiers value to a remote after reconnect', async () => {
+			const { client, transports } = createFactoryClient();
 			await completeHandshake(transports[0], client.connect());
 
 			const { transport, request } = await beginRecovery(client, transports);
-			setAccountPolicyData({ chat_preview_features_enabled: false });
 			const whileDisconnected = getDynamicAutoTiersUpdates(transport.sentMessages);
 			const reconnected = Event.toPromise(Event.filter(client.onDidChangeConnectionState, state => state === AgentHostClientState.Connected));
 			transport.fireMessage({
@@ -4448,7 +6985,6 @@ suite('AgentHostProtocolClient', () => {
 				result: { type: ReconnectResultType.Replay, actions: [], missing: [] },
 			});
 			await reconnected;
-			setAccountPolicyData(null);
 
 			assert.deepStrictEqual({
 				initialConnection: getDynamicAutoTiersUpdates(transports[0].sentMessages),
@@ -4457,7 +6993,7 @@ suite('AgentHostProtocolClient', () => {
 			}, {
 				initialConnection: [true],
 				whileDisconnected: [],
-				reconnected: [false, true],
+				reconnected: [true],
 			});
 		});
 
@@ -4519,6 +7055,101 @@ suite('AgentHostProtocolClient', () => {
 				});
 			}
 		}
+
+		test('lifecycle diagnostic state distinguishes failed responses and resets on replacement transport', () => runWithFakedTimers({}, async () => {
+			const { client, transports } = createFactoryClient(undefined, undefined, undefined, undefined, { hasHighLoad: () => false });
+			const initial = client.getConnectionDiagnosticState();
+			await completeHandshake(transports[0], client.connect());
+			await timeout(25);
+			const beforeFailure = client.getConnectionDiagnosticState();
+			const failed = assert.rejects(client.listSessions(), /authorization unavailable/);
+			const request = await waitForRequestAtWithin(transports[0], 'listSessions', 0);
+			transports[0].fireMessage({ jsonrpc: '2.0', id: request.id, error: { code: -32007, message: 'authorization unavailable' } });
+			await failed;
+			const afterFailure = client.getConnectionDiagnosticState();
+			transports[0].fireClose();
+			client.reconnectNow();
+			const replacement = await waitForTransport(transports, 1);
+			const whileReconnecting = client.getConnectionDiagnosticState();
+			replacement.connectDeferred.complete();
+			const reconnect = await waitForRequestAtWithin(replacement, 'reconnect', 0);
+			replacement.fireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+			await waitForConnectedWithin(client);
+			const recovered = client.getConnectionDiagnosticState();
+			client.dispose();
+			assert.deepStrictEqual({
+				initial: [initial.connectionState, initial.lastSuccessfulResponseAgeMs, initial.authenticationRestorePending],
+				before: [beforeFailure.connectionState, beforeFailure.lastSuccessfulResponseAgeMs],
+				after: [afterFailure.connectionState, afterFailure.lastSuccessfulResponseAgeMs],
+				reconnecting: [whileReconnecting.connectionState, whileReconnecting.lastSuccessfulResponseAgeMs, whileReconnecting.reconnectAttempt],
+				recovered: [recovered.connectionState, recovered.lastSuccessfulResponseAgeMs, recovered.reconnectScheduled],
+				requests: transports.flatMap(transport => transport.sentMessages).filter(message => hasKey(message, { method: true }) && message.method === 'listSessions').length,
+			}, {
+				initial: ['connecting', undefined, false], before: ['connected', 25], after: ['connected', 25],
+				reconnecting: ['reconnecting', undefined, 1], recovered: ['connected', 0, false], requests: 1,
+			});
+		}));
+
+		test('lifecycle diagnostics preserve opaque session and chat resources without extra protocol requests', () => runWithFakedTimers({}, async () => {
+			const { client, transports } = createFactoryClient(undefined, undefined, undefined, undefined, { hasHighLoad: () => false });
+			const transport = transports[0];
+			const diagnostics: IConnectionDiagnosticEvent[] = [];
+			disposables.add(client.onDidConnectionDiagnostic(event => {
+				if (event.phase.startsWith('session.') || event.phase === 'chat.binding') {
+					diagnostics.push(event);
+				}
+			}));
+			await completeHandshake(transport, client.connect());
+			const session = URI.parse('other-host:/opaque-session');
+			const chat = 'other-chat:/unrelated-chat';
+			const creation = client.createSession({ session, provider: 'other' });
+			const create = await waitForRequestAtWithin(transport, 'createSession', 0);
+			transport.fireMessage({ jsonrpc: '2.0', id: create.id, result: {} });
+			const created = await creation;
+			const subscription = disposables.add(client.getSubscription(StateComponents.Session, session, 'lifecycle-test'));
+			const subscribe = await waitForRequestAtWithin(transport, 'subscribe', 0);
+			transport.fireMessage({
+				jsonrpc: '2.0', id: subscribe.id,
+				result: {
+					snapshot: {
+						resource: session.toString(), fromSeq: 0,
+						state: {
+							...createSessionState({ resource: session.toString(), provider: 'other', title: 'private title', status: SessionStatus.Idle, createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString() }),
+							lifecycle: SessionLifecycle.Ready,
+							defaultChat: chat,
+							chats: [{ resource: chat, title: 'private chat', origin: { kind: 'user' }, status: SessionStatus.Idle }],
+						},
+					},
+				},
+			});
+			await flushMicrotasks();
+			subscription.dispose();
+			const disposal = client.disposeSession(session);
+			const dispose = await waitForRequestAtWithin(transport, 'disposeSession', 0);
+			transport.fireMessage({ jsonrpc: '2.0', id: dispose.id, result: {} });
+			await disposal;
+			client.dispose();
+			assert.deepStrictEqual({
+				created: created.toString(),
+				diagnostics: diagnostics.map(event => [event.phase, event.outcome, event.sessionResource, event.chatResource, event.sessionState]),
+				logicalOperationsHaveNoAttempt: diagnostics.filter(event => ['session.create', 'session.subscribe', 'session.dispose'].includes(event.phase)).every(event => event.attemptId === undefined),
+				privateContent: JSON.stringify(diagnostics).includes('private'),
+				requests: transport.sentMessages.filter(message => hasKey(message, { method: true }) && ['createSession', 'subscribe', 'disposeSession'].includes(message.method)).length,
+			}, {
+				created: session.toString(),
+				diagnostics: [
+					['session.create', 'started', session.toString(), undefined, undefined],
+					['session.create', 'succeeded', session.toString(), undefined, undefined],
+					['session.subscribe', 'started', session.toString(), undefined, undefined],
+					['session.snapshot', 'info', session.toString(), undefined, 'ready'],
+					['chat.binding', 'info', session.toString(), chat, undefined],
+					['session.subscribe', 'succeeded', session.toString(), undefined, undefined],
+					['session.dispose', 'started', session.toString(), undefined, undefined],
+					['session.dispose', 'succeeded', session.toString(), undefined, undefined],
+				],
+				logicalOperationsHaveNoAttempt: true, privateContent: false, requests: 3,
+			});
+		}));
 
 		test('observes only the first post-readiness session request per recovery without issuing extra requests', () => runWithFakedTimers({}, async () => {
 			const { client, transports } = createFactoryClient(undefined, undefined, undefined, undefined, { hasHighLoad: () => false });
@@ -4710,52 +7341,7 @@ suite('AgentHostProtocolClient', () => {
 		for (const recover of [false, true]) {
 			test(`OS sleep does not consume the recovery budget (${recover ? 'network resumes' : 'network stays unavailable'})`, async () => {
 				const clock = sinon.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
-				try {
-					const suspend = disposables.add(new Emitter<void>());
-					const resume = disposables.add(new Emitter<void>());
-					const policy: IRemoteAgentHostReconnectPolicy = {
-						autoRestore: true, initialDelayMs: 10, maxDelayMs: 10, maxAttempts: 10, maxElapsedTimeMs: 100,
-					};
-					const { client, transports } = createFactoryClient(undefined, undefined, undefined, policy, { hasHighLoad: () => false }, undefined, undefined,
-						{ onDidSuspend: suspend.event, onDidResume: resume.event });
-					await completeHandshake(transports[0], client.connect());
-					transports[0].fireClose();
-					await clock.tickAsync(40);
-					suspend.fire();
-					clock.setSystemTime(Date.now() + 600_000);
-					resume.fire();
-					await clock.tickAsync(20);
-					suspend.fire();
-					clock.setSystemTime(Date.now() + 600_000);
-					resume.fire();
-					resume.fire();
-					const stateAfterWake = client.connectionState;
-					if (recover) {
-						transports[1].connectDeferred.complete();
-						await flushMicrotasks();
-						const reconnect = findRequest(transports[1], 'reconnect')!;
-						assert.ok(reconnect, 'replacement transport must get a chance to recover after wake');
-						transports[1].fireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
-					}
-					await clock.tickAsync(39);
-					const stateBeforeDeadline = client.connectionState;
-					await clock.tickAsync(1);
-					assert.deepStrictEqual({ stateAfterWake, stateBeforeDeadline, stateAtDeadline: client.connectionState, transports: transports.length }, {
-						stateAfterWake: AgentHostClientState.Reconnecting,
-						stateBeforeDeadline: recover ? AgentHostClientState.Connected : AgentHostClientState.Reconnecting,
-						stateAtDeadline: recover ? AgentHostClientState.Connected : AgentHostClientState.Closed,
-						transports: 2,
-					});
-					client.dispose();
-				} finally {
-					clock.restore();
-				}
-			});
-		}
-
-		test('recovery begun during OS sleep gets its bounded budget on resume', async () => {
-			const clock = sinon.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
-			try {
+				disposables.add(toDisposable(() => clock.restore()));
 				const suspend = disposables.add(new Emitter<void>());
 				const resume = disposables.add(new Emitter<void>());
 				const policy: IRemoteAgentHostReconnectPolicy = {
@@ -4764,21 +7350,60 @@ suite('AgentHostProtocolClient', () => {
 				const { client, transports } = createFactoryClient(undefined, undefined, undefined, policy, { hasHighLoad: () => false }, undefined, undefined,
 					{ onDidSuspend: suspend.event, onDidResume: resume.event });
 				await completeHandshake(transports[0], client.connect());
-				resume.fire();
-				suspend.fire();
 				transports[0].fireClose();
+				await clock.tickAsync(40);
+				suspend.fire();
 				clock.setSystemTime(Date.now() + 600_000);
 				resume.fire();
-				await clock.tickAsync(99);
+				await clock.tickAsync(20);
+				suspend.fire();
+				clock.setSystemTime(Date.now() + 600_000);
+				resume.fire();
+				resume.fire();
+				const stateAfterWake = client.connectionState;
+				if (recover) {
+					transports[1].connectDeferred.complete();
+					await flushMicrotasks();
+					const reconnect = findRequest(transports[1], 'reconnect')!;
+					assert.ok(reconnect, 'replacement transport must get a chance to recover after wake');
+					transports[1].fireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+				}
+				await clock.tickAsync(39);
 				const stateBeforeDeadline = client.connectionState;
 				await clock.tickAsync(1);
-				assert.deepStrictEqual({ stateBeforeDeadline, stateAtDeadline: client.connectionState, transports: transports.length }, {
-					stateBeforeDeadline: AgentHostClientState.Reconnecting, stateAtDeadline: AgentHostClientState.Closed, transports: 2,
+				assert.deepStrictEqual({ stateAfterWake, stateBeforeDeadline, stateAtDeadline: client.connectionState, transports: transports.length }, {
+					stateAfterWake: AgentHostClientState.Reconnecting,
+					stateBeforeDeadline: recover ? AgentHostClientState.Connected : AgentHostClientState.Reconnecting,
+					stateAtDeadline: recover ? AgentHostClientState.Connected : AgentHostClientState.Closed,
+					transports: 2,
 				});
 				client.dispose();
-			} finally {
-				clock.restore();
-			}
+			});
+		}
+
+		test('recovery begun during OS sleep gets its bounded budget on resume', async () => {
+			const clock = sinon.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+			disposables.add(toDisposable(() => clock.restore()));
+			const suspend = disposables.add(new Emitter<void>());
+			const resume = disposables.add(new Emitter<void>());
+			const policy: IRemoteAgentHostReconnectPolicy = {
+				autoRestore: true, initialDelayMs: 10, maxDelayMs: 10, maxAttempts: 10, maxElapsedTimeMs: 100,
+			};
+			const { client, transports } = createFactoryClient(undefined, undefined, undefined, policy, { hasHighLoad: () => false }, undefined, undefined,
+				{ onDidSuspend: suspend.event, onDidResume: resume.event });
+			await completeHandshake(transports[0], client.connect());
+			resume.fire();
+			suspend.fire();
+			transports[0].fireClose();
+			clock.setSystemTime(Date.now() + 600_000);
+			resume.fire();
+			await clock.tickAsync(99);
+			const stateBeforeDeadline = client.connectionState;
+			await clock.tickAsync(1);
+			assert.deepStrictEqual({ stateBeforeDeadline, stateAtDeadline: client.connectionState, transports: transports.length }, {
+				stateBeforeDeadline: AgentHostClientState.Reconnecting, stateAtDeadline: AgentHostClientState.Closed, transports: 2,
+			});
+			client.dispose();
 		});
 
 		test('failed attempts and immediate retries do not restart the recovery deadline', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -5176,6 +7801,47 @@ suite('AgentHostProtocolClient', () => {
 			assert.strictEqual(client.devContainerService, undefined);
 		});
 
+		test('serves each connection a fresh artifact integration server', async function () {
+			this.timeout(10_000);
+			const { client, transports } = createFactoryClient();
+			await completeHandshake(transports[0], client.connect());
+			const servers: { readonly requests: ArtifactIntegrationRequest['kind'][]; disposed: boolean }[] = [];
+			const integrations = observableValue<readonly ArtifactIntegrationDescriptor[]>('integrations', [{ id: 'exp', label: 'ExP', automationOptions: [] }]);
+			const serving = client.serveArtifactIntegrations(() => {
+				const server = { requests: [] as ArtifactIntegrationRequest['kind'][], disposed: false };
+				servers.push(server);
+				return {
+					onDidUpdate: Event.None,
+					request: async request => { server.requests.push(request.kind); return { kind: 'ok' }; },
+					dispose: () => { server.disposed = true; },
+				};
+			}, integrations);
+			transports[0].fireClose();
+			const disposedOnDisconnect = servers.map(server => server.disposed);
+			assert.ok(client.reconnectNow());
+			const replacement = await waitForTransport(transports, 1);
+			replacement.connectDeferred.complete();
+			const reconnect = await waitForRequestAtWithin(replacement, 'reconnect', 0);
+			replacement.fireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+			await waitForConnectedWithin(client);
+			replacement.fireExtensionRequest(71, ClientArtifactIntegrationExtensionMethod, { kind: 'release', subscription: 'checks' });
+			await timeout(0);
+			serving.dispose();
+			const offerMethod: string = RegisterClientArtifactIntegrationsExtensionMethod;
+			const offers = (transport: TestProtocolTransport) => transport.sentMessages
+				.filter((message): message is JsonRpcRequest => hasKey(message, { method: true, id: true }) && message.method === offerMethod)
+				.map(message => message.params);
+
+			assert.deepStrictEqual({ disposedOnDisconnect, servers, offers: transports.map(offers) }, {
+				disposedOnDisconnect: [true],
+				servers: [{ requests: [], disposed: true }, { requests: ['release'], disposed: true }],
+				offers: [
+					[{ integrations: [{ id: 'exp', label: 'ExP', automationOptions: [] }] }],
+					[{ integrations: [{ id: 'exp', label: 'ExP', automationOptions: [] }] }, { integrations: [] }],
+				],
+			});
+		});
+
 		test('retries an initial transport failure with a fresh initialization', async function () {
 			this.timeout(10_000);
 			const { client, transports } = createFactoryClient(undefined, undefined, undefined, immediateReconnectPolicy);
@@ -5459,6 +8125,222 @@ suite('AgentHostProtocolClient', () => {
 			});
 		});
 
+		suite('windowed state recovery', () => {
+			const channel = 'session-store://tenant/sessions/windowed?generation%3D2';
+			const flowControl = { clientReceive: agentHostStateReceiveLimits, hostReceive: { windowBytes: 64 * 1024, maximumFrameBytes: 1024 } };
+			const window = { channel, flowControl, recovery: 'snapshot' };
+			const offer = { channel, flowControl: { receive: agentHostStateReceiveLimits } };
+			const state: SessionState = {
+				provider: 'other-agent', title: 'Initial', status: SessionStatus.Idle,
+				lifecycle: SessionLifecycle.Ready, activeClients: [], chats: [],
+			};
+
+			async function fixture() {
+				const { client, transports } = createFactoryClient();
+				await completeHandshake(transports[0], client.connect());
+				const subscription = disposables.add(client.getSubscription<SessionState>(StateComponents.Session, URI.parse(channel), 'test'));
+				const request = await waitForRequestAtWithin(transports[0], 'subscribe', 0);
+				transports[0].fireWireMessage({ jsonrpc: '2.0', id: request.id, result: { flowControl } });
+				transports[0].fireWireMessage({ jsonrpc: '2.0', method: 'channel/snapshot', params: { channel, snapshot: { resource: channel, state, fromSeq: 6 } } });
+				await flushMicrotasks();
+				return { client, transports, subscription };
+			}
+
+			for (const type of [ReconnectResultType.Replay, ReconnectResultType.Snapshot]) {
+				test(`recovers kept state windows with a snapshot alongside an ordinary ${type} result`, async () => {
+					const { client, transports, subscription } = await fixture();
+					const { transport, request } = await beginRecovery(client, transports);
+					const queued = { type: ActionType.SessionTitleChanged, title: 'x'.repeat(1000) } as const;
+					client.dispatch(channel, queued);
+					transport.fireWireMessage({
+						jsonrpc: '2.0', id: request.id,
+						result: type === ReconnectResultType.Replay
+							? { type, actions: [], missing: [], windows: { items: [window] } }
+							: { type, snapshots: [{ resource: ROOT_STATE_URI, state: { agents: [] }, fromSeq: 7 }], windows: { items: [window] } },
+					});
+					if (type === ReconnectResultType.Snapshot) {
+						await flushMicrotasks();
+					}
+					const waiting = client.connectionState;
+					transport.fireWireMessage({ jsonrpc: '2.0', method: 'channel/snapshot', params: { channel, snapshot: { resource: channel, state: { ...state, title: 'Recovered' }, fromSeq: 8 } } });
+					transport.fireWireMessage({ jsonrpc: '2.0', method: 'action', params: { channel, serverSeq: 9, action: { type: ActionType.SessionTitleChanged, title: 'After snapshot' } } });
+					await waitForConnectedWithin(client);
+					await flushMicrotasks();
+					const frames = transport.sentMessages.filter((message): message is JsonRpcNotification => 'method' in message && message.method === 'channel/frame');
+					assert.deepStrictEqual({
+						offered: (request.params as { windows?: unknown }).windows,
+						waiting, title: subscription.object.verifiedValue?.title,
+						resubscribed: findRequest(transport, 'subscribe') !== undefined,
+						dispatch: JSON.parse(frames.map(frame => (frame.params as { data: string }).data).join('')),
+					}, {
+						offered: { items: [offer] }, waiting: AgentHostClientState.Reconnecting, title: 'After snapshot', resubscribed: false,
+						dispatch: { jsonrpc: '2.0', method: 'dispatchAction', params: { channel, clientSeq: 1, action: queued } },
+					});
+				});
+			}
+
+			test('does not resend an optimistic action whose echo was missed before windowed snapshot recovery', async () => {
+				const { client, transports, subscription } = await fixture();
+				const action = { type: ActionType.SessionTitleChanged, title: 'Already processed' } as const;
+				client.dispatch(channel, action);
+				await flushMicrotasks();
+				const pendingBefore = client['_subscriptionManager'].getPendingActions().map(entry => entry.action);
+				const { transport, request } = await beginRecovery(client, transports);
+				transport.fireWireMessage({
+					jsonrpc: '2.0', id: request.id,
+					result: { type: ReconnectResultType.Replay, actions: [], missing: [], windows: { items: [window] } },
+				});
+				transport.fireWireMessage({ jsonrpc: '2.0', method: 'channel/snapshot', params: { channel, snapshot: { resource: channel, state: { ...state, title: 'Newer change from another client' }, fromSeq: 8 } } });
+				await waitForConnectedWithin(client);
+				await flushMicrotasks();
+				assert.deepStrictEqual({
+					pendingBefore,
+					pendingAfter: client['_subscriptionManager'].getPendingActions(),
+					resent: findDispatchAction(transport, ActionType.SessionTitleChanged),
+					title: subscription.object.verifiedValue?.title,
+				}, {
+					pendingBefore: [action], pendingAfter: [], resent: undefined, title: 'Newer change from another client',
+				});
+			});
+
+			for (const reacquireDuringReconnect of [false, true]) {
+				test(`does not resume a window released during reconnect and starts fresh counters (reacquireDuringReconnect=${reacquireDuringReconnect})`, async () => {
+					const { client, transports, subscription } = await fixture();
+					const { transport, request } = await beginRecovery(client, transports);
+					const closed = sinon.spy(transport, 'dispose');
+					subscription.dispose();
+					const reacquired = reacquireDuringReconnect
+						? disposables.add(client.getSubscription<SessionState>(StateComponents.Session, URI.parse(channel), 'reacquired'))
+						: undefined;
+					transport.fireWireMessage({
+						jsonrpc: '2.0', id: request.id,
+						result: { type: ReconnectResultType.Replay, actions: [], missing: [], windows: { items: [window] } },
+					});
+					const installed = client['_windowedChannels'].has(channel);
+					transport.fireWireMessage({ jsonrpc: '2.0', method: 'channel/snapshot', params: { channel, snapshot: { resource: channel, state, fromSeq: 8 } } });
+					await waitForConnectedWithin(client);
+					const awaitingRestore = client['_subscriptionsAwaitingRestore'].has(channel);
+					const fresh = reacquired ?? disposables.add(client.getSubscription<SessionState>(StateComponents.Session, URI.parse(channel), 'reacquired'));
+					const subscribe = await waitForRequestAtWithin(transport, 'subscribe', 0);
+					const snapshot = { jsonrpc: '2.0' as const, method: 'channel/snapshot', params: { channel, snapshot: { resource: channel, state: { ...state, title: 'Fresh subscription' }, fromSeq: 9 } } };
+					transport.fireWireMessage({ jsonrpc: '2.0', id: subscribe.id, result: { flowControl } });
+					transport.fireWireMessage(snapshot);
+					await flushMicrotasks();
+					client['_windowedChannels'].get(channel)?.flushCredit();
+					await flushMicrotasks();
+					assert.deepStrictEqual({
+						installed, awaitingRestore, closed: closed.called, title: fresh.object.verifiedValue?.title,
+						methods: transport.sentMessages.filter((message): message is JsonRpcNotification | JsonRpcRequest => 'method' in message && (message.method === 'unsubscribe' || message.method === 'subscribe')).map(message => message.method),
+						credits: transport.sentMessages.filter((message): message is JsonRpcNotification => 'method' in message && message.method === 'channel/credit').map(message => message.params),
+					}, {
+						installed: false, awaitingRestore: false, closed: false, title: 'Fresh subscription', methods: ['unsubscribe', 'subscribe'],
+						credits: [{ channel, consumedBytes: JSON.stringify(snapshot).length * 2 }],
+					});
+				});
+			}
+
+			for (const recovery of ['live', 'replay']) {
+				test(`accepts an action in the same batch as a ${recovery} recovery reconnect response`, async () => {
+					const { client, transports, subscription } = await fixture();
+					const { transport, request } = await beginRecovery(client, transports);
+					const closed = sinon.spy(transport, 'dispose');
+					transport.fireWireMessage({
+						jsonrpc: '2.0', id: request.id,
+						result: { type: ReconnectResultType.Replay, actions: [], missing: [], windows: { items: [{ ...window, recovery }] } },
+					});
+					transport.fireWireMessage({ jsonrpc: '2.0', method: 'action', params: { channel, serverSeq: 9, action: { type: ActionType.SessionTitleChanged, title: 'Same-batch action' } } });
+					const subscribe = await waitForRequestAtWithin(transport, 'subscribe', 0);
+					transport.fireWireMessage({ jsonrpc: '2.0', id: subscribe.id, result: { flowControl } });
+					transport.fireWireMessage({ jsonrpc: '2.0', method: 'channel/snapshot', params: { channel, snapshot: { resource: channel, state: { ...state, title: 'Older snapshot' }, fromSeq: 8 } } });
+					await waitForConnectedWithin(client);
+					assert.deepStrictEqual({ closed: closed.called, state: client.connectionState, title: subscription.object.verifiedValue?.title, params: subscribe.params }, {
+						closed: false, state: AgentHostClientState.Connected, title: 'Same-batch action', params: offer,
+					});
+				});
+			}
+
+			for (const freshInitialize of [false, true]) {
+				test(`${freshInitialize ? 'a fresh initialize' : 'a reconnect without windows'} restores ordinary delivery`, async () => {
+					const { client, transports, subscription } = await fixture();
+					const { transport, request } = await beginRecovery(client, transports);
+					const snapshot = { resource: channel, state: { ...state, title: 'Ordinary' }, fromSeq: 8 };
+					if (freshInitialize) {
+						transport.fireWireMessage({ jsonrpc: '2.0', id: request.id, error: { code: AhpErrorCodes.NotFound, message: 'Client forgotten' } });
+						const initialize = await waitForRequestAtWithin(transport, 'initialize', 0);
+						transport.fireWireMessage({ jsonrpc: '2.0', id: initialize.id, result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 8, snapshots: [snapshot] } });
+					} else {
+						transport.fireWireMessage({ jsonrpc: '2.0', id: request.id, result: { type: ReconnectResultType.Snapshot, snapshots: [snapshot] } });
+					}
+					await waitForConnectedWithin(client);
+					const next = await beginRecovery(client, transports);
+					next.transport.fireWireMessage({ jsonrpc: '2.0', id: next.request.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+					await waitForConnectedWithin(client);
+					assert.deepStrictEqual({
+						title: subscription.object.verifiedValue?.title,
+						windows: (next.request.params as { windows?: unknown }).windows,
+						resubscribed: findRequest(transport, 'subscribe') !== undefined,
+					}, { title: 'Ordinary', windows: undefined, resubscribed: false });
+				});
+			}
+
+			for (const kept of [false, true]) {
+				test(kept ? 're-subscribes a kept live window before finishing reconnect' : 're-subscribes a window the host did not keep without waiting on the reconnect gate', async () => {
+					const { client, transports, subscription } = await fixture();
+					const { transport, request } = await beginRecovery(client, transports);
+					transport.fireWireMessage({
+						jsonrpc: '2.0', id: request.id,
+						result: { type: ReconnectResultType.Replay, actions: [], missing: [], windows: { items: kept ? [{ ...window, recovery: 'live' }] : [] } },
+					});
+					const subscribe = await waitForRequestAtWithin(transport, 'subscribe', 0);
+					const waiting = client.connectionState;
+					transport.fireWireMessage({ jsonrpc: '2.0', id: subscribe.id, result: { flowControl } });
+					transport.fireWireMessage({ jsonrpc: '2.0', method: 'channel/snapshot', params: { channel, snapshot: { resource: channel, state: { ...state, title: 'Resubscribed' }, fromSeq: 8 } } });
+					await waitForConnectedWithin(client);
+					assert.deepStrictEqual({ params: subscribe.params, waiting, title: subscription.object.verifiedValue?.title, state: client.connectionState }, {
+						params: offer, waiting: AgentHostClientState.Reconnecting, title: 'Resubscribed', state: AgentHostClientState.Connected,
+					});
+				});
+			}
+
+			test('recovers kept state windows from snapshots after restoring authentication', async () => {
+				const { client, transports, subscription } = await fixture();
+				const authenticating = client.authenticate({ resource: 'https://auth.example.com', token: 'cached-credential' });
+				const initialAuthentication = await waitForRequestAtWithin(transports[0], 'authenticate', 0);
+				transports[0].fireWireMessage({ jsonrpc: '2.0', id: initialAuthentication.id, result: {} });
+				await authenticating;
+				const { transport, request } = await beginRecovery(client, transports);
+				transport.fireWireMessage({
+					jsonrpc: '2.0', id: request.id,
+					result: { type: ReconnectResultType.Snapshot, snapshots: [{ resource: ROOT_STATE_URI, state: { agents: [] }, fromSeq: 7 }], windows: { items: [window] } },
+				});
+				transport.fireWireMessage({ jsonrpc: '2.0', method: 'channel/snapshot', params: { channel, snapshot: { resource: channel, state: { ...state, title: 'Recovered' }, fromSeq: 8 } } });
+				transport.fireWireMessage({ jsonrpc: '2.0', method: 'action', params: { channel, serverSeq: 9, action: { type: ActionType.SessionTitleChanged, title: 'After snapshot' } } });
+				const authenticate = await waitForRequestAtWithin(transport, 'authenticate', 0);
+				const waiting = client.connectionState;
+				transport.fireWireMessage({ jsonrpc: '2.0', id: authenticate.id, result: {} });
+				await waitForConnectedWithin(client);
+				assert.deepStrictEqual({ waiting, state: client.connectionState, title: subscription.object.verifiedValue?.title, resubscribed: findRequest(transport, 'subscribe') !== undefined }, {
+					waiting: AgentHostClientState.Reconnecting, state: AgentHostClientState.Connected, title: 'After snapshot', resubscribed: false,
+				});
+			});
+
+			test('retries a subscribe whose accepted snapshot was lost with the transport', async () => {
+				const { client, transports } = await fixture();
+				const pending = client.subscribe(URI.parse(channel));
+				const subscribe = await waitForRequestAtWithin(transports[0], 'subscribe', 1);
+				transports[0].fireWireMessage({ jsonrpc: '2.0', id: subscribe.id, result: { flowControl } });
+				await flushMicrotasks();
+				const { transport, request } = await beginRecovery(client, transports);
+				transport.fireWireMessage({ jsonrpc: '2.0', id: request.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [], windows: { items: [window] } } });
+				const snapshot = { resource: channel, state: { ...state, title: 'Recovered' }, fromSeq: 8 };
+				transport.fireWireMessage({ jsonrpc: '2.0', method: 'channel/snapshot', params: { channel, snapshot } });
+				const retry = await waitForRequestAtWithin(transport, 'subscribe', 0);
+				transport.fireWireMessage({ jsonrpc: '2.0', id: retry.id, result: { flowControl } });
+				transport.fireWireMessage({ jsonrpc: '2.0', method: 'channel/snapshot', params: { channel, snapshot } });
+				assert.deepStrictEqual({ params: retry.params, snapshot: await pending }, { params: offer, snapshot });
+			});
+		});
+
 		test('includes the required root channel in reconnect requests', () => runWithFakedTimers({}, async () => {
 			const { client, transports } = createFactoryClient();
 			await completeHandshake(transports[0], client.connect());
@@ -5545,63 +8427,62 @@ suite('AgentHostProtocolClient', () => {
 			this.timeout(10_000);
 			const { client, transports } = createFactoryClient(createPermissionService(), agentsWindowAgentHostClientInfo, new TestClientIdentityTelemetryService(), immediateReconnectPolicy);
 			let connectedRequest = Disposable.None;
-			try {
-				const connectPromise = client.connect();
-				await completeHandshake(transports[0], connectPromise);
-				connectedRequest = Event.once(Event.filter(client.onDidChangeConnectionState, state => state === AgentHostClientState.Connected))(() => {
-					void client.listSessions().catch(() => { });
-				});
+			disposables.add(toDisposable(() => {
+				connectedRequest.dispose();
+				client.dispose();
+			}));
+			const connectPromise = client.connect();
+			await completeHandshake(transports[0], connectPromise);
+			connectedRequest = Event.once(Event.filter(client.onDidChangeConnectionState, state => state === AgentHostClientState.Connected))(() => {
+				void client.listSessions().catch(() => { });
+			});
 
-				transports[0].fireClose();
-				await waitForReconnecting(client);
-				const reconnectTransport = await waitForTransport(transports, 1);
-				reconnectTransport.connectDeferred.complete();
-				const reconnect = await waitForRequest(reconnectTransport, 'reconnect');
-				assert.deepStrictEqual((reconnect.params as { _meta?: Record<string, unknown> })._meta, {
+			transports[0].fireClose();
+			await waitForReconnecting(client);
+			const reconnectTransport = await waitForTransport(transports, 1);
+			reconnectTransport.connectDeferred.complete();
+			const reconnect = await waitForRequest(reconnectTransport, 'reconnect');
+			assert.deepStrictEqual((reconnect.params as { _meta?: Record<string, unknown> })._meta, {
+				[AgentHostSessionUrisCapabilityMetaKey]: true,
+				[AgentHostChatUrisCapabilityMetaKey]: true,
+				'vscode.telemetryLevel': 'all',
+				'vscode.clientMachineId': 'client-machine-id',
+				'vscode.clientDevDeviceId': 'client-dev-device-id',
+			});
+			reconnectTransport.fireMessage({
+				jsonrpc: '2.0',
+				id: reconnect.id,
+				error: { code: AhpErrorCodes.NotFound, message: 'Reconnect client not found' },
+			});
+
+			const initialize = await waitForRequest(reconnectTransport, 'initialize');
+			assert.deepStrictEqual({
+				clientInfo: (initialize.params as { clientInfo?: Implementation }).clientInfo,
+				protocolVersions: (initialize.params as { protocolVersions: readonly string[] }).protocolVersions,
+				meta: (initialize.params as { _meta?: Record<string, unknown> })._meta,
+			}, {
+				clientInfo: agentsWindowAgentHostClientInfo,
+				protocolVersions: ['1.0.0', '0.10.0', '0.9.0'],
+				meta: {
 					[AgentHostSessionUrisCapabilityMetaKey]: true,
 					[AgentHostChatUrisCapabilityMetaKey]: true,
 					'vscode.telemetryLevel': 'all',
 					'vscode.clientMachineId': 'client-machine-id',
 					'vscode.clientDevDeviceId': 'client-dev-device-id',
-				});
-				reconnectTransport.fireMessage({
-					jsonrpc: '2.0',
-					id: reconnect.id,
-					error: { code: AhpErrorCodes.NotFound, message: 'Reconnect client not found' },
-				});
-
-				const initialize = await waitForRequest(reconnectTransport, 'initialize');
-				assert.deepStrictEqual({
-					clientInfo: (initialize.params as { clientInfo?: Implementation }).clientInfo,
-					protocolVersions: (initialize.params as { protocolVersions: readonly string[] }).protocolVersions,
-					meta: (initialize.params as { _meta?: Record<string, unknown> })._meta,
-				}, {
-					clientInfo: agentsWindowAgentHostClientInfo,
-					protocolVersions: ['1.0.0', '0.10.0', '0.9.0'],
-					meta: {
-						[AgentHostSessionUrisCapabilityMetaKey]: true,
-						[AgentHostChatUrisCapabilityMetaKey]: true,
-						'vscode.telemetryLevel': 'all',
-						'vscode.clientMachineId': 'client-machine-id',
-						'vscode.clientDevDeviceId': 'client-dev-device-id',
-					},
-				});
-				reconnectTransport.fireMessage({
-					jsonrpc: '2.0',
-					id: initialize.id,
-					result: { protocolVersion: '0.10.0', serverSeq: 0, snapshots: [] },
-				});
-				await flushMicrotasks();
-				const managedSettingsIndex = reconnectTransport.sentMessages.findIndex(message => hasKey(message, { method: true }) && message.method === 'setClientManagedSettingsPermissions');
-				const sandboxPolicyIndex = reconnectTransport.sentMessages.findIndex(message => hasKey(message, { method: true }) && message.method === 'setClientSandboxRequired');
-				const listSessionsIndex = reconnectTransport.sentMessages.findIndex(message => hasKey(message, { method: true }) && message.method === 'listSessions');
-				assert.strictEqual(client.connectionState, AgentHostClientState.Connected);
-				assert.ok(managedSettingsIndex >= 0 && managedSettingsIndex < listSessionsIndex, 'managed settings must be sent before requests triggered by the connected transition');
-				assert.strictEqual(sandboxPolicyIndex, -1, 'legacy sandbox policy must not be forwarded on reconnect');
-			} finally {
-				connectedRequest.dispose();
-				client.dispose();
-			}
+				},
+			});
+			reconnectTransport.fireMessage({
+				jsonrpc: '2.0',
+				id: initialize.id,
+				result: { protocolVersion: '0.10.0', serverSeq: 0, snapshots: [] },
+			});
+			await flushMicrotasks();
+			const managedSettingsIndex = reconnectTransport.sentMessages.findIndex(message => hasKey(message, { method: true }) && message.method === 'setClientManagedSettingsPermissions');
+			const sandboxPolicyIndex = reconnectTransport.sentMessages.findIndex(message => hasKey(message, { method: true }) && message.method === 'setClientSandboxRequired');
+			const listSessionsIndex = reconnectTransport.sentMessages.findIndex(message => hasKey(message, { method: true }) && message.method === 'listSessions');
+			assert.strictEqual(client.connectionState, AgentHostClientState.Connected);
+			assert.ok(managedSettingsIndex >= 0 && managedSettingsIndex < listSessionsIndex, 'managed settings must be sent before requests triggered by the connected transition');
+			assert.strictEqual(sandboxPolicyIndex, -1, 'legacy sandbox policy must not be forwarded on reconnect');
 		});
 
 		for (const connectionKind of [AgentHostClientConnectionKind.WebPubSub, AgentHostClientConnectionKind.MissionControl]) {
@@ -5731,7 +8612,7 @@ suite('AgentHostProtocolClient', () => {
 					});
 					transport.fireMessage({ jsonrpc: '2.0', id: authenticate.id, result: {} });
 					const sessionSubscribe = await waitForRequestAtWithin(transport, 'subscribe', 0);
-					assert.deepStrictEqual(sessionSubscribe.params, { channel: sessionUri.toString() });
+					assert.deepStrictEqual(sessionSubscribe.params, { channel: sessionUri.toString(), flowControl: { receive: agentHostStateReceiveLimits } });
 					transport.fireMessage({
 						jsonrpc: '2.0', id: sessionSubscribe.id,
 						result: { snapshot: { resource: sessionUri.toString(), state: sessionState, fromSeq: 7 } },
@@ -5741,7 +8622,7 @@ suite('AgentHostProtocolClient', () => {
 						params: chatSubscribe.params,
 						state: client.connectionState,
 						dispatch: findDispatchAction(transport, ActionType.SessionTitleChanged),
-					}, { params: { channel: chatUri.toString() }, state: AgentHostClientState.Reconnecting, dispatch: undefined });
+					}, { params: { channel: chatUri.toString(), flowControl: { receive: agentHostStateReceiveLimits } }, state: AgentHostClientState.Reconnecting, dispatch: undefined });
 					const restoredChat: ChatState = {
 						...chatState,
 						activeTurn: {
@@ -5762,7 +8643,7 @@ suite('AgentHostProtocolClient', () => {
 					});
 					transport.fireMessage({
 						jsonrpc: '2.0', method: 'action',
-						params: { channel: chatUri.toString(), serverSeq: 10, origin: undefined, action: { type: ActionType.ChatTurnComplete, turnId: 'resumed-turn', duration: 1000 } },
+						params: { channel: chatUri.toString(), serverSeq: 10, origin: undefined, action: chatTurnComplete('resumed-turn', 1000) },
 					});
 					const state = chat.object.value;
 					assert.ok(state && !(state instanceof Error));
@@ -5802,10 +8683,7 @@ suite('AgentHostProtocolClient', () => {
 					},
 				});
 				await flushMicrotasks();
-				client.dispatch(chatUri.toString(), {
-					type: ActionType.ChatTurnStarted, turnId: 'pending-turn', startedAt: '2026-10-02T00:01:00.000Z',
-					message: { text: 'Continue', origin: { kind: MessageKind.User } },
-				});
+				client.dispatch(chatUri.toString(), chatTurnStarted('pending-turn', 'Continue', '2026-10-02T00:01:00.000Z'));
 				const { transport, request } = await beginRecovery(client, transports);
 				transport.fireMessage({
 					jsonrpc: '2.0', id: request.id,
@@ -5869,12 +8747,7 @@ suite('AgentHostProtocolClient', () => {
 			await authentication;
 			await flushMicrotasks();
 
-			client.dispatch(chatUri.toString(), {
-				type: ActionType.ChatTurnStarted,
-				turnId: 'turn-after-restart',
-				startedAt: '2026-08-09T00:00:00.000Z',
-				message: { text: 'Continue', origin: { kind: MessageKind.User } },
-			});
+			client.dispatch(chatUri.toString(), chatTurnStarted('turn-after-restart', 'Continue', '2026-08-09T00:00:00.000Z'));
 			const initialDispatch = findDispatchAction(transports[0], ActionType.ChatTurnStarted);
 			assert.ok(initialDispatch);
 			client.dispatch(annotationsUri.toString(), {
@@ -6151,7 +9024,7 @@ suite('AgentHostProtocolClient', () => {
 			// the snapshot being computed can reach the client first. It must
 			// survive the older snapshot that follows.
 			const restoreSubscribe = await waitForRequestAtWithin(reconnectTransport, 'subscribe', 0);
-			const completion: ChatTurnCompleteAction = { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 10 };
+			const completion: ChatTurnCompleteAction = chatTurnComplete('turn-1', 10);
 			reconnectTransport.fireMessage({
 				jsonrpc: '2.0',
 				method: 'action',
@@ -6359,6 +9232,33 @@ suite('AgentHostProtocolClient', () => {
 			});
 		});
 
+		test('background artifact prompts are never replayed after losing their acknowledgement', async function () {
+			this.timeout(10_000);
+			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+				const { client, transports } = createFactoryClient();
+				const connecting = client.connect();
+				await completeHandshake(transports[0], connecting);
+				let resets = 0;
+				const listener = disposables.add(client.artifactIntegrationTransport.onDidReset!(() => resets++));
+				const pending = client.dispatchBackgroundChatAction(buildChatUri(URI.parse('copilot:/session'), 'default'), {
+					type: ActionType.ChatPendingMessageSet, kind: PendingMessageKind.Queued, id: 'artifact-run',
+					message: { text: 'Analyse', origin: { kind: MessageKind.User } },
+				});
+				const rejected = assert.rejects(pending, /uncertain/);
+				transports[0].fireClose();
+				await rejected;
+				await waitForReconnecting(client);
+				const next = await waitForTransport(transports, 1);
+				next.connectDeferred.complete();
+				const reconnect = await waitForRequest(next, 'reconnect');
+				next.fireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+				await flushMicrotasks();
+				assert.deepStrictEqual({ replayed: findDispatchAction(next, ActionType.ChatPendingMessageSet), resets }, { replayed: undefined, resets: 1 });
+				listener.dispose();
+				client.dispose();
+			});
+		});
+
 		test('attachment grant remains available when a pending turn is replayed after reconnect', async function () {
 			this.timeout(10_000);
 			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
@@ -6502,19 +9402,14 @@ suite('AgentHostProtocolClient', () => {
 						});
 						await flushMicrotasks();
 
-						const start: ChatTurnStartedAction = {
-							type: ActionType.ChatTurnStarted,
-							turnId: 'accepted-turn',
-							startedAt: '2026-09-25T00:00:01.000Z',
-							message: { text: 'Continue this session', origin: { kind: MessageKind.User } },
-						};
+						const start: ChatTurnStartedAction = chatTurnStarted('accepted-turn', 'Continue this session', '2026-09-25T00:00:01.000Z');
 						client.dispatch(chatUri.toString(), start);
 						const dispatch = findDispatchAction(transports[0], ActionType.ChatTurnStarted)!;
 						const origin = { clientId: client.clientId, clientSeq: (dispatch.params as { clientSeq: number }).clientSeq };
 						const actions: ActionEnvelope[] = [{ channel: chatUri.toString(), action: start, serverSeq: 6, origin }];
 						let authoritative = chatReducer(initial, start);
 						if (completed) {
-							const finish: ChatTurnCompleteAction = { type: ActionType.ChatTurnComplete, turnId: start.turnId, duration: 1000 };
+							const finish: ChatTurnCompleteAction = chatTurnComplete(start.turnId, 1000);
 							actions.push({ channel: chatUri.toString(), action: finish, serverSeq: 7, origin: undefined });
 							authoritative = chatReducer(authoritative, finish);
 						}
@@ -6785,7 +9680,7 @@ suite('AgentHostProtocolClient', () => {
 							.map(message => message.params),
 					}, {
 						params: create.params,
-						subscribed: { channel: recoveredChannel },
+						subscribed: { channel: recoveredChannel, flowControl: { receive: agentHostStateReceiveLimits } },
 						changes: [toAgentHostUri(file, authority).toString(), toAgentHostUri(file, authority).toString()],
 						unsubscribed: [{ channel: originalChannel }, { channel: recoveredChannel }],
 					});

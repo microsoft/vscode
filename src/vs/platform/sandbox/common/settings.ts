@@ -46,7 +46,6 @@ export const enum AgentSandboxSettingId {
 	AgentSandboxLspServers = 'chat.agent.sandbox.lspServers',
 	AgentSandboxAuthenticateGit = 'chat.agent.sandbox.credentials.authenticategit',
 	AgentSandboxAuthenticateGh = 'chat.agent.sandbox.credentials.authenticategh',
-	AgentSandboxMaskedEnvironmentVariables = 'chat.agent.sandbox.maskedEnvironmentVariables',
 	AgentSandboxAllowDevToolAccess = 'chat.agent.sandbox.fileSystem.allowDevToolAccess',
 	AgentSandboxUserConfiguredPaths = 'chat.agent.sandbox.fileSystem.userConfiguredPaths',
 	AgentSandboxRetryWithAllowNetworkRequests = 'chat.agent.sandbox.retryWithAllowNetworkRequests',

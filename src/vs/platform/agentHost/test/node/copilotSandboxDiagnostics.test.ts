@@ -46,7 +46,7 @@ suite('CopilotSandboxDiagnostics', () => {
 		supported = true;
 		await diagnostics.update({ enabled: true });
 		assert.deepStrictEqual([unsupported, manager.getSessionSummary(session)?._meta], [
-			{ unrelated: 'preserved', [agentSandboxDiagnosticsMetaKey]: ['Missing sandbox dependencies may prevent terminal commands from running.'] },
+			{ unrelated: 'preserved', [agentSandboxDiagnosticsMetaKey]: ['Install bubblewrap on this host.'] },
 			{ unrelated: 'preserved' },
 		]);
 	});
@@ -73,8 +73,8 @@ suite('CopilotSandboxDiagnostics', () => {
 			},
 		});
 		assert.deepStrictEqual([unused, readAgentSandboxDiagnostics(manager.getSessionSummary(session)!)], [
-			['Missing sandbox dependencies may prevent network access restrictions from working.'],
-			['Missing sandbox dependencies may prevent terminal commands from connecting to the network.'],
+			['Proxy unsupported.'],
+			['Install slirp4netns.'],
 		]);
 	});
 
@@ -96,7 +96,7 @@ suite('CopilotSandboxDiagnostics', () => {
 		await diagnostics.update({ enabled: true });
 
 		assert.deepStrictEqual(readAgentSandboxDiagnostics(manager.getSessionSummary(session)!), [
-			'Missing sandbox dependencies may prevent network access restrictions from working.',
+			networkFilteringReason,
 		]);
 	});
 
@@ -135,7 +135,7 @@ suite('CopilotSandboxDiagnostics', () => {
 		['network_filtering', 'Missing sandbox dependencies may prevent network access restrictions from working.'],
 		['denied_paths', 'Missing sandbox dependencies may prevent blocked files and folders from being protected.'],
 	]) {
-		test(`publishes a brief ${capability} impact and logs all technical reasons`, async () => {
+		test(`publishes the first ${capability} reason and logs all technical reasons`, async () => {
 			const manager = createStateManager();
 			const warnings: { message: string; details: unknown[] }[] = [];
 			const log = new class extends NullLogService {
@@ -157,16 +157,29 @@ suite('CopilotSandboxDiagnostics', () => {
 				reasons: readAgentSandboxDiagnostics(manager.getSessionSummary(session)!),
 				warnings,
 			}, {
-				reasons: [message],
+				reasons: ['Detailed SDK reason.'],
 				warnings: [
 					{ message: `[Copilot:${session}] Sandbox capability '${capability}' unavailable`, details: ['Detailed SDK reason.'] },
 					{ message: `[Copilot:${session}] Sandbox capability 'shell' unavailable`, details: ['Another SDK reason.'] },
 				],
 			});
 		});
+
+		test(`supplies fallback text for ${capability} when the runtime omits a reason`, async () => {
+			const manager = createStateManager();
+			const diagnostics = store.add(new CopilotSandboxDiagnostics(session, async () => ({
+				supported: true,
+				capabilities: [{ name: capability, supported: false }],
+			}), 'linux', manager, new NullLogService()));
+			await diagnostics.update({
+				enabled: true,
+				userPolicy: { network: { allowOutbound: true }, filesystem: { deniedPaths: ['/secrets'] } },
+			});
+			assert.deepStrictEqual(readAgentSandboxDiagnostics(manager.getSessionSummary(session)!), [message]);
+		});
 	}
 
-	test('logs an unsupported backend reason instead of publishing its details', async () => {
+	test('publishes and logs an unsupported backend reason', async () => {
 		const manager = createStateManager();
 		const warnings: { message: string; details: unknown[] }[] = [];
 		const log = new class extends NullLogService {
@@ -182,9 +195,41 @@ suite('CopilotSandboxDiagnostics', () => {
 			reasons: readAgentSandboxDiagnostics(manager.getSessionSummary(session)!),
 			warnings,
 		}, {
-			reasons: ['Missing sandbox dependencies may prevent terminal commands from running.'],
+			reasons: ['Technical backend failure.'],
 			warnings: [{ message: `[Copilot:${session}] Sandbox backend unavailable`, details: ['Technical backend failure.'] }],
 		});
+	});
+
+	test('supplies fallback text when the unsupported backend omits a reason', async () => {
+		const manager = createStateManager();
+		const diagnostics = store.add(new CopilotSandboxDiagnostics(session, async () => ({
+			supported: false,
+			capabilities: [],
+		}), 'linux', manager, new NullLogService()));
+		await diagnostics.update({ enabled: true });
+		assert.deepStrictEqual(readAgentSandboxDiagnostics(manager.getSessionSummary(session)!), [
+			'Missing sandbox dependencies may prevent terminal commands from running.',
+		]);
+	});
+
+	test('shows the next missing capability after the first is resolved', async () => {
+		const manager = createStateManager();
+		let shellSupported = false;
+		const diagnostics = store.add(new CopilotSandboxDiagnostics(session, async () => ({
+			supported: true,
+			capabilities: [
+				{ name: 'shell', supported: shellSupported, reason: shellSupported ? undefined : 'Install bubblewrap.' },
+				{ name: 'network_filtering', supported: false, reason: 'Install iptables.' },
+			],
+		}), 'linux', manager, new NullLogService()));
+		await diagnostics.update({ enabled: true });
+		const first = readAgentSandboxDiagnostics(manager.getSessionSummary(session)!);
+		shellSupported = true;
+		await diagnostics.update({ enabled: true });
+		assert.deepStrictEqual([first, readAgentSandboxDiagnostics(manager.getSessionSummary(session)!)], [
+			['Install bubblewrap.'],
+			['Install iptables.'],
+		]);
 	});
 
 	test('does not publish after disposal', async () => {
@@ -245,7 +290,7 @@ suite('CopilotSandboxDiagnostics', () => {
 				`[Copilot:${session}] Sandbox backend unavailable`,
 			],
 			afterTimeout: ['Previous failure.'],
-			afterLateResponse: ['Missing sandbox dependencies may prevent terminal commands from running.'],
+			afterLateResponse: ['Current failure.'],
 		});
 	}));
 

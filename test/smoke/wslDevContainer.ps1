@@ -2,12 +2,14 @@
 # Licensed under the MIT License. See License.txt in the project root for license information.
 
 param(
-	[ValidateSet('Setup', 'Cleanup')]
+	[ValidateSet('Setup', 'Cleanup', 'AddServer')]
 	[string] $Operation = 'Setup',
 	[ValidateSet('GitHub', 'AzureDevOps')]
 	[string] $CI = 'GitHub',
 	[string] $Distribution,
-	[string] $Root
+	[string] $Root,
+	# AddServer: a compilation artifact's builds.tar.gz with the Linux server to add to the distribution.
+	[string] $Archive
 )
 
 $ErrorActionPreference = 'Stop'
@@ -27,6 +29,7 @@ function Write-SmokeOutput([string] $Name, [string] $Value) {
 			'root' { 'WSL_SMOKE_ROOT' }
 			'distro' { 'WSL_SMOKE_DISTRO' }
 			'serverPath' { 'WSL_SMOKE_SERVER_PATH' }
+			'buildServerPath' { 'WSL_SMOKE_BUILD_SERVER_PATH' }
 			default { throw "Unknown WSL smoke output: $Name" }
 		}
 		$escaped = $Value.Replace('%', '%AZP25').Replace("`r", '%0D').Replace("`n", '%0A')
@@ -52,7 +55,10 @@ function Format-WslResult($Result) {
 }
 
 function Save-Download([string] $Url, [string] $Destination) {
-	curl.exe --fail --location --retry 5 --retry-all-errors --retry-max-time 120 --connect-timeout 30 --max-time 180 --output $Destination $Url
+	# curl only retries until --retry-max-time has passed, so it is longer than --max-time, or a transfer that runs until
+	# --max-time would never be retried. Below 1 MiB/s, the 210-325 MiB downloads can't finish within --max-time, so such
+	# a transfer is stopped after 30 seconds and retried on a fresh connection.
+	curl.exe --fail --location --retry 5 --retry-all-errors --retry-max-time 300 --connect-timeout 30 --max-time 180 --speed-limit 1048576 --speed-time 30 --output $Destination $Url
 	if ($LASTEXITCODE -ne 0) {
 		throw "Download failed with exit code ${LASTEXITCODE}: $Url"
 	}
@@ -179,6 +185,26 @@ if ($Operation -eq 'Cleanup') {
 	exit 0
 }
 
+if ($Operation -eq 'AddServer') {
+	if ($Distribution -notmatch '^vscode-wsl-smoke-\d+-\d+-[0-9a-f]{32}$') {
+		throw 'Refusing to change an unexpected WSL distribution.'
+	}
+	$wslPath = Invoke-WslExe -ArgumentList '--distribution', $Distribution, '--exec', 'wslpath', '-u', ([IO.Path]::GetFullPath($Archive))
+	$linuxArchive = $wslPath.Output.Trim()
+	if ($wslPath.ExitCode -ne 0 -or $linuxArchive -notmatch '^/mnt/[a-z]/[a-zA-Z0-9/_.-]+$') {
+		throw 'Cannot safely resolve the compilation archive path.'
+	}
+	# The server of the same build accepts the packaged client, unlike the pinned server.
+	Invoke-Wsl @"
+mkdir /opt/vscode-smoke-build-server
+tar -xzf '$linuxArchive' --strip-components=1 -C /opt/vscode-smoke-build-server vscode-server-linux-x64
+/opt/vscode-smoke-build-server/node --version
+test -f /opt/vscode-smoke-build-server/out/server-main.js
+"@ 600
+	Write-SmokeOutput 'buildServerPath' '/opt/vscode-smoke-build-server'
+	exit 0
+}
+
 if (-not (Test-Path -LiteralPath $wsl)) {
 	throw 'WSL is unavailable. This job requires WSL and VirtualMachinePlatform enabled without a pending reboot.'
 }
@@ -230,8 +256,9 @@ for ($importAttempt = 1; ; $importAttempt++) {
 Write-Host $import.Output
 Invoke-Wsl 'uname -a; cat /etc/os-release' 120
 
-# The frontend is built from this PR; the unchanged backend uses a pinned published server.
-$serverCommit = '046944034292b5479b4e9a50ad1a508033ffb64f'
+# The frontend is built from this PR; the unchanged backend uses a pinned published server. The WSL Kerberos proxy smoke
+# tests need a server with the agent host's client proxy, Kerberos and certificate support.
+$serverCommit = '67710841ad061a9e253214f87bf5415a185ab2ff'
 $metadata = Invoke-RestMethod "https://update.code.visualstudio.com/api/versions/commit:$serverCommit/server-linux-x64/insider"
 if (-not $metadata.url -or $metadata.sha256hash -notmatch '^[0-9a-fA-F]{64}$') {
 	throw 'The pinned Linux server download metadata is incomplete.'
@@ -246,10 +273,77 @@ $linuxArchive = $wslPath.Output.Trim()
 if ($wslPath.ExitCode -ne 0 -or $linuxArchive -notmatch '^/mnt/[a-z]/[a-zA-Z0-9/_.-]+$') {
 	throw 'Cannot safely resolve the Linux server archive path.'
 }
+# From the Azure-hosted agents, archive.ubuntu.com and security.ubuntu.com are at times so slow that apt runs past this
+# command's timeout, so apt uses the Azure Ubuntu mirror. apt only warns about index files it could not fetch, so the
+# index update fails on any fetch error and is retried. The WSL Kerberos proxy smoke tests run their own KDC and Squid,
+# so policy-rc.d keeps the packages from starting theirs.
+$aptPackages = 'ca-certificates curl git iproute2 procps docker.io libatomic1 libkrb5-3 krb5-kdc krb5-admin-server squid-openssl openssl'
+$linuxRoot = $linuxArchive.Substring(0, $linuxArchive.LastIndexOf('/'))
+$debDirectory = Join-Path $Root 'debs'
+New-Item -ItemType Directory -Force -Path $debDirectory | Out-Null
 Invoke-Wsl @"
 export DEBIAN_FRONTEND=noninteractive
-apt-get update
-apt-get install -y --no-install-recommends ca-certificates curl git iproute2 procps docker.io libatomic1 libkrb5-3
+sed -i -e 's|http://archive.ubuntu.com|http://azure.archive.ubuntu.com|g' -e 's|http://security.ubuntu.com|http://azure.archive.ubuntu.com|g' /etc/apt/sources.list
+printf 'Acquire::Retries "5";\nAcquire::http::Timeout "30";\n' > /etc/apt/apt.conf.d/80-retries
+for attempt in 1 2 3; do
+	if timeout --kill-after=10 45 apt-get update --error-on=any; then
+		break
+	fi
+	if [ "`$attempt" = 3 ]; then
+		exit 1
+	fi
+	echo "Attempt `$attempt of 3 failed: apt-get update" >&2
+done
+apt-get install -y -qq --print-uris --no-install-recommends $aptPackages > '$linuxRoot/apt-uris.txt'
+"@ 180
+
+# The packages are downloaded by the host rather than by apt in the distribution. The Azure mirror at times serves
+# package files to the distribution at about 120 KB/s for minutes while its index files stay fast, and apt keeps such
+# a connection rather than giving up on it. Here a transfer that stays below 1 MB/s for 15 seconds is abandoned and
+# retried on a fresh connection, then on the main Ubuntu archive. apt checks each file against the index when it installs.
+# The host gives up after 4 minutes in total, leaving the packages it did not get to apt, within the step's timeout.
+$debCount = 0
+$hostDownloadDeadline = [DateTime]::UtcNow.AddMinutes(4)
+foreach ($line in Get-Content -LiteralPath (Join-Path $Root 'apt-uris.txt')) {
+	if ($line -notmatch "^'(https?://[^']+)' ([A-Za-z0-9_.+~%-]+\.deb) (\d+) (SHA512|SHA256|SHA1|MD5Sum):([0-9a-f]+)") {
+		continue
+	}
+	$url, $name, $size, $hash = $Matches[1], $Matches[2], [long]$Matches[3], $Matches[5]
+	$algorithm = @{ SHA512 = 'SHA512'; SHA256 = 'SHA256'; SHA1 = 'SHA1'; MD5Sum = 'MD5' }[$Matches[4]]
+	$destination = Join-Path $debDirectory $name
+	$downloaded = $false
+	# Each attempt opens a fresh connection: the Azure mirror twice, then the main Ubuntu archive.
+	$fallback = $url -replace '^http://azure\.archive\.ubuntu\.com/', 'http://archive.ubuntu.com/'
+	foreach ($candidate in @($url, $url, $fallback)) {
+		$remainingSeconds = [int]($hostDownloadDeadline - [DateTime]::UtcNow).TotalSeconds
+		if ($remainingSeconds -lt 10) {
+			break
+		}
+		curl.exe --fail --location --silent --show-error --connect-timeout 10 --max-time ([Math]::Min(120, $remainingSeconds)) --speed-limit 1048576 --speed-time 15 --output $destination $candidate
+		if ($LASTEXITCODE -eq 0 -and (Get-Item -LiteralPath $destination).Length -eq $size -and (Get-FileHash -LiteralPath $destination -Algorithm $algorithm).Hash -eq $hash.ToUpperInvariant()) {
+			$downloaded = $true
+			break
+		}
+		Write-Host "Download of $name from $candidate failed (curl exit code $LASTEXITCODE)."
+	}
+	if (-not $downloaded) {
+		Remove-Item -LiteralPath $destination -ErrorAction SilentlyContinue
+		Write-Host "Leaving $name for apt to download."
+		continue
+	}
+	$debCount++
+}
+Write-Host "Downloaded $debCount packages on the host."
+# A failed curl above must not become the exit code of this script.
+$global:LASTEXITCODE = 0
+
+Invoke-Wsl @"
+export DEBIAN_FRONTEND=noninteractive
+cp '$linuxRoot'/debs/*.deb /var/cache/apt/archives/ 2>/dev/null || true
+printf '#!/bin/sh\nexit 101\n' > /usr/sbin/policy-rc.d
+chmod +x /usr/sbin/policy-rc.d
+apt-get install -y --no-install-recommends $aptPackages
+rm /usr/sbin/policy-rc.d
 mkdir -p /opt/vscode-smoke-server
 tar -xzf '$linuxArchive' --strip-components=1 -C /opt/vscode-smoke-server
 /opt/vscode-smoke-server/node --version
@@ -257,7 +351,7 @@ test -f /opt/vscode-smoke-server/out/bootstrap-fork.js
 useradd --create-home --shell /bin/bash vscode-smoke
 usermod -aG docker vscode-smoke
 printf '[user]\ndefault=vscode-smoke\n' > /etc/wsl.conf
-"@
+"@ 720
 if ((Invoke-WslExe -ArgumentList '--terminate', $Distribution).ExitCode -ne 0) {
 	throw 'Failed to restart the owned distribution to apply its non-root default user.'
 }

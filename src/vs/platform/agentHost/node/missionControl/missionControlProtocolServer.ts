@@ -28,6 +28,7 @@ import type { AhpJsonlLogger } from '../../common/ahpJsonlLogger.js';
 export interface IMissionControlSocket {
 	send(data: string): void;
 	close(): void;
+	on(event: 'open', listener: () => void): void;
 	on(event: 'message', listener: (data: Buffer | string) => void): void;
 	on(event: 'close', listener: (code: number) => void): void;
 	on(event: 'error', listener: (error: Error) => void): void;
@@ -61,13 +62,103 @@ export type MissionControlPublishDiagnostic = IConnectionDiagnosticEvent & (
 
 export type MissionControlPublishDiagnosticObserver = (event: MissionControlPublishDiagnostic) => void;
 
+/** Why the relay socket was lost or closed; bounded for telemetry. */
+export type MissionControlRelayCloseReason =
+	| 'socketClose' | 'socketError' | 'livenessTimeout' | 'ackTimeout' | 'publishRejected'
+	| 'sendFailure' | 'protocolError' | 'queueFailure' | 'hostClosed';
+
+export interface IMissionControlRelayDetails {
+	readonly reason: MissionControlRelayCloseReason;
+	/** WebSocket close code when the loss was a socket closure. */
+	readonly closeCode?: number;
+	/** Client lanes open when the socket was lost. */
+	readonly activeClients: number;
+	/** Recovery connection attempts made for this loss. */
+	readonly attempts: number;
+	/** Client lanes closed on recovery because a chunked transfer may not survive the interruption. */
+	readonly interruptedClients?: number;
+}
+
+export interface IMissionControlRelayClose extends IMissionControlRelayDetails {
+	readonly error?: Error;
+}
+
+export interface IMissionControlRelayRecovery extends IMissionControlRelayDetails {
+	readonly durationMs: number;
+}
+
+type GlobalWebSocket = InstanceType<typeof globalThis.WebSocket>;
+
+/** Wraps a WHATWG `WebSocket` (such as the proxy-aware global one) as an {@link IMissionControlSocket}. */
+export function toMissionControlSocket(socket: GlobalWebSocket): IMissionControlSocket {
+	socket.binaryType = 'arraybuffer';
+	// WHATWG sockets cannot be forcibly aborted; detaching on close keeps an unresponsive peer from retaining the relay.
+	const listeners = new AbortController();
+	const signal = listeners.signal;
+	function on(event: 'open', listener: () => void): void;
+	function on(event: 'message', listener: (data: Buffer | string) => void): void;
+	function on(event: 'close', listener: (code: number) => void): void;
+	function on(event: 'error', listener: (error: Error) => void): void;
+	function on(event: 'open' | 'message' | 'close' | 'error', listener: ((data: Buffer | string) => void) | ((code: number) => void) | ((error: Error) => void)): void {
+		switch (event) {
+			case 'open': {
+				const onOpen = listener as () => void;
+				socket.addEventListener('open', () => onOpen(), { signal });
+				break;
+			}
+			case 'message': {
+				const onMessage = listener as (data: Buffer | string) => void;
+				socket.addEventListener('message', e => onMessage(typeof e.data === 'string' ? e.data : Buffer.from(e.data as ArrayBuffer)), { signal });
+				break;
+			}
+			case 'close': {
+				const onClose = listener as (code: number) => void;
+				socket.addEventListener('close', e => onClose(e.code), { signal });
+				break;
+			}
+			case 'error': {
+				const onError = listener as (error: Error) => void;
+				socket.addEventListener('error', () => onError(toSocketError(socket)), { signal });
+				break;
+			}
+		}
+	}
+	return {
+		send: data => socket.send(data),
+		close: () => {
+			listeners.abort();
+			socket.close();
+		},
+		on,
+	};
+}
+
+/** The proxy-aware WebSocket exposes the underlying network failure and HTTP status for diagnostics. */
+function toSocketError(socket: GlobalWebSocket): Error {
+	const details = socket as GlobalWebSocket & { networkError?: unknown; responseStatusCode?: unknown };
+	const cause = details.networkError as { code?: unknown; cause?: { code?: unknown } } | undefined;
+	const code = typeof cause?.code === 'string' ? cause.code : typeof cause?.cause?.code === 'string' ? cause.cause.code : undefined;
+	const status = typeof details.responseStatusCode === 'number' ? details.responseStatusCode : undefined;
+	return Object.assign(new Error('Mission Control WPS socket error'), { code, status, cause: details.networkError });
+}
+
 const relayKeepAliveTimeoutMs = 15 * 60_000;
+/** Web PubSub retains a dropped reliable connection for about a minute. */
+const relayRecoveryWindowMs = 60_000;
+const relayRecoveryAttemptTimeoutMs = 10_000;
+/** A loss within this time of a recovery counts as the same unstable connection for backoff. */
+const relayFlapWindowMs = 60_000;
+const relayPingIntervalMs = 20_000;
+/** Without any inbound frame (including ping replies) for this long, the socket is treated as dead. */
+const relayLivenessTimeoutMs = 60_000;
 const maxQueuedMirrorFrames = 128;
 const maxQueuedMirrorBytes = 16 * 1024 * 1024;
 const maxInFlightChunkFrames = 4;
 const maxInFlightPublishes = 64;
 const maxInFlightPublishBytes = 4 * 1024 * 1024;
 const publishAckTimeoutMs = 30_000;
+const maxQueuedResourceRequests = 1024;
+const maxQueuedResourceRequestBytes = 16 * 1024 * 1024;
 
 function newConnectionGeneration(): number {
 	return randomInt(1, 2 ** 48);
@@ -102,13 +193,19 @@ class MissionControlLane extends Disposable implements IProtocolTransport {
 	private _handshakeId: number | string | undefined;
 	private _acceptsBatch = false;
 	private readonly _earlyMessages: ProtocolMessage[] = [];
+	private readonly _resourceRequests = new Set<number | string>();
+	private _inFlightResourceRequests = 0;
+	private readonly _queuedResourceRequests: { readonly message: ProtocolMessage; readonly bytes: number }[] = [];
+	private _queuedResourceRequestBytes = 0;
+	private _resourceDrainScheduled = false;
 	readonly generation = newConnectionGeneration();
 	lastReceived = Date.now();
 	get isClosed(): boolean { return this._closed; }
+	get isActive(): boolean { return this._active; }
 	private readonly _ahpLogger: AhpJsonlLogger | undefined;
 	get acceptsBatch(): boolean { return !this._closed && this._acceptsBatch; }
 
-	constructor(readonly clientId: string, readonly passive: boolean, private readonly _publish: (group: string, message: unknown, generation: number) => void, private readonly _prefix: string, private readonly _authentication?: MissionControlAuthentication, private readonly _rehandshake?: (lane: MissionControlLane, message: object) => void, private readonly _didClose?: (lane: MissionControlLane) => void, createAhpLogger?: (clientId: string, generation: number) => AhpJsonlLogger) {
+	constructor(readonly clientId: string, readonly passive: boolean, private readonly _publish: (group: string, message: unknown, generation: number, onDidPublish?: () => void) => void, private readonly _prefix: string, private readonly _authentication?: MissionControlAuthentication, private readonly _rehandshake?: (lane: MissionControlLane, message: object) => void, private readonly _didClose?: (lane: MissionControlLane) => void, createAhpLogger?: (clientId: string, generation: number) => AhpJsonlLogger) {
 		super();
 		this._ahpLogger = createAhpLogger ? this._register(createAhpLogger(clientId, this.generation)) : undefined;
 		if (_authentication) {
@@ -154,14 +251,61 @@ class MissionControlLane extends Disposable implements IProtocolTransport {
 			}
 			return;
 		}
-		this._onMessage.fire(message as ProtocolMessage);
+		this._dispatch(message as ProtocolMessage);
 	}
 
 	activate(): void {
 		this._active = true;
 		for (const message of this._earlyMessages.splice(0)) {
-			this._onMessage.fire(message);
+			if (this._closed) {
+				break;
+			}
+			this._dispatch(message);
 		}
+	}
+
+	private _dispatch(message: ProtocolMessage): void {
+		if (hasKey(message, { id: true, method: true })
+			&& (message.method === 'resourceRead' || message.method === 'resourceResolve' || message.method === 'resourceList')) {
+			if (this._resourceRequests.has(message.id)) {
+				this.dispose();
+				throw new Error('Mission Control resource request ID is already pending');
+			}
+			if (this._inFlightResourceRequests >= maxInFlightPublishes || this._queuedResourceRequests.length > 0) {
+				const bytes = Buffer.byteLength(JSON.stringify(message));
+				if (this._queuedResourceRequests.length >= maxQueuedResourceRequests || this._queuedResourceRequestBytes + bytes > maxQueuedResourceRequestBytes) {
+					this.dispose();
+					throw new Error('Mission Control resource request backlog exceeded its limit');
+				}
+				this._resourceRequests.add(message.id);
+				this._queuedResourceRequests.push({ message, bytes });
+				this._queuedResourceRequestBytes += bytes;
+				return;
+			}
+			this._resourceRequests.add(message.id);
+			this._inFlightResourceRequests++;
+		}
+		this._onMessage.fire(message);
+	}
+
+	private _resourceResponsePublished(): void {
+		if (this._closed) {
+			return;
+		}
+		this._inFlightResourceRequests--;
+		if (this._resourceDrainScheduled || this._queuedResourceRequests.length === 0) {
+			return;
+		}
+		this._resourceDrainScheduled = true;
+		queueMicrotask(() => {
+			this._resourceDrainScheduled = false;
+			while (!this._closed && this._inFlightResourceRequests < maxInFlightPublishes && this._queuedResourceRequests.length > 0) {
+				const request = this._queuedResourceRequests.shift()!;
+				this._queuedResourceRequestBytes -= request.bytes;
+				this._inFlightResourceRequests++;
+				this._onMessage.fire(request.message);
+			}
+		});
 	}
 
 	setReceiveCapabilities(accepts: readonly string[]): void {
@@ -181,7 +325,13 @@ class MissionControlLane extends Disposable implements IProtocolTransport {
 		}
 		try {
 			this._ahpLogger?.log(message, 's2c');
-			this._publish(`${this._prefix}.${response ? 'to-client' : 'broadcast'}`, message, this.generation);
+			const resourceRequestId = response && !hasKey(message, { method: true }) && message.id !== null && this._resourceRequests.has(message.id) ? message.id : undefined;
+			if (resourceRequestId !== undefined) {
+				this._resourceRequests.delete(resourceRequestId);
+			}
+			// Admission credit follows relay acceptance, not completion of the filesystem operation.
+			this._publish(`${this._prefix}.${response ? 'to-client' : 'broadcast'}`, message, this.generation,
+				resourceRequestId !== undefined ? () => this._resourceResponsePublished() : undefined);
 		} catch (error) {
 			this.dispose();
 			throw error;
@@ -191,6 +341,11 @@ class MissionControlLane extends Disposable implements IProtocolTransport {
 	override dispose(): void {
 		if (!this._closed) {
 			this._closed = true;
+			this._earlyMessages.length = 0;
+			this._resourceRequests.clear();
+			this._inFlightResourceRequests = 0;
+			this._queuedResourceRequests.length = 0;
+			this._queuedResourceRequestBytes = 0;
 			this._authentication?.dispose();
 			this._onClose.fire();
 			this._didClose?.(this);
@@ -223,6 +378,7 @@ interface PublishGroup {
 	ackLatencyMs: number;
 	maxAckLatencyMs: number;
 	cancelled?: boolean;
+	readonly onDidPublish?: () => void;
 }
 
 interface QueuedPublish extends PublishFrame {
@@ -238,10 +394,23 @@ interface PublishQueue {
 	pendingFrames: number;
 }
 
+interface IRelayRecovery {
+	readonly watch: StopWatch;
+	readonly reason: MissionControlRelayCloseReason;
+	readonly closeCode?: number;
+	readonly error: Error;
+	readonly activeClients: number;
+	attempts: number;
+	/** Clients whose chunked transfers spanned a loss and whose lanes must close on resume; undefined means every lane. */
+	interruptedClients: Set<string> | undefined;
+	/** Lanes closed across all resumptions of this outage. */
+	interruptedCount: number;
+}
+
 interface PendingPublish {
 	readonly publish: QueuedPublish;
 	readonly sentMs: number;
-	readonly deadline: number;
+	deadline: number;
 }
 
 /**
@@ -251,6 +420,9 @@ interface PendingPublish {
 export class MissionControlProtocolServer extends Disposable implements IProtocolServer {
 	private readonly _onClose = this._register(new Emitter<void>());
 	readonly onClose = this._onClose.event;
+	private readonly _onDidRecover = this._register(new Emitter<IMissionControlRelayRecovery>());
+	/** Fires when a lost socket resumed the same Web PubSub connection, so no client lane was interrupted. */
+	readonly onDidRecover = this._onDidRecover.event;
 	private readonly _onConnection = this._register(new Emitter<IProtocolTransport>());
 	readonly onConnection = this._onConnection.event;
 	readonly address = undefined;
@@ -259,9 +431,39 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 	private readonly _sweep = this._register(new IntervalTimer());
 	private readonly _ackTimeout = this._register(new RunOnceScheduler(() => {
 		this._reportPublishFailure('ackTimeout');
-		this.dispose();
-		this._onError(new Error('Mission Control WPS acknowledgement timed out'));
+		const error = new Error('Mission Control WPS acknowledgement timed out');
+		// An unconfirmed resumption continues its recovery; a timeout on a confirmed resumed socket that has not
+		// acknowledged anything would only repeat, so it closes instead.
+		if (this._ready.isSettled && this._resumption && (this._confirming || this._recoveries === 0 || this._acknowledgedSinceRecovery)) {
+			this._lost('ackTimeout', undefined, error);
+			return;
+		}
+		this._fail('ackTimeout', error);
 	}, publishAckTimeoutMs));
+	private readonly _liveness = this._register(new IntervalTimer());
+	private readonly _recoveryTimer = this._register(new RunOnceScheduler(() => this._attemptRecovery(), 0));
+	private readonly _recoveryAttemptTimeout = this._register(new RunOnceScheduler(() => {
+		this._lost('livenessTimeout', undefined, new Error('Mission Control WPS recovery attempt timed out'));
+	}, relayRecoveryAttemptTimeoutMs));
+	private _resumption: { readonly connectionId: string; readonly reconnectionToken: string } | undefined;
+	/** The current outage, from the first socket loss until a resumed socket is confirmed or the relay closes. */
+	private _recovering: IRelayRecovery | undefined;
+	/** Set while a resumed socket awaits its first service frame; the outage is reported as recovered on that frame. */
+	private _confirming: IRelayRecovery | undefined;
+	private readonly _recoveryDeadline = this._register(new RunOnceScheduler(() => {
+		const recovering = this._recovering ?? this._confirming;
+		if (recovering) {
+			this._recovering = this._confirming = undefined;
+			this._fail(recovering.reason, recovering.error, recovering.closeCode, recovering.attempts, recovering.activeClients);
+		}
+	}, relayRecoveryWindowMs + relayRecoveryAttemptTimeoutMs));
+	private _recoveries = 0;
+	private _recoveredAt: number | undefined;
+	/** Outages that began soon after the previous recovery, which extend the reconnection backoff. */
+	private _flaps = 0;
+	private _acknowledgedSinceRecovery = false;
+	private _lastInbound = 0;
+	private _closeInfo: IMissionControlRelayClose | undefined;
 	private readonly _ready = new DeferredPromise<void>();
 	private readonly _pending = new Map<number, PendingPublish>();
 	private readonly _outbound = new Map<string, PublishQueue>();
@@ -284,6 +486,8 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 	private _ackDeadline: number | undefined;
 
 	get isClosed(): boolean { return this._closed; }
+	/** Why the relay closed; available once {@link onClose} fires. */
+	get closeInfo(): IMissionControlRelayClose | undefined { return this._closeInfo; }
 
 	constructor(
 		private readonly _bootstrap: IMissionControlBootstrap,
@@ -317,28 +521,15 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 			throw new Error('Mission Control returned an unsafe WPS endpoint');
 		}
 		url.searchParams.set('access_token', this._bootstrap.access_token);
-		this._socket = this._socketFactory(url.toString(), RELIABLE_JSON_SUBPROTOCOL);
-		this._socket.on('message', data => this._receive(data));
-		this._socket.on('close', code => {
-			if (!this._closed) {
-				this._reportPublishFailure('socketFailure');
-				this.dispose();
-				this._onError(new Error(`Mission Control WPS socket closed (code ${code})`));
-			}
-		});
-		this._socket.on('error', error => {
-			if (!this._closed) {
-				this._reportPublishFailure('socketFailure');
-				this.dispose();
-				this._onError(error);
-			}
-		});
+		this._openSocket(url);
 		this._sweep.cancelAndSet(() => {
 			this._reassembler.sweepExpired();
 			for (const [id, lane] of this._lanes) {
 				if (Date.now() - lane.lastReceived >= relayKeepAliveTimeoutMs) {
 					this._lanes.deleteAndLeak(id)?.dispose();
-					this._send({ type: 'leaveGroup', group: `user.${this._owner}.env.${this._environment}.client.${id}.to-host` });
+					if (this._socket && !this._recovering) {
+						this._send({ type: 'leaveGroup', group: `user.${this._owner}.env.${this._environment}.client.${id}.to-host` });
+					}
 				}
 			}
 		}, 15_000);
@@ -346,20 +537,251 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 		return this._ready.p;
 	}
 
+	private _openSocket(url: URL): void {
+		const socket = this._socketFactory(url.toString(), RELIABLE_JSON_SUBPROTOCOL);
+		this._socket = socket;
+		this._lastInbound = Date.now();
+		// Events from a socket that was already replaced or lost are ignored.
+		socket.on('open', () => {
+			// An opened recovery connection has resumed; the service may or may not send another `connected` message.
+			if (this._socket === socket && this._recovering) {
+				this._resume();
+			}
+		});
+		socket.on('message', data => {
+			if (this._socket === socket) {
+				this._receive(data);
+			}
+		});
+		socket.on('close', code => {
+			if (this._socket === socket) {
+				this._lost('socketClose', code, new Error(`Mission Control WPS socket closed (code ${code})`));
+			}
+		});
+		socket.on('error', error => {
+			if (this._socket === socket) {
+				this._lost('socketError', undefined, error);
+			}
+		});
+	}
+
+	/**
+	 * Handles loss of the current socket. A ready connection resumes its Web PubSub session, which retains
+	 * group membership and redelivers unacknowledged messages, so client lanes survive transient network loss.
+	 */
+	private _lost(reason: MissionControlRelayCloseReason, closeCode: number | undefined, error: Error): void {
+		if (this._closed) {
+			return;
+		}
+		// A resumed socket lost before it was confirmed continues the same outage.
+		if (this._confirming) {
+			this._recovering = this._confirming;
+			this._confirming = undefined;
+		}
+		// One loss, however many recovery attempts it takes, counts as one publication failure.
+		if (!this._recovering && reason !== 'ackTimeout') {
+			this._reportPublishFailure('socketFailure');
+		}
+		const socket = this._socket;
+		this._socket = undefined;
+		this._recoveryAttemptTimeout.cancel();
+		this._liveness.cancel();
+		this._ackTimeout.cancel();
+		socket?.close();
+		if (!this._recovering) {
+			// A socket lost again soon after a recovery keeps backing off instead of reconnecting immediately.
+			this._flaps = this._recoveredAt !== undefined && Date.now() - this._recoveredAt < relayFlapWindowMs ? this._flaps + 1 : 0;
+		}
+		const step = (this._recovering?.attempts ?? 0) + this._flaps;
+		const delay = step === 0 ? 0 : Math.min(5_000, 500 * 2 ** (step - 1));
+		// 1008 means the service removed the connection, so it cannot be resumed.
+		if (this._resumption && this._ready.isSettled && closeCode !== 1008
+			&& (this._recovering?.watch.elapsed() ?? 0) + delay < relayRecoveryWindowMs) {
+			const interrupted = this._chunkedTransferClients();
+			if (!this._recovering) {
+				this._recovering = {
+					watch: StopWatch.create(false), reason, closeCode, error, activeClients: this._lanes.size, attempts: 0,
+					interruptedClients: interrupted, interruptedCount: 0,
+				};
+				this._recoveryDeadline.schedule();
+			} else if (this._recovering.interruptedClients) {
+				// Transfers started on an unconfirmed resumed socket are also interrupted.
+				this._recovering.interruptedClients = interrupted ? new Set([...this._recovering.interruptedClients, ...interrupted]) : undefined;
+			}
+			this._recoveryTimer.schedule(delay);
+			return;
+		}
+		const recovering = this._recovering;
+		this._recovering = undefined;
+		this._recoveryDeadline.cancel();
+		this._fail(recovering?.reason ?? reason, recovering?.error ?? error, recovering?.closeCode ?? closeCode, recovering?.attempts ?? 0, recovering?.activeClients);
+	}
+
+	/**
+	 * Chunked payloads are reassembled within a fixed time from their first fragment, and fragments that were
+	 * acknowledged before a loss are not resent, so a transfer spanning a loss may never complete. Returns the
+	 * clients with an outbound chunked transfer in flight, or undefined when an inbound one is (its client is unknown).
+	 */
+	private _chunkedTransferClients(): Set<string> | undefined {
+		if (this._reassembler.inFlightGroupCount > 0) {
+			return undefined;
+		}
+		const clients = new Set<string>();
+		for (const [key, queue] of this._outbound) {
+			if (queue.active?.chunkGroup !== undefined && key.startsWith('client:')) {
+				clients.add(key.slice('client:'.length));
+			}
+		}
+		return clients;
+	}
+
+	private _attemptRecovery(): void {
+		const recovering = this._recovering;
+		const resumption = this._resumption;
+		if (this._closed || !recovering || !resumption) {
+			return;
+		}
+		recovering.attempts++;
+		const url = new URL(this._bootstrap.url);
+		url.searchParams.set('awps_connection_id', resumption.connectionId);
+		url.searchParams.set('awps_reconnection_token', resumption.reconnectionToken);
+		try {
+			this._openSocket(url);
+		} catch (error) {
+			this._lost(recovering.reason, undefined, error instanceof Error ? error : new Error(String(error)));
+			return;
+		}
+		this._recoveryAttemptTimeout.schedule();
+	}
+
+	private _resume(): void {
+		const recovering = this._recovering!;
+		this._recovering = undefined;
+		this._recoveryAttemptTimeout.cancel();
+		this._recoveries++;
+		this._acknowledgedSinceRecovery = false;
+		this._startLiveness();
+		// Unacknowledged requests are resent with their original IDs; the service acknowledges ones it already processed as duplicates.
+		const now = Date.now();
+		if (this._joins.size) {
+			this._ackDeadline = now + publishAckTimeoutMs;
+		}
+		for (const pending of this._pending.values()) {
+			pending.deadline = now + publishAckTimeoutMs;
+		}
+		this._confirming = recovering;
+		const resent = [...this._joins].map(([ackId, group]) => JSON.stringify({ type: 'joinGroup', group, ackId }))
+			.concat([...this._pending.values()].map(pending => pending.publish.frame));
+		for (const frame of resent) {
+			if (!this._sendRecoverable(frame)) {
+				return;
+			}
+		}
+		this._scheduleAckTimeout();
+		// Lanes whose chunked transfers may be incomplete are closed so their clients reconnect and resynchronize.
+		for (const [clientId, lane] of [...this._lanes]) {
+			if (!lane.isClosed && (!recovering.interruptedClients || recovering.interruptedClients.has(clientId))) {
+				recovering.interruptedCount++;
+				lane.dispose();
+			}
+		}
+		recovering.interruptedClients = new Set();
+		// The service can accept the WebSocket and then reject the resumption, so success is reported on its first
+		// frame. A ping makes the service reply promptly when nothing else is outstanding.
+		if (!this._sendRecoverable(JSON.stringify({ type: 'ping' }))) {
+			return;
+		}
+		this._drain();
+		this._mirror?.resumePublishing();
+	}
+
+	private _confirmRecovery(): void {
+		const recovering = this._confirming;
+		if (!recovering) {
+			return;
+		}
+		this._confirming = undefined;
+		this._recoveryDeadline.cancel();
+		this._recoveredAt = Date.now();
+		this._onDidRecover.fire({
+			reason: recovering.reason, closeCode: recovering.closeCode, activeClients: recovering.activeClients,
+			attempts: recovering.attempts, durationMs: recovering.watch.elapsed(), interruptedClients: recovering.interruptedCount,
+		});
+	}
+
+	/** Pings the service so a half-open socket is detected instead of silently dropping client traffic. */
+	private _startLiveness(): void {
+		if (!this._resumption) {
+			return;
+		}
+		this._liveness.cancelAndSet(() => {
+			if (!this._socket) {
+				return;
+			}
+			const idle = Date.now() - this._lastInbound;
+			if (idle >= relayLivenessTimeoutMs) {
+				this._lost('livenessTimeout', undefined, new Error('Mission Control WPS connection stopped responding'));
+			} else if (idle >= relayPingIntervalMs) {
+				this._sendRecoverable(JSON.stringify({ type: 'ping' }));
+			}
+		}, relayPingIntervalMs);
+	}
+
+	/** Sends a frame whose failure means the socket is lost, which a ready relay can recover from. */
+	private _sendRecoverable(frame: string): boolean {
+		const socket = this._socket;
+		try {
+			socket!.send(frame);
+			return true;
+		} catch (error) {
+			if (this._socket === socket) {
+				this._lost('sendFailure', undefined, error instanceof Error ? error : new Error(String(error)));
+			}
+			return false;
+		}
+	}
+
+	private _fail(reason: MissionControlRelayCloseReason, error?: Error, closeCode?: number, attempts = 0, activeClients = this._lanes.size): void {
+		if (this._closed) {
+			return;
+		}
+		this._closeInfo ??= { reason, closeCode, activeClients, attempts, error };
+		this.dispose();
+		if (error) {
+			this._onError(error);
+		}
+	}
+
 	private _waitForAck(): void {
 		this._ackDeadline ??= Date.now() + publishAckTimeoutMs;
 		this._scheduleAckTimeout();
 	}
 
-	private _reportPublishFailure(failure: MissionControlPublishFailure): void {
+	private _reportPublishFailure(failure: MissionControlPublishFailure, detail?: string): void {
 		if (!this._closed) {
+			if (failure === 'mirrorBackpressure') {
+				emitConnectionDiagnostic(this._onDiagnostic, {
+					operationId: '', phase: 'relayPublish', timestamp: Date.now(), outcome: 'failed', failure,
+				});
+				return;
+			}
+			let oldestAckAgeMs = 0;
+			for (const pending of this._pending.values()) {
+				oldestAckAgeMs = Math.max(oldestAckAgeMs, pending.publish.publication.watch.elapsed() - pending.sentMs);
+			}
 			emitConnectionDiagnostic(this._onDiagnostic, {
 				operationId: '', phase: 'relayPublish', timestamp: Date.now(), outcome: 'failed', failure,
+				detail: `queuedFrames=${this._outboundFrames}; queuedBytes=${this._outboundBytes}; inFlightFrames=${this._pending.size}; inFlightBytes=${this._pendingBytes}; oldestAckAgeMs=${oldestAckAgeMs}; lanes=${this._lanes.size}${detail ? `; ${detail}` : ''}`,
 			});
 		}
 	}
 
 	private _scheduleAckTimeout(): void {
+		if (!this._socket || this._recovering) {
+			// Deadlines restart when a recovered socket resends the outstanding requests.
+			this._ackTimeout.cancel();
+			return;
+		}
 		let deadline = this._ackDeadline ?? Infinity;
 		for (const pending of this._pending.values()) {
 			deadline = Math.min(deadline, pending.deadline);
@@ -385,7 +807,7 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 		this._send({ type: 'joinGroup', group, ackId });
 	}
 
-	private _publish(group: string, payload: unknown, generation: number, lane: MissionControlLane): void {
+	private _publish(group: string, payload: unknown, generation: number, lane: MissionControlLane, onDidPublish?: () => void): void {
 		const frames = buildPublish({ group, payload, generation, nextAckId: () => ++this._ackId }).map(frame => ({
 			ackId: frame.ackId,
 			frame: JSON.stringify(frame),
@@ -394,7 +816,7 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 			batch: frame.data.kind === 'message' ? { lane, group, generation } : undefined,
 		}));
 		try {
-			this._enqueue(`client:${lane.clientId}`, frames);
+			this._enqueue(`client:${lane.clientId}`, frames, undefined, onDidPublish);
 		} catch (error) {
 			if (!this._closed) {
 				const queue = this._outbound.get(`client:${lane.clientId}`);
@@ -436,13 +858,13 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 		return undefined;
 	}
 
-	private _enqueue(key: string, frames: readonly PublishFrame[], mirrorStream?: PublishGroup['mirrorStream']): void {
+	private _enqueue(key: string, frames: readonly PublishFrame[], mirrorStream?: PublishGroup['mirrorStream'], onDidPublish?: () => void): void {
 		const bytes = frames.reduce((total, frame) => total + Buffer.byteLength(frame.frame), 0);
 		// A bounded closure reserve lets an overloaded client close without taking down other lanes.
 		const closure = frames.every(frame => frame.closure);
 		if (this._closed || this._outboundFrames + this._pending.size + frames.length > 512 + (closure ? 32 : 0)
 			|| this._outboundBytes + this._pendingBytes + bytes > 64 * 1024 * 1024 + (closure ? 32 * 1024 : 0)) {
-			this._reportPublishFailure('queueLimit');
+			this._reportPublishFailure('queueLimit', `attemptedFrames=${frames.length}; attemptedBytes=${bytes}`);
 			throw new Error('Mission Control ordered publish queue exceeded its limit');
 		}
 		let queue = this._outbound.get(key);
@@ -453,7 +875,7 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 		const publication: PublishGroup = {
 			queue, order: ++this._publicationOrder, mirrorStream,
 			watch: StopWatch.create(false), frameCount: frames.length, bytes, chunkGroup: frames[0].chunkGroup,
-			remaining: frames.length, peakInFlight: 0, ackLatencyMs: 0, maxAckLatencyMs: 0,
+			remaining: frames.length, peakInFlight: 0, ackLatencyMs: 0, maxAckLatencyMs: 0, onDidPublish,
 		};
 		if (mirrorStream) {
 			this._mirrorPublications.add(publication);
@@ -542,12 +964,16 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 		}
 		let mirrorFrames = 0;
 		let mirrorBytes = 0;
+		const publicationCallbacks: (() => void)[] = [];
 		for (const queued of queue.frames.splice(0, count)) {
 			this._outboundBytes -= queued.bytes;
 			mirrorFrames += queued.mirrorFrames;
 			mirrorBytes += queued.mirrorBytes;
 			if (count > 1) {
 				this._mirrorPublications.delete(queued.publication);
+				if (queued.publication.onDidPublish) {
+					publicationCallbacks.push(queued.publication.onDidPublish);
+				}
 			}
 		}
 		this._outboundFrames -= count;
@@ -556,6 +982,7 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 			queue, order: first.publication.order, mirrorStream: first.publication.mirrorStream,
 			watch: first.publication.watch, frameCount: 1, bytes,
 			remaining: 1, peakInFlight: 0, ackLatencyMs: 0, maxAckLatencyMs: 0,
+			onDidPublish: publicationCallbacks.length > 0 ? () => publicationCallbacks.forEach(callback => callback()) : undefined,
 		};
 		if (publication.mirrorStream) {
 			this._mirrorPublications.add(publication);
@@ -571,7 +998,8 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 	}
 
 	private _drain(): void {
-		if (this._draining || this._closed) {
+		// While recovering, frames stay queued: a recovery socket cannot send until the service confirms the resumed connection.
+		if (this._draining || this._closed || !this._socket || this._recovering) {
 			return;
 		}
 		this._draining = true;
@@ -605,6 +1033,7 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 			}
 		} catch (error) {
 			this._reportPublishFailure('socketFailure');
+			this._closeInfo ??= { reason: 'sendFailure', activeClients: this._lanes.size, attempts: 0 };
 			this.dispose();
 			throw error;
 		} finally {
@@ -616,6 +1045,7 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 		if (this._closed) {
 			return;
 		}
+		this._lastInbound = Date.now();
 		try {
 			if (data.length > 2 * 1024 * 1024) {
 				throw new Error('Mission Control WPS frame exceeds receive limit');
@@ -625,8 +1055,27 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 				throw new Error('Invalid WPS frame');
 			}
 			const fields = frame as Record<string, unknown>;
+			// The service announces `disconnected` before closing a connection, including a rejected resumption.
+			if (!(fields.type === 'system' && fields.event === 'disconnected')) {
+				this._confirmRecovery();
+			}
 			if (fields.type === 'system' && fields.event === 'connected') {
+				const connectionId = fields.connectionId;
+				const reconnectionToken = fields.reconnectionToken;
+				if (typeof connectionId === 'string' && /^[\w.~:+/=-]{1,256}$/.test(connectionId)
+					&& typeof reconnectionToken === 'string' && reconnectionToken.length > 0 && reconnectionToken.length <= 4096) {
+					this._resumption = { connectionId, reconnectionToken };
+				}
+				if (this._recovering) {
+					this._resume();
+					this._confirmRecovery();
+					return;
+				}
+				if (this._connected) {
+					return;
+				}
 				this._connected = true;
+				this._startLiveness();
 				emitConnectionDiagnostic(this._onDiagnostic, {
 					operationId: '', phase: 'relayConnection', timestamp: Date.now(), outcome: 'info', connected: true,
 				});
@@ -649,11 +1098,14 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 				this._joins.delete(id);
 				const pending = this._pending.get(id);
 				this._pending.delete(id);
-				if ((group || pending) && fields.success !== true && !(pending && (fields.error as { name?: string } | undefined)?.name === 'Duplicate')) {
+				// A request resent after recovery may already have been processed.
+				if ((group || pending) && fields.success !== true && (fields.error as { name?: string } | undefined)?.name !== 'Duplicate') {
 					this._reportPublishFailure('publishRejected');
+					this._closeInfo ??= { reason: 'publishRejected', activeClients: this._lanes.size, attempts: 0 };
 					this.dispose();
 					throw new Error(`Mission Control WPS operation rejected${fields.error ? `: ${getConnectionDiagnosticError(fields.error).message}` : ''}`);
 				}
+				this._acknowledgedSinceRecovery = true;
 				if (pending) {
 					pending.publish.publication.queue.pendingFrames--;
 					this._pendingBytes -= pending.publish.bytes;
@@ -675,6 +1127,7 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 							}
 						}
 						if (!publication.cancelled) {
+							publication.onDidPublish?.();
 							emitConnectionDiagnostic(this._onDiagnostic, {
 								operationId: String(id), phase: 'relayPublish', timestamp: Date.now(), outcome: 'succeeded',
 								durationMs: publication.watch.elapsed(),
@@ -691,7 +1144,8 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 				if (group && group !== this._bootstrap.groups.control && group !== this._bootstrap.groups.ingest_ack) {
 					const clientId = parseGroupName(group).scope === 'client' ? group.split('.')[5] : undefined;
 					const lane = clientId ? this._lanes.get(clientId) : undefined;
-					if (lane) {
+					// A join resent after recovery may be acknowledged after its lane was closed or replaced and announced.
+					if (lane && !lane.isClosed && !lane.isActive) {
 						this._onConnection.fire(lane);
 						lane.activate();
 					}
@@ -777,6 +1231,7 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 		} catch (error) {
 			this._onError(error instanceof Error ? error : new Error(String(error)));
 			if (!this._ready.isSettled) {
+				this._closeInfo ??= { reason: 'protocolError', activeClients: this._lanes.size, attempts: 0 };
 				this.dispose();
 			}
 		}
@@ -829,7 +1284,7 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 
 	private _createLane(clientId: string, passive: boolean): MissionControlLane {
 		const prefix = `user.${this._owner}.env.${this._environment}.client.${clientId}`;
-		const lane: MissionControlLane = new MissionControlLane(clientId, passive, (group, payload, generation) => this._publish(group, payload, generation, lane), prefix, this._authenticationFactory?.(), (previous, message) => {
+		const lane: MissionControlLane = new MissionControlLane(clientId, passive, (group, payload, generation, onDidPublish) => this._publish(group, payload, generation, lane, onDidPublish), prefix, this._authenticationFactory?.(), (previous, message) => {
 			if (this._closed || this._lanes.get(clientId) !== previous) {
 				return;
 			}
@@ -842,6 +1297,7 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 					this._enqueue(`client:${clientId}`, [{ ackId, frame, closure: true }]);
 				} catch (error) {
 					this._onError(error instanceof Error ? error : new Error(String(error)));
+					this._closeInfo ??= { reason: 'queueFailure', activeClients: this._lanes.size, attempts: 0 };
 					this.dispose();
 					return;
 				}
@@ -853,6 +1309,8 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 
 	override dispose(): void {
 		if (!this._closed) {
+			this._closeInfo ??= { reason: 'hostClosed', activeClients: this._lanes.size, attempts: (this._recovering ?? this._confirming)?.attempts ?? 0 };
+			this._recovering = this._confirming = undefined;
 			this._closed = true;
 			this._connected = false;
 			emitConnectionDiagnostic(this._onDiagnostic, {

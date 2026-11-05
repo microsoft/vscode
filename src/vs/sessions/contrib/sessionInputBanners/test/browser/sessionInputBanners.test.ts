@@ -5,22 +5,27 @@
 
 import assert from 'assert';
 import { IManagedHover } from '../../../../../base/browser/ui/hover/hover.js';
+import { IAction } from '../../../../../base/common/actions.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event, Emitter } from '../../../../../base/common/event.js';
 import { Disposable, ImmortalReference, IDisposable, IReference } from '../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { AgentMergeSessionState } from '../../../../../platform/agentHost/common/agentMerge.js';
+import { ArtifactIntegrationsSettingId } from '../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
-import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { StorageScope } from '../../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import type { IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
@@ -29,12 +34,15 @@ import { IActiveSession } from '../../../../services/sessions/common/sessionsMan
 import { IChat, IGitHubPullRequestRef, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ActiveSessionScope, ISessionScope } from '../../../../services/sessions/browser/sessionScope.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackService, ISubmitFeedbackOptions } from '../../../agentFeedback/browser/agentFeedbackService.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { GitHubPullRequestCIModel } from '../../../github/browser/models/githubPullRequestCIModel.js';
 import { GitHubPullRequestModel } from '../../../github/browser/models/githubPullRequestModel.js';
-import { GitHubCheckConclusion, GitHubCheckStatus, GitHubPullRequestState, IGitHubCICheck, IGitHubPullRequest } from '../../../github/common/types.js';
+import { GitHubPullRequestState, IGitHubPullRequest, OPEN_PULL_REQUEST_ACTION_ID } from '../../../github/common/types.js';
+import { PullRequestCheck } from '../../../../../platform/github/common/githubPullRequestService.js';
+import { classifyRequiredPullRequestChecks } from '../../../../../platform/github/common/pullRequestRequiredChecks.js';
 import { SessionInputBanners } from '../../browser/sessionInputBanners.js';
 
 suite('SessionInputBanners', () => {
@@ -43,6 +51,90 @@ suite('SessionInputBanners', () => {
 	for (const isDraft of [false, true]) {
 		test(`groups actionable ${isDraft ? 'draft' : 'ready'} PRs, hides merged PR comments, scopes the combined request, and dismisses one carousel item`, () => testActionablePullRequests(isDraft));
 	}
+
+	test('shows the pull requests of the session of its window, not of the globally active session', () => {
+		// One failing check per pull request: each session's pull request has its own number of failing checks.
+		const sessionOf = (id: string, prNumber: number) => {
+			const chat = upcastPartial<IChat>({
+				resource: URI.parse(`local-agent-host-chat:/${id}/main`),
+				workspace: observableValue<ISessionWorkspace | undefined>('workspace', workspaceWithPullRequests(`/${id}`, [pullRequest(prNumber)])),
+			});
+			return new class extends mock<IActiveSession>() {
+				override readonly sessionId = id;
+				override readonly resource = URI.parse(`local-agent-host:/${id}`);
+				override readonly providerId = LOCAL_AGENT_HOST_PROVIDER_ID;
+				override readonly status = observableValue('status', SessionStatus.Completed);
+				override readonly mainChat = observableValue<IChat>('mainChat', chat);
+				override readonly activeChat = observableValue<IChat>('activeChat', chat);
+			}();
+		};
+		const windowA = sessionOf('window-a', 1);
+		const windowB = sessionOf('window-b', 2);
+		const main = sessionOf('main', 3);
+		const ciModels = new Map([
+			[1, ciModel([failedCheck(1)])],
+			[2, ciModel([failedCheck(1), failedCheck(2)])],
+			[3, ciModel([failedCheck(1), failedCheck(2), failedCheck(3)])],
+		]);
+
+		const instantiationService = store.add(new TestInstantiationService());
+		// The chat window of session A has focus: it is the globally active session.
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', windowA);
+			override readonly mainWindowActiveSession = observableValue<IActiveSession | undefined>('mainWindowActiveSession', main);
+		}());
+		const agentHostProvider = new class extends mock<IAgentHostSessionsProvider>() {
+			override readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
+			override getAgentMergeClientStateObservable() { return observableValue<AgentMergeSessionState>('agentMergeState', { enabled: false }); }
+		}();
+		instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+			override getProvider<T extends ISessionsProvider>(): T | undefined {
+				return agentHostProvider as unknown as T;
+			}
+		}());
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configuration);
+		instantiationService.stub(IGitHubService, new class extends mock<IGitHubService>() {
+			override createPullRequestModelReference(_owner: string, _repo: string, prNumber: number): IReference<GitHubPullRequestModel> {
+				return new ImmortalReference(pullRequestModel(prNumber, `Pull request ${prNumber}`, false));
+			}
+			override createPullRequestCIModelReference(_owner: string, _repo: string, prNumber: number): IReference<GitHubPullRequestCIModel> {
+				return new ImmortalReference(ciModels.get(prNumber)!);
+			}
+		}());
+		instantiationService.stub(IAgentFeedbackService, new class extends mock<IAgentFeedbackService>() {
+			override readonly onDidChangeFeedback = Event.None;
+			override getFeedback(): readonly IAgentFeedback[] { return []; }
+		}());
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() { }());
+		instantiationService.stub(IStorageService, store.add(new TestStorageService()));
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IChatWidgetService, new class extends mock<IChatWidgetService>() {
+			override readonly onDidAddWidget = Event.None;
+		}());
+		instantiationService.stub(IHoverService, upcastPartial<IHoverService>({
+			setupManagedHover: () => upcastPartial<IManagedHover>({ dispose() { } }),
+		}));
+		instantiationService.stub(IContextMenuService, upcastPartial<IContextMenuService>({ showContextMenu() { } }));
+
+		// Each chat window scopes its views to its own session; the main window to the session it shows.
+		const bannersIn = (scope: ISessionScope) => {
+			const banners = store.add(instantiationService.createChild(new ServiceCollection([ISessionScope, scope])).createInstance(SessionInputBanners));
+			// Every chat window's session view is active, as is the main window's.
+			banners.setActive(true);
+			return currentBanner(banners).text;
+		};
+		assert.deepStrictEqual({
+			windowA: bannersIn({ _serviceBrand: undefined, session: constObservable(windowA) }),
+			windowB: bannersIn({ _serviceBrand: undefined, session: constObservable(windowB) }),
+			main: bannersIn(instantiationService.createInstance(ActiveSessionScope)),
+		}, {
+			windowA: '1 check failed',
+			windowB: '2 out of 2 checks failed',
+			main: '3 out of 3 checks failed',
+		});
+	});
 
 	async function testActionablePullRequests(isDraft: boolean): Promise<void> {
 		const sessionResource = URI.parse('local-agent-host:/session-1');
@@ -69,6 +161,7 @@ suite('SessionInputBanners', () => {
 		}();
 		const sessionsService = new class extends mock<ISessionsService>() {
 			override readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', session);
+			override readonly mainWindowActiveSession = this.activeSession;
 		}();
 		const agentMergeState = observableValue<AgentMergeSessionState>('agentMergeState', { enabled: false });
 		const agentHostProvider = new class extends mock<IAgentHostSessionsProvider>() {
@@ -117,6 +210,7 @@ suite('SessionInputBanners', () => {
 		const onDidChangeFeedback = store.add(new Emitter<{ sessionResource: URI; feedbackItems: readonly IAgentFeedback[] }>());
 		let submitted: ISubmitFeedbackOptions | undefined;
 		let submittedResource: URI | undefined;
+		let revealedFeedback: { sessionResource: URI; feedbackId: string } | undefined;
 		const feedbackService = new class extends mock<IAgentFeedbackService>() {
 			override readonly onDidChangeFeedback = onDidChangeFeedback.event;
 			override getFeedback(): readonly IAgentFeedback[] { return feedbackItems; }
@@ -130,7 +224,9 @@ suite('SessionInputBanners', () => {
 				options?.onRequestAccepted?.();
 				return true;
 			}
-			override revealFeedback(): Promise<void> { return Promise.resolve(); }
+			override async revealFeedback(sessionResource: URI, feedbackId: string): Promise<void> {
+				revealedFeedback = { sessionResource, feedbackId };
+			}
 		}();
 
 		const chatWidget = upcastPartial<IChatWidget>({
@@ -149,15 +245,31 @@ suite('SessionInputBanners', () => {
 		instantiationService.stub(IHoverService, upcastPartial<IHoverService>({
 			setupManagedHover: () => upcastPartial<IManagedHover>({ dispose() { } }),
 		}));
-		instantiationService.stub(IContextMenuService, upcastPartial<IContextMenuService>({ showContextMenu() { } }));
+		let dropdownActions: readonly IAction[] = [];
+		instantiationService.stub(IContextMenuService, upcastPartial<IContextMenuService>({
+			showContextMenu(delegate) {
+				dropdownActions = delegate.getActions?.() ?? [];
+			},
+		}));
+		let revealedPullRequest: { commandId: string; args: readonly unknown[] } | undefined;
+		const commandService = new class extends mock<ICommandService>() {
+			override async executeCommand<T>(commandId: string, ...args: unknown[]): Promise<T | undefined> {
+				const [options] = args;
+				assert.ok(options !== null && typeof options === 'object' && hasKey(options, { pullRequest: true }), 'Expected the reveal command argument to contain a pullRequest');
+				revealedPullRequest = { commandId, args };
+				return undefined;
+			}
+		}();
 
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
 		const banners = store.add(new SessionInputBanners(
-			sessionsService,
+			new ActiveSessionScope(sessionsService),
 			sessionsProvidersService,
-			new TestConfigurationService(),
+			configuration,
 			gitHubService,
 			feedbackService,
-			new class extends mock<ICommandService>() { }(),
+			commandService,
 			storageService,
 			instantiationService,
 			new NullLogService(),
@@ -187,6 +299,29 @@ suite('SessionInputBanners', () => {
 				{ number: 39, refreshCalls: 0, startPollingCalls: 0 },
 				{ number: 38, refreshCalls: 0, startPollingCalls: 0 },
 			],
+		});
+
+		const dropdownButton = banners.domNode.querySelector<HTMLElement>('.monaco-dropdown-button');
+		assert.ok(dropdownButton, 'Expected the combined banner to have a dropdown button');
+		dropdownButton.click();
+		const revealCIAction = dropdownActions.find(action => action.id === 'revealCI');
+		const revealCommentsAction = dropdownActions.find(action => action.id === 'revealComments');
+		assert.ok(revealCIAction, 'Expected a Reveal Checks dropdown action');
+		assert.ok(revealCommentsAction, 'Expected a Reveal Comments dropdown action');
+		await revealCIAction.run();
+		await revealCommentsAction.run();
+		assert.deepStrictEqual({
+			dropdownLabels: dropdownActions.map(action => action.label),
+			revealedPullRequest,
+			revealedFeedback,
+			submitted,
+			fixRequested: ciModels.get(42)?.fixRequested.get(),
+		}, {
+			dropdownLabels: ['Fix Checks', 'Address Comments', 'Reveal Checks', 'Reveal Comments'],
+			revealedPullRequest: { commandId: OPEN_PULL_REQUEST_ACTION_ID, args: [{ pullRequest: pullRequests[0] }] },
+			revealedFeedback: { sessionResource, feedbackId: 'pr-42-a' },
+			submitted: undefined,
+			fixRequested: false,
 		});
 
 		activeChat.set(secondaryChat, undefined);
@@ -270,6 +405,25 @@ suite('SessionInputBanners', () => {
 			splitButtons: 0,
 			actions: ['Address Comments', 'Reveal'],
 		});
+		const artifactIntegrationBanners: ReturnType<typeof currentBanner>[] = [];
+		for (const enabled of [true, false]) {
+			await configuration.setUserConfiguration(ArtifactIntegrationsSettingId, enabled);
+			configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: setting => setting === ArtifactIntegrationsSettingId }));
+			artifactIntegrationBanners.push(currentBanner(banners));
+		}
+		assert.deepStrictEqual(artifactIntegrationBanners, [{
+			position: undefined,
+			reference: undefined,
+			text: '1 Agent Comment',
+			splitButtons: 0,
+			actions: ['Address Comments', 'Reveal'],
+		}, {
+			position: '3/3',
+			reference: 'Agent Review',
+			text: '1 Agent Comment',
+			splitButtons: 0,
+			actions: ['Address Comments', 'Reveal'],
+		}]);
 		banners.domNode.querySelector<HTMLElement>('.session-input-banner-navigation-button.next')?.click();
 
 		banners.domNode.querySelector<HTMLElement>('.session-input-banner-action.monaco-button-dropdown > .monaco-button')?.click();
@@ -378,11 +532,11 @@ function unresolvedPullRequestModel(): GitHubPullRequestModel {
 	}();
 }
 
-function ciModel(checks: readonly IGitHubCICheck[]) {
+function ciModel(checks: readonly PullRequestCheck[]) {
 	return new class extends mock<GitHubPullRequestCIModel>() {
 		refreshCalls = 0;
 		startPollingCalls = 0;
-		override readonly checks = observableValue('checks', checks);
+		override readonly requiredChecks = constObservable(classifyRequiredPullRequestChecks({ headSha: 'head', checks, requirednessComplete: true, expectedSuites: [], expectedSuitesComplete: true }));
 		override readonly fixRequested = observableValue('fixRequested', false);
 		override refresh(): Promise<void> {
 			this.refreshCalls++;
@@ -397,16 +551,8 @@ function ciModel(checks: readonly IGitHubCICheck[]) {
 	}();
 }
 
-function failedCheck(id: number): IGitHubCICheck {
-	return {
-		id,
-		name: `Check ${id}`,
-		status: GitHubCheckStatus.Completed,
-		conclusion: GitHubCheckConclusion.Failure,
-		startedAt: undefined,
-		completedAt: undefined,
-		detailsUrl: undefined,
-	};
+function failedCheck(id: number): PullRequestCheck {
+	return { id: String(id), type: 'checkRun', name: `Check ${id}`, status: 'COMPLETED', conclusion: 'FAILURE' };
 }
 
 function prFeedback(id: string, sessionResource: URI, number: number): IAgentFeedback {

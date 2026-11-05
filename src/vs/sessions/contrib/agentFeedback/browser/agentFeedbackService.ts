@@ -161,7 +161,7 @@ export interface IAgentFeedbackService {
 	 * to {@link AgentFeedbackState.Accepted}) sets the initial lifecycle state
 	 * and selects which lifecycle event is fired.
 	 */
-	addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion, context?: IAgentFeedbackContext, sourcePRReviewCommentId?: string, kind?: AgentFeedbackKind, state?: AgentFeedbackState, sourcePullRequest?: IFeedbackPullRequest): IAgentFeedback;
+	addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion, context?: IAgentFeedbackContext, sourcePRReviewCommentId?: string, kind?: AgentFeedbackKind, state?: AgentFeedbackState, sourcePullRequest?: IFeedbackPullRequest, sourcePRReviewCommentAuthor?: string): IAgentFeedback;
 
 	/**
 	 * Accept a feedback item that is currently in the
@@ -185,8 +185,8 @@ export interface IAgentFeedbackService {
 	 * Update the text of an existing feedback item.
 	 */
 	updateFeedback(sessionResource: URI, feedbackId: string, newText: string): void;
-	/** Associate legacy PR-review feedback with its originating pull request. */
-	updateFeedbackSourcePullRequest(sessionResource: URI, feedbackId: string, sourcePullRequest: IFeedbackPullRequest): void;
+	/** Backfill missing PR-review source details without replacing known values. */
+	updateFeedbackSourcePullRequest(sessionResource: URI, feedbackId: string, sourcePullRequest: IFeedbackPullRequest, sourcePRReviewCommentAuthor?: string): void;
 
 	/**
 	 * Mark an existing feedback item as resolved. Resolving moves the item to
@@ -230,19 +230,23 @@ export interface IAgentFeedbackService {
 	 * Resolve the session that owns the given file resource. Returns the
 	 * session that was active when the file's editor was first opened; if the
 	 * file has never been tracked, falls back to the currently active session.
+	 * A window that shows one session other than the main window's, such as a
+	 * chat window, passes it as `hostSession`: the file belongs to it there,
+	 * whichever session is active.
 	 * Returns `undefined` when the file is not eligible for feedback (an
 	 * output-channel resource) or when there is no created session to scope to.
 	 */
-	getSessionForFile(resourceUri: URI): ISession | undefined;
+	getSessionForFile(resourceUri: URI, hostSession?: ISession): ISession | undefined;
 
 	/** File changes for the focused chat in the given session. */
 	getChatChanges(sessionResource: URI): readonly ISessionFileChange[];
 
 	/**
 	 * Resolve the feedback scope shown for a file in the current session view, or
+	 * in the window of `hostSession` (see {@link getSessionForFile}), or
 	 * `undefined` when the file is out of scope.
 	 */
-	getFeedbackSessionResource(resourceUri: URI): URI | undefined;
+	getFeedbackSessionResource(resourceUri: URI, hostSession?: ISession): URI | undefined;
 	registerFeedbackResourceScope(resourceUri: URI, sessionResource: URI): IDisposable;
 
 	/**
@@ -561,15 +565,15 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		return session;
 	}
 
-	getSessionForFile(resourceUri: URI): ISession | undefined {
+	getSessionForFile(resourceUri: URI, hostSession?: ISession): ISession | undefined {
 		if (!this._isFileEligibleForFeedback(resourceUri)) {
 			return undefined;
 		}
-		const sessionResource = this._fileToSession.get(resourceUri) ?? this._sessionsService.activeSession.get()?.resource;
+		const sessionResource = hostSession?.resource ?? this._fileToSession.get(resourceUri) ?? this._sessionsService.activeSession.get()?.resource;
 		if (!sessionResource) {
 			return undefined;
 		}
-		const session = this._resolveSession(sessionResource);
+		const session = hostSession ?? this._resolveSession(sessionResource);
 		if (!session || session.status.get() === SessionStatus.Untitled) {
 			return undefined;
 		}
@@ -584,7 +588,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		return this._resolveSession(sessionResource)?.mainChat.get().changes.get() ?? [];
 	}
 
-	getFeedbackSessionResource(resourceUri: URI): URI | undefined {
+	getFeedbackSessionResource(resourceUri: URI, hostSession?: ISession): URI | undefined {
 		const explicitScope = this._explicitResourceScopes.get(resourceUri);
 		if (explicitScope) {
 			return explicitScope;
@@ -593,12 +597,14 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			return undefined;
 		}
 
-		const activeSession = this._sessionsService.activeSession.get();
-		if (!activeSession || !activeSession.isCreated.get()) {
-			return AGENT_FEEDBACK_NEW_SESSION_RESOURCE;
+		if (!hostSession) {
+			const activeSession = this._sessionsService.activeSession.get();
+			if (!activeSession || !activeSession.isCreated.get()) {
+				return AGENT_FEEDBACK_NEW_SESSION_RESOURCE;
+			}
 		}
 
-		return this.getSessionForFile(resourceUri)?.resource;
+		return this.getSessionForFile(resourceUri, hostSession)?.resource;
 	}
 
 	registerFeedbackResourceScope(resourceUri: URI, sessionResource: URI): IDisposable {
@@ -617,13 +623,14 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 	/**
 	 * Whether the given file is eligible for agent feedback. The Output view
 	 * renders into a code editor but is not a real file the user can give
-	 * feedback on, so it is the one thing excluded here.
+	 * feedback on, and a terminal shown as an editor has no document at all,
+	 * so neither is in the scope of a session (nor shows its comments).
 	 */
 	private _isFileEligibleForFeedback(resourceUri: URI): boolean {
-		return resourceUri.scheme !== Schemas.outputChannel;
+		return resourceUri.scheme !== Schemas.outputChannel && resourceUri.scheme !== Schemas.vscodeTerminal;
 	}
 
-	addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion, context?: IAgentFeedbackContext, sourcePRReviewCommentId?: string, kind: AgentFeedbackKind = AgentFeedbackKind.UserReview, state: AgentFeedbackState = AgentFeedbackState.Accepted, sourcePullRequest?: IFeedbackPullRequest): IAgentFeedback {
+	addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion, context?: IAgentFeedbackContext, sourcePRReviewCommentId?: string, kind: AgentFeedbackKind = AgentFeedbackKind.UserReview, state: AgentFeedbackState = AgentFeedbackState.Accepted, sourcePullRequest?: IFeedbackPullRequest, sourcePRReviewCommentAuthor?: string): IAgentFeedback {
 		const backend = this._backendForSession(sessionResource);
 
 		// A sourcePRReviewCommentId implies the feedback originated from a PR review.
@@ -640,6 +647,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			diffHunks: context?.diffHunks,
 			kind: effectiveKind,
 			sourcePRReviewCommentId,
+			sourcePRReviewCommentAuthor,
 			sourcePullRequest,
 			state,
 		};
@@ -702,13 +710,17 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		backend.upsert({ ...existing, text: newText });
 	}
 
-	updateFeedbackSourcePullRequest(sessionResource: URI, feedbackId: string, sourcePullRequest: IFeedbackPullRequest): void {
+	updateFeedbackSourcePullRequest(sessionResource: URI, feedbackId: string, sourcePullRequest: IFeedbackPullRequest, sourcePRReviewCommentAuthor?: string): void {
 		const backend = this._backendForSession(sessionResource);
 		const existing = backend.getItems(sessionResource).find(item => item.id === feedbackId);
-		if (!existing || existing.sourcePullRequest) {
+		if (!existing || (existing.sourcePullRequest && (existing.sourcePRReviewCommentAuthor || !sourcePRReviewCommentAuthor))) {
 			return;
 		}
-		backend.upsert({ ...existing, sourcePullRequest });
+		backend.upsert({
+			...existing,
+			sourcePullRequest: existing.sourcePullRequest ?? sourcePullRequest,
+			sourcePRReviewCommentAuthor: existing.sourcePRReviewCommentAuthor || sourcePRReviewCommentAuthor,
+		});
 	}
 
 	setFeedbackResolved(sessionResource: URI, feedbackId: string, resolved: boolean): void {

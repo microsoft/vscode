@@ -5,6 +5,7 @@
 
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Event } from '../../../../../base/common/event.js';
+import { ResourceMap } from '../../../../../base/common/map.js';
 import {
 	autorun,
 	IObservable,
@@ -20,6 +21,7 @@ import { IEditorService } from '../../../../../workbench/services/editor/common/
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
 import { ISessionWorkspace } from '../../../../services/sessions/common/session.js';
@@ -47,12 +49,11 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 	private _pendingEntryHideSessionKey: string | undefined;
 	private _replacementDraftKey: string | undefined;
 	private _pendingSidePaneOpenHideSessionKey: string | undefined;
-	private _detailHiddenTransiently = false;
-	private _detailHiddenByEditor = false;
 	private _activeQuickChatKey: string | undefined;
 	private _pendingEditorRestoreKey: string | undefined;
 	private _changingVisibility = false;
 	private _togglingQuickChatSidePane = false;
+	private readonly _quickChatSidePaneVisibility = new ResourceMap<boolean>();
 
 	constructor(
 		ctx: IDesktopLayoutContext,
@@ -82,7 +83,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 		if (!this._ctx.chatLayoutActive()) {
 			return undefined;
 		}
-		const activeSession = this._sessionsService.activeSession.get();
+		const activeSession = this._sessionsService.mainWindowActiveSession.get();
 		return activeSession && !activeSession.isCreated.get() && !activeSession.isQuickChat?.get()
 			? this._ctx.ownerKeyFor(activeSession)
 			: undefined;
@@ -94,6 +95,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 	}
 
 	private _applyOwnerComposition(state: { readonly editor: boolean; readonly auxiliaryBar: boolean }): void {
+		this._detailPanel.resetTransientVisibility();
 		const sidePaneVisible = this._layoutService.isSidePaneVisible();
 		const suppression = this._layoutService.suppressEditorPartAutoVisibility();
 		this._changingVisibility = true;
@@ -121,7 +123,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 		}
 		this._ctx.compositionStore.set(ownerKey, {
 			editor: this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow),
-			auxiliaryBar: this._layoutService.isVisible(Parts.AUXILIARYBAR_PART),
+			auxiliaryBar: this._detailPanel.intendedVisible,
 		});
 	}
 
@@ -215,7 +217,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 		this._register(
 			autorun((reader) => {
 				editorSetChanged.read(reader);
-				const session = this._sessionsService.activeSession.read(reader);
+				const session = this._sessionsService.mainWindowActiveSession.read(reader);
 				const draftKey = session && !session.isCreated.read(reader) ? session.resource.toString() : undefined;
 				if (draftKey !== previousDraftKey) {
 					this._replacementDraftKey = previousDraftKey ? draftKey : undefined;
@@ -243,7 +245,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 
 	private _registerQuickChatVisibility(): void {
 		this._register(autorun(reader => {
-			const activeSession = this._sessionsService.activeSession.read(reader);
+			const activeSession = this._sessionsService.mainWindowActiveSession.read(reader);
 			if (!activeSession || !(activeSession.isQuickChat?.read(reader) ?? false)) {
 				this._activeQuickChatKey = undefined;
 				this._pendingEditorRestoreKey = undefined;
@@ -263,7 +265,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 					? sessionKey
 					: undefined;
 				if (!multipleSessionsVisible && hasSavedWorkingSet) {
-					this._applyQuickChatSharedVisibility();
+					this._applyQuickChatVisibility();
 				} else if (!multipleSessionsVisible && !isRestoringSessionLayout && isMainPartEmpty(this._editorGroupsService)) {
 					this._pendingEditorRestoreKey = undefined;
 					this._hideQuickChatSidePaneTransiently();
@@ -273,7 +275,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 		}));
 
 		this._register(this._ctx.onDidEndSessionLayoutRestore(() => {
-			const activeSession = this._sessionsService.activeSession.get();
+			const activeSession = this._sessionsService.mainWindowActiveSession.get();
 			const sessionKey = activeSession?.resource.toString();
 			if (!activeSession
 				|| !(activeSession.isQuickChat?.get() ?? false)
@@ -291,7 +293,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 				return;
 			}
 
-			this._applyQuickChatSharedVisibility();
+			this._applyQuickChatVisibility();
 		}));
 
 		this._register(this._layoutService.onDidChangePartVisibility(event => {
@@ -304,14 +306,21 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 		this._register(this._layoutService.onWillToggleSidePane(() => this._togglingQuickChatSidePane = true));
 		this._register(this._layoutService.onDidToggleSidePane(({ before, after }) => {
 			try {
-				const activeSession = this._sessionsService.activeSession.get();
-				const opened = !before.editor && !before.auxiliaryBar && (after.editor || after.auxiliaryBar);
-				if (opened
-					&& activeSession?.isQuickChat?.get()
-					&& !this._ctx.chatLayoutSuspended()
-					&& !this._ctx.multipleSessionsVisibleObs.get()
-					&& !isMainPartEmpty(this._editorGroupsService)) {
-					this._applyQuickChatSharedVisibility();
+				const activeSession = this._sessionsService.mainWindowActiveSession.get();
+				if (!activeSession?.isQuickChat?.get()
+					|| this._ctx.chatLayoutSuspended()
+					|| this._ctx.multipleSessionsVisibleObs.get()
+					|| isMainPartEmpty(this._editorGroupsService)) {
+					return;
+				}
+				const wasVisible = before.editor || before.auxiliaryBar;
+				const isVisible = after.editor || after.auxiliaryBar;
+				const ownerKey = this._quickChatVisibilityOwnerKey(activeSession);
+				if (ownerKey && wasVisible !== isVisible) {
+					this._quickChatSidePaneVisibility.set(ownerKey, isVisible);
+				}
+				if (!wasVisible && isVisible) {
+					this._applyQuickChatVisibility();
 				}
 			} finally {
 				this._togglingQuickChatSidePane = false;
@@ -331,13 +340,18 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 			return;
 		}
 
-		const activeSession = this._sessionsService.activeSession.get();
+		const activeSession = this._sessionsService.mainWindowActiveSession.get();
 		if (!activeSession || !(activeSession.isQuickChat?.get() ?? false)) {
 			return;
 		}
 
+		const editorVisible = this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow);
+		const ownerKey = this._quickChatVisibilityOwnerKey(activeSession);
+		if (ownerKey) {
+			this._quickChatSidePaneVisibility.set(ownerKey, this._layoutService.isSidePaneVisible());
+		}
 		this._visibilityStore.set(SessionVisibilityProfile.Existing, {
-			editorVisible: this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow),
+			editorVisible,
 			auxiliaryBarVisible: false,
 		});
 	}
@@ -351,10 +365,26 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 		}
 	}
 
-	private _applyQuickChatSharedVisibility(): void {
+	/**
+	 * The key for a Quick Chat's own side-pane visibility, which only exists in the
+	 * chat-specific layout mode.
+	 */
+	private _quickChatVisibilityOwnerKey(session: IActiveSession): URI | undefined {
+		return session.isQuickChat?.get() && this._ctx.chatLayoutActive() && !this._ctx.sharedChatLayout ? this._ctx.ownerKeyFor(session) : undefined;
+	}
+
+	/**
+	 * In the chat-specific layout mode, applies the active Quick Chat's own last side-pane
+	 * visibility, revealing a closed side pane for it. Otherwise, or when none has been recorded
+	 * in this window, applies the shared Existing profile without revealing a closed side pane.
+	 */
+	private _applyQuickChatVisibility(): void {
+		const activeSession = this._sessionsService.mainWindowActiveSession.get();
+		const ownerKey = activeSession && this._quickChatVisibilityOwnerKey(activeSession);
+		const ownVisibility = ownerKey ? this._quickChatSidePaneVisibility.get(ownerKey) : undefined;
 		const sharedState = this._visibilityStore.get(SessionVisibilityProfile.Existing);
-		const sidePaneVisible = sharedState.editorVisible || sharedState.auxiliaryBarVisible;
-		const allowReveal = this._layoutService.isSidePaneVisible();
+		const sidePaneVisible = ownVisibility ?? (sharedState.editorVisible || sharedState.auxiliaryBarVisible);
+		const allowReveal = ownVisibility !== undefined || this._layoutService.isSidePaneVisible();
 		const suppression = this._layoutService.suppressEditorPartAutoVisibility();
 		this._changingVisibility = true;
 		try {
@@ -461,7 +491,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 				if (!this._editorGroupsService.mainPart.getGroup(event.groupId)) {
 					return;
 				}
-				const session = this._sessionsService.activeSession.get();
+				const session = this._sessionsService.mainWindowActiveSession.get();
 				const isQuickChat = session?.isQuickChat?.get() ?? false;
 				if (
 					(!this._getActiveNewSessionKey() && !isQuickChat) ||
@@ -486,7 +516,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 	}
 
 	private _getActiveNewSessionKey(): string | undefined {
-		const session = this._sessionsService.activeSession.get();
+		const session = this._sessionsService.mainWindowActiveSession.get();
 		if (
 			!session ||
 			session.isCreated.get() ||
@@ -500,7 +530,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 	}
 
 	private _readActiveNewSessionKey(reader: IReader): string | undefined {
-		const session = this._sessionsService.activeSession.read(reader);
+		const session = this._sessionsService.mainWindowActiveSession.read(reader);
 		if (
 			!session ||
 			session.isCreated.read(reader) ||
@@ -516,6 +546,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 	// --- Detail panel ----------------------------------------------------------------------
 
 	private _registerDetailPanel(): void {
+		const layoutRestored = observableSignalFromEvent(this, this._ctx.onDidEndSessionLayoutRestore);
 		const activeEditorObs = observableFromEvent(
 			this,
 			this._editorService.onDidActiveEditorChange,
@@ -531,13 +562,19 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 			this._layoutService.onDidChangeEditorMaximized,
 			() => this._layoutService.isEditorMaximized(),
 		);
+		const detailVisibleObs = observableFromEvent(
+			this,
+			this._layoutService.onDidChangePartVisibility,
+			() => this._layoutService.isVisible(Parts.AUXILIARYBAR_PART),
+		);
 		let previousActiveEditor: EditorInput | undefined;
 		let previousEditorPartVisible = false;
 		let previousEditorSessionKey: string | undefined;
 
 		this._register(
 			autorun((reader) => {
-				const activeSession = this._sessionsService.activeSession.read(reader);
+				layoutRestored.read(reader);
+				const activeSession = this._sessionsService.mainWindowActiveSession.read(reader);
 				if (!activeSession) {
 					previousActiveEditor = undefined;
 					previousEditorPartVisible = false;
@@ -571,20 +608,12 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 					editorPartVisible,
 					workspace,
 				);
+				if (target === DetailPanelTarget.EditorHidden && activeEditor && isChangesEditorInput(activeEditor, this._sessionChangesService)) {
+					detailVisibleObs.read(reader);
+				}
 				const revealOnly = this._multipleLayoutOwnersVisible(reader);
 				this._syncDetailVisibility(target, revealOnly, emptyFilesShown);
 				this._detailPanel.sync(target);
-			}),
-		);
-		this._register(
-			this._layoutService.onDidChangePartVisibility((event) => {
-				if (
-					event.partId === Parts.AUXILIARYBAR_PART &&
-					event.source !== 'resize'
-				) {
-					this._detailHiddenTransiently = false;
-					this._detailHiddenByEditor = false;
-				}
 			}),
 		);
 	}
@@ -596,9 +625,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 	): void {
 		const detailVisible = this._layoutService.isVisible(Parts.AUXILIARYBAR_PART);
 		if (emptyFilesShown && !detailVisible) {
-			this._detailHiddenTransiently = false;
-			this._detailHiddenByEditor = false;
-			this._layoutService.setAuxiliaryBarHiddenForResize(false);
+			this._detailPanel.setHiddenTransiently(false);
 			return;
 		}
 		if (
@@ -618,23 +645,19 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 				(hiddenByEditor || !revealOnly) &&
 				detailVisible
 			) {
-				this._detailHiddenTransiently = true;
-				this._detailHiddenByEditor = hiddenByEditor;
-				this._layoutService.setAuxiliaryBarHiddenForResize(true);
+				this._detailPanel.setHiddenTransiently(true, hiddenByEditor);
 			}
 			return;
 		}
 
 		if (
-			!this._detailHiddenTransiently ||
-			(revealOnly && !this._detailHiddenByEditor) ||
+			!this._detailPanel.hiddenTransiently ||
+			(revealOnly && !this._detailPanel.hiddenByEditor) ||
 			!this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)
 		) {
 			return;
 		}
-		this._detailHiddenTransiently = false;
-		this._detailHiddenByEditor = false;
-		this._layoutService.setAuxiliaryBarHiddenForResize(false);
+		this._detailPanel.setHiddenTransiently(false);
 	}
 
 	private _computeTarget(
@@ -662,7 +685,9 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 		}
 
 		if (isChangesEditorInput(activeEditor, this._sessionChangesService)) {
-			return DetailPanelTarget.ChangesForced;
+			return editorPartVisible && !this._detailPanel.hasChangesDetails.read(reader)
+				? DetailPanelTarget.EditorHidden
+				: DetailPanelTarget.ChangesForced;
 		}
 
 		switch (getFilesDetailsState(activeEditor, workspace)) {

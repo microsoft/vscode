@@ -130,6 +130,70 @@ suite('ChatModelConfigurationStore', () => {
 		};
 	}
 
+	for (const authoredModel of [false, true]) {
+		test(`agent effort preserves model identity and overrides default provenance (authored model: ${authoredModel})`, () => {
+			const storage = store.add(new InMemoryStorageService());
+			const control = createControllableService();
+			control.setSchema({ properties: { thinkingLevel: { enum: ['low', 'medium'], default: 'medium' } } }, ['thinkingLevel']);
+			const configuration = createStore(storage, control.service);
+			const selected = { identifier: MODEL, metadata: { ...control.service.lookupLanguageModel(MODEL)!, id: 'shared-id', name: 'Shared', vendor: 'byok' } };
+			const other = { identifier: 'other/model', metadata: { ...selected.metadata, vendor: 'other' } };
+			const currentModel = observableValue('test.currentModel', selected);
+			const input: ChatInputPart = Object.assign(Object.create(ChatInputPart.prototype), {
+				options: {},
+				_modelConfigStore: configuration,
+				_currentLanguageModel: currentModel,
+				getModels: () => [other, selected],
+				_modelSelectionController: { applyProgrammaticSelection: (model: typeof selected) => currentModel.set(model, undefined) },
+			});
+			input['applyModeModelPreference'](authoredModel ? ['Shared (byok)'] : undefined, 'low');
+			assert.deepStrictEqual({
+				model: currentModel.get().identifier,
+				configuration: configuration.getModelConfiguration(MODEL),
+				shared: createStore(storage, control.service).getModelConfiguration(MODEL),
+			}, {
+				model: MODEL,
+				configuration: { thinkingLevel: 'low', [modelConfigurationSourceKey('thinkingLevel')]: 'explicit' },
+				shared: { thinkingLevel: 'medium', [modelConfigurationSourceKey('thinkingLevel')]: 'default' },
+			});
+		});
+	}
+
+	test('captured agent effort stays chat-local after restore and unrelated picker changes', async () => {
+		const storage = store.add(new InMemoryStorageService());
+		const control = createControllableService();
+		control.setSchema(schemaWithContextSize);
+		const configuration = createStore(storage, control.service);
+		configuration.restoreModelConfiguration(MODEL, { thinkingEffort: 'low' }, false);
+		const selectedModel = { identifier: MODEL, metadata: control.service.lookupLanguageModel(MODEL)! };
+		const input: ChatInputPart = Object.assign(Object.create(ChatInputPart.prototype), {
+			_modelConfigStore: configuration,
+			_currentLanguageModel: constObservable(selectedModel),
+			_currentModeObservable: constObservable({ id: 'custom-agent', kind: ChatModeKind.Agent }),
+			_currentPermissionLevel: constObservable(undefined),
+			_attachmentModel: { attachments: [] },
+			_modelSelectionController: {},
+		});
+		const captured = input.getCurrentInputState();
+		const restored = createStore(storage, control.service);
+		restored.restoreModelConfiguration(MODEL, captured.modelConfiguration!, !captured.modelConfigurationIsTransient);
+		await restored.setModelConfiguration(MODEL, { contextSize: 400_000 });
+		const fresh = createStore(storage, control.service);
+		const beforeExplicitChoice = fresh.getModelConfiguration(MODEL);
+		await restored.setModelConfiguration(MODEL, { thinkingEffort: 'high' });
+		assert.deepStrictEqual({
+			transient: captured.modelConfigurationIsTransient,
+			restored: restored.getModelConfiguration(MODEL),
+			beforeExplicitChoice,
+			afterExplicitChoice: createStore(storage, control.service).getModelConfiguration(MODEL),
+		}, {
+			transient: true,
+			restored: { thinkingEffort: 'high', contextSize: 400_000 },
+			beforeExplicitChoice: { thinkingEffort: 'medium', contextSize: 400_000 },
+			afterExplicitChoice: { thinkingEffort: 'high', contextSize: 400_000 },
+		});
+	});
+
 	test('managed startup defaults override saved preferences only in untouched new chats', async () => {
 		const storage = store.add(new InMemoryStorageService());
 		const control = createControllableService();
@@ -310,6 +374,33 @@ suite('ChatModelConfigurationStore', () => {
 			readOnly: false,
 			providerDefault: 'high',
 		});
+	});
+
+	test('switching chats notifies once per update, after it applies to every model', () => {
+		const storage = store.add(new InMemoryStorageService());
+		const control = createControllableService();
+		control.setSchema(schema, ['thinkingEffort']);
+		const editor = createStore(storage, control.service);
+		const OTHER = 'copilot/other';
+		const snapshot = (thinkingEffort: string) => ({
+			models: {
+				[MODEL]: { defaults: { thinkingEffort }, readOnly: [] },
+				[OTHER]: { defaults: { thinkingEffort }, readOnly: [] },
+			},
+		});
+		editor.setSessionModelConfiguration(snapshot('low'));
+		const changes: { modelIds: readonly string[]; efforts: unknown[] }[] = [];
+		store.add(editor.onDidChange(modelIds => changes.push({ modelIds, efforts: [MODEL, OTHER].map(modelId => editor.getModelConfiguration(modelId)?.thinkingEffort) })));
+
+		editor.setSessionModelConfiguration(undefined);
+		editor.notifyConversationChanged();
+		editor.setSessionModelConfiguration(snapshot('high'));
+
+		assert.deepStrictEqual(changes, [
+			{ modelIds: [MODEL, OTHER], efforts: ['medium', 'medium'] },
+			{ modelIds: [MODEL, OTHER], efforts: ['medium', 'medium'] },
+			{ modelIds: [MODEL, OTHER], efforts: ['high', 'high'] },
+		]);
 	});
 
 	test('an explicit choice equal to a host default survives reopen and later default changes', async () => {
@@ -708,6 +799,24 @@ suite('ChatModelConfigurationStore', () => {
 		});
 	}
 
+	test('a managed Fusion tier withdraws the legacy Auto default for the Agent Host runtime only', () => {
+		const storage = store.add(new InMemoryStorageService());
+		const control = createControllableService();
+		const settings: ManagedSettingsData = { autoTier: 'intelligence', fusionTier: 'standard' };
+		const managed: IManagedSettingsService = {
+			_serviceBrand: undefined, onDidChangeManagedSettings: Event.None, getManagedSettingValue: key => settings[key],
+			getManagedSettings: () => settings,
+		};
+		const configurations = ['agent-host-copilotcli', 'copilot'].map(vendor => {
+			control.setAutoModel(vendor);
+			return JSON.parse(JSON.stringify(createStore(storage, control.service, () => true, managed, true).getModelConfiguration(MODEL)));
+		});
+		assert.deepStrictEqual(configurations, [
+			{ tier: 'balance', tierSource: 'default' },
+			{ tier: 'intelligence', tierSource: 'managed' },
+		]);
+	});
+
 	test('invalid and unsupported managed values clear the old default and log without persisting it', () => {
 		const storage = store.add(new InMemoryStorageService());
 		const control = createControllableService();
@@ -1015,6 +1124,7 @@ suite('ChatModelConfigurationStore', () => {
 				_currentChatModesObservable: observableValue('test.modes', modes),
 				_currentSessionModelObservable: observableValue('test.model', undefined),
 				_currentSessionTypeObservable: observableValue<string | undefined>('test.sessionType', undefined),
+				_modelSessionTypeOverride: observableValue('test.modelSessionTypeOverride', undefined),
 				_currentLanguageModel: observableValue('test.selectedModel', selectedModel),
 				chatModeService: { createModes: () => modes },
 				selectedToolsModel: { resetSessionEnablementState() { } },
@@ -1068,7 +1178,7 @@ suite('ChatModelConfigurationStore', () => {
 		const editor = createStore(storage, createStubService());
 
 		const fired: string[] = [];
-		store.add(editor.onDidChange(id => fired.push(id)));
+		store.add(editor.onDidChange(ids => fired.push(...ids)));
 
 		editor.setModelConfiguration(MODEL, { thinkingEffort: 'high' });
 		assert.deepStrictEqual(fired, [MODEL]);
@@ -1083,7 +1193,7 @@ suite('ChatModelConfigurationStore', () => {
 
 		const changes: (IStringDictionary<unknown> | undefined)[] = [];
 		const selections: { modelId: string; configuration: IStringDictionary<unknown> | undefined }[] = [];
-		store.add(editor.onDidChange(modelId => changes.push(editor.getModelConfiguration(modelId))));
+		store.add(editor.onDidChange(modelIds => changes.push(...modelIds.map(modelId => editor.getModelConfiguration(modelId)))));
 		store.add(editor.onDidSelectConfiguration(modelId => selections.push({ modelId, configuration: editor.getModelConfiguration(modelId) })));
 
 		control.setRegistered(true);
@@ -1120,7 +1230,7 @@ suite('ChatModelConfigurationStore', () => {
 		editor.setModelConfiguration(MODEL, { thinkingEffort: 'high' });
 
 		const fired: string[] = [];
-		store.add(editor.onDidChange(id => fired.push(id)));
+		store.add(editor.onDidChange(ids => fired.push(...ids)));
 		let writes = 0;
 		const ds = store.add(new DisposableStore());
 		store.add(storage.onDidChangeValue(StorageScope.APPLICATION, KEY, ds)(() => writes++));
@@ -1154,7 +1264,7 @@ suite('ChatModelConfigurationStore', () => {
 		await editor.setModelConfiguration(MODEL, { thinkingEffort: 'high' });
 		control.setConfigCalls.length = 0;
 		const changes: string[] = [];
-		store.add(editor.onDidChange(modelId => changes.push(modelId)));
+		store.add(editor.onDidChange(modelIds => changes.push(...modelIds)));
 		const input: ChatInputPart = Object.assign(Object.create(ChatInputPart.prototype), {
 			_modelConfigStore: editor,
 			_requestProgrammaticLanguageModel: async () => true,
@@ -1280,7 +1390,7 @@ suite('ChatModelConfigurationStore', () => {
 		assert.strictEqual(editor.getModelConfiguration(OTHER), undefined);
 
 		const fired: string[] = [];
-		store.add(editor.onDidChange(id => fired.push(id)));
+		store.add(editor.onDidChange(ids => fired.push(...ids)));
 
 		// Providers register; the schema and a non-default global become available.
 		controls.setRegistered(true);
@@ -1309,7 +1419,7 @@ suite('ChatModelConfigurationStore', () => {
 		assert.deepStrictEqual(editor.getModelConfiguration(MODEL), { thinkingEffort: 'high' });
 
 		const fired: string[] = [];
-		store.add(editor.onDidChange(id => fired.push(id)));
+		store.add(editor.onDidChange(ids => fired.push(...ids)));
 
 		registered = true;
 		emitter.fire('copilot');
@@ -1345,7 +1455,7 @@ suite('ChatModelConfigurationStore', () => {
 		assert.deepStrictEqual(editor.getModelConfiguration(MODEL), { thinkingEffort: 'high' });
 
 		const fired: string[] = [];
-		store.add(editor.onDidChange(id => fired.push(id)));
+		store.add(editor.onDidChange(ids => fired.push(...ids)));
 
 		registered = true;
 		emitter.fire('copilot');
@@ -1485,7 +1595,7 @@ suite('ChatModelConfigurationStore', () => {
 		assert.strictEqual(editor.getModelConfiguration(MODEL), undefined);
 
 		const fired: string[] = [];
-		store.add(editor.onDidChange(id => fired.push(id)));
+		store.add(editor.onDidChange(ids => fired.push(...ids)));
 
 		registered = true;
 		emitter.fire('copilot');
@@ -1526,7 +1636,7 @@ suite('ChatModelConfigurationStore', () => {
 			metadata()?.maxInputTokens,
 		);
 		const denominators: (number | undefined)[] = [computeDenominator()];
-		store.add(editor.onDidChange(id => { if (id === MODEL) { denominators.push(computeDenominator()); } }));
+		store.add(editor.onDidChange(ids => { if (ids.includes(MODEL)) { denominators.push(computeDenominator()); } }));
 
 		// Schema loads: the store heals the snapshot and notifies the widget.
 		registered = true;
