@@ -65,6 +65,8 @@ export class SessionBrowserNetworkContribution extends Disposable implements IWo
 	private readonly _composerTabs = this._register(new DisposableMap<BrowserEditorInput, IComposerTab>());
 	/** Moves of composer tabs run one at a time, so each sees the tabs earlier moves created. */
 	private readonly _composerTabMoves = new Sequencer();
+	/** Known host labels, retained so disconnected hosts keep their friendly name. */
+	private readonly _hostLabels = new Map<string, string>();
 
 	constructor(
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
@@ -82,8 +84,10 @@ export class SessionBrowserNetworkContribution extends Disposable implements IWo
 
 		// Hosts change status when they connect or disconnect, or when their handshake completes.
 		const connectionsChanged = observableSignalFromEvent(this, this._agentHostConnectionsService.onDidChangeConnections);
+		const providersChanged = observableSignalFromEvent(this, this._sessionsProvidersService.onDidChangeProviders ?? Event.None);
 		const statuses = derivedOpts({ owner: this, equalsFn: structuralEquals }, reader => {
 			connectionsChanged.read(reader);
+			providersChanged.read(reader);
 			return this._agentHostConnectionsService.connections.map(({ authority }) => this._getNetworkStatus(authority, reader));
 		});
 		const onDidChangeNetworkStatus = this._register(new Emitter<void>());
@@ -147,13 +151,30 @@ export class SessionBrowserNetworkContribution extends Disposable implements IWo
 				return undefined;
 			}
 			if (owning.session) {
-				return { authority: this._getSessionAuthority(owning.session), session: owning.session };
+				const authority = this._getSessionAuthority(owning.session);
+				this._recordSessionHostLabel(owning.session, authority);
+				return { authority, session: owning.session };
 			}
 			const authority = this._agentHostConnectionsService.resolveSessionResourceIdentity(owning.resource)?.connectionAuthority;
 			return authority !== undefined ? { authority, session: undefined } : undefined;
 		}
 		const session = this._sessionsService.activeSession.get() ?? this._sessionsManagementService.newSession.get();
-		return session && { authority: this._getSessionAuthority(session), session };
+		if (session) {
+			const authority = this._getSessionAuthority(session);
+			this._recordSessionHostLabel(session, authority);
+			return { authority, session };
+		}
+		return undefined;
+	}
+
+	private _recordSessionHostLabel(session: ISession, authority: string | undefined): void {
+		if (!authority) {
+			return;
+		}
+		const provider = this._sessionsProvidersService.getProvider(session.providerId);
+		if (provider?.label && provider.label !== authority) {
+			this._hostLabels.set(authority, provider.label);
+		}
 	}
 
 	private _getSessionAuthority(session: ISession): string | undefined {
@@ -169,11 +190,28 @@ export class SessionBrowserNetworkContribution extends Disposable implements IWo
 		return undefined;
 	}
 
+	private _getHostLabel(authority: string): string {
+		const connectionName = this._agentHostConnectionsService.connections.find(info => info.authority === authority)?.name;
+		if (connectionName && connectionName !== authority) {
+			this._hostLabels.set(authority, connectionName);
+			return connectionName;
+		}
+		const provider = this._sessionsProvidersService.getProviders?.().find(p =>
+			p.id === `agenthost-${authority}` ||
+			(isAgentHostProvider(p) && p.remoteAddress && agentHostAuthority(p.remoteAddress) === authority)
+		);
+		if (provider?.label && provider.label !== authority) {
+			this._hostLabels.set(authority, provider.label);
+			return provider.label;
+		}
+		return this._hostLabels.get(authority) ?? connectionName ?? authority;
+	}
+
 	private _getNetworkStatus(authority: string, reader: IReader | undefined): IBrowserViewNetworkStatus {
 		const connection = this._agentHostConnectionsService.getConnectionByAuthority(authority);
 		const support = getAgentHostTcpSupport(connection, reader);
 		return {
-			label: this._agentHostConnectionsService.connections.find(info => info.authority === authority)?.name ?? authority,
+			label: this._getHostLabel(authority),
 			connected: !!connection,
 			proxySupported: support === AgentHostTcpSupport.Unknown ? undefined : support === AgentHostTcpSupport.Supported,
 		};
