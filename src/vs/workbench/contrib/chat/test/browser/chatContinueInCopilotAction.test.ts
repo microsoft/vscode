@@ -66,6 +66,7 @@ suite('Continue in Copilot policy recovery', () => {
 					modelId: requestModelId,
 					response: upcastPartial<IChatResponseModel>({
 						entireResponse: upcastPartial<IChatResponseModel['entireResponse']>({ value: [{ kind: 'markdownContent', content: new MarkdownString('Original answer') }] }),
+						contentReferences: [], codeCitations: [],
 						response: upcastPartial<IChatResponseModel['response']>({ getMarkdown: () => 'Original answer' }),
 					}),
 				});

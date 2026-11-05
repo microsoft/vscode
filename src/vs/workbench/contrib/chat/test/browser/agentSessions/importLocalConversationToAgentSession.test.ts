@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { MarkdownString, resolveWithBaseUri } from '../../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { getTurnError, MessageAttachmentKind, ResponsePartKind, ToolCallStatus, ToolResultContentType, TurnState, type ResponsePart, type ToolCallCompletedState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import type { IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
-import type { ILanguageModelsService } from '../../../common/languageModels.js';
+import { getTurnError, MessageAttachmentKind, ResponsePartKind, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type ResponsePart, type ToolCallCompletedState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ElicitationState, ToolConfirmKind, type IChatCodeCitation, type IChatContentReference, type IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
+import { LanguageModelPartAudience, type ILanguageModelsService } from '../../../common/languageModels.js';
 import type { IChatProgressResponseContent, IChatModel, IChatRequestModel, IChatResponseModel } from '../../../common/model/chatModel.js';
 import { createImportedConversationStats, importedTurnsFromChatModel, resolveImportedCopilotModel } from '../../../browser/agentSessions/agentHost/importLocalConversationToAgentSession.js';
-import { rewriteAgentHostLinkTarget } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { completedToolCallToSerialized, rewriteAgentHostLinkTarget } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 
 suite('importedTurnsFromChatModel', () => {
 
@@ -47,9 +47,11 @@ suite('importedTurnsFromChatModel', () => {
 		} as unknown as IChatProgressResponseContent;
 	}
 
-	function response(parts: IChatProgressResponseContent[], opts?: { canceled?: boolean; error?: { message: string; code?: string }; completionTimestamp?: number; elapsedMs?: number; usage?: { promptTokens: number; completionTokens: number; copilotCredits?: number; modelTotals?: unknown[] }; lastCallKnown?: boolean }): IChatResponseModel {
+	function response(parts: IChatProgressResponseContent[], opts?: { canceled?: boolean; error?: { message: string; code?: string }; completionTimestamp?: number; elapsedMs?: number; usage?: { promptTokens: number; completionTokens: number; copilotCredits?: number; modelTotals?: unknown[] }; lastCallKnown?: boolean; references?: IChatContentReference[]; citations?: IChatCodeCitation[] }): IChatResponseModel {
 		return {
 			entireResponse: { value: parts },
+			contentReferences: opts?.references ?? [],
+			codeCitations: opts?.citations ?? [],
 			isCanceled: !!opts?.canceled,
 			result: opts?.error ? { errorDetails: opts.error } : undefined,
 			completionTimestamp: opts?.completionTimestamp,
@@ -249,7 +251,8 @@ suite('importedTurnsFromChatModel', () => {
 			skippedResponsePartKinds: ['progressMessage', 'warning'],
 			skippedAttachments: 2,
 			skippedAttachmentKinds: ['tool', 'toolset'],
-			droppedToolOutputs: 3,
+			// Tool outputs that are not text are carried rather than dropped.
+			droppedToolOutputs: 0,
 		});
 	});
 
@@ -341,6 +344,144 @@ suite('importedTurnsFromChatModel', () => {
 			undefined,
 			undefined,
 			undefined,
+		]);
+	});
+
+	test('carries tool outputs that are not text, each call\'s own messages, and how it was let run', () => {
+		// Client resources become the host's: here the host sees each file under /host.
+		const resourceUris = {
+			toAgentHost: (uri: URI) => uri.scheme === 'file' ? uri.with({ path: `/host${uri.path}` }) : uri,
+			fromAgentHost: (uri: URI) => uri,
+		};
+		const call = (toolCallId: string, fields: object) => ({
+			kind: 'toolInvocationSerialized', toolId: 'run', toolCallId, invocationMessage: 'Running', pastTenseMessage: 'Ran',
+			isComplete: true, toolSpecificData: undefined, ...fields,
+		}) as unknown as IChatProgressResponseContent;
+		const turns = importedTurnsFromChatModel(model([request('q', response([
+			call('outputs', {
+				invocationMessage: new MarkdownString('Reading [](file:///repo/a.ts)'),
+				// A relative link resolves against the message's base URI, which the imported message does not keep.
+				pastTenseMessage: Object.assign(new MarkdownString('Read [a.ts](a.ts)'), { baseUri: URI.file('/repo/') }),
+				isConfirmed: { type: ToolConfirmKind.UserAction },
+				resultDetails: {
+					input: '{}', output: [
+						{ type: 'embed', isText: true, value: 'ok' },
+						{ type: 'embed', mimeType: 'image/png', value: 'AAEC' },
+						{ type: 'ref', uri: URI.file('/repo/out.log'), mimeType: 'text/plain' },
+						// Left out: output Local only showed the user, and a resource only Local's MCP connection can read.
+						{ type: 'embed', mimeType: 'image/png', value: 'USER', audience: [LanguageModelPartAudience.User] },
+						{ type: 'ref', uri: URI.from({ scheme: 'mcp-resource', authority: 'server', path: '/doc' }) },
+					]
+				},
+			}),
+			call('data', { isConfirmed: { type: ToolConfirmKind.Setting, id: 'chat.tools.autoApprove' }, resultDetails: { output: { type: 'data', mimeType: 'image/jpeg', base64Data: '/9j/' } } }),
+			call('denied', { isConfirmed: { type: ToolConfirmKind.Denied, source: 'hook' } }),
+			call('skipped', { isConfirmed: { type: ToolConfirmKind.Skipped, source: 'user' } }),
+			// Denied without a recorded source: no one is named.
+			call('denied-unattributed', { isConfirmed: false }),
+			// Saved before the confirmation was recorded.
+			call('unrecorded', { isConfirmed: undefined }),
+		]))]), { resourceUris });
+
+		assert.deepStrictEqual(turns[0].responseParts.map(part => {
+			if (part.kind !== ResponsePartKind.ToolCall) {
+				return part.kind;
+			}
+			const toolCall = part.toolCall;
+			return toolCall.status === ToolCallStatus.Completed
+				? { id: toolCall.toolCallId, invocationMessage: toolCall.invocationMessage, pastTenseMessage: toolCall.pastTenseMessage, confirmed: toolCall.confirmed, content: toolCall.content }
+				: { id: toolCall.toolCallId, status: toolCall.status, reason: toolCall.status === ToolCallStatus.Cancelled ? toolCall.reason : undefined, reasonMessage: toolCall.status === ToolCallStatus.Cancelled ? toolCall.reasonMessage : undefined };
+		}), [
+			{
+				id: 'outputs',
+				invocationMessage: { markdown: 'Reading [](file:///host/repo/a.ts)' },
+				pastTenseMessage: { markdown: `Read [a.ts](${resourceUris.toAgentHost(URI.parse(resolveWithBaseUri(URI.file('/repo/'), 'a.ts'))).toString()})` },
+				confirmed: ToolCallConfirmationReason.UserAction,
+				content: [
+					{ type: ToolResultContentType.Text, text: 'ok' },
+					{ type: ToolResultContentType.EmbeddedResource, data: 'AAEC', contentType: 'image/png' },
+					{ type: ToolResultContentType.Resource, uri: 'file:///host/repo/out.log', contentType: 'text/plain' },
+				],
+			},
+			{
+				id: 'data', invocationMessage: 'Running', pastTenseMessage: 'Ran', confirmed: ToolCallConfirmationReason.Setting,
+				content: [{ type: ToolResultContentType.EmbeddedResource, data: '/9j/', contentType: 'image/jpeg' }],
+			},
+			// A call that was denied or skipped never ran; who did so is kept when it was recorded.
+			{ id: 'denied', status: ToolCallStatus.Cancelled, reason: ToolCallCancellationReason.Denied, reasonMessage: 'Denied by a hook.' },
+			{ id: 'skipped', status: ToolCallStatus.Cancelled, reason: ToolCallCancellationReason.Skipped, reasonMessage: 'Skipped by the user.' },
+			{ id: 'denied-unattributed', status: ToolCallStatus.Cancelled, reason: ToolCallCancellationReason.Denied, reasonMessage: undefined },
+			{ id: 'unrecorded', invocationMessage: 'Running', pastTenseMessage: 'Ran', confirmed: ToolCallConfirmationReason.NotNeeded, content: undefined },
+		]);
+	});
+
+	test('a data result with no input still shows its output once restored to the chat', () => {
+		const turns = importedTurnsFromChatModel(model([request('q', response([{
+			kind: 'toolInvocationSerialized', toolId: 'screenshot', toolCallId: 'data', invocationMessage: 'Capturing', pastTenseMessage: 'Captured',
+			isComplete: true, isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded }, toolSpecificData: undefined,
+			resultDetails: { output: { type: 'data', mimeType: 'image/png', base64Data: 'AAEC' } },
+		} as unknown as IChatProgressResponseContent]))]));
+		const toolCall = turns[0].responseParts[0].kind === ResponsePartKind.ToolCall ? turns[0].responseParts[0].toolCall : undefined;
+		assert.ok(toolCall?.status === ToolCallStatus.Completed);
+
+		const restored = completedToolCallToSerialized(toolCall, undefined, URI.parse('agent-host-copilot:/session'), 'local');
+		assert.deepStrictEqual(restored.resultDetails, {
+			input: '{}',
+			inputLanguage: 'json',
+			output: [{ type: 'embed', value: 'AAEC', mimeType: 'image/png' }],
+			isError: false,
+			mcpOutput: undefined,
+		});
+	});
+
+	test('shows the agent\'s questions with their answers, requests for input and confirmations', () => {
+		const turns = importedTurnsFromChatModel(model([request('q', response([
+			{
+				kind: 'questionCarousel', allowSkip: true, isUsed: true,
+				questions: [
+					// The question itself is its message; its title is only a short header.
+					{ id: 'db', type: 'singleSelect', title: 'Database', message: new MarkdownString('Which **database**\nshould we use?'), options: [{ id: 'pg', label: 'PostgreSQL', value: 'pg' }] },
+					{ id: 'features', type: 'multiSelect', title: 'Features', options: [{ id: 'auth', label: 'Auth', value: 'auth' }, { id: 'billing', label: 'Billing', value: 'billing' }] },
+					{ id: 'name', type: 'text', title: 'Project name' },
+				],
+				data: { db: { selectedValue: 'pg' }, features: { selectedValues: ['auth', 'billing'], freeformValue: 'Search' } },
+			} as unknown as IChatProgressResponseContent,
+			{ kind: 'elicitationSerialized', title: 'Allow access to the issue tracker', message: 'Needed to file the bug', subtitle: undefined, source: undefined, state: ElicitationState.Accepted, isHidden: false } as unknown as IChatProgressResponseContent,
+			// Answered without a saved answer: by voice, then automatically.
+			{ kind: 'questionCarousel', allowSkip: true, isUsed: true, answeredExternally: true, questions: [{ id: 'spoken', type: 'text', title: 'Branch name' }] } as unknown as IChatProgressResponseContent,
+			{ kind: 'questionCarousel', allowSkip: true, isUsed: true, answeredExternally: true, autoReply: true, questions: [{ id: 'auto', type: 'text', title: 'Retry' }] } as unknown as IChatProgressResponseContent,
+			{ kind: 'elicitationSerialized', title: new MarkdownString('Share *location*'), message: '', subtitle: undefined, source: undefined, state: ElicitationState.Rejected, isHidden: false } as unknown as IChatProgressResponseContent,
+			{ kind: 'confirmation', title: 'Run the tests?', message: 'This takes a while.', data: undefined, isUsed: true } as unknown as IChatProgressResponseContent,
+		]))]));
+
+		assert.deepStrictEqual(turns[0].responseParts.map(part => part.kind === ResponsePartKind.Markdown ? part.content : part.kind), [
+			'\n\nQuestions:\n- Which database should we use?: PostgreSQL\n- Features: Auth, Billing, Search\n- Project name: Skipped\n\n',
+			'\n\nAllow access to the issue tracker: Accepted\n\n',
+			'\n\nQuestions:\n- Branch name: Answered outside the chat\n\n',
+			'\n\nQuestions:\n- Retry: Answered automatically\n\n',
+			'\n\nShare \\*location\\*: Declined\n\n',
+			'\n\n**Run the tests?**\n\nThis takes a while.\n\n',
+		]);
+	});
+
+	test('lists the references a response used first and its code citations last', () => {
+		const range = { startLineNumber: 1, startColumn: 1, endLineNumber: 2, endColumn: 1 };
+		const turns = importedTurnsFromChatModel(model([request('q', response([markdown('Answer')], {
+			references: [
+				{ kind: 'reference', reference: URI.file('/repo/a.ts') },
+				{ kind: 'reference', reference: { uri: URI.file('/repo/b.ts'), range } },
+				// Listed once even when referenced again.
+				{ kind: 'reference', reference: URI.file('/repo/a.ts') },
+				{ kind: 'reference', reference: { variableName: 'codebase' } },
+			],
+			citations: [{ kind: 'codeCitation', value: URI.parse('https://github.com/owner/repo/blob/main/x.ts'), license: 'MIT', snippet: 'x' }],
+		}))]));
+
+		assert.deepStrictEqual(turns[0].responseParts.map(part => part.kind === ResponsePartKind.Markdown ? part.content : part.kind), [
+			`\n\nUsed 3 references: [a.ts](${URI.file('/repo/a.ts').toString()}), [b.ts](${URI.file('/repo/b.ts').toString()}), \\#codebase\n\n`,
+			'Answer',
+			// A web link is written as-is.
+			'\n\nSimilar code found with 1 license type: [x.ts](https://github.com/owner/repo/blob/main/x.ts) (MIT)\n\n',
 		]);
 	});
 

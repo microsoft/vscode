@@ -83,7 +83,7 @@ import { subagentChatUri } from '../../common/agentHostChatMinting.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { ISessionDataService, type StoredAssistantResponsePart } from '../../common/sessionDataService.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
-import { buildDefaultChatUri, buildChatUri, buildSubagentChatUri, buildSubagentSessionUri, CustomizationLoadStatus, MessageKind, readSessionEhcliAdoptable, readSessionWorkspaceless, ResponsePartKind, ToolResultContentType, TurnState, customizationId, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, type ClientPluginCustomization, type Customization, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, buildChatUri, buildSubagentChatUri, buildSubagentSessionUri, CustomizationLoadStatus, MessageKind, readSessionEhcliAdoptable, readSessionWorkspaceless, ResponsePartKind, ToolCallCancellationReason, ToolCallStatus, ToolResultContentType, TurnState, customizationId, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, type ClientPluginCustomization, type Customization, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
 import { ChatOriginKind, CustomizationEnablementKind, CustomizationType, McpServerStatus, SessionStatus, ToolCallContributorKind, type AgentSelection, type ModelSelection, type ProtectedResourceMetadata, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, AuthRequiredReason, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
 
@@ -150,7 +150,7 @@ import { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import { registerPendingEditContentProvider } from '../../node/copilot/pendingEditContentStore.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { createNullSessionDataService, createSessionDataService, TestSessionDatabase as InMemorySessionDatabase } from '../common/sessionTestHelpers.js';
-import { IMPORTED_TURN_DURATIONS_DB_KEY } from '../../node/copilot/buildSessionEvents.js';
+import { IMPORTED_TOOL_CALLS_DB_KEY, IMPORTED_TURN_DURATIONS_DB_KEY } from '../../node/copilot/buildSessionEvents.js';
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import { ByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { IByokLmProxyService, NullByokLmProxyService, type IByokLmToolsCappedEvent } from '../../node/copilot/byokLmProxyService.js';
@@ -27091,7 +27091,13 @@ suite('CopilotAgent', () => {
 					turns: [
 						{ ...turn(withUsage, usage), duration: 4_000 },
 						turn(creditsOnly, { _meta: { copilotUsage: { totalNanoAiu: 0 } } }),
-						turn(noUsage, undefined),
+						{
+							...turn(noUsage, undefined),
+							responseParts: [{
+								kind: ResponsePartKind.ToolCall,
+								toolCall: { status: ToolCallStatus.Cancelled, toolCallId: 'denied', toolName: 'run', displayName: 'Run', invocationMessage: 'Running', reason: ToolCallCancellationReason.Denied },
+							}],
+						},
 						turn('not-a-uuid', usage),
 					],
 				},
@@ -27101,6 +27107,7 @@ suite('CopilotAgent', () => {
 			assert.deepStrictEqual({
 				usages,
 				durations: JSON.parse(await database.getMetadata(IMPORTED_TURN_DURATIONS_DB_KEY) ?? 'null'),
+				toolCalls: JSON.parse(await database.getMetadata(IMPORTED_TOOL_CALLS_DB_KEY) ?? 'null'),
 			}, {
 				usages: [
 					[withUsage, JSON.stringify(usage)],
@@ -27108,6 +27115,8 @@ suite('CopilotAgent', () => {
 				].sort(([a], [b]) => a.localeCompare(b)),
 				// Recorded so a replay does not invent durations from the synthesized event times.
 				durations: { [withUsage]: 4_000, [creditsOnly]: null, [noUsage]: null },
+				// Recorded so a replay restores how each tool call was shown, and that this one never ran.
+				toolCalls: { denied: { displayName: 'Run', invocationMessage: 'Running', cancelled: ToolCallCancellationReason.Denied } },
 			});
 		}).timeout(30_000);
 
