@@ -1680,6 +1680,37 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			assert.deepStrictEqual(prompts.map(prompt => parseLinkedText(prompt ?? '').nodes.filter(node => typeof node !== 'string').length), [0, 0]);
 		});
 
+		test('reviews a local package choice by its command and sends its values once', async () => {
+			const { provider, calls, details } = createFlow({
+				configuration: {
+					...configuration,
+					recommendedChoiceId: undefined,
+					choices: [{
+						choiceId: 'package:0', transport: 'stdio', command: 'npx @example/local@1.2.3 --port ${input:port}', configurationFields: ['args', 'command', 'env'],
+						values: [
+							{ key: 'LOG_LEVEL', category: 'environment-variable', valueType: 'enum', required: true, isRepeated: false, enumValues: ['info', sentinels.region] },
+							{ key: '--port', category: 'package-argument', valueType: 'number', required: false, isRepeated: false, defaultValue: '3000' },
+						],
+						secrets: [],
+					}],
+				},
+			});
+			await provider.install(URI.parse('agent-host-copilotcli:/frontend'), resource, CancellationToken.None);
+			assert.deepStrictEqual({ apply: calls.find(call => Array.isArray(call) && call[0] === 'apply'), detail: details[0].split('\n').slice(2) }, {
+				apply: ['apply', {
+					hostGeneration: 'generation', ownershipToken: 'token', operationId: 'preparation',
+					answers: { choiceId: 'package:0', inputs: [{ key: 'LOG_LEVEL', category: 'environment-variable', value: sentinels.region }], secrets: [] },
+				}],
+				detail: [
+					'Server: owner/configured',
+					'Destination: owner/configured',
+					'Command (your values replace the placeholders): npx @example/local@1.2.3 --port ${input:port}',
+					'Configured values: LOG_LEVEL (environment-variable)',
+					'Configuration fields: args, command, env',
+				],
+			});
+		});
+
 		test('declining workspace trust stops before any connection call', async () => {
 			const { provider, calls } = createFlow({ trusted: false, grantTrust: false });
 			await assert.rejects(provider.install(URI.parse('agent-host-copilotcli:/frontend'), resource, CancellationToken.None), /Canceled/);

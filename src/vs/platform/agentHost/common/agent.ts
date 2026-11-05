@@ -515,8 +515,8 @@ export type IAgentCustomizationInstallationApplyResult =
 	| { readonly kind: 'receipt'; readonly installationId: string }
 	| { readonly kind: 'plugin'; readonly name: string; readonly repository: string; readonly ref: string; readonly path: string };
 
-/** Where a configured MCP value is applied. Only remote categories reach prompts. */
-export type AgentCustomizationInstallationValueCategory = 'header' | 'url-variable';
+/** Where a configured MCP value is applied: remote headers and URL variables, or a local package's environment and arguments. */
+export type AgentCustomizationInstallationValueCategory = 'header' | 'url-variable' | 'environment-variable' | 'runtime-argument' | 'package-argument';
 
 /** One non-secret value a transport choice needs. All text fields are untrusted plain text. */
 export interface IAgentCustomizationInstallationValuePrompt {
@@ -540,12 +540,14 @@ export interface IAgentCustomizationInstallationSecretPrompt {
 	readonly title?: string;
 }
 
-/** One remote transport choice a configuration request offers. */
+/** One transport choice a configuration request offers. */
 export interface IAgentCustomizationInstallationChoice {
 	readonly choiceId: string;
 	readonly transport: string;
 	/** The plan's endpoint summary, which may already include substituted defaults. Not a template. */
 	readonly endpointSummary?: string;
+	/** For a local package, the command it runs, with values still to be supplied shown as `${input:…}` placeholders. */
+	readonly command?: string;
 	/** Names of the configuration fields this choice would set, without their values. */
 	readonly configurationFields: readonly string[];
 	readonly values: readonly IAgentCustomizationInstallationValuePrompt[];

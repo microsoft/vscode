@@ -561,12 +561,15 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 		const title = localize('agentHost.customizationInstall.configureTitle', "Configure '{0}'", toPlainLabel(request.displayName));
 		let choice = request.choices.length === 1 ? request.choices[0] : undefined;
 		if (!choice) {
-			const items = request.choices.map(candidate => ({
-				label: toPlainLabel(candidate.transport),
-				description: candidate.choiceId === request.recommendedChoiceId ? localize('agentHost.customizationInstall.recommended', "Recommended") : undefined,
-				detail: candidate.endpointSummary !== undefined ? toPlainLabel(candidate.endpointSummary) : undefined,
-				choice: candidate,
-			}));
+			const items = request.choices.map(candidate => {
+				const summary = candidate.endpointSummary ?? candidate.command;
+				return {
+					label: toPlainLabel(candidate.transport),
+					description: candidate.choiceId === request.recommendedChoiceId ? localize('agentHost.customizationInstall.recommended', "Recommended") : undefined,
+					detail: summary !== undefined ? toPlainLabel(summary) : undefined,
+					choice: candidate,
+				};
+			});
 			const picked = await this.quickInputService.pick(items, {
 				title,
 				placeHolder: localize('agentHost.customizationInstall.pickTransport', "Select how to connect to this MCP server"),
@@ -733,6 +736,9 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 		const none = localize('agentHost.customizationInstall.none', "None");
 		const values = answers.inputs.map(input => `${toPlainLabel(input.key)} (${input.category})`).join(', ') || none;
 		const secrets = choice.secrets.map(secret => toPlainLabel(secret.key)).join(', ') || none;
+		if (choice.command !== undefined) {
+			return localize('agentHost.customizationInstall.mcpConfiguredLocalInstallDetail', "MCP servers can run tools and access local files. Only install resources from sources you trust.\n\nServer: {0}\nDestination: {1}\nCommand (your values replace the placeholders): {2}\nConfigured values: {3}\nConfiguration fields: {4}", toPlainLabel(request.serverName), toPlainLabel(request.target), toPlainLabel(choice.command), values, choice.configurationFields.map(toPlainLabel).join(', ') || none);
+		}
 		return localize('agentHost.customizationInstall.mcpConfiguredInstallDetail', "MCP servers can run tools and access external services. Only install resources from sources you trust.\n\nServer: {0}\nDestination: {1}\nEndpoint (from the installation plan): {2}\nConfigured values: {3}\nSecrets: {4}\nConfiguration fields: {5}", toPlainLabel(request.serverName), toPlainLabel(request.target), choice.endpointSummary !== undefined ? toPlainLabel(choice.endpointSummary) : localize('agentHost.customizationInstall.notApplicable', "Not applicable"), values, secrets, choice.configurationFields.map(toPlainLabel).join(', ') || none);
 	}
 

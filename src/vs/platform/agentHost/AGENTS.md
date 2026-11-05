@@ -126,6 +126,8 @@ Prepare returns a review, or a configuration request when values or secrets are 
 
 Submitted values and secrets must never appear in reviews, errors or logs. The runtime owns URL/header expansion and configuration validation; shared value rules live in `common/customizationInstallationValues.ts`.
 
+The runtime does not own local package (stdio) installs yet, so the host writes them with `mcp.config.add` after verifying the card against the plan's digest. Only non-secret environment and argument values are supported; packages that need secrets fail closed until the runtime can store them.
+
 ### SDK hook and MCP discovery
 
 `SessionCustomizationDiscovery` publishes `hooks.discover` and `mcp.discover` from the selected host's SDK client and primary working directory. Hook actions retain their opaque IDs and individual enablement; warnings and partial errors produce a degraded inventory, and RPC failures remain visible without discarding successful discovery of other kinds. Filesystem hook locations remain writable creation targets and refresh triggers, not an independent action inventory.
