@@ -36,6 +36,12 @@ const allowedBracketNotationFiles = fs.readFileSync(path.join(import.meta.dirnam
 	.map(line => line.trim())
 	.filter(line => line && !line.startsWith('#'));
 
+const allowedRegisterAfterAwaitFiles = fs.readFileSync(path.join(import.meta.dirname, '.eslint-allowed-register-after-await-files'), 'utf8')
+	.toString()
+	.split(/\r\n|\n/)
+	.map(line => line.trim())
+	.filter(line => line && !line.startsWith('#'));
+
 export default defineConfig(
 	// Global ignores
 	{
@@ -106,6 +112,7 @@ export default defineConfig(
 			'local/code-declare-service-brand': 'warn',
 			'local/code-no-reader-after-await': 'warn',
 			'local/code-no-accessor-after-await': 'warn',
+			'local/code-no-register-after-await': 'warn',
 			'local/code-no-observable-get-in-reactive-context': 'warn',
 			'local/code-no-localized-model-description': 'warn',
 			'local/code-policy-localization-key-match': 'warn',
@@ -220,6 +227,13 @@ export default defineConfig(
 		},
 		rules: {
 			'local/code-no-bracket-notation-for-identifiers': 'warn',
+		},
+	},
+	// Files that already registered disposables after `await` when `local/code-no-register-after-await` was added.
+	{
+		files: allowedRegisterAfterAwaitFiles,
+		rules: {
+			'local/code-no-register-after-await': 'off',
 		},
 	},
 	// TS

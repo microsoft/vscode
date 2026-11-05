@@ -290,6 +290,16 @@ suite('DisposableStore', () => {
 
 		disposables[0].dispose();
 	});
+
+	test('addOrDispose adds while alive and disposes after disposal', () => {
+		const disposed: string[] = [];
+		const store = new DisposableStore();
+		store.addOrDispose(toDisposable(() => disposed.push('added')));
+		store.dispose();
+		store.addOrDispose(toDisposable(() => disposed.push('late')));
+
+		assert.deepStrictEqual(disposed, ['added', 'late']);
+	});
 });
 
 suite('DisposableSet', () => {

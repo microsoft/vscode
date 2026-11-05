@@ -63,6 +63,7 @@ Use tabs, not spaces.
 - Prefer named regex capture groups over numbered ones
 - Do not use `any` or `unknown` unless absolutely necessary
 - Register disposables immediately after creation — use `DisposableStore`, `MutableDisposable`, or `this._register()`
+- After an `await`, register with `this._registerOrDispose(x)` (or `store.addOrDispose(x)`), which disposes `x` if the object was disposed in the meantime. If more work follows, re-check disposal (for example `this._store.isDisposed`) before registering disposables or causing other side effects, and dispose what was created. `local/code-no-register-after-await` reports registrations that skip the check.
 - Declare service dependencies in constructors via DI — never access services through `IInstantiationService` elsewhere. In particular, do **not** lazily resolve a service with `this.instantiationService.invokeFunction(accessor => accessor.get(ISomeService))`; add `@ISomeService` as a constructor parameter instead. If a constructor cycle prevents direct injection, break the cycle (e.g. pass the dependency into an `init()`/wiring method from the orchestrator, or relocate the call) rather than reaching through `invokeFunction`/`accessor.get`.
 - Use `IEditorService` to open editors, not `IEditorGroupsService.activeGroup.openEditor`
 - Avoid `bind()`/`call()`/`apply()` solely for `this` — prefer arrow functions
