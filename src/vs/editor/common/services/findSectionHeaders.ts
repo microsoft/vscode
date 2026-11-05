@@ -19,9 +19,11 @@ export interface FindSectionHeaderOptions {
 	findMarkSectionHeaders: boolean;
 	markSectionHeaderRegex: string;
 	/**
-	 * The token that closes a block comment in the model's language (e.g. `-->` or `*\/`).
-	 * When a mark section header label ends with this token, the token is not part of the label.
+	 * The tokens that open and close a block comment in the model's language (e.g. `<!--` and `-->`).
+	 * When a mark section header is inside a block comment that closes at the end of the header,
+	 * the closing token is comment syntax and not part of the label.
 	 */
+	blockCommentStartToken?: string;
 	blockCommentEndToken?: string;
 }
 
@@ -153,7 +155,12 @@ export function collectMarkHeaders(model: ISectionHeaderFinderTarget, options: F
 				endColumn
 			};
 
-			const { label: text2, separator } = stripBlockCommentEnd((match.groups ?? {})['label'] ?? '', (match.groups ?? {})['separator'] ?? '', options.blockCommentEndToken);
+			let label = (match.groups ?? {})['label'] ?? '';
+			let separator = (match.groups ?? {})['separator'] ?? '';
+			if (isInsideBlockComment(text.substring(lineStartIndex, match.index), options)) {
+				({ label, separator } = stripBlockCommentEnd(label, separator, options.blockCommentEndToken!));
+			}
+			const text2 = label;
 			const hasSeparatorLine = separator !== '';
 
 			const sectionHeader = {
@@ -179,19 +186,32 @@ export function collectMarkHeaders(model: ISectionHeaderFinderTarget, options: F
 }
 
 /**
- * Removes a trailing block comment end token (e.g. `-->` in `<!-- MARK: Section -->`) from a mark section header.
+ * Whether the text that precedes a match on its line leaves a block comment open,
+ * e.g. `<!-- ` in `<!-- MARK: Section -->`, but not `// ` in `// MARK: Regex /foo.*\/`.
  */
-function stripBlockCommentEnd(label: string, separator: string, blockCommentEndToken: string | undefined): { label: string; separator: string } {
-	if (!blockCommentEndToken) {
-		return { label, separator };
+function isInsideBlockComment(linePrefix: string, options: FindSectionHeaderOptions): boolean {
+	const { blockCommentStartToken, blockCommentEndToken } = options;
+	if (!blockCommentStartToken || !blockCommentEndToken) {
+		return false;
 	}
+	const start = linePrefix.lastIndexOf(blockCommentStartToken);
+	return start !== -1 && linePrefix.indexOf(blockCommentEndToken, start + blockCommentStartToken.length) === -1;
+}
+
+/**
+ * Removes the token that closes the enclosing block comment (e.g. `-->` in `<!-- MARK: Section -->`)
+ * from the end of a mark section header.
+ */
+function stripBlockCommentEnd(label: string, separator: string, blockCommentEndToken: string): { label: string; separator: string } {
 	const trimmedLabel = label.trimEnd();
 	if (trimmedLabel.endsWith(blockCommentEndToken)) {
 		return { label: trimmedLabel.substring(0, trimmedLabel.length - blockCommentEndToken.length).trimEnd(), separator };
 	}
-	if (trimmedLabel.length < blockCommentEndToken.length && (separator + trimmedLabel).endsWith(blockCommentEndToken)) {
+	const combined = separator + trimmedLabel;
+	if (trimmedLabel.length < blockCommentEndToken.length && combined.endsWith(blockCommentEndToken)) {
 		// The token was split across the separator and the label, e.g. `<!-- MARK: -->`
-		return { label: '', separator: '' };
+		const remainingSeparator = combined.substring(0, combined.length - blockCommentEndToken.length);
+		return { label: '', separator: remainingSeparator.trim() ? remainingSeparator : '' };
 	}
 	return { label, separator };
 }

@@ -116,6 +116,7 @@ export class SectionHeaderDetector extends Disposable implements IEditorContribu
 		return {
 			foldingRules,
 			markSectionHeaderRegex: minimap.markSectionHeaderRegex,
+			blockCommentStartToken: commentsConfiguration?.blockCommentStartToken,
 			blockCommentEndToken: commentsConfiguration?.blockCommentEndToken,
 			findMarkSectionHeaders: minimap.showMarkSectionHeaders,
 			findRegionSectionHeaders: minimap.showRegionSectionHeaders,
