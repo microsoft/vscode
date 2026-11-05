@@ -8,11 +8,13 @@
 // what changed since (see README.md).
 // Dependency-free, as the jobs download it from the API and run it before they check out.
 //
-//   node image.ts restore --name NAME [--branch main] [--connections 32]
+//   node image.ts restore --name NAME [--branch main] [--connections 32] [--timeout-seconds 240]
 //     Mounts the newest image NAME of a branch at the parent folder of the empty workspace, where
 //     actions/checkout then reuses its .git. Sets the output `used` to 'true' when it did, and warns
 //     instead of failing otherwise, as the job can still install everything. Skips an image whose
-//     commit has other native build inputs (NATIVE_BUILD_INPUTS) than the commit of the job.
+//     commit has other native build inputs (NATIVE_BUILD_INPUTS) than the commit of the job. Gives up
+//     after --timeout-seconds, before the timeout of its step could stop it with the image half
+//     attached, and then leaves the workspace empty, as after any other error.
 //   node image.ts env
 //     Points the pnpm store and the Playwright browsers into the image, for the next steps.
 //   node image.ts seed
@@ -152,6 +154,9 @@ function toolFolders(root: string): Record<string, string> {
 
 //#region downloads
 
+/** Aborts the requests of `restore`, the writes of its image and the PowerShell that attaches it, when `restore` runs out of time */
+const downloads = new AbortController();
+
 function githubHeaders(): Record<string, string> {
 	const token = process.env.GH_TOKEN;
 	if (!token) {
@@ -165,7 +170,7 @@ function repositoryUrl(): string {
 }
 
 async function api<T>(route: string): Promise<T> {
-	const response = await fetch(`${repositoryUrl()}/${route}`, { headers: githubHeaders() });
+	const response = await fetch(`${repositoryUrl()}/${route}`, { headers: githubHeaders(), signal: downloads.signal });
 	if (!response.ok) {
 		throw new Error(`GET ${route}: HTTP ${response.status}`);
 	}
@@ -214,6 +219,7 @@ async function gitObjects(commits: readonly string[], files: readonly string[], 
 		method: 'POST',
 		headers: { ...githubHeaders(), 'Content-Type': 'application/json' },
 		body: JSON.stringify({ query: `query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { ${fields.join(' ')} } }`, variables: { owner, name } }),
+		signal: downloads.signal,
 	});
 	if (!response.ok) {
 		throw new Error(`POST graphql: HTTP ${response.status}`);
@@ -264,7 +270,7 @@ async function checkNativeBuildInputs(imageCommit: string): Promise<void> {
 
 /** The signed URL of an artifact, which expires after a minute */
 async function artifactUrl(id: number): Promise<string> {
-	const response = await fetch(`${repositoryUrl()}/actions/artifacts/${id}/zip`, { headers: githubHeaders(), redirect: 'manual' });
+	const response = await fetch(`${repositoryUrl()}/actions/artifacts/${id}/zip`, { headers: githubHeaders(), redirect: 'manual', signal: downloads.signal });
 	await response.body?.cancel();
 	const location = response.headers.get('location');
 	if (!location) {
@@ -277,7 +283,7 @@ async function fetchRange(url: string, from: number, to: number): Promise<Buffer
 	for (let attempt = 1; ; attempt++) {
 		let status = 0;
 		try {
-			const response = await fetch(url, { headers: { Range: `bytes=${from}-${to}` } });
+			const response = await fetch(url, { headers: { Range: `bytes=${from}-${to}` }, signal: downloads.signal });
 			status = response.status;
 			if (status !== 206) {
 				await response.body?.cancel();
@@ -289,6 +295,7 @@ async function fetchRange(url: string, from: number, to: number): Promise<Buffer
 			}
 			return data;
 		} catch (err) {
+			downloads.signal.throwIfAborted();
 			// An expired URL needs a new one
 			if (status === 403 || attempt === 5) {
 				throw err;
@@ -309,7 +316,7 @@ interface Located {
  * `archive: false`, or else the stored entry of its zip.
  */
 async function locateArtifactData(url: string): Promise<Located> {
-	const response = await fetch(url, { headers: { Range: 'bytes=0-3' } });
+	const response = await fetch(url, { headers: { Range: 'bytes=0-3' }, signal: downloads.signal });
 	const range = response.headers.get('content-range');
 	const head = Buffer.from(await response.arrayBuffer());
 	if (response.status !== 206 || !range) {
@@ -567,6 +574,7 @@ async function unpack(source: Source, file: string, options: { readonly sparse: 
 	let idleSeconds = 0;
 	const worker = async () => {
 		while (next < count) {
+			downloads.signal.throwIfAborted();
 			const index = next++;
 			while (index >= written + window) {
 				await new Promise<void>(resolve => wakeWorkers.push(resolve));
@@ -594,6 +602,8 @@ async function unpack(source: Source, file: string, options: { readonly sparse: 
 			options.sized();
 		}
 		for (let index = 0; index < count; index++) {
+			// The chunks that are downloaded already, or empty, don't wait for a request that the deadline stops
+			downloads.signal.throwIfAborted();
 			const waited = performance.now();
 			while (!ready.has(index)) {
 				await new Promise<void>(resolve => wakeWriter = resolve);
@@ -726,17 +736,46 @@ async function mount(source: Source, root: string, connections: number): Promise
 			const ready = `${file}.ready`;
 			fs.rmSync(file, { force: true });
 			fs.rmSync(ready, { force: true });
-			const attach = spawn('pwsh', ['-NoProfile', '-NonInteractive', '-File', path.join(import.meta.dirname, 'win32', 'vhd.ps1'), '-Path', file, '-WaitFor', ready, '-MountFolder', root, '-CachedIo', '-Trust'], { stdio: 'inherit' });
+			const attach = spawn('pwsh', ['-NoProfile', '-NonInteractive', '-File', path.join(import.meta.dirname, 'win32', 'vhd.ps1'), '-Path', file, '-WaitFor', ready, '-MountFolder', root, '-CachedIo', '-Trust'], { stdio: 'inherit', signal: downloads.signal });
 			const exited = new Promise<number | null>(resolve => {
-				attach.on('error', () => resolve(null));
+				// Stopping it emits 'error' before it exits: only a process that didn't start ends with 'error' alone
+				attach.on('error', () => {
+					if (attach.pid === undefined) {
+						resolve(null);
+					}
+				});
 				attach.on('exit', code => resolve(code));
 			});
-			let removed = false;
+			// Leaves the workspace an empty folder on drive C, whatever vhd.ps1 did before it failed or
+			// was stopped: it may have attached the VHDX (for good, beyond its process), and mounted its
+			// volume. Deleting the VHDX also frees the memory that Windows keeps the temporary file in.
+			const release = () => {
+				// Fails when no volume is mounted at the folder
+				if (spawnSync('mountvol', [`${root}\\`, '/D'], { stdio: 'ignore' }).status === 0) {
+					log(`unmounted the image from ${root}`);
+				}
+				fs.rmSync(ready, { force: true });
+				try {
+					fs.rmSync(file, { force: true });
+				} catch {
+					// Windows keeps an attached VHDX open
+					spawnSync('pwsh', ['-NoProfile', '-NonInteractive', '-Command', 'Dismount-DiskImage -ImagePath $env:WORKSPACE_IMAGE_VHDX | Out-Null'], { stdio: 'inherit', timeout: 30_000, env: { ...process.env, WORKSPACE_IMAGE_VHDX: file } });
+					try {
+						fs.rmSync(file, { force: true });
+						log('detached the image');
+					} catch (err) {
+						log(`could not detach the image: ${err}`);
+					}
+				}
+				fs.mkdirSync(ws, { recursive: true });
+				if (fs.readdirSync(ws).length) {
+					log(`${ws} is not empty`);
+				}
+			};
 			try {
 				log(await unpack(source, file, { sparse: false, temporary: true, connections }));
 				// A volume can only be mounted at an empty folder
 				fs.rmdirSync(ws);
-				removed = true;
 				fs.writeFileSync(ready, '');
 				const code = await exited;
 				if (code !== 0) {
@@ -744,15 +783,11 @@ async function mount(source: Source, root: string, connections: number): Promise
 				}
 			} catch (err) {
 				attach.kill();
-				if (removed) {
-					fs.mkdirSync(ws, { recursive: true });
-				}
+				await exited;
+				release();
 				throw err;
 			}
-			return () => {
-				spawnSync('mountvol', [`${root}\\`, '/D'], { stdio: 'inherit' });
-				fs.mkdirSync(ws, { recursive: true });
-			};
+			return release;
 		}
 		default:
 			throw new Error(`No workspace images on ${process.platform}`);
@@ -808,12 +843,23 @@ async function restoreImage(args: Args): Promise<void> {
 }
 
 async function restore(args: Args): Promise<void> {
+	const timeoutSeconds = Number(args.get('timeout-seconds') ?? '240');
+	if (!(timeoutSeconds > 0)) {
+		throw new Error('--timeout-seconds must be a positive number');
+	}
+	const deadline = setTimeout(() => downloads.abort(new Error(`The restore took longer than ${timeoutSeconds} s`)), timeoutSeconds * 1000);
 	try {
 		await restoreImage(args);
 	} catch (err) {
+		// After the deadline, the errors come from stopping the restore
+		const reason: unknown = downloads.signal.aborted ? downloads.signal.reason : err;
+		// Stops the downloads that are still running
+		downloads.abort();
 		// The job installs everything instead
-		console.log(`::warning title=Workspace image::No workspace image: ${err instanceof Error ? err.message : String(err)}`);
+		console.log(`::warning title=Workspace image::No workspace image: ${reason instanceof Error ? reason.message : String(reason)}`);
 		setOutput('used', 'false');
+	} finally {
+		clearTimeout(deadline);
 	}
 }
 
