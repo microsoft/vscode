@@ -481,8 +481,9 @@ export class ViewModel extends Disposable implements IViewModel {
 				this.viewLayout.changeSpecialLineHeights((accessor: ILineHeightChangeAccessor) => {
 					for (const change of filteredChanges) {
 						const { decorationId, lineNumber, lineHeightMultiplier } = change;
-						const viewRange = this.coordinatesConverter.convertModelRangeToViewRange(new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber)));
-						if (lineHeightMultiplier !== null) {
+						// Hidden model lines can map to visible lines; their height changes must not resize those lines.
+						if (lineHeightMultiplier !== null && this.coordinatesConverter.modelPositionIsVisible(new Position(lineNumber, 1))) {
+							const viewRange = this.coordinatesConverter.convertModelRangeToViewRange(new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber)));
 							accessor.insertOrChangeCustomLineHeight(decorationId, viewRange.startLineNumber, viewRange.endLineNumber, lineHeightMultiplier * this._configuration.options.get(EditorOption.lineHeight));
 						} else {
 							accessor.removeCustomLineHeight(decorationId);
@@ -571,34 +572,33 @@ export class ViewModel extends Disposable implements IViewModel {
 	private readonly hiddenAreasModel = new HiddenAreasModel();
 	private previousHiddenAreas: readonly Range[] = [];
 
-	public getFontSizeAtPosition(position: IPosition): string {
-		return this._getFontSizeAtPosition(position, false);
-	}
-
-	public getLineFontSize(lineNumber: number): string {
-		return this._getFontSizeAtPosition(new Position(lineNumber, 1), true);
-	}
-
-	private _getFontSizeAtPosition(position: IPosition, wholeLine: boolean): string {
-		let fontSize: string = this._configuration.options.get(EditorOption.fontInfo).fontSize + 'px';
+	public getFontSizeAtPosition(position: IPosition): string | null {
 		const allowVariableFonts = this._configuration.options.get(EditorOption.effectiveAllowVariableFonts);
 		if (!allowVariableFonts) {
-			return fontSize;
+			return null;
 		}
-		let range: Range;
-		if (wholeLine) {
-			range = new Range(position.lineNumber, 1, position.lineNumber, this.model.getLineMaxColumn(position.lineNumber));
-		} else {
-			range = Range.fromPositions(position);
-		}
-		const fontDecorations = this.model.getFontDecorationsInRange(range, this._editorId);
+		const fontDecorations = this.model.getFontDecorationsInRange(Range.fromPositions(position), this._editorId);
+		let fontSize: string = this._configuration.options.get(EditorOption.fontInfo).fontSize + 'px';
 		for (const fontDecoration of fontDecorations) {
-			if (wholeLine && !fontDecoration.options.isWholeLine) {
-				continue;
-			}
 			if (fontDecoration.options.fontSize) {
 				fontSize = fontDecoration.options.fontSize;
 				break;
+			}
+		}
+		return fontSize;
+	}
+
+	public getLineFontSize(lineNumber: number): string {
+		const fontSize = this._configuration.options.get(EditorOption.fontInfo).fontSize + 'px';
+		if (!this._configuration.options.get(EditorOption.effectiveAllowVariableFonts)) {
+			return fontSize;
+		}
+		const range = new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber));
+		const fontDecorations = this.model.getFontDecorationsInRange(range, this._editorId);
+		for (const fontDecoration of fontDecorations) {
+			const options = fontDecoration.options;
+			if (options.isWholeLine && !options.inlineClassName && options.fontSize) {
+				return options.fontSize;
 			}
 		}
 		return fontSize;

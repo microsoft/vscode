@@ -1070,7 +1070,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	getFontSizeAtPosition(position: IPosition): string | null;
 
 	/**
-	 * Get the model line's inherited font size before inline overrides.
+	 * Get the model line's font size, excluding inline-class decorations.
 	 * @param lineNumber The 1-based model line number.
 	 * @internal
 	 */

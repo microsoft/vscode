@@ -168,7 +168,7 @@ export class ViewCursor {
 		const lineHeight = this._context.viewLayout.getLineHeightForLineNumber(position.lineNumber);
 		const viewModel = this._context.viewModel;
 		const modelPosition = viewModel.coordinatesConverter.convertViewPositionToModelPosition(position);
-		const fontSize = viewModel.getFontSizeAtPosition(modelPosition);
+		const fontSize = viewModel.getFontSizeAtPosition(modelPosition) ?? `${this._context.configuration.options.get(EditorOption.fontInfo).fontSize}px`;
 		const lineCursorHeight = (
 			this._lineCursorHeight === 0
 				? lineHeight // 0 indicates that the cursor should take the full line height

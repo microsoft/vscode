@@ -88,10 +88,10 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/463f36cdb6be64a8be848160a7d2450af36fcce2199e567c1e1b6d0b5052608c)
 
 #### editor/shrinkEmptyLines/Selected/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/30adbe2292cb1c333453b964747c8e7a8dee7b3d3936be80a627c2aa32d6913e)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/c6f45339b38a493c4242f42ce2392e7c2cf8c8e6e0da4096111f6cc544e61718)
 
 #### editor/shrinkEmptyLines/Shrunk/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/ee4ef112a482391acdbfc8fa31d899812eb86bba85ac6c553a5bacc6f946678d)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/2569ab1a0904c23769ef4570cef8fde3dfbbff03a497d7d131ad2b85079867c9)
 
 #### editor/wordWrapIndicator/WordWrapIndicator/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/9b7191f3dc7cede99687efc61bc2e50324e23b2bd0781ab62aed5bb6c113e77e)

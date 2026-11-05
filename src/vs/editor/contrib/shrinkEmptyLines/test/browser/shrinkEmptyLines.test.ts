@@ -53,7 +53,7 @@ suite('Shrink Empty Lines', () => {
 
 	function getLineFontSizes(editor: ITestCodeEditor): (string | null)[] {
 		return Array.from({ length: editor.getModel().getLineCount() }, (_, index) =>
-			editor.getFontSizeAtPosition({ lineNumber: index + 1, column: 1 }));
+			editor.getLineFontSize(index + 1));
 	}
 
 	function getShrinkingDecorations(model: ITextModel) {
@@ -89,7 +89,7 @@ suite('Shrink Empty Lines', () => {
 				[19, 19, 10, 10, 10, 19, 19, 19],
 				[19, 10, 19, 19],
 			],
-			fontSizes: ['14px', '14px', '14px', '14px'],
+			fontSizes: ['14px', '7px', '14px', '14px'],
 		});
 	});
 
@@ -119,10 +119,10 @@ suite('Shrink Empty Lines', () => {
 		}
 
 		assert.deepStrictEqual(results, [
-			{ lineHeights: [10, 10, 19, 19], fontSizes: ['7px', '14px', '14px', '14px'] },
-			{ lineHeights: [10, 10, 10, 19], fontSizes: ['7px', '14px', '7px', '14px'] },
-			{ lineHeights: [10, 10, 19, 19], fontSizes: ['7px', '14px', '14px', '14px'] },
-			{ lineHeights: [10, 10, 10, 19], fontSizes: ['7px', '14px', '7px', '14px'] },
+			{ lineHeights: [10, 10, 19, 19], fontSizes: ['7px', '7px', '14px', '14px'] },
+			{ lineHeights: [10, 10, 10, 19], fontSizes: ['7px', '7px', '7px', '14px'] },
+			{ lineHeights: [10, 10, 19, 19], fontSizes: ['7px', '7px', '14px', '14px'] },
+			{ lineHeights: [10, 10, 10, 19], fontSizes: ['7px', '7px', '7px', '14px'] },
 		]);
 	});
 
@@ -143,7 +143,7 @@ suite('Shrink Empty Lines', () => {
 		const lineNumbers = [1, 2, 3];
 		const getSizes = () => ({
 			lineHeights: lineNumbers.map(lineNumber => editor.getLineHeightForPosition({ lineNumber, column: 1 })),
-			fontSizes: lineNumbers.map(lineNumber => editor.getFontSizeAtPosition({ lineNumber, column: 1 })),
+			fontSizes: lineNumbers.map(lineNumber => editor.getLineFontSize(lineNumber)),
 		});
 		const results = [getSizes()];
 		const options: IEditorOptions[] = [
@@ -181,24 +181,10 @@ suite('Shrink Empty Lines', () => {
 		});
 	});
 
-	test('distinguishes inherited line fonts from whitespace overrides', () => {
+	test('reads inherited line fonts without whitespace overrides', () => {
 		const { editor } = createEditor('    }\n\t}\n\n    ', { shrinkEmptyLines: 0.5, shrinkEmptyLinesKind: 'punctuation' });
-		const positions = [
-			{ lineNumber: 1, column: 1 },
-			{ lineNumber: 1, column: 5 },
-			{ lineNumber: 2, column: 1 },
-			{ lineNumber: 2, column: 2 },
-			{ lineNumber: 3, column: 1 },
-			{ lineNumber: 4, column: 1 },
-		];
 
-		assert.deepStrictEqual({
-			fonts: positions.map(position => editor.getFontSizeAtPosition(position)),
-			lineFonts: [1, 2, 3, 4].map(lineNumber => editor.getLineFontSize(lineNumber)),
-		}, {
-			fonts: ['14px', '14px', '14px', '14px', '7px', '14px'],
-			lineFonts: ['7px', '7px', '7px', '7px'],
-		});
+		assert.deepStrictEqual(getLineFontSizes(editor), ['7px', '7px', '7px', '7px']);
 	});
 
 	test('reuses classified ranges when the multiplier changes', () => {
@@ -213,7 +199,7 @@ suite('Shrink Empty Lines', () => {
 			scannedLastLine: getLineContent.calledWith(model.getLineCount()),
 			decorationIds: getShrinkingDecorations(model).map(decoration => decoration.id),
 			lineHeights: [1, 500, 1000].map(lineNumber => editor.getViewModel()!.viewLayout.getLineHeightForLineNumber(lineNumber)),
-			fontSize: editor.getFontSizeAtPosition({ lineNumber: 1000, column: 1 }),
+			fontSize: editor.getLineFontSize(1000),
 		}, {
 			scannedLastLine: false,
 			decorationIds,
@@ -277,7 +263,7 @@ suite('Shrink Empty Lines', () => {
 		assert.deepStrictEqual(results, [
 			{ fontSizes: ['20px', '10px', '20px'], punctuationHeight: 15, heightChanges: 0 },
 			{ fontSizes: ['20px', '5px', '20px'], punctuationHeight: 8, heightChanges: 1 },
-			{ fontSizes: ['24px', '6px', '24px'], punctuationHeight: 8, heightChanges: 0 },
+			{ fontSizes: ['24px', '6px', '24px'], punctuationHeight: 8, heightChanges: 1 },
 			{ fontSizes: ['24px', '18px', '24px'], punctuationHeight: 30, heightChanges: 1 },
 			{ fontSizes: ['24px', '24px', '24px'], punctuationHeight: 40, heightChanges: 1 },
 			{ fontSizes: ['24px', '18px', '24px'], punctuationHeight: 30, heightChanges: 1 },
@@ -556,17 +542,18 @@ suite('Shrink Empty Lines', () => {
 		const { editor, model } = createEditor('a\n{ }\n0', { shrinkEmptyLines: 0.5, shrinkEmptyLinesKind: 'punctuation' });
 
 		model.applyEdits([{ range: new Range(2, 4, 2, 4), text: ';' }]);
+		const whitespaceDecorations = getShrinkingDecorations(model).filter(decoration => !decoration.options.isWholeLine);
 
 		assert.deepStrictEqual({
 			lineHeights: getLineHeights(editor),
-			fontRanges: getShrinkingDecorations(model).filter(decoration => !decoration.options.isWholeLine).map(decoration => [decoration.range.startColumn, decoration.range.endColumn]),
-			punctuationFont: editor.getFontSizeAtPosition({ lineNumber: 2, column: 1 }),
-			whitespaceFont: editor.getFontSizeAtPosition({ lineNumber: 2, column: 2 }),
+			fontRanges: whitespaceDecorations.map(decoration => [decoration.range.startColumn, decoration.range.endColumn]),
+			punctuationFont: editor.getLineFontSize(2),
+			whitespaceFonts: whitespaceDecorations.map(decoration => decoration.options.fontSize),
 		}, {
 			lineHeights: [19, 10, 19],
 			fontRanges: [[2, 3]],
 			punctuationFont: '7px',
-			whitespaceFont: '14px',
+			whitespaceFonts: ['14px'],
 		});
 	});
 

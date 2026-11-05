@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
 import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
 import { EndOfLineSequence, PositionAffinity } from '../../../common/model.js';
@@ -322,6 +323,52 @@ suite('ViewModel', () => {
 			model.setEOL(EndOfLineSequence.LF);
 			const actual = viewModel.getPlainTextToCopy([new Range(2, 1, 5, 1)], true, true);
 			assert.deepStrictEqual(actual.sourceText, 'line2\r\nline3\r\nline4\r\n');
+		});
+	});
+
+	test('gets inherited line font sizes independently of inline decorations', () => {
+		testViewModel(['  {}  '], { fontSize: 20, allowVariableFonts: true }, (viewModel, model, configuration) => {
+			const results: string[] = [];
+			const wholeLineDecoration = {
+				range: new Range(1, 1, 1, 7),
+				options: { description: 'test-inherited-font-size', isWholeLine: true, fontSize: '10px' },
+			};
+			const inlineDecorations = [
+				{
+					range: new Range(1, 1, 1, 3),
+					options: { description: 'test-leading-font-size', fontSize: '30px' },
+				},
+				{
+					range: new Range(1, 5, 1, 7),
+					options: { description: 'test-trailing-font-size', fontSize: '30px' },
+				},
+				{
+					range: new Range(1, 1, 1, 7),
+					options: { description: 'test-whole-line-inline-font-size', isWholeLine: true, inlineClassName: 'test-inline-font', fontSize: '40px' },
+				},
+			];
+			let decorationIds = model.deltaDecorations([], inlineDecorations);
+			results.push(viewModel.getLineFontSize(1));
+			for (const wholeLineFirst of [true, false]) {
+				decorationIds = model.deltaDecorations(decorationIds, wholeLineFirst
+					? [wholeLineDecoration, ...inlineDecorations]
+					: [...inlineDecorations, wholeLineDecoration]);
+				results.push(viewModel.getLineFontSize(1));
+			}
+
+			assert.deepStrictEqual(results, [`${configuration.options.get(EditorOption.fontInfo).fontSize}px`, '10px', '10px']);
+		});
+	});
+
+	test('keeps the position font nullable when variable fonts are disabled', () => {
+		testViewModel(['text'], { fontSize: 20, allowVariableFonts: false }, (viewModel, _model, configuration) => {
+			assert.deepStrictEqual({
+				positionFont: viewModel.getFontSizeAtPosition(new Position(1, 1)),
+				lineFont: viewModel.getLineFontSize(1),
+			}, {
+				positionFont: null,
+				lineFont: `${configuration.options.get(EditorOption.fontInfo).fontSize}px`,
+			});
 		});
 	});
 
