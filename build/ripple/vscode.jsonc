@@ -110,6 +110,7 @@
 			".github/actions/setup-electron/**",
 			".github/actions/setup-pnpm/**",
 			".github/actions/restore-node-modules/**",
+			".github/actions/install-linux-packages/**",
 			"build/azure-pipelines/linux/apt-retry.sh",
 			"build/azure-pipelines/linux/xvfb.init"
 		],
