@@ -10,7 +10,7 @@ import * as os from 'node:os';
 import path from 'node:path';
 import { setTimeout } from 'node:timers/promises';
 import { isCloudSandbox, prepareCloudSandbox, prepareCloudSandboxPnpm, raiseCloudSandboxFileLimit } from './cloudSandbox.ts';
-import { getPinnedPnpmVersion } from '../lib/pnpm.ts';
+import { getPinnedPnpmVersion, getPnpmCommand } from '../lib/pnpm.ts';
 import { getNodeGypHeadersDirectory } from './nodeGypHeaders.ts';
 
 const root = fs.realpathSync.native(path.dirname(path.dirname(import.meta.dirname)));
@@ -119,11 +119,10 @@ if (isCloudSandbox()) {
 		raiseCloudSandboxFileLimit(agentPid);
 		raiseCloudSandboxFileLimit(process.pid);
 		if (!completed) {
-			execFileSync(node, [path.join(root, 'build/npm/preinstall.ts')], {
-				cwd: root,
-				stdio: 'inherit',
-				env: { ...process.env, PATH: `${path.dirname(node)}${path.delimiter}${process.env.PATH ?? ''}` },
-			});
+			// pnpm runs the preinstall with the selected Node executable (first on PATH) and passes its node-gyp.
+			const env = { ...process.env, PATH: `${path.dirname(node)}${path.delimiter}${process.env.PATH ?? ''}` };
+			const pnpm = getPnpmCommand(env, process.platform, node);
+			execFileSync(pnpm.command, [...pnpm.args, 'run', 'preinstall'], { cwd: root, stdio: 'inherit', env, shell: pnpm.shell });
 			fs.mkdirSync(path.dirname(stateFile), { recursive: true });
 			fs.writeFileSync(stateFile, fingerprint);
 		}

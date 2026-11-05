@@ -43,6 +43,15 @@ function copyRepositoryFile(root: string, file: string): void {
 }
 
 /**
+ * Lets the cloud sandbox setup run the fixture's `build/npm/preinstall.ts` through `pnpm run preinstall`.
+ */
+function addPreinstallScript(root: string): void {
+	const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+	fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ ...packageJson, scripts: { preinstall: 'node build/npm/preinstall.ts' } }));
+	fs.writeFileSync(path.join(root, 'pnpm-workspace.yaml'), 'verifyDepsBeforeRun: false\n');
+}
+
+/**
  * Environment variables that put node-gyp's header cache inside the fixture `root`.
  */
 function headerCacheEnv(root: string): NodeJS.ProcessEnv {
@@ -759,22 +768,6 @@ suite('Cloud Sandbox install setup', () => {
 		assert.ok(!failedStartup.stdout.includes('prerequisites are ready'));
 	});
 
-	test('the preinstall started directly runs through pnpm, which passes its node-gyp', t => {
-		const root = fixture(t);
-		for (const file of ['build/npm/preinstall.ts', 'build/npm/nodeGypHeaders.ts', 'build/npm/pnpm/nativeBuildEnv.ts', 'build/lib/pnpm.ts']) {
-			copyRepositoryFile(root, file);
-		}
-		fs.writeFileSync(path.join(root, 'build/npm/cloudSandbox.ts'), 'export function isCloudSandbox() { return false; }');
-		fs.writeFileSync(path.join(root, 'record.cjs'), `require('node:fs').writeFileSync('recorded', JSON.stringify([process.env.npm_config_node_gyp, process.env.VSCODE_PREINSTALL_RUN_BY_PNPM]));`);
-		fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: 'sandbox-preinstall-test', version: '1.0.0', scripts: { preinstall: 'node record.cjs' } }));
-		fs.writeFileSync(path.join(root, 'pnpm-workspace.yaml'), 'verifyDepsBeforeRun: false\n');
-		const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^(npm|pnpm)_config_/i.test(key)));
-		const result = spawnSync(process.execPath, ['build/npm/preinstall.ts'], { cwd: root, encoding: 'utf8', timeout: 30_000, env });
-		assert.equal(result.status, 0, result.stdout + result.stderr);
-		const [nodeGyp, runByPnpm] = JSON.parse(fs.readFileSync(path.join(root, 'recorded'), 'utf8'));
-		assert.deepStrictEqual({ nodeGyp: /node-gyp[\\/]bin[\\/]node-gyp\.js$/.test(nodeGyp) && fs.existsSync(nodeGyp), runByPnpm }, { nodeGyp: true, runByPnpm: '1' });
-	});
-
 	test('the session-start hook does not invoke Node for local sessions or non-Linux hosts', t => {
 		if (process.platform === 'win32') {
 			t.skip('The hook uses bash only.');
@@ -832,7 +825,9 @@ suite('Cloud Sandbox install setup', () => {
 		const npmDirectory = path.join(root, 'build/npm');
 		fs.mkdirSync(path.join(root, 'remote'));
 		fs.writeFileSync(path.join(root, 'remote/package.json'), '{}');
-		const selectedNode = path.join(root, 'selected-node');
+		// pnpm runs the preinstall with the first node on PATH.
+		const selectedNode = path.join(root, 'selected', 'node');
+		fs.mkdirSync(path.dirname(selectedNode));
 		const quote = (value: string) => `'${value.replaceAll('\'', '\'\\\'\'')}'`;
 		fs.writeFileSync(selectedNode, `#!/bin/sh
 export SELECTED_NODE_EXECUTED=1
@@ -841,11 +836,12 @@ exec ${quote(process.execPath)} "$@"
 		copyRepositoryFile(root, 'build/npm/cloudSandboxSetup.ts');
 		copyRepositoryFile(root, 'build/npm/nodeGypHeaders.ts');
 		copyRepositoryFile(root, 'build/lib/pnpm.ts');
+		addPreinstallScript(root);
 		fs.writeFileSync(path.join(npmDirectory, 'cloudSandbox.ts'), `
 			export function isCloudSandbox() { return true; }
 			export function prepareCloudSandbox() { return ${JSON.stringify(selectedNode)}; }
 			export function prepareCloudSandboxPnpm({ env }) {
-				if (env.PATH.split(${JSON.stringify(path.delimiter)})[0] !== ${JSON.stringify(root)}) {
+				if (env.PATH.split(${JSON.stringify(path.delimiter)})[0] !== ${JSON.stringify(path.dirname(selectedNode))}) {
 					throw new Error('pnpm must be provided next to the selected Node executable');
 				}
 			}
@@ -856,7 +852,6 @@ exec ${quote(process.execPath)} "$@"
 			import fs from 'node:fs';
 			import { getNodeGypHeadersDirectory } from './nodeGypHeaders.ts';
 			assert.equal(process.env.SELECTED_NODE_EXECUTED, '1');
-			assert.equal(process.env.PATH.split(${JSON.stringify(path.delimiter)})[0], ${JSON.stringify(root)});
 			fs.mkdirSync(getNodeGypHeadersDirectory('43.7.7'), { recursive: true });
 		`);
 		const result = spawnSync(process.execPath, [path.join(npmDirectory, 'cloudSandboxSetup.ts')], {
@@ -879,6 +874,7 @@ exec ${quote(process.execPath)} "$@"
 			copyRepositoryFile(root, 'build/npm/cloudSandboxSetup.ts');
 			copyRepositoryFile(root, 'build/npm/nodeGypHeaders.ts');
 			copyRepositoryFile(root, 'build/lib/pnpm.ts');
+			addPreinstallScript(root);
 			fs.writeFileSync(path.join(npmDirectory, 'cloudSandbox.ts'), `
 				import fs from 'node:fs';
 				export function isCloudSandbox() { return true; }

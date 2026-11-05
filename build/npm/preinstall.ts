@@ -4,28 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 import path from 'path';
 import * as fs from 'fs';
-import * as child_process from 'child_process';
 import * as os from 'os';
 import { isCloudSandbox } from './cloudSandbox.ts';
-import { checkPackageManager, getPinnedPnpmVersion, getPnpmCommand } from '../lib/pnpm.ts';
+import { checkPackageManager, getPinnedPnpmVersion } from '../lib/pnpm.ts';
 import { getNodeGypHeadersDirectory, installNodeGypHeaders } from './nodeGypHeaders.ts';
 import { readNativeBuildConfig } from './pnpm/nativeBuildEnv.ts';
 
 if (!process.env.npm_config_node_gyp) {
-	// Started directly (`node build/npm/preinstall.ts`, as CI and the cloud sandbox do) instead of
-	// by pnpm: run it through pnpm, which passes its node-gyp to the scripts it runs.
-	if (process.env.VSCODE_PREINSTALL_RUN_BY_PNPM) {
-		console.error('\x1b[1;31m*** pnpm did not set npm_config_node_gyp, so the node-gyp that installs the headers is unknown ***\x1b[0;0m');
-		throw new Error();
-	}
-	const pnpm = getPnpmCommand();
-	child_process.execFileSync(pnpm.command, [...pnpm.args, 'run', 'preinstall'], {
-		cwd: path.join(import.meta.dirname, '..', '..'),
-		env: { ...process.env, VSCODE_PREINSTALL_RUN_BY_PNPM: '1' },
-		stdio: 'inherit',
-		shell: pnpm.shell
-	});
-	process.exit(0);
+	// pnpm passes the node-gyp that it builds native modules with to the scripts it runs.
+	console.error('\x1b[1;31m*** Run this script with `pnpm run preinstall`: it installs the headers with the node-gyp that pnpm passes in npm_config_node_gyp ***\x1b[0;0m');
+	throw new Error();
 }
 
 if (!process.env['VSCODE_SKIP_NODE_VERSION_CHECK']) {
