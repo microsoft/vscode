@@ -2357,7 +2357,6 @@ export default defineConfig(
 						'vs/workbench/browser/**',
 						'vs/workbench/services/*/~',
 						'vs/workbench/contrib/sessions/~', // shared sessions model, services and UI
-						'vs/workbench/contrib/sessions/providers/*/~',
 						'vs/sessions/~',
 						'vs/sessions/services/*/~'
 					]
@@ -2395,7 +2394,6 @@ export default defineConfig(
 						'vs/workbench/browser/**',
 						'vs/workbench/services/*/~',
 						'vs/workbench/contrib/*/~',
-						'vs/workbench/contrib/sessions/providers/*/~',
 						'vs/sessions/~',
 						'vs/sessions/contrib/*/~',
 						'vs/sessions/services/*/~',
@@ -2414,7 +2412,6 @@ export default defineConfig(
 						'vs/sessions/~',
 						'vs/sessions/services/*/~',
 						'vs/workbench/contrib/*/~',
-						'vs/workbench/contrib/sessions/providers/*/~',
 						{
 							'when': 'test',
 							'pattern': 'vs/workbench/contrib/*/~'
