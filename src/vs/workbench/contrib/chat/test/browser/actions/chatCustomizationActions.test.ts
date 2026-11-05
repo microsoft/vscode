@@ -111,4 +111,21 @@ suite('Chat customization actions', () => {
 		await instantiation.invokeFunction(openCustomizationChat, PromptsType.agent);
 		assert.deepStrictEqual(calls, []);
 	});
+
+	test('welcome preferences use init only in the destination Local chat', async () => {
+		const preferences = 'Prefer concise commits.';
+		const sessionResources = [LocalChatSessionUri.forSession('local'), URI.parse('agent-host-copilotcli:/session'), URI.parse('claude-code:/session'), undefined];
+		const queries: (string | undefined)[] = [];
+		for (const resource of sessionResources) {
+			const { instantiation, calls } = setup(resource);
+			await instantiation.invokeFunction(openCustomizationChat, 'init', undefined, preferences);
+			queries.push(calls[0].options.query);
+		}
+		assert.deepStrictEqual(queries, [
+			`/init ${preferences}`,
+			`Generate agent customizations. ${preferences}`,
+			`Generate agent customizations. ${preferences}`,
+			`Generate agent customizations. ${preferences}`,
+		]);
+	});
 });

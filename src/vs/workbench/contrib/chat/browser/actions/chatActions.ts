@@ -96,7 +96,7 @@ export const INSERT_FORK_CONVERSATION_COMMAND_ID = 'workbench.action.chat.insert
 export const INSERT_TROUBLESHOOT_COMMAND_ID = 'workbench.action.chat.insertTroubleshootCommand';
 
 /** Opens a customization request using skills only when the destination chat is Local. */
-export async function openCustomizationChat(accessor: ServicesAccessor, type: PromptsType | 'init', workspaceFolder?: URI): Promise<void> {
+export async function openCustomizationChat(accessor: ServicesAccessor, type: PromptsType | 'init', workspaceFolder?: URI, preferences?: string): Promise<void> {
 	const commandService = accessor.get(ICommandService);
 	const widgetService = accessor.get(IChatWidgetService);
 	const widget = await widgetService.revealWidget();
@@ -107,7 +107,7 @@ export async function openCustomizationChat(accessor: ServicesAccessor, type: Pr
 	const sessionResource = widget.viewModel?.sessionResource;
 	let query: string;
 	if (sessionResource && getChatSessionType(sessionResource) === localChatSessionType) {
-		query = type === 'init' ? '/init' : `/create-${type} `;
+		query = type === 'init' ? preferences ? `/init ${preferences}` : '/init' : `/create-${type} `;
 	} else {
 		const documentationUrl = getDocumentationUrl(type === 'init' ? PromptsType.instructions : type);
 		const documentationResource = URI.parse(documentationUrl);
@@ -121,7 +121,9 @@ export async function openCustomizationChat(accessor: ServicesAccessor, type: Pr
 		});
 		switch (type) {
 			case 'init':
-				query = localize('generateInstructions.request', "Analyze this codebase and create agent instructions for it. Follow the attached documentation.");
+				query = preferences
+					? localize('generateCustomizations.request', "Generate agent customizations. {0}", preferences)
+					: localize('generateInstructions.request', "Analyze this codebase and create agent instructions for it. Follow the attached documentation.");
 				break;
 			case PromptsType.instructions:
 				query = localize('generateOnDemandInstructions.request', "Create a new on-demand instructions file. Ask me for the instructions name and purpose and user or workspace location. Do not ask further but come up with a first draft. Check {0}. Finish with a file link to the generated instructions.\n", documentationUrl);
