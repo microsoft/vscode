@@ -19,14 +19,13 @@ import { HoverStartMode, HoverStartSource } from '../../../../../../../../editor
 import { Selection } from '../../../../../../../../editor/common/core/selection.js';
 import { IMarkerDecorationsService } from '../../../../../../../../editor/common/services/markerDecorations.js';
 import { ICodeEditor } from '../../../../../../../../editor/browser/editorBrowser.js';
-import { EditorExtensionsRegistry, MultiCommand } from '../../../../../../../../editor/browser/editorExtensions.js';
+import { EditorContributionInstantiation, MultiCommand } from '../../../../../../../../editor/browser/editorExtensions.js';
 import { CodeEditorWidget } from '../../../../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { ContentHoverController } from '../../../../../../../../editor/contrib/hover/browser/contentHoverController.js';
 import { ShowOrFocusHoverAction } from '../../../../../../../../editor/contrib/hover/browser/hoverActions.js';
 import { SHOW_OR_FOCUS_HOVER_ACTION_ID } from '../../../../../../../../editor/contrib/hover/browser/hoverActionIds.js';
 import { EditorContextKeys } from '../../../../../../../../editor/common/editorContextKeys.js';
 import { HoverAccessibleView, HoverAccessibilityHelp } from '../../../../../../../../editor/contrib/hover/browser/hoverAccessibleViews.js';
-import '../../../../../../../../editor/contrib/hover/browser/hoverContribution.js';
 import { MoveLinesCommand } from '../../../../../../../../editor/contrib/linesOperations/browser/moveLinesCommand.js';
 import { CopyLinesCommand } from '../../../../../../../../editor/contrib/linesOperations/browser/copyLinesCommand.js';
 import { createCodeEditorServices, instantiateTestCodeEditor } from '../../../../../../../../editor/test/browser/testCodeEditor.js';
@@ -115,7 +114,7 @@ suite('ChatInlineAttachments', () => {
 			disposables.add(toDisposable(() => overflowWidgetsDomNode.remove()));
 			editor = disposables.add(instantiationService.createInstance(CodeEditorWidget, container, { overflowWidgetsDomNode }, {
 				isSimpleWidget: true,
-				contributions: EditorExtensionsRegistry.getEditorContributions().filter(contribution => contribution.id === ContentHoverController.ID),
+				contributions: [{ id: ContentHoverController.ID, ctor: ContentHoverController, instantiation: EditorContributionInstantiation.Lazy }],
 			}));
 			editor.setModel(model);
 		} else {
@@ -276,15 +275,18 @@ suite('ChatInlineAttachments', () => {
 			provider = accessibleView.getProvider(accessor);
 			return !!provider;
 		}, accessibleView.when));
-		input.instantiationService.invokeFunction(accessor => command.runCommand(accessor, undefined));
-		assert.ok(provider);
-		store.add(provider);
-		const focusedContext = input.instantiationService.get(IContextKeyService).getContext(dom.getActiveElement());
+		// Hidden Electron test windows don't dispatch native focus events.
+		const focusedElement = dom.getActiveElement();
+		focusedElement?.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+		const focusedContext = input.instantiationService.get(IContextKeyService).getContext(focusedElement);
 		assert.deepStrictEqual({
-			outsideEditor: !input.editor.getDomNode()!.contains(dom.getActiveElement()),
+			outsideEditor: !input.editor.getDomNode()!.contains(focusedElement),
 			accessibleViewAvailable: accessibleView.when.evaluate(focusedContext),
 			accessibilityHelpAvailable: accessibilityHelp.when.evaluate(focusedContext),
 		}, { outsideEditor: true, accessibleViewAvailable: true, accessibilityHelpAvailable: true });
+		input.instantiationService.invokeFunction(accessor => command.runCommand(accessor, undefined));
+		assert.ok(provider);
+		store.add(provider);
 		provider.onOpen?.();
 		const accessibleContent = provider.provideContent();
 		assert.deepStrictEqual({ shownForMouse, renderedBeforeCommand, renderedAfterCommand: rendered > 0, sharedPreviewBeforeCommand, sharedPreviewAfterCommand: sharedPreviewVisible, shown, accessibleContent }, {
