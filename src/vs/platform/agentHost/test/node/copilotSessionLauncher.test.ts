@@ -2010,6 +2010,34 @@ suite('CopilotSessionLauncher shared session config', () => {
 		});
 	}
 
+	test('default availableTools includes context management and session rollover tools for infinite sessions', async () => {
+		const configs: SessionConfig[] = [];
+		const session = {
+			sessionId: 'rollover-session',
+			on: () => () => { },
+			disconnect: async () => { },
+			rpc: { agent: emptyAgentCatalog, options: { update: async () => ({ success: true }) } },
+		} as unknown as CopilotSession;
+		const client = {
+			createSession: async (config: SessionConfig) => { configs.push(config); return session; },
+			rpc: { managedSettings: createUnmanagedCopilotSettings() },
+		} as unknown as CopilotClient;
+		const launcher = createTestLauncher();
+		const plan = {
+			kind: 'create' as const, client, sessionId: 'rollover-session', model: undefined, workingDirectory: testWorkingDirectory,
+			resolvedAgentName: undefined, snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
+			activeClientToolSet: new ActiveClientToolSet(), shellManager: undefined,
+			githubCredentials: CopilotGitHubSessionCredentials.fromCredential({ resource: 'https://api.github.com', token: 'scoped', expiresAt: undefined, revision: 1 }),
+		};
+		const wrapper = await launcher.launch(plan, testRuntime);
+		wrapper.dispose();
+		assert.strictEqual(configs.length, 1);
+		const availableTools = configs[0].availableTools ?? [];
+		for (const tool of ['session_artifacts', 'get_context_remaining', 'session_history', 'new_context']) {
+			assert.ok(availableTools.includes(`builtin:${tool}`), `expected availableTools to include builtin:${tool} for context rollover`);
+		}
+	});
+
 	test('client-owned credentials preserve workspace discovery, tools, BYOK and host policy on create and resume', async () => {
 		const configs: SessionConfig[] = [];
 		const session = {

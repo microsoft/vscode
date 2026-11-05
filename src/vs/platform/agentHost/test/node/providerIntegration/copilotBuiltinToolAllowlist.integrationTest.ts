@@ -62,6 +62,10 @@ const NOT_EXERCISED: Readonly<Record<string, string>> = {
 	list_canvas_capabilities: 'canvases setting',
 	open_canvas: 'canvases setting',
 	invoke_canvas_action: 'canvases setting',
+	session_artifacts: 'context management and infinite session rollover',
+	get_context_remaining: 'context management and infinite session rollover',
+	session_history: 'context management and infinite session rollover',
+	new_context: 'context management and infinite session rollover',
 };
 
 /**
