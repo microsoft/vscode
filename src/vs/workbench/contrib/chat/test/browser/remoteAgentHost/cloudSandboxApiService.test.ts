@@ -4189,6 +4189,55 @@ suite('CloudSandboxApiService incremental discovery', () => {
 		}, { kind: 'complete', since: null, detailFetches: 1 });
 	});
 
+	for (const changedScope of [false, true]) {
+		test(`inventory authentication wait preserves only compatible concurrent task updates (changedScope=${changedScope})`, async () => {
+			const tasks: ITestTask[] = [];
+			let authentication: AuthenticationSession = { id: 'session', accessToken: 'token', account: { id: 'a', label: 'Account' }, scopes: ['repo', 'workflow'] };
+			const originalAuthentication = authentication;
+			const pending = new DeferredPromise<readonly AuthenticationSession[]>();
+			const entered = new DeferredPromise<void>();
+			let holdAuthentication = false;
+			const { service, requestedUrls, changeAuthentication } = createService(store, {
+				tasks, repositories: new Map(), discoveryDate: () => firstScanDate,
+				authenticationSessions: async () => {
+					if (holdAuthentication) {
+						holdAuthentication = false;
+						void entered.complete();
+						return pending.p;
+					}
+					return [authentication];
+				},
+			});
+			await service.listSessions(CancellationToken.None);
+			holdAuthentication = true;
+			const inventory = service.listSessions(CancellationToken.None, { incremental: true });
+			await entered.p;
+			tasks.push(updatedTask('old-authorization', checkpoint));
+			const targeted = await service.listSessions(CancellationToken.None, { taskIds: ['old-authorization'] });
+			tasks.length = 0;
+			if (changedScope) {
+				authentication = { ...authentication, scopes: ['repo'] };
+			}
+			const changed = Event.toPromise(service.onDidChangeAccount);
+			changeAuthentication();
+			await changed;
+			requestedUrls.length = 0;
+			await pending.complete([originalAuthentication]);
+			const result = await inventory;
+			assert.deepStrictEqual({
+				targeted: targeted.kind === 'failed' ? [] : targeted.sessions.map(session => session.taskId),
+				kind: result.kind,
+				tasks: result.kind === 'failed' ? [] : result.sessions.map(session => session.taskId),
+				since: requestedUrls.map(url => new URL(url).searchParams.get('since')),
+			}, {
+				targeted: ['old-authorization'],
+				kind: changedScope ? 'complete' : 'incremental',
+				tasks: changedScope ? [] : ['old-authorization'],
+				since: Array(4).fill(changedScope ? null : checkpoint),
+			});
+		});
+	}
+
 	for (const change of ['token', 'scope', 'account', 'profile', 'provider registration', 'provider removal', 'sign out', 'lookup failure'] as const) {
 		test(`discovery authorization compatibility after ${change} controls actual since and cached-detail reuse`, async () => {
 			let authentication: AuthenticationSession = { id: 'session', accessToken: 'old-token', account: { id: 'a', label: 'Account' }, scopes: ['repo', 'read:user'] };

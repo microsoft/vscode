@@ -266,8 +266,11 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 				this._updateEnablement();
 			}
 			if (e.affectsConfiguration(CloudSandboxSessionFeedEnabledSettingId)) {
+				for (const taskId of this._sessionFeed.value?.takePendingTaskIds() ?? []) {
+					this._pendingTaskIds.add(taskId);
+				}
 				this._sessionFeed.clear();
-				this._pendingTaskIds.clear();
+				void this._refreshPendingTasks();
 				void this._discoverAndSeed({ incremental: true, trigger: 'configurationChange', retry: true });
 			}
 		}));
@@ -284,8 +287,6 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 				return;
 			}
 			const changedAccount = this._restoreAccount(accountKey);
-			this._sessionFeed.clear();
-			this._pendingTaskIds.clear();
 			void this._discoverAndSeed({ incremental: !changedAccount, trigger: 'accountChange', retry: true });
 		}));
 
@@ -413,14 +414,22 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		for (const id of taskIds) {
 			this._pendingTaskIds.add(id);
 		}
+		return this._refreshPendingTasks();
+	}
+
+	/** Accepted task hints retain their access checks after the subscription stops. */
+	private _refreshPendingTasks(): Promise<void> {
+		if (!this._isEnabled() || this._store.isDisposed) {
+			return Promise.resolve();
+		}
 		if (this._taskRefreshInFlight) {
 			this._taskRefreshQueued ??= this._taskRefreshInFlight.then(() => {
 				this._taskRefreshQueued = undefined;
-				return this._refreshTasks([]);
+				return this._refreshPendingTasks();
 			});
 			return this._taskRefreshQueued;
 		}
-		if (!this._pendingTaskIds.size || !this._isEnabled() || this._store.isDisposed) {
+		if (!this._pendingTaskIds.size) {
 			return Promise.resolve();
 		}
 		const token = this._enabledCts.token;
@@ -463,10 +472,13 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			if (!accountKey) {
 				throw new CloudSandboxAuthenticationRequiredError();
 			}
-			if (this._configurationService.getValue<boolean>(CloudSandboxSessionFeedEnabledSettingId) === true && !this._sessionFeed.value) {
-				const feed = this._sessionFeed.value = this._instantiationService.createInstance(CloudSandboxSessionFeed,
+			while (!token.isCancellationRequested && this._isEnabled() && this._configurationService.getValue<boolean>(CloudSandboxSessionFeedEnabledSettingId) === true) {
+				const feed = this._sessionFeed.value ??= this._instantiationService.createInstance(CloudSandboxSessionFeed,
 					refresh => void this._refreshFromFeed(refresh), undefined, undefined);
 				await feed.start();
+				if (this._sessionFeed.value === feed) {
+					break;
+				}
 			}
 			if (token.isCancellationRequested || !this._isEnabled()) {
 				return;
@@ -477,8 +489,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			const mutationVersion = this._sessionMutationVersion;
 			result = await this._apiService.listSessions(token, { incremental, includeArchived, trigger, ...(taskIds ? { taskIds } : {}) });
 			const retryTaskIds = taskIds && (result.kind === 'failed' ? taskIds : result.kind === 'partial' ? result.failedTaskIds : undefined);
-			if (retryTaskIds?.length && !token.isCancellationRequested && this._isEnabled()
-				&& this._configurationService.getValue<boolean>(CloudSandboxSessionFeedEnabledSettingId) === true) {
+			if (retryTaskIds?.length && !token.isCancellationRequested && this._isEnabled()) {
 				const retried = await this._apiService.listSessions(token, { incremental: true, trigger, taskIds: retryTaskIds });
 				if (result.kind === 'failed') {
 					result = retried;

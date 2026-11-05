@@ -141,6 +141,19 @@ suite('CloudSandboxSessionFeed', () => {
 		});
 	}));
 
+	test('drains buffered hints before disposal without replaying the debounce', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const h = createFeed(store);
+		await h.feed.start();
+		h.sockets[0].receive(changed('removed'));
+		h.sockets[0].receive(changed('inaccessible'));
+		const taskIds = h.feed.takePendingTaskIds();
+		h.feed.dispose();
+		await timeout(501);
+		assert.deepStrictEqual({ taskIds, reasons: h.reasons }, {
+			taskIds: ['removed', 'inaccessible'], reasons: [],
+		});
+	}));
+
 	test('a continuous stream still refreshes every debounce interval', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const h = createFeed(store);
 		await h.feed.start();

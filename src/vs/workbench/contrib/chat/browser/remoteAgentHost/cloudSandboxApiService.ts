@@ -326,6 +326,9 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		this._archivedDiscoverySince = undefined;
 		this._discoveredTasks.clear();
 		this._repositoryNames.clear();
+		for (const updates of this._activeDiscoveryReads) {
+			updates.clear();
+		}
 	}
 
 	private _accountKeyForSession(session: AuthenticationSession): string {

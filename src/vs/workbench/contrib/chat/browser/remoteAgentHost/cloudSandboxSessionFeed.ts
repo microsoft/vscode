@@ -36,8 +36,7 @@ export class CloudSandboxSessionFeed extends Disposable {
 	private readonly _reconnect = this._register(new RunOnceScheduler(() => void this._connect(true), reconnectPolicy.initialDelayMs));
 	private readonly _refresh = this._register(new RunOnceScheduler(() => {
 		const reason = this._refreshReason;
-		const taskIds = [...this._taskIds];
-		this._taskIds.clear();
+		const taskIds = this.takePendingTaskIds();
 		this._refreshReason = undefined;
 		if (reason) {
 			this._onInvalidate({ reason });
@@ -71,6 +70,14 @@ export class CloudSandboxSessionFeed extends Disposable {
 	/** Wait for the first connection attempt before the initial authoritative list read. */
 	start(): Promise<void> {
 		return this._start ??= this._connect(false);
+	}
+
+	/** Drains buffered task hints before stopping the subscription. */
+	takePendingTaskIds(): readonly string[] {
+		this._refresh.cancel();
+		const taskIds = [...this._taskIds];
+		this._taskIds.clear();
+		return taskIds;
 	}
 
 	private _invalidate(reason: CloudSandboxSessionFeedRefresh['reason'], taskId?: string): void {
