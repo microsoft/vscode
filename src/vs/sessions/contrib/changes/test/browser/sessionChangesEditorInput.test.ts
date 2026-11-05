@@ -487,6 +487,7 @@ suite('SessionChangesEditorInput', () => {
 			const layoutService = { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop, onDidChangePartVisibility: Event.None, isVisible: () => true };
 			instantiationService.stub(IAgentWorkbenchLayoutService, layoutService);
 			instantiationService.stub(IWorkbenchLayoutService, layoutService);
+			instantiationService.stub(ISessionsHostLayoutService, layoutService);
 			instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
 				override readonly activeSessionUncommittedChangesCountObs = constObservable(0);
 				override getSessionResource(resource: URI): URI | undefined {

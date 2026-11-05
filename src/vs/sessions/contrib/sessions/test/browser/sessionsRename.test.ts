@@ -25,6 +25,7 @@ import { NullTelemetryService } from '../../../../../platform/telemetry/common/t
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
+import { ISessionsHostLayoutService } from '../../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ARCHIVE_SESSION_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { SessionView } from '../../../../browser/parts/sessionView.js';
@@ -1001,6 +1002,7 @@ suite('Sessions rename', () => {
 			const mainContainer = mainWindow.document.createElement('div');
 			mainContainer.classList.toggle('phone-layout', phoneLayout);
 			instantiationService.stub(IWorkbenchLayoutService, { mainContainer });
+			instantiationService.stub(ISessionsHostLayoutService, {});
 
 			mainWindow.document.body.appendChild(origin);
 			disposables.add({ dispose: () => origin.remove() });
