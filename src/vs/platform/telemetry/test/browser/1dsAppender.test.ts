@@ -6,7 +6,7 @@ import type { ITelemetryItem, ITelemetryUnloadState } from '@microsoft/1ds-core-
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { OneDataSystemWebAppender } from '../../browser/1dsAppender.js';
-import { IAppInsightsCore } from '../../common/1dsAppender.js';
+import { applyEnvelopeDefaults, IAppInsightsCore } from '../../common/1dsAppender.js';
 
 class AppInsightsCoreMock implements IAppInsightsCore {
 	pluginVersionString: string = 'Test Runner';
@@ -128,6 +128,27 @@ suite('AIAdapter', () => {
 
 		assert.strictEqual(appInsightsMock.events[0].properties!['nestedObj.nestedObj2.nestedObj3'], JSON.stringify({ 'testProperty': 'test' }));
 		assert.strictEqual(appInsightsMock.events[0].measurements!['nestedObj.testMeasurement'], 1);
+	});
+
+	test('routes an event internally when the machine or the account is internal', () => {
+		const flagsFor = (isInternalMachine: boolean, data?: unknown): number | undefined => {
+			adapter.log('testEvent', data);
+			const envelope = { name: 'testEvent', baseData: appInsightsMock.events.pop() } as ITelemetryItem;
+			applyEnvelopeDefaults(envelope, isInternalMachine);
+			return envelope.ext?.utc?.flags;
+		};
+
+		assert.deepStrictEqual({
+			external: flagsFor(false),
+			internalMachine: flagsFor(true),
+			internalAccount: flagsFor(false, { 'common.msftInternal': true }),
+			externalAccount: flagsFor(false, { 'common.msftInternal': false }),
+		}, {
+			external: undefined,
+			internalMachine: 0x0000811ECD,
+			internalAccount: 0x0000811ECD,
+			externalAccount: undefined,
+		});
 	});
 
 });

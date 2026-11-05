@@ -15,6 +15,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 import { IMarkdownRendererService, openLinkFromMarkdown } from '../../../../platform/markdown/browser/markdownRenderer.js';
+import { IMeteredConnectionService } from '../../../../platform/meteredConnection/common/meteredConnection.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { asTextOrError, IRequestService } from '../../../../platform/request/common/request.js';
@@ -22,7 +23,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IHostService } from '../../../services/host/browser/host.js';
-import { ShowCurrentReleaseNotesActionId } from '../common/update.js';
+import { PostUpdateReleaseNotesSource, ShowCurrentReleaseNotesActionId } from '../common/update.js';
 import { IParsedUpdateInfoInput, parseUpdateInfoInput } from '../common/updateInfoParser.js';
 import { getUpdateInfoUrl, isMajorMinorVersionChange } from '../common/updateUtils.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -52,6 +53,7 @@ export class PostUpdateWidgetContribution extends Disposable implements IWorkben
 		@IHoverService private readonly hoverService: IHoverService,
 		@ILayoutService private readonly layoutService: ILayoutService,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
+		@IMeteredConnectionService private readonly meteredConnectionService: IMeteredConnectionService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IProductService private readonly productService: IProductService,
 		@IRequestService private readonly requestService: IRequestService,
@@ -70,6 +72,10 @@ export class PostUpdateWidgetContribution extends Disposable implements IWorkben
 
 	private async tryShowOnStartup() {
 		if (!await this.hostService.hadLastFocus()) {
+			return;
+		}
+
+		if (this.meteredConnectionService.isConnectionMetered) {
 			return;
 		}
 
@@ -257,7 +263,7 @@ export class PostUpdateWidgetContribution extends Disposable implements IWorkben
 						{ id: commandId, from: 'postUpdateWidget' }
 					);
 
-					void this.commandService.executeCommand(commandId, ...(args ?? []));
+					void this.commandService.executeCommand(commandId, ...(commandId === ShowCurrentReleaseNotesActionId ? [args?.[0], PostUpdateReleaseNotesSource] : args ?? []));
 					this.hoverService.hideHover(true);
 				}));
 			}

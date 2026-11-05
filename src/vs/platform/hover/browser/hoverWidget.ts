@@ -12,7 +12,7 @@ import { KeyCode } from '../../../base/common/keyCodes.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { HoverAction, HoverPosition, HoverWidget as BaseHoverWidget, getHoverAccessibleViewHint } from '../../../base/browser/ui/hover/hoverWidget.js';
 import { Widget } from '../../../base/browser/ui/widget.js';
-import { AnchorPosition } from '../../../base/browser/ui/contextview/contextview.js';
+import { AnchorAlignment, AnchorPosition } from '../../../base/browser/ui/contextview/contextview.js';
 import { IMarkdownRendererService } from '../../markdown/browser/markdownRenderer.js';
 import { isMarkdownString } from '../../../base/common/htmlContent.js';
 import { localize } from '../../../nls.js';
@@ -48,10 +48,18 @@ export class HoverWidget extends Widget implements IHoverWidget {
 	private readonly _hoverPointer: HTMLElement | undefined;
 	private readonly _hoverContainer: HTMLElement;
 	private readonly _target: IHoverTarget;
+	private readonly _clippingElement: HTMLElement | undefined;
+	private readonly _anchorAlignment: AnchorAlignment;
 	private readonly _linkHandler: ((url: string) => void) | undefined;
 
 	private _isDisposed: boolean = false;
+	/** The side the hover is currently laid out on, after falling back if it did not fit. */
 	private _hoverPosition: HoverPosition;
+	/**
+	 * The side the hover was asked to show on. Each layout starts from it again, so a hover that
+	 * had to fall back (e.g. while its image was loading) can return once it fits.
+	 */
+	private readonly _requestedHoverPosition: HoverPosition;
 	private _forcePosition: boolean = false;
 	private _x: number = 0;
 	private _y: number = 0;
@@ -116,6 +124,8 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		this._linkHandler = options.linkHandler;
 
 		this._target = 'targetElements' in options.target ? options.target : new ElementHoverTarget(options.target);
+		this._clippingElement = options.position?.clippingElement;
+		this._anchorAlignment = options.position?.anchorAlignment ?? AnchorAlignment.LEFT;
 
 		if (options.style) {
 			switch (options.style) {
@@ -163,6 +173,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 			: isNumber(options.position.hoverPosition)
 				? options.position.hoverPosition
 				: HoverPosition.BELOW;
+		this._requestedHoverPosition = this._hoverPosition;
 
 		// Don't allow mousedown out of the widget, otherwise preventDefault will call and text will
 		// not be selected.
@@ -357,8 +368,14 @@ export class HoverWidget extends Widget implements IHoverWidget {
 			this._lockMouseTracker?.suppressPendingMouseOut();
 		}
 
+		// Re-evaluate the fallback from the requested position on every layout, since the
+		// content size may have changed (e.g. an image finished loading)
+		this._hoverPosition = this._requestedHoverPosition;
 		this._hover.containerDomNode.classList.remove('right-aligned');
+		// Measure the full content when choosing the side, not the maximum height of a previous layout
+		this._hover.containerDomNode.style.maxHeight = '';
 		this._hover.contentsDomNode.style.maxHeight = '';
+		this._hover.containerDomNode.style.maxWidth = '';
 
 		const getZoomAccountedBoundingClientRect = (e: HTMLElement) => {
 			const zoom = dom.getDomNodeZoomLevel(e);
@@ -373,7 +390,20 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		};
 
 		const targetBounds = this._target.targetElements.map(e => getZoomAccountedBoundingClientRect(e));
-		const { top, right, bottom, left } = targetBounds[0];
+		let { top, right, bottom, left } = targetBounds[0];
+		if (this._clippingElement) {
+			const clip = getZoomAccountedBoundingClientRect(this._clippingElement);
+			const visible = {
+				top: Math.max(top, clip.top),
+				right: Math.min(right, clip.right),
+				bottom: Math.min(bottom, clip.bottom),
+				left: Math.max(left, clip.left),
+			};
+			// Keep the whole target when none of it is visible
+			if (visible.left <= visible.right && visible.top <= visible.bottom) {
+				({ top, right, bottom, left } = visible);
+			}
+		}
 		const width = right - left;
 		const height = bottom - top;
 
@@ -435,6 +465,9 @@ export class HoverWidget extends Widget implements IHoverWidget {
 			this._hoverPointer.classList.remove('left');
 			this._hoverPointer.classList.remove('right');
 			this._hoverPointer.classList.remove('bottom');
+			// The offset along the previous axis would override the new side's CSS position
+			this._hoverPointer.style.top = '';
+			this._hoverPointer.style.left = '';
 
 			this.setHoverPointerPosition(targetRect);
 		}
@@ -443,6 +476,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 
 	private computeXCordinate(target: TargetRect): void {
 		const hoverWidth = this._hover.containerDomNode.clientWidth + Constants.HoverBorderWidth;
+		const documentElementClientLeft = this._targetDocumentElement.clientLeft;
 
 		if (this._target.x !== undefined) {
 			this._x = this._target.x;
@@ -457,21 +491,24 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		}
 
 		else {
-			if (this._hoverPointer) {
+			if (this._anchorAlignment === AnchorAlignment.RIGHT) {
+				this._x = target.right - hoverWidth;
+			} else if (this._hoverPointer) {
 				this._x = target.center.x - (this._hover.containerDomNode.clientWidth / 2);
 			} else {
 				this._x = target.left;
 			}
 
 			// Hover is going beyond window towards right end
-			if (this._x + hoverWidth >= this._targetDocumentElement.clientWidth) {
+			const documentElementClientWidth = this._targetDocumentElement.clientWidth;
+			if (this._x + hoverWidth >= documentElementClientWidth) {
 				this._hover.containerDomNode.classList.add('right-aligned');
-				this._x = Math.max(this._targetDocumentElement.clientWidth - hoverWidth - Constants.HoverWindowEdgeMargin, this._targetDocumentElement.clientLeft);
+				this._x = Math.max(documentElementClientWidth - hoverWidth - Constants.HoverWindowEdgeMargin, documentElementClientLeft);
 			}
 		}
 
 		// Hover is going beyond window towards left end
-		if (this._x < this._targetDocumentElement.clientLeft) {
+		if (this._x < documentElementClientLeft) {
 			this._x = target.left + Constants.HoverWindowEdgeMargin;
 		}
 
@@ -496,6 +533,13 @@ export class HoverWidget extends Widget implements IHoverWidget {
 			} else {
 				this._y = target.bottom;
 			}
+
+			// Keep side hovers within the window so the context view does not need to move them
+			// away from the position the pointer was computed for
+			if (!this._forcePosition) {
+				const hoverHeight = this._hover.containerDomNode.clientHeight + Constants.HoverBorderWidth;
+				this._y = Math.max(Math.min(this._y, this._targetWindow.innerHeight - Constants.HoverWindowEdgeMargin), hoverHeight + Constants.HoverWindowEdgeMargin);
+			}
 		}
 
 		// Hover on bottom is going beyond window
@@ -507,6 +551,14 @@ export class HoverWidget extends Widget implements IHoverWidget {
 	private adjustHorizontalHoverPosition(target: TargetRect): void {
 		// Do not adjust horizontal hover position if x cordiante is provided
 		if (this._target.x !== undefined) {
+			return;
+		}
+
+		if (this._anchorAlignment === AnchorAlignment.RIGHT && (this._hoverPosition === HoverPosition.ABOVE || this._hoverPosition === HoverPosition.BELOW)) {
+			const availableWidth = target.right - this._targetDocumentElement.clientLeft - Constants.HoverWindowEdgeMargin - Constants.HoverBorderWidth;
+			if (this._hover.containerDomNode.clientWidth > availableWidth) {
+				this._hover.containerDomNode.style.maxWidth = `${Math.max(availableWidth, 0)}px`;
+			}
 			return;
 		}
 
@@ -555,8 +607,9 @@ export class HoverWidget extends Widget implements IHoverWidget {
 					this._hoverPosition = HoverPosition.BELOW;
 				}
 			}
-			// Hover on the left is going beyond window.
-			if (target.left - this._hover.containerDomNode.clientWidth - hoverPointerOffset <= this._targetDocumentElement.clientLeft) {
+			// Hover on the left is going beyond window. Only applies while the hover is still on the
+			// left, so the BELOW fallback chosen above is not overridden
+			if (this._hoverPosition === HoverPosition.LEFT && target.left - this._hover.containerDomNode.clientWidth - hoverPointerOffset <= this._targetDocumentElement.clientLeft) {
 				this._hoverPosition = HoverPosition.RIGHT;
 			}
 		}
@@ -570,11 +623,13 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		}
 
 		const hoverPointerOffset = (this._hoverPointer ? Constants.PointerSize : 0);
+		// Compare against the height the hover will have once its maximum height is applied
+		const maxHeight = this._targetWindow.innerHeight * this._maxHeightRatioRelativeToWindow;
 
 		// Position hover on top of the target
 		if (this._hoverPosition === HoverPosition.ABOVE) {
 			// Hover on top is going beyond window
-			if (target.top - this._hover.containerDomNode.clientHeight - hoverPointerOffset < 0) {
+			if (target.top - Math.min(this._hover.containerDomNode.clientHeight, maxHeight) - hoverPointerOffset < 0) {
 				this._hoverPosition = HoverPosition.BELOW;
 			}
 		}
@@ -582,7 +637,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		// Position hover below the target
 		else if (this._hoverPosition === HoverPosition.BELOW) {
 			// Hover on bottom is going beyond window
-			if (target.bottom + this._hover.containerDomNode.offsetHeight + hoverPointerOffset > this._targetWindow.innerHeight) {
+			if (target.bottom + Math.min(this._hover.containerDomNode.offsetHeight, maxHeight) + hoverPointerOffset > this._targetWindow.innerHeight) {
 				this._hoverPosition = HoverPosition.ABOVE;
 			}
 		}
@@ -601,7 +656,12 @@ export class HoverWidget extends Widget implements IHoverWidget {
 			}
 		}
 
+		this._hover.containerDomNode.style.maxHeight = '';
+		const heightOutsideContents = this._hover.containerDomNode.offsetHeight - this._hover.contentsDomNode.offsetHeight;
+		const contentsMaxHeight = Math.max(0, maxHeight - heightOutsideContents);
+
 		this._hover.containerDomNode.style.maxHeight = `${maxHeight}px`;
+		this._hover.contentsDomNode.style.maxHeight = `${contentsMaxHeight}px`;
 		if (this._hover.contentsDomNode.clientHeight < this._hover.contentsDomNode.scrollHeight) {
 			// Add padding for a vertical scrollbar
 			const extraRightPadding = `${this._hover.scrollbar.options.verticalScrollbarSize}px`;
@@ -627,9 +687,9 @@ export class HoverWidget extends Widget implements IHoverWidget {
 					this._hoverPointer.style.top = `${target.center.y - (this._y - hoverHeight) - Constants.PointerSize}px`;
 				}
 
-				// Otherwise show the pointer at the center of hover
+				// Otherwise show the pointer at the center of hover, unrounded so it stays centred
 				else {
-					this._hoverPointer.style.top = `${Math.round((hoverHeight / 2)) - Constants.PointerSize}px`;
+					this._hoverPointer.style.top = `${(hoverHeight / 2) - Constants.PointerSize}px`;
 				}
 
 				break;
@@ -639,8 +699,8 @@ export class HoverWidget extends Widget implements IHoverWidget {
 				this._hoverPointer.classList.add(this._hoverPosition === HoverPosition.ABOVE ? 'bottom' : 'top');
 				const hoverWidth = this._hover.containerDomNode.clientWidth;
 
-				// Position pointer at the center of the hover
-				let pointerLeftPosition = Math.round((hoverWidth / 2)) - Constants.PointerSize;
+				// Position pointer at the center of the hover, unrounded so it stays centred
+				let pointerLeftPosition = (hoverWidth / 2) - Constants.PointerSize;
 
 				// If pointer goes beyond target then position it at the center of the target
 				const pointerX = this._x + pointerLeftPosition;

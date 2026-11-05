@@ -1,0 +1,110 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use create exactly once to create managed-before-clear.txt containing exactly MANAGED_WRITE_CONTENT. Do not use a shell. If denied, stop and reply denied without retrying or using another tool.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: create
+          input:
+            path: ${workdir}/managed-before-clear.txt
+            file_text: MANAGED_WRITE_CONTENT
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use create exactly once to create managed-before-clear.txt containing exactly MANAGED_WRITE_CONTENT. Do not use a shell. If denied, stop and reply denied without retrying or using another tool.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: create
+              input:
+                path: ${workdir}/managed-before-clear.txt
+                file_text: MANAGED_WRITE_CONTENT
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: Created file ${workdir}/managed-before-clear.txt with 21 characters
+    response:
+      content: Done — created managed-before-clear.txt with exactly `MANAGED_WRITE_CONTENT`.
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use create exactly once to create managed-before-clear.txt containing exactly MANAGED_WRITE_CONTENT. Do not use a shell. If denied, stop and reply denied without retrying or using another tool.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: create
+              input:
+                path: ${workdir}/managed-before-clear.txt
+                file_text: MANAGED_WRITE_CONTENT
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: Created file ${workdir}/managed-before-clear.txt with 21 characters
+        - role: assistant
+          content: Done — created managed-before-clear.txt with exactly `MANAGED_WRITE_CONTENT`.
+        - role: user
+          content: Use create exactly once to create managed-after-clear.txt containing exactly MANAGED_WRITE_CONTENT. Do not use a shell. If denied, stop and reply denied without retrying or using another tool.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_1
+          name: create
+          input:
+            file_text: MANAGED_WRITE_CONTENT
+            path: ${workdir}/managed-after-clear.txt
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use create exactly once to create managed-before-clear.txt containing exactly MANAGED_WRITE_CONTENT. Do not use a shell. If denied, stop and reply denied without retrying or using another tool.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: create
+              input:
+                path: ${workdir}/managed-before-clear.txt
+                file_text: MANAGED_WRITE_CONTENT
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: Created file ${workdir}/managed-before-clear.txt with 21 characters
+        - role: assistant
+          content: Done — created managed-before-clear.txt with exactly `MANAGED_WRITE_CONTENT`.
+        - role: user
+          content: Use create exactly once to create managed-after-clear.txt containing exactly MANAGED_WRITE_CONTENT. Do not use a shell. If denied, stop and reply denied without retrying or using another tool.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: create
+              input:
+                file_text: MANAGED_WRITE_CONTENT
+                path: ${workdir}/managed-after-clear.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: Created file ${workdir}/managed-after-clear.txt with 21 characters
+    response:
+      content: Done — created managed-after-clear.txt with exactly `MANAGED_WRITE_CONTENT`.
+      stopReason: end_turn

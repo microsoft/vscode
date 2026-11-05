@@ -152,6 +152,7 @@ export function reviveWebviewContentOptions(webviewOptions: extHostProtocol.IWeb
 	return {
 		allowScripts: webviewOptions.enableScripts,
 		allowForms: webviewOptions.enableForms,
+		forwardUntrustedKeypressEvents: true, // This is always enabled for extensions
 		enableCommandUris: webviewOptions.enableCommandUris,
 		localResourceRoots: Array.isArray(webviewOptions.localResourceRoots) ? webviewOptions.localResourceRoots.map(r => URI.revive(r)) : undefined,
 		portMapping: webviewOptions.portMapping,

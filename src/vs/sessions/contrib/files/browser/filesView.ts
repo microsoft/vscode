@@ -17,20 +17,26 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { agentsPanelBackground } from '../../../common/theme.js';
 import { ExplorerView } from '../../../../workbench/contrib/files/browser/views/explorerView.js';
-import { Codicon } from '../../../../base/common/codicons.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
-import { IAction } from '../../../../base/common/actions.js';
-import { IActionViewItem } from '../../../../base/browser/ui/actionbar/actionbar.js';
-import { IDropdownMenuActionViewItemOptions } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
-import { SyncChangesActionViewItem } from './syncChangesActionViewItem.js';
+import { URI } from '../../../../base/common/uri.js';
+import { Event } from '../../../../base/common/event.js';
+import { NEW_FILE_TAB_COMMAND_ID } from '../../../common/sessionCommands.js';
 
 const $ = dom.$;
 
-export const SESSIONS_FILES_VIEW_ID = 'sessions.files.explorer';
 export const SESSIONS_FILES_EMPTY_VIEW_ID = 'sessions.files.explorer.empty';
 
 export class SessionsExplorerView extends ExplorerView {
+	override async selectResource(resource: URI | undefined, reveal = this.autoReveal, retry = 0): Promise<void> {
+		if (resource && reveal === 'force' && retry === 0) {
+			await this.commandService.executeCommand(NEW_FILE_TAB_COMMAND_ID);
+			if (!this.isBodyVisible()) {
+				await Event.toPromise(Event.filter(this.onDidChangeBodyVisibility, () => this.isBodyVisible()));
+			}
+		}
+		await super.selectResource(resource, reveal, retry);
+	}
+
 	protected override get primaryActionGroups(): string[] | undefined {
 		return ['1_files'];
 	}
@@ -45,13 +51,6 @@ export class SessionsExplorerView extends ExplorerView {
 				listBackground: agentsPanelBackground,
 			}
 		};
-	}
-
-	override createActionViewItem(action: IAction, options?: IDropdownMenuActionViewItemOptions): IActionViewItem | undefined {
-		if (action.id === 'sessions.files.action.syncChanges') {
-			return this.instantiationService.createInstance(SyncChangesActionViewItem, action, options);
-		}
-		return super.createActionViewItem(action, options);
 	}
 }
 
@@ -76,9 +75,6 @@ export class SessionsExplorerEmptyView extends ViewPane {
 
 		const bodyContainer = dom.append(container, $('.files-empty-view-body'));
 		const welcomeContainer = dom.append(bodyContainer, $('.files-empty-welcome'));
-
-		const welcomeIcon = dom.append(welcomeContainer, $('.files-empty-welcome-icon'));
-		welcomeIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.files));
 
 		const welcomeMessage = dom.append(welcomeContainer, $('.files-empty-welcome-message'));
 		welcomeMessage.textContent = localize('filesView.noFiles', "Folders and files will appear here.");

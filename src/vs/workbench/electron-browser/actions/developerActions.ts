@@ -142,6 +142,47 @@ export class ShowContentTracingAction extends Action2 {
 
 let activeTracingEntry: IStatusbarEntryAccessor | undefined;
 
+const tracingCategories = [
+	'content',
+	'renderer_host',
+	'browser',
+	'renderer',
+	'blink',
+	'blink.user_timing',
+	'netlog',
+	'net',
+	'v8',
+	'disabled-by-default-v8.cpu_profiler',
+	'disabled-by-default-v8.compile',
+	'disabled-by-default-v8.gc',
+	'disabled-by-default-v8.gc_stats',
+	'disabled-by-default-devtools.timeline',
+	'disabled-by-default-network',
+	'disabled-by-default-net',
+];
+
+async function startTracingSession(accessor: ServicesAccessor, options: { readonly enableHeapProfiling: boolean }): Promise<void> {
+	const nativeHostService = accessor.get(INativeHostService);
+	const statusbarService = accessor.get(IStatusbarService);
+
+	const categories = [...tracingCategories];
+	if (options.enableHeapProfiling) {
+		categories.push('disabled-by-default-memory-infra');
+	}
+
+	await nativeHostService.startTracing(categories.join(','), { enableHeapProfiling: options.enableHeapProfiling });
+
+	activeTracingEntry?.dispose();
+	activeTracingEntry = statusbarService.addEntry({
+		name: localize('startTracing.name', "Performance Trace"),
+		text: '$(record) ' + localize('startTracing.recording', "Recording trace (click to stop)"),
+		ariaLabel: localize('startTracing.ariaLabel', "Recording performance trace. Click to stop recording."),
+		tooltip: localize('startTracing.tooltip', "Click to stop recording"),
+		kind: 'error',
+		command: StopTracing.ID
+	}, 'status.tracing', StatusbarAlignment.LEFT, -Number.MAX_VALUE);
+}
+
 export class StartTracing extends Action2 {
 
 	constructor() {
@@ -154,37 +195,23 @@ export class StartTracing extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		const nativeHostService = accessor.get(INativeHostService);
-		const statusbarService = accessor.get(IStatusbarService);
+		await startTracingSession(accessor, { enableHeapProfiling: false });
+	}
+}
 
-		const categories = [
-			'content',
-			'renderer_host',
-			'browser',
-			'renderer',
-			'blink',
-			'blink.user_timing',
-			'netlog',
-			'net',
-			'v8',
-			'disabled-by-default-v8.cpu_profiler',
-			'disabled-by-default-devtools.timeline',
-			'disabled-by-default-network',
-			'disabled-by-default-net',
-			'disabled-by-default-v8.gc_stats',
-			'disabled-by-default-v8.stack_trace',
-		];
-		await nativeHostService.startTracing(categories.join(','));
+export class StartHeapTracing extends Action2 {
 
-		activeTracingEntry?.dispose();
-		activeTracingEntry = statusbarService.addEntry({
-			name: localize('startTracing.name', "Performance Trace"),
-			text: '$(record) ' + localize('startTracing.recording', "Recording trace (click to stop)"),
-			ariaLabel: localize('startTracing.ariaLabel', "Recording performance trace. Click to stop recording."),
-			tooltip: localize('startTracing.tooltip', "Click to stop recording"),
-			kind: 'error',
-			command: StopTracing.ID
-		}, 'status.tracing', StatusbarAlignment.LEFT, -Number.MAX_VALUE);
+	constructor() {
+		super({
+			id: 'workbench.action.startHeapTracing',
+			title: localize2('startHeapTracing', 'Start Heap Tracing'),
+			category: Categories.Developer,
+			f1: true
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		await startTracingSession(accessor, { enableHeapProfiling: true });
 	}
 }
 

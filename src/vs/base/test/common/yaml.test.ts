@@ -1259,6 +1259,17 @@ suite('YAML Parser', () => {
 			assert.deepStrictEqual(result.getStringArrayValue('tags'), ['foo', 'bar', 'baz']);
 		});
 
+		test('getStringArrayValue wraps quoted scalars in a single-element array', () => {
+			const input = [
+				'---',
+				'tags: "foo, bar"',
+				'---',
+			].join('\n');
+			const result = parseFrontMatter(input);
+			assert.ok(result);
+			assert.deepStrictEqual(result.getStringArrayValue('tags'), ['foo, bar']);
+		});
+
 	});
 
 	suite('parseCommaSeparatedList', () => {

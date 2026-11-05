@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { encodeHex, VSBuffer } from './buffer.js';
+import { assert } from './assert.js';
 import * as strings from './strings.js';
 
 type NotSyncHashable = ArrayBufferLike | ArrayBufferView;
@@ -56,13 +57,49 @@ export function stringHash(s: string, hashVal: number) {
 	return hashVal;
 }
 
+/**
+ * Returns whether a string belongs to a stable percentage sample.
+ */
+export function isStringInSample(value: string, samplePercentage: number): boolean {
+	assert(Number.isInteger(samplePercentage) && samplePercentage >= 0 && samplePercentage <= 100, 'samplePercentage must be an integer between 0 and 100');
+	return (stringHash(value, 0) >>> 0) % 100 < samplePercentage;
+}
+
+/** Precomputes the affine transform of {@link stringHash} for a fixed string and int32 accumulators. */
+export class ConstantStringHash {
+
+	private readonly multiplier: number;
+	private readonly addend: number;
+
+	constructor(value: string) {
+		let multiplier = 31; // accounts for the seed step of `stringHash`
+		for (let i = 0; i < value.length; i++) {
+			multiplier = Math.imul(multiplier, 31);
+		}
+
+		this.multiplier = multiplier;
+		this.addend = stringHash(value, 0);
+	}
+
+	/** Equivalent to `stringHash(value, hashVal)` for int32 `hashVal`. */
+	apply(hashVal: number): number {
+		return (Math.imul(hashVal, this.multiplier) + this.addend) | 0;
+	}
+}
+
+/** Seed mixed in by {@link arrayHash} before hashing the array elements. */
+export const ARRAY_HASH_SEED = 104579;
+
+/** Seed mixed in by {@link objectHash} before hashing the object entries. */
+export const OBJECT_HASH_SEED = 181387;
+
 function arrayHash(arr: unknown[], initialHashVal: number): number {
-	initialHashVal = numberHash(104579, initialHashVal);
+	initialHashVal = numberHash(ARRAY_HASH_SEED, initialHashVal);
 	return arr.reduce<number>((hashVal, item) => doHash(item, hashVal), initialHashVal);
 }
 
 function objectHash(obj: object, initialHashVal: number): number {
-	initialHashVal = numberHash(181387, initialHashVal);
+	initialHashVal = numberHash(OBJECT_HASH_SEED, initialHashVal);
 	return Object.keys(obj).sort().reduce((hashVal, key) => {
 		hashVal = stringHash(key, hashVal);
 		return doHash((obj as Record<string, unknown>)[key], hashVal);

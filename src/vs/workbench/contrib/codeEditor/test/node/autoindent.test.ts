@@ -95,6 +95,45 @@ function registerTokenizationSupport(instantiationService: TestInstantiationServ
 	return TokenizationRegistry.register(languageId, tokenizationSupport);
 }
 
+suite('Language Configuration Parsing', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+	test('Folding markers support object regex syntax with flags', () => {
+		const parsed = LanguageConfigurationFileHandler.extractValidConfig('testLang', {
+			folding: {
+				markers: {
+					start: { pattern: '^\\s*#region\\b', flags: 'i' },
+					end: { pattern: '^\\s*#endregion\\b', flags: 'i' }
+				}
+			}
+		});
+
+		assert.ok(parsed.folding?.markers);
+		assert.strictEqual(parsed.folding?.markers?.start.flags, 'i');
+		assert.strictEqual(parsed.folding?.markers?.end.flags, 'i');
+		assert.ok(parsed.folding?.markers?.start.test('#REGION'));
+		assert.ok(parsed.folding?.markers?.end.test('#ENDREGION'));
+	});
+
+	test('Auto-closing pairs support beforeText regex syntax with flags', () => {
+		const parsed = LanguageConfigurationFileHandler.extractValidConfig('testLang', {
+			autoClosingPairs: [{
+				open: 'begin',
+				close: 'end',
+				beforeText: { pattern: '(?:^|\\s)begin$', flags: 'i' }
+			}]
+		});
+
+		assert.deepStrictEqual(
+			parsed.autoClosingPairs?.map(pair => ({
+				open: pair.open,
+				close: pair.close,
+				beforeText: pair.beforeText ? { source: pair.beforeText.source, flags: pair.beforeText.flags } : undefined
+			})),
+			[{ open: 'begin', close: 'end', beforeText: { source: '(?:^|\\s)begin$', flags: 'i' } }]
+		);
+	});
+});
+
 suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 
 	const languageId = LanguageId.TypeScript;

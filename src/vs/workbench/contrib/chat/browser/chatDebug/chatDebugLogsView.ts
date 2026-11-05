@@ -482,7 +482,14 @@ export class ChatDebugLogsView extends Disposable {
 			if (!this.currentSessionResource || sessionResource.toString() === this.currentSessionResource.toString()) {
 				this.events = [...this.chatDebugService.getEvents(this.currentSessionResource || undefined)];
 				this.filterDirty = true;
-				this.refreshList();
+				// Coalesce with the re-added events that follow in the same
+				// invokeProviders() pass instead of refreshing synchronously:
+				// a synchronous refresh here would momentarily collapse the
+				// list to the (near-empty) core-only set before the provider
+				// events are re-added, causing a visible flicker. Deferring
+				// lets the debounced refresh rebuild the list once with the
+				// full set.
+				this.scheduleRefresh();
 			}
 		});
 

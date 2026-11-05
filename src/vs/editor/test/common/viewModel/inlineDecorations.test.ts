@@ -316,6 +316,24 @@ suite('InjectedTextInlineDecorationsComputer', () => {
 		]);
 	});
 
+	test('fixed width injection uses its regular inline decoration', () => {
+		const injectionOptions: InjectedTextOptions[] = [
+			{ content: '\xa0', inlineClassName: 'fixed-width', widthInEm: 3 }
+		];
+		const context: IInjectedTextInlineDecorationsComputerContext = {
+			getInjectionOptions: () => injectionOptions,
+			getInjectionOffsets: () => [5],
+			getBreakOffsets: () => [11],
+			getWrappedTextIndentLength: () => 0,
+			getBaseViewLineNumber: () => 1,
+		};
+		const computer = new InjectedTextInlineDecorationsComputer(context);
+		const result = computer.getInlineDecorations(1);
+		assert.deepStrictEqual(result, [
+			[new InlineDecoration(new Range(1, 6, 1, 7), 'fixed-width', InlineDecorationType.Regular)]
+		]);
+	});
+
 	test('injection with inlineClassNameAffectsLetterSpacing', () => {
 		const injectionOptions: InjectedTextOptions[] = [
 			{ content: 'abc', inlineClassName: 'ls-class', inlineClassNameAffectsLetterSpacing: true }
@@ -486,6 +504,139 @@ suite('InjectedTextInlineDecorationsComputer', () => {
 		assert.deepStrictEqual(result, [
 			[new InlineDecoration(new Range(5, 1, 5, 9), 'wrap-class', InlineDecorationType.Regular)],
 			[new InlineDecoration(new Range(6, 1, 6, 3), 'wrap-class', InlineDecorationType.Regular)],
+		]);
+	});
+
+	test('spacing-only injection in the middle of a line', () => {
+		const injectionOptions: InjectedTextOptions[] = [
+			{ content: '', inlineClassName: 'spacer', widthInEm: 1 }
+		];
+		const context: IInjectedTextInlineDecorationsComputerContext = {
+			getInjectionOptions: () => injectionOptions,
+			getInjectionOffsets: () => [5],
+			getBreakOffsets: () => [10],
+			getWrappedTextIndentLength: () => 0,
+			getBaseViewLineNumber: () => 1,
+		};
+		const computer = new InjectedTextInlineDecorationsComputer(context);
+		const result = computer.getInlineDecorations(1);
+		assert.deepStrictEqual(result, [
+			[new InlineDecoration(new Range(1, 6, 1, 6), 'spacer', InlineDecorationType.WidthOnly)]
+		]);
+	});
+
+	test('spacing-only injection at the beginning of a line', () => {
+		const injectionOptions: InjectedTextOptions[] = [
+			{ content: '', inlineClassName: 'spacer', widthInEm: 1 }
+		];
+		const context: IInjectedTextInlineDecorationsComputerContext = {
+			getInjectionOptions: () => injectionOptions,
+			getInjectionOffsets: () => [0],
+			getBreakOffsets: () => [10],
+			getWrappedTextIndentLength: () => 0,
+			getBaseViewLineNumber: () => 1,
+		};
+		const computer = new InjectedTextInlineDecorationsComputer(context);
+		const result = computer.getInlineDecorations(1);
+		assert.deepStrictEqual(result, [
+			[new InlineDecoration(new Range(1, 1, 1, 1), 'spacer', InlineDecorationType.WidthOnly)]
+		]);
+	});
+
+	test('spacing-only injection on an empty line', () => {
+		const injectionOptions: InjectedTextOptions[] = [
+			{ content: '', inlineClassName: 'spacer', widthInEm: 1 }
+		];
+		const context: IInjectedTextInlineDecorationsComputerContext = {
+			getInjectionOptions: () => injectionOptions,
+			getInjectionOffsets: () => [0],
+			getBreakOffsets: () => [0],
+			getWrappedTextIndentLength: () => 0,
+			getBaseViewLineNumber: () => 1,
+		};
+		const computer = new InjectedTextInlineDecorationsComputer(context);
+		const result = computer.getInlineDecorations(1);
+		assert.deepStrictEqual(result, [
+			[new InlineDecoration(new Range(1, 1, 1, 1), 'spacer', InlineDecorationType.WidthOnly)]
+		]);
+	});
+
+	test('spacing-only injection at a wrap boundary belongs to the following line', () => {
+		const injectionOptions: InjectedTextOptions[] = [
+			{ content: '', inlineClassName: 'spacer', widthInEm: 1 }
+		];
+		const context: IInjectedTextInlineDecorationsComputerContext = {
+			getInjectionOptions: () => injectionOptions,
+			getInjectionOffsets: () => [5],
+			getBreakOffsets: () => [5, 10],
+			getWrappedTextIndentLength: () => 0,
+			getBaseViewLineNumber: () => 1,
+		};
+		const computer = new InjectedTextInlineDecorationsComputer(context);
+		const result = computer.getInlineDecorations(1);
+		assert.deepStrictEqual(result, [
+			[],
+			[new InlineDecoration(new Range(2, 1, 2, 1), 'spacer', InlineDecorationType.WidthOnly)]
+		]);
+	});
+
+	test('spacing-only injection at the end of a line', () => {
+		const injectionOptions: InjectedTextOptions[] = [
+			{ content: '', inlineClassName: 'spacer', widthInEm: 1 }
+		];
+		const context: IInjectedTextInlineDecorationsComputerContext = {
+			getInjectionOptions: () => injectionOptions,
+			getInjectionOffsets: () => [10],
+			getBreakOffsets: () => [10],
+			getWrappedTextIndentLength: () => 0,
+			getBaseViewLineNumber: () => 1,
+		};
+		const computer = new InjectedTextInlineDecorationsComputer(context);
+		const result = computer.getInlineDecorations(1);
+		// There is no following output line to move it to, so it stays at the end of this one.
+		assert.deepStrictEqual(result, [
+			[new InlineDecoration(new Range(1, 11, 1, 11), 'spacer', InlineDecorationType.WidthOnly)]
+		]);
+	});
+
+	test('spacing-only injection next to an injection with content', () => {
+		const injectionOptions: InjectedTextOptions[] = [
+			{ content: '', inlineClassName: 'spacer', widthInEm: 1 },
+			{ content: 'AB', inlineClassName: 'text-class' }
+		];
+		const context: IInjectedTextInlineDecorationsComputerContext = {
+			getInjectionOptions: () => injectionOptions,
+			getInjectionOffsets: () => [2, 5],
+			getBreakOffsets: () => [12], // 10 (original) + 0 + 2
+			getWrappedTextIndentLength: () => 0,
+			getBaseViewLineNumber: () => 1,
+		};
+		const computer = new InjectedTextInlineDecorationsComputer(context);
+		const result = computer.getInlineDecorations(1);
+		// The spacing-only injection must not shift the offsets of the injections that follow it.
+		assert.deepStrictEqual(result, [
+			[
+				new InlineDecoration(new Range(1, 3, 1, 3), 'spacer', InlineDecorationType.WidthOnly),
+				new InlineDecoration(new Range(1, 6, 1, 8), 'text-class', InlineDecorationType.Regular),
+			]
+		]);
+	});
+
+	test('spacing-only injection without inlineClassName produces no inline decorations', () => {
+		const injectionOptions: InjectedTextOptions[] = [
+			{ content: '', widthInEm: 1 }
+		];
+		const context: IInjectedTextInlineDecorationsComputerContext = {
+			getInjectionOptions: () => injectionOptions,
+			getInjectionOffsets: () => [5],
+			getBreakOffsets: () => [10],
+			getWrappedTextIndentLength: () => 0,
+			getBaseViewLineNumber: () => 1,
+		};
+		const computer = new InjectedTextInlineDecorationsComputer(context);
+		const result = computer.getInlineDecorations(1);
+		assert.deepStrictEqual(result, [
+			[]
 		]);
 	});
 });

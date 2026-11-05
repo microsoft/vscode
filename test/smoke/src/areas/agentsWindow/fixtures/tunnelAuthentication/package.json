@@ -1,0 +1,20 @@
+{
+	"name": "remote-devcontainer-smoke-authentication",
+	"displayName": "Remote Dev Container Smoke Authentication",
+	"publisher": "vscode-smoke",
+	"version": "0.0.1",
+	"private": true,
+	"license": "MIT",
+	"engines": {
+		"vscode": "^1.100.0"
+	},
+	"main": "./extension.js",
+	"extensionKind": ["ui"],
+	"activationEvents": ["onAuthenticationRequest:github"],
+	"contributes": {
+		"authentication": [{
+			"id": "github",
+			"label": "GitHub"
+		}]
+	}
+}

@@ -51,7 +51,8 @@ class TestGlyphRasterizer implements IGlyphRasterizer {
 			}
 		}
 		const canvas = new OffscreenCanvas(w, h);
-		const ctx = ensureNonNullable(canvas.getContext('2d'));
+		// Force a CPU-backed 2D context. GPU readback can fail silently in CI and produce zero-initialized bytes.
+		const ctx = ensureNonNullable(canvas.getContext('2d', { willReadFrequently: true }));
 		ctx.putImageData(imageData, 0, 0);
 		return {
 			source: canvas,

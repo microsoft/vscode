@@ -1,0 +1,39 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Run exactly this shell command, with no modifications: `node -e "const fs=require(''fs'');fs.mkdirSync(''output'',{recursive:true});fs.writeFileSync(''output/report.txt'',''NESTED_CREATED'')"`. Then reply with exactly "created".'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: ${shell}
+          input:
+            command: node -e "const fs=require('fs');fs.mkdirSync('output',{recursive:true});fs.writeFileSync('output/report.txt','NESTED_CREATED')"
+            description: Create nested output file via node
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Run exactly this shell command, with no modifications: `node -e "const fs=require(''fs'');fs.mkdirSync(''output'',{recursive:true});fs.writeFileSync(''output/report.txt'',''NESTED_CREATED'')"`. Then reply with exactly "created".'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: bash
+              input:
+                command: node -e "const fs=require('fs');fs.mkdirSync('output',{recursive:true});fs.writeFileSync('output/report.txt','NESTED_CREATED')"
+                description: Create nested output file via node
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: '<shellId: 0 completed with exit code 0>'
+    response:
+      content: created
+      stopReason: end_turn

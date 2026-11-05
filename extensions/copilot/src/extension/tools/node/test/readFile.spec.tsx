@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { afterAll, beforeAll, expect, suite, test } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, expect, suite, test, vi } from 'vitest';
+import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { ICustomInstructionsService, SkillStorage } from '../../../../platform/customInstructions/common/customInstructionsService';
 import { IExtensionsService } from '../../../../platform/extensions/common/extensionsService';
 import { IFileSystemService } from '../../../../platform/filesystem/common/fileSystemService';
 import { MockFileSystemService } from '../../../../platform/filesystem/node/test/mockFileSystemService';
+import { IRegionContextProviderService, RegionResult } from '../../../../platform/languageContextProvider/common/regionContextProvider';
 import { NullTelemetryService } from '../../../../platform/telemetry/common/nullTelemetryService';
 import { ITelemetryService, TelemetryEventMeasurements, TelemetryEventProperties } from '../../../../platform/telemetry/common/telemetry';
 import { MockCustomInstructionsService } from '../../../../platform/test/common/testCustomInstructionsService';
@@ -15,17 +17,42 @@ import { TestExtensionsService } from '../../../../platform/test/common/testExte
 import { ITestingServicesAccessor } from '../../../../platform/test/node/services';
 import { TestWorkspaceService } from '../../../../platform/test/node/testWorkspaceService';
 import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
-import { createTextDocumentData } from '../../../../util/common/test/shims/textDocument';
+import { createTextDocumentData, IExtHostDocumentData, setDocText } from '../../../../util/common/test/shims/textDocument';
+import { DeferredPromise } from '../../../../util/vs/base/common/async';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
+import { Disposable, DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { SyncDescriptor } from '../../../../util/vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
-import { MarkdownString } from '../../../../vscodeTypes';
+import { MarkdownString, Range } from '../../../../vscodeTypes';
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
 import { ToolName } from '../../common/toolNames';
 import { IToolsService } from '../../common/toolsService';
-import { IReadFileParamsV1, IReadFileParamsV2, ReadFileTool } from '../readFileTool';
+import { GrepResultService, IGrepResultService, MAX_GREP_RESULT_SESSIONS } from '../grepResultService';
+import { IReadFileParamsV1, IReadFileParamsV2, ReadFileParams, ReadFileTool } from '../readFileTool';
 import { toolResultToString } from './toolTestUtils';
+
+class CapturingTelemetryService extends NullTelemetryService {
+	readonly events: { eventName: string; properties?: TelemetryEventProperties; measurements?: TelemetryEventMeasurements }[] = [];
+	readonly enhancedEvents: { eventName: string; properties?: TelemetryEventProperties }[] = [];
+	readonly internalEvents: { eventName: string; properties?: TelemetryEventProperties }[] = [];
+
+	override sendGHTelemetryEvent(eventName: string, properties?: TelemetryEventProperties, measurements?: TelemetryEventMeasurements): void {
+		this.events.push({ eventName, properties, measurements });
+	}
+
+	override sendEnhancedGHTelemetryEvent(eventName: string, properties?: TelemetryEventProperties): void {
+		this.enhancedEvents.push({ eventName, properties });
+	}
+
+	override sendInternalMSFTTelemetryEvent(eventName: string, properties?: TelemetryEventProperties): void {
+		this.internalEvents.push({ eventName, properties });
+	}
+
+	override sendMSFTTelemetryEvent(eventName: string, properties?: TelemetryEventProperties, measurements?: TelemetryEventMeasurements): void {
+		this.events.push({ eventName, properties, measurements });
+	}
+}
 
 suite('ReadFile', () => {
 	let accessor: ITestingServicesAccessor;
@@ -38,13 +65,19 @@ suite('ReadFile', () => {
 		// Create a large document for testing truncation (3000 lines to exceed MAX_LINES_PER_READ)
 		const largeContent = Array.from({ length: 3000 }, (_, i) => `line ${i + 1}`).join('\n');
 		const largeDoc = createTextDocumentData(URI.file('/workspace/large.ts'), largeContent, 'ts').document;
+		// Create a document with long lines to test per-line truncation (each line is 2500 chars)
+		const longLine = 'x'.repeat(2500);
+		const longLinesContent = `normal line\n${longLine}\nanother normal line\n${longLine}`;
+		const longLinesDoc = createTextDocumentData(URI.file('/workspace/longlines.ts'), longLinesContent, 'ts').document;
+		const surrogateBoundaryLine = 'x'.repeat(1999) + '\u{1F6E1}' + 'tail';
+		const surrogateBoundaryDoc = createTextDocumentData(URI.file('/workspace/surrogate-boundary.ts'), surrogateBoundaryLine, 'ts').document;
 
 		const services = createExtensionUnitTestingServices();
 		services.define(IWorkspaceService, new SyncDescriptor(
 			TestWorkspaceService,
 			[
 				[URI.file('/workspace')],
-				[testDoc, emptyDoc, whitespaceDoc, singleLineDoc, largeDoc],
+				[testDoc, emptyDoc, whitespaceDoc, singleLineDoc, largeDoc, longLinesDoc, surrogateBoundaryDoc],
 			]
 		));
 		accessor = services.createTestingAccessor();
@@ -185,6 +218,37 @@ suite('ReadFile', () => {
 			expect(resultString).not.toContain('line 2001');
 		});
 
+		test('long lines are truncated and a notice is appended', async () => {
+			const toolsService = accessor.get(IToolsService);
+
+			const input: IReadFileParamsV2 = {
+				filePath: '/workspace/longlines.ts'
+			};
+			const result = await toolsService.invokeTool(ToolName.ReadFile, { input, toolInvocationToken: null as never }, CancellationToken.None);
+			const resultString = await toolResultToString(accessor, result);
+			expect(resultString).toContain('normal line');
+			expect(resultString).toContain('[truncated]');
+			expect(resultString).toContain('[One or more long lines were truncated at 2000 characters]');
+			// The truncated line should be at most 2000 chars + ' [truncated]' = ~2012 chars, not the full 2500
+			const lines = resultString.split('\n');
+			const longLines = lines.filter(l => l.includes('x'.repeat(100)));
+			for (const l of longLines) {
+				expect(l.length).toBeLessThan(2500);
+			}
+		});
+
+		test('long line truncation does not split surrogate pairs', async () => {
+			const toolsService = accessor.get(IToolsService);
+			const input: IReadFileParamsV2 = {
+				filePath: '/workspace/surrogate-boundary.ts'
+			};
+			const result = await toolsService.invokeTool(ToolName.ReadFile, { input, toolInvocationToken: null as never }, CancellationToken.None);
+			const resultString = await toolResultToString(accessor, result);
+			const truncatedLine = resultString.split('\n').find(line => line.endsWith(' [truncated]'));
+
+			expect(truncatedLine).toBe('x'.repeat(1999) + ' [truncated]');
+		});
+
 		test('read file with offset beyond file line count should throw error', async () => {
 			const toolsService = accessor.get(IToolsService);
 
@@ -269,6 +333,499 @@ suite('ReadFile', () => {
 			const resultString = await toolResultToString(accessor, result);
 			expect(resultString).toContain('line 2');
 			expect(resultString).not.toContain('line 3');
+		});
+
+	});
+
+	suite('region adjustments', () => {
+		const store = new DisposableStore();
+		const fileUri = URI.file('/workspace/region.ts');
+		const otherFileUri = URI.file('/workspace/other.ts');
+		const firstSession = URI.file('/sessions/first');
+		const secondSession = URI.file('/sessions/second');
+		const lines = Array.from({ length: 30 }, (_, index) => `line ${index + 1}`);
+		const content = lines.join('\n');
+		const input: IReadFileParamsV1 = { filePath: fileUri.fsPath, startLine: 1, endLine: 10 };
+		const independentRequests = [
+			{ name: 'file', input: { ...input, filePath: otherFileUri.fsPath } },
+			{ name: 'start line', input: { ...input, startLine: 3 } },
+			{ name: 'end line', input: { ...input, endLine: 12 } },
+		];
+
+		class TestRegionContextProviderService extends Disposable implements IRegionContextProviderService {
+			declare readonly _serviceBrand: undefined;
+			readonly getRegions = vi.fn<IRegionContextProviderService['getRegions']>().mockResolvedValue(createRegionResult());
+		}
+
+		let testAccessor: ITestingServicesAccessor;
+		let documentData: IExtHostDocumentData;
+		let grepResultService: GrepResultService;
+		let regionProvider: TestRegionContextProviderService;
+		let telemetry: CapturingTelemetryService;
+		let readFileTool: ReadFileTool;
+
+		beforeEach(async () => {
+			documentData = createTextDocumentData(fileUri, content, 'typescript');
+			const otherDocument = createTextDocumentData(otherFileUri, content, 'typescript');
+			const services = store.add(createExtensionUnitTestingServices());
+			services.define(IWorkspaceService, new SyncDescriptor(
+				TestWorkspaceService,
+				[[URI.file('/workspace')], [documentData.document, otherDocument.document]]
+			));
+
+			grepResultService = store.add(new GrepResultService());
+			regionProvider = store.add(new TestRegionContextProviderService());
+			telemetry = new CapturingTelemetryService();
+			services.define(IGrepResultService, grepResultService);
+			services.define(IRegionContextProviderService, regionProvider);
+			services.define(ITelemetryService, telemetry);
+			for (const session of [firstSession, secondSession]) {
+				for (const uri of [fileUri, otherFileUri]) {
+					addGrepResult(session, uri);
+				}
+			}
+
+			testAccessor = services.createTestingAccessor();
+			readFileTool = testAccessor.get(IInstantiationService).createInstance(ReadFileTool);
+			await testAccessor.get(IConfigurationService).setConfig(ConfigKey.ReadFileToolAllowLineAdjustments, true);
+		});
+
+		afterEach(() => store.clear());
+		afterAll(() => store.dispose());
+
+		function createRegionResult(startLine = 3, endLine = 5): RegionResult {
+			return {
+				regions: [{ kind: 'function', range: { start: startLine, end: endLine } }],
+				paths: { smallest: [0] },
+			};
+		}
+
+		function addGrepResult(session = firstSession, uri = fileUri): void {
+			const matchRange = new Range(4, 0, 4, 6);
+			grepResultService.addGrepResult(session, 'grep-request', {
+				files: [{
+					uri,
+					matches: [{
+						uri,
+						previewText: 'line 5',
+						ranges: [{ previewRange: matchRange, sourceRange: matchRange }]
+					}]
+				}]
+			});
+		}
+
+		function expectedLines(startLine: number, endLine: number): string {
+			return lines.slice(startLine - 1, endLine).join('\n');
+		}
+
+		async function invoke(params: ReadFileParams = input, chatSessionResource = firstSession, chatRequestId = 'request'): Promise<string> {
+			const result = await readFileTool.invoke(
+				{ input: params, chatSessionResource, chatRequestId, toolInvocationToken: undefined },
+				CancellationToken.None
+			);
+			return toolResultToString(testAccessor, result);
+		}
+
+		function failureReasons() {
+			return telemetry.events
+				.filter(event => event.eventName === 'readFileRegionAdjustingFailed')
+				.map(event => event.properties?.reason);
+		}
+
+		test('only trims trailing lines and returns the requested range when the read is repeated in the same chat session', async () => {
+			expect({
+				firstRead: await invoke(input, firstSession, 'first-request'),
+				repeatedRead: await invoke(input, firstSession, 'followup-request'),
+				otherSessionRead: await invoke(input, secondSession, 'second-request'),
+				thirdRead: await invoke(input, firstSession, 'third-request'),
+				regionCalls: regionProvider.getRegions.mock.calls.length,
+			}).toEqual({
+				firstRead: expectedLines(1, 6),
+				repeatedRead: expectedLines(1, 10),
+				otherSessionRead: expectedLines(1, 6),
+				thirdRead: expectedLines(1, 10),
+				regionCalls: 2,
+			});
+		});
+
+		test('recovers omitted lines on a consecutive read without shortening its end', async () => {
+			expect({
+				firstRead: await invoke({ ...input, startLine: 4 }),
+				continuedRead: await invoke({ ...input, startLine: 11, endLine: 20 }),
+				requestedRegions: regionProvider.getRegions.mock.calls.map(call => call[3]),
+			}).toEqual({
+				firstRead: expectedLines(4, 6),
+				continuedRead: expectedLines(7, 20),
+				requestedRegions: [{ start: 3, end: 9 }],
+			});
+		});
+
+		test.each([
+			{ name: 'repeated reads', nextInput: input, expectedStart: 1, expectedEnd: 10 },
+			{ name: 'consecutive reads', nextInput: { ...input, startLine: 11, endLine: 20 }, expectedStart: 7, expectedEnd: 20 },
+		])('preserves $name when individual grep results are evicted', async ({ nextInput, expectedStart, expectedEnd }) => {
+			await invoke();
+			for (let i = 0; i < 17; i++) {
+				addGrepResult();
+			}
+
+			expect({
+				text: await invoke(nextInput),
+				regionCalls: regionProvider.getRegions.mock.calls.length,
+			}).toEqual({
+				text: expectedLines(expectedStart, expectedEnd),
+				regionCalls: 1,
+			});
+		});
+
+		test('only clears read adjustments for the evicted session', async () => {
+			await invoke();
+			await invoke(input, secondSession);
+			for (let i = 0; i < MAX_GREP_RESULT_SESSIONS - 1; i++) {
+				addGrepResult(URI.file(`/sessions/eviction-${i}`));
+			}
+
+			const retainedRead = await invoke(input, secondSession);
+			const evictedContinuation = await invoke({ ...input, startLine: 11, endLine: 20 });
+			addGrepResult();
+
+			expect({
+				retainedRead,
+				evictedContinuation,
+				newRead: await invoke(),
+				regionCalls: regionProvider.getRegions.mock.calls.length,
+			}).toEqual({
+				retainedRead: expectedLines(1, 10),
+				evictedContinuation: expectedLines(11, 20),
+				newRead: expectedLines(1, 6),
+				regionCalls: 3,
+			});
+		});
+
+		test.each([7, 10, 12])('does not expand a nonconsecutive read starting at line %i', async startLine => {
+			await invoke();
+
+			expect({
+				text: await invoke({ ...input, startLine, endLine: 20 }),
+				regionCalls: regionProvider.getRegions.mock.calls.length,
+			}).toEqual({
+				text: expectedLines(startLine, 20),
+				regionCalls: 1,
+			});
+		});
+
+		test.each(independentRequests)('tracks requests with a different $name independently', async ({ input: otherInput }) => {
+			expect({
+				firstRead: await invoke(),
+				otherRead: await invoke(otherInput),
+				repeatedRead: await invoke(),
+				repeatedOtherRead: await invoke(otherInput),
+				regionCalls: regionProvider.getRegions.mock.calls.length,
+			}).toEqual({
+				firstRead: expectedLines(1, 6),
+				otherRead: expectedLines(otherInput.startLine, 6),
+				repeatedRead: expectedLines(1, 10),
+				repeatedOtherRead: expectedLines(otherInput.startLine, otherInput.endLine),
+				regionCalls: 2,
+			});
+		});
+
+		test.each([[5, 7], [7, 5]])('uses the earliest adjusted end across different starts (%i then %i)', async (firstEnd, secondEnd) => {
+			regionProvider.getRegions
+				.mockResolvedValueOnce(createRegionResult(3, firstEnd))
+				.mockResolvedValueOnce(createRegionResult(3, secondEnd));
+
+			expect({
+				firstRead: await invoke(),
+				secondRead: await invoke({ ...input, startLine: 3 }),
+				continuedRead: await invoke({ ...input, startLine: 11, endLine: 20 }),
+				regionCalls: regionProvider.getRegions.mock.calls.length,
+			}).toEqual({
+				firstRead: expectedLines(1, firstEnd + 1),
+				secondRead: expectedLines(3, secondEnd + 1),
+				continuedRead: expectedLines(7, 20),
+				regionCalls: 2,
+			});
+		});
+
+		test.each([
+			{ name: 'an undefined result', result: undefined },
+			{ name: 'empty regions', result: { regions: [], paths: { smallest: [] } } },
+		])('allows retrying after the provider returns $name', async ({ result }) => {
+			regionProvider.getRegions.mockResolvedValueOnce(result);
+
+			expect({
+				firstRead: await invoke(),
+				retriedRead: await invoke(),
+				reasons: failureReasons(),
+				regionCalls: regionProvider.getRegions.mock.calls.length,
+			}).toEqual({
+				firstRead: expectedLines(1, 10),
+				retriedRead: expectedLines(1, 6),
+				reasons: ['noGrepRegions'],
+				regionCalls: 2,
+			});
+		});
+
+		test.each(independentRequests)('preserves successful adjustments when cancelling a different $name', async ({ input: otherInput }) => {
+			await invoke();
+			regionProvider.getRegions.mockResolvedValueOnce(undefined);
+
+			expect({
+				failedRead: await invoke(otherInput),
+				continuedRead: await invoke({ ...input, startLine: 11, endLine: 20 }),
+				retriedRead: await invoke(otherInput),
+				reasons: failureReasons(),
+				regionCalls: regionProvider.getRegions.mock.calls.length,
+			}).toEqual({
+				failedRead: expectedLines(otherInput.startLine, otherInput.endLine),
+				continuedRead: expectedLines(7, 20),
+				retriedRead: expectedLines(otherInput.startLine, 6),
+				reasons: ['noGrepRegions'],
+				regionCalls: 3,
+			});
+		});
+
+		test('allows retrying after the document changes during region lookup', async () => {
+			regionProvider.getRegions.mockImplementationOnce(async () => {
+				setDocText(documentData, content);
+				return createRegionResult();
+			});
+
+			expect({
+				firstRead: await invoke(),
+				retriedRead: await invoke(),
+				reasons: failureReasons(),
+				regionCalls: regionProvider.getRegions.mock.calls.length,
+			}).toEqual({
+				firstRead: expectedLines(1, 10),
+				retriedRead: expectedLines(1, 6),
+				reasons: ['documentVersionChanged'],
+				regionCalls: 2,
+			});
+		});
+
+		test('allows retrying after the region provider throws', async () => {
+			regionProvider.getRegions.mockRejectedValueOnce(new Error('Region lookup failed'));
+
+			expect({
+				firstRead: await invoke(),
+				retriedRead: await invoke(),
+				reasons: failureReasons(),
+				regionCalls: regionProvider.getRegions.mock.calls.length,
+			}).toEqual({
+				firstRead: expectedLines(1, 10),
+				retriedRead: expectedLines(1, 6),
+				reasons: ['exception'],
+				regionCalls: 2,
+			});
+		});
+
+		test.each([
+			{ name: 'before the requested start', endLine: 1 },
+			{ name: 'at the requested end', endLine: 9 },
+			{ name: 'after the requested end', endLine: 12 },
+		])('does not remember an unapplied adjustment ending $name', async ({ endLine }) => {
+			regionProvider.getRegions.mockResolvedValueOnce(createRegionResult(0, endLine));
+			const requestedInput = { ...input, startLine: 4 };
+
+			expect({
+				firstRead: await invoke(requestedInput),
+				nextRead: await invoke({ ...input, startLine: 11, endLine: 20 }),
+				retriedRead: await invoke(requestedInput),
+				regionCalls: regionProvider.getRegions.mock.calls.length,
+			}).toEqual({
+				firstRead: expectedLines(4, 10),
+				nextRead: expectedLines(11, 20),
+				retriedRead: expectedLines(4, 6),
+				regionCalls: 2,
+			});
+		});
+
+		test('can shorten to a single requested line and recover the remainder', async () => {
+			regionProvider.getRegions.mockResolvedValueOnce(createRegionResult(0, 3));
+
+			expect({
+				firstRead: await invoke({ ...input, startLine: 4 }),
+				continuedRead: await invoke({ ...input, startLine: 11, endLine: 20 }),
+			}).toEqual({
+				firstRead: expectedLines(4, 4),
+				continuedRead: expectedLines(5, 20),
+			});
+		});
+
+		test('does not reserve a read before grep results are available', async () => {
+			const session = URI.file('/sessions/no-grep');
+			const firstRead = await invoke(input, session);
+			addGrepResult(session);
+
+			expect({
+				firstRead,
+				retriedRead: await invoke(input, session),
+				reasons: failureReasons(),
+				regionCalls: regionProvider.getRegions.mock.calls.length,
+			}).toEqual({
+				firstRead: expectedLines(1, 10),
+				retriedRead: expectedLines(1, 6),
+				reasons: ['noGrep'],
+				regionCalls: 1,
+			});
+		});
+
+		test('does not use grep matches outside the requested range', async () => {
+			expect({
+				text: await invoke({ ...input, startLine: 11, endLine: 20 }),
+				reasons: failureReasons(),
+				regionCalls: regionProvider.getRegions.mock.calls.length,
+			}).toEqual({
+				text: expectedLines(11, 20),
+				reasons: ['noGrep'],
+				regionCalls: 0,
+			});
+		});
+
+		test('preserves the reservation across duplicate reads during and after region lookup', async () => {
+			const started = new DeferredPromise<void>();
+			const response = new DeferredPromise<RegionResult>();
+			regionProvider.getRegions.mockImplementationOnce(() => {
+				void started.complete();
+				return response.p;
+			});
+
+			const firstRead = invoke();
+			await started.p;
+			let repeatedRead: string;
+			let thirdRead: string;
+			try {
+				repeatedRead = await invoke();
+				thirdRead = await invoke();
+			} finally {
+				await response.complete(createRegionResult());
+				await firstRead;
+			}
+
+			expect({
+				firstRead: await firstRead,
+				repeatedRead,
+				thirdRead,
+				readAfterCompletion: await invoke(),
+				continuedRead: await invoke({ ...input, startLine: 11, endLine: 20 }),
+				regionCalls: regionProvider.getRegions.mock.calls.length,
+			}).toEqual({
+				firstRead: expectedLines(1, 6),
+				repeatedRead: expectedLines(1, 10),
+				thirdRead: expectedLines(1, 10),
+				readAfterCompletion: expectedLines(1, 10),
+				continuedRead: expectedLines(7, 20),
+				regionCalls: 1,
+			});
+		});
+
+		test.each([
+			{ name: 'fails', result: undefined, firstReadEnd: 10 },
+			{ name: 'succeeds', result: createRegionResult(3, 3), firstReadEnd: 4 },
+		])('preserves a replacement reservation when an evicted lookup $name', async ({ result, firstReadEnd }) => {
+			const started = new DeferredPromise<void>();
+			const response = new DeferredPromise<RegionResult | undefined>();
+			regionProvider.getRegions.mockImplementationOnce(() => {
+				void started.complete();
+				return response.p;
+			});
+
+			const firstRead = invoke();
+			await started.p;
+			let replacementRead: string;
+			try {
+				for (let i = 0; i < MAX_GREP_RESULT_SESSIONS; i++) {
+					addGrepResult(URI.file(`/sessions/eviction-${i}`));
+				}
+				addGrepResult();
+				replacementRead = await invoke();
+			} finally {
+				await response.complete(result);
+				await firstRead;
+			}
+
+			expect({
+				firstRead: await firstRead,
+				replacementRead,
+				continuedRead: await invoke({ ...input, startLine: 11, endLine: 20 }),
+				repeatedRead: await invoke(),
+				regionCalls: regionProvider.getRegions.mock.calls.length,
+			}).toEqual({
+				firstRead: expectedLines(1, firstReadEnd),
+				replacementRead: expectedLines(1, 6),
+				continuedRead: expectedLines(7, 20),
+				repeatedRead: expectedLines(1, 10),
+				regionCalls: 2,
+			});
+		});
+
+		test('handles offset and limit parameters for shortening, continuation and repeated reads', async () => {
+			const firstInput: IReadFileParamsV2 = { filePath: fileUri.fsPath, offset: 4, limit: 6 };
+			const nextInput: IReadFileParamsV2 = { filePath: fileUri.fsPath, offset: 11, limit: 9 };
+
+			expect({
+				firstRead: await invoke(firstInput),
+				continuedRead: await invoke(nextInput),
+				repeatedRead: await invoke(firstInput),
+				equivalentV1Read: await invoke({ ...input, startLine: 4 }),
+				regionCalls: regionProvider.getRegions.mock.calls.length,
+			}).toEqual({
+				firstRead: expectedLines(4, 6),
+				continuedRead: expectedLines(7, 20),
+				repeatedRead: expectedLines(4, 10),
+				equivalentV1Read: expectedLines(4, 10),
+				regionCalls: 1,
+			});
+		});
+
+		test('recognizes a repeated read after normalizing reversed line bounds', async () => {
+			expect({
+				firstRead: await invoke({ ...input, startLine: 10, endLine: 4 }),
+				repeatedRead: await invoke({ ...input, startLine: 4 }),
+				regionCalls: regionProvider.getRegions.mock.calls.length,
+			}).toEqual({
+				firstRead: expectedLines(4, 6),
+				repeatedRead: expectedLines(4, 10),
+				regionCalls: 1,
+			});
+		});
+
+		test('reports proposed regions, repeated reads and recovered line counts in telemetry', async () => {
+			await invoke(input, firstSession, 'first-request');
+			await invoke(input, firstSession, 'repeated-request');
+			await invoke({ ...input, startLine: 11, endLine: 20 }, firstSession, 'continued-request');
+
+			expect(telemetry.events.filter(event => event.eventName.startsWith('readFileRegion'))).toEqual([
+				{
+					eventName: 'readFileRegionAdjusted',
+					properties: {
+						requestId: 'first-request',
+						languageId: 'typescript',
+						smallestPath: '[0]',
+						largestPath: undefined,
+					},
+					measurements: { originalLines: 10, adjustedLines: 3, deltaStart: 3, deltaEnd: 4, continuousLines: 0 },
+				},
+				{
+					eventName: 'readFileRegionAdjustingFailed',
+					properties: {
+						requestId: 'repeated-request',
+						reason: 'reReadSameRange',
+						languageId: 'typescript',
+					},
+					measurements: { lines: 10 },
+				},
+				{
+					eventName: 'readFileRegionContinuous',
+					properties: {
+						requestId: 'continued-request',
+						languageId: 'typescript',
+					},
+					measurements: { deltaStart: 4 },
+				},
+			]);
 		});
 	});
 
@@ -715,28 +1272,6 @@ suite('ReadFile', () => {
 	});
 
 	suite('skill provenance telemetry', () => {
-		class CapturingTelemetryService extends NullTelemetryService {
-			readonly events: { eventName: string; properties?: TelemetryEventProperties; measurements?: TelemetryEventMeasurements }[] = [];
-			readonly enhancedEvents: { eventName: string; properties?: TelemetryEventProperties }[] = [];
-			readonly internalEvents: { eventName: string; properties?: TelemetryEventProperties }[] = [];
-
-			override sendGHTelemetryEvent(eventName: string, properties?: TelemetryEventProperties, measurements?: TelemetryEventMeasurements): void {
-				this.events.push({ eventName, properties, measurements });
-			}
-
-			override sendEnhancedGHTelemetryEvent(eventName: string, properties?: TelemetryEventProperties): void {
-				this.enhancedEvents.push({ eventName, properties });
-			}
-
-			override sendInternalMSFTTelemetryEvent(eventName: string, properties?: TelemetryEventProperties): void {
-				this.internalEvents.push({ eventName, properties });
-			}
-
-			override sendMSFTTelemetryEvent(eventName: string, properties?: TelemetryEventProperties, measurements?: TelemetryEventMeasurements): void {
-				this.events.push({ eventName, properties, measurements });
-			}
-		}
-
 		test('should send separate skillContentRead event with skillStorage=local for workspace skill files', async () => {
 			const skillContent = '# My Skill\nDo something useful.';
 			const skillUri = URI.file('/workspace/.github/skills/my-skill/SKILL.md');

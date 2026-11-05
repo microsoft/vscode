@@ -44,7 +44,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { ViewAction, ViewPane } from '../../../browser/parts/views/viewPane.js';
 import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.js';
 import { IViewDescriptorService } from '../../../common/views.js';
-import { CALLSTACK_VIEW_ID, CONTEXT_CALLSTACK_FOCUSED, CONTEXT_CALLSTACK_ITEM_STOPPED, CONTEXT_CALLSTACK_ITEM_TYPE, CONTEXT_CALLSTACK_SESSION_HAS_ONE_THREAD, CONTEXT_CALLSTACK_SESSION_IS_ATTACH, CONTEXT_DEBUG_STATE, CONTEXT_FOCUSED_SESSION_IS_NO_DEBUG, CONTEXT_STACK_FRAME_SUPPORTS_RESTART, getStateLabel, IDebugModel, IDebugService, IDebugSession, IRawStoppedDetails, isFrameDeemphasized, IStackFrame, IThread, State } from '../common/debug.js';
+import { CALLSTACK_VIEW_ID, CONTEXT_CALLSTACK_FOCUSED, CONTEXT_CALLSTACK_ITEM_STOPPED, CONTEXT_CALLSTACK_ITEM_TYPE, CONTEXT_CALLSTACK_SESSION_HAS_ONE_THREAD, CONTEXT_CALLSTACK_SESSION_IS_ATTACH, CONTEXT_DEBUG_STATE, CONTEXT_FOCUSED_SESSION_IS_NO_DEBUG, CONTEXT_THREAD_HAS_MULTIPLE_STACK_FRAMES, CONTEXT_STACK_FRAME_SUPPORTS_RESTART, getStateLabel, hasMultipleStackFrames, IDebugModel, IDebugService, IDebugSession, IRawStoppedDetails, isFrameDeemphasized, IStackFrame, IThread, State } from '../common/debug.js';
 import { StackFrame, Thread, ThreadAndSessionIds } from '../common/debugModel.js';
 import { isSessionAttach } from '../common/debugUtils.js';
 import { renderViewTree } from './baseDebugView.js';
@@ -523,12 +523,15 @@ interface IStackFrameTemplateData {
 	elementDisposables: DisposableStore;
 }
 
-function getSessionContextOverlay(session: IDebugSession): [string, ContextKeyValue][] {
+export function getSessionContextOverlay(session: IDebugSession): [string, ContextKeyValue][] {
+	const threads = session.getAllThreads();
 	return [
 		[CONTEXT_CALLSTACK_ITEM_TYPE.key, 'session'],
 		[CONTEXT_CALLSTACK_SESSION_IS_ATTACH.key, isSessionAttach(session)],
 		[CONTEXT_CALLSTACK_ITEM_STOPPED.key, session.state === State.Stopped],
-		[CONTEXT_CALLSTACK_SESSION_HAS_ONE_THREAD.key, session.getAllThreads().length === 1],
+		[CONTEXT_CALLSTACK_SESSION_HAS_ONE_THREAD.key, threads.length === 1],
+		// The session row can target a thread only when the session has exactly one.
+		[CONTEXT_THREAD_HAS_MULTIPLE_STACK_FRAMES.key, hasMultipleStackFrames(threads.length === 1 ? threads[0] : undefined)],
 	];
 }
 
@@ -639,10 +642,11 @@ class SessionsRenderer implements ICompressibleTreeRenderer<IDebugSession, Fuzzy
 	}
 }
 
-function getThreadContextOverlay(thread: IThread): [string, ContextKeyValue][] {
+export function getThreadContextOverlay(thread: IThread): [string, ContextKeyValue][] {
 	return [
 		[CONTEXT_CALLSTACK_ITEM_TYPE.key, 'thread'],
-		[CONTEXT_CALLSTACK_ITEM_STOPPED.key, thread.stopped]
+		[CONTEXT_CALLSTACK_ITEM_STOPPED.key, thread.stopped],
+		[CONTEXT_THREAD_HAS_MULTIPLE_STACK_FRAMES.key, hasMultipleStackFrames(thread)]
 	];
 }
 
@@ -1140,7 +1144,7 @@ registerCallStackInlineMenuItem(PAUSE_ID, PAUSE_LABEL, icons.debugPause, Context
 registerCallStackInlineMenuItem(CONTINUE_ID, CONTINUE_LABEL, icons.debugContinue, ContextKeyExpr.and(threadOrSessionWithOneThread, CONTEXT_CALLSTACK_ITEM_STOPPED)!, 10);
 registerCallStackInlineMenuItem(STEP_OVER_ID, STEP_OVER_LABEL, icons.debugStepOver, threadOrSessionWithOneThread, 20, CONTEXT_CALLSTACK_ITEM_STOPPED);
 registerCallStackInlineMenuItem(STEP_INTO_ID, STEP_INTO_LABEL, icons.debugStepInto, threadOrSessionWithOneThread, 30, CONTEXT_CALLSTACK_ITEM_STOPPED);
-registerCallStackInlineMenuItem(STEP_OUT_ID, STEP_OUT_LABEL, icons.debugStepOut, threadOrSessionWithOneThread, 40, CONTEXT_CALLSTACK_ITEM_STOPPED);
+registerCallStackInlineMenuItem(STEP_OUT_ID, STEP_OUT_LABEL, icons.debugStepOut, threadOrSessionWithOneThread, 40, ContextKeyExpr.and(CONTEXT_CALLSTACK_ITEM_STOPPED, CONTEXT_THREAD_HAS_MULTIPLE_STACK_FRAMES));
 registerCallStackInlineMenuItem(RESTART_SESSION_ID, RESTART_LABEL, icons.debugRestart, CONTEXT_CALLSTACK_ITEM_TYPE.isEqualTo('session'), 50);
 registerCallStackInlineMenuItem(STOP_ID, STOP_LABEL, icons.debugStop, ContextKeyExpr.and(CONTEXT_CALLSTACK_SESSION_IS_ATTACH.toNegated(), CONTEXT_CALLSTACK_ITEM_TYPE.isEqualTo('session'))!, 60);
 registerCallStackInlineMenuItem(DISCONNECT_ID, DISCONNECT_LABEL, icons.debugDisconnect, ContextKeyExpr.and(CONTEXT_CALLSTACK_SESSION_IS_ATTACH, CONTEXT_CALLSTACK_ITEM_TYPE.isEqualTo('session'))!, 60);

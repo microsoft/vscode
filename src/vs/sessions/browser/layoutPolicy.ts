@@ -17,7 +17,7 @@ export interface IPartVisibilityDefaults {
 	readonly sidebar: boolean;
 	readonly auxiliaryBar: boolean;
 	readonly panel: boolean;
-	readonly chatBar: boolean;
+	readonly sessions: boolean;
 	readonly editor: boolean;
 }
 
@@ -26,7 +26,7 @@ export interface IPartSizeDefaults {
 	readonly sideBarSize: number;
 	readonly auxiliaryBarSize: number;
 	readonly panelSize: number;
-	readonly chatBarWidth: number;
+	readonly sessionsWidth: number;
 }
 
 const PHONE_MAX_WIDTH = 640;
@@ -44,7 +44,7 @@ const isMobilePlatform = isMobile;
  * Phone and tablet classifications are gated on a mobile OS; desktop
  * browsers and Electron always report `desktop` regardless of width.
  */
-function classifyViewport(width: number): ViewportClass {
+export function classifyViewport(width: number): ViewportClass {
 	if (!isMobilePlatform) {
 		return 'desktop';
 	}
@@ -83,17 +83,38 @@ export class SessionsLayoutPolicy extends Disposable {
 	/** Current viewport class derived from the most recent `update()` call. */
 	readonly viewportClass: IObservable<ViewportClass> = this._viewportClass;
 
+	/**
+	 * Whether the agents window uses the desktop layout (editor spans the
+	 * detail panel as a docked auxiliary bar). Fixed by the workbench selected at
+	 * startup. Never active on phone, which has its own mobile layout.
+	 */
+	private _desktop = false;
+
+	get isDesktop(): boolean {
+		return this._desktop && this._viewportClass.get() !== 'phone';
+	}
+
+	/** Set once at startup from the selected workbench before the first layout. */
+	setDesktop(value: boolean): void {
+		this._desktop = value;
+	}
+
 	/** `true` when the viewport class is `phone`. */
 	readonly isPhoneLayout: IObservable<boolean> = derived(this, reader => {
 		return this._viewportClass.read(reader) === 'phone';
 	});
 
-	constructor() {
+	/** An entry point may fix the viewport class instead of deriving it from the container width. */
+	constructor(private readonly fixedViewportClass?: ViewportClass) {
 		super();
 
 		this.isIOS = isIOS;
 		this.isAndroid = isAndroid;
 		this.isTouchDevice = Gesture.isTouchDevice();
+
+		if (fixedViewportClass) {
+			this._viewportClass.set(fixedViewportClass, undefined);
+		}
 	}
 
 	/**
@@ -104,7 +125,7 @@ export class SessionsLayoutPolicy extends Disposable {
 	 * @param height Container height in pixels (reserved for future use).
 	 */
 	update(width: number, _height: number): void {
-		const next = classifyViewport(width);
+		const next = this.fixedViewportClass ?? classifyViewport(width);
 		if (this._viewportClass.get() !== next) {
 			this._viewportClass.set(next, undefined);
 		}
@@ -118,12 +139,12 @@ export class SessionsLayoutPolicy extends Disposable {
 		const vc = viewportClass ?? this._viewportClass.get();
 		switch (vc) {
 			case 'phone':
-				return { sidebar: false, auxiliaryBar: false, panel: false, chatBar: true, editor: false };
+				return { sidebar: false, auxiliaryBar: false, panel: false, sessions: true, editor: false };
 			case 'tablet':
 			case 'desktop':
 				// Tablet and desktop share the standard multi-part workbench defaults.
 				// A dedicated tablet layout has not been designed yet.
-				return { sidebar: true, auxiliaryBar: true, panel: false, chatBar: true, editor: false };
+				return { sidebar: true, auxiliaryBar: true, panel: false, sessions: true, editor: false };
 		}
 	}
 
@@ -143,7 +164,7 @@ export class SessionsLayoutPolicy extends Disposable {
 					sideBarSize: 0,
 					auxiliaryBarSize: 0,
 					panelSize: 0,
-					chatBarWidth: width,
+					sessionsWidth: width,
 				};
 			case 'tablet':
 			case 'desktop':
@@ -152,7 +173,7 @@ export class SessionsLayoutPolicy extends Disposable {
 					sideBarSize: 300,
 					auxiliaryBarSize: 340,
 					panelSize: 300,
-					chatBarWidth: width - 300,
+					sessionsWidth: width - 300,
 				};
 		}
 	}

@@ -2,14 +2,60 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+import { existsSync } from 'node:fs';
+import { stat } from 'node:fs/promises';
 import path from 'node:path';
 import esbuild from 'esbuild';
+import { BuildLifecycle } from '../build/lib/buildEvents.ts';
 
 export interface RunConfig {
 	readonly srcDir: string;
 	readonly outdir: string;
 	readonly entryPoints: esbuild.BuildOptions['entryPoints'];
 	readonly additionalOptions?: Partial<esbuild.BuildOptions>;
+	readonly additionalWatchPaths?: readonly string[];
+	readonly beforeBuild?: () => Promise<unknown> | unknown;
+}
+
+/**
+ * Returns the folder of an installed package, found like Node.js does from `fromDir`. pnpm can
+ * hoist an extension's dependency to a parent folder's `node_modules`.
+ */
+export function resolvePackageDirectory(fromDir: string, packageName: string): string {
+	for (let dir = path.resolve(fromDir); ; dir = path.dirname(dir)) {
+		const candidate = path.join(dir, 'node_modules', packageName);
+		if (existsSync(path.join(candidate, 'package.json'))) {
+			return candidate;
+		}
+		if (path.dirname(dir) === dir) {
+			throw new Error(`Cannot find package ${packageName} from ${fromDir}`);
+		}
+	}
+}
+
+// `esbuild.stop()` shuts down the single esbuild service shared by all concurrent builds, so we
+// must only call it once no builds are in flight. Otherwise a finishing build would tear down the
+// service while a sibling build (e.g. running in the same `Promise.all`) is still using it.
+const buildLifecycle = new BuildLifecycle(undefined, () => esbuild.stop());
+
+async function buildOnce(
+	options: esbuild.BuildOptions,
+	beforeBuild?: () => Promise<unknown> | unknown,
+	didBuild?: () => Promise<unknown> | unknown,
+): Promise<esbuild.BuildResult> {
+	const complete = buildLifecycle.start();
+	let failed = false;
+	try {
+		await beforeBuild?.();
+		const result = await esbuild.build(options);
+		await didBuild?.();
+		return result;
+	} catch (error) {
+		failed = true;
+		throw error;
+	} finally {
+		complete(failed);
+	}
 }
 
 /**
@@ -38,20 +84,31 @@ export async function runBuild(
 
 	const isWatch = args.indexOf('--watch') >= 0;
 	if (isWatch) {
-		const ctx = await esbuild.context(resolvedOptions);
-		await watchWithParcel(ctx, config.srcDir, () => didBuild?.(outdir));
+		await watchWithParcel(
+			resolvedOptions,
+			config.srcDir,
+			config.additionalWatchPaths ?? [],
+			config.beforeBuild,
+			() => didBuild?.(outdir),
+		);
 	} else {
 		try {
-			await esbuild.build(resolvedOptions);
-			await didBuild?.(outdir);
-		} catch {
-			process.exit(1);
+			await buildOnce(resolvedOptions, config.beforeBuild, () => didBuild?.(outdir));
+		} catch (error) {
+			console.error(error);
+			process.exitCode = 1;
 		}
 	}
 }
 
 // We use @parcel/watcher as it has much lower cpu usage when idle compared to esbuild's watch mode
-async function watchWithParcel(ctx: esbuild.BuildContext, srcDir: string, didBuild?: () => Promise<unknown> | unknown): Promise<void> {
+async function watchWithParcel(
+	options: esbuild.BuildOptions,
+	srcDir: string,
+	additionalWatchPaths: readonly string[],
+	beforeBuild?: () => Promise<unknown> | unknown,
+	didBuild?: () => Promise<unknown> | unknown,
+): Promise<void> {
 	let debounce: ReturnType<typeof setTimeout> | undefined;
 	const rebuild = () => {
 		if (debounce) {
@@ -59,11 +116,9 @@ async function watchWithParcel(ctx: esbuild.BuildContext, srcDir: string, didBui
 		}
 		debounce = setTimeout(async () => {
 			try {
-				await ctx.cancel();
-				const result = await ctx.rebuild();
-				if (result.errors.length === 0) {
-					await didBuild?.();
-				}
+				// Also instead of retaining the esbuild context, we are re-running the entire build on each change.
+				// This reduces memory usage since most projects don't need to be re-built often.
+				await buildOnce(options, beforeBuild, didBuild);
 			} catch (error) {
 				console.error('[watch] build error:', error);
 			}
@@ -71,10 +126,31 @@ async function watchWithParcel(ctx: esbuild.BuildContext, srcDir: string, didBui
 	};
 
 	const watcher = await import('@parcel/watcher');
-	await watcher.subscribe(srcDir, (_err, _events) => {
-		rebuild();
-	}, {
-		ignore: ['**/node_modules/**', '**/dist/**', '**/out/**']
-	});
+	const ignoredOutputPaths: string[] = [];
+	if (options.outdir) {
+		const outdirGlob = options.outdir.replace(/\\/g, '/').replace(/\/$/, '');
+		ignoredOutputPaths.push(outdirGlob, `${outdirGlob}/**`);
+	}
+
+	const subscribe = async (watchPath: string, ignore: readonly string[]) => {
+		const watchPathStat = await stat(watchPath);
+		const watchedFile = watchPathStat.isDirectory() ? undefined : path.resolve(watchPath);
+		const watchRoot = watchedFile ? path.dirname(watchedFile) : watchPath;
+		return watcher.subscribe(watchRoot, (error, events) => {
+			if (error) {
+				console.error('[watch] watcher error:', error);
+				return;
+			}
+			if (!watchedFile || events.some(event => path.resolve(event.path) === watchedFile)) {
+				rebuild();
+			}
+		}, {
+			ignore: [...ignore, path.resolve(watchRoot, 'node_modules'), path.resolve(watchRoot, '.git')],
+		});
+	};
+	await Promise.all([
+		subscribe(srcDir, ['**/node_modules/**', '**/dist/**', '**/out/**', ...ignoredOutputPaths]),
+		...additionalWatchPaths.map(watchPath => subscribe(watchPath, ignoredOutputPaths)),
+	]);
 	rebuild();
 }

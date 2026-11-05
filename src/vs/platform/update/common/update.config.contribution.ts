@@ -21,7 +21,7 @@ configurationRegistry.registerConfiguration({
 			enum: ['none', 'manual', 'start', 'default'],
 			default: 'default',
 			scope: ConfigurationScope.APPLICATION,
-			description: localize('updateMode', "Configure whether you receive automatic updates. Requires a restart after change. The updates are fetched from a Microsoft online service."),
+			description: localize('updateMode', "Configure whether you receive automatic updates. The updates are fetched from a Microsoft online service."),
 			tags: ['usesOnlineServices'],
 			enumDescriptions: [
 				localize('none', "Disable updates."),
@@ -34,7 +34,7 @@ configurationRegistry.registerConfiguration({
 				category: PolicyCategory.Update,
 				minimumVersion: '1.67',
 				localization: {
-					description: { key: 'updateMode', value: localize('updateMode', "Configure whether you receive automatic updates. Requires a restart after change. The updates are fetched from a Microsoft online service."), },
+					description: { key: 'updateMode', value: localize('updateMode', "Configure whether you receive automatic updates. The updates are fetched from a Microsoft online service."), },
 					enumDescriptions: [
 						{
 							key: 'none',
@@ -60,7 +60,7 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			default: 'default',
 			scope: ConfigurationScope.APPLICATION,
-			description: localize('updateMode', "Configure whether you receive automatic updates. Requires a restart after change. The updates are fetched from a Microsoft online service."),
+			description: localize('updateMode', "Configure whether you receive automatic updates. The updates are fetched from a Microsoft online service."),
 			deprecationMessage: localize('deprecated', "This setting is deprecated, please use '{0}' instead.", 'update.mode')
 		},
 		'update.enableWindowsBackgroundUpdates': {
@@ -70,6 +70,26 @@ configurationRegistry.registerConfiguration({
 			title: localize('enableWindowsBackgroundUpdatesTitle', "Enable Background Updates"),
 			description: localize('enableWindowsBackgroundUpdates', "Enable to download and install new VS Code versions in the background."),
 			included: isWindows && !isWeb
+		},
+		'update.restartWhenIdle': {
+			type: 'boolean',
+			default: false,
+			experiment: { mode: 'auto' },
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
+			included: !isWeb,
+			description: localize('restartWhenIdle', "Controls whether to restart automatically to apply a downloaded update after the screen has been locked for a minute while on power, keeping the machine from going to sleep until then. The restart only happens if every window can be restored exactly as it was, for example when no terminal process, task, debug session, chat request, or agent session is running, and it does not take focus from another application. Only supported on macOS."),
+			policy: {
+				name: 'UpdateRestartWhenIdle',
+				category: PolicyCategory.Update,
+				minimumVersion: '1.145',
+				localization: {
+					description: {
+						key: 'restartWhenIdle',
+						value: localize('restartWhenIdle', "Controls whether to restart automatically to apply a downloaded update after the screen has been locked for a minute while on power, keeping the machine from going to sleep until then. The restart only happens if every window can be restored exactly as it was, for example when no terminal process, task, debug session, chat request, or agent session is running, and it does not take focus from another application. Only supported on macOS."),
+					}
+				},
+			}
 		},
 		'update.showReleaseNotes': {
 			type: 'boolean',
@@ -82,9 +102,18 @@ configurationRegistry.registerConfiguration({
 		'update.showPostInstallInfo': {
 			type: 'boolean',
 			default: false,
+			experiment: { mode: 'auto' },
 			scope: ConfigurationScope.APPLICATION,
 			description: localize('showPostInstallInfo', "Show a post-install update tooltip in the title bar instead of opening the release notes editor."),
 			tags: ['usesOnlineServices']
+		},
+		'update.showOutdatedBuildReminder': {
+			type: 'boolean',
+			default: true,
+			experiment: { mode: 'auto' },
+			scope: ConfigurationScope.APPLICATION,
+			description: localize('showOutdatedBuildReminder', "Show a reminder to update once this version of VS Code is two months old. The reminder is shown at most once a month."),
+			included: !isWeb
 		},
 		'update.titleBar': {
 			type: 'boolean',

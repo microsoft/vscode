@@ -13,7 +13,7 @@ import { IChatSessionWorktreeCheckpointService } from '../common/chatSessionWork
 import { IChatSessionWorktreeService } from '../common/chatSessionWorktreeService';
 import { getWorkingDirectory, isIsolationEnabled, IWorkspaceInfo } from '../common/workspaceInfo';
 import { IPullRequestDetectionService } from './pullRequestDetectionService';
-import { clearChangesCacheForAffectedSessions } from './chatSessionRepositoryTracker';
+import { clearChangesCacheForAffectedSessions } from './chatSessionChangesCache';
 
 export interface ISessionRequestLifecycle {
 	readonly _serviceBrand: undefined;

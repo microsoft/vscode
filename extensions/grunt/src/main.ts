@@ -24,7 +24,7 @@ function exec(command: string, options: cp.ExecOptions): Promise<{ stdout: strin
 			if (error) {
 				reject({ error, stdout, stderr });
 			}
-			resolve({ stdout, stderr });
+			resolve({ stdout: stdout.toString(), stderr: stderr.toString() });
 		});
 	});
 }
@@ -213,7 +213,7 @@ class FolderDetector {
 			if (err.stdout) {
 				channel.appendLine(err.stdout);
 			}
-			channel.appendLine(vscode.l10n.t("Auto detecting Grunt for folder {0} failed with error: {1}', this.workspaceFolder.name, err.error ? err.error.toString() : 'unknown"));
+			channel.appendLine(vscode.l10n.t("Auto detecting Grunt for folder {0} failed with error: {1}", this.workspaceFolder.name, err.error ? err.error.toString() : 'unknown'));
 			showError();
 			return emptyTasks;
 		}

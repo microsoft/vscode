@@ -85,7 +85,8 @@ export class TestToolsService extends BaseToolsService implements IToolsService 
 				description: mapContributedToolNamesInString(contributedTool.modelDescription),
 				source: undefined,
 				inputSchema: contributedTool.inputSchema && mapContributedToolNamesInSchema(contributedTool.inputSchema),
-				tags: contributedTool.tags ?? []
+				tags: contributedTool.tags ?? [],
+				fullReferenceName: contributedTool.toolReferenceName
 			};
 			this._tools.set(info.name, info);
 		}
@@ -170,6 +171,7 @@ export class TestToolsService extends BaseToolsService implements IToolsService 
 				inputSchema: contributedTool.inputSchema,
 				tags: [],
 				source: undefined,
+				fullReferenceName: contributedTool.toolReferenceName
 			};
 		}
 
@@ -222,23 +224,6 @@ export class TestToolsService extends BaseToolsService implements IToolsService 
 	addTestToolOverride(info: LanguageModelToolInformation, tool: vscode.LanguageModelTool<unknown>): void {
 		this._tools.set(info.name, info);
 		this._copilotTools.set(info.name as ToolName, new Lazy(() => tool));
-	}
-}
-
-export class NoopTestToolsService extends TestToolsService {
-	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
-		@ILogService logService: ILogService,
-	) {
-		super(new Set(), instantiationService, logService);
-	}
-
-	override invokeTool(name: string, options: vscode.LanguageModelToolInvocationOptions<unknown>, token: CancellationToken): Promise<LanguageModelToolResult2> {
-		throw new Error('NoopTestToolsService does not support invoking tools');
-	}
-
-	protected override getFilteredTools(_disabledTools: Set<string>): readonly ICopilotToolCtor[] {
-		return ToolRegistry.getTools();
 	}
 }
 

@@ -6,8 +6,8 @@
 		"module": "NodeNext",
 		"moduleResolution": "NodeNext",
 		"skipLibCheck": true,
-		"typeRoots": [
-			"./node_modules/@types"
+		"types": [
+			"node"
 		]
 	},
 	"include": [
@@ -15,7 +15,6 @@
 		"../../src/vscode-dts/vscode.d.ts",
 		"../../src/vscode-dts/vscode.proposed.canonicalUriProvider.d.ts",
 		"../../src/vscode-dts/vscode.proposed.scmHistoryProvider.d.ts",
-		"../../src/vscode-dts/vscode.proposed.shareProvider.d.ts",
-		"../../src/vscode-dts/vscode.proposed.timeline.d.ts"
+		"../../src/vscode-dts/vscode.proposed.shareProvider.d.ts"
 	]
 }

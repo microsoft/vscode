@@ -44,7 +44,7 @@ If you cannot find an existing issue that describes your bug or feature, create 
 
 File a single issue per problem and feature request. Do not enumerate multiple bugs or feature requests in the same issue.
 
-Do not add your issue as a comment to an existing issue unless it's for the identical input. Many issues look similar but have different causes.
+Do not add your issue as a comment to an existing issue unless it's for the identical issue. Many issues look similar but have different causes.
 
 The more information you can provide, the more likely someone will be successful at reproducing the issue and finding a fix.
 
@@ -93,6 +93,8 @@ If you believe the bot got something wrong, please open a new issue and let us k
 ## Contributing Fixes
 
 If you are interested in writing code to fix issues, please see [How to Contribute](https://github.com/microsoft/vscode/wiki/How-to-Contribute) in the wiki.
+
+This repository installs its dependencies with [pnpm](https://pnpm.io). Install the version that the `packageManager` field of [package.json](package.json) pins (for example `npm install -g pnpm@<version>`), then run `pnpm install` at the repository root. Installing with npm or yarn is not supported.
 
 ## Thank You
 

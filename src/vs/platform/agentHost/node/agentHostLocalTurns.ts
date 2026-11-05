@@ -1,0 +1,232 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { URI } from '../../../base/common/uri.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { ILogService } from '../../log/common/log.js';
+import type { IAgentHostChatRowStore } from '../common/agentHostSessionStateStore.js';
+import type { IPersistedTurnRecord } from '../common/sessionDataService.js';
+import type { Turn } from '../common/state/sessionState.js';
+
+export const IAgentHostLocalTurns = createDecorator<IAgentHostLocalTurns>('agentHostLocalTurns');
+
+type ILocalPersistedTurnRecord = IPersistedTurnRecord & { readonly kind: 'local'; readonly seq: number };
+
+export interface IAgentHostLocalTurns {
+	readonly _serviceBrand: undefined;
+
+	/** Whether `turnId` is a known host-injected local turn in `chat`. */
+	isLocal(chat: string, turnId: string): boolean;
+	/**
+	 * Resolves the anchor a host-injected turn must be recorded against: the
+	 * nearest preceding turn in `chat` that the agent SDK actually owns.
+	 */
+	findAnchorTurnId(chat: string, turns: readonly Turn[], turnId: string): string | undefined;
+	/** Records `turn` as a host-injected local turn anchored to `anchorTurnId`. */
+	record(session: string, chat: string, turn: Turn, anchorTurnId: string | undefined): void;
+}
+
+/**
+ * Tracks host-injected ("local") turns — completed protocol turns the agent SDK
+ * never saw, such as the `/rename` acknowledgement or a `!command` terminal run.
+ *
+ * These turns exist only in the agent host: they are never forwarded to the
+ * agent SDK, so they are absent from the SDK transcript that
+ * {@link AgentService} replays on restore. This registry persists them (so they
+ * survive reload) and remembers, for each, the id of the preceding concrete
+ * (SDK-backed) turn — the *anchor* — so that fork/truncate operations targeting
+ * a local turn can be redirected to the concrete SDK message before it.
+ *
+ * Everything is scoped to a **chat** (its channel URI): a session's default
+ * chat and each of its peer chats are handled identically. Persistence is the
+ * chat's own rows ({@link IAgentHostChatRowStore}).
+ */
+export class AgentHostLocalTurns implements IAgentHostLocalTurns {
+	declare readonly _serviceBrand: undefined;
+
+	/** chat URI → (localTurnId → { anchorTurnId, seq }). */
+	private readonly _byChat = new Map<string, Map<string, { readonly anchorTurnId: string | undefined; readonly seq: number }>>();
+	/** session URI → highest `seq` assigned so far (seq is session-global for stable ordering). */
+	private readonly _seqBySession = new Map<string, number>();
+
+	constructor(
+		private readonly _chatRows: IAgentHostChatRowStore,
+		private readonly _logService: ILogService,
+	) { }
+
+	/** Whether `turnId` is a known host-injected local turn in `chat`. */
+	isLocal(chat: string, turnId: string): boolean {
+		return this._byChat.get(chat)?.has(turnId) ?? false;
+	}
+
+	/** All known local turn ids for `chat`. */
+	getLocalTurnIds(chat: string): string[] {
+		const map = this._byChat.get(chat);
+		return map ? [...map.keys()] : [];
+	}
+
+	/**
+	 * Resolves `turnId` to the concrete (SDK-backed) turn a fork/truncate should
+	 * operate on within `chat`. For a local turn this is its anchor (the
+	 * preceding real turn, or `undefined` when it precedes any real turn); for a
+	 * concrete turn it is the turn itself.
+	 */
+	resolveConcreteTurnId(chat: string, turnId: string): string | undefined {
+		const entry = this._byChat.get(chat)?.get(turnId);
+		return entry ? entry.anchorTurnId : turnId;
+	}
+
+	/**
+	 * Persist a local turn and remember it in memory. `anchorTurnId` is the id
+	 * of the preceding concrete turn in `chat` (or `undefined` when there is
+	 * none). `session` identifies the database to persist into.
+	 */
+	record(session: string, chat: string, turn: Turn, anchorTurnId: string | undefined): void {
+		const seq = (this._seqBySession.get(session) ?? 0) + 1;
+		this._noteInMemory(session, chat, turn.id, anchorTurnId, seq);
+		const record: IPersistedTurnRecord = { kind: 'local', turnId: turn.id, chatUri: chat, anchorTurnId, seq, payload: JSON.stringify(turn) };
+		this._chatRows.insertPersistedTurn(URI.parse(session), record).catch(err => {
+			this._logService.warn(`[AgentHostLocalTurns] Failed to persist local turn ${turn.id}`, err);
+		});
+	}
+
+	/**
+	 * Resolves the anchor a host-injected turn must be recorded against: the
+	 * nearest preceding turn in `chat` that the agent SDK actually owns, or
+	 * `undefined` when the turn precedes every concrete turn.
+	 */
+	findAnchorTurnId(chat: string, turns: readonly Turn[], turnId: string): string | undefined {
+		for (let i = turns.findIndex(turn => turn.id === turnId) - 1; i >= 0; i--) {
+			if (!this.isLocal(chat, turns[i].id)) {
+				return turns[i].id;
+			}
+		}
+		return undefined;
+	}
+
+	/**
+	 * Loads persisted local turns for `session`, populating the in-memory index
+	 * (keyed by each record's chat), and returns the records for `chat` in
+	 * `seq` order so the caller can interleave them into that chat's SDK-derived
+	 * turns during restore.
+	 */
+	async loadForChat(session: string, chat: string, visibleTurnIds?: ReadonlySet<string>): Promise<ILocalPersistedTurnRecord[]> {
+		return this._load(session, chat, visibleTurnIds);
+	}
+
+	/** Note a local turn in memory only (used by fork seeding). */
+	noteInMemory(session: string, chat: string, turnId: string, anchorTurnId: string | undefined, seq: number): void {
+		this._noteInMemory(session, chat, turnId, anchorTurnId, seq);
+	}
+
+	/** Delete the given local turns of `chat` from memory and its rows. */
+	deleteLocals(session: string, chat: string, turnIds: readonly string[]): void {
+		if (turnIds.length === 0) {
+			return;
+		}
+		const map = this._byChat.get(chat);
+		for (const id of turnIds) {
+			map?.delete(id);
+		}
+		this._chatRows.deletePersistedTurns(URI.parse(session), URI.parse(chat), turnIds).catch(err => {
+			this._logService.warn(`[AgentHostLocalTurns] Failed to delete local turns for ${session}`, err);
+		});
+	}
+
+	/** Drop all in-memory state for a chat. */
+	forgetChat(chat: string): void {
+		this._byChat.delete(chat);
+	}
+
+	private async _load(session: string, chat: string, visibleTurnIds?: ReadonlySet<string>): Promise<ILocalPersistedTurnRecord[]> {
+		try {
+			const persisted = await this._chatRows.getPersistedTurns(URI.parse(session), URI.parse(chat), visibleTurnIds);
+			for (const record of persisted) {
+				this._seqBySession.set(session, Math.max(this._seqBySession.get(session) ?? 0, record.seq));
+				if (record.kind === 'local') {
+					this._noteInMemory(session, record.chatUri, record.turnId, record.anchorTurnId, record.seq);
+				}
+			}
+			return persisted.filter((record): record is ILocalPersistedTurnRecord => record.kind === 'local');
+		} catch (err) {
+			this._logService.warn(`[AgentHostLocalTurns] Failed to load local turns for ${session}`, err);
+			return [];
+		}
+	}
+
+	private _noteInMemory(session: string, chat: string, turnId: string, anchorTurnId: string | undefined, seq: number): void {
+		let map = this._byChat.get(chat);
+		if (!map) {
+			map = new Map();
+			this._byChat.set(chat, map);
+		}
+		map.set(turnId, { anchorTurnId, seq });
+		this._seqBySession.set(session, Math.max(this._seqBySession.get(session) ?? 0, seq));
+	}
+}
+
+/** Deserializes a host-persisted turn while preserving its complete payload. */
+export function parsePersistedTurn(record: IPersistedTurnRecord, logService: ILogService, source: string): Turn | undefined {
+	let value: unknown;
+	try {
+		value = JSON.parse(record.payload);
+	} catch (error) {
+		logService.warn(`[${source}] Ignoring unreadable persisted turn ${record.turnId}`, error);
+		return undefined;
+	}
+	if (!isPersistedTurn(value) || value.id !== record.turnId) {
+		logService.warn(`[${source}] Ignoring malformed persisted turn ${record.turnId}`);
+		return undefined;
+	}
+	return value;
+}
+
+function isPersistedTurn(value: unknown): value is Turn {
+	return isRecord(value)
+		&& typeof value.id === 'string'
+		&& isRecord(value.message)
+		&& typeof value.message.text === 'string'
+		&& isRecord(value.message.origin)
+		&& typeof value.message.origin.kind === 'string'
+		&& Array.isArray(value.responseParts)
+		&& typeof value.state === 'string';
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+/** Merges saved local turns into visible history without indexing them for live execution. */
+export function interleaveLocalTurns(turns: readonly Turn[], records: readonly IPersistedTurnRecord[], logService: ILogService): Turn[] {
+	if (records.length === 0) {
+		return [...turns];
+	}
+	const knownIds = new Set(turns.map(t => t.id));
+	const byAnchor = new Map<string, Turn[]>();
+	const head: Turn[] = [];
+	for (const record of records) {
+		const turn = parsePersistedTurn(record, logService, AgentHostLocalTurns.name);
+		if (!turn) {
+			continue;
+		}
+		if (record.anchorTurnId === undefined) {
+			head.push(turn);
+		} else if (knownIds.has(record.anchorTurnId)) {
+			const list = byAnchor.get(record.anchorTurnId) ?? [];
+			list.push(turn);
+			byAnchor.set(record.anchorTurnId, list);
+		}
+		// else: orphaned (anchor truncated away) → drop.
+	}
+	const merged: Turn[] = [...head];
+	for (const turn of turns) {
+		merged.push(turn);
+		const locals = byAnchor.get(turn.id);
+		if (locals) {
+			merged.push(...locals);
+		}
+	}
+	return merged;
+}

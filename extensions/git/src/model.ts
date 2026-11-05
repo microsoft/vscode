@@ -7,7 +7,7 @@ import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitte
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { IRepositoryResolver, Repository, RepositoryState } from './repository';
 import { memoize, sequentialize, debounce } from './decorators';
-import { dispose, anyEvent, filterEvent, isDescendant, pathEquals, toDisposable, eventToPromise } from './util';
+import { dispose, anyEvent, filterEvent, isDescendant, Limiter, pathEquals, toDisposable, eventToPromise } from './util';
 import { Git } from './git';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -280,6 +280,9 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 	get repositoryCache(): RepositoryCache {
 		return this._repositoryCache;
 	}
+
+	// Throttle initial repository.status() across repositories to avoid starving the ext host (#318279).
+	private readonly _initialStatusLimiter = new Limiter<void>(5);
 
 	private disposables: Disposable[] = [];
 
@@ -691,9 +694,8 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			this.logger.info(`[Model][openRepository] Opened repository (real path): ${repository.rootRealPath ?? repository.root}`);
 			this.logger.info(`[Model][openRepository] Opened repository (kind): ${gitRepository.kind}`);
 
-			// Do not await this, we want SCM
-			// to know about the repo asap
-			repository.status().then(() => {
+			// Do not await this, we want SCM to know about the repo asap.
+			this._initialStatusLimiter.queue(() => repository.status()).then(() => {
 				this._repositoryCache.update(repository.remotes, [], repository.root);
 			});
 		} catch (err) {
@@ -788,7 +790,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			}
 
 			if (repository.submodules.length > submodulesLimit) {
-				window.showWarningMessage(l10n.t('The "{0}" repository has {1} submodules which won\'t be opened automatically. You can still open each one individually by opening a file within.', path.basename(repository.root), repository.submodules.length));
+				window.showWarningMessage(l10n.t('The "{0}" repository has {1} submodules which won\'t be opened automatically. You can still open each one individually by opening a file within.', path.basename(repository.root), repository.submodules.length), { notificationId: 'git.submoduleLimit' });
 				statusListener.dispose();
 			}
 
@@ -813,7 +815,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			}
 
 			if (repository.worktrees.length > worktreesLimit) {
-				window.showWarningMessage(l10n.t('The "{0}" repository has {1} worktrees which won\'t be opened automatically. You can still open each one individually by opening a file within.', path.basename(repository.root), repository.worktrees.length));
+				window.showWarningMessage(l10n.t('The "{0}" repository has {1} worktrees which won\'t be opened automatically. You can still open each one individually by opening a file within.', path.basename(repository.root), repository.worktrees.length), { notificationId: 'git.worktreeLimit' });
 				statusListener.dispose();
 			}
 
@@ -1170,7 +1172,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		const always = l10n.t('Always');
 		const never = l10n.t('Never');
 
-		const choice = await window.showInformationMessage(message, yes, always, never);
+		const choice = await window.showInformationMessage(message, { notificationId: 'git.parentRepository' }, yes, always, never);
 		if (choice === yes) {
 			// Open Parent Repositories
 			commands.executeCommand('git.openRepositoriesInParentFolders');
@@ -1202,7 +1204,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		const manageUnsafeRepositories = l10n.t('Manage Unsafe Repositories');
 		const learnMore = l10n.t('Learn More');
 
-		const choice = await window.showErrorMessage(message, manageUnsafeRepositories, learnMore);
+		const choice = await window.showErrorMessage(message, { notificationId: 'git.unsafeRepository' }, manageUnsafeRepositories, learnMore);
 		if (choice === manageUnsafeRepositories) {
 			// Manage Unsafe Repositories
 			commands.executeCommand('git.manageUnsafeRepositories');

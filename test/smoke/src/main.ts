@@ -9,10 +9,11 @@ import * as cp from 'child_process';
 import * as path from 'path';
 import * as os from 'os';
 import minimist from 'minimist';
-import * as vscodetest from '@vscode/test-electron';
 import fetch from 'node-fetch';
 import { Quality, MultiLogger, Logger, ConsoleLogger, FileLogger, measureAndLog, getDevElectronPath, getBuildElectronPath, getBuildVersion, ApplicationOptions } from '../../automation';
 import { retry } from './utils';
+import { downloadStableCode } from './stableCodeDownload';
+import { parseShard, selectShardSuites, Shard } from './shard';
 
 import { setup as setupDataLossTests } from './areas/workbench/data-loss.test';
 import { setup as setupPreferencesTests } from './areas/preferences/preferences.test';
@@ -28,7 +29,14 @@ import { setup as setupLaunchTests } from './areas/workbench/launch.test';
 import { setup as setupTerminalTests } from './areas/terminal/terminal.test';
 import { setup as setupTaskTests } from './areas/task/task.test';
 import { setup as setupChatTests } from './areas/chat/chatDisabled.test';
+import { setup as setupCopilotCliTests } from './areas/chat/copilotCli.test';
+import { setup as setupChatSandboxTests } from './areas/chat/chatSandbox.test';
+import { setup as setupChatSessionsTests } from './areas/chat/chatSessions.test';
+import { setup as setupChatModelConfigTests } from './areas/chat/chatModelConfig.test';
 import { setup as setupAccessibilityTests } from './areas/accessibility/accessibility.test';
+import { setup as setupAgentsWindowTests } from './areas/agentsWindow/agentsWindow.test';
+import { setup as setupBrowserViewTests } from './areas/browserView/browserView.test';
+import { setup as setupPolicyTests } from './areas/policy/policy.test';
 
 const rootPath = path.join(__dirname, '..', '..', '..');
 
@@ -40,14 +48,16 @@ const opts = minimist(args, {
 		'stable-build',
 		'wait-time',
 		'test-repo',
-		'electronArgs'
+		'electronArgs',
+		'shard'
 	],
 	boolean: [
 		'verbose',
 		'remote',
 		'web',
 		'headless',
-		'tracing'
+		'tracing',
+		'skip-stable-build'
 	],
 	default: {
 		verbose: false
@@ -58,10 +68,12 @@ const opts = minimist(args, {
 	headless?: boolean;
 	web?: boolean;
 	tracing?: boolean;
+	'skip-stable-build'?: boolean;
 	build?: string;
 	'stable-build'?: string;
 	browser?: 'chromium' | 'webkit' | 'firefox' | 'chromium-msedge' | 'chromium-chrome';
 	electronArgs?: string;
+	shard?: string;
 };
 
 const logsRootPath = (() => {
@@ -130,7 +142,19 @@ function getTestTypeSuffix(): string {
 	}
 }
 
-const testDataPath = path.join(os.tmpdir(), `vscsmoke-${getTestTypeSuffix()}`);
+function getTmpDir(): string {
+	const tmpDir = os.tmpdir();
+	if (process.platform === 'win32') {
+		try {
+			return fs.realpathSync.native(tmpDir);
+		} catch {
+			// ignore and fall back to the short path
+		}
+	}
+	return tmpDir;
+}
+
+const testDataPath = path.join(getTmpDir(), `vscsmoke-${getTestTypeSuffix()}`);
 if (fs.existsSync(testDataPath)) {
 	fs.rmSync(testDataPath, { recursive: true, force: true, maxRetries: 10, retryDelay: 1000 });
 }
@@ -154,6 +178,15 @@ function fail(errorMessage): void {
 		console.error(errorMessage);
 	}
 	process.exit(1);
+}
+
+let shard: Shard | undefined;
+if (opts.shard) {
+	try {
+		shard = parseShard(opts.shard);
+	} catch (error) {
+		fail(error instanceof Error ? error.message : String(error));
+	}
 }
 
 let quality: Quality;
@@ -257,11 +290,22 @@ async function setupRepository(): Promise<void> {
 		}
 	} else {
 		if (!fs.existsSync(workspacePath)) {
-			logger.log('Cloning test project repository...');
-			const res = cp.spawnSync('git', ['clone', testRepoUrl, workspacePath], { stdio: 'inherit' });
-			if (!fs.existsSync(workspacePath)) {
-				throw new Error(`Clone operation failed: ${res.stderr.toString()}`);
-			}
+			// The clone goes over the network, which is occasionally unavailable on CI
+			// machines for a few seconds (e.g. `Could not resolve host: github.com`).
+			// Stalled transfers are aborted after 30s so that the retries fit within
+			// the timeout of the root `before` hook.
+			await retry(async () => {
+				logger.log('Cloning test project repository...');
+				const res = cp.spawnSync('git', ['-c', 'http.lowSpeedLimit=1000', '-c', 'http.lowSpeedTime=30', 'clone', testRepoUrl, workspacePath], { stdio: 'inherit' });
+				if (res.status !== 0 || !fs.existsSync(workspacePath)) {
+					const reason = res.error?.message ?? (res.signal ? `signal ${res.signal}` : `exit code ${res.status}`);
+					logger.log(`Clone operation failed: ${reason}`);
+					throw new Error(`Clone operation failed: ${reason}`);
+				}
+			}, 5000, 5, async () => {
+				logger.log('Retrying to clone test project repository...');
+				fs.rmSync(workspacePath, { recursive: true, force: true, maxRetries: 10, retryDelay: 1000 });
+			});
 		} else {
 			logger.log('Cleaning test project repository...');
 			cp.spawnSync('git', ['fetch'], { cwd: workspacePath, stdio: 'inherit' });
@@ -296,27 +340,24 @@ async function ensureStableCode(): Promise<void> {
 		let lastProgressMessage: string | undefined = undefined;
 		let lastProgressReportedAt = 0;
 		const stableCodeDestination = path.join(testDataPath, 's');
-		const stableCodeExecutable = await retry(() => measureAndLog(() => vscodetest.download({
+		const stableCodeExecutable = await retry(() => measureAndLog(() => downloadStableCode({
 			cachePath: stableCodeDestination,
 			version: stableVersion,
-			extractSync: true,
-			reporter: {
-				report: report => {
-					let progressMessage = `download stable code progress: ${report.stage}`;
-					const now = Date.now();
-					if (progressMessage !== lastProgressMessage || now - lastProgressReportedAt > 10000) {
-						lastProgressMessage = progressMessage;
-						lastProgressReportedAt = now;
+			onProgress: report => {
+				let progressMessage = `download stable code progress: ${report.stage}`;
+				const now = Date.now();
+				if (progressMessage !== lastProgressMessage || now - lastProgressReportedAt > 10000) {
+					lastProgressMessage = progressMessage;
+					lastProgressReportedAt = now;
 
-						if (report.stage === 'downloading') {
-							progressMessage += ` (${report.bytesSoFar}/${report.totalBytes})`;
-						}
-
-						logger.log(progressMessage);
+					if (report.stage === 'downloading') {
+						progressMessage += ` (${report.bytesSoFar}/${report.totalBytes})`;
 					}
-				},
-				error: error => logger.log(`download stable code error: ${error}`)
-			}
+
+					logger.log(progressMessage);
+				}
+			},
+			onStall: message => logger.log(`download stable code ${message}`),
 		}), 'download stable code', logger), 1000, 3, async () => {
 			fs.rmSync(stableCodeDestination, { recursive: true, force: true, maxRetries: 10, retryDelay: 1000 });
 		});
@@ -345,20 +386,21 @@ async function setup(): Promise<void> {
 	logger.log('Test data path:', testDataPath);
 	logger.log('Preparing smoketest setup...');
 
-	if (!opts.web && !opts.remote && opts.build) {
+	if (!opts.web && !opts.remote && opts.build && !opts['skip-stable-build']) {
 		// only enabled when running with --build and not in web or remote
 		await measureAndLog(() => ensureStableCode(), 'ensureStableCode', logger);
 	}
 	await measureAndLog(() => setupRepository(), 'setupRepository', logger);
 
-	// Copy smoke test extension for extension host restart test
 	if (!opts.web && !opts.remote) {
-		const smokeExtPath = path.join(rootPath, 'test', 'smoke', 'extensions', 'vscode-smoketest-ext-host');
-		const dest = path.join(extensionsPath, 'vscode-smoketest-ext-host');
-		if (fs.existsSync(dest)) {
-			fs.rmSync(dest, { recursive: true, force: true });
+		for (const extension of ['vscode-smoketest-ext-host', 'vscode-smoketest-language-pack-de']) {
+			const smokeExtensionPath = path.join(rootPath, 'test', 'smoke', 'extensions', extension);
+			const destination = path.join(extensionsPath, extension);
+			if (fs.existsSync(destination)) {
+				fs.rmSync(destination, { recursive: true, force: true });
+			}
+			fs.cpSync(smokeExtensionPath, destination, { recursive: true });
 		}
-		fs.cpSync(smokeExtPath, dest, { recursive: true });
 	}
 
 	logger.log('Smoketest setup done!\n');
@@ -403,7 +445,7 @@ after(async function () {
 	}
 });
 
-describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
+const smokeTestSuite = describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 	if (!opts.web) { setupDataLossTests(() => { return { stableCodePath: opts['stable-build'], stableCodeVersion: opts['stable-version'] } /* Do not change, deferred for a reason! */; }, logger); }
 	setupPreferencesTests(logger);
 	setupSearchTests(logger);
@@ -418,5 +460,19 @@ describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 	if (!opts.web && !opts.remote && quality !== Quality.Dev && quality !== Quality.OSS) { setupLocalizationTests(logger); }
 	if (!opts.web && !opts.remote) { setupLaunchTests(logger); }
 	if (!opts.web) { setupChatTests(logger); }
+	if (!opts.web && !opts.remote && quality !== Quality.Dev && quality !== Quality.OSS) { setupCopilotCliTests(logger); }
+	if (!opts.web && !opts.remote) { setupChatSandboxTests(logger); }
+	if (!opts.web && !opts.remote) { setupChatSessionsTests(logger); }
+	if (!opts.web && !opts.remote) { setupChatModelConfigTests(logger); }
+	if (!opts.web && !opts.remote) { setupAgentsWindowTests(logger, quality); }
+	if (!opts.web && !opts.remote) { setupBrowserViewTests(logger); }
+	// Native policy fixtures modify OS state outside the test profile; opt in only on disposable runners so you don't break your own machine.
+	if (!opts.web && !opts.remote && process.env.VSCODE_SMOKE_TEST_POLICY === '1') { setupPolicyTests(logger); }
 	setupAccessibilityTests(logger, opts, quality);
 });
+
+if (shard && shard.total > 1) {
+	const allSuites = smokeTestSuite.suites;
+	smokeTestSuite.suites = selectShardSuites(allSuites, shard);
+	logger.log(`Running smoke test shard ${shard.index}/${shard.total} with ${smokeTestSuite.suites.length} of ${allSuites.length} suites: ${smokeTestSuite.suites.map(suite => suite.title).join(', ')}`);
+}

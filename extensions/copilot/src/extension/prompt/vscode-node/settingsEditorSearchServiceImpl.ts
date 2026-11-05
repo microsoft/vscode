@@ -32,7 +32,7 @@ export class SettingsEditorSearchServiceImpl implements ISettingsEditorSearchSer
 		// Start searching for embedding results.
 		let embeddingResult: Embeddings;
 		try {
-			embeddingResult = await this.embeddingsComputer.computeEmbeddings(EmbeddingType.text3small_512, [query], {}, new TelemetryCorrelationId('SettingsEditorSearchServiceImpl::provideSettingsSearchResults'), token);
+			embeddingResult = await this.embeddingsComputer.computeEmbeddings(EmbeddingType.metis_1024_I16_Binary, [query], { inputType: 'query' }, new TelemetryCorrelationId('SettingsEditorSearchServiceImpl::provideSettingsSearchResults'), token);
 		} catch {
 			this.reportEmptyEmbeddingsResult(query, progress);
 			if (!options.embeddingsOnly) {
@@ -77,7 +77,7 @@ export class SettingsEditorSearchServiceImpl implements ISettingsEditorSearchSer
 			return;
 		}
 
-		const endpointName: ChatEndpointFamily = 'copilot-base';
+		const endpointName: ChatEndpointFamily = 'copilot-utility';
 		const endpoint = await this.endpointProvider.getChatEndpoint(endpointName);
 		const generator = this.instantiationService.createInstance(SettingsEditorSearchResultsSelector);
 		const llmSearchSuggestions = await generator.selectTopSearchResults(endpoint, query, embeddingSettings, token);

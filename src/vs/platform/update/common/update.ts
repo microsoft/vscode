@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Event } from '../../../base/common/event.js';
+import { OperatingSystem } from '../../../base/common/platform.js';
 import { upcast } from '../../../base/common/types.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 
@@ -34,6 +36,7 @@ export interface IUpdate {
  * Ready: Code will be updated as soon as it restarts (win32, darwin).
  * Downloaded: There is an update ready to be installed in the background (win32).
  * Overwriting: A newer update is being downloaded to replace the pending update (darwin).
+ * Cancelling: Updates are being disabled at runtime; in-flight/pending work is being torn down before Disabled.
  */
 
 export const enum StateType {
@@ -47,6 +50,7 @@ export const enum StateType {
 	Updating = 'updating',
 	Ready = 'ready',
 	Overwriting = 'overwriting',
+	Cancelling = 'cancelling',
 	Restarting = 'restarting',
 }
 
@@ -76,9 +80,10 @@ export type Downloaded = { type: StateType.Downloaded; update: IUpdate; explicit
 export type Updating = { type: StateType.Updating; update: IUpdate; currentProgress?: number; maxProgress?: number; explicit: boolean };
 export type Ready = { type: StateType.Ready; update: IUpdate; explicit: boolean; overwrite: boolean };
 export type Overwriting = { type: StateType.Overwriting; update: IUpdate; explicit: boolean };
+export type Cancelling = { type: StateType.Cancelling };
 export type Restarting = { type: StateType.Restarting; update: IUpdate };
 
-export type State = Uninitialized | Disabled | Idle | CheckingForUpdates | AvailableForDownload | Downloading | Downloaded | Updating | Ready | Overwriting | Restarting;
+export type State = Uninitialized | Disabled | Idle | CheckingForUpdates | AvailableForDownload | Downloading | Downloaded | Updating | Ready | Overwriting | Cancelling | Restarting;
 
 export const State = {
 	Uninitialized: upcast<Uninitialized>({ type: StateType.Uninitialized }),
@@ -91,6 +96,7 @@ export const State = {
 	Updating: (update: IUpdate, explicit: boolean, currentProgress?: number, maxProgress?: number): Updating => ({ type: StateType.Updating, update, explicit, currentProgress, maxProgress }),
 	Ready: (update: IUpdate, explicit: boolean, overwrite: boolean): Ready => ({ type: StateType.Ready, update, explicit, overwrite }),
 	Overwriting: (update: IUpdate, explicit: boolean): Overwriting => ({ type: StateType.Overwriting, update, explicit }),
+	Cancelling: upcast<Cancelling>({ type: StateType.Cancelling }),
 	Restarting: (update: IUpdate): Restarting => ({ type: StateType.Restarting, update }),
 };
 
@@ -103,6 +109,42 @@ export interface IAutoUpdater extends Event.NodeEventEmitter {
 
 export const IUpdateService = createDecorator<IUpdateService>('updateService');
 
+/**
+ * Restarts to apply a downloaded update while the screen is locked.
+ */
+export const RESTART_WHEN_IDLE_SETTING = 'update.restartWhenIdle';
+
+/**
+ * Whether a downloaded update can be applied by restarting while the screen is locked. Windows
+ * is not verified yet: restored windows might show on top of the application the user was in.
+ * Linux reports no screen locks and does not install updates on restart.
+ */
+export function isUnattendedRestartSupported(os: OperatingSystem): boolean {
+	return os === OperatingSystem.Macintosh;
+}
+
+export interface IQuitAndInstallOptions {
+
+	/**
+	 * The user did not ask for the restart, so like the checks in the background, the
+	 * check for a newer update before restarting skips metered connections.
+	 */
+	readonly unattended?: boolean;
+
+	/**
+	 * Relaunch without activating the application, so that the restart does not take
+	 * focus. Only macOS activates a relaunched application, the windows restore without
+	 * focus on every platform (see `IWindowsMainService.restoreExactlyOnNextStartup`).
+	 */
+	readonly relaunchInBackground?: boolean;
+
+	/**
+	 * Cancels the restart until the shutdown starts, for example when the user returns
+	 * while checking for a newer update.
+	 */
+	readonly token?: CancellationToken;
+}
+
 export interface IUpdateService {
 	readonly _serviceBrand: undefined;
 
@@ -112,7 +154,7 @@ export interface IUpdateService {
 	checkForUpdates(explicit: boolean): Promise<void>;
 	downloadUpdate(explicit: boolean): Promise<void>;
 	applyUpdate(): Promise<void>;
-	quitAndInstall(): Promise<void>;
+	quitAndInstall(options?: IQuitAndInstallOptions): Promise<void>;
 
 	/**
 	 * @deprecated This method should not be used any more. It will be removed in a future release.

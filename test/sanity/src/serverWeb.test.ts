@@ -39,12 +39,6 @@ export function setup(context: TestContext) {
 		await testServer(entryPoint);
 	});
 
-	context.test('server-web-linux-armhf', ['linux', 'arm32', 'browser'], async () => {
-		const dir = await context.downloadAndUnpack('server-linux-armhf-web');
-		const entryPoint = context.getServerEntryPoint(dir);
-		await testServer(entryPoint);
-	});
-
 	context.test('server-web-linux-x64', ['linux', 'x64', 'browser'], async () => {
 		const dir = await context.downloadAndUnpack('server-linux-x64-web');
 		const entryPoint = context.getServerEntryPoint(dir);

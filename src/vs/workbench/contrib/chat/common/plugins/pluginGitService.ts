@@ -19,8 +19,8 @@ export const IPluginGitService = createDecorator<IPluginGitService>('pluginGitSe
  * | ---------------------------------- | ------------------------------- | ------------------------------------------------------- | ---------------------------------------------------------------------- |
  * | Desktop (no remote AHP)            | `NativePluginGitCommandService` | Real `git` via `ILocalGitService` in the shared process | `chat/test/electron-browser/pluginGitCommandService.test.ts`           |
  * | Desktop + remote AHP backend       | `NativePluginGitCommandService` | Real `git` locally; server pulls dir via AHP FS         | + `platform/agentHost/test/node/agentPluginManager.test.ts`            |
- * | Web standalone (no AHP)            | `BrowserPluginGitCommandService`| GitHub tarball fetch + extract into virtual FS          | `chat/test/browser/pluginGitCommandService.test.ts`                    |
- * | Web + remote AHP backend           | `BrowserPluginGitCommandService`| Tarball locally; server pulls dir via AHP FS            | + `platform/agentHost/test/node/agentPluginManager.test.ts`            |
+ * | Web standalone (no AHP)            | `BrowserPluginGitCommandService`| Typed GitHub tree/blob reads into virtual FS            | `chat/test/browser/pluginGitCommandService.test.ts`                    |
+ * | Web + remote AHP backend           | `BrowserPluginGitCommandService`| Typed reads locally; server pulls dir via AHP FS        | + `platform/agentHost/test/node/agentPluginManager.test.ts`            |
  *
  * The "+ remote AHP" rows reuse the local impl unchanged: the server-side
  * `AgentPluginManager` consumes the already-materialised plugin dir through
@@ -37,6 +37,7 @@ export interface IPluginGitService {
 	cloneRepository(cloneUrl: string, targetDir: URI, ref?: string, token?: CancellationToken): Promise<void>;
 	pull(repoDir: URI, token?: CancellationToken): Promise<boolean>;
 	checkout(repoDir: URI, treeish: string, detached?: boolean, token?: CancellationToken): Promise<void>;
+	checkoutCommit(repoDir: URI, commit: string, token?: CancellationToken): Promise<void>;
 	revParse(repoDir: URI, ref: string): Promise<string>;
 	fetch(repoDir: URI, token?: CancellationToken): Promise<void>;
 	fetchRepository(repoDir: URI, token?: CancellationToken): Promise<void>;

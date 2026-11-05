@@ -10,6 +10,7 @@ import { hash } from '../../../base/common/hash.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
+import { BrowserSession } from '../../browserView/electron-main/browserSession.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEncryptionMainService } from '../../encryption/common/encryptionService.js';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
@@ -20,12 +21,9 @@ import { StorageScope, StorageTarget } from '../../storage/common/storage.js';
 import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 
-interface ElectronAuthenticationResponseDetails extends AuthenticationResponseDetails {
-	firstAuthAttempt?: boolean; // https://github.com/electron/electron/blob/84a42a050e7d45225e69df5bd2d2bf9f1037ea41/shell/browser/login_handler.cc#L70
-}
-
 type LoginEvent = {
 	event?: ElectronEvent;
+	webContents?: WebContents;
 	authInfo: AuthInfo;
 	callback?: (username?: string, password?: string) => void;
 };
@@ -63,7 +61,7 @@ export class ProxyAuthService extends Disposable implements IProxyAuthService {
 	}
 
 	private registerListeners(): void {
-		const onLogin = Event.fromNodeEventEmitter<LoginEvent>(app, 'login', (event: ElectronEvent, _webContents: WebContents, req: ElectronAuthenticationResponseDetails, authInfo: ElectronAuthInfo, callback) => ({ event, authInfo: { ...authInfo, attempt: req.firstAuthAttempt ? 1 : 2 }, callback } satisfies LoginEvent));
+		const onLogin = Event.fromNodeEventEmitter<LoginEvent>(app, 'login', (event: ElectronEvent, webContents: WebContents, req: AuthenticationResponseDetails, authInfo: ElectronAuthInfo, callback) => ({ event, webContents, authInfo: { ...authInfo, attempt: req.firstAuthAttempt ? 1 : 2 }, callback } satisfies LoginEvent));
 		this._register(onLogin(this.onLogin, this));
 	}
 
@@ -71,9 +69,16 @@ export class ProxyAuthService extends Disposable implements IProxyAuthService {
 		return this.onLogin({ authInfo });
 	}
 
-	private async onLogin({ event, authInfo, callback }: LoginEvent): Promise<Credentials | undefined> {
+	private async onLogin({ event, webContents, authInfo, callback }: LoginEvent): Promise<Credentials | undefined> {
 		if (!authInfo.isProxy) {
 			return; // only for proxy
+		}
+
+		// Browser view webContents have their own login handler that
+		// supplies tunnel proxy credentials directly. Skip the global
+		// handler so we don't race with it or show a dialog.
+		if (webContents && BrowserSession.isBrowserViewWebContents(webContents)) {
+			return;
 		}
 
 		// Signal we handle this event on our own, otherwise
