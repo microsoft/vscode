@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../base/common/observable.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
-import { setHostSessionContextKeys } from '../../../../workbench/contrib/sessions/common/sessionContextKeys.js';
-import { bindHasWorktreeAndRepositoryContextKey, bindIsAgentHostSessionContextKey } from '../../../../workbench/contrib/sessions/browser/sessionScopedContextKeys.js';
-import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { IGitHubService } from '../../../../workbench/contrib/sessions/browser/github/githubService.js';
-import { IChangesSessionScope } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
+import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../base/common/observable.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { setHostSessionContextKeys } from '../../common/sessionContextKeys.js';
+import { bindHasWorktreeAndRepositoryContextKey, bindIsAgentHostSessionContextKey } from '../sessionScopedContextKeys.js';
+import { ISessionsProvidersService } from '../sessionsProvidersService.js';
+import { IGitHubService } from '../github/githubService.js';
+import { IChangesSessionScope } from '../../common/changesViewService.js';
 import { bindSessionActionContextKeys } from './sessionActionContextKeys.js';
 import { bindChangesetContextKeys } from './changesViewService.js';
 

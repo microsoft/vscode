@@ -21,7 +21,7 @@ import { DesktopChangesEditorTransitionContext, SessionAgentMergeEnabledContext,
 import { ISessionChangeset } from '../../../../../../workbench/contrib/sessions/common/session.js';
 import { GitHubPullRequestCIModel } from '../../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
 import { ActiveSessionState } from '../../../../../../workbench/contrib/sessions/common/changesViewService.js';
-import { bindSessionActionContextKeys } from '../../../../changes/browser/sessionActionContextKeys.js';
+import { bindSessionActionContextKeys } from '../../../../../../workbench/contrib/sessions/browser/changes/sessionActionContextKeys.js';
 import '../../browser/agentMergeActions.js';
 
 suite('Agent Merge Actions', () => {

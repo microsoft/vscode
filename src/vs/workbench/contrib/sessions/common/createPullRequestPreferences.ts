@@ -5,7 +5,7 @@
 
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { ISessionPullRequestAgentMergeOptions, SessionPullRequestMergeMethod } from '../../../../workbench/contrib/sessions/common/pullRequestCreation.js';
+import { ISessionPullRequestAgentMergeOptions, SessionPullRequestMergeMethod } from './pullRequestCreation.js';
 
 export type CreatePullRequestAction = 'create' | 'sendToChat';
 export type CreatePullRequestMergeMode = 'manual' | 'agent' | 'auto';

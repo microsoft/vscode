@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { URI } from '../../../../../base/common/uri.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { AGENT_HOST_LABEL_FORMATTER, toAgentHostContentUri, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
-import { TestEnvironmentService, TestLifecycleService, TestPathService, TestRemoteAgentService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
-import { TestContextService, TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
-import { LabelService } from '../../../../../workbench/services/label/common/labelService.js';
-import { getChangesEditorFileStats, getChangesEditorLabels } from '../../browser/changesEditorLabels.js';
-import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { extUri } from '../../../../../base/common/resources.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { AGENT_HOST_LABEL_FORMATTER, toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { TestEnvironmentService, TestLifecycleService, TestPathService, TestRemoteAgentService } from '../../../../../test/browser/workbenchTestServices.js';
+import { TestContextService, TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
+import { LabelService } from '../../../../../services/label/common/labelService.js';
+import { getChangesEditorFileStats, getChangesEditorLabels } from '../../../browser/changes/changesEditorLabels.js';
+import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { extUri } from '../../../../../../base/common/resources.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
 
 suite('ChangesEditorLabels', () => {
 

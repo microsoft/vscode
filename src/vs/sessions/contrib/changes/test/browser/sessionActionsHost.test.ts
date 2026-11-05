@@ -17,7 +17,7 @@ import { ISessionChangeset, ISessionChangesetOperation } from '../../../../../wo
 import { GitHubPullRequestCIModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
 import { IGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
 import { ActiveSessionState, IChangesSessionObservables, IChangesSessionScope } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
-import { createSessionActionsInstantiationService } from '../../browser/sessionActionsHost.js';
+import { createSessionActionsInstantiationService } from '../../../../../workbench/contrib/sessions/browser/changes/sessionActionsHost.js';
 import { hasWorktreeAndRepositoryContextKey } from '../../../../../workbench/contrib/sessions/browser/sessionScopedContextKeys.js';
 
 suite('Session Actions Host', () => {

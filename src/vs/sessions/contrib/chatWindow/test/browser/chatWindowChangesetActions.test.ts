@@ -29,14 +29,14 @@ import { ISessionChangeset, ISessionChangesetOperation, SessionChangesetOperatio
 import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
 import { ChangesHeaderChangesetOperationsActionContribution } from '../../../changes/browser/changesActions.js';
-import { bindSessionActionContextKeys } from '../../../changes/browser/sessionActionContextKeys.js';
+import { bindSessionActionContextKeys } from '../../../../../workbench/contrib/sessions/browser/changes/sessionActionContextKeys.js';
 import '../../../changes/browser/changesetReviewActions.js';
-import { ChangesetReviewSupportContext } from '../../../changes/browser/changesViewService.js';
-import { CHANGESET_REVIEW_ACTION_ID, SessionChangesEditor, SessionChangesUIElementFactory } from '../../../changes/browser/sessionChangesEditor.js';
+import { ChangesetReviewSupportContext } from '../../../../../workbench/contrib/sessions/browser/changes/changesViewService.js';
+import { CHANGESET_REVIEW_ACTION_ID, SessionChangesEditor, SessionChangesUIElementFactory } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesEditor.js';
 import { IGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
 import { GitHubPullRequestCIModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
 import { ActiveSessionState, IChangesSessionObservables, IChangesSessionScope, IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
-import { bindSessionScopeContextKeys } from '../../../changes/browser/sessionActionsHost.js';
+import { bindSessionScopeContextKeys } from '../../../../../workbench/contrib/sessions/browser/changes/sessionActionsHost.js';
 import { ITestSessionsService, stubSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Chat window changeset actions', () => {

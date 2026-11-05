@@ -19,9 +19,9 @@ import { GitHubPullRequestCIModel } from '../../../../../workbench/contrib/sessi
 import { PullRequestCheck } from '../../../../../platform/github/common/githubPullRequestService.js';
 import { RequiredPullRequestChecks } from '../../../../../platform/github/common/pullRequestRequiredChecks.js';
 import { ActiveSessionState } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
-import { registerSessionActionContextKeyBinder, bindSessionActionContextKeys, ISessionActionContextKeysSource } from '../../browser/sessionActionContextKeys.js';
+import { registerSessionActionContextKeyBinder, bindSessionActionContextKeys, ISessionActionContextKeysSource } from '../../../../../workbench/contrib/sessions/browser/changes/sessionActionContextKeys.js';
 import { activeSessionCIFixRequested, hasActiveSessionFailedCIChecks } from '../../../../../workbench/contrib/sessions/browser/fixCIChecks.js';
-import { SessionChangesReviewedFilesContext } from '../../browser/changesMultiDiffSourceResolver.js';
+import { SessionChangesReviewedFilesContext } from '../../../../../workbench/contrib/sessions/browser/changes/changesMultiDiffSourceResolver.js';
 
 suite('Session Action Context Keys', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();

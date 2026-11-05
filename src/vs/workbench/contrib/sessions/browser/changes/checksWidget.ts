@@ -4,25 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/checksWidget.css';
-import * as dom from '../../../../base/browser/dom.js';
-import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { IListRenderer, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
-import { Action } from '../../../../base/common/actions.js';
-import { Codicon } from '../../../../base/common/codicons.js';
-import { Emitter } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../base/common/observable.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
-import { URI } from '../../../../base/common/uri.js';
-import { localize } from '../../../../nls.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { WorkbenchList } from '../../../../platform/list/browser/listService.js';
-import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { DEFAULT_LABELS_CONTAINER, IResourceLabel, ResourceLabels } from '../../../../workbench/browser/labels.js';
-import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
-import { GitHubCheckConclusion, GitHubCheckStatus, IGitHubCICheck } from '../../../../workbench/contrib/sessions/common/github/types.js';
-import { GitHubPullRequestCIModel, parseWorkflowRunId } from '../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
-import { CICheckGroup, getCheckGroup, getCheckStateLabel } from '../../../../workbench/contrib/sessions/browser/fixCIChecks.js';
+import * as dom from '../../../../../base/browser/dom.js';
+import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { IListRenderer, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
+import { Action } from '../../../../../base/common/actions.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { Emitter } from '../../../../../base/common/event.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { localize } from '../../../../../nls.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { DEFAULT_LABELS_CONTAINER, IResourceLabel, ResourceLabels } from '../../../../browser/labels.js';
+import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
+import { GitHubCheckConclusion, GitHubCheckStatus, IGitHubCICheck } from '../../common/github/types.js';
+import { GitHubPullRequestCIModel, parseWorkflowRunId } from '../github/models/githubPullRequestCIModel.js';
+import { CICheckGroup, getCheckGroup, getCheckStateLabel } from '../fixCIChecks.js';
 import { ChecksViewModel } from './checksViewModel.js';
 
 const $ = dom.$;

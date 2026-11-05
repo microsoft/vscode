@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../../base/common/lifecycle.js';
-import { derived, derivedObservableWithCache, derivedOpts, IObservable, observableFromEvent, ValueWithChangeEventFromObservable } from '../../../../base/common/observable.js';
-import { equals as arraysEqual } from '../../../../base/common/arrays.js';
-import { isEqual } from '../../../../base/common/resources.js';
-import { URI } from '../../../../base/common/uri.js';
-import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffSourceResolverService.js';
-import { sortMultiDiffEditorFileListItems } from '../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
-import { ISessionFileChange } from '../../../../workbench/contrib/sessions/common/session.js';
-import { ChangesViewMode } from '../../../../workbench/contrib/sessions/common/changes.js';
-import { getActiveSessionChanges, IChangesSessionObservables, IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
-import { getMainWindowHost, getWindowHost, ISessionHostService, SessionHostKind } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
-import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { ISessionChangesService } from '../../../../workbench/contrib/sessions/browser/changes/sessionChangesService.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { derived, derivedObservableWithCache, derivedOpts, IObservable, observableFromEvent, ValueWithChangeEventFromObservable } from '../../../../../base/common/observable.js';
+import { equals as arraysEqual } from '../../../../../base/common/arrays.js';
+import { isEqual } from '../../../../../base/common/resources.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from '../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
+import { sortMultiDiffEditorFileListItems } from '../../../multiDiffEditor/common/multiDiffEditor.js';
+import { ISessionFileChange } from '../../common/session.js';
+import { ChangesViewMode } from '../../common/changes.js';
+import { getActiveSessionChanges, IChangesSessionObservables, IChangesViewService } from '../../common/changesViewService.js';
+import { getMainWindowHost, getWindowHost, ISessionHostService, SessionHostKind } from '../sessionHost.js';
+import { ISessionsManagementService } from '../../common/sessionsManagement.js';
+import { ISessionChangesService } from './sessionChangesService.js';
 import { getChangesEditorFileResource } from './changesEditorLabels.js';
-import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 
 /**
  * Global context key holding the URIs (as strings) of every file the user has

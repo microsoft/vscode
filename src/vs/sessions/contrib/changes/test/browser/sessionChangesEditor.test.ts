@@ -20,8 +20,8 @@ import { MockContextKeyService } from '../../../../../platform/keybinding/test/c
 import { TestEditorGroupView, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
-import { IDiffEditorOptionsService, SessionsWordWrap } from '../../../editor/common/diffEditorOptionsService.js';
-import { SessionChangesEditor } from '../../browser/sessionChangesEditor.js';
+import { IDiffEditorOptionsService, SessionsWordWrap } from '../../../../../workbench/contrib/sessions/common/diffEditorOptionsService.js';
+import { SessionChangesEditor } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesEditor.js';
 import { MultiDiffEditorWithFileListWidget } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorWithFileListWidget.js';
 import { MultiDiffEditorFileList } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorFileList.js';
 import { FocusFileListAction } from '../../../../../workbench/contrib/multiDiffEditor/browser/actions.js';
@@ -55,7 +55,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { IMatchEditorOptions, IUntypedEditorInput } from '../../../../../workbench/common/editor.js';
 import '../../../../../editor/browser/widget/multiDiffEditor/style.css';
-import '../../browser/media/sessionChangesEditor.css';
+import '../../../../../workbench/contrib/sessions/browser/changes/media/sessionChangesEditor.css';
 
 suite('SessionChangesEditor empty state layout', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../base/common/async.js';
-import { constObservable } from '../../../../../base/common/observable.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { ChatInteractivity, IChat, ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { ISendRequestOptions, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { createPullRequestMessage, CreatePullRequestChatRequest } from '../../browser/createPullRequestChatRequest.js';
-import { ISessionPullRequestChatOptions, ISessionPullRequestContext, ISessionPullRequestCreation } from '../../../../../workbench/contrib/sessions/common/pullRequestCreation.js';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { constObservable } from '../../../../../../base/common/observable.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ChatInteractivity, IChat, ISession } from '../../../common/session.js';
+import { ISendRequestOptions, ISessionsManagementService } from '../../../common/sessionsManagement.js';
+import { createPullRequestMessage, CreatePullRequestChatRequest } from '../../../browser/changes/createPullRequestChatRequest.js';
+import { ISessionPullRequestChatOptions, ISessionPullRequestContext, ISessionPullRequestCreation } from '../../../common/pullRequestCreation.js';
 
 suite('CreatePullRequestChatRequest', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

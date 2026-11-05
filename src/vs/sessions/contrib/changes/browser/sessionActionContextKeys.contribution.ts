@@ -10,7 +10,7 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { getMainWindowHost, ISessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { IGitHubService } from '../../../../workbench/contrib/sessions/browser/github/githubService.js';
 import { IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
-import { bindSessionActionContextKeys } from './sessionActionContextKeys.js';
+import { bindSessionActionContextKeys } from '../../../../workbench/contrib/sessions/browser/changes/sessionActionContextKeys.js';
 
 /** Binds the session action context keys of the main window host's session on the global context key service. */
 class ActiveSessionActionContextKeysContribution extends Disposable implements IWorkbenchContribution {

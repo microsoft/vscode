@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from '../../../../base/browser/dom.js';
-import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
-import { AnchorAlignment, AnchorPosition } from '../../../../base/common/layout.js';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
-import { ContextViewHandler } from '../../../../platform/contextview/browser/contextViewService.js';
-import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
-import { INotificationService } from '../../../../platform/notification/common/notification.js';
-import { IStorageService } from '../../../../platform/storage/common/storage.js';
-import { ISessionPullRequestCreation, ISessionPullRequestOptions } from '../../../../workbench/contrib/sessions/common/pullRequestCreation.js';
-import { CreatePullRequestFocusedContext } from '../../../../workbench/contrib/sessions/common/changes.js';
-import { CreatePullRequestPreferences } from '../common/createPullRequestPreferences.js';
+import * as dom from '../../../../../base/browser/dom.js';
+import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
+import { AnchorAlignment, AnchorPosition } from '../../../../../base/common/layout.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
+import { ContextViewHandler } from '../../../../../platform/contextview/browser/contextViewService.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { ISessionPullRequestCreation, ISessionPullRequestOptions } from '../../common/pullRequestCreation.js';
+import { CreatePullRequestFocusedContext } from '../../common/changes.js';
+import { CreatePullRequestPreferences } from '../../common/createPullRequestPreferences.js';
 import { CreatePullRequestWidget, ICreatePullRequestFormContent, ICreatePullRequestWidgetOptions } from './createPullRequestWidget.js';
 
 export class CreatePullRequestContextView extends Disposable {

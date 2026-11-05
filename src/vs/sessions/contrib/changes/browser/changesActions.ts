@@ -35,14 +35,14 @@ import { resolveSessionCommandTarget } from '../../../../workbench/contrib/sessi
 import { IChat, ISessionChangeset, ISessionChangesetOperation, ISessionFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionChangesStatsCache, readSessionChangesStats } from '../../../../workbench/contrib/sessions/common/sessionChangesStatsCache.js';
 import { getChangesOfSession, IChangesSessionObservables, IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
-import { ChangesMultiDiffSourceResolver } from './changesMultiDiffSourceResolver.js';
+import { ChangesMultiDiffSourceResolver } from '../../../../workbench/contrib/sessions/browser/changes/changesMultiDiffSourceResolver.js';
 import { ISessionChangesService } from '../../../../workbench/contrib/sessions/browser/changes/sessionChangesService.js';
-import { getFileActionEditorPane, IChangesEditorFileActionContext, SessionChangesEditor } from './sessionChangesEditor.js';
+import { getFileActionEditorPane, IChangesEditorFileActionContext, SessionChangesEditor } from '../../../../workbench/contrib/sessions/browser/changes/sessionChangesEditor.js';
 import { VIEW_SESSION_CHANGES_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/changes.js';
-import { getChangesFileUri, isChangesFileResource } from './changesViewRenderer.js';
-import { ISessionActionContextKeysSource, registerSessionActionContextKeyBinder } from './sessionActionContextKeys.js';
+import { getChangesFileUri, isChangesFileResource } from '../../../../workbench/contrib/sessions/browser/changes/changesViewRenderer.js';
+import { ISessionActionContextKeysSource, registerSessionActionContextKeyBinder } from '../../../../workbench/contrib/sessions/browser/changes/sessionActionContextKeys.js';
 import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
-import { mainWindowChangesOwner } from './changesViewService.js';
+import { mainWindowChangesOwner } from '../../../../workbench/contrib/sessions/browser/changes/changesViewService.js';
 
 function getWorkspaceResource(resource: URI, changes: readonly ISessionFileChange[]): URI {
 	const change = changes.find(change => isChangesFileResource(change, resource));

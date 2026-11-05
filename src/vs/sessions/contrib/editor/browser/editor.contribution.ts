@@ -38,7 +38,7 @@ import { IListService } from '../../../../platform/list/browser/listService.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../workbench/common/editor.js';
 import { resolveCommandsContext } from '../../../../workbench/browser/parts/editor/editorCommandsContext.js';
 import { CHANGES_VIEW_ID } from '../../../../workbench/contrib/sessions/common/changes.js';
-import { ChangesViewPane } from '../../changes/browser/changesView.js';
+import { ChangesViewPane } from '../../../../workbench/contrib/sessions/browser/changes/changesView.js';
 import { CONNECTED_EDITOR_TABS_CLASS } from '../../../../workbench/browser/parts/editor/editor.js';
 import { IWorkbenchLayoutService, LayoutSettings, ModernUIEditorTabStyle, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IAuxiliaryWindowService } from '../../../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';

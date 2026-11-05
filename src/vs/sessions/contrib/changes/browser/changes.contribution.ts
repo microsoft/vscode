@@ -15,9 +15,9 @@ import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../../workbench
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../../workbench/common/editor.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../../../../workbench/contrib/sessions/common/changes.js';
-import { ChangesViewPane, DesktopChangesViewPane, ChangesViewPaneContainer } from './changesView.js';
+import { ChangesViewPane, DesktopChangesViewPane, ChangesViewPaneContainer } from '../../../../workbench/contrib/sessions/browser/changes/changesView.js';
 import './changesView.contribution.js';
-import { SessionChangesEditor } from './sessionChangesEditor.js';
+import { SessionChangesEditor } from '../../../../workbench/contrib/sessions/browser/changes/sessionChangesEditor.js';
 import { SessionChangesEditorInput, SessionChangesEditorSerializer } from '../../../../workbench/contrib/sessions/browser/changes/sessionChangesEditorInput.js';
 import { IsPhoneLayoutContext, SessionHasWorkspaceContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
@@ -30,10 +30,10 @@ import './sessionActionContextKeys.contribution.js';
 import './sessionSyncChanges.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
-import { ChangesViewService } from './changesViewService.js';
+import { ChangesViewService } from '../../../../workbench/contrib/sessions/browser/changes/changesViewService.js';
 import { IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
-import { SessionsChangesAccessibilityHelp } from './sessionsChangesAccessibilityHelp.js';
+import { SessionsChangesAccessibilityHelp } from '../../../../workbench/contrib/sessions/browser/changes/sessionsChangesAccessibilityHelp.js';
 import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
 import { ChangesActivityContribution } from './changesActivity.js';
 

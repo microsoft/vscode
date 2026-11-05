@@ -34,8 +34,7 @@ import { ComponentFixtureContext, createEditorServices, defineComponentFixture, 
 
 import { ActiveSessionState, ChangesViewSection, IChangesDetailsViewState, IChangesSessionObservables, IChangesViewSectionCollapseState, IChangesViewService } from '../../../../contrib/sessions/common/changesViewService.js';
 import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesViewMode, IsolationMode } from '../../../../contrib/sessions/common/changes.js';
-// eslint-disable-next-line local/code-import-patterns
-import { DesktopChangesViewPane } from '../../../../../sessions/contrib/changes/browser/changesView.js';
+import { DesktopChangesViewPane } from '../../../../contrib/sessions/browser/changes/changesView.js';
 // eslint-disable-next-line local/code-import-patterns
 import '../../../../../sessions/contrib/changes/browser/changesView.contribution.js';
 import { ISessionChangesService, SessionChangesService } from '../../../../contrib/sessions/browser/changes/sessionChangesService.js';
@@ -483,9 +482,9 @@ function renderChangesView(ctx: ComponentFixtureContext, options: IChangesViewFi
 }
 
 const SAMPLE_CHANGES = [
-	createFileChange('src/vs/sessions/contrib/changes/browser/changesView.ts', 'modified', 42, 18),
-	createFileChange('src/vs/sessions/contrib/changes/browser/checksWidget.ts', 'modified', 24, 9),
-	createFileChange('src/vs/sessions/contrib/changes/browser/media/checksWidget.css', 'modified', 6, 2),
+	createFileChange('src/vs/workbench/contrib/sessions/browser/changes/changesView.ts', 'modified', 42, 18),
+	createFileChange('src/vs/workbench/contrib/sessions/browser/changes/checksWidget.ts', 'modified', 24, 9),
+	createFileChange('src/vs/workbench/contrib/sessions/browser/changes/media/checksWidget.css', 'modified', 6, 2),
 	createFileChange('src/vs/sessions/contrib/changes/test/browser/changesView.fixture.ts', 'added', 132, 0),
 	createFileChange('src/vs/sessions/contrib/changes/browser/oldChangesLayout.ts', 'deleted', 0, 47),
 ];

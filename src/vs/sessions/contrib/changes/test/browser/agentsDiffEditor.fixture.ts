@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import '../../browser/media/sessionChangesEditor.css';
+import '../../../../../workbench/contrib/sessions/browser/changes/media/sessionChangesEditor.css';
 import '../../../agentFeedback/browser/media/agentFeedbackEditorInput.css';
 import '../../../../../workbench/browser/media/feedbackInputWidget.css';
 import '../../../../../base/browser/ui/codicons/codiconStyles.js';

@@ -13,7 +13,7 @@ import { ISessionHost } from '../../../../workbench/contrib/sessions/browser/ses
 import { IChangesViewService, getActiveSessionChanges } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
-import { VERSIONS_PICKER_ACTION_ID, createChangesSessionScope, CHANGES_HEADER_ACTIONS_ID, ChangesActionsBarActionViewItem, createChangesPickerLabelObservable, ChangesPickerSummary, ChangesPickerActionItem, SetChangesListViewModeAction, SetChangesTreeViewModeAction, VersionsPickerAction, ChangesDiffStatsAction, RevealCIChecksAction } from './changesView.js';
+import { VERSIONS_PICKER_ACTION_ID, createChangesSessionScope, CHANGES_HEADER_ACTIONS_ID, ChangesActionsBarActionViewItem, createChangesPickerLabelObservable, ChangesPickerSummary, ChangesPickerActionItem, SetChangesListViewModeAction, SetChangesTreeViewModeAction, VersionsPickerAction, ChangesDiffStatsAction, RevealCIChecksAction } from '../../../../workbench/contrib/sessions/browser/changes/changesView.js';
 import { localize2 } from '../../../../nls.js';
 import { NEW_FILE_TAB_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { EmptyFileEditorInput } from '../../editor/browser/emptyFileEditorInput.js';

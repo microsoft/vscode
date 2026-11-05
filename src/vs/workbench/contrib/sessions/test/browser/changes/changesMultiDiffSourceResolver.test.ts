@@ -4,22 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { constObservable, derived, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { fromAgentHostUri, toAgentHostContentUri, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
-import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffSourceResolverService.js';
-import { IChat, ISession, ISessionFileChange } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { ChangesMultiDiffSourceResolver } from '../../browser/changesMultiDiffSourceResolver.js';
-import { ChangesViewMode } from '../../../../../workbench/contrib/sessions/common/changes.js';
-import { ISessionChangesService } from '../../../../../workbench/contrib/sessions/common/sessionChangesService.js';
-import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { IChangesSessionObservables, IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
-import { sessionHostServiceOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { Event } from '../../../../../../base/common/event.js';
+import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { constObservable, derived, IObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { fromAgentHostUri, toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService } from '../../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
+import { IChat, ISession, ISessionFileChange } from '../../../common/session.js';
+import { ChangesMultiDiffSourceResolver } from '../../../browser/changes/changesMultiDiffSourceResolver.js';
+import { ChangesViewMode } from '../../../common/changes.js';
+import { ISessionChangesService } from '../../../common/sessionChangesService.js';
+import { ISessionsService } from '../../../browser/sessionsService.js';
+import { IActiveSession, ISessionsManagementService } from '../../../common/sessionsManagement.js';
+import { IChangesSessionObservables, IChangesViewService } from '../../../common/changesViewService.js';
+import { sessionHostServiceOf } from '../sessionHostTestUtils.js';
 
 function noSessions(): ISessionsService {
 	return new class extends mock<ISessionsService>() {

@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { URI } from '../../../../../base/common/uri.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ISessionFileChange } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { isChangesFileResource } from '../../browser/changesViewRenderer.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { ISessionFileChange } from '../../../common/session.js';
+import { isChangesFileResource } from '../../../browser/changes/changesViewRenderer.js';
 
 suite('ChangesViewRenderer', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

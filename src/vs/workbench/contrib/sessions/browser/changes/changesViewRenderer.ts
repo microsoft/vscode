@@ -3,31 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from '../../../../base/browser/dom.js';
-import { ICompressedTreeElement, ICompressedTreeNode } from '../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
-import { ICompressibleTreeRenderer } from '../../../../base/browser/ui/tree/objectTree.js';
-import { ITreeNode } from '../../../../base/browser/ui/tree/tree.js';
-import { ActionRunner } from '../../../../base/common/actions.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../base/common/observable.js';
-import { basename, dirname, extUriBiasedIgnorePathCase, isEqual, relativePath } from '../../../../base/common/resources.js';
-import { IResourceNode, ResourceTree } from '../../../../base/common/resourceTree.js';
-import { URI } from '../../../../base/common/uri.js';
-import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
-import { MenuId } from '../../../../platform/actions/common/actions.js';
-import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { FileKind } from '../../../../platform/files/common/files.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
-import { ILabelService } from '../../../../platform/label/common/label.js';
-import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
-import { IResourceLabel, ResourceLabels } from '../../../../workbench/browser/labels.js';
-import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ModifiedFileEntryState } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
-import { GITHUB_REMOTE_FILE_SCHEME, ISessionFileChange } from '../../../../workbench/contrib/sessions/common/session.js';
-import { ActiveSessionContextKeys, ChangesContextKeys, ChangesViewMode } from '../../../../workbench/contrib/sessions/common/changes.js';
-import { IChangesSessionScope, IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
+import * as dom from '../../../../../base/browser/dom.js';
+import { ICompressedTreeElement, ICompressedTreeNode } from '../../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
+import { ICompressibleTreeRenderer } from '../../../../../base/browser/ui/tree/objectTree.js';
+import { ITreeNode } from '../../../../../base/browser/ui/tree/tree.js';
+import { ActionRunner } from '../../../../../base/common/actions.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../base/common/observable.js';
+import { basename, dirname, extUriBiasedIgnorePathCase, isEqual, relativePath } from '../../../../../base/common/resources.js';
+import { IResourceNode, ResourceTree } from '../../../../../base/common/resourceTree.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
+import { MenuId } from '../../../../../platform/actions/common/actions.js';
+import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { FileKind } from '../../../../../platform/files/common/files.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { bindContextKey } from '../../../../../platform/observable/common/platformObservableUtils.js';
+import { IResourceLabel, ResourceLabels } from '../../../../browser/labels.js';
+import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
+import { isIChatSessionFileChange2 } from '../../../chat/common/chatSessionsService.js';
+import { ModifiedFileEntryState } from '../../../chat/common/editing/chatEditingService.js';
+import { GITHUB_REMOTE_FILE_SCHEME, ISessionFileChange } from '../../common/session.js';
+import { ActiveSessionContextKeys, ChangesContextKeys, ChangesViewMode } from '../../common/changes.js';
+import { IChangesSessionScope, IChangesViewService } from '../../common/changesViewService.js';
 
 const $ = dom.$;
 
