@@ -350,6 +350,8 @@ The parallel runner defaults to `--storage split` on Linux CI: the selected repl
 
 On Windows, test-server cleanup records descendants before requesting graceful shutdown and terminates any survivors after the server exits, before temporary directories are removed. Recording descendants and waiting for graceful exit share the existing shutdown deadline.
 
+Temporary-directory cleanup awaits `fs.promises.rm` with per-entry retries disabled so recursive retries do not multiply with directory depth and outlast the existing outer retry deadline. Its permission-repair fallback preserves cleanup of owned read-only directories on POSIX, but uses `lstat` and skips symbolic links and directory junctions at every recursion boundary. External files and their attributes must remain unchanged. Cleanup errors still fail teardown.
+
 - **Per-test** (always while recording) — fork a fresh server + proxy for every test and kill it in teardown. Full isolation: nothing carries over between tests. The cost is that every test re-pays the server fork **and** the provider SDK/CLI cold start (`_ensureClient` spawns and caches the CLI subprocess per server).
 
 - **Shared** (the default in replay, for every provider) — reuse a server + proxy across tests, swapping the per-test fixture and reconnecting a fresh client. The lease recycles after 25 model-backed tests or 40 total tests, whichever comes first. The model cap bounds provider-process load; the total cap bounds host-owned terminals, watchers, subscriptions, and other resource accumulation in host-only suites.
@@ -727,6 +729,12 @@ The Responses (`/responses`) regenerator announces each output item before strea
 ### A test passes on macOS/Linux but fails on Windows
 
 Same as above — it's platform-specific real execution, not the proxy. See the worktree and provider-specific file-operation gates for established patterns.
+
+### Windows cleanup fails on FNM junctions
+
+A PowerShell profile can run FNM inside the isolated home and create `AppData/Local/fnm_multishells` junctions pointing to a Node installation outside that home. Synchronous recursive removal in Windows Electron can traverse these junctions: a running external executable produces `EPERM`, while an unlocked external target can be deleted even when teardown reports success. A recursive `stat`/`chmod` fallback also follows the links and can change external file attributes.
+
+Use `removeTempDirs` and its awaited asynchronous removal rather than synchronous removal. Its permission-repair fallback must skip links, including when the supplied root itself is a link. Do not terminate processes using the external Node installation: they are not owned by the test. Reproduce with isolated external targets and verify both content and attributes survive; a passing teardown alone does not establish link safety.
 
 ### Codex passes its tests but cannot remove its temporary home
 
