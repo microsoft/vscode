@@ -9,6 +9,7 @@ import { hash } from '../../../../../../base/common/hash.js';
 import { IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { hasKey } from '../../../../../../base/common/types.js';
+import { Schemas } from '../../../../../../base/common/network.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -16,6 +17,8 @@ import { IActionListDelegate, IActionListItem } from '../../../../../../platform
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestTelemetryService } from '../../../../../../platform/telemetry/test/common/testTelemetryService.js';
 import { IChatModeService, IChatModes, ChatMode, CustomChatMode } from '../../../../../../workbench/contrib/chat/common/chatModes.js';
@@ -23,7 +26,7 @@ import { IChatService } from '../../../../../../workbench/contrib/chat/common/ch
 import { IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { MockChatSessionsService } from '../../../../../../workbench/contrib/chat/test/common/mockChatSessionsService.js';
 import { IChatModel, IChatRequestModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
-import { PromptsStorage } from '../../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
+import { IAgentSource, PromptsStorage } from '../../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { Target } from '../../../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { IChat, ISession } from '../../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
@@ -164,14 +167,21 @@ suite('ScopedModePickerModelCache', () => {
 suite('ModePicker', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	for (const { source, resource, actionLabel } of [
+	const fileCases: { source: IAgentSource; resource: URI; editorResource?: URI; actionLabel?: string }[] = [
 		{ source: { storage: PromptsStorage.local }, resource: URI.file('/workspace/reviewer.agent.md'), actionLabel: 'Edit Reviewer agent' },
 		{ source: { storage: PromptsStorage.extension, extensionId: new ExtensionIdentifier('test.agents') }, resource: URI.file('/extensions/reviewer.agent.md'), actionLabel: 'View Reviewer agent' },
 		{ source: { storage: PromptsStorage.local }, resource: URI.parse('vscode-agent-host://remote/workspace/reviewer.agent.md'), actionLabel: 'Edit Reviewer agent' },
-	] as const) {
-		test(`opens the ${source.storage} agent file without selecting it (${resource.scheme})`, async () => {
+		{ source: { storage: PromptsStorage.local }, resource: URI.file('/cache/reviewer.agent.md'), editorResource: URI.file('/original/reviewer.agent.md'), actionLabel: 'Edit Reviewer agent' },
+		{ source: { storage: PromptsStorage.local }, resource: URI.parse('claude-internal:/agent/Explore') },
+		{ source: { storage: PromptsStorage.local }, resource: toAgentHostUri(URI.parse('claude-internal:/agent/Explore'), 'remote') },
+		{ source: { storage: PromptsStorage.local }, resource: URI.parse('unregistered:/agent') },
+	];
+	const fileService = upcastPartial<IFileService>({ hasProvider: resource => resource.scheme === Schemas.file || resource.scheme === AGENT_HOST_SCHEME });
+	for (const { source, resource, editorResource, actionLabel } of fileCases) {
+		test(`offers file actions only for openable ${source.storage} agents (${resource.toString()})`, async () => {
 			const customAgent = new CustomChatMode({
 				id: 'reviewer', uri: resource, name: 'Reviewer',
+				editorResource,
 				source,
 				agentInstructions: { content: '', toolReferences: [] }, target: Target.Undefined,
 				visibility: { userInvocable: true, agentInvocable: true }, enabled: true,
@@ -203,24 +213,24 @@ suite('ModePicker', () => {
 						return undefined;
 					},
 				}),
+				fileService,
 			));
 			store.add(picker.onDidSelect(mode => calls.push(`select:${mode.id}`)));
 			picker.showPicker(document.createElement('button'));
 			const agentAction = items.find(item => item.label === 'Reviewer')?.toolbarActions?.[0];
-			assert.ok(agentAction);
-			await agentAction.run();
+			await agentAction?.run();
 
 			assert.deepStrictEqual({
-				actionLabel: agentAction.label,
+				actionLabel: agentAction?.label,
 				rowsWithActions: items.filter(item => item.toolbarActions?.length).map(item => item.label),
 				keyboardActions,
 				calls,
 				selected: model.selectedMode.id,
 			}, {
 				actionLabel,
-				rowsWithActions: ['Reviewer'],
+				rowsWithActions: actionLabel ? ['Reviewer'] : [],
 				keyboardActions: true,
-				calls: ['hide', `open:${resource.toString()}`],
+				calls: actionLabel ? ['hide', `open:${(editorResource ?? resource).toString()}`] : [],
 				selected: ChatMode.Agent.id,
 			});
 		});
@@ -266,6 +276,7 @@ suite('ModePicker', () => {
 			upcastPartial<ICommandService>({}), new TestTelemetryService(),
 			upcastPartial<IChatService>({}), new MockChatSessionsService(),
 			upcastPartial<IEditorService>({}),
+			fileService,
 		));
 		const container = document.createElement('div');
 		document.body.appendChild(container);
@@ -373,6 +384,7 @@ suite('ModePicker', () => {
 			}(),
 			chatSessionsService,
 			upcastPartial<IEditorService>({}),
+			fileService,
 		));
 		const container = document.createElement('div');
 		document.body.appendChild(container);

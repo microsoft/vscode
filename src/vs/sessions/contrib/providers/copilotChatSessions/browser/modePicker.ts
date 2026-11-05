@@ -33,6 +33,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { PromptsStorage } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { hasReadableCustomizationContent } from '../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
 
 interface IModePickerItem {
 	readonly kind: 'mode';
@@ -240,6 +242,7 @@ export class ModePicker extends Disposable {
 		@IChatService private readonly chatService: IChatService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IFileService private readonly fileService: IFileService,
 	) {
 		super();
 
@@ -373,7 +376,8 @@ export class ModePicker extends Disposable {
 			items.push({ kind: ActionListItemKind.Separator, label: '' });
 			for (const mode of customModes) {
 				const source = getChatModeSourceLabel(mode, modes);
-				const modeResource = mode.uri;
+				const modeResource = mode.editorResource ?? mode.uri;
+				const resource = modeResource?.get();
 				const isExtension = mode.source?.storage === PromptsStorage.extension;
 				const openLabel = isExtension
 					? localize('viewModeConfiguration', "View {0} agent", mode.label.get())
@@ -385,7 +389,7 @@ export class ModePicker extends Disposable {
 					ariaDescription: source,
 					group: { title: '', icon: selectedModeId === mode.id ? Codicon.check : Codicon.blank },
 					item: { kind: 'mode', mode },
-					toolbarActions: modeResource ? [{
+					toolbarActions: resource && hasReadableCustomizationContent(resource) && this.fileService.hasProvider(resource) ? [{
 						id: `${isExtension ? 'viewAgent' : 'editAgent'}:${mode.id}`,
 						label: openLabel,
 						tooltip: openLabel,
@@ -393,7 +397,7 @@ export class ModePicker extends Disposable {
 						enabled: true,
 						run: async () => {
 							this.actionWidgetService.hide();
-							await this.editorService.openEditor({ resource: modeResource.get() });
+							await this.editorService.openEditor({ resource });
 						},
 					}] : undefined,
 				});

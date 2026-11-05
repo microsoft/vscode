@@ -181,6 +181,7 @@ class ChatModes extends Disposable implements IChatModes {
 						id: cachedMode.id,
 						kind: cachedMode.kind === ChatModeKind.Ask ? ChatModeKind.Ask : undefined,
 						uri,
+						editorResource: cachedMode.editorResource ? URI.revive(cachedMode.editorResource) : undefined,
 						name: cachedMode.name,
 						description: cachedMode.description,
 						tools: cachedMode.customTools,
@@ -389,6 +390,7 @@ export interface IChatModeData {
 	readonly body?: string; /* deprecated */
 	readonly handOffs?: readonly IHandOff[];
 	readonly uri?: URI;
+	readonly editorResource?: URI;
 	readonly source?: IChatModeSourceData;
 	readonly target?: Target;
 	readonly visibility?: ICustomAgentVisibility;
@@ -413,6 +415,8 @@ export interface IChatMode {
 	readonly argumentHint?: IObservable<string | undefined>;
 	readonly modeInstructions?: IObservable<IChatModeInstructions>;
 	readonly uri?: IObservable<URI>;
+	/** File to open independently of the agent's selection identity. */
+	readonly editorResource?: IObservable<URI>;
 	readonly source?: IAgentSource;
 	readonly target: IObservable<Target>;
 	readonly visibility?: IObservable<ICustomAgentVisibility | undefined>;
@@ -469,6 +473,7 @@ function isCachedChatModeData(data: unknown): data is IChatModeData {
 		(mode.argumentHint === undefined || typeof mode.argumentHint === 'string') &&
 		(mode.handOffs === undefined || Array.isArray(mode.handOffs)) &&
 		(mode.uri === undefined || (typeof mode.uri === 'object' && mode.uri !== null)) &&
+		(mode.editorResource === undefined || (typeof mode.editorResource === 'object' && mode.editorResource !== null)) &&
 		(mode.source === undefined || isChatModeSourceData(mode.source)) &&
 		(mode.target === undefined || isTarget(mode.target)) &&
 		(mode.visibility === undefined || isCustomAgentVisibility(mode.visibility)) &&
@@ -482,6 +487,7 @@ export class CustomChatMode implements IChatMode {
 	private readonly _customToolsObservable: ISettableObservable<readonly string[] | undefined>;
 	private readonly _modeInstructions: ISettableObservable<IChatModeInstructions>;
 	private readonly _uriObservable: ISettableObservable<URI>;
+	readonly editorResource: ISettableObservable<URI>;
 	private readonly _modelObservable: ISettableObservable<readonly string[] | undefined>;
 	readonly reasoningEffort: ISettableObservable<string | undefined>;
 	readonly modelPolicy: ISettableObservable<'preferred' | 'required' | undefined>;
@@ -578,6 +584,7 @@ export class CustomChatMode implements IChatMode {
 		this._agentsObservable = observableValue('agents', customChatMode.agents);
 		this._modeInstructions = observableValue('_modeInstructions', customChatMode.agentInstructions);
 		this._uriObservable = observableValue('uri', customChatMode.uri);
+		this.editorResource = observableValue('editorResource', customChatMode.editorResource ?? customChatMode.uri);
 		this._source = customChatMode.source;
 		this._sessionTypes = customChatMode.sessionTypes;
 	}
@@ -604,6 +611,7 @@ export class CustomChatMode implements IChatMode {
 			update(this._argumentHintObservable, newData.argumentHint);
 			update(this._modeInstructions, newData.agentInstructions, IChatModeInstructions.isEquals);
 			update(this._uriObservable, newData.uri, isURLEquals);
+			update(this.editorResource, newData.editorResource ?? newData.uri, isURLEquals);
 			update(this._handoffsObservable, newData.handOffs, objectEquals);
 			update(this._targetObservable, newData.target);
 			update(this._visibilityObservable, newData.visibility, objectEquals);
@@ -633,6 +641,7 @@ export class CustomChatMode implements IChatMode {
 			argumentHint: this.argumentHint.get(),
 			modeInstructions: this.modeInstructions.get(),
 			uri: this.uri.get(),
+			editorResource: this.editorResource.get(),
 			handOffs: this.handOffs.get(),
 			source: serializeChatModeSource(this._source),
 			target: this.target.get(),

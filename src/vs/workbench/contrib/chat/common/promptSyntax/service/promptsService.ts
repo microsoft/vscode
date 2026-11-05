@@ -290,6 +290,9 @@ export interface ICustomAgent {
 	 */
 	readonly uri: URI;
 
+	/** Original file to open when {@link uri} identifies a host-side copy. */
+	readonly editorResource?: URI;
+
 	/**
 	 * Name of the custom agent as used in prompt files or contexts
 	 */
