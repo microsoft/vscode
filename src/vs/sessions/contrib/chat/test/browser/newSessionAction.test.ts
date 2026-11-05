@@ -9,7 +9,7 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { isIMenuItem, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IContext } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -27,6 +27,8 @@ import { ISessionWorkspace } from '../../../../../workbench/contrib/sessions/com
 import { IActiveSession, ICreateNewSessionOptions, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { INewSessionComposerService } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { NewChatInSessionsWindowAction } from '../../browser/newSessionAction.js';
+import { NEW_SESSION_ACTION_ID } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
+import { appendNewSessionTitleBarMenuItem } from '../../browser/newSessionTitleBarMenu.js';
 import { ITestSessionsService, stubMissingSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('NewChatInSessionsWindowAction', () => {
@@ -67,8 +69,8 @@ suite('NewChatInSessionsWindowAction', () => {
 	}
 
 	test('shows in the title bar in place of the hidden sessions list of the main window, and of an editor window as before, never in a chat window', () => {
-		const menu = new NewChatInSessionsWindowAction().desc.menu;
-		const when = (Array.isArray(menu) ? menu : [menu]).find(item => item?.id === AgentsWindowMenus.TitleBarLeftLayout)?.when;
+		store.add(appendNewSessionTitleBarMenuItem());
+		const when = MenuRegistry.getMenuItems(AgentsWindowMenus.TitleBarLeftLayout).filter(isIMenuItem).find(item => item.command.id === NEW_SESSION_ACTION_ID)?.when;
 		// A chat window has layout modes; the main window and editor windows have none.
 		const shows = (window: { auxiliary: boolean; layoutMode?: string }) => !!when?.evaluate(new class extends mock<IContext>() {
 			override getValue<T>(key: string): T | undefined {

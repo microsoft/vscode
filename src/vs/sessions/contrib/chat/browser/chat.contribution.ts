@@ -75,6 +75,7 @@ import { AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, AGE
 import { ISessionArchiveNudgeService, SESSION_ARCHIVE_NUDGE_SETTING, SessionArchiveNudgeContribution, SessionArchiveNudgeService } from './sessionArchiveNudge.js';
 import { NewChatInSessionsWindowAction } from './newSessionAction.js';
 import { HIDE_INACTIVE_COMPARISON_INPUTS_SETTING } from '../../sessionComparison/common/sessionComparison.js';
+import { appendNewSessionTitleBarMenuItem } from './newSessionTitleBarMenu.js';
 import { FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_COMMAND_ID, FOCUS_NEW_SESSION_HARNESS_PICKER_COMMAND_ID, FOCUS_NEW_SESSION_WORKSPACE_PICKER_COMMAND_ID, FOCUS_NEW_SESSION_BRANCH_PICKER_COMMAND_ID, FOCUS_NEW_SESSION_WORKTREE_PICKER_COMMAND_ID, FOCUS_SESSION_SYNC_ACTION_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_KEYBINDING, FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_WHEN, FOCUS_NEW_SESSION_HARNESS_PICKER_KEYBINDING, FOCUS_NEW_SESSION_HARNESS_PICKER_WHEN, FOCUS_NEW_SESSION_WORKSPACE_PICKER_KEYBINDING, FOCUS_NEW_SESSION_WORKSPACE_PICKER_WHEN, FOCUS_NEW_SESSION_BRANCH_PICKER_KEYBINDING, FOCUS_NEW_SESSION_BRANCH_PICKER_WHEN, FOCUS_NEW_SESSION_WORKTREE_PICKER_KEYBINDING, FOCUS_NEW_SESSION_WORKTREE_PICKER_WHEN, FOCUS_SESSION_SYNC_ACTION_KEYBINDING, FOCUS_SESSION_SYNC_ACTION_WHEN } from './newChatPickerKeybinding.js';
 import { ISessionsPartService } from '../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
@@ -192,6 +193,7 @@ const chatBackgroundImageLayoutEnumConfiguration = {
 };
 
 registerAction2(NewChatInSessionsWindowAction);
+appendNewSessionTitleBarMenuItem();
 
 class FocusNewSessionWorkspacePickerAction extends Action2 {
 	constructor() {

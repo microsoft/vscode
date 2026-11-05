@@ -56,6 +56,7 @@ import { NEW_SESSION_BUTTON_STYLE_SETTING, NewSessionActionViewItemContribution 
 import { registerSessionsTitleBarMenus, SessionsTitleBarWidget } from '../../../sessions/browser/sessionsTitleBarWidget.js';
 import { acquireArchiveActions, FixtureActionViewItemService, FixtureContextMenuService } from '../../../sessions/test/browser/sessionsListFixtureUtils.js';
 import { NewChatInSessionsWindowAction } from '../../browser/newSessionAction.js';
+import { appendNewSessionTitleBarMenuItem } from '../../browser/newSessionTitleBarMenu.js';
 
 import '../../../../browser/layoutActions.js';
 import '../../browser/runScriptAction.js';
@@ -73,6 +74,7 @@ function acquireWorkbenchActions() {
 		sharedActions.add(BaseLayoutController.registerSidePaneToggleAction());
 		sharedActions.add(registerAction2(OpenInVSCodeAction));
 		sharedActions.add(registerAction2(NewChatInSessionsWindowAction));
+		sharedActions.add(appendNewSessionTitleBarMenuItem());
 		sharedActions.add(acquireArchiveActions());
 	}
 	return toDisposable(() => {
