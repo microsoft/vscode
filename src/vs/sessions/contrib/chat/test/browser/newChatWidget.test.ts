@@ -434,7 +434,7 @@ interface IRestoreNoWorkspaceDraftHarness {
 		openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation?: boolean): IActiveSession | undefined;
 	};
 	readonly sessionsManagementService: { isQuickChatTargetAvailable(): boolean };
-	selectNoWorkspace(options?: ICreateNewSessionOptions): void;
+	selectNoWorkspace(options?: ICreateNewSessionOptions, selectionOptions?: ISelectNoWorkspaceOptions): void;
 }
 
 interface IHandleWorkspaceSelectionHarness {
@@ -1930,6 +1930,7 @@ suite('NewChatWidget', () => {
 			const initialRestoreComplete = observableValue('initialRestoreComplete', true);
 			const opened: string[] = [];
 			const openedTargets: (ICreateNewSessionOptions | undefined)[] = [];
+			const noWorkspaceSelections: (ISelectNoWorkspaceOptions | undefined)[] = [];
 			let quickChatAvailable = true;
 			let noWorkspaceSelected = false;
 			let selectedFolderUri: URI | undefined;
@@ -1962,10 +1963,13 @@ suite('NewChatWidget', () => {
 					openQuickChat: (options, preserveNavigation) => open(preserveNavigation ? 'automatic' : 'explicit', options),
 				},
 				sessionsManagementService: { isQuickChatTargetAvailable: () => quickChatAvailable },
-				selectNoWorkspace: options => { open('checked', options); },
+				selectNoWorkspace: (options, selectionOptions) => {
+					noWorkspaceSelections.push(selectionOptions);
+					open('checked', options);
+				},
 			};
 			return {
-				harness, activeSession, initialRestoreComplete, opened, openedTargets,
+				harness, activeSession, initialRestoreComplete, opened, openedTargets, noWorkspaceSelections,
 				set quickChatAvailable(value: boolean) { quickChatAvailable = value; },
 				set noWorkspaceSelected(value: boolean) { noWorkspaceSelected = value; },
 				set selectedFolderUri(value: URI | undefined) { selectedFolderUri = value; },
@@ -2037,6 +2041,17 @@ suite('NewChatWidget', () => {
 			state.noWorkspaceSelected = true;
 			await state.restore();
 			assert.deepStrictEqual(state.opened, ['checked']);
+		});
+
+		test('restores a previous Chat selection without reporting a user choice or navigation', async () => {
+			// Either would cancel the workspace of a window-open handoff that is still resolving.
+			const state = createRestoreHarness();
+			state.noWorkspaceSelected = true;
+			await state.restore();
+			assert.deepStrictEqual({ opened: state.opened, selections: state.noWorkspaceSelections }, {
+				opened: ['checked'],
+				selections: [{ userSelection: false, preserveNavigation: true }],
+			});
 		});
 
 		test('cancels pending discovery on workspace clear and ignores subsequent automatic restores', async () => {
@@ -4109,7 +4124,42 @@ suite('NewChatWidget', () => {
 				result: preserved ? 'preserved' : 'applied', selected: preserved ? [] : [folderUri],
 			});
 		});
+
+		test(`the target composer starts without a workspace for an inferred default over ${origin}`, () => {
+			let selection: IWorkspaceSelectionSnapshot = {
+				folderUri: URI.file('/previous'), state: 'selected', origin,
+				historyState: 'loaded', sessionFallbackState: 'idle', registeredProviderCount: 1,
+			};
+			const noWorkspaceSelections: (ISelectNoWorkspaceOptions | undefined)[] = [];
+			const widget: NewChatWidget = Object.assign(Object.create(NewChatWidget.prototype), {
+				_newSessionCreation: disposables.add(new MutableDisposable<IDisposable>()),
+				_newChatInput: { canApplyWorkspaceDefault: true },
+				_workspacePicker: { get selectionSnapshot() { return selection; } },
+				selectNoWorkspace: (_options: ICreateNewSessionOptions | undefined, selectionOptions?: ISelectNoWorkspaceOptions) => {
+					noWorkspaceSelections.push(selectionOptions);
+					selection = { ...selection, folderUri: undefined, state: 'noWorkspace' };
+					return upcastPartial<IActiveSession>({ sessionId: 'quick-chat' });
+				},
+			});
+			const preserved = [
+				WorkspaceSelectionOrigin.User, WorkspaceSelectionOrigin.WindowOpen, WorkspaceSelectionOrigin.RestoredDraft,
+				WorkspaceSelectionOrigin.SessionSync, WorkspaceSelectionOrigin.Programmatic,
+			].includes(origin);
+			const options = { userSelection: false, isDefault: true };
+			assert.deepStrictEqual({ result: widget.applyNoWorkspace(options), noWorkspaceSelections }, {
+				result: preserved ? 'preserved' : 'applied', noWorkspaceSelections: preserved ? [] : [options],
+			});
+		});
 	}
+
+	test('the target composer is not ready without a workspace until a quick chat opens', () => {
+		// The environment may not have a compatible quick-chat target yet, leaving the previous draft as the session.
+		const widget: NewChatWidget = Object.assign(Object.create(NewChatWidget.prototype), {
+			_workspacePicker: { selectionSnapshot: { state: 'noWorkspace', origin: WorkspaceSelectionOrigin.None, historyState: 'loaded', sessionFallbackState: 'idle', registeredProviderCount: 1 } },
+			selectNoWorkspace: () => undefined,
+		});
+		assert.strictEqual(widget.applyNoWorkspace({ userSelection: false }), 'notReady');
+	});
 
 	for (const protectedState of ['input', 'attachments', 'restoredDraft', 'noWorkspace', 'quickChat'] as const) {
 		test(`an inferred workspace preserves the target composer's ${protectedState}`, () => {

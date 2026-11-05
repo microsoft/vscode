@@ -1147,7 +1147,8 @@ export class NewChatWidget extends Disposable {
 			const target = environment ? this._workspaceOptOutTarget.get() : undefined;
 			if (environment ? !!target : this.sessionsManagementService.isQuickChatTargetAvailable()) {
 				if (this._workspacePicker.isNoWorkspaceSelected()) {
-					this.selectNoWorkspace(target);
+					// Restoring the previous choice is not a new user choice, so it must not supersede a window-open workspace either.
+					this.selectNoWorkspace(target, { userSelection: false, preserveNavigation: true });
 				} else {
 					// An automatic fallback must not persist a user choice or supersede a window-open workspace.
 					this._createdSessionId = (this._preserveCustomView ? this._openQuickChat(target, true) : this.sessionsService.openQuickChat(target, true))?.sessionId;
@@ -2388,20 +2389,9 @@ export class NewChatWidget extends Disposable {
 	}
 
 	selectWorkspace(folderUri: URI, options?: ISelectWorkspaceOptions): WorkspaceSelectionResult {
-		if (options?.isDefault) {
-			if (this._newSessionCreation.value) {
-				return 'notReady';
-			}
-			const selection = this._workspacePicker.selectionSnapshot;
-			if (!this._newChatInput.canApplyWorkspaceDefault
-				|| selection.state === 'noWorkspace'
-				|| selection.origin === WorkspaceSelectionOrigin.User
-				|| selection.origin === WorkspaceSelectionOrigin.WindowOpen
-				|| selection.origin === WorkspaceSelectionOrigin.RestoredDraft
-				|| selection.origin === WorkspaceSelectionOrigin.SessionSync
-				|| selection.origin === WorkspaceSelectionOrigin.Programmatic) {
-				return 'preserved';
-			}
+		const blocked = options?.isDefault ? this._getWorkspaceDefaultBlocker() : undefined;
+		if (blocked) {
+			return blocked;
 		}
 		if (options) {
 			this._reconcileWorkspaceEnvironment(options);
@@ -2410,6 +2400,35 @@ export class NewChatWidget extends Disposable {
 		this._workspacePicker.setSelectedWorkspace(folderUri, { providerId: options?.providerId, preferDevContainer: options?.preferDevContainer, origin: options?.selectionOrigin });
 		const selection = this._workspacePicker.selectionSnapshot;
 		return selection.state === 'selected' && this.uriIdentityService.extUri.isEqual(selection.folderUri, folderUri) ? 'applied' : 'notReady';
+	}
+
+	/** Starts without a workspace for the window opening intent, acknowledging application or preservation of an existing choice. */
+	applyNoWorkspace(options?: ISelectNoWorkspaceOptions): WorkspaceSelectionResult {
+		const blocked = options?.isDefault ? this._getWorkspaceDefaultBlocker() : undefined;
+		if (blocked) {
+			return blocked;
+		}
+		// Without a quick chat, for example while the environment has no compatible target yet, the previous draft is still the session.
+		const session = this.selectNoWorkspace(undefined, options);
+		return session && this._workspacePicker.selectionSnapshot.state === 'noWorkspace' ? 'applied' : 'notReady';
+	}
+
+	/** Why an inferred default must not replace the current workspace choice, if it must not. */
+	private _getWorkspaceDefaultBlocker(): WorkspaceSelectionResult | undefined {
+		if (this._newSessionCreation.value) {
+			return 'notReady';
+		}
+		const selection = this._workspacePicker.selectionSnapshot;
+		if (!this._newChatInput.canApplyWorkspaceDefault
+			|| selection.state === 'noWorkspace'
+			|| selection.origin === WorkspaceSelectionOrigin.User
+			|| selection.origin === WorkspaceSelectionOrigin.WindowOpen
+			|| selection.origin === WorkspaceSelectionOrigin.RestoredDraft
+			|| selection.origin === WorkspaceSelectionOrigin.SessionSync
+			|| selection.origin === WorkspaceSelectionOrigin.Programmatic) {
+			return 'preserved';
+		}
+		return undefined;
 	}
 }
 

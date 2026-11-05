@@ -289,10 +289,8 @@ export class NewChatView extends AbstractChatView {
 		return this._widget instanceof NewChatWidget ? this._widget.applyDraft(draft, folderUri, options, token) : Promise.resolve('notReady');
 	}
 
-	override selectNoWorkspace(options?: ISelectNoWorkspaceOptions): void {
-		if (this._widget instanceof NewChatWidget) {
-			this._widget.selectNoWorkspace(undefined, options);
-		}
+	override selectNoWorkspace(options?: ISelectNoWorkspaceOptions): WorkspaceSelectionResult {
+		return this._widget instanceof NewChatWidget ? this._widget.applyNoWorkspace(options) : 'notReady';
 	}
 
 	override prefillInput(text: string): void {

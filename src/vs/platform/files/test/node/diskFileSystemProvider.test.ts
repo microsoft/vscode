@@ -12,11 +12,11 @@ import { promisify } from 'util';
 import { stub } from 'sinon';
 import { FileAccess } from '../../../../base/common/network.js';
 import { join } from '../../../../base/common/path.js';
-import { isWindows } from '../../../../base/common/platform.js';
+import { isLinux, isWindows } from '../../../../base/common/platform.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { getRandomTestPath } from '../../../../base/test/node/testUtils.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../../common/files.js';
+import { FileSystemProviderErrorCode, FileType, toFileSystemProviderErrorCode } from '../../common/files.js';
 import { Event } from '../../../../base/common/event.js';
 import { DefaultURITransformer, IURITransformer } from '../../../../base/common/uriIpc.js';
 import { DiskFileSystemProviderClient } from '../../common/diskFileSystemProviderClient.js';
@@ -66,6 +66,32 @@ suite('DiskFileSystemProvider', function () {
 			provider.realpath(URI.file(join(testDir, 'removed-checkout'))),
 			error => error instanceof Error && toFileSystemProviderErrorCode(error) === FileSystemProviderErrorCode.FileNotFound
 		);
+	});
+
+	(isLinux ? test : test.skip)('realpath returns the unresolved path of a readable link it cannot resolve, unless strict', async () => {
+		// A link to the descriptor of an open, deleted file cannot be resolved, but reading it succeeds.
+		const deletedPath = join(testDir, 'deleted.txt');
+		await promises.writeFile(deletedPath, 'contents');
+		const handle = await promises.open(deletedPath, 'r');
+		try {
+			await promises.unlink(deletedPath);
+			const link = URI.file(join(testDir, 'fd-link.txt'));
+			await promises.symlink(`/proc/self/fd/${handle.fd}`, link.fsPath);
+
+			assert.deepStrictEqual({
+				realpath: await provider.realpath(link),
+				strictRealpath: await provider.realpath(link, { strict: true }).catch(error => toFileSystemProviderErrorCode(error)),
+				isSymbolicLink: ((await provider.stat(link)).type & FileType.SymbolicLink) !== 0,
+				contents: Buffer.from(await provider.readFile(link)).toString(),
+			}, {
+				realpath: link.fsPath,
+				strictRealpath: FileSystemProviderErrorCode.FileNotFound,
+				isSymbolicLink: true,
+				contents: 'contents',
+			});
+		} finally {
+			await handle.close();
+		}
 	});
 
 	test('atomic rename is forwarded through the disk provider channel', async () => {

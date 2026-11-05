@@ -730,14 +730,17 @@ export async function realcase(path: string, token?: CancellationToken): Promise
 	return null;
 }
 
-async function realpath(path: string): Promise<string> {
+async function realpath(path: string, options?: { readonly strict?: boolean }): Promise<string> {
 	try {
 		// DO NOT USE `fs.promises.realpath` here as it internally
 		// calls `fs.native.realpath` which will result in subst
 		// drives to be resolved to their target on Windows
 		// https://github.com/microsoft/vscode/issues/118562
 		return await promisify(fs.realpath)(path);
-	} catch {
+	} catch (error) {
+		if (options?.strict) {
+			throw error;
+		}
 
 		// We hit an error calling fs.realpath(). Since fs.realpath() is doing some path normalization
 		// we now do a similar normalization and then try again if we can access the path with read

@@ -1164,8 +1164,8 @@ export class ChatGroupsView extends Themable {
 		return this._activeGroup?.view.selectWorkspace(folderUri, options) ?? 'notReady';
 	}
 
-	selectNoWorkspace(options?: ISelectNoWorkspaceOptions): void {
-		this._activeGroup?.view.selectNoWorkspace(options);
+	selectNoWorkspace(options?: ISelectNoWorkspaceOptions): WorkspaceSelectionResult {
+		return this._activeGroup?.view.selectNoWorkspace(options) ?? 'notReady';
 	}
 
 	prefillInput(text: string): void {
