@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { MarkdownString, resolveWithBaseUri } from '../../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { constObservable } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { getTurnError, MessageAttachmentKind, ResponsePartKind, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type ResponsePart, type ToolCallCompletedState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ElicitationState, ToolConfirmKind, type IChatCodeCitation, type IChatContentReference, type IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
@@ -219,6 +220,53 @@ suite('importedTurnsFromChatModel', () => {
 		]);
 	});
 
+	test('maps the links in response text of a remote window to the host, leaving code and web links alone', () => {
+		const remote = (path: string) => URI.from({ scheme: 'vscode-remote', authority: 'ssh-remote+box', path });
+		const resourceUris = {
+			toAgentHost: (uri: URI) => uri.scheme === 'vscode-remote' ? uri.with({ scheme: 'file', authority: '' }) : uri,
+			fromAgentHost: (uri: URI) => uri.scheme === 'file' ? remote(uri.path) : uri,
+		};
+		const turns = importedTurnsFromChatModel(model([request('q', response([
+			markdown(`See [b.ts](${remote('/repo/b.ts').toString()} "the file") and \`[c](${remote('/repo/c.ts').toString()})\`, or [docs](https://example.com/docs).`),
+			// The label is kept as written, escapes and markup included.
+			markdown(`Read [a\\]b *now*](${remote('/repo/a.ts').toString()}) ![shot](${remote('/repo/shot.png').toString()})`),
+			// A code span may hold a `]`, and a title literal backslashes and quotes.
+			markdown(`Code [\`a]b\`](${remote('/repo/x.ts').toString()} "a\\\\*b \\"q\\"")`),
+			// A relative link resolves against the part's base URI, which the imported text does not keep.
+			{ kind: 'markdownContent', content: Object.assign(new MarkdownString('Open [d.ts](d.ts)'), { baseUri: remote('/repo/') }) } as IChatProgressResponseContent,
+		]))]), { resourceUris });
+
+		assert.deepStrictEqual(turns[0].responseParts.map(part => part.kind === ResponsePartKind.Markdown ? part.content : part.kind), [
+			`See [b.ts](file:///repo/b.ts "the file") and \`[c](${remote('/repo/c.ts').toString()})\`, or [docs](https://example.com/docs).`,
+			'Read [a\\]b *now*](file:///repo/a.ts) ![shot](file:///repo/shot.png)',
+			'Code [`a]b`](file:///repo/x.ts "a\\\\*b \\"q\\"")',
+			'Open [d.ts](file:///repo/d.ts)',
+		]);
+	});
+
+	test('carries warnings and info messages, and folds multi-file diffs into the edits summary', () => {
+		const file = (name: string) => URI.file(`/repo/${name}`);
+		const link = (name: string) => `[${name}](${file(name).toString()})`;
+		const diff = (resources: object[]) => ({ title: 'Changes', resources });
+		const turns = importedTurnsFromChatModel(model([request('q', response([
+			markdown('Done.'),
+			{ kind: 'warning', content: new MarkdownString('Tests were skipped\non CI') } as IChatProgressResponseContent,
+			{ kind: 'info', content: new MarkdownString(`Opened ${link('a.ts')}`) } as IChatProgressResponseContent,
+			{ kind: 'textEditGroup', uri: file('a.ts'), edits: [], done: true } as unknown as IChatProgressResponseContent,
+			// A saved diff, then a live one; a file is listed by the workspace file it opens (not a virtual
+			// `git:` version, which would list a.ts twice), and a deleted file by its original.
+			{ kind: 'multiDiffData', multiDiffData: diff([{ modifiedUri: URI.from({ scheme: 'git', path: '/repo/a.ts', query: 'new' }), goToFileUri: file('a.ts') }, { modifiedUri: file('b.ts') }, { originalUri: file('c.ts') }]) } as unknown as IChatProgressResponseContent,
+			{ kind: 'multiDiffData', multiDiffData: constObservable(diff([{ goToFileUri: file('d.ts') }])) } as unknown as IChatProgressResponseContent,
+		]))]));
+
+		assert.deepStrictEqual(turns[0].responseParts.map(part => part.kind === ResponsePartKind.Markdown ? part.content : part.kind), [
+			'Done.',
+			'\n\n> Warning: Tests were skipped\n> on CI\n\n',
+			`\n\n> Opened ${link('a.ts')}\n\n`,
+			`\n\nEdited ${link('a.ts')}, ${link('b.ts')}, ${link('c.ts')}, ${link('d.ts')}\n\n`,
+		]);
+	});
+
 	test('reports what the import summarized or left out', () => {
 		const stats = createImportedConversationStats();
 		const tool = (output: unknown[]) => ({
@@ -240,15 +288,17 @@ suite('importedTurnsFromChatModel', () => {
 				editA,
 			]), { variables: [{ kind: 'file', id: 'f', name: 'a.ts', value: URI.file('/repo/a.ts') }, { kind: 'tool', id: 't', name: 'runTests', value: undefined }] }),
 			request('', response([{ kind: 'warning', content: new MarkdownString('again') } as unknown as IChatProgressResponseContent, editA]), { systemInitiated: true }),
-			request('second', response([markdown('B'), editA]), { variables: [{ kind: 'toolset', id: 's', name: 'search', value: [] }] }),
+			request('second', response([markdown('B'), editA, { kind: 'multiDiffData', multiDiffData: { title: 'Changes', resources: [{ modifiedUri: URI.from({ scheme: 'git', path: '/repo/a.ts', query: 'new' }), goToFileUri: URI.file('/repo/a.ts') }, { modifiedUri: URI.file('/repo/b.ts') }] } } as unknown as IChatProgressResponseContent]), { variables: [{ kind: 'toolset', id: 's', name: 'search', value: [] }] }),
 		]), { stats });
 
 		assert.deepStrictEqual({ ...stats, skippedResponsePartKinds: [...stats.skippedResponsePartKinds].sort(), skippedAttachmentKinds: [...stats.skippedAttachmentKinds].sort() }, {
 			turns: 2,
-			// a.ts edited in three runs of the first turn (one in its continuation) counts once, then once more for the second turn.
-			editedFiles: 2,
-			skippedResponseParts: 3,
-			skippedResponsePartKinds: ['progressMessage', 'warning'],
+			// a.ts edited in three runs of the first turn (one in its continuation) counts once, then a.ts and the
+			// b.ts of a multi-file diff once each for the second turn.
+			editedFiles: 3,
+			// Warnings are carried; progress messages are not.
+			skippedResponseParts: 1,
+			skippedResponsePartKinds: ['progressMessage'],
 			skippedAttachments: 2,
 			skippedAttachmentKinds: ['tool', 'toolset'],
 			// Tool outputs that are not text are carried rather than dropped.

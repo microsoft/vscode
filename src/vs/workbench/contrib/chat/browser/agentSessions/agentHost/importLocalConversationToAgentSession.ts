@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { generateUuid } from '../../../../../../base/common/uuid.js';
+import { isObservable } from '../../../../../../base/common/observable.js';
 import { encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { detectImageMimeType } from '../../../../../../base/common/image.js';
 import { escapeMarkdownLinkLabel, escapeMarkdownSyntaxTokens, IMarkdownString, resolveWithBaseUri } from '../../../../../../base/common/htmlContent.js';
@@ -20,7 +21,7 @@ import { isLocation, type Location } from '../../../../../../editor/common/langu
 import { localize } from '../../../../../../nls.js';
 import { identityAgentHostResourceUriMapper, type IAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { MessageAttachmentKind, MessageKind, readUsageInfoMeta, ResponsePartKind, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type AgentSelection, type ErrorInfo, type ITurnTokenTotal, type MessageAttachment, type ModelSelection, type ResponsePart, type StringOrMarkdown, type ToolCallCancelledState, type ToolCallCompletedState, type ToolResultContent, type Turn, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { ElicitationState, IChatToolInvocation, ToolConfirmKind, type IChatCodeCitation, type IChatConfirmation, type IChatContentInlineReference, type IChatContentReference, type IChatElicitationRequest, type IChatElicitationRequestSerialized, type IChatQuestion, type IChatQuestionAnswerValue, type IChatQuestionCarousel, type IChatToolInvocationSerialized, type IToolResultOutputDetailsSerialized, type ToolDeniedReason } from '../../../common/chatService/chatService.js';
+import { ElicitationState, IChatToolInvocation, ToolConfirmKind, type IChatCodeCitation, type IChatConfirmation, type IChatContentInlineReference, type IChatContentReference, type IChatElicitationRequest, type IChatElicitationRequestSerialized, type IChatInfoMessage, type IChatMultiDiffData, type IChatMultiDiffDataSerialized, type IChatMultiDiffInnerData, type IChatQuestion, type IChatQuestionAnswerValue, type IChatQuestionCarousel, type IChatToolInvocationSerialized, type IChatWarningMessage, type IToolResultOutputDetailsSerialized, type ToolDeniedReason } from '../../../common/chatService/chatService.js';
 import { isImageVariableEntry, type IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { coerceImageBuffer } from '../../../common/chatImageExtraction.js';
 import { LanguageModelPartAudience, type ILanguageModelsService } from '../../../common/languageModels.js';
@@ -146,10 +147,84 @@ function toHostMarkdown(markdown: string, resourceUris: IAgentHostResourceUriMap
 			if (!uri.scheme) {
 				return undefined;
 			}
-			const target = toHostResource(uri, resourceUris).toString();
-			return target === token.href ? undefined : `${token.type === 'image' ? '!' : ''}[${token.text}](${target})`;
+			const target = toHostResource(uri, resourceUris);
+			// Links that neither resolve against the base nor map to the host stay exactly as written.
+			if (href === token.href && target.toString() === uri.toString()) {
+				return undefined;
+			}
+			// Only the destination changes; the label and title stay as written, escapes and markup
+			// included, since the parsed ones have been unescaped. A link without an inline destination
+			// (e.g. a reference-style link) is written as an inline link with its label escaped.
+			const destination = linkDestinationRange(token.raw);
+			return destination
+				? token.raw.slice(0, destination.start) + target.toString() + token.raw.slice(destination.end)
+				: `${token.type === 'image' ? '!' : ''}[${escapeMarkdownLinkLabel(token.text)}](${target.toString()})`;
 		},
 	});
+}
+
+/**
+ * Where the destination of an inline link or image is in its source, after
+ * its bracketed label (brackets that are escaped or inside a code span do not
+ * end the label). `undefined` when the link has no inline destination, such
+ * as a reference-style link or an autolink.
+ */
+function linkDestinationRange(raw: string): { readonly start: number; readonly end: number } | undefined {
+	const start = raw.startsWith('![') ? 2 : raw.startsWith('[') ? 1 : -1;
+	if (start < 0) {
+		return undefined;
+	}
+	let labelEnd: number | undefined;
+	let depth = 0;
+	for (let i = start; i < raw.length && labelEnd === undefined; i++) {
+		const char = raw[i];
+		if (char === '\\') {
+			i++;
+		} else if (char === '`') {
+			// A code span runs to the next backtick run of the same length; without one, the backticks are literal.
+			const ticks = /^`+/.exec(raw.slice(i))![0];
+			const closing = new RegExp(`(?<!\`)${ticks}(?!\`)`, 'g');
+			closing.lastIndex = i + ticks.length;
+			const match = closing.exec(raw);
+			i = (match ? match.index : i) + ticks.length - 1;
+		} else if (char === '[') {
+			depth++;
+		} else if (char === ']') {
+			if (depth === 0) {
+				labelEnd = i;
+			}
+			depth--;
+		}
+	}
+	if (labelEnd === undefined || raw[labelEnd + 1] !== '(') {
+		return undefined;
+	}
+	let i = labelEnd + 2;
+	while (i < raw.length && /\s/.test(raw[i])) {
+		i++;
+	}
+	if (raw[i] === '<') {
+		const close = raw.indexOf('>', i);
+		return close < 0 ? undefined : { start: i, end: close + 1 };
+	}
+	const destinationStart = i;
+	let parens = 0;
+	for (; i < raw.length; i++) {
+		const char = raw[i];
+		if (char === '\\') {
+			i++;
+		} else if (/\s/.test(char)) {
+			break;
+		} else if (char === '(') {
+			parens++;
+		} else if (char === ')') {
+			if (parens === 0) {
+				break;
+			}
+			parens--;
+		}
+	}
+	return i > destinationStart ? { start: destinationStart, end: i } : undefined;
 }
 
 /** Converts Local markdown to the host's, see {@link toHostMarkdown}. */
@@ -383,6 +458,34 @@ function editedFilesToMarkdown(files: readonly URI[], resourceUris: IAgentHostRe
 }
 
 /**
+ * The files a multi-file diff shows as changed, by the workspace file each
+ * entry opens. Its modified side may be a virtual resource (e.g. a `git:`
+ * version), which would list the file a second time next to its plain edits,
+ * so it is used only when there is no file to open, and the original only for
+ * a deleted file. A live diff may still be updating, so its latest value is used.
+ */
+function multiDiffFiles(part: IChatMultiDiffData | IChatMultiDiffDataSerialized): URI[] {
+	const data = isObservable<IChatMultiDiffInnerData>(part.multiDiffData) ? part.multiDiffData.get() : part.multiDiffData;
+	return data.resources.flatMap(resource => {
+		const uri = resource.goToFileUri ?? resource.modifiedUri ?? resource.originalUri;
+		return uri ? [URI.revive(uri)] : [];
+	});
+}
+
+/**
+ * Renders a warning or info message as a quote, a warning labelled as one,
+ * so it reads apart from the response around it.
+ */
+function noticeToMarkdown(part: IChatWarningMessage | IChatInfoMessage, resourceUris: IAgentHostResourceUriMapper): string | undefined {
+	const text = part.content.value ? toHostMarkdownString(part.content, resourceUris).trim() : '';
+	if (!text) {
+		return undefined;
+	}
+	const notice = part.kind === 'warning' ? localize('chat.importConversation.warning', "Warning: {0}", text) : text;
+	return markdownParagraph(notice.split('\n').map(line => `> ${line}`).join('\n'));
+}
+
+/**
  * The question as it was shown, as one line of plain text. The built-in
  * `askQuestions` tool keeps the question in its message and only a short
  * header in its title.
@@ -490,9 +593,10 @@ function codeCitationsToMarkdown(citations: readonly IChatCodeCitation[], resour
 
 /**
  * Collects a request's response stream into agent-host {@link ResponsePart}s:
- * markdown parts become {@link ResponsePartKind.Markdown}, reasoning parts
- * become {@link ResponsePartKind.Reasoning}, tool invocations become
- * {@link ResponsePartKind.ToolCall} parts, and each run of file edits, the
+ * markdown parts become {@link ResponsePartKind.Markdown} (with their links
+ * mapped to the host), reasoning parts become {@link ResponsePartKind.Reasoning},
+ * tool invocations become {@link ResponsePartKind.ToolCall} parts, and each run
+ * of file edits (including multi-file diffs), warnings and info messages, the
  * agent's questions with their answers, requests for input and confirmations
  * become markdown, all in stream order. The references the response used come
  * first and its code citations last, where Local shows them. Other progress
@@ -518,12 +622,17 @@ function responsePartsFromRequest(request: IChatRequestModel, resourceUris: IAge
 			responseParts.push({ kind: ResponsePartKind.Markdown, id: generateUuid(), content: references });
 		}
 		for (const part of response.entireResponse.value) {
-			if (part.kind === 'textEditGroup' || part.kind === 'notebookEditGroup') {
-				editedFiles.set(part.uri, part.uri);
-				if (!turnEditedFiles.has(part.uri)) {
-					turnEditedFiles.add(part.uri);
-					if (stats) {
-						stats.editedFiles++;
+			const changedFiles = part.kind === 'textEditGroup' || part.kind === 'notebookEditGroup' ? [part.uri]
+				: part.kind === 'multiDiffData' ? multiDiffFiles(part)
+					: undefined;
+			if (changedFiles) {
+				for (const uri of changedFiles) {
+					editedFiles.set(uri, uri);
+					if (!turnEditedFiles.has(uri)) {
+						turnEditedFiles.add(uri);
+						if (stats) {
+							stats.editedFiles++;
+						}
 					}
 				}
 				continue;
@@ -533,7 +642,12 @@ function responsePartsFromRequest(request: IChatRequestModel, resourceUris: IAge
 			}
 			flushEditedFiles();
 			if (part.kind === 'markdownContent') {
-				const content = part.content.value;
+				const content = part.content.value ? toHostMarkdownString(part.content, resourceUris) : '';
+				if (content) {
+					responseParts.push({ kind: ResponsePartKind.Markdown, id: generateUuid(), content });
+				}
+			} else if (part.kind === 'warning' || part.kind === 'info') {
+				const content = noticeToMarkdown(part, resourceUris);
 				if (content) {
 					responseParts.push({ kind: ResponsePartKind.Markdown, id: generateUuid(), content });
 				}
