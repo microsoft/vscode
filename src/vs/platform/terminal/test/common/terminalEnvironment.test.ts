@@ -65,6 +65,15 @@ suite('terminalEnvironment', () => {
 			strictEqual(collapseTildePath('c:\\Windows', 'C:\\', '\\'), 'c:\\Windows');
 			strictEqual(collapseTildePath('C:\\', 'C:\\', '\\'), 'C:\\');
 		});
+		test('should collapse Windows OSC 7 URI-style paths', () => {
+			strictEqual(collapseTildePath('/C:/foo', 'C:\\foo', '\\'), '~');
+			strictEqual(collapseTildePath('/C:/foo/', 'C:\\foo', '\\'), '~');
+			strictEqual(collapseTildePath('/c:/foo', 'C:\\foo', '\\'), '~');
+			strictEqual(collapseTildePath('/C:/foo/bar', 'C:\\foo', '\\'), '~\\bar');
+			strictEqual(collapseTildePath('/C:/foo/bar', 'C:\\foo', '/'), '~/bar');
+			strictEqual(collapseTildePath('/C:/foo/bar/baz', 'C:\\foo', '/'), '~/bar/baz');
+			strictEqual(collapseTildePath('/C:/foo_bar', 'C:\\foo', '\\'), '/C:/foo_bar');
+		});
 	});
 	suite('sanitizeCwd', () => {
 		if (OS === OperatingSystem.Windows) {
@@ -121,3 +130,4 @@ suite('terminalEnvironment', () => {
 		});
 	});
 });
+

@@ -91,6 +91,9 @@ export function collapseTildePath(path: string | undefined, userHome: string | u
 	if (!userHome) {
 		return path;
 	}
+	if (userHome.match(/^\/[a-zA-Z]:/)) {
+		userHome = userHome.slice(1);
+	}
 	// Trim the trailing separator from the end if it exists
 	if (userHome.match(/[\/\\]$/)) {
 		userHome = userHome.slice(0, userHome.length - 1);
@@ -98,7 +101,11 @@ export function collapseTildePath(path: string | undefined, userHome: string | u
 	if (!userHome || userHome.match(/^[a-zA-Z]:$/)) {
 		return path;
 	}
-	const normalizedPath = path.replace(/\\/g, '/').toLowerCase();
+	let formattedPath = path;
+	if (formattedPath.match(/^\/[a-zA-Z]:/)) {
+		formattedPath = formattedPath.slice(1);
+	}
+	const normalizedPath = formattedPath.replace(/\\/g, '/').toLowerCase();
 	const normalizedUserHome = userHome.replace(/\\/g, '/').toLowerCase();
 	if (normalizedPath === normalizedUserHome || normalizedPath === `${normalizedUserHome}/`) {
 		return '~';
@@ -106,7 +113,7 @@ export function collapseTildePath(path: string | undefined, userHome: string | u
 	if (!normalizedPath.startsWith(`${normalizedUserHome}/`)) {
 		return path;
 	}
-	return `~${separator}${path.slice(userHome.length + 1)}`;
+	return `~${separator}${formattedPath.slice(userHome.length + 1)}`;
 }
 
 /**
@@ -133,3 +140,4 @@ export function sanitizeCwd(cwd: string): string {
 export function shouldUseEnvironmentVariableCollection(slc: IShellLaunchConfig): boolean {
 	return !slc.strictEnv;
 }
+
