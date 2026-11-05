@@ -21,6 +21,7 @@ import { revive } from '../../../../../../base/common/marshalling.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { constObservable, derived, IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { isWeb, regionalLocale } from '../../../../../../base/common/platform.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
@@ -4721,7 +4722,14 @@ suite('ChatListRenderer', () => {
 			assert.ok(approval.type === IChatToolInvocation.StateKind.WaitingForConfirmation);
 			approval.confirm({ type: ToolConfirmKind.UserAction });
 			await tools[4].didExecuteTool({ content: [], toolResultError: 'Image provider failed', toolResultMessage: 'Generated image failed' });
-			const failed = emptyLayout();
+			const failure = preview.querySelector<HTMLElement>('.chat-image-generation-failure')!;
+			const failureBounds = failure.getBoundingClientRect();
+			const failed = {
+				square: failureBounds.width > 0 && Math.abs(failureBounds.width - failureBounds.height) < 1,
+				message: failure.textContent,
+				images: preview.querySelectorAll('img').length,
+				glyphs: preview.querySelectorAll('.chat-image-loading-glyphs').length,
+			};
 			thumbnails[0].click();
 			const knownImageSizeRestored = Math.abs(preview.getBoundingClientRect().height - heights[0]) < 1;
 			layouts.push(imageLayout(await settledImage()));
@@ -4748,7 +4756,7 @@ suite('ChatListRenderer', () => {
 				pending: { previewHeight: 200, thumbnailGap: 16, glyphs: 1, images: 0 },
 				cancelled: { height: 0, text: '', thumbnailGap: 16, statusCount: 1 },
 				waiting: { height: 0, text: '', thumbnailGap: 24 },
-				failed: { height: 0, text: '', thumbnailGap: 16 },
+				failed: { square: true, message: 'Image generation failed', images: 0, glyphs: 0 },
 				knownImageSizeRestored: true,
 				landscapeShorter: true, shrinksWithWidth: true, growsWithWidth: true,
 				selected: ['false', 'true', 'false', 'false', 'false'],
@@ -4805,6 +4813,196 @@ suite('ChatListRenderer', () => {
 				galleries: 1,
 				sourceMatches: [true, true],
 				selected: true,
+			});
+		});
+	}
+
+	for (const toolName of ['image_generation', 'image_gen.imagegen']) {
+		test(`failed image selection shows an explicit square placeholder for ${toolName}`, async () => {
+			const { model, request, container, renderer, template, node } = createPersistentProgressRenderer();
+			configurePersistentProgressTypography(container, 13);
+			container.style.width = '360px';
+			renderer.layout(container.clientWidth);
+			const images = [0, 1, 2].map(index => dom.$<HTMLCanvasElement>('canvas', { width: 8 + index, height: 8 }).toDataURL('image/png').split(',')[1]);
+			const tools = images.map((_, index) => new ChatToolInvocation({
+				invocationMessage: 'Generating image', pastTenseMessage: `Generated image ${index + 1}`,
+			}, { id: toolName, displayName: 'Generate Image', modelDescription: 'Generate Image', source: ToolDataSource.Internal }, `failed-selection-${index}`, undefined, {}, {}, request.id));
+			for (const [index, tool] of tools.entries()) {
+				model.acceptResponseProgress(request, tool);
+				await tool.didExecuteTool(index === 1 ? {
+					content: [], toolResultError: 'Image provider failed',
+					toolResultDetails: { input: '{}', output: [{ type: 'embed', value: 'Image provider failed', isText: true }], isError: true },
+				} : {
+					content: [], toolSpecificData: { kind: 'generatedImage' },
+					toolResultDetails: { input: '{}', output: [{ type: 'embed', value: images[index], mimeType: 'image/png' }] },
+				});
+			}
+			renderer.renderElement(node, 0, template);
+			let batch = template.value.querySelector<HTMLElement>('.chat-image-generation-batch')!;
+			let preview = batch.querySelector<HTMLElement>('.chat-image-generation-batch-preview')!;
+			let thumbnails = [...batch.querySelectorAll<HTMLElement>('.chat-image-generation-batch-thumbnail')];
+			const title = () => batch.querySelector('.chat-image-generation-batch-tool .chat-confirmation-widget-title')?.textContent?.replace(/\u00a0/g, ' ').trim();
+			await retry(async () => assert.strictEqual(preview.querySelector('.image-attachment')?.getAttribute('aria-busy'), 'false'), 10, 50);
+			const firstImage = preview.querySelector<HTMLImageElement>('img')!;
+
+			thumbnails[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+			const failure = preview.querySelector<HTMLElement>('.chat-image-generation-failure')!;
+			const bounds = failure.getBoundingClientRect();
+			const failed = {
+				images: preview.querySelectorAll('img').length,
+				releasedSource: firstImage.getAttribute('src'),
+				square: bounds.width > 0 && Math.abs(bounds.width - bounds.height) < 1,
+				icon: failure.querySelector('.codicon-close')?.getAttribute('aria-hidden'),
+				message: failure.textContent,
+				live: failure.parentElement?.getAttribute('role'),
+				title: title(),
+				selected: thumbnails.map(item => item.getAttribute('aria-pressed')),
+				focused: dom.getActiveElement() === thumbnails[1],
+			};
+			renderer.disposeElement(node, 0, template);
+			renderer.renderElement(node, 0, template);
+			batch = template.value.querySelector<HTMLElement>('.chat-image-generation-batch')!;
+			preview = batch.querySelector<HTMLElement>('.chat-image-generation-batch-preview')!;
+			thumbnails = [...batch.querySelectorAll<HTMLElement>('.chat-image-generation-batch-thumbnail')];
+			const restored = {
+				images: preview.querySelectorAll('img').length,
+				message: preview.querySelector('.chat-image-generation-failure')?.textContent,
+				selected: thumbnails.map(item => item.getAttribute('aria-pressed')),
+			};
+			thumbnails[2].click();
+			await retry(async () => assert.strictEqual(preview.querySelector('.image-attachment')?.getAttribute('aria-busy'), 'false'), 10, 50);
+			assert.deepStrictEqual({
+				failed, restored,
+				nextSource: preview.querySelector<HTMLImageElement>('img')?.src === `data:image/png;base64,${images[2]}`,
+				nextTitle: title(),
+				nextFailure: !!preview.querySelector('.chat-image-generation-failure'),
+				imageCount: preview.querySelectorAll('img').length,
+			}, {
+				failed: {
+					images: 0, releasedSource: null, square: true, icon: 'true', message: 'Image generation failed',
+					live: 'status', title: 'Generated image failed',
+					selected: ['false', 'true', 'false'], focused: true,
+				},
+				restored: { images: 0, message: 'Image generation failed', selected: ['false', 'true', 'false'] },
+				nextSource: true, nextTitle: 'Generated image 3', nextFailure: false, imageCount: 1,
+			});
+		});
+	}
+
+	test('all failed image selections show a failure placeholder and keep error details available', async () => {
+		const { model, request, renderer, template, node } = createPersistentProgressRenderer();
+		for (const index of [0, 1, 2]) {
+			const tool = new ChatToolInvocation({ invocationMessage: 'Generating image' }, {
+				id: 'image_generation', displayName: 'Generate Image', modelDescription: 'Generate Image', source: ToolDataSource.Internal,
+			}, `all-failed-${index}`, undefined, {}, {}, request.id);
+			model.acceptResponseProgress(request, tool);
+			await tool.didExecuteTool({
+				content: [], toolResultError: 'Image provider failed',
+				toolResultDetails: { input: '{}', output: [{ type: 'embed', value: 'Image provider failed', isText: true }], isError: true },
+			});
+		}
+		renderer.renderElement(node, 0, template);
+		const batch = template.value.querySelector<HTMLElement>('.chat-image-generation-batch')!;
+		const thumbnails = [...batch.querySelectorAll<HTMLElement>('.chat-image-generation-batch-thumbnail')];
+		thumbnails[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true }));
+		const dropdown = batch.querySelector<HTMLElement>('.chat-confirmation-widget-title')!;
+		dropdown.click();
+		assert.deepStrictEqual({
+			images: batch.querySelectorAll('img').length,
+			preview: batch.querySelector('.chat-image-generation-batch-preview')?.textContent,
+			summary: batch.querySelector('.chat-image-generation-batch-summary')?.textContent,
+			title: dropdown.textContent?.replace(/\u00a0/g, ' ').trim(),
+			expanded: dropdown.getAttribute('aria-expanded'),
+			selected: thumbnails.map(item => item.getAttribute('aria-pressed')),
+			labels: thumbnails.map(item => item.getAttribute('aria-label')),
+		}, {
+			images: 0, preview: 'Image generation failed', summary: 'Image batch \u00b7 0 of 3 ready \u00b7 3 failed',
+			title: 'Generated image failed', expanded: 'true', selected: ['false', 'false', 'true'],
+			labels: ['Image 1, failed', 'Image 2, failed', 'Image 3, failed'],
+		});
+	});
+
+	for (const interruptedLoad of ['delayed', 'invalid'] as const) {
+		test(`failed image placeholder survives ${interruptedLoad} navigation and disposal`, async () => {
+			const { disposables, instantiationService, model, request, renderer, template, node } = createPersistentProgressRenderer();
+			const firstResource = URI.file('/generated/first.png');
+			const pendingResource = URI.file('/generated/pending.png');
+			const firstBytes = decodeBase64(dom.$<HTMLCanvasElement>('canvas', { width: 8, height: 8 }).toDataURL('image/png').split(',')[1]);
+			const lastImageData = dom.$<HTMLCanvasElement>('canvas', { width: 16, height: 8 }).toDataURL('image/png').split(',')[1];
+			const pendingBytes = new DeferredPromise<VSBuffer>();
+			disposables.add(toDisposable(() => { void pendingBytes.complete(firstBytes); }));
+			instantiationService.stub(IFileService, disposables.add(new class extends TestFileService {
+				override async readFile(resource: URI) {
+					return { ...await super.readFile(resource), value: isEqual(resource, pendingResource) ? await pendingBytes.p : firstBytes };
+				}
+			}()));
+			const tools = [0, 1, 2, 3].map(index => new ChatToolInvocation({
+				invocationMessage: 'Generating image', pastTenseMessage: `Generated image ${index + 1}`,
+			}, {
+				id: 'image_generation', displayName: 'Generate Image', modelDescription: 'Generate Image', source: ToolDataSource.Internal,
+			}, `delayed-selection-${index}`, undefined, {}, {}, request.id));
+			for (const [index, tool] of tools.entries()) {
+				model.acceptResponseProgress(request, tool);
+				await tool.didExecuteTool(index === 2 ? {
+					content: [], toolResultError: 'Image provider failed',
+					toolResultDetails: { input: '{}', output: [{ type: 'embed', value: 'Image provider failed', isText: true }], isError: true },
+				} : {
+					content: [], toolSpecificData: { kind: 'generatedImage' },
+					toolResultDetails: { input: '{}', output: [index === 3
+						? { type: 'embed', value: lastImageData, mimeType: 'image/png' }
+						: { type: 'ref', uri: index === 0 ? firstResource : pendingResource, mimeType: 'image/png' }] },
+				});
+			}
+			renderer.renderElement(node, 0, template);
+			const batch = template.value.querySelector<HTMLElement>('.chat-image-generation-batch')!;
+			const preview = batch.querySelector<HTMLElement>('.chat-image-generation-batch-preview')!;
+			const thumbnails = [...batch.querySelectorAll<HTMLElement>('.chat-image-generation-batch-thumbnail')];
+			await retry(async () => assert.strictEqual(preview.querySelector('.image-attachment')?.getAttribute('aria-busy'), 'false'), 10, 50);
+			const firstImage = preview.querySelector<HTMLImageElement>('img')!;
+			thumbnails[1].click();
+			const pendingImage = preview.querySelector<HTMLImageElement>('img')!;
+			if (interruptedLoad === 'invalid') {
+				await pendingBytes.complete(VSBuffer.fromString('not an image'));
+				await retry(async () => assert.ok(preview.querySelector('.image-load-error')), 10, 50);
+			}
+			thumbnails[2].click();
+			const failed = {
+				images: preview.querySelectorAll('img').length,
+				message: preview.querySelector('.chat-image-generation-failure')?.textContent,
+			};
+			if (interruptedLoad === 'delayed') {
+				thumbnails[1].click();
+				thumbnails[2].click();
+				await pendingBytes.complete(firstBytes);
+			}
+			await retry(async () => {
+				if (interruptedLoad === 'delayed') {
+					assert.strictEqual(thumbnails[1].querySelector('img')?.hidden, false);
+				} else {
+					assert.strictEqual(thumbnails[1].getAttribute('aria-label'), 'Image 2, preview unavailable');
+				}
+			}, 10, 50);
+			const afterLateLoad = {
+				images: preview.querySelectorAll('img').length,
+				message: preview.querySelector('.chat-image-generation-failure')?.textContent,
+			};
+			thumbnails[3].click();
+			await retry(async () => assert.strictEqual(preview.querySelector('.image-attachment')?.getAttribute('aria-busy'), 'false'), 10, 50);
+			const lastImage = preview.querySelector<HTMLImageElement>('img')!;
+			thumbnails[2].click();
+			const final = {
+				images: preview.querySelectorAll('img').length,
+				message: preview.querySelector('.chat-image-generation-failure')?.textContent,
+			};
+			disposables.dispose();
+			assert.deepStrictEqual({
+				failed, afterLateLoad, final,
+				clearedSources: [firstImage, pendingImage, lastImage].map(image => image.getAttribute('src')),
+			}, {
+				failed: { images: 0, message: 'Image generation failed' },
+				afterLateLoad: { images: 0, message: 'Image generation failed' },
+				final: { images: 0, message: 'Image generation failed' },
+				clearedSources: [null, null, null],
 			});
 		});
 	}

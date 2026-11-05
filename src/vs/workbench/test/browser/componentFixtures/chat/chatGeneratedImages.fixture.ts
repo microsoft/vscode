@@ -634,6 +634,25 @@ export default defineThemedFixtureGroup({ path: 'chat/generatedImages/' }, {
 		expectedVisualDescriptions: ['A Generated image failed tool dropdown with an error indicator remains available to inspect the prompt and failure output. There is no generation placeholder or large generated image.'],
 		render: context => renderGeneratedImage(context, { toolId: 'image_generation', failed: true, progress: ChatProgressAnimation.Draw }),
 	}),
+	FailedSelection: defineComponentFixture({
+		virtualTime: { enabled: false },
+		additionalThemes: ['darkModern', 'light2026', 'darkPlus', 'lightPlus', 'darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The failed first thumbnail is selected and its error dropdown remains visible. A square placeholder with a centered X and Image generation failed replaces the previously loaded image. The successful image remains available in the second thumbnail.'],
+		render: async context => {
+			await renderGeneratedImage(context, { earlierAttempt: 'failed', landscape: true });
+			await retry(async () => {
+				if (context.container.querySelector('.chat-generated-image-result .image-attachment')?.getAttribute('aria-busy') !== 'false') {
+					throw new Error('The previous preview must finish loading before selecting the failure.');
+				}
+			}, 50, 20);
+			context.container.querySelector<HTMLElement>('.chat-image-generation-batch-thumbnail')!.click();
+		},
+	}),
+	AllFailed: defineComponentFixture({
+		additionalThemes: ['darkModern', 'light2026', 'darkPlus', 'lightPlus', 'darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['Both thumbnails show failures. A square placeholder with an X and Image generation failed is shown for the selected item, and its error dropdown can be expanded. No previous image or loading animation is shown.'],
+		render: context => renderGeneratedImage(context, { earlierAttempt: 'failed', failed: true }),
+	}),
 	CompletedTool: defineComponentFixture({
 		virtualTime: { enabled: false },
 		labels: { kind: 'animated' },
