@@ -57,7 +57,8 @@ import { getChatSessionType, getNewChatSessionResource } from '../../../../workb
 import { IChatSessionsService, localChatSessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatSessionHistoryStatus } from '../../../../platform/chat/common/chatSessionHistory.js';
 import { isPhoneLayout } from '../../../browser/parts/mobile/mobileLayout.js';
-import { AbstractChatView, ChatViewKind, IChatViewOptions, IChatViewRequestOutcome, IChatViewRequestSubmission, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../browser/parts/chatView.js';
+import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../common/workspaceSelection.js';
+import { AbstractChatView, ChatViewKind, IChatViewOptions, IChatViewRequestOutcome, IChatViewRequestSubmission } from '../../../browser/parts/chatView.js';
 import { IsPhoneLayoutContext, SessionUsesExperimentalComposerLayoutContext } from '../../../common/contextkeys.js';
 import { ChatInteractivity, getChatHarness, getSessionStatusMessage, IChat, isActiveSessionStatus, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { SessionStatusIcon } from '../../../browser/sessionStatusIcon.js';

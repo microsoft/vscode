@@ -29,7 +29,7 @@ import { OnboardingOutcome } from '../../../../workbench/contrib/onboarding/comm
 import { IOnboardingScenarioService, ONBOARDING_ENABLED_CONFIG } from '../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
-import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
+import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../services/layout/browser/sessionsHostLayoutService.js';
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { IsPhoneLayoutContext } from '../../../common/contextkeys.js';
 import { isDevContainerWorktreeEnabled } from '../../../common/devContainerAgentHostService.js';
@@ -215,7 +215,7 @@ export class WorktreeSuggestionService extends Disposable implements IWorktreeSu
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@ISessionChangesService private readonly _sessionChangesService: ISessionChangesService,
 		@IViewsService private readonly _viewsService: IViewsService,
-		@IAgentWorkbenchLayoutService private readonly _layoutService: IAgentWorkbenchLayoutService,
+		@ISessionsHostLayoutService private readonly _layoutService: ISessionsHostLayoutService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@ILogService private readonly _logService: ILogService,
 	) {

@@ -87,6 +87,7 @@ import { ISessionsSetUpService } from './sessionsSetUpService.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../common/layoutConstants.js';
 import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
 import { createMainWindowInstantiationService } from '../services/sessions/browser/sessionHost.js';
+import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../services/layout/browser/sessionsHostLayoutService.js';
 
 const PHONE_NOTIFICATION_ROW_HEIGHT = 44;
 const SESSIONS_SIDE_PANE_DIVIDER_CLASS = 'sessions-side-pane-divider';
@@ -167,11 +168,6 @@ export interface ISidePaneState {
 export interface ISidePaneToggleEvent {
 	readonly before: ISidePaneState;
 	readonly after: ISidePaneState;
-}
-
-export const enum AgentWorkbenchLayout {
-	Mobile = 'mobile',
-	Desktop = 'desktop',
 }
 
 type AgentPanelAlignment = 'center' | 'justify';
@@ -292,7 +288,7 @@ export function addAuxiliaryWindowContainers(auxiliaryWindowService: Pick<IAuxil
 	});
 }
 
-export abstract class Workbench extends Disposable implements IAgentWorkbenchLayoutService {
+export abstract class Workbench extends Disposable implements IAgentWorkbenchLayoutService, ISessionsHostLayoutService {
 
 	declare readonly _serviceBrand: undefined;
 	abstract readonly agentWorkbenchLayout: AgentWorkbenchLayout;
@@ -698,6 +694,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 	private initServices(serviceCollection: ServiceCollection): IInstantiationService {
 		// Layout Service
 		serviceCollection.set(IAgentWorkbenchLayoutService, this);
+		serviceCollection.set(ISessionsHostLayoutService, this);
 
 		// Title Service - agent sessions titlebar with dedicated part overrides
 		serviceCollection.set(ITitleService, new SyncDescriptor(TitleService, []));

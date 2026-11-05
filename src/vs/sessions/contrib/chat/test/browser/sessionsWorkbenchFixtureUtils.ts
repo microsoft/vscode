@@ -37,6 +37,7 @@ import { AGENTS_CARD_SURFACE_CLASS, AGENTS_PART_CARD_CLASS, AGENTS_SIDE_PANE_MUL
 import { SessionsPart } from '../../../../browser/parts/sessionsPart.js';
 import { TitlebarPart } from '../../../../browser/parts/titlebarPart.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
+import { ISessionsHostLayoutService } from '../../../../services/layout/browser/sessionsHostLayoutService.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../../../../common/layoutConstants.js';
 import { CanGoBackContext, MultipleSessionsVisibleContext, SessionWorkspaceIsVirtualContext } from '../../../../common/contextkeys.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
@@ -151,6 +152,7 @@ export function createSessionsWorkbenchFixture(context: ComponentFixtureContext,
 	instantiationService.stub(IContextMenuService, disposableStore.add(instantiationService.createInstance(FixtureContextMenuService, container, context.focus)));
 	instantiationService.stub(IWorkbenchLayoutService, layoutService);
 	instantiationService.stub(IAgentWorkbenchLayoutService, layoutService);
+	instantiationService.stub(ISessionsHostLayoutService, layoutService);
 	instantiationService.stub(ISessionsService, sessionsService);
 	// The main window shows the grid's active session: the host UI of its parts, such as the title bar, injects, and the
 	// focused host, which grid commands check.

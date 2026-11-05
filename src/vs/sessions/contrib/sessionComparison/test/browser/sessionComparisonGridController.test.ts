@@ -17,6 +17,7 @@ import { IConfigurationChangeEvent, IConfigurationService } from '../../../../..
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
+import { ISessionsHostLayoutService } from '../../../../services/layout/browser/sessionsHostLayoutService.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { getSessionPaneId, ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
@@ -150,7 +151,7 @@ suite('Session comparison grid controller', () => {
 					: undefined;
 			}
 		}());
-		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() {
+		const agentLayoutService = new class extends mock<IAgentWorkbenchLayoutService>() {
 			override readonly mainContainer = mainContainer;
 			override readonly onDidChangePartVisibility = onDidChangePartVisibility.event as IWorkbenchLayoutService['onDidChangePartVisibility'];
 			override isVisible(part: Parts): boolean {
@@ -163,7 +164,9 @@ suite('Session comparison grid controller', () => {
 			override suppressEditorPartAutoVisibility() {
 				return toDisposable(() => { });
 			}
-		}());
+		}();
+		instantiationService.stub(IAgentWorkbenchLayoutService, agentLayoutService);
+		instantiationService.stub(ISessionsHostLayoutService, agentLayoutService);
 		store.add(instantiationService.createInstance(SessionComparisonGridController));
 		return {
 			judge,

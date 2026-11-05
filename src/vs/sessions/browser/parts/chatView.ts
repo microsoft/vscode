@@ -18,7 +18,7 @@ import { defaultProgressBarStyles } from '../../../platform/theme/browser/defaul
 import { IProgressScope, ScopedProgressIndicator } from '../../../workbench/services/progress/browser/progressIndicator.js';
 import { IChat, ISession } from '../../services/sessions/common/session.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
-import { WorkspaceSelectionOrigin } from '../../common/workspaceSelection.js';
+import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../common/workspaceSelection.js';
 import { ISessionPickerVisibility, noSessionPickerVisibility } from '../../services/sessions/common/sessionPickerVisibility.js';
 import type { IChatSessionHistoryStatus } from '../../../platform/chat/common/chatSessionHistory.js';
 
@@ -85,23 +85,6 @@ export interface ISessionViewHostOptions {
 	/** Options of the inputs of the chats. */
 	readonly input?: IChatViewInputOptions;
 }
-
-export interface ISelectWorkspaceOptions {
-	readonly providerId?: string;
-	readonly preferDevContainer?: boolean;
-	readonly selectionOrigin?: WorkspaceSelectionOrigin;
-	/** Only replace an automatic default in a fresh, empty composer. */
-	readonly isDefault?: boolean;
-}
-
-export interface ISelectNoWorkspaceOptions {
-	readonly userSelection?: boolean;
-	readonly preserveNavigation?: boolean;
-	/** Only replace an automatic default in a fresh, empty composer. */
-	readonly isDefault?: boolean;
-}
-
-export type WorkspaceSelectionResult = 'applied' | 'notReady' | 'preserved';
 
 /**
  * Base class for a view that lives inside the {@link SessionsPart} internal grid.

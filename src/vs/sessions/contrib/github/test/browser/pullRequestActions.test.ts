@@ -20,6 +20,7 @@ import { IResourceMultiDiffEditorInput, isResourceMultiDiffEditorInput } from '.
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { Menus, SessionActivityBarGroup } from '../../../../browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
+import { ISessionsHostLayoutService } from '../../../../services/layout/browser/sessionsHostLayoutService.js';
 import { sessionActivityBarChatActionContext, SessionHasPullRequestContext } from '../../../../common/contextkeys.js';
 import { IGitHubPullRequestRef, ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
@@ -397,11 +398,13 @@ suite('Pull Request Actions', () => {
 				return undefined;
 			}
 		});
-		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() {
+		const agentLayoutService = new class extends mock<IAgentWorkbenchLayoutService>() {
 			override revealEditorPartExplicitly(): void {
 				revealed++;
 			}
-		});
+		};
+		instantiationService.stub(IAgentWorkbenchLayoutService, agentLayoutService);
+		instantiationService.stub(ISessionsHostLayoutService, agentLayoutService);
 
 		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(OPEN_PULL_REQUEST_CHANGES_ACTION_ID)!.handler(accessor, { pullRequest }));
 

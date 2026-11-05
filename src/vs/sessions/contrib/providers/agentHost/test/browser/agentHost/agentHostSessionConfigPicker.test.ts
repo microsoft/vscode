@@ -45,7 +45,8 @@ import { IView } from '../../../../../../../workbench/common/views.js';
 import { ChatContextKeys } from '../../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IViewsService } from '../../../../../../../workbench/services/views/common/viewsService.js';
 import { IWorkbenchLayoutService } from '../../../../../../../workbench/services/layout/browser/layoutService.js';
-import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../../../../browser/workbench.js';
+import { IAgentWorkbenchLayoutService } from '../../../../../../browser/workbench.js';
+import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../../../services/layout/browser/sessionsHostLayoutService.js';
 import { Menus } from '../../../../../../browser/menus.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../../common/agentHostSessionsProvider.js';
 import { SessionUsesExperimentalComposerLayoutContext } from '../../../../../../common/contextkeys.js';
@@ -345,7 +346,7 @@ function setupServices(
 	instantiationService.stub(IContextKeyService, new (class extends mock<IContextKeyService>() {
 		override readonly onDidChangeContext = Event.None;
 	})());
-	instantiationService.stub(IAgentWorkbenchLayoutService, new (class extends mock<IAgentWorkbenchLayoutService>() {
+	const agentLayoutService = new (class extends mock<IAgentWorkbenchLayoutService>() {
 		// Desktop drafts use the isolation dropdown rather than the phone repository sheet.
 		override readonly mainContainer = document.createElement('div');
 		override readonly agentWorkbenchLayout = AgentWorkbenchLayout.Desktop;
@@ -356,7 +357,9 @@ function setupServices(
 			actionWidget.events.push('suppressEditorPartAutoVisibility');
 			return { dispose: () => actionWidget.events.push('releaseEditorPartAutoVisibility') };
 		}
-	})());
+	})();
+	instantiationService.stub(IAgentWorkbenchLayoutService, agentLayoutService);
+	instantiationService.stub(ISessionsHostLayoutService, agentLayoutService);
 	instantiationService.stub(ISessionChangesService, new (class extends mock<ISessionChangesService>() {
 		override async openChangesEditor(sessionResource: URI): Promise<undefined> {
 			actionWidget.events.push(`openChangesEditor:${sessionResource.toString()}`);

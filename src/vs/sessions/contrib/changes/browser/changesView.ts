@@ -99,7 +99,7 @@ import { ChangesViewSection, findDefaultChangeset, IChangesDetailsViewState, ICh
 import { ChangesSummaryWidget } from './changesSummaryWidget.js';
 import { ChangesStatsWidget, IChangesStats } from '../../../../workbench/browser/changesStatsWidget.js';
 import { Menus } from '../../../browser/menus.js';
-import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
+import { ISessionsHostLayoutService } from '../../../services/layout/browser/sessionsHostLayoutService.js';
 import { CreatePullRequestContextView } from './createPullRequestContextView.js';
 import { CreatePullRequestChatRequest } from './createPullRequestChatRequest.js';
 import { isSessionPullRequestOperation } from '../common/pullRequestCreation.js';
@@ -863,7 +863,7 @@ export class ChangesViewPane extends ViewPane {
 		@ILogService private readonly logService: ILogService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ISessionChangesService private readonly sessionChangesService: ISessionChangesService,
-		@IWorkbenchLayoutService private readonly workbenchLayoutService: IWorkbenchLayoutService,
+		@ISessionsHostLayoutService private readonly hostLayoutService: ISessionsHostLayoutService,
 		@IWorkspaceFolderLabelService private readonly workspaceFolderLabelService: IWorkspaceFolderLabelService,
 		@ISessionHost private readonly sessionHost: ISessionHost,
 	) {
@@ -1940,7 +1940,7 @@ export class ChangesViewPane extends ViewPane {
 		// editor area explicitly to show it. The Changes editor is otherwise excluded
 		// from auto reveal-on-open, and the explicit reveal is not undone by the
 		// automatic desktop hide rules.
-		(this.workbenchLayoutService as IAgentWorkbenchLayoutService).revealEditorPartExplicitly();
+		this.hostLayoutService.revealEditorPartExplicitly();
 
 		// Determine the reveal target (original/modified URI pair) from the
 		// current change list, so the multi-diff editor can navigate to it.

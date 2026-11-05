@@ -22,7 +22,8 @@ import { EditorExtensions } from '../../../workbench/common/editor.js';
 import { IEditorGroup } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { createEditorPart, TestFileEditorInput, workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { EditorParts } from '../../browser/parts/editorParts.js';
-import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../browser/workbench.js';
+import { IAgentWorkbenchLayoutService } from '../../browser/workbench.js';
+import { AgentWorkbenchLayout } from '../../services/layout/browser/sessionsHostLayoutService.js';
 import { TestStorageService } from '../../../workbench/test/common/workbenchTestServices.js';
 import { ActiveSessionHost, createMainWindowInstantiationService, ISessionHost, ISessionHostService, SessionHostKind } from '../../services/sessions/browser/sessionHost.js';
 

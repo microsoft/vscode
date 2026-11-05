@@ -13,8 +13,7 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
-import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
+import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { InboxCanvasFocusContext } from '../../../common/contextkeys.js';
 import { IInboxNotificationItem, IInboxNotificationsService, IInboxSessionRow } from '../common/inboxNotificationsService.js';
 import { getInboxNotificationLabel, getInboxNotificationPriorityLabel, getInboxTabLabel } from './inboxNotificationsLabels.js';
@@ -27,7 +26,7 @@ class InboxNotificationsAccessibilityHelp implements IAccessibleViewImplementati
 	readonly when = ContextKeyExpr.and(InboxCanvasFocusContext, ChatContextKeys.inChatSession.negate());
 
 	getProvider(accessor: ServicesAccessor): AccessibleContentProvider {
-		const restoreFocus = createFocusRestorer(accessor.get(IAgentWorkbenchLayoutService));
+		const restoreFocus = createFocusRestorer(accessor.get(IWorkbenchLayoutService));
 		const content = [
 			localize('inboxNotifications.help.overview', "You are in the Inbox canvas tab. Each row combines a session's notifications. Its icon identifies the event, such as a question, approval, CI result, review comment, merge, or completion. In narrow lists, the duplicate visible event label is omitted to leave more room for titles; hover the icon to read the event label. Screen readers include the event in the row label. A generated title describes the current action or latest completed work, with the work or session title below it. A Visual indicator means image evidence is available. The timestamp is at the far right. Switching sessions keeps this canvas available."),
 			localize('inboxNotifications.help.evidence', "Selecting a row opens evidence to the side without marking the session as read. Marking a session as Done, answering a question, or handling a confirmation marks only the associated conversation as read, unless newer activity has arrived. Questions and confirmation controls appear only in evidence. Recorded images, artifacts, references, and pull request states remain inspectable. When available, agent interpretation appears before notification details, including questions and confirmations. It is a generated summary, not proof of correctness. Inspect image opens the image carousel."),
@@ -73,7 +72,7 @@ class InboxNotificationsAccessibleView implements IAccessibleViewImplementation 
 		if (canvasProvider) {
 			return canvasProvider;
 		}
-		const restoreFocus = createFocusRestorer(accessor.get(IAgentWorkbenchLayoutService));
+		const restoreFocus = createFocusRestorer(accessor.get(IWorkbenchLayoutService));
 		return new AccessibleContentProvider(
 			AccessibleViewProviderId.InboxNotifications,
 			{ type: AccessibleViewType.View },
@@ -89,7 +88,7 @@ class InboxNotificationsAccessibleView implements IAccessibleViewImplementation 
 	}
 }
 
-function createFocusRestorer(layoutService: IAgentWorkbenchLayoutService): () => void {
+function createFocusRestorer(layoutService: IWorkbenchLayoutService): () => void {
 	const focusedElement = getActiveElement();
 	return () => {
 		if (isHTMLElement(focusedElement) && focusedElement.isConnected) {

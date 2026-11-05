@@ -19,7 +19,7 @@ import { EditorExtensions } from '../../../../workbench/common/editor.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { Menus, SessionActivityBarGroup, SessionCanvasMenuGroup } from '../../../browser/menus.js';
-import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
+import { ISessionsHostLayoutService } from '../../../services/layout/browser/sessionsHostLayoutService.js';
 import { IWindowCanvasService, WindowCanvasInput, WindowCanvasService } from '../../../services/canvas/browser/windowCanvasService.js';
 import { ISessionEditorWorkingSetService } from '../../layout/common/sessionEditorWorkingSet.js';
 import { WindowCanvasesAvailableContext } from '../common/sessionCanvas.js';
@@ -46,7 +46,7 @@ class WindowCanvasesContribution extends Disposable implements IWorkbenchContrib
 	constructor(
 		@IWindowCanvasService canvasService: IWindowCanvasService,
 		@ISessionEditorWorkingSetService workingSetService: ISessionEditorWorkingSetService,
-		@IAgentWorkbenchLayoutService layoutService: IAgentWorkbenchLayoutService,
+		@ISessionsHostLayoutService layoutService: ISessionsHostLayoutService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();

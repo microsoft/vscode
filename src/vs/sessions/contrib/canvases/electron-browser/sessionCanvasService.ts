@@ -14,7 +14,7 @@ import { CanvasDefinitionStore } from '../../../../workbench/contrib/canvases/co
 import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
-import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
+import { ISessionsHostLayoutService } from '../../../services/layout/browser/sessionsHostLayoutService.js';
 import { getMainWindowHost, getWindowHost, IFocusedSessionHostService, ISessionHost, ISessionHostService, SessionHostKind } from '../../../services/sessions/browser/sessionHost.js';
 import { ICustomViewService } from '../../../services/customView/browser/customViewService.js';
 import { IChat, ISession, ISessionCanvasDefinition } from '../../../services/sessions/common/session.js';
@@ -40,7 +40,7 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@ISessionEditorWorkingSetService editorWorkingSetService: ISessionEditorWorkingSetService,
-		@IAgentWorkbenchLayoutService layoutService: IAgentWorkbenchLayoutService,
+		@ISessionsHostLayoutService layoutService: ISessionsHostLayoutService,
 		@IChatService chatService: IChatService,
 		@ICustomViewService private readonly customViewService: ICustomViewService,
 		@IPinnedCanvasService private readonly pinnedCanvasService: IPinnedCanvasService,

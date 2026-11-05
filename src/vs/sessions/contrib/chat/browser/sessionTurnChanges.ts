@@ -10,7 +10,7 @@ import { localize } from '../../../../nls.js';
 import { AbstractChatResponseFileChangesService, AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES, IChatResponseFileChangesOpenContext, IChatResponseFileChangesStats } from '../../../../workbench/contrib/chat/browser/chatResponseFileChangesService.js';
 import { IEditSessionEntryDiff } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
+import { ISessionsHostLayoutService } from '../../../services/layout/browser/sessionsHostLayoutService.js';
 import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
@@ -38,7 +38,7 @@ export class SessionsChatResponseFileChangesService extends AbstractChatResponse
 		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@IFocusedSessionHostService private readonly _focusedSessionHostService: IFocusedSessionHostService,
 		@ISessionChangesService private readonly _sessionChangesService: ISessionChangesService,
-		@IAgentWorkbenchLayoutService private readonly _layoutService: IAgentWorkbenchLayoutService,
+		@ISessionsHostLayoutService private readonly _layoutService: ISessionsHostLayoutService,
 		@IChangesViewService private readonly _changesViewService: IChangesViewService,
 	) {
 		super();

@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
-import { AgentWorkbenchLayout } from '../../browser/workbench.js';
+import { AgentWorkbenchLayout } from '../../services/layout/browser/sessionsHostLayoutService.js';
 import { getSessionsWorkbenchLayout } from '../../browser/workbenchFactory.js';
 
 suite('Sessions Workbench Factory', () => {

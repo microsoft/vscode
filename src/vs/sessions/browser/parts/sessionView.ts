@@ -18,7 +18,8 @@ import { IContextKey, IContextKeyService } from '../../../platform/contextkey/co
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { IChat } from '../../services/sessions/common/session.js';
-import { AbstractChatView, IChatViewOptions, ISelectNoWorkspaceOptions, ISessionViewHostOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from './chatView.js';
+import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../common/workspaceSelection.js';
+import { AbstractChatView, IChatViewOptions, ISessionViewHostOptions } from './chatView.js';
 import { ChatGroupsView } from './chatGroupsView.js';
 import { SessionHeader, SessionViewFloatingToolbar } from './sessionHeader.js';
 import { ChatViewSessionActivityBar } from './sessionActivityBar.js';
@@ -32,6 +33,7 @@ import { applySessionViewThemeColors } from './sessionBarStyles.js';
 import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
 import { noSessionPickerVisibility, SessionPickerVisibilityContextKeys } from '../../services/sessions/common/sessionPickerVisibility.js';
 import { ISessionGridView } from './sessionGridLayout.js';
+import { ISessionView } from '../../services/sessions/browser/sessionsPartService.js';
 
 /**
  * Options passed to {@link SessionView.openSession}. Extends the chat view
@@ -48,7 +50,7 @@ export interface ISessionViewOptions extends IChatViewOptions { }
  * renders the session's chats as a grid of groups. The header content shares the
  * chat's centered, width-capped content band.
  */
-export class SessionView extends Disposable implements ISerializableView, ISessionGridView {
+export class SessionView extends Disposable implements ISerializableView, ISessionGridView, ISessionView {
 
 	static readonly TYPE = 'sessions.sessionView';
 	private static readonly CENTERED_CONTENT_MAX_WIDTH = AGENTS_CENTERED_CONTENT_MAX_WIDTH;

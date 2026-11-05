@@ -24,7 +24,8 @@ import { IActiveSession } from '../../services/sessions/common/sessionsManagemen
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
 import { IChatHostOpenerService } from '../../services/sessions/browser/chatHostOpener.js';
 import { getWindowHost, ISessionHost } from '../../services/sessions/browser/sessionHost.js';
-import { AbstractChatView, IChatViewOptions, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, ISessionViewHostOptions, WorkspaceSelectionResult } from './chatView.js';
+import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../common/workspaceSelection.js';
+import { AbstractChatView, IChatViewOptions, ISessionViewHostOptions } from './chatView.js';
 import { ChatGroupView, IChatGroupContext } from './chatGroupView.js';
 import { ChatDropZone, ChatGroupDropTarget, IChatGroupDropTargetDelegate } from './chatGroupDropTarget.js';
 import { DraggedSessionIdentifier, getSessionChatDragData, IDraggedSessionChat, isSessionChatDrag, SessionsDataTransfers } from '../dnd.js';

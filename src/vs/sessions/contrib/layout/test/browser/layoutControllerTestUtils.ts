@@ -38,7 +38,8 @@ import { focusedSessionHostServiceOf, sessionHostServiceOf, stubSessionHostsFrom
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { SESSIONS_LAYOUT_SCOPE_SETTING, ChatLayoutMode, ChatLayoutPresentation } from '../../../../common/chatLayout.js';
-import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService, ISidePaneToggleEvent } from '../../../../browser/workbench.js';
+import { IAgentWorkbenchLayoutService, ISidePaneToggleEvent } from '../../../../browser/workbench.js';
+import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../services/layout/browser/sessionsHostLayoutService.js';
 import { ChatInteractivity, IChat, ISession, ISessionChangeset, ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionChangesService, SessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import { CHANGES_VIEW_CONTAINER_ID } from '../../../changes/common/changes.js';
@@ -668,6 +669,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		override get mainContainerDimension(): IDimension { return { width: harness.mainContainerWidth, height: 1000 }; }
 	} as unknown as IAgentWorkbenchLayoutService;
 	instaService.stub(IWorkbenchLayoutService, layoutService);
+	instaService.stub(ISessionsHostLayoutService, layoutService);
 
 	instaService.stub(IViewsService, new class extends mock<IViewsService>() {
 		override readonly onDidChangeViewContainerVisibility = harness.onDidChangeViewContainerVisibility.event;

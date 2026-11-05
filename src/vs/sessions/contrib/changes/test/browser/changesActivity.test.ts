@@ -17,7 +17,8 @@ import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/ser
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
-import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
+import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
+import { AgentWorkbenchLayout } from '../../../../services/layout/browser/sessionsHostLayoutService.js';
 import { NEW_CHANGES_TAB_COMMAND_ID } from '../../../editor/browser/addTabActions.js';
 import { SessionActivityBarActivityService } from '../../../../services/activity/common/sessionActivityBarActivityService.js';
 import { IChat, ISessionChangesSummary, ISessionFileChange, ISessionWorkspace } from '../../../../services/sessions/common/session.js';

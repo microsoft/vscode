@@ -31,7 +31,8 @@ import { IEditorGroup, IEditorPart } from '../../../../../workbench/services/edi
 import { MultiDiffEditorInput } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { TestEditorGroupsService, TestEditorGroupView, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
-import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
+import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
+import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../services/layout/browser/sessionsHostLayoutService.js';
 import { stubSessionHosts } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionFileChange } from '../../../../services/sessions/common/session.js';
@@ -130,6 +131,7 @@ suite('SessionChangesEditorInput', () => {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		instantiationService.stub(IChangesViewService, emptyChangesViewService);
 		instantiationService.stub(IAgentWorkbenchLayoutService, {});
+		instantiationService.stub(ISessionsHostLayoutService, {});
 		instantiationService.stub(ISessionChangesService, emptySessionChangesService);
 		instantiationService.stub(IWorkbenchLayoutService, {
 			onDidChangePartVisibility: Event.None,
@@ -219,6 +221,7 @@ suite('SessionChangesEditorInput', () => {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		instantiationService.stub(IChangesViewService, emptyChangesViewService);
 		instantiationService.stub(IAgentWorkbenchLayoutService, {});
+		instantiationService.stub(ISessionsHostLayoutService, {});
 		instantiationService.stub(ISessionChangesService, emptySessionChangesService);
 		instantiationService.stub(IWorkbenchLayoutService, {
 			onDidChangePartVisibility: Event.None,
@@ -259,6 +262,7 @@ suite('SessionChangesEditorInput', () => {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		instantiationService.stub(IChangesViewService, emptyChangesViewService);
 		instantiationService.stub(IAgentWorkbenchLayoutService, layoutService);
+		instantiationService.stub(ISessionsHostLayoutService, {});
 		instantiationService.stub(ISessionChangesService, sessionChangesServiceWithResource);
 		instantiationService.stub(IWorkbenchLayoutService, layoutService);
 
@@ -306,6 +310,7 @@ suite('SessionChangesEditorInput', () => {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		instantiationService.stub(IChangesViewService, emptyChangesViewService);
 		instantiationService.stub(IAgentWorkbenchLayoutService, layoutService);
+		instantiationService.stub(ISessionsHostLayoutService, {});
 		instantiationService.stub(ISessionChangesService, sessionChangesServiceWithResource);
 		instantiationService.stub(IWorkbenchLayoutService, layoutService);
 

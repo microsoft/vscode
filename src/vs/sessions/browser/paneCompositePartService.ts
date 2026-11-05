@@ -24,7 +24,8 @@ import { getClientArea } from '../../base/browser/dom.js';
 import { mainWindow } from '../../base/browser/window.js';
 import { InstantiationType, registerSingleton } from '../../platform/instantiation/common/extensions.js';
 import { IEditorGroupsService } from '../../workbench/services/editor/common/editorGroupsService.js';
-import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from './workbench.js';
+import { IAgentWorkbenchLayoutService } from './workbench.js';
+import { AgentWorkbenchLayout } from '../services/layout/browser/sessionsHostLayoutService.js';
 import { DesktopMainEditorPart } from './parts/desktopEditorPart.js';
 import { createMainWindowInstantiationService } from '../services/sessions/browser/sessionHost.js';
 

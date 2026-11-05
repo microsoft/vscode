@@ -18,6 +18,7 @@ import { IQuickInputService } from '../../../../../../platform/quickinput/common
 import { IViewsService } from '../../../../../../workbench/services/views/common/viewsService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { IAgentWorkbenchLayoutService } from '../../../../../browser/workbench.js';
+import { ISessionsHostLayoutService } from '../../../../../services/layout/browser/sessionsHostLayoutService.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IChat } from '../../../../../services/sessions/common/session.js';
@@ -81,6 +82,7 @@ async function renderIsolationPicker({ container, disposableStore, theme }: Comp
 		getProvider: <T extends ISessionsProvider>(id: string) => providers.find(candidate => candidate.id === id) as T | undefined,
 	});
 	instantiationService.stub(IAgentWorkbenchLayoutService, { mainContainer: container });
+	instantiationService.stub(ISessionsHostLayoutService, {});
 	instantiationService.stub(ISessionChangesService, {});
 	instantiationService.stub(IViewsService, {});
 	instantiationService.stub(IWorktreeSuggestionService, new NullWorktreeSuggestionService());

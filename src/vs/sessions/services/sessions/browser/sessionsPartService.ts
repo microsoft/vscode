@@ -4,9 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import type { SessionView } from '../../../browser/parts/sessionView.js';
 import { IActiveSession } from '../common/sessionsManagement.js';
-import { ISession } from '../common/session.js';
+import { IChat, ISession } from '../common/session.js';
+import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../common/workspaceSelection.js';
+import { URI } from '../../../../base/common/uri.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { IAgentsWindowDraft } from '../../../../platform/window/common/window.js';
 import { IProgressIndicator } from '../../../../platform/progress/common/progress.js';
 import { Event } from '../../../../base/common/event.js';
 import { Direction, ISerializedGrid } from '../../../../base/browser/ui/grid/grid.js';
@@ -23,6 +26,56 @@ export interface ISessionGridSlot {
 }
 
 export type SessionGridRequest = { readonly type: 'arrange' } | { readonly type: 'restore'; readonly grid: ISerializedGrid };
+
+/**
+ * A session view hosted by the Sessions part, as seen by services and actions.
+ * Implemented by the part's view; consumers must not depend on the concrete
+ * view implementation.
+ */
+export interface ISessionView {
+	focus(): void;
+	focusWorkspacePicker(): void;
+	focusHarnessPicker(): void;
+	focusEnvironmentPicker(): void;
+	focusBranchPicker(): void;
+	focusWorktreePicker(): void;
+	focusSyncAction(): void;
+	openModelComparison(): void;
+
+	/**
+	 * Starts an inline rename of the session title in the header. Returns
+	 * `false` when the header cannot host it so callers can fall back to
+	 * another rename affordance.
+	 */
+	startTitleEditing(): boolean;
+	startFocusedChatTitleEditing(): boolean;
+	startChatTitleEditing(chatResource: URI): boolean;
+
+	getSession(): IActiveSession | undefined;
+	getFocusedChat(): IChat | undefined;
+	getActiveChat(): IChat | undefined;
+	reopenChat(resource: URI): Promise<void>;
+	toggleActiveChatPin(): void;
+	closeChatGroup(chatResource: URI): Promise<boolean>;
+
+	selectWorkspace(folderUri: URI, options?: ISelectWorkspaceOptions): WorkspaceSelectionResult;
+	applyDraft(draft: IAgentsWindowDraft, folderUri: URI | undefined, options: ISelectWorkspaceOptions, token: CancellationToken): Promise<WorkspaceSelectionResult>;
+	selectNoWorkspace(options?: ISelectNoWorkspaceOptions): WorkspaceSelectionResult;
+
+	/** Opens the given chat beside a reference chat, or the active group ("open to the side"). */
+	openChatToSide(resource: URI, referenceChatResource?: URI): Promise<void>;
+	/** Places a freshly created chat (e.g. a side chat) into its own group beside the current one. */
+	splitChatToSide(resource: URI): void;
+	focusAdjacentChatGroup(direction: 'previous' | 'next'): void;
+	splitActiveChat(direction: 'right' | 'bottom'): void;
+	moveActiveChatToAdjacentGroup(direction: 'previous' | 'next'): void;
+
+	prefillInput(text: string): void;
+	sendQuery(text: string): void;
+	submitInput(): Promise<boolean>;
+	/** Attaches the given resources as context to the active chat group's input. */
+	attach(uris: URI[]): void;
+}
 
 export const ISessionsPartService = createDecorator<ISessionsPartService>('sessionsPartService');
 
@@ -90,7 +143,7 @@ export interface ISessionsPartService {
 	focusSession(session: IActiveSession | undefined): void;
 
 	/**
-	 * Returns the {@link SessionView} hosting the given session id, or the
+	 * Returns the {@link ISessionView} hosting the given session id, or the
 	 * placeholder (new-session) view when `sessionId` is `undefined`. Returns
 	 * `undefined` if no matching slot is currently mounted in the grid.
 	 */
@@ -98,12 +151,12 @@ export interface ISessionsPartService {
 	 * The view that shows `session`: given the session itself, the view of the window that shows it, such as a window of its
 	 * own; given its id, the main window's view of it, else the view of a window that shows it.
 	 */
-	getSessionView(session: string | ISession | undefined): SessionView | undefined;
+	getSessionView(session: string | ISession | undefined): ISessionView | undefined;
 
 	/**
 	 * Returns the session view that currently contains DOM focus.
 	 */
-	getFocusedSessionView(): SessionView | undefined;
+	getFocusedSessionView(): ISessionView | undefined;
 
 	/**
 	 * Moves keyboard focus into the view that shows exactly `session`, such as a pane's session, first revealing it in the
@@ -115,7 +168,7 @@ export interface ISessionsPartService {
 	 * The view of the grid's active pane: the pane commands without arguments act on while the main window is the
 	 * focused host.
 	 */
-	getActiveSessionView(): SessionView | undefined;
+	getActiveSessionView(): ISessionView | undefined;
 
 	/**
 	 * Returns the progress indicator for the sessions part, which drives the

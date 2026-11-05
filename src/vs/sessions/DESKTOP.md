@@ -4,7 +4,7 @@
 
 This document enumerates the user-facing scenarios, states, and transitions for the **desktop detail panel** layout of the Agents window (the third pane redesigned as one pane with a single tab bar spanning the editor content and a docked detail panel).
 
-- All non-phone Agents windows use the desktop layout described here. The workbench selection is fixed at startup and published as `IAgentWorkbenchLayoutService.agentWorkbenchLayout` (read by imperative code) and the `DesktopLayoutContext` context key (read only by declarative `when` clauses). Features must gate on those rather than inferring the selected workbench.
+- All non-phone Agents windows use the desktop layout described here. The workbench selection is fixed at startup and published as `ISessionsHostLayoutService.agentWorkbenchLayout` (read by imperative code; also exposed by `IAgentWorkbenchLayoutService`) and the `DesktopLayoutContext` context key (read only by declarative `when` clauses). Features must gate on those rather than inferring the selected workbench.
 - Startup phone windows use the dedicated mobile layout instead. A startup desktop window entering a runtime phone viewport suspends experimental chat-owned layout while retaining layout state, then resumes the focused chat on return to desktop. Terminal behavior is unchanged.
 - The main Editor supports exactly one editor group. Editor split/grid commands, keybindings, menus, open-to-side requests, and split drop targets are disabled; programmatic group creation and multi-group layout requests are rejected. This restriction does not apply to the separate chat grid.
 - Companion specs: [Editor presentation](LAYOUT.md#editor-presentation) and [LAYOUT_CONTROLLER.md](LAYOUT_CONTROLLER.md).

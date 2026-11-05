@@ -33,7 +33,7 @@ import { ChangesViewService } from './changesViewService.js';
 import { IChangesViewService } from '../common/changesViewService.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { SessionsChangesAccessibilityHelp } from './sessionsChangesAccessibilityHelp.js';
-import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
+import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../services/layout/browser/sessionsHostLayoutService.js';
 import { ChangesActivityContribution } from './changesActivity.js';
 
 /**
@@ -47,7 +47,7 @@ class DesktopChangesEditorContribution extends Disposable implements IWorkbenchC
 	static readonly ID = 'workbench.contrib.sessions.desktopChangesEditor';
 
 	constructor(
-		@IAgentWorkbenchLayoutService layoutService: IAgentWorkbenchLayoutService,
+		@ISessionsHostLayoutService layoutService: ISessionsHostLayoutService,
 	) {
 		super();
 
@@ -113,7 +113,7 @@ class ChangesViewContribution extends Disposable implements IWorkbenchContributi
 	static readonly ID = 'workbench.contrib.sessions.changesView';
 
 	constructor(
-		@IAgentWorkbenchLayoutService layoutService: IAgentWorkbenchLayoutService,
+		@ISessionsHostLayoutService layoutService: ISessionsHostLayoutService,
 	) {
 		super();
 

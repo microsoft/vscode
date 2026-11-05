@@ -22,7 +22,8 @@ import { DockedAuxiliaryBarController, IDockedAuxiliaryBarHost } from '../../bro
 import { upcastPartial } from '../../../base/test/common/mock.js';
 import { IAuxiliaryWindow, IAuxiliaryWindowOpenEvent } from '../../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { ContentPart } from '../../../workbench/browser/parts/editor/contentPart.js';
-import { addAuxiliaryWindowContainers, AgentWorkbenchLayout, ISidePaneState, ISidePaneToggleEvent, Workbench } from '../../browser/workbench.js';
+import { addAuxiliaryWindowContainers, ISidePaneState, ISidePaneToggleEvent, Workbench } from '../../browser/workbench.js';
+import { AgentWorkbenchLayout } from '../../services/layout/browser/sessionsHostLayoutService.js';
 import { DesktopWorkbench, DockedEditorSizeMemento } from '../../browser/desktopWorkbench.js';
 import { AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS } from '../../browser/parts/agentsPartCard.js';
 import { SessionActivityBarColumn } from '../../browser/parts/sessionActivityBarHost.js';

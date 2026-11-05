@@ -18,7 +18,8 @@ import { MenuService } from '../../../../../platform/actions/common/menuService.
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestEditorGroupView, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
-import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
+import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
+import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../services/layout/browser/sessionsHostLayoutService.js';
 import { IDiffEditorOptionsService, SessionsWordWrap } from '../../../editor/common/diffEditorOptionsService.js';
 import { SessionChangesEditor } from '../../browser/sessionChangesEditor.js';
 import { MultiDiffEditorWithFileListWidget } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorWithFileListWidget.js';
@@ -75,9 +76,11 @@ suite('SessionChangesEditor empty state layout', () => {
 		instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
 			override readonly activeSessionHasGitRepositoryObs = constObservable(false);
 		}());
-		instantiationService.stub(IAgentWorkbenchLayoutService, {
+		const agentLayoutService = {
 			agentWorkbenchLayout: AgentWorkbenchLayout.Desktop,
-		});
+		};
+		instantiationService.stub(IAgentWorkbenchLayoutService, agentLayoutService);
+		instantiationService.stub(ISessionsHostLayoutService, agentLayoutService);
 		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() { }());
 		instantiationService.stub(IDiffEditorOptionsService, new class extends mock<IDiffEditorOptionsService>() {
 			override readonly viewMode = constObservable<DiffEditorViewMode>('automatic');
@@ -250,6 +253,7 @@ suite('SessionChangesEditor changed files list', () => {
 			override readonly activeSessionHasGitRepositoryObs = constObservable(false);
 		}());
 		instantiationService.stub(IAgentWorkbenchLayoutService, { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop });
+		instantiationService.stub(ISessionsHostLayoutService, { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop });
 		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() { }());
 		instantiationService.stub(IDiffEditorOptionsService, new class extends mock<IDiffEditorOptionsService>() {
 			override readonly viewMode = constObservable<DiffEditorViewMode>('automatic');
@@ -332,6 +336,7 @@ suite('SessionChangesEditor disposal', () => {
 			override readonly activeSessionHasGitRepositoryObs = constObservable(false);
 		}());
 		instantiationService.stub(IAgentWorkbenchLayoutService, { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop });
+		instantiationService.stub(ISessionsHostLayoutService, { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop });
 		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() { }());
 		instantiationService.stub(IDiffEditorOptionsService, new class extends mock<IDiffEditorOptionsService>() {
 			override readonly viewMode = constObservable<DiffEditorViewMode>('automatic');
@@ -387,6 +392,7 @@ suite('SessionChangesEditor input', () => {
 			override readonly activeSessionHasGitRepositoryObs = constObservable(false);
 		}());
 		instantiationService.stub(IAgentWorkbenchLayoutService, { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop, onDidChangePartVisibility: Event.None });
+		instantiationService.stub(ISessionsHostLayoutService, { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop });
 		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
 			override readonly activeSessionUncommittedChangesCountObs = constObservable(0);
 		}());

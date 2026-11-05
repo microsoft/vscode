@@ -20,7 +20,7 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { NEW_UNTITLED_FILE_COMMAND_ID } from '../../../../workbench/contrib/files/browser/fileConstants.js';
 import { Menus } from '../../../browser/menus.js';
-import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
+import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../services/layout/browser/sessionsHostLayoutService.js';
 import { EmptyFileEditor, EmptyFileEditorFocusedContext, OPEN_FILE_IN_EMPTY_EDITOR_COMMAND_ID } from './emptyFileEditor.js';
 import { EmptyFileEditorAccessibilityHelp } from './emptyFileEditorAccessibility.js';
 import { EmptyFileEditorInput, EmptyFileEditorSerializer } from './emptyFileEditorInput.js';
@@ -37,7 +37,7 @@ class DesktopEmptyFileEditorContribution extends Disposable implements IWorkbenc
 	static readonly ID = 'workbench.contrib.sessions.desktopEmptyFileEditor';
 
 	constructor(
-		@IAgentWorkbenchLayoutService layoutService: IAgentWorkbenchLayoutService,
+		@ISessionsHostLayoutService layoutService: ISessionsHostLayoutService,
 	) {
 		super();
 

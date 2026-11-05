@@ -34,7 +34,8 @@ import { IInstantiationService } from '../../../platform/instantiation/common/in
 import { ServiceCollection } from '../../../platform/instantiation/common/serviceCollection.js';
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
 import { Menus, SessionActivityBarGroup } from '../menus.js';
-import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../workbench.js';
+import { IAgentWorkbenchLayoutService } from '../workbench.js';
+import { AgentWorkbenchLayout } from '../../services/layout/browser/sessionsHostLayoutService.js';
 import { SESSION_ACTIVITY_BAR_SETTING } from '../../common/sessionConfig.js';
 import { TOGGLE_SIDE_PANEL_COMMAND_ID } from '../../common/sessionCommands.js';
 import { sessionActivityBarChatActionContext } from '../../common/contextkeys.js';

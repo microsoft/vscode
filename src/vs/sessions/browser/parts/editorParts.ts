@@ -15,7 +15,8 @@ import { IEditorGroupView } from '../../../workbench/browser/parts/editor/editor
 import { EditorParts as EditorPartsBase } from '../../../workbench/browser/parts/editor/editorParts.js';
 import { GroupIdentifier } from '../../../workbench/common/editor.js';
 import { GroupDirection, IEditorGroupsService } from '../../../workbench/services/editor/common/editorGroupsService.js';
-import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../workbench.js';
+import { IAgentWorkbenchLayoutService } from '../workbench.js';
+import { AgentWorkbenchLayout } from '../../services/layout/browser/sessionsHostLayoutService.js';
 import { MainEditorPart } from './editorPart.js';
 import { DesktopMainEditorPart } from './desktopEditorPart.js';
 import { createMainWindowInstantiationService } from '../../services/sessions/browser/sessionHost.js';

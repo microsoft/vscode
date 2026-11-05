@@ -49,7 +49,7 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { type IChatInputPickerOptions } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
 import { IChatInputPickerResponsiveState } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerResponsiveLayout.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
-import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
+import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../services/layout/browser/sessionsHostLayoutService.js';
 import { getNewSessionRepositoryConfigGroup, Menus } from '../../../../browser/menus.js';
 import { DevContainerWorktreeEnabledSettingId, isDevContainerWorktreeEnabled } from '../../../../common/devContainerAgentHostService.js';
 import { SessionIdContext, SessionProviderIdContext, IsPhoneLayoutContext, IsQuickChatSessionContext, SessionUsesExperimentalComposerLayoutContext } from '../../../../common/contextkeys.js';
@@ -653,7 +653,8 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		@IHoverService protected readonly _hoverService: IHoverService,
 		@ISessionsProvidersService protected readonly _sessionsProvidersService: ISessionsProvidersService,
 		@ITelemetryService protected readonly _telemetryService: ITelemetryService,
-		@IAgentWorkbenchLayoutService protected readonly _layoutService: IAgentWorkbenchLayoutService,
+		@IWorkbenchLayoutService protected readonly _layoutService: IWorkbenchLayoutService,
+		@ISessionsHostLayoutService protected readonly _hostLayoutService: ISessionsHostLayoutService,
 		@IStorageService protected readonly _storageService: IStorageService,
 		@ISessionChangesService private readonly _sessionChangesService: ISessionChangesService,
 		@IViewsService protected readonly _viewsService: IViewsService,
@@ -1489,11 +1490,11 @@ export class AgentHostSessionConfigPicker extends Disposable {
 	private async _showChanges(): Promise<void> {
 		this._actionWidgetService.hide();
 		const session = this._session.get();
-		if (this._layoutService.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop && session) {
+		if (this._hostLayoutService.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop && session) {
 			if ((this._getRepositoryBranchState(session.sessionId).uncommittedChanges ?? 0) > 0) {
-				this._layoutService.revealEditorPartExplicitly();
+				this._hostLayoutService.revealEditorPartExplicitly();
 			}
-			const suppression = this._layoutService.suppressEditorPartAutoVisibility();
+			const suppression = this._hostLayoutService.suppressEditorPartAutoVisibility();
 			try {
 				await this._sessionChangesService.openChangesEditor(session.resource);
 			} finally {

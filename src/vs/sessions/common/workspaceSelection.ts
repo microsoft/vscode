@@ -20,6 +20,23 @@ export const enum WorkspaceSelectionOrigin {
 	User = 'user',
 }
 
+export interface ISelectWorkspaceOptions {
+	readonly providerId?: string;
+	readonly preferDevContainer?: boolean;
+	readonly selectionOrigin?: WorkspaceSelectionOrigin;
+	/** Only replace an automatic default in a fresh, empty composer. */
+	readonly isDefault?: boolean;
+}
+
+export interface ISelectNoWorkspaceOptions {
+	readonly userSelection?: boolean;
+	readonly preserveNavigation?: boolean;
+	/** Only replace an automatic default in a fresh, empty composer. */
+	readonly isDefault?: boolean;
+}
+
+export type WorkspaceSelectionResult = 'applied' | 'notReady' | 'preserved';
+
 export type WorkspaceHistoryLoadState = 'loading' | 'loaded' | 'error';
 export type WorkspaceSessionFallbackState = 'idle' | 'pending' | 'completed' | 'error' | 'disabled';
 export type WorkspaceArgumentKind = 'none' | 'local' | 'devContainer' | 'remote' | 'other';

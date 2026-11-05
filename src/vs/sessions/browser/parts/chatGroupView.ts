@@ -26,7 +26,8 @@ import { ChatCompositeBar, IChatCompositeBarDelegate } from './chatCompositeBar.
 import { type IRemoteHostUnavailableEmptyStateContent, RemoteHostUnavailableEmptyState } from './remoteHostUnavailableEmptyState.js';
 import { SessionRemoteConnection } from './sessionRemoteConnection.js';
 import { getArchivedChatBannerContent, ISessionReadOnlyBannerContent, SessionReadOnlyBanner } from './sessionReadOnlyBanner.js';
-import { AbstractChatView, ChatViewKind, IChatViewOptions, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, ISessionViewHostOptions, WorkspaceSelectionResult } from './chatView.js';
+import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../common/workspaceSelection.js';
+import { AbstractChatView, ChatViewKind, IChatViewOptions, ISessionViewHostOptions } from './chatView.js';
 import { ChatViewSessionActivityBar } from './sessionActivityBar.js';
 import { ChatHeader } from './chatHeader.js';
 import { IGridEdgeInsets, NO_GRID_EDGE_INSETS } from '../../../workbench/browser/parts/partGrid/partGridGap.js';

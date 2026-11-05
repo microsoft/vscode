@@ -27,6 +27,7 @@ import { IEditorService } from '../../../../../workbench/services/editor/common/
 import { IVisibleEditorPane } from '../../../../../workbench/common/editor.js';
 import { Menus } from '../../../../browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
+import { ISessionsHostLayoutService } from '../../../../services/layout/browser/sessionsHostLayoutService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IChat, ISessionChangeset, ISessionChangesetOperation, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
@@ -92,6 +93,7 @@ suite('Changes Actions', () => {
 		instantiationService.stub(IActionViewItemService, actionViewItemService);
 		instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() { }());
 		instantiationService.stub(IAgentWorkbenchLayoutService, {});
+		instantiationService.stub(ISessionsHostLayoutService, {});
 		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() { }());
 		const editor = disposables.add(instantiationService.createInstance(SessionChangesEditor, new TestEditorGroupView(1)));
 		const invokedCommands: string[] = [];

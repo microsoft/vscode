@@ -26,7 +26,7 @@ import { IEditorService } from '../../../../workbench/services/editor/common/edi
 import { IEditorPane, isEditorCommandsContext } from '../../../../workbench/common/editor.js';
 import { MultiDiffEditor } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.js';
 import { DiffEditorWidget } from '../../../../editor/browser/widget/diffEditor/diffEditorWidget.js';
-import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
+import { ISessionsHostLayoutService } from '../../../services/layout/browser/sessionsHostLayoutService.js';
 import { Menus } from '../../../browser/menus.js';
 import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID, AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID, AGENT_HOST_SYNC_CHANGESET_OPERATION_ID } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
@@ -65,7 +65,7 @@ class ViewAllChangesAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor, sessionArg?: unknown): Promise<void> {
 		const sessionChangesService = accessor.get(ISessionChangesService);
-		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
+		const layoutService = accessor.get(ISessionsHostLayoutService);
 
 		// The clicked session is forwarded as the argument by the session header,
 		// which has already promoted it to be the active session. Fall back to the

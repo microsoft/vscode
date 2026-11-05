@@ -22,6 +22,7 @@ import { workbenchInstantiationService } from '../../../workbench/test/browser/w
 import { AbstractChatView, ChatViewKind, IChatViewOptions } from '../../browser/parts/chatView.js';
 import { SessionsPart } from '../../browser/parts/sessionsPart.js';
 import { IAgentWorkbenchLayoutService } from '../../browser/workbench.js';
+import { ISessionsHostLayoutService } from '../../services/layout/browser/sessionsHostLayoutService.js';
 import { SessionBranchPickerVisibleContext, SessionEnvironmentPickerVisibleContext, SessionHarnessPickerVisibleContext, SessionIsolationPickerVisibleContext, SessionSyncActionVisibleContext, SessionWorkspacePickerVisibleContext, SessionWorktreePickerVisibleContext } from '../../common/contextkeys.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../common/sessionConfig.js';
 import { ISessionsChatBackground, ISessionsChatBackgroundService } from '../../services/chatBackground/browser/chatBackgroundService.js';
@@ -130,14 +131,16 @@ export function createSessionsPartTestHarness(store: Pick<DisposableStore, 'add'
 	const services = createSessionViewTestServices(store, options?.instantiationService);
 	const container = options?.container ?? document.createElement('div');
 	container.classList.toggle('phone-layout', mobile);
-	services.instantiationService.stub(IAgentWorkbenchLayoutService, options?.layoutService ?? new class extends mock<IAgentWorkbenchLayoutService>() {
+	const agentLayoutService = options?.layoutService ?? new class extends mock<IAgentWorkbenchLayoutService>() {
 		override registerPart() { return Disposable.None; }
 		override readonly mainContainer = container;
 		override readonly mainContainerDimension = { width: 1200, height: 800 };
 		override isVisible(part: Parts) { return part === Parts.SESSIONS_PART || part === Parts.SIDEBAR_PART; }
 		override isEditorPaneVisible() { return false; }
 		override isModernUICompact() { return options?.compactLayout?.() ?? false; }
-	}());
+	}();
+	services.instantiationService.stub(IAgentWorkbenchLayoutService, agentLayoutService);
+	services.instantiationService.stub(ISessionsHostLayoutService, agentLayoutService);
 	services.instantiationService.stub(ISessionsChatBackgroundService, new class extends mock<ISessionsChatBackgroundService>() {
 		override readonly onDidChangeBackground = Event.None;
 		override getBackground() { return options?.chatBackground; }

@@ -16,7 +16,7 @@ import { MultiDiffEditorInput } from '../../../../workbench/contrib/multiDiffEdi
 import { IDecorationData, IDecorationsProvider, IDecorationsService } from '../../../../workbench/services/decorations/common/decorations.js';
 import { IEditorGroup } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService, PreferredGroup } from '../../../../workbench/services/editor/common/editorService.js';
-import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
+import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../services/layout/browser/sessionsHostLayoutService.js';
 import { getSessionChangesFileCountLabel } from '../common/changes.js';
 import { IChangesViewService } from '../common/changesViewService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -50,7 +50,7 @@ export class SessionChangesService extends Disposable implements ISessionChanges
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IAgentWorkbenchLayoutService private readonly layoutService: IAgentWorkbenchLayoutService,
+		@ISessionsHostLayoutService private readonly layoutService: ISessionsHostLayoutService,
 		@IChangesViewService private readonly changesViewService: IChangesViewService,
 		@ISessionHostService private readonly sessionHostService: ISessionHostService,
 		@IFocusedSessionHostService private readonly focusedSessionHostService: IFocusedSessionHostService,

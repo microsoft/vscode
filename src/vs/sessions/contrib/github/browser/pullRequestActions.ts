@@ -12,7 +12,7 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
-import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
+import { ISessionsHostLayoutService } from '../../../services/layout/browser/sessionsHostLayoutService.js';
 import { sessionActivityBarChatActionContext, SessionHasPullRequestContext } from '../../../common/contextkeys.js';
 import { resolveSessionCommandTarget } from '../../../services/sessions/browser/sessionCommandTarget.js';
 import { getGitHubPullRequestRefs, IGitHubPullRequestRef, ISession } from '../../../services/sessions/common/session.js';
@@ -92,7 +92,7 @@ class OpenPullRequestChangesAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor, sessionOrContext?: IActiveSession | ISession | PullRequestActionContext): Promise<void> {
 		const editorService = accessor.get(IEditorService);
-		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
+		const layoutService = accessor.get(ISessionsHostLayoutService);
 
 		const target = sessionOrContext ?? resolveSessionCommandTarget(accessor, [])?.session;
 		const pullRequest = isPullRequestActionContext(target) ? target.pullRequest : getSessionPullRequest(target);
