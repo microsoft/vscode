@@ -367,8 +367,9 @@ function isSyntheticUserMessage(event: ISessionEvent): boolean {
 	if (event.type !== 'user.message') {
 		return false;
 	}
-	const source = (event as ISessionEventMessage).data?.source;
-	return !!source && source.toLowerCase() !== 'user';
+	const source = (event as ISessionEventMessage).data?.source?.toLowerCase();
+	// Remote Control prompts (`command-<id>` source) are genuine user turns.
+	return !!source && source !== 'user' && !(!event.agentId && source.startsWith('command-'));
 }
 
 /**

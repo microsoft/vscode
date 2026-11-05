@@ -5,8 +5,43 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { CopilotFusionRequestCorrelation } from '../../node/copilot/copilotFusionEventIdentity.js';
+import { CopilotFusionRequestCorrelation, isRemoteSteeredUserMessage, isSyntheticUserMessage } from '../../node/copilot/copilotFusionEventIdentity.js';
 import { fusionTestData as data, fusionTestEvent as event } from './copilotFusionTestEvents.js';
+
+suite('isSyntheticUserMessage', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('classifies user.message sources', () => {
+		const cases = [
+			{ name: 'no source', source: undefined, agentId: undefined },
+			{ name: 'user', source: 'user', agentId: undefined },
+			{ name: 'remote control', source: 'command-a023a7ea-d4b5-48b9-b600-9cf7d83a2f28', agentId: undefined },
+			{ name: 'remote control (uppercase)', source: 'COMMAND-1', agentId: undefined },
+			{ name: 'skill', source: 'skill', agentId: undefined },
+			{ name: 'inter-agent', source: 'agent-parent', agentId: 'worker' },
+			{ name: 'subagent skill', source: 'skill-testing', agentId: 'worker' },
+			{ name: 'command source on a subagent', source: 'command-1', agentId: 'worker' },
+		];
+		assert.deepStrictEqual(cases.map(({ name, source, agentId }) => {
+			const e = event('user.message', { content: 'Prompt', ...(source ? { source } : {}) }, agentId ? { agentId } : undefined);
+			return { name, synthetic: isSyntheticUserMessage(e), remote: isRemoteSteeredUserMessage(e) };
+		}), [
+			{ name: 'no source', synthetic: false, remote: false },
+			{ name: 'user', synthetic: false, remote: false },
+			{ name: 'remote control', synthetic: false, remote: true },
+			{ name: 'remote control (uppercase)', synthetic: false, remote: true },
+			{ name: 'skill', synthetic: true, remote: false },
+			{ name: 'inter-agent', synthetic: false, remote: false },
+			{ name: 'subagent skill', synthetic: true, remote: false },
+			{ name: 'command source on a subagent', synthetic: true, remote: false },
+		]);
+	});
+
+	test('ignores other event types', () => {
+		assert.strictEqual(isSyntheticUserMessage(event('assistant.message', { messageId: 'm', content: 'Reply' })), false);
+		assert.strictEqual(isRemoteSteeredUserMessage(event('assistant.message', { messageId: 'm', content: 'Reply' })), false);
+	});
+});
 
 suite('CopilotFusionRequestCorrelation', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
