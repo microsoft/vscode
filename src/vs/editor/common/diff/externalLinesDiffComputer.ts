@@ -52,11 +52,10 @@ class ExternalLinesDiffComputer implements ILinesDiffComputer {
 		const originalText = new StringText(originalLines.join('\n'));
 		const modifiedText = new StringText(modifiedLines.join('\n'));
 
-		// Always diff whitespace, so that the edit reproduces the modified text.
-		// Ignoring trim whitespace only hides some of its replacements.
+		// The edit always contains whitespace changes, so it reproduces the modified text.
+		// Ignoring trim whitespace only hides the replacements annotated as such.
 		const result = this._computer.computeDiff(originalText.value, modifiedText.value, {
-			ignoreTrimWhitespace: false,
-			// TODO: forward `maxComputationTimeMs` after updating @vscode/diff. The wasm build of the pinned version panics when measuring time.
+			maxComputationTimeMs: options.maxComputationTimeMs,
 			computeMoves: options.computeMoves,
 			extendToSubwords: options.extendToSubwords,
 		});
@@ -71,7 +70,7 @@ class ExternalLinesDiffComputer implements ILinesDiffComputer {
 			const modifiedRange = new OffsetRange(r.range.start + delta, r.range.start + delta + r.newText.length);
 			delta += r.newText.length - originalRange.length;
 
-			if (options.ignoreTrimWhitespace && isInTrimWhitespace(originalText.value, originalRange) && isInTrimWhitespace(modifiedText.value, modifiedRange)) {
+			if (options.ignoreTrimWhitespace && r.data.isTrimWhitespaceChange) {
 				continue;
 			}
 			rangeMappings.push(new RangeMapping(originalTransformer.getRange(originalRange), modifiedTransformer.getRange(modifiedRange)));
@@ -94,21 +93,4 @@ class ExternalLinesDiffComputer implements ILinesDiffComputer {
 
 		return new LinesDiff(changes, moves, result.hitTimeout);
 	}
-}
-
-const whitespaceWithoutLineBreak = /^[^\S\n]*$/;
-
-/**
- * Whether `range` only covers whitespace before the first or after the last non-whitespace character of a single line.
- * Changes to such whitespace are hidden when ignoring trim whitespace.
- */
-function isInTrimWhitespace(text: string, range: OffsetRange): boolean {
-	if (!whitespaceWithoutLineBreak.test(range.substring(text))) {
-		return false;
-	}
-	const lineStart = range.start === 0 ? 0 : text.lastIndexOf('\n', range.start - 1) + 1;
-	const nextLineBreak = text.indexOf('\n', range.endExclusive);
-	const lineEnd = nextLineBreak === -1 ? text.length : nextLineBreak;
-	return whitespaceWithoutLineBreak.test(text.substring(lineStart, range.start))
-		|| whitespaceWithoutLineBreak.test(text.substring(range.endExclusive, lineEnd));
 }

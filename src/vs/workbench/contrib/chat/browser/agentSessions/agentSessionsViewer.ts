@@ -1220,11 +1220,6 @@ export interface IAgentSessionsFilter {
 	readonly onDidChange: Event<void>;
 
 	/**
-	 * Optional limit on the number of sessions to show.
-	 */
-	readonly limitResults?: () => number | undefined;
-
-	/**
 	 * Whether to show section headers to group sessions.
 	 * When undefined, sessions are shown as a flat list.
 	 */
@@ -1286,6 +1281,7 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 		private readonly filter: IAgentSessionsFilter | undefined,
 		private readonly sorter: ITreeSorter<IAgentSession>,
 		private readonly repositoryGroupLimit?: number,
+		private readonly archivesAvailable?: () => boolean,
 	) {
 		super();
 
@@ -1321,10 +1317,15 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 
 		// Sessions	section
 		else if (isAgentSessionSection(element)) {
-			return element.sessions.length > 0;
+			return element.sessions.length > 0 || element.section === AgentSessionSection.Archived && this.hasLoadableArchiveSection;
 		}
 
 		return isAgentSession(element) && this.getSessionChildren(element).length > 0;
+	}
+
+	get hasLoadableArchiveSection(): boolean {
+		const grouping = this.filter?.groupResults?.();
+		return grouping !== undefined && grouping !== AgentSessionsGrouping.Capped && this.archivesAvailable?.() === true;
 	}
 
 	getChildren(element: IAgentSessionsModel | AgentSessionListItem): Iterable<AgentSessionListItem> {
@@ -1334,20 +1335,11 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 
 			// Apply filter if configured
 			const revealed = element.sessions.find(session => session.resource.toString() === this.revealedSession?.toString());
-			let filteredSessions = element.sessions.filter(session => session === revealed || !this.filter?.exclude(session));
+			const filteredSessions = element.sessions.filter(session => session === revealed || !this.filter?.exclude(session));
 
-			// Apply sorter unless we group into sections or we are to limit results
-			const limitResultsCount = this.filter?.limitResults?.();
-			if (!this.filter?.groupResults?.() || typeof limitResultsCount === 'number') {
+			// Apply sorter unless we group into sections
+			if (!this.filter?.groupResults?.()) {
 				filteredSessions.sort(this.sorter.compare.bind(this.sorter));
-			}
-
-			// Apply limiter if configured (requires sorting)
-			if (typeof limitResultsCount === 'number') {
-				filteredSessions = filteredSessions.slice(0, limitResultsCount);
-				if (revealed && !filteredSessions.includes(revealed)) {
-					filteredSessions.push(revealed);
-				}
 			}
 
 			// Callback results count
@@ -1356,7 +1348,21 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 
 			// Group sessions into sections if enabled
 			if (this.filter?.groupResults?.()) {
-				return this.groupSessionsIntoSections(filteredSessions);
+				const sections = this.groupSessionsIntoSections(filteredSessions);
+				if (this.hasLoadableArchiveSection) {
+					const existing = sections.find((section): section is IAgentSessionSection => isAgentSessionSection(section) && section.section === AgentSessionSection.Archived);
+					const section: IAgentSessionSection = {
+						section: AgentSessionSection.Archived,
+						label: AgentSessionSectionLabels[AgentSessionSection.Archived],
+						sessions: existing?.sessions ?? [],
+					};
+					if (existing) {
+						sections[sections.indexOf(existing)] = section;
+					} else {
+						sections.push(section);
+					}
+				}
+				return sections;
 			}
 
 			// Otherwise return flat sorted list

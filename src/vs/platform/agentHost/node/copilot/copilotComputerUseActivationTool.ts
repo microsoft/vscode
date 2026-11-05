@@ -27,16 +27,32 @@ export interface ICopilotRuntimePlugin {
 	readonly enabled: boolean;
 }
 
+/**
+ * The state of Computer Use as a chat launches, while VS Code offers it:
+ * - `on`: the user turned it on, with the agent's card or `/computer on`.
+ * - `off`: the runtime has the built-in plugin, and it is off.
+ * - `notInstalled`: the runtime has no built-in plugin yet, e.g. while it downloads.
+ * - `unknown`: the runtime couldn't list its plugins.
+ */
+export type ComputerUseLaunchState = 'on' | 'off' | 'notInstalled' | 'unknown';
+
 /** What turning on Computer Use needs from the chat whose agent asks. Implemented by the Copilot chat session. */
 export interface IComputerUseActivationChat {
-	/** The runtime's plugins; empty when VS Code doesn't offer Computer Use. */
-	listPlugins(): Promise<readonly ICopilotRuntimePlugin[]>;
+	/** The runtime's plugins; `undefined` when VS Code doesn't offer Computer Use in this chat. */
+	listPlugins(): Promise<readonly ICopilotRuntimePlugin[] | undefined>;
 	/** Turns Computer Use on for Copilot, as `/computer on` does: the runtime saves the choice and starts its tools in every session. */
 	enablePlugin(): Promise<void>;
 	/** Whether someone can answer a card in this chat now. Not outside a running turn, in autopilot, or with automatic replies. */
 	canAskUser(): boolean;
 	/** Adds the request to the chat's running turn. */
 	requestInput(request: ChatInputRequest): void;
+	/** Reports the state of Computer Use as the chat's session launches, while VS Code offers it. */
+	reportLaunchState(state: ComputerUseLaunchState): void;
+	/**
+	 * Starts the report of a request to turn on Computer Use while its turn is current, and returns the function that
+	 * reports how it ended. Calls that wait for the same answer share one report.
+	 */
+	startActivationReport(): (report: ComputerUseActivationReport) => void;
 }
 
 /**
@@ -50,7 +66,10 @@ export interface IComputerUseActivationChat {
  * - `cancelled`: the turn ended before the user answered.
  * - `failed`: the runtime didn't turn it on.
  */
-type ComputerUseActivationOutcome = 'turnedOn' | 'alreadyOn' | 'declined' | 'declinedEarlier' | 'blocked' | 'unavailable' | 'unattended' | 'cancelled' | 'failed';
+export type ComputerUseActivationOutcome = 'turnedOn' | 'alreadyOn' | 'declined' | 'declinedEarlier' | 'blocked' | 'unavailable' | 'unattended' | 'cancelled' | 'failed';
+
+/** How a request to turn on Computer Use ended, as the chat reports it: its outcome, or `error` when checking or turning it on threw. */
+export type ComputerUseActivationReport = ComputerUseActivationOutcome | 'error';
 
 const outcomeResults: { readonly [K in ComputerUseActivationOutcome]: ToolResultObject } = {
 	turnedOn: { resultType: 'success', textResultForLlm: 'Computer Use is on. Its tools, from the computer-use MCP server, are available now.' },
@@ -94,16 +113,26 @@ export class CopilotComputerUseActivation {
 		private readonly _logService: ILogService,
 	) { }
 
-	/** The tools to launch the chat's session with: the activation tool while the runtime has Computer Use and it is off. */
+	/**
+	 * The tools to launch the chat's session with: the activation tool while the runtime has Computer Use and it is off.
+	 * Reports the state of Computer Use while VS Code offers it.
+	 */
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	async createTools(): Promise<Tool<any>[]> {
+		let plugins: readonly ICopilotRuntimePlugin[] | undefined;
 		try {
-			const plugin = await this._getPlugin();
-			return plugin && !plugin.enabled ? [this._createTool()] : [];
+			plugins = await this._chat.listPlugins();
 		} catch (error) {
 			this._logService.warn(`${this._logPrefix} Could not check whether Computer Use is on: ${getErrorMessage(error)}`);
+			this._chat.reportLaunchState('unknown');
 			return [];
 		}
+		if (!plugins) {
+			return [];
+		}
+		const plugin = findBuiltinPlugin(plugins);
+		this._chat.reportLaunchState(!plugin ? 'notInstalled' : plugin.enabled ? 'on' : 'off');
+		return plugin && !plugin.enabled ? [this._createTool()] : [];
 	}
 
 	/** Records the session's effective managed settings; see {@link isComputerUseTurnedOffByPolicy}. */
@@ -154,10 +183,22 @@ export class CopilotComputerUseActivation {
 		};
 	}
 
-	/** A call made while the user decides waits for the same answer. */
+	/** A call made while the user decides waits for the same answer, and shares its report. */
 	private _activate(reason: string | undefined): Promise<ComputerUseActivationOutcome> {
-		this._asking ??= this._ask(reason).finally(() => this._asking = undefined);
+		this._asking ??= this._askAndReport(reason, this._chat.startActivationReport()).finally(() => this._asking = undefined);
 		return this._asking;
+	}
+
+	private async _askAndReport(reason: string | undefined, reportOutcome: (report: ComputerUseActivationReport) => void): Promise<ComputerUseActivationOutcome> {
+		let outcome: ComputerUseActivationOutcome;
+		try {
+			outcome = await this._ask(reason);
+		} catch (error) {
+			reportOutcome('error');
+			throw error;
+		}
+		reportOutcome(outcome);
+		return outcome;
 	}
 
 	private async _ask(reason: string | undefined): Promise<ComputerUseActivationOutcome> {
@@ -193,8 +234,13 @@ export class CopilotComputerUseActivation {
 	}
 
 	private async _getPlugin(): Promise<ICopilotRuntimePlugin | undefined> {
-		return (await this._chat.listPlugins()).find(plugin => plugin.name === COMPUTER_USE_PLUGIN_NAME && plugin.source === 'builtin');
+		const plugins = await this._chat.listPlugins();
+		return plugins && findBuiltinPlugin(plugins);
 	}
+}
+
+function findBuiltinPlugin(plugins: readonly ICopilotRuntimePlugin[]): ICopilotRuntimePlugin | undefined {
+	return plugins.find(plugin => plugin.name === COMPUTER_USE_PLUGIN_NAME && plugin.source === 'builtin');
 }
 
 function readReason(args: unknown): string | undefined {

@@ -17,7 +17,7 @@ import { IEnvironmentMainService } from '../../environment/electron-main/environ
 import { IStateService } from '../../state/node/state.js';
 import { HotExitConfiguration, IFilesConfiguration } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
-import { IFolderBackupInfo, isFolderBackupInfo, IWorkspaceBackupInfo } from '../common/backup.js';
+import { IFolderBackupInfo, isFolderBackupInfo, IWorkspaceBackupInfo, WORKING_COPY_BACKUP_TEMP_FILE_SUFFIX } from '../common/backup.js';
 import { isWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { createEmptyWorkspaceIdentifier } from '../../workspaces/node/workspaces.js';
 
@@ -344,7 +344,7 @@ export class BackupMainService implements IBackupMainService {
 			for (const backupSchema of backupSchemas) {
 				try {
 					const backupSchemaChildren = await Promises.readdir(join(backupPath, backupSchema));
-					if (backupSchemaChildren.length > 0) {
+					if (backupSchemaChildren.some(child => !child.endsWith(WORKING_COPY_BACKUP_TEMP_FILE_SUFFIX))) {
 						return true;
 					}
 				} catch {

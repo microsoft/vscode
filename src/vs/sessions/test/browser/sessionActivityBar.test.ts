@@ -12,7 +12,7 @@ import { Codicon } from '../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { toAction } from '../../../base/common/actions.js';
-import { derived, observableValue } from '../../../base/common/observable.js';
+import { constObservable, derived, observableValue } from '../../../base/common/observable.js';
 import { AnchorAlignment } from '../../../base/common/layout.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { IHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegate.js';
@@ -29,7 +29,7 @@ import { IConfigurationChangeEvent, IConfigurationService } from '../../../platf
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextMenuMenuDelegate, IContextMenuService, IContextViewService } from '../../../platform/contextview/browser/contextView.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
-import { ChatViewSessionActivityBar, SESSION_ACTIVITY_BAR_COLUMN_WIDTH, SessionActivityBar } from '../../browser/parts/sessionActivityBar.js';
+import { ChatViewSessionActivityBar, registerSessionActivityBarExternalHost, SESSION_ACTIVITY_BAR_COLUMN_WIDTH, SessionActivityBar } from '../../browser/parts/sessionActivityBar.js';
 import { Menus, SessionActivityBarGroup } from '../../browser/menus.js';
 import { TogglePanelAction } from '../../../workbench/browser/parts/panel/panelActions.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../browser/workbench.js';
@@ -41,6 +41,8 @@ import { IconBadge, NumberBadge } from '../../../workbench/services/activity/com
 import { TestContextViewService } from './testContextViewService.js';
 import '../../../base/browser/ui/tree/media/tree.css';
 import '../../browser/parts/media/sessionView.css';
+import { LayoutModeContext } from '../../../workbench/common/contextkeys.js';
+import { IWindowCommandContext } from '../../../workbench/common/windowCommandContext.js';
 
 interface ITestEntry {
 	readonly id: string;
@@ -71,11 +73,13 @@ suite('Sessions - Session Activity Bar', () => {
 		const container = append(root, $('.content'));
 
 		const ran: string[] = [];
+		const ranWith: { readonly id: string; readonly args: unknown[] }[] = [];
 		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
 			override readonly onWillExecuteCommand = Event.None;
 			override readonly onDidExecuteCommand = Event.None;
-			override async executeCommand<R>(id: string): Promise<R | undefined> {
+			override async executeCommand<R>(id: string, ...args: unknown[]): Promise<R | undefined> {
 				ran.push(id);
+				ranWith.push({ id, args });
 				return undefined;
 			}
 		});
@@ -146,7 +150,8 @@ suite('Sessions - Session Activity Bar', () => {
 
 		const configurationService = new TestConfigurationService({ [SESSION_ACTIVITY_BAR_SETTING]: true });
 		instantiationService.stub(IConfigurationService, configurationService);
-		instantiationService.stub(IContextKeyService, testStore.add(instantiationService.createInstance(ContextKeyService)));
+		const contextKeyService = testStore.add(instantiationService.createInstance(ContextKeyService));
+		instantiationService.stub(IContextKeyService, contextKeyService);
 
 		const activityService = testStore.add(new SessionActivityBarActivityService());
 		instantiationService.stub(ISessionActivityBarActivityService, activityService);
@@ -167,6 +172,8 @@ suite('Sessions - Session Activity Bar', () => {
 			setLayout: (layout: AgentWorkbenchLayout) => agentWorkbenchLayout = layout,
 			layoutMainContainer: () => onDidLayoutMainContainer.fire({ width: 800, height: 600 }),
 			ran,
+			ranWith,
+			contextKeyService,
 			contextViewService,
 			contextMenus,
 			label: (title: string) => activityBar.element.querySelector<HTMLElement>(`.action-label[aria-label^="${title}"]`)!,
@@ -505,6 +512,37 @@ suite('Sessions - Session Activity Bar', () => {
 		});
 	});
 
+	test('shows in a host outside the chat while the host is active, which then keeps the column for it, also while the chat is hidden, and beside the chat again otherwise', () => {
+		const { createDocked, root } = createActivityBar(store, [changes]);
+		const hostElement = append(root, $('.external-host'));
+		const active = observableValue('active', false);
+		const occupied: boolean[] = [];
+		store.add(registerSessionActivityBarExternalHost(root, { element: hostElement, active, height: constObservable(300), setOccupied: (_occupant, value) => occupied.push(value) }));
+		const docked = createDocked();
+		const element = docked.element!;
+		const state = () => ({ inHost: hostElement.contains(element), shown: !element.classList.contains('inactive'), reserved: docked.reservedWidth.get() });
+
+		docked.setActive(true);
+		const besideChat = state();
+		active.set(true, undefined);
+		const hosted = state();
+		docked.setActive(true, true);
+		const chatHidden = state();
+		active.set(false, undefined);
+		const hostInactiveChatHidden = state();
+		docked.setActive(true);
+		const back = state();
+
+		assert.deepStrictEqual({ besideChat, hosted, chatHidden, hostInactiveChatHidden, back, occupied: occupied.at(-1) }, {
+			besideChat: { inHost: false, shown: true, reserved: SESSION_ACTIVITY_BAR_COLUMN_WIDTH },
+			hosted: { inHost: true, shown: true, reserved: 0 },
+			chatHidden: { inHost: true, shown: true, reserved: 0 },
+			hostInactiveChatHidden: { inHost: false, shown: false, reserved: SESSION_ACTIVITY_BAR_COLUMN_WIDTH },
+			back: { inHost: false, shown: true, reserved: SESSION_ACTIVITY_BAR_COLUMN_WIDTH },
+			occupied: false,
+		});
+	});
+
 	test('right-clicking an entry or the rest of the strip offers to hide the activity bar', () => {
 		const { createDocked, contextMenus } = createActivityBar(store, [changes, browser]);
 		const docked = createDocked();
@@ -598,6 +636,47 @@ suite('Sessions - Session Activity Bar', () => {
 			inactive: { checked: false, pressed: 'false' },
 			active: { checked: true, pressed: 'true' },
 		});
+	});
+
+	test('in a window with layout modes, such as a chat window, a checked entry hides the editor parts of that window, and the entries of the panel\'s group toggle themselves: never the side panel or the panel of the main window', async () => {
+		const files: ITestEntry = { id: 'test.files', title: 'Files', icon: Codicon.files, group: SessionActivityBarGroup.SidePanel, checked: true };
+		const terminal: ITestEntry = { id: 'test.terminal', title: 'Terminal', icon: Codicon.terminal, group: SessionActivityBarGroup.Panel, checked: true };
+		for (const entry of [files, terminal]) {
+			store.add(MenuRegistry.appendMenuItem(Menus.SessionActivityBar, { command: { id: entry.id, title: entry.title }, group: entry.group }));
+		}
+		const { label, ran, contextKeyService } = createActivityBar(store, [files, terminal]);
+		LayoutModeContext.bindTo(contextKeyService).set('sideBySide');
+
+		for (const title of ['Files', 'Terminal']) {
+			label(title).click();
+			await timeout(0);
+		}
+
+		assert.deepStrictEqual(ran, ['workbench.action.chatWindow.toggleEditor', 'test.terminal']);
+	});
+
+	test('the entries run with the window they are in, which the window that has focus may not be yet: a chat window, or the main window, such as while a chat window has focus', async () => {
+		const files: ITestEntry = { id: 'test.files', title: 'Files', icon: Codicon.files, group: SessionActivityBarGroup.SidePanel, checked: true };
+		const terminal: ITestEntry = { id: 'test.terminal', title: 'Terminal', icon: Codicon.terminal, group: SessionActivityBarGroup.Panel };
+		for (const entry of [files, terminal]) {
+			store.add(MenuRegistry.appendMenuItem(Menus.SessionActivityBar, { command: { id: entry.id, title: entry.title }, group: entry.group }));
+		}
+		const { label, ranWith, contextKeyService } = createActivityBar(store, [files, terminal]);
+
+		label('Terminal').click();
+		await timeout(0);
+		LayoutModeContext.bindTo(contextKeyService).set('sideBySide');
+		for (const title of ['Terminal', 'Files']) {
+			label(title).click();
+			await timeout(0);
+		}
+
+		const context: IWindowCommandContext = { windowId: mainWindow.vscodeWindowId };
+		assert.deepStrictEqual(ranWith, [
+			{ id: 'test.terminal', args: [context] },
+			{ id: 'test.terminal', args: [context] },
+			{ id: 'workbench.action.chatWindow.toggleEditor', args: [context] },
+		]);
 	});
 
 	test('opens the Canvas submenu to the left on hover, click, and keyboard, and runs its items', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

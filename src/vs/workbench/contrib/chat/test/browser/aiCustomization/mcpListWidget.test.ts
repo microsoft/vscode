@@ -11,7 +11,7 @@ import { CancellationTokenSource } from '../../../../../../base/common/cancellat
 import { URI } from '../../../../../../base/common/uri.js';
 import { Action, IAction, Separator } from '../../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { Disposable, DisposableStore, isDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, isDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { IManagedHoverContent } from '../../../../../../base/browser/ui/hover/hover.js';
@@ -19,13 +19,14 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpAuthRequiredReason, McpServerStatus, type Customization, type CustomizationEnablement } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IOpenerService, OpenOptions } from '../../../../../../platform/opener/common/opener.js';
+import { COPILOT_COMMUNICATION_SUPPORT_URL_KEY, IManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceIconUri, ICustomizationMarketplaceResource } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { ContributionEnablementState, EnablementModel } from '../../../common/enablement.js';
 import { createCustomizationMarketplaceInstallationSnapshot, emptyCustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallService } from '../../../common/customizationMarketplaceInstallService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
-import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ColorScheme } from '../../../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
@@ -197,6 +198,12 @@ type McpAccessTestWidget = {
 	disabledMessage: HTMLElement;
 	disabledLinkListener: MutableDisposable<{ dispose(): void }>;
 	commandService: ICommandService;
+	managedSettingsService: Pick<IManagedSettingsService, 'getManagedSettingValue'>;
+	openerService: Pick<IOpenerService, 'open'>;
+	hoverService: Pick<IHoverService, 'setupDelayedHover'>;
+	opened: { target: string; openExternal: boolean | undefined }[];
+	hovers: string[];
+	supportUrl: string | undefined;
 	refreshCount: number;
 	refreshConnectorsCount: number;
 	refresh(): Promise<void>;
@@ -237,6 +244,18 @@ function createMcpAccessTestWidget(access: McpAccessValue, policyAccess: McpAcce
 	widget.disabledMessage = document.createElement('div');
 	widget.disabledLinkListener = store.add(new MutableDisposable());
 	widget.commandService = { executeCommand: async () => undefined } as unknown as ICommandService;
+	widget.supportUrl = undefined;
+	widget.managedSettingsService = { getManagedSettingValue: key => key === COPILOT_COMMUNICATION_SUPPORT_URL_KEY ? widget.supportUrl : undefined };
+	widget.opened = [];
+	widget.openerService = { open: async (target: URI | string, options?: OpenOptions) => { widget.opened.push({ target: target.toString(), openExternal: options?.openExternal }); return true; } };
+	widget.hovers = [];
+	widget.hoverService = {
+		setupDelayedHover: (_target, options) => {
+			const content = typeof options === 'function' ? options().content : options.content;
+			widget.hovers.push(typeof content === 'string' ? content : '');
+			return Disposable.None;
+		},
+	};
 	widget.refreshCount = 0;
 	widget.refreshConnectorsCount = 0;
 	widget.refresh = async () => { widget.refreshCount++; };
@@ -1403,6 +1422,54 @@ suite('mcpListWidget', () => {
 			accessEnabled: false,
 			disabledClass: true,
 			message: 'Access to MCP servers is disabled by your organization. Contact your administrator for more information.',
+		});
+	});
+
+	test('links the policy explanation to the organization support page when one is configured', () => {
+		const widget = createMcpAccessTestWidget(McpAccessValue.None, McpAccessValue.None, disposables);
+		const capture = () => ({
+			message: widget.disabledMessage.textContent,
+			link: widget.disabledMessage.querySelector('a')?.getAttribute('href') ?? null,
+		});
+		widget.supportUrl = 'https://example.com/copilot-help';
+		widget.updateAccessState();
+		const linked = capture();
+		widget.disabledMessage.querySelector('a')!.click();
+		const middleClick = new MouseEvent('auxclick', { button: 1, cancelable: true });
+		widget.disabledMessage.querySelector('a')!.dispatchEvent(middleClick);
+		widget.supportUrl = 'javascript:alert(1)';
+		widget.updateAccessState();
+		const invalid = capture();
+		widget.supportUrl = 'https://example.com/copilot-help';
+		widget.policyAccess = undefined;
+		widget.updateAccessState();
+		const userDisabled = capture();
+		assert.deepStrictEqual({ linked, invalid, userDisabled, middleClickNavigates: !middleClick.defaultPrevented, opened: widget.opened, hovers: widget.hovers }, {
+			linked: { message: 'Access to MCP servers is disabled by your organization. Contact your administrator for more information.', link: 'https://example.com/copilot-help' },
+			invalid: { message: 'Access to MCP servers is disabled by your organization. Contact your administrator for more information.', link: null },
+			userDisabled: { message: 'MCP servers are disabled in settings. Configure in settings.', link: '#' },
+			middleClickNavigates: false,
+			opened: [{ target: 'https://example.com/copilot-help', openExternal: true }, { target: 'https://example.com/copilot-help', openExternal: true }],
+			hovers: ['Opens your organization\'s help page (example.com)'],
+		});
+	});
+
+	test('keeps the policy link and its focus when nothing it shows changes, and refocuses the new link when the URL changes', () => {
+		const widget = createMcpAccessTestWidget(McpAccessValue.None, McpAccessValue.None, disposables);
+		document.body.appendChild(widget.disabledMessage);
+		disposables.add(toDisposable(() => widget.disabledMessage.remove()));
+		widget.supportUrl = 'https://example.com/copilot-help';
+		widget.updateAccessState();
+		const link = widget.disabledMessage.querySelector('a')!;
+		link.focus();
+		widget.updateAccessState();
+		const unchanged = { sameLink: widget.disabledMessage.querySelector('a') === link, focused: document.activeElement === link };
+		widget.supportUrl = 'https://example.com/other-help';
+		widget.updateAccessState();
+		const replaced = widget.disabledMessage.querySelector('a')!;
+		assert.deepStrictEqual({ unchanged, replaced: { href: replaced.getAttribute('href'), focused: document.activeElement === replaced } }, {
+			unchanged: { sameLink: true, focused: true },
+			replaced: { href: 'https://example.com/other-help', focused: true },
 		});
 	});
 

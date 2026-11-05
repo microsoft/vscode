@@ -11,6 +11,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
@@ -23,9 +24,9 @@ import { IQuickInputService } from '../../../../../platform/quickinput/common/qu
 import { IProgress, IProgressOptions, IProgressService, IProgressStep } from '../../../../../platform/progress/common/progress.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ISessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
 import { DEFAULT_CHAT_CAPABILITIES, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { IActiveSession, IManagedSessionWorktree, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IManagedSessionWorktree, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING, getWorktreeCleanupId, getWorktreeCleanupTitle, ISessionWorktree, SessionWorktreeCleanupProgress, SessionWorktreeCleanupService } from '../../browser/sessionWorktreeCleanupService.js';
 
 suite('SessionWorktreeCleanupService', () => {
@@ -541,7 +542,7 @@ suite('SessionWorktreeCleanupService', () => {
 			createSession('archived', now, SessionStatus.Completed, true),
 			createSession('untitled', now, SessionStatus.Untitled),
 			createSession('error', now, SessionStatus.Error),
-		], true, () => 1, undefined, undefined, upcastPartial<IActiveSession>(active), undefined, pinned));
+		], true, () => 1, undefined, undefined, [active], undefined, pinned));
 
 		assert.deepStrictEqual((await service.getWorktrees(0)).map(worktree => ({
 			id: getWorktreeCleanupId(worktree),
@@ -976,30 +977,21 @@ suite('SessionWorktreeCleanupService', () => {
 		}
 	});
 
-	test('active, pinned, running, and recent sessions are not eligible', async () => {
+	test('sessions shown in any window, pinned, running, and recent sessions are not eligible', async () => {
 		const old = oldDate();
 		const eligible = createSession('eligible', old);
-		const activeSession = createSession('active', old);
-		const active = upcastPartial<IActiveSession>({
-			...activeSession,
-			activeChat: activeSession.mainChat,
-			isCreated: constObservable(true),
-			sticky: constObservable(false),
-			openChats: activeSession.chats,
-			closedChats: constObservable([]),
-			lastClosedChat: undefined,
-			visibleChatTabs: activeSession.chats,
-		});
+		const shownInMainWindow = createSession('shownInMainWindow', old);
+		const shownInChatWindow = createSession('shownInChatWindow', old);
 		const pinned = createSession('pinned', old);
 		const running = createSession('running', old, SessionStatus.InProgress);
 		const recent = createSession('recent', new Date());
 		const service = disposables.add(createService(
-			[eligible, activeSession, pinned, running, recent],
+			[eligible, shownInMainWindow, shownInChatWindow, pinned, running, recent],
 			true,
 			session => session === eligible ? 6 * ByteSize.GB : ByteSize.GB,
 			undefined,
 			undefined,
-			active,
+			[shownInMainWindow, shownInChatWindow],
 			undefined,
 			pinned,
 		));
@@ -1912,7 +1904,7 @@ function createService(
 	sizeForSession: (session: ISession, token?: CancellationToken) => number | undefined | Promise<number | undefined>,
 	_quickInputService: IQuickInputService = upcastPartial<IQuickInputService>({}),
 	onProgress?: (title: string | undefined) => void,
-	activeSession?: IActiveSession,
+	shownSessions: readonly ISession[] = [],
 	onCommand?: (id: string, args: readonly unknown[]) => void,
 	pinnedSession?: ISession,
 	configurationService = new TestConfigurationService({ [AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING]: enabled }),
@@ -1946,7 +1938,7 @@ function createService(
 			cleanupManagedWorktree: overrides.cleanupManagedWorktree,
 			managedWorktreeExists: overrides.managedWorktreeExists,
 		}),
-		upcastPartial<ISessionsService>({ activeSession: constObservable(activeSession) }),
+		upcastPartial<ISessionHostService>({ isShown: resource => shownSessions.some(session => isEqual(session.resource, resource)) }),
 		upcastPartial<ISessionsListModelService>({ isSessionPinned: session => session === pinnedSession }),
 		overrides.dialogService ?? upcastPartial<IDialogService>({}),
 		upcastPartial<ILogService>({ warn: () => { }, error: () => { } }),

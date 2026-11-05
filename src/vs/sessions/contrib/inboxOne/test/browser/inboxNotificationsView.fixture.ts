@@ -11,6 +11,7 @@ import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IFileContent, IFileService } from '../../../../../platform/files/common/files.js';
 import { IAccessibleViewService } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IRequestService } from '../../../../../platform/request/common/request.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IChatService, IChatToolInvocationSerialized } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -19,6 +20,7 @@ import { IChatSideChatService } from '../../../../../workbench/contrib/chat/comm
 import { EditorMarkdownCodeBlockRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
 import { IChatImageCarouselService } from '../../../../../workbench/contrib/chat/browser/chatImageCarouselService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
+import { IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
 import { ChatMarkdownAnchorService, IChatMarkdownAnchorService } from '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { ITerminalChatService } from '../../../../../workbench/contrib/terminal/browser/terminal.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureCondition } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
@@ -32,6 +34,7 @@ import { ISessionsProvidersService } from '../../../../services/sessions/browser
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IAgentFeedbackService } from '../../../agentFeedback/browser/agentFeedbackService.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
+import { NEW_SESSION_WELCOME_NAME_SETTING } from '../../../chat/common/constants.js';
 import { InboxNotificationsView } from '../../browser/inboxNotificationsView.js';
 import { IInboxCanvasHostService, UnsupportedInboxCanvasHostService } from '../../browser/inboxCanvasHost.js';
 import { IInboxDetailSummary, IInboxNotificationItem, IInboxNotificationsService, IInboxSessionRow, InboxNotificationActionKind, InboxNotificationKind, InboxNotificationPriority, InboxNotificationsSortMode, InboxTab } from '../../common/inboxNotificationsService.js';
@@ -76,6 +79,8 @@ const items: readonly IInboxNotificationItem[] = [
 export default defineThemedFixtureGroup({ path: 'sessions/inbox/' }, {
 	Collapsed: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: ctx => renderInbox(ctx, 1100, 'collapsed') }),
 	Hovered: defineComponentFixture({ render: ctx => renderInbox(ctx, 1100, 'hovered') }),
+	WorkflowActions: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: ctx => renderInbox(ctx, 1100, 'workflowActions') }),
+	WorkflowActionsNarrow: defineComponentFixture({ render: ctx => renderInbox(ctx, 360, 'workflowActions') }),
 	Working: defineComponentFixture({ render: ctx => renderInbox(ctx, 1100, InboxTab.Working) }),
 	ReadyToMerge: defineComponentFixture({ render: ctx => renderInbox(ctx, 1100, InboxTab.ReadyToMerge) }),
 	OnHold: defineComponentFixture({ render: ctx => renderInbox(ctx, 1100, InboxTab.OnHold) }),
@@ -96,7 +101,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/inbox/' }, {
 	MergedPullRequestsExpanded: defineComponentFixture({ render: ctx => renderInbox(ctx, 560, 'mergedExpanded') }),
 });
 
-async function renderInbox(ctx: ComponentFixtureContext, width: number, state?: 'longTitle' | 'confirmation' | 'toolConfirmation' | 'textQuestion' | 'empty' | 'evidence' | 'merged' | 'mergedExpanded' | 'collapsed' | 'hovered' | 'short' | InboxTab): Promise<void> {
+async function renderInbox(ctx: ComponentFixtureContext, width: number, state?: 'longTitle' | 'confirmation' | 'toolConfirmation' | 'textQuestion' | 'empty' | 'evidence' | 'merged' | 'mergedExpanded' | 'collapsed' | 'hovered' | 'short' | 'workflowActions' | InboxTab): Promise<void> {
 	const merged = state === 'merged' || state === 'mergedExpanded';
 	const chat = upcastPartial<IChat>({
 		resource: URI.parse('fixture:///search'),
@@ -146,6 +151,14 @@ async function renderInbox(ctx: ComponentFixtureContext, width: number, state?: 
 			repositoryLabel: 'acme/workbench', statusLabel: 'Merged', icon: { id: 'git-pull-request-done' },
 			pullRequestUri: URI.parse(`https://github.com/acme/workbench/pull/${1000 + index}`),
 		})),
+	})) : state === 'workflowActions' ? [
+		{ kind: InboxNotificationKind.FailingCI, title: 'Fix the failing search tests', label: 'Fix CI Failures', action: InboxNotificationActionKind.AgentMergeFixCI },
+		{ kind: InboxNotificationKind.ReviewComments, title: 'Address two review comments', label: 'Address Reviews', action: InboxNotificationActionKind.AgentMergeAddressReviews },
+		{ kind: InboxNotificationKind.PassingCI, title: 'Merge the keyboard navigation changes', label: 'Merge Pull Request', action: InboxNotificationActionKind.AgentMergeMergePullRequest },
+	].map(({ kind, title, label, action }) => ({
+		id: action, kind, title, description: title, repositoryLabel: 'acme/workbench', timestamp: 0,
+		priority: InboxNotificationPriority.Now,
+		actions: [...actions, { id: action, label, kind: action }],
 	})) : items;
 	const notifications = observableValue<readonly IInboxNotificationItem[]>('fixture.notifications', state === 'empty' ? [] : sourceItems.map((sourceItem, index) => {
 		const item = { ...sourceItem, timestamp: Date.now() };
@@ -208,10 +221,15 @@ async function renderInbox(ctx: ComponentFixtureContext, width: number, state?: 
 	const rows = observableValue<readonly IInboxSessionRow[]>('fixture.rows', [
 		...notifications.get().map((item, index) => ({
 			...item, tab: InboxTab.ReadyForYou, sessionTitle: item.title, occurrence: item.id, notifications: [item],
-			title: index === 0 && (state === 'toolConfirmation' || state === 'textQuestion') ? item.title
+			title: state === 'workflowActions' || index === 0 && (state === 'toolConfirmation' || state === 'textQuestion') ? item.title
 				: ['Choose how search results should open', 'Address two review comments', 'Review the keyboard navigation changes'][index] ?? item.title,
 			hasImages: index === 0,
 		})),
+		...(state === 'workflowActions' ? [{
+			...notifications.get()[0], id: 'combined', tab: InboxTab.ReadyForYou,
+			title: 'Fix failing checks and address review comments', sessionTitle: 'Improve workspace search',
+			occurrence: 'combined', notifications: notifications.get().slice(0, 2), hasImages: false,
+		}] : []),
 		...(state === 'empty' || merged ? [] : ([InboxTab.Working, InboxTab.ReadyToMerge, InboxTab.OnHold, InboxTab.Done] as const).map((tab): IInboxSessionRow => ({
 			id: tab, tab, title: { working: 'Implementing search results', readyToMerge: 'Merge the search improvements', onHold: 'Resume the accessibility review', done: 'Keyboard navigation reviewed' }[tab],
 			kind: InboxNotificationKind.Completed, priority: InboxNotificationPriority.Later, description: '',
@@ -243,6 +261,8 @@ async function renderInbox(ctx: ComponentFixtureContext, width: number, state?: 
 		colorTheme: ctx.theme,
 		additionalServices: reg => {
 			registerWorkbenchServices(reg);
+			reg.defineInstance(IRequestService, new class extends mock<IRequestService>() { }());
+			reg.defineInstance(IAuthenticationService, new class extends mock<IAuthenticationService>() { }());
 			reg.define(IMarkdownRendererService, MarkdownRendererService);
 			reg.define(IChatMarkdownAnchorService, ChatMarkdownAnchorService);
 			reg.defineInstance(IInboxNotificationsService, service);
@@ -315,6 +335,7 @@ async function renderInbox(ctx: ComponentFixtureContext, width: number, state?: 
 	});
 	const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
 	await configurationService.setUserConfiguration('editor', { fontFamily: 'monospace' });
+	await configurationService.setUserConfiguration(NEW_SESSION_WELCOME_NAME_SETTING, state === 'empty' ? 'Megan' : '');
 	instantiationService.get(IMarkdownRendererService).setDefaultCodeBlockRenderer(instantiationService.createInstance(EditorMarkdownCodeBlockRenderer));
 
 	ctx.container.classList.add('monaco-workbench', 'agent-sessions-workbench');
@@ -329,7 +350,7 @@ async function renderInbox(ctx: ComponentFixtureContext, width: number, state?: 
 	if (workflowTab) {
 		const index = [InboxTab.ReadyForYou, InboxTab.Working, InboxTab.ReadyToMerge, InboxTab.OnHold, InboxTab.Done].indexOf(workflowTab);
 		ctx.container.querySelectorAll<HTMLElement>('[role="tab"]')[index].click();
-	} else if (state !== 'collapsed' && state !== 'hovered') {
+	} else if (state !== 'collapsed' && state !== 'hovered' && state !== 'workflowActions') {
 		ctx.container.querySelector<HTMLElement>('.inbox-notifications-item')?.click();
 	}
 	if (state === 'hovered') {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRemoteAgentHostEntry, IRemoteAgentHostService, IRemoteAgentHostSSHConnection, RemoteAgentHostEntryType } from '../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostEntryType } from '../../platform/agentHost/common/remoteAgentHostService.js';
 import { ISessionsProvidersService } from '../services/sessions/browser/sessionsProvidersService.js';
 import { isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_PREFIX } from '../common/agentHostSessionsProvider.js';
 import { encodeHex, VSBuffer } from '../../base/common/buffer.js';
@@ -61,10 +61,7 @@ export function resolveRemoteAuthority(
 export function resolveRemoteAgentHostEntryAuthority(entry: IRemoteAgentHostEntry): string | undefined {
 	switch (entry.connection.type) {
 		case RemoteAgentHostEntryType.SSH:
-			if (entry.connection.sshConfigHost) {
-				return `ssh-remote+${entry.connection.sshConfigHost}`;
-			}
-			return `ssh-remote+${sshAuthorityString(entry.connection)}`;
+			return `ssh-remote+${sshAuthorityString(entry.connection.sshConfigHost ? { hostName: entry.connection.sshConfigHost } : entry.connection)}`;
 		case RemoteAgentHostEntryType.Tunnel:
 			return `tunnel+${entry.connection.label ?? `${entry.connection.tunnelId}.${entry.connection.clusterId}`}`;
 		case RemoteAgentHostEntryType.WSL:
@@ -111,23 +108,22 @@ export function resolveRemoteFolderUri(
 }
 
 /**
- * Encodes an SSH connection into the authority string format expected by
- * the Remote SSH extension.
+ * Encodes an SSH host into the authority string of the Remote - SSH extension, mirroring its
+ * `HostInfo.toAuthorityString`. The string identifies the remote, e.g. for recently opened folders.
+ * An SSH config alias is passed as the host name without user or port.
  */
-export function sshAuthorityString(connection: IRemoteAgentHostSSHConnection): string {
-	const hostName = connection.hostName;
-	const needsEncoding = connection.user || connection.port
-		|| /[A-Z/\\+]/.test(hostName) || !/^[a-zA-Z0-9.:\-]+$/.test(hostName);
-	if (!needsEncoding) {
+export function sshAuthorityString(host: { readonly hostName: string; readonly user?: string; readonly port?: number }): string {
+	const hostName = host.hostName;
+	if (!host.user && !host.port && hostName.toLowerCase() === hostName && !/[\/\\+]/.test(hostName)) {
 		return hostName;
 	}
 
 	const obj: Record<string, string | number> = { hostName };
-	if (connection.user) {
-		obj.user = connection.user;
+	if (host.user) {
+		obj.user = host.user;
 	}
-	if (connection.port) {
-		obj.port = connection.port;
+	if (host.port) {
+		obj.port = host.port;
 	}
 
 	const json = JSON.stringify(obj);

@@ -205,7 +205,9 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		// The instantiation service of the part's services is disposed after the part, as disposing it disposes the scoped
 		// instantiation services of the part and its groups, which the part and what it shows use while they dispose.
 		const servicesDisposables = new DisposableStore();
-		const instantiationService = options.services ? servicesDisposables.add(this.instantiationService.createChild(options.services)) : this.instantiationService;
+		// A collection of the part's own: the instantiation service adds itself to it, which in the collection of the caller,
+		// such as shared by several parts, would make it the one of all that use that collection, beyond this part's life.
+		const instantiationService = options.services ? servicesDisposables.add(this.instantiationService.createChild(options.services.clone())) : this.instantiationService;
 		const part = instantiationService.createInstance(ContentPart, getWindow(container).vscodeWindowId, this, options);
 		const registration = disposables.add(this.registerPart(part));
 		disposables.add(part);

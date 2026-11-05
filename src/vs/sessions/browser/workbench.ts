@@ -20,6 +20,7 @@ import { ILayoutOffsetInfo } from '../../platform/layout/browser/layoutService.j
 import { Part } from '../../workbench/browser/part.js';
 import { Direction, ISerializableView, ISerializedGrid, ISerializedLeafNode, ISerializedNode, IViewSize, Orientation, SerializableGrid, Sizing } from '../../base/browser/ui/grid/grid.js';
 import { IEditorGroupsService } from '../../workbench/services/editor/common/editorGroupsService.js';
+import { ContentPart } from '../../workbench/browser/parts/editor/contentPart.js';
 import { IEditorService } from '../../workbench/services/editor/common/editorService.js';
 import { IPaneCompositePartService } from '../../workbench/services/panecomposite/browser/panecomposite.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../workbench/common/views.js';
@@ -84,6 +85,7 @@ import { ICustomViewDescriptor } from '../services/customView/browser/customView
 import { ISessionsSetUpService } from './sessionsSetUpService.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../common/layoutConstants.js';
 import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
+import { createMainWindowInstantiationService } from '../services/sessions/browser/sessionHost.js';
 
 const PHONE_NOTIFICATION_ROW_HEIGHT = 44;
 const SESSIONS_SIDE_PANE_DIVIDER_CLASS = 'sessions-side-pane-divider';
@@ -1015,7 +1017,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 
 	private createMobileTitlebar(): void {
 		this.mobileTopBarDisposables.clear();
-		const mobileTitlebar = this.mobileTopBarDisposables.add(this.createMobileTitlebarPart(this.instantiationService));
+		const mobileTitlebar = this.mobileTopBarDisposables.add(this.createMobileTitlebarPart(this.mainWindowInstantiationService));
 		this.mobileTopBarElement = mobileTitlebar.element;
 		this.focusMobileTopBar = () => mobileTitlebar.focus();
 		this.mobileTopBarDisposables.add(toDisposable(() => this.focusMobileTopBar = undefined));
@@ -1031,8 +1033,14 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		this.mobileTopBarDisposables.add(mobileTitlebar.onDidClickNewSession(() => {
 			this.sessionsService.openNewSession();
 			this.closeMobileSidebarDrawer();
-			this.sessionsPartService.focusSession(this.sessionsService.activeSession.get());
+			this.sessionsService.focusActiveSession();
 		}));
+	}
+
+	private _mainWindowInstantiationService: IInstantiationService | undefined;
+	/** The instantiation service of the main window's parts, created once. */
+	private get mainWindowInstantiationService(): IInstantiationService {
+		return this._mainWindowInstantiationService ??= this._register(createMainWindowInstantiationService(this.instantiationService));
 	}
 
 	protected createMobileTitlebarPart(instantiationService: IInstantiationService): MobileTitlebarPart {
@@ -2298,9 +2306,20 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		return this._editorNodeVisible(this._effectiveVisible(Parts.EDITOR_PART), this._effectiveVisible(Parts.AUXILIARYBAR_PART));
 	}
 
+	/** Whether `targetWindow` is built of content parts, such as a chat window, rather than of an editor part of its own. */
+	private _hasContentParts(targetWindow: Window): boolean {
+		const windowId = getWindowId(targetWindow);
+		return !!this.editorGroupService?.parts.some(part => part.windowId === windowId && part instanceof ContentPart);
+	}
+
 	isVisible(part: SINGLE_WINDOW_PARTS): boolean;
 	isVisible(part: MULTI_WINDOW_PARTS, targetWindow: Window): boolean;
 	isVisible(part: Parts, targetWindow?: Window): boolean {
+		if (targetWindow && targetWindow !== mainWindow && part === Parts.EDITOR_PART && this._hasContentParts(targetWindow)) {
+			// The editor parts of a window built of content parts, such as a chat window, show whether this window's editor
+			// part shows or not. Those of editor windows follow this window's, as before.
+			return true;
+		}
 		switch (part) {
 			case Parts.TITLEBAR_PART:
 				// On phone layout the grid titlebar is hidden (replaced by MobileTitlebarPart)
@@ -2773,7 +2792,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		if (visible) {
 			this.focusPart(Parts.CUSTOM_VIEW_GRID_PART);
 		} else {
-			this.sessionsPartService.focusSession(this.sessionsService.activeSession.get());
+			this.sessionsService.focusActiveSession();
 		}
 	}
 
