@@ -87,7 +87,9 @@ export class CloudSandboxAgentHostContribution extends CloudSandboxSessionContri
 	) {
 		super(cloudSandboxService, apiService, draftPreparationService, _remoteService, _sandboxConnectionCustomizations, configurationService, instantiationService, chatSessionsService, logService, chatEntitlementService, hostService, storageService, workspaceTrustManagementService);
 		this._updateRegistration();
-		this._register(this._agentHostFilterService.registerDiscoveryHandler(() => this._discoverAndSeed()));
+		this._register(this._agentHostFilterService.registerDiscoveryHandler(reason => reason === 'automatic'
+			? this._refreshIfStale('automatic')
+			: this._discoverAndSeed()));
 		this._register(this._agentHostFilterService.onDidChange(() => {
 			if (this._agentHostFilterService.selectedHostId === CLOUD_SANDBOX_HOST_GROUP.id) {
 				void this._refreshIfStale('selection');

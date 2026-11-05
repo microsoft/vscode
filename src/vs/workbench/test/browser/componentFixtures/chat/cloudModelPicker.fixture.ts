@@ -16,6 +16,7 @@ import { withCloudSandboxDraftModelConfig } from '../../../../contrib/chat/brows
 import { ICloudSandboxTelemetryService } from '../../../../contrib/chat/browser/remoteAgentHost/cloudSandboxTelemetry.js';
 import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { IWorkbenchGitHubService } from '../../../../services/github/common/githubService.js';
+import { IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup, waitForFixtureCondition } from '../fixtureUtils.js';
 import { renderPicker } from './tabbedModelPicker.fixture.js';
 
@@ -62,6 +63,9 @@ async function renderCloudPicker(context: ComponentFixtureContext, view: 'list' 
 			override reportRequest(): void { }
 		}(),
 		new class extends mock<IWorkbenchGitHubService>() { }(),
+		new class extends mock<IUserDataProfileService>() {
+			override readonly onDidChangeCurrentProfile = Event.None;
+		}(),
 	));
 	const catalog = await api.listModels(CancellationToken.None);
 	const provider = context.disposableStore.add(new AgentHostLanguageModelProvider('cloud-sandbox', 'cloud-models'));

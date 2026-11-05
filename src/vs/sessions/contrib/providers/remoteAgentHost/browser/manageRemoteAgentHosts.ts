@@ -129,8 +129,8 @@ registerAction2(class extends Action2 {
 			picker.matchOnDetail = true;
 			picker.keepScrollPosition = true;
 			picker.buttons = [{ iconClass: ThemeIcon.asClassName(Codicon.refresh), tooltip: localize('manageHosts.refresh', "Refresh Hosts") }];
-			const refreshHosts = async () => {
-				const success = await hostFilter.rediscover();
+			const refreshHosts = async (reason: 'automatic' | 'manual' = 'manual') => {
+				const success = await hostFilter.rediscover(reason);
 				if (!store.isDisposed) {
 					picker.validationMessage = success ? undefined : localize('manageHosts.refreshFailed', "Could not refresh all hosts. Retained hosts are still available; use Refresh Hosts to retry.");
 				}
@@ -210,7 +210,7 @@ registerAction2(class extends Action2 {
 
 			store.add(picker.onDidHide(() => store.dispose()));
 			picker.show();
-			void refreshHosts();
+			void refreshHosts('automatic');
 		};
 
 		showManagePicker();

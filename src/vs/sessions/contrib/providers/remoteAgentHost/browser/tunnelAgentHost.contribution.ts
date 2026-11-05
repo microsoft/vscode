@@ -137,7 +137,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 		// through the filter service's `rediscover` so the host pill
 		// pulses while the initial automatic discovery is in flight,
 		// then switches to a static label once we know what hosts exist.
-		agentHostFilterService.rediscover();
+		agentHostFilterService.rediscover('automatic');
 	}
 
 	/**

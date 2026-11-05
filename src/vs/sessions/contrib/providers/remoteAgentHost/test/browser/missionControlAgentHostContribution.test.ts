@@ -158,10 +158,10 @@ suite('Mission Control native provider inventory', () => {
 		};
 		let sharedDiscoveries = 0;
 		let tunnelDiscoveries = 0;
-		const discoveryHandlers = new Set<() => Promise<void>>([async () => { tunnelDiscoveries++; }]);
+		const discoveryHandlers = new Set<Parameters<IAgentHostFilterService['registerDiscoveryHandler']>[0]>([async () => { tunnelDiscoveries++; }]);
 		const rediscover = async () => {
 			sharedDiscoveries++;
-			const results = await Promise.allSettled([...discoveryHandlers].map(handler => handler()));
+			const results = await Promise.allSettled([...discoveryHandlers].map(handler => handler('manual')));
 			return results.every(result => result.status === 'fulfilled');
 		};
 		const sharedStartup = options.sharedStartupFirst ? rediscover() : undefined;
@@ -198,7 +198,7 @@ suite('Mission Control native provider inventory', () => {
 		instantiation.stub(INotificationService, new TestNotificationService());
 		instantiation.stub(ILogService, store.add(new NullLogService()));
 		instantiation.stub(IAgentHostFilterService, new class extends mock<IAgentHostFilterService>() {
-			override registerDiscoveryHandler(handler: () => Promise<void>) {
+			override registerDiscoveryHandler(handler: Parameters<IAgentHostFilterService['registerDiscoveryHandler']>[0]) {
 				discoveryHandlers.add(handler);
 				return toDisposable(() => discoveryHandlers.delete(handler));
 			}

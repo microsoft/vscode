@@ -63,6 +63,7 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { IRequestContext } from '../../../../../base/parts/request/common/request.js';
 import { asText, IRequestService } from '../../../../../platform/request/common/request.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
+import { IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
 import { getCloudSandboxTaskCreationPath, ICloudSandboxTelemetryService, requestOutcomeForStatus, type CloudSandboxRequestAction, type ICloudSandboxDiscoveryTelemetryData } from './cloudSandboxTelemetry.js';
 import { type CloudSandboxLifecycleFailurePoint, type CloudSandboxLifecycleOperation } from './cloudSandboxLifecycleTelemetry.js';
 import { CloudSandboxHistoryCache } from './cloudSandboxHistoryCache.js';
@@ -235,6 +236,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	private readonly _activeDiscoveryReads = new Set<Map<string, ICachedSandboxTask | undefined>>();
 	private _discoverySince: string | undefined;
 	private _archivedDiscoverySince: string | undefined;
+	private _discoveryAuthorization: string | undefined;
 	private _discoveryGeneration = 0;
 	private _accountGeneration = 0;
 	private _historyRequestId = 0;
@@ -250,6 +252,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		@ILogService private readonly _logService: ILogService,
 		@ICloudSandboxTelemetryService private readonly _telemetry: ICloudSandboxTelemetryService,
 		@IWorkbenchGitHubService private readonly _githubService: IWorkbenchGitHubService,
+		@IUserDataProfileService private readonly _userDataProfileService: IUserDataProfileService,
 	) {
 		super();
 		this._identityTokenProvider = this._register(new CloudSandboxIdentityTokenProvider(
@@ -267,12 +270,17 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		}));
 		this._register(this._authenticationService.onDidRegisterAuthenticationProvider(e => {
 			if (e.id === this._authenticationProviderId) {
-				void this._onAuthenticationChanged();
+				void this._onAuthenticationChanged(true);
 			}
 		}));
 		this._register(this._authenticationService.onDidUnregisterAuthenticationProvider(e => {
 			if (e.id === this._authenticationProviderId) {
-				void this._onAuthenticationChanged();
+				void this._onAuthenticationChanged(true);
+			}
+		}));
+		this._register(this._userDataProfileService.onDidChangeCurrentProfile(e => {
+			if (e.previous.id !== e.profile.id) {
+				void this._onAuthenticationChanged(true);
 			}
 		}));
 	}
@@ -282,8 +290,13 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	}
 
 	async getAccountKey(): Promise<string | undefined> {
+		const session = await this._resolveStableGitHubSession();
+		return session ? this._accountKeyForSession(session) : undefined;
+	}
+
+	private async _resolveStableGitHubSession(): Promise<AuthenticationSession | undefined> {
 		const generation = this._accountGeneration;
-		const session = await this._resolveGitHubSession();
+		let session = await this._resolveGitHubSession();
 		const accountKey = session ? this._accountKeyForSession(session) : undefined;
 		if (generation !== this._accountGeneration) {
 			const currentGeneration = this._accountGeneration;
@@ -292,8 +305,32 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			if (currentGeneration !== this._accountGeneration || accountKey !== currentAccountKey) {
 				throw new CancellationError();
 			}
+			session = currentSession;
 		}
-		return accountKey;
+		return session;
+	}
+
+	private async _resolveDiscoveryAuthorization(): Promise<string | undefined> {
+		const session = await this._resolveStableGitHubSession();
+		// Token rotation preserves the declared listing scope; unannounced access changes need full reconciliation.
+		this._updateDiscoveryAuthorization(session ? JSON.stringify([
+			this._authenticationProviderId, session.account.id, this._tasksBaseUrl(), this._userDataProfileService.currentProfile.id, [...new Set(session.scopes)].sort(),
+		]) : undefined);
+		return session ? this._accountKeyForSession(session) : undefined;
+	}
+
+	private _updateDiscoveryAuthorization(authorization: string | undefined): void {
+		if (authorization === this._discoveryAuthorization) {
+			return;
+		}
+		if (this._discoveryAuthorization !== undefined) {
+			this._discoveryGeneration++;
+		}
+		this._discoveryAuthorization = authorization;
+		this._discoverySince = undefined;
+		this._archivedDiscoverySince = undefined;
+		this._discoveredTasks.clear();
+		this._repositoryNames.clear();
 	}
 
 	private _accountKeyForSession(session: AuthenticationSession): string {
@@ -481,21 +518,23 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		return connection;
 	}
 
-	private async _onAuthenticationChanged(): Promise<void> {
+	private async _onAuthenticationChanged(invalidateDiscovery = false): Promise<void> {
 		this._identityTokenProvider.clear();
 		this.clearSessionHistory();
 		const generation = ++this._accountGeneration;
 		this._discoveryGeneration++;
-		this._discoverySince = undefined;
-		this._archivedDiscoverySince = undefined;
-		this._discoveredTasks.clear();
-		this._repositoryNames.clear();
+		if (invalidateDiscovery) {
+			this._updateDiscoveryAuthorization(undefined);
+		}
 		try {
-			const accountKey = await this.getAccountKey();
+			const accountKey = await this._resolveDiscoveryAuthorization();
 			if (generation === this._accountGeneration && !this._store.isDisposed) {
 				this._onDidChangeAccount.fire(accountKey);
 			}
 		} catch (error) {
+			if (generation === this._accountGeneration) {
+				this._updateDiscoveryAuthorization(undefined);
+			}
 			if (!isCancellationError(error)) {
 				this._logService.warn(`${LOG_PREFIX} Resolving discovery account failed: ${toErrorMessage(error)}`);
 			}
@@ -610,6 +649,20 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	}
 
 	private async _listSessions(token: CancellationToken, options: ICloudSandboxDiscoveryOptions | undefined, updates: ReadonlyMap<string, ICachedSandboxTask | undefined>, telemetry: ICloudSandboxDiscoveryTelemetryData): Promise<ICloudSandboxDiscoveryResult> {
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		try {
+			if (!await this._resolveDiscoveryAuthorization()) {
+				throw new CloudSandboxAuthenticationRequiredError();
+			}
+		} catch (error) {
+			if (isCancellationError(error) || token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			this._logService.warn(`${LOG_PREFIX} Resolving discovery authorization failed: ${toErrorMessage(error)}`);
+			return { kind: 'failed', reason: toErrorMessage(error) };
+		}
 		const generation = this._discoveryGeneration;
 		const targeted = options?.taskIds !== undefined;
 		const includeArchived = options?.includeArchived !== false;

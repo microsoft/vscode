@@ -216,7 +216,7 @@ suite('CloudSandboxSessionFeed', () => {
 		});
 	}));
 
-	test('repeated seamless renewals never request full recovery', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('repeated seamless renewals report renewal catch-up', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const h = createFeed(store);
 		await h.feed.start();
 		await timeout(24 * 60_000 + 501);
@@ -226,7 +226,7 @@ suite('CloudSandboxSessionFeed', () => {
 		});
 	}));
 
-	test('a connection gap during renewal still requests full recovery', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('a connection gap during renewal reports reconnect catch-up', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const h = createFeed(store, { autoReady: false });
 		const initial = h.feed.start();
 		await timeout(0);
@@ -241,20 +241,26 @@ suite('CloudSandboxSessionFeed', () => {
 		});
 	}));
 
-	test('renewal preserves coalesced task hints for targeted removal checks', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		const h = createFeed(store, { autoReady: false });
-		const initial = h.feed.start();
-		await timeout(0);
-		h.sockets[0].receive({ type: 'system', event: 'connected' });
-		await initial;
-		await timeout(8 * 60_000 + 1);
-		h.sockets[0].receive(changed('removed'));
-		h.sockets[1].receive({ type: 'system', event: 'connected' });
-		await timeout(501);
-		assert.deepStrictEqual({ reasons: h.reasons, taskBatches: h.taskBatches }, {
-			reasons: ['renewal', 'change'], taskBatches: [undefined, ['removed']],
-		});
-	}));
+	for (const reason of ['renewal', 'reconnect'] as const) {
+		test(`${reason} preserves coalesced hints from both sockets for targeted removal checks`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const h = createFeed(store, { autoReady: false });
+			const initial = h.feed.start();
+			await timeout(0);
+			h.sockets[0].receive({ type: 'system', event: 'connected' });
+			await initial;
+			await timeout(8 * 60_000 + 1);
+			h.sockets[0].receive(changed('removed'));
+			if (reason === 'reconnect') {
+				h.sockets[0].disconnect();
+			}
+			h.sockets[1].receive({ type: 'system', event: 'connected' });
+			h.sockets[1].receive(changed('inaccessible'));
+			await timeout(501);
+			assert.deepStrictEqual({ reasons: h.reasons, taskBatches: h.taskBatches }, {
+				reasons: [reason, 'change'], taskBatches: [undefined, ['removed', 'inaccessible']],
+			});
+		}));
+	}
 
 	test('uses server-relative renewal timing despite clock skew', () => runWithFakedTimers<void>({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
 		const results: { skew: number; negotiations: number; refreshes: number }[] = [];
@@ -302,7 +308,7 @@ suite('CloudSandboxSessionFeed', () => {
 		assert.deepStrictEqual({ beforeRenewal, negotiations }, { beforeRenewal: 1, negotiations: [0, 480_000] });
 	}));
 
-	test('reconnects after disconnection and requests an authoritative full refresh', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('reconnects after disconnection and requests inventory catch-up', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const h = createFeed(store);
 		await h.feed.start();
 		h.sockets[0].disconnect();

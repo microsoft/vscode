@@ -268,7 +268,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			if (e.affectsConfiguration(CloudSandboxSessionFeedEnabledSettingId)) {
 				this._sessionFeed.clear();
 				this._pendingTaskIds.clear();
-				void this._discoverAndSeed({ trigger: 'configurationChange', retry: true });
+				void this._discoverAndSeed({ incremental: true, trigger: 'configurationChange', retry: true });
 			}
 		}));
 
@@ -283,8 +283,10 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			if (!this._isEnabled()) {
 				return;
 			}
-			this._restoreAccount(accountKey);
-			void this._discoverAndSeed({ trigger: 'accountChange', retry: true });
+			const changedAccount = this._restoreAccount(accountKey);
+			this._sessionFeed.clear();
+			this._pendingTaskIds.clear();
+			void this._discoverAndSeed({ incremental: !changedAccount, trigger: 'accountChange', retry: true });
 		}));
 
 		// Connect-on-open: resolves a seeded session by establishing the relay and waiting for the
@@ -398,7 +400,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			return this._refreshTasks(refresh.taskIds);
 		}
 		return this._discoverAndSeed({
-			incremental: refresh.reason === 'renewal',
+			incremental: true,
 			retry: true,
 			trigger: refresh.reason === 'renewal' ? 'feedRenewal' : 'feedReconnect',
 		});

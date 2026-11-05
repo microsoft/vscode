@@ -1895,6 +1895,7 @@ suite('WorkspacePicker - Connection Status', () => {
 		providersService.setProviders([deleted, remaining]);
 		const refreshed = new DeferredPromise<boolean>();
 		let requests = 0;
+		const discoveryReasons: (string | undefined)[] = [];
 		let visible = false;
 		const picker = createTestablePicker(disposables, providersService, true, { restoreFromSessions: false }, undefined, undefined, {
 			get isVisible() { return visible; },
@@ -1903,8 +1904,9 @@ suite('WorkspacePicker - Connection Status', () => {
 			updateItems: () => { },
 		}, {
 			isDiscovering: false,
-			rediscover: async () => {
+			rediscover: async reason => {
 				requests++;
+				discoveryReasons.push(reason);
 				await refreshed.p;
 				providersService.setProviders([remaining]);
 				return true;
@@ -1922,11 +1924,12 @@ suite('WorkspacePicker - Connection Status', () => {
 		picker.showPicker(false, anchor);
 		picker.showPicker(false, anchor);
 		await timeout(0);
-		assert.deepStrictEqual({ cached, rebuiltRequests, updated, reopenedRequests: requests }, {
+		assert.deepStrictEqual({ cached, rebuiltRequests, updated, reopenedRequests: requests, discoveryReasons }, {
 			cached: { labels: ['Manage Provider agenthost-deleted', 'Manage Provider agenthost-remaining'], requests: 1 },
 			rebuiltRequests: 1,
 			updated: { labels: ['Manage Provider agenthost-remaining'], visible: true, requests: 1 },
 			reopenedRequests: 2,
+			discoveryReasons: ['automatic', 'automatic'],
 		});
 	});
 

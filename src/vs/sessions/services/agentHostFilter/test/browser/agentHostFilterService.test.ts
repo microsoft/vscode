@@ -552,6 +552,15 @@ suite('AgentHostFilterService', () => {
 		});
 	});
 
+	test('forwards automatic discovery intent without changing the manual repair default', async () => {
+		const service = createService(new StubSessionsProvidersService());
+		const reasons: string[] = [];
+		store.add(service.registerDiscoveryHandler(async reason => { reasons.push(reason); }));
+		await service.rediscover('automatic');
+		await service.rediscover();
+		assert.deepStrictEqual(reasons, ['automatic', 'manual']);
+	});
+
 	test('fallback selection depends on platform when selected host disappears', () => {
 		const providers = new StubSessionsProvidersService();
 		const hostA = new StubRemoteProvider('localhost:4321', 'Host A');

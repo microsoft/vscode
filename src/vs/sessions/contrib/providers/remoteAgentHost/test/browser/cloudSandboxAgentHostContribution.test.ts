@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { bufferToStream, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
@@ -57,6 +58,8 @@ import { ICommandService } from '../../../../../../platform/commands/common/comm
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { IProductService } from '../../../../../../platform/product/common/productService.js';
+import { IRequestService } from '../../../../../../platform/request/common/request.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import { INotification, INotificationService, NoOpNotification } from '../../../../../../platform/notification/common/notification.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
@@ -65,11 +68,16 @@ import { NullTelemetryService } from '../../../../../../platform/telemetry/commo
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { TestLifecycleService, TestWorkspaceTrustManagementService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
 import { IHostService } from '../../../../../../workbench/services/host/browser/host.js';
+import { IAuthenticationService } from '../../../../../../workbench/services/authentication/common/authentication.js';
+import { IWorkbenchGitHubService } from '../../../../../../workbench/services/github/common/githubService.js';
+import { IUserDataProfileService } from '../../../../../../workbench/services/userDataProfile/common/userDataProfile.js';
+import { IUserDataProfile } from '../../../../../../platform/userDataProfile/common/userDataProfile.js';
 import { ILifecycleService } from '../../../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { IChatEntitlementService, IChatSentiment } from '../../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSessionContentProvider, IChatSessionItemArchiveProvider, IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatService } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { CloudSandboxStartupError } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxStartupError.js';
+import { CloudSandboxApiService } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxApiService.js';
 import { IAgentHostGroup } from '../../../../../common/agentHostSessionsProvider.js';
 import { IAgentHostFilterService } from '../../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { ISession } from '../../../../../services/sessions/common/session.js';
@@ -289,7 +297,7 @@ interface ITestHarness {
 	/** Discovery's answer, mutable so a test can change what a later pass reports. */
 	discovered: readonly ICloudSandboxDiscoveredSession[];
 	/** Runs a discovery pass and waits for it to reconcile. */
-	runDiscovery(): Promise<void>;
+	runDiscovery(reason?: 'automatic' | 'manual'): Promise<void>;
 	/** Runs while a `connect` is in flight, for testing what can race with it. */
 	onConnect?: (options: ICloudSandboxConnectOptions, token: CancellationToken) => Promise<void>;
 	onDisconnect?: () => Promise<void>;
@@ -346,7 +354,7 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 	readonly waitForDiscovery?: boolean;
 	readonly connection?: IAgentConnection;
 }): Promise<ITestHarness> {
-	const discoveryHandlers: (() => Promise<void>)[] = [];
+	const discoveryHandlers: ((reason: 'automatic' | 'manual') => Promise<void>)[] = [];
 	const hostGroups: IAgentHostGroup[] = [];
 	const readOnlySessionTypes: string[] = [];
 	const contentProviders = new Map<string, IChatSessionContentProvider>();
@@ -440,7 +448,7 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 			chatHidden = hidden;
 			onDidChangeSentiment.fire();
 		},
-		runDiscovery: async () => { await Promise.all(discoveryHandlers.map(handler => handler())); },
+		runDiscovery: async (reason = 'manual') => { await Promise.all(discoveryHandlers.map(handler => handler(reason))); },
 		activate: async (environmentId: string) => {
 			const sessionType = remoteAgentHostSessionTypeId(agentHostAuthority(cloudSandboxAddress(environmentId)), CLOUD_SANDBOX_AGENT_PROVIDER);
 			return harness.contribution.activate(sessionType);
@@ -540,7 +548,7 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 	instantiationService.stub(IAgentHostFilterService, new class extends mock<IAgentHostFilterService>() {
 		override readonly onDidChange = hostSelectionChanges.event;
 		override get selectedHostId() { return selectedHostId; }
-		override registerDiscoveryHandler(handler: () => Promise<void>): IDisposable {
+		override registerDiscoveryHandler(handler: (reason: 'automatic' | 'manual') => Promise<void>): IDisposable {
 			discoveryHandlers.push(handler);
 			return toDisposable(() => { });
 		}
@@ -2762,6 +2770,63 @@ suite('CloudSandboxAgentHostContribution startup inventory', () => {
 suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('successive short-gap reconnects send since from the last successful list until full repair is due', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const requests: { since: string | null; environment: string | null; repository: string | null; archived: string | null; limit: string | null; page: string | null }[][] = [];
+		let currentRequests: typeof requests[number] = [];
+		const api = store.add(new CloudSandboxApiService(
+			new class extends mock<IRequestService>() {
+				override async request(options: { url?: string }) {
+					const query = new URL(options.url!).searchParams;
+					currentRequests.push({
+						since: query.get('since'), environment: query.get('include_environment_kinds'),
+						repository: query.get('with_repo'), archived: query.get('is_archived'), limit: query.get('per_page'), page: query.get('page'),
+					});
+					return { res: { statusCode: 200, headers: { date: new Date().toUTCString() } }, stream: bufferToStream(VSBuffer.fromString('{"tasks":[]}')) };
+				}
+			}(),
+			new class extends mock<IAuthenticationService>() {
+				override readonly onDidChangeSessions = Event.None;
+				override readonly onDidRegisterAuthenticationProvider = Event.None;
+				override readonly onDidUnregisterAuthenticationProvider = Event.None;
+				override async getSessions() { return [{ id: 'auth', accessToken: 'token', account: { id: 'account-1', label: 'Account' }, scopes: [] }]; }
+			}(),
+			upcastPartial<IProductService>({}), new NullLogService(),
+			new class extends mock<ICloudSandboxTelemetryService>() {
+				override reportDiscovery() { }
+				override reportRequest() { }
+			}(),
+			new class extends mock<IWorkbenchGitHubService>() { }(),
+			new class extends mock<IUserDataProfileService>() {
+				override readonly currentProfile = upcastPartial<IUserDataProfile>({ id: 'test-profile' });
+				override readonly onDidChangeCurrentProfile = Event.None;
+			}(),
+		));
+		const checkpoints: (string | null)[] = [null];
+		const checkpoint = () => new Date(Date.parse(new Date().toUTCString()) - 60_000).toISOString();
+		const h = await createContribution(store, [], {
+			sessionFeed: { connected: true, start: async () => { }, dispose: () => { } },
+			listSessions: async (token, options) => {
+				currentRequests = [];
+				const result = await api.listSessions(token, options);
+				requests.push(currentRequests);
+				return result;
+			},
+		});
+		h.setFocused(false);
+		let lastCheckpoint = checkpoint();
+		for (const elapsed of [2, 2, 4, 6, 2]) {
+			await timeout(elapsed * 60_000);
+			checkpoints.push(checkpoints.length === 5 ? null : lastCheckpoint);
+			await h.contribution.refreshFeed('reconnect');
+			lastCheckpoint = checkpoint();
+		}
+		await h.runDiscovery();
+		checkpoints.push(null);
+		assert.deepStrictEqual(requests, checkpoints.map(since => ['true', 'false'].map(repository => ({
+			since, environment: since ? 'managed-sandbox' : null, repository, archived: 'false', limit: '100', page: '1',
+		}))));
+	}));
+
 	test('a connected feed still processes task hints and renewal and reconnect catch-up', async () => {
 		const requests: (ICloudSandboxDiscoveryOptions | undefined)[] = [];
 		const harness = await createContribution(store, [discoveredSession()], {
@@ -2781,11 +2846,11 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 			{ incremental: false, includeArchived: false, trigger: 'startup' },
 			{ incremental: true, includeArchived: false, trigger: 'feedChange', taskIds: ['changed-task'] },
 			{ incremental: true, includeArchived: false, trigger: 'feedRenewal' },
-			{ incremental: false, includeArchived: false, trigger: 'feedReconnect' },
+			{ incremental: true, includeArchived: false, trigger: 'feedReconnect' },
 		]);
 	});
 
-	test('renewals catch up incrementally while periodic and reconnect scans remain authoritative', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('feed catch-up stays incremental without postponing periodic full reconciliation', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const requests: (ICloudSandboxDiscoveryOptions | undefined)[] = [];
 		let sessions = [discoveredSession()];
 		const harness = await createContribution(store, sessions, {
@@ -2812,7 +2877,7 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 				{ incremental: false, includeArchived: false, trigger: 'startup' },
 				{ incremental: true, includeArchived: false, trigger: 'feedRenewal' },
 				{ incremental: false, includeArchived: false, trigger: 'feedRenewal' },
-				{ incremental: false, includeArchived: false, trigger: 'feedReconnect' },
+				{ incremental: true, includeArchived: false, trigger: 'feedReconnect' },
 			],
 			retainedAfterRenewal: true,
 			removedAfterPeriodicFullScan: true,
@@ -2820,7 +2885,7 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 	}));
 
 	for (const manual of [false, true]) {
-		test(`coalesced renewals preserve incremental intent unless a manual full scan is queued (manual=${manual})`, async () => {
+		test(`coalesced reconnects and config restarts preserve incremental intent unless repair is queued (manual=${manual})`, async () => {
 			const pending = new DeferredPromise<ICloudSandboxDiscoveryResult>();
 			const entered = new DeferredPromise<void>();
 			let hold = false;
@@ -2838,21 +2903,78 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 				},
 			});
 			hold = true;
-			const first = harness.contribution.refreshFeed('renewal');
+			const first = harness.contribution.refreshFeed('reconnect');
 			await entered.p;
-			const queued = harness.contribution.refreshFeed('renewal');
-			const queuedAgain = harness.contribution.refreshFeed('renewal');
+			await harness.setSessionFeedEnabled(false);
+			await harness.setSessionFeedEnabled(true);
+			const queued = harness.contribution.refreshFeed('reconnect');
+			const queuedAgain = harness.contribution.refreshFeed('reconnect');
 			const full = manual ? harness.runDiscovery() : Promise.resolve();
 			hold = false;
 			await pending.complete({ kind: 'incremental', sessions: [], removedTaskIds: [] });
 			await Promise.all([first, queued, queuedAgain, full]);
 			assert.deepStrictEqual(requests, [
 				{ incremental: false, includeArchived: false, trigger: 'startup' },
-				{ incremental: true, includeArchived: false, trigger: 'feedRenewal' },
-				{ incremental: !manual, includeArchived: false, trigger: manual ? 'manual' : 'feedRenewal' },
+				{ incremental: true, includeArchived: false, trigger: 'feedReconnect' },
+				{ incremental: !manual, includeArchived: false, trigger: manual ? 'manual' : 'configurationChange' },
 			]);
 		});
 	}
+
+	for (const connected of [false, true]) {
+		test(`automatic rediscovery honors freshness and feed availability; explicit rediscovery repairs (connected=${connected})`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const requests: (ICloudSandboxDiscoveryOptions | undefined)[] = [];
+			const h = await createContribution(store, [discoveredSession()], {
+				sessionFeed: { connected, start: async () => { }, dispose: () => { } },
+				listSessions: async (_token, options) => {
+					requests.push(options);
+					return options?.incremental ? { kind: 'incremental', sessions: [], removedTaskIds: [] } : { kind: 'complete', sessions: [discoveredSession()] };
+				},
+			});
+			await h.runDiscovery('automatic');
+			h.setFocused(false);
+			await timeout(5 * 60_000);
+			h.setFocused(true);
+			await h.runDiscovery('automatic');
+			await h.runDiscovery();
+			assert.deepStrictEqual(requests, [
+				{ incremental: false, includeArchived: false, trigger: 'startup' },
+				...connected ? [] : [{ incremental: true, includeArchived: false, trigger: 'focus' }],
+				{ incremental: false, includeArchived: false, trigger: 'manual' },
+			]);
+		}));
+	}
+
+	test('equivalent account refresh and feed configuration restarts retain the baseline and provider', async () => {
+		const requests: (ICloudSandboxDiscoveryOptions | undefined)[] = [];
+		const listed = new DeferredPromise<void>();
+		const h = await createContribution(store, [discoveredSession()], {
+			listSessions: async (_token, options) => {
+				requests.push(options);
+				if (options?.trigger === 'accountChange') {
+					void listed.complete();
+				}
+				return options?.incremental ? { kind: 'incremental', sessions: [], removedTaskIds: [] } : { kind: 'complete', sessions: [discoveredSession()] };
+			},
+		});
+		const provider = h.contribution.stubProviders.get(cloudSandboxAddress('env-1'))!;
+		await h.setSessionFeedEnabled(false);
+		await h.contribution.checkForUpdates();
+		await h.setSessionFeedEnabled(true);
+		await h.contribution.checkForUpdates();
+		h.changeAccount('["github","account-1"]');
+		await listed.p;
+		await h.contribution.checkForUpdates();
+		assert.deepStrictEqual({ requests, disposed: provider.disposed, disconnects: h.disconnectedFrom }, {
+			requests: [
+				{ incremental: false, includeArchived: false, trigger: 'startup' },
+				{ incremental: true, includeArchived: false, trigger: 'configurationChange' },
+				{ incremental: true, includeArchived: false, trigger: 'configurationChange' },
+				{ incremental: true, includeArchived: false, trigger: 'accountChange' },
+			],
+			disposed: false, disconnects: [],
+		});
+	});
 
 	for (const failure of ['invalidated', 'partial', 'persistent'] as const) {
 		test(`retries a ${failure} task refresh once without losing successful tasks`, async () => {
@@ -3246,8 +3368,8 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 			providerDisposed: provider.disposed,
 			disconnected: harness.disconnectedFrom,
 		}, {
-			polling: { starts: 1, disposals: 1, modes: [false, false, true] },
-			starts: 2, disposals: 1, modes: [false, false, true, false],
+			polling: { starts: 1, disposals: 1, modes: [false, true, false, true] },
+			starts: 2, disposals: 1, modes: [false, true, false, true, true, false],
 			sameProvider: true, providerDisposed: false, disconnected: [],
 		});
 	}));
@@ -3269,7 +3391,7 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 		await pending.complete(undefined);
 		await harness.runDiscovery();
 		assert.deepStrictEqual({ cancelled: token.isCancellationRequested, negotiations, modes: harness.discoveryModes }, {
-			cancelled: true, negotiations: 1, modes: [false, false],
+			cancelled: true, negotiations: 1, modes: [false, true],
 		});
 	});
 

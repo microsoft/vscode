@@ -84,7 +84,7 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 	 * {@link rediscover} fans out to every handler and waits for them to
 	 * settle.
 	 */
-	private readonly _discoveryHandlers = new Set<() => Promise<void>>();
+	private readonly _discoveryHandlers = new Set<(reason: 'automatic' | 'manual') => Promise<void>>();
 	/**
 	 * Number of in-flight {@link rediscover} calls. {@link isDiscovering}
 	 * is `true` while this is non-zero. Tracked as a counter so concurrent
@@ -145,7 +145,7 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 		return this._discoveringCount > 0;
 	}
 
-	async rediscover(): Promise<boolean> {
+	async rediscover(reason: 'automatic' | 'manual' = 'manual'): Promise<boolean> {
 		if (this._discoveryHandlers.size === 0) {
 			return true;
 		}
@@ -154,7 +154,7 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 			this._onDidChangeDiscovering.fire();
 		}
 		try {
-			const results = await Promise.allSettled([...this._discoveryHandlers].map(handler => handler()));
+			const results = await Promise.allSettled([...this._discoveryHandlers].map(handler => handler(reason)));
 			return results.every(result => result.status === 'fulfilled');
 		} finally {
 			this._discoveringCount--;
@@ -164,7 +164,7 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 		}
 	}
 
-	registerDiscoveryHandler(handler: () => Promise<void>): IDisposable {
+	registerDiscoveryHandler(handler: (reason: 'automatic' | 'manual') => Promise<void>): IDisposable {
 		this._discoveryHandlers.add(handler);
 		return toDisposable(() => this._discoveryHandlers.delete(handler));
 	}

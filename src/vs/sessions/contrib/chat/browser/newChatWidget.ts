@@ -1846,7 +1846,7 @@ export class NewChatWidget extends Disposable {
 		// contribution gets a chance, this prevents the user from being
 		// stuck on a picker that never gets populated.
 		if (!hasCompletedDiscovery && !filter.isDiscovering) {
-			filter.rediscover();
+			filter.rediscover('automatic');
 		}
 
 		const update = () => {

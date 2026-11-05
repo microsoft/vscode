@@ -29,7 +29,7 @@ export type CloudSandboxSessionFeedRefresh =
 	| { readonly reason: 'change'; readonly taskIds: readonly string[] }
 	| { readonly reason: 'renewal' | 'reconnect' };
 
-/** Account-scoped task invalidations, independent of the AHP relay. Seamless renewal catches up incrementally; connection gaps require full reconciliation. */
+/** Account-scoped task invalidations, independent of the AHP relay. Renewals and connection gaps request inventory catch-up. */
 export class CloudSandboxSessionFeed extends Disposable {
 	private readonly _active = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _pending = this._register(new MutableDisposable<DisposableStore>());
@@ -43,7 +43,7 @@ export class CloudSandboxSessionFeed extends Disposable {
 			this._onInvalidate({ reason });
 		}
 		// Incremental catch-up must not discard explicit hints for removed or inaccessible tasks.
-		if (taskIds.length && reason !== 'reconnect') {
+		if (taskIds.length) {
 			this._onInvalidate({ reason: 'change', taskIds });
 		}
 	}, 500));
