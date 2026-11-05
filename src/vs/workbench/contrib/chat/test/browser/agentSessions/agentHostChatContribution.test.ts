@@ -14171,6 +14171,103 @@ suite('AgentHostChatContribution', () => {
 				});
 			});
 
+			for (const activeParent of [false, true]) {
+				test(`updates parent duration and credits when a settled child is opened (active parent: ${activeParent})`, async () => {
+					const scenario = seed(3, SessionStatus.Idle, activeParent);
+					const { children, agentHostService, sessionHandler, resource } = scenario;
+					const child = children[1].resource;
+					const childState = agentHostService.chatStates.get(child);
+					assert.ok(childState);
+					const startedAt = Date.parse(children[1].modifiedAt);
+					childState.turns[0] = {
+						...childState.turns[0],
+						startedAt: new Date(startedAt).toISOString(), duration: 40_000,
+						usage: { inputTokens: 10, outputTokens: 5, _meta: { cost: 0.5 } },
+					};
+					childState.turns.push({
+						...childState.turns[0], id: 'followup',
+						startedAt: new Date(startedAt + 60_000).toISOString(), duration: 23_000,
+						usage: { inputTokens: 20, outputTokens: 10, _meta: { cost: 0.25 } },
+					});
+					const { session, pills } = await scenario.open();
+					const pill = pills.find(part => part.toolCallId === 'launch-1');
+					assert.ok(pill);
+					const presentation = (part: ChatToolInvocation | undefined) => part?.toolSpecificData?.kind === 'subagent' ? {
+						startedAt: part.toolSpecificData.startedAt, duration: part.toolSpecificData.duration,
+						credits: part.toolSpecificData.credits, active: part.toolSpecificData.isActive,
+					} : undefined;
+					let rendered = presentation(pill);
+					disposables.add(autorun(reader => {
+						pill.state.read(reader);
+						rendered = presentation(pill);
+					}));
+					const beforeOpen = rendered;
+					const childResource = getSubagentEditorResource({ chatResource: child, parentSessionResource: resource.toString() });
+					assert.ok(childResource);
+					const childSession = await sessionHandler.provideChatSessionContent(childResource, CancellationToken.None);
+					disposables.add(toDisposable(() => childSession.dispose()));
+					const afterOpen = rendered;
+					agentHostService.fireAction({
+						channel: child,
+						action: {
+							type: ActionType.ChatTurnsLoaded,
+							turns: [{
+								...childState.turns[0], id: 'earlier',
+								startedAt: new Date(startedAt - 10_000).toISOString(), duration: 10_000,
+								usage: { inputTokens: 30, outputTokens: 15, _meta: { cost: 1.25 } },
+							}],
+						},
+						serverSeq: 100, origin: undefined,
+					});
+					const afterHistory = rendered;
+					childSession.dispose();
+					const afterClose = rendered;
+					session.dispose();
+					const reopened = await scenario.open();
+					const expected = { startedAt: startedAt - 10_000, duration: 93_000, credits: 2, active: false };
+					assert.deepStrictEqual({
+						beforeOpen, afterOpen, afterHistory, afterClose,
+						reopened: presentation(reopened.pills.find(part => part.toolCallId === 'launch-1')),
+						subscriptions: scenario.childSubscriptions(),
+						releasedOnClose: !agentHostService.hasLiveSubscription(child),
+					}, {
+						beforeOpen: { startedAt: undefined, duration: undefined, credits: undefined, active: false },
+						afterOpen: { startedAt, duration: 83_000, credits: 0.75, active: false },
+						afterHistory: expected, afterClose: expected, reopened: expected,
+						subscriptions: [child], releasedOnClose: true,
+					});
+				});
+			}
+
+			for (const duration of [undefined, 0]) {
+				test(`restores metadata from a child opened before its parent (duration: ${duration})`, async () => {
+					const scenario = seed(1);
+					const { children, agentHostService, sessionHandler, resource } = scenario;
+					const child = children[0].resource;
+					const childState = agentHostService.chatStates.get(child);
+					assert.ok(childState);
+					childState.turns[0] = {
+						...childState.turns[0],
+						...(duration !== undefined ? { startedAt: children[0].modifiedAt, duration } : {}),
+						usage: { inputTokens: 10, outputTokens: 5, _meta: { cost: 2.5 } },
+					};
+					const childResource = getSubagentEditorResource({ chatResource: child, parentSessionResource: resource.toString() });
+					assert.ok(childResource);
+					const childSession = await sessionHandler.provideChatSessionContent(childResource, CancellationToken.None);
+					childSession.dispose();
+					const { pills } = await scenario.open();
+					const data = pills[0].toolSpecificData;
+					assert.deepStrictEqual({
+						presentation: data?.kind === 'subagent' ? { startedAt: data.startedAt, duration: data.duration, credits: data.credits } : undefined,
+						subscriptions: scenario.childSubscriptions(),
+						releasedOnClose: !agentHostService.hasLiveSubscription(child),
+					}, {
+						presentation: { startedAt: duration !== undefined ? Date.parse(children[0].modifiedAt) : undefined, duration, credits: 2.5 },
+						subscriptions: [child], releasedOnClose: true,
+					});
+				});
+			}
+
 			test('publishes a withheld restored pill when its advertised child is registered already settled', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 				const scenario = seed(1);
 				const { state, children, fire, agentHostService } = scenario;

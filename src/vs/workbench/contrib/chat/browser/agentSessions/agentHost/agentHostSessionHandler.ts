@@ -19,7 +19,7 @@ import { Disposable, DisposableMap, DisposableResourceMap, DisposableSet, Dispos
 import { LRUCache, ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { equals } from '../../../../../../base/common/objects.js';
-import { autorun, autorunPerKeyedItem, constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, observableFromEvent, observableSignalFromEvent, observableValue, transaction, waitForState } from '../../../../../../base/common/observable.js';
+import { autorun, autorunPerKeyedItem, constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue, transaction, waitForState } from '../../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase, isEqual } from '../../../../../../base/common/resources.js';
 import { StopWatch } from '../../../../../../base/common/stopwatch.js';
 import { AgentHostFirstResponseTiming, nextRendererRootInvocationOrdinal, type AgentHostFirstResponseClassification, type AgentHostFirstResponseOutcome, type IAgentHostFirstResponseEvent } from './agentHostFirstResponseTelemetry.js';
@@ -1459,6 +1459,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private readonly _subagentObservationsByChat = new Map<string, Set<SubagentChatObservation>>();
 	/** Retains observed timing and credits, not transcripts, across parent-view recreation. */
 	private readonly _subagentPresentation = new LRUCache<string, { readonly modifiedAt: string; readonly startedAt?: number; readonly duration?: number; readonly credits?: number }>(1000);
+	private readonly _subagentPresentationChanged = observableSignal(this);
 
 	/**
 	 * Chat channel URI that owns each observed terminal, keyed by terminal URI.
@@ -2936,6 +2937,16 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// Seed from the current state so we don't treat any pre-existing active
 		// turn (e.g. one being handled by _reconnectToActiveTurn) as new.
 		const currentState = this._getSessionState(sessionStr, chatURI);
+		const updateSubagentPresentation = (state: ISessionWithDefaultChat | undefined) => {
+			if (!state || state.activeTurn || !this._isSubagentChat(sessionStr, chatURI)) {
+				return;
+			}
+			const credits = state.turns.reduce((total, turn) => total + (usageInfoToChatUsage(turn.usage)?.copilotCredits ?? 0), 0);
+			if (this._updateSubagentPresentation(chatURI, state, credits)) {
+				this._subagentPresentationChanged.trigger(undefined);
+			}
+		};
+		updateSubagentPresentation(currentState);
 		let lastSeenTurnId: string | undefined = currentState?.activeTurn?.id;
 		let previousQueuedIds: Set<string> | undefined;
 		let previousSteeringIds = new Set(currentState ? getPendingSteeringMessages(currentState).map(message => message.id) : []);
@@ -3015,6 +3026,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (!state) {
 				return;
 			}
+			updateSubagentPresentation(state);
 			const e = { session: sessionStr, state };
 
 			// Track queued message IDs so we can detect which one was consumed
@@ -5317,6 +5329,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			invocation.notifyToolSpecificDataChanged();
 		}
 		if (isSettledDeferred && childChat && invocation.toolSpecificData?.kind === 'subagent' && !isPhase) {
+			this._subagentPresentationChanged.read(reader);
 			const presentation = this._subagentPresentation.get(childChat.resource);
 			if (presentation?.modifiedAt === childChat.modifiedAt
 				&& (invocation.toolSpecificData.startedAt !== presentation.startedAt || invocation.toolSpecificData.duration !== presentation.duration
@@ -6273,6 +6286,31 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 	}
 
+	/** Shares known child timing and credits with deferred parent pills without retaining the transcript. */
+	private _updateSubagentPresentation(childChatUri: string, state: ISessionWithDefaultChat, credits: number, timing = getSubagentTiming(state)): boolean {
+		if (state.activeTurn) {
+			return this._subagentPresentation.delete(childChatUri);
+		}
+		const catalogChat = state.chats.find(chat => chat.resource === childChatUri);
+		const hasTiming = timing.startedAt !== undefined && timing.duration !== undefined;
+		if (!catalogChat || (!hasTiming && credits <= 0)) {
+			return false;
+		}
+		const previous = this._subagentPresentation.get(childChatUri);
+		const previousTiming = previous?.modifiedAt === catalogChat.modifiedAt ? previous : undefined;
+		const presentation = {
+			modifiedAt: catalogChat.modifiedAt,
+			startedAt: hasTiming ? timing.startedAt : previousTiming?.startedAt,
+			duration: hasTiming ? timing.duration : previousTiming?.duration,
+			credits: credits > 0 ? credits : undefined,
+		};
+		if (equals(previous, presentation)) {
+			return false;
+		}
+		this._subagentPresentation.set(childChatUri, presentation);
+		return true;
+	}
+
 	/** Restores accumulated credits and the latest known child model, including selected models before usage arrives. */
 	private _applySubagentUsageToHistoryPart(part: IChatProgress, sessionResource: URI, childState: ISessionWithDefaultChat): void {
 		if ((part.kind !== 'toolInvocationSerialized' && part.kind !== 'toolInvocation') || part.toolSpecificData?.kind !== 'subagent') {
@@ -6499,19 +6537,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					const fallbackDuration = !isActive && timing.duration === undefined && parentInvocation.toolSpecificData.isActive && parentInvocation.toolSpecificData.startedAt !== undefined
 						? Date.now() - parentInvocation.toolSpecificData.startedAt
 						: timing.duration;
-					const catalogChat = state.chats.find(chat => chat.resource === childChatUri);
 					const credits = perInvocationCreditsAccumulator.read(reader);
-					const hasTiming = timing.startedAt !== undefined && fallbackDuration !== undefined;
-					if (isActive) {
-						this._subagentPresentation.delete(childChatUri);
-					} else if (catalogChat && (hasTiming || credits > 0)) {
-						this._subagentPresentation.set(childChatUri, {
-							modifiedAt: catalogChat.modifiedAt,
-							startedAt: hasTiming ? timing.startedAt : undefined,
-							duration: hasTiming ? fallbackDuration : undefined,
-							credits: credits > 0 ? credits : undefined,
-						});
-					}
+					this._updateSubagentPresentation(childChatUri, state, credits, { startedAt: timing.startedAt, duration: fallbackDuration });
 					if (!parentInvocation.toolSpecificData.hasStarted
 						|| parentInvocation.toolSpecificData.isActive !== isActive
 						|| parentInvocation.toolSpecificData.isError !== isError
