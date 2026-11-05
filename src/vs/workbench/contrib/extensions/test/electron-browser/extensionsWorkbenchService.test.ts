@@ -579,6 +579,62 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		});
 	}
 
+	test('deprecation refresh survives compatible-version lookup failure without duplicate retry notifications', async () => {
+		const identifier = { id: 'pub.deprecated', uuid: 'deprecated-uuid' };
+		const local = aLocalExtension('deprecated', {}, { identifier });
+		let latest = aGalleryExtension(local.manifest.name, { version: '2.0.0' });
+		latest.identifier = identifier;
+		const compatible = aGalleryExtension(local.manifest.name);
+		compatible.identifier = identifier;
+		let failCompatibleLookup = false;
+		let failedLookups = 0;
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
+		instantiationService.stubPromise(IExtensionGalleryService, 'isExtensionCompatible', false);
+		instantiationService.stub(IExtensionGalleryService, 'getExtensions', async (_infos: IExtensionInfo[], options: IExtensionQueryOptions) => {
+			if (options.queryAllVersions) {
+				if (failCompatibleLookup) {
+					failedLookups++;
+					throw new Error('Compatible-version lookup unavailable');
+				}
+				return [compatible];
+			}
+			return [latest];
+		});
+		testObject = await aWorkbenchService();
+		const query = async () => {
+			await testObject.getExtensions([{ id: identifier.id }], CancellationToken.None);
+			// Let the fire-and-forget synchronization finish before inspecting notifications.
+			await timeout(0);
+		};
+		await query();
+		const extension = testObject.local[0];
+		const initiallyCompatible = extension.gallery === compatible;
+		const notifications: (IDeprecationInfo | undefined)[] = [];
+		disposableStore.add(testObject.onChange(e => { if (e === extension) { notifications.push(e.deprecationInfo); } }));
+		const marketplace: IDeprecationInfo = { source: 'marketplace', additionalInfo: 'Retired' };
+		latest = aGalleryExtension(local.manifest.name, { version: '2.0.0', deprecationInfo: marketplace });
+		latest.identifier = identifier;
+		failCompatibleLookup = true;
+		await query();
+		const afterFailure = { deprecation: extension.deprecationInfo, notifications: [...notifications] };
+		failCompatibleLookup = false;
+		await query();
+
+		assert.deepStrictEqual({
+			initiallyCompatible,
+			failedLookups,
+			afterFailure,
+			notifications,
+			retainedGallery: extension.gallery === compatible
+		}, {
+			initiallyCompatible: true,
+			failedLookups: 1,
+			afterFailure: { deprecation: marketplace, notifications: [marketplace] },
+			notifications: [marketplace],
+			retainedGallery: true
+		});
+	});
+
 	test('operational migrations survive Marketplace changes and rollout toggles on installed models', async () => {
 		const local = aLocalExtension('deprecated');
 		const migration: IDeprecationInfo = { disallowInstall: true, extension: { id: 'pub.migrated', displayName: 'Migrated', preRelease: true, autoMigrate: { storage: true } } };

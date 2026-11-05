@@ -763,32 +763,35 @@ class Extensions extends Disposable {
 				metadataChanged.add(extension);
 			}
 		}
-		const extensions = await this.mapInstalledExtensionWithCompatibleGalleryExtension(galleryExtensions, productVersion);
-		for (const [extension, gallery] of extensions) {
-			// update metadata of the extension if it does not exist
-			if (extension.local && extension.local.type !== ExtensionType.System && !extension.local.identifier.uuid) {
-				extension.local = await this.updateMetadata(extension.local, gallery);
+		try {
+			const extensions = await this.mapInstalledExtensionWithCompatibleGalleryExtension(galleryExtensions, productVersion);
+			for (const [extension, gallery] of extensions) {
+				// update metadata of the extension if it does not exist
+				if (extension.local && extension.local.type !== ExtensionType.System && !extension.local.identifier.uuid) {
+					extension.local = await this.updateMetadata(extension.local, gallery);
+				}
+				const installedVersionKey = getExtensionVersionKey(extension);
+				const installedBlockingInfoChanged = extension.version === gallery.version
+					? extension.setInstalledBlockingInfo(gallery.blockingInfo)
+					: installedVersionBlockingInfo?.has(installedVersionKey)
+						? extension.setInstalledBlockingInfo(installedVersionBlockingInfo.get(installedVersionKey))
+						: false;
+				if (!extension.gallery
+					|| extension.gallery.version !== gallery.version
+					|| extension.gallery.properties.targetPlatform !== gallery.properties.targetPlatform
+					|| extension.gallery.blockingInfo?.origin !== gallery.blockingInfo?.origin
+					|| extension.gallery.blockingInfo?.scope !== gallery.blockingInfo?.scope) {
+					extension.gallery = gallery;
+					metadataChanged.delete(extension);
+					this._onChange.fire({ extension });
+				} else if (metadataChanged.delete(extension) || installedBlockingInfoChanged) {
+					this._onChange.fire({ extension });
+				}
 			}
-			const installedVersionKey = getExtensionVersionKey(extension);
-			const installedBlockingInfoChanged = extension.version === gallery.version
-				? extension.setInstalledBlockingInfo(gallery.blockingInfo)
-				: installedVersionBlockingInfo?.has(installedVersionKey)
-					? extension.setInstalledBlockingInfo(installedVersionBlockingInfo.get(installedVersionKey))
-					: false;
-			if (!extension.gallery
-				|| extension.gallery.version !== gallery.version
-				|| extension.gallery.properties.targetPlatform !== gallery.properties.targetPlatform
-				|| extension.gallery.blockingInfo?.origin !== gallery.blockingInfo?.origin
-				|| extension.gallery.blockingInfo?.scope !== gallery.blockingInfo?.scope) {
-				extension.gallery = gallery;
-				metadataChanged.delete(extension);
-				this._onChange.fire({ extension });
-			} else if (metadataChanged.delete(extension) || installedBlockingInfoChanged) {
+		} finally {
+			for (const extension of metadataChanged) {
 				this._onChange.fire({ extension });
 			}
-		}
-		for (const extension of metadataChanged) {
-			this._onChange.fire({ extension });
 		}
 		// Detect extensions that do not have a corresponding gallery entry.
 		if (flagExtensionsMissingFromGallery) {
