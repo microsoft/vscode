@@ -61,7 +61,6 @@ export const NATIVE_BUILD_INPUTS: { readonly files: readonly string[]; readonly 
 		'pnpm-workspace.yaml',
 		'build/pnpm-workspace.yaml',
 		'remote/pnpm-workspace.yaml',
-		'remote/web/pnpm-workspace.yaml',
 		'extensions/copilot/pnpm-workspace.yaml',
 	],
 	packageJsonFields: {
