@@ -17,7 +17,7 @@ import { ActiveSessionHost, getMainWindowHost, getWindowHost, ISessionHost, Sess
 import { FocusedSessionHostService, SessionHostService } from '../../browser/sessionHostService.js';
 import { IChat } from '../../common/session.js';
 import { IActiveSession } from '../../common/sessionsManagement.js';
-import { sessionsServiceWithGridHost } from './sessionHostTestUtils.js';
+import { sessionsServiceWithGridHost, withCreatedStatus } from './sessionHostTestUtils.js';
 
 function chat(path: string): IChat {
 	return upcastPartial<IChat>({ resource: URI.parse(`chat:/${path}`) });
@@ -27,7 +27,7 @@ function session(id: string, activeChat: IChat, options?: { readonly created?: b
 	return upcastPartial<IActiveSession>({
 		sessionId: id,
 		resource: URI.parse(`session:/${id}`),
-		isCreated: constObservable(options?.created ?? true),
+		...withCreatedStatus(constObservable(options?.created ?? true)),
 		activeChat: constObservable(activeChat),
 		mainChat: constObservable(options?.mainChat ?? activeChat),
 	});

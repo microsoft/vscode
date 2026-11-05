@@ -28,7 +28,7 @@ import { SessionChangesEditorInput } from '../../../../../workbench/contrib/sess
 import { ISessionChangesService } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesService.js';
 import { IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { EmptyFileEditorInput } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
-import { ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionWorkspace, isSessionCreated } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IDesktopLayoutContext } from './desktopLayoutStrategy.js';
 
 /** Options to open the Changes tab pinned first, inactive (the workbench auto-activates it only when the group is empty). */
@@ -411,7 +411,7 @@ export class DesktopDockedTabsCoordinator extends Disposable {
 
 			// [2] Decide which docked inputs to open, from the trigger + group state. A created
 			// session leaves an empty group empty so it offers the Add Tab actions instead.
-			const isCreated = this._ctx.mainWindowSession.get()?.isCreated.get() ?? false;
+			const isCreated = isSessionCreated(this._ctx.mainWindowSession.get());
 			const openIntoEmpty = !!trigger.openDefaultsIfEmpty && !isCreated && this._layoutService.isSidePaneVisible() && group.editors.length === 0;
 			const changesPresent = !!changesResource && !!this._findChangesEditor(group, changesResource);
 			const filesPresent = group.editors.some(editor => editor instanceof EmptyFileEditorInput);

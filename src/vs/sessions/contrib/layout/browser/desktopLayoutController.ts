@@ -21,6 +21,7 @@ import { DesktopDraftSessionStrategy } from './desktop/desktopDraftSessionStrate
 import { DesktopExistingSessionStrategy } from './desktop/desktopExistingSessionStrategy.js';
 import { DesktopOwnerCompositionStore } from './desktop/desktopOwnerCompositionStore.js';
 import { DesktopVisibilityProfileStore } from './desktop/desktopVisibilityProfileStore.js';
+import { isSessionCreated } from '../../../../workbench/contrib/sessions/common/session.js';
 
 export { TOGGLE_DETAILS_COMMAND_ID } from './desktop/desktopExistingSessionStrategy.js';
 
@@ -74,7 +75,7 @@ export class DesktopLayoutController extends BaseLayoutController {
 
 	private _compositionKeyFor(shown: IShownChat, reader?: IReader): URI | undefined {
 		const ownerKey = this._ownerKeyFor(shown, reader);
-		return ownerKey && this._sharedChatLayout && shown.session.isCreated.read(reader)
+		return ownerKey && this._sharedChatLayout && isSessionCreated(shown.session, reader)
 			&& !shown.session.isQuickChat?.read(reader) && shown.chat.workspace.read(reader)
 			? SHARED_EXISTING_VISIBILITY_KEY : ownerKey;
 	}
@@ -121,7 +122,7 @@ export class DesktopLayoutController extends BaseLayoutController {
 					if (that._changesEditorTransitionPhase === 'reconciling') {
 						const session = that._mainWindowSession.get();
 						// An uncreated workspace-less composer has no Changes editor to await.
-						if (session?.isCreated.get() && session.isQuickChat?.get() !== true && !session.workspace.get()) {
+						if (session && isSessionCreated(session) && session.isQuickChat?.get() !== true && !session.workspace.get()) {
 							return;
 						}
 						that._setChangesEditorTransitionPhase('idle');

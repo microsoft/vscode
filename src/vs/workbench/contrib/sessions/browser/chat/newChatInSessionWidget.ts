@@ -25,7 +25,7 @@ import { IActiveSession, ISessionsManagementService } from '../../common/session
 import { ISessionsService } from '../sessionsService.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { INestedChatWorkspace, INestedChatWorkspaceSupport, NestedChatWorkspaceError } from '../../common/sessionsProvider.js';
-import { getChatHarness, IChat, SessionStatus } from '../../common/session.js';
+import { getChatHarness, IChat, isSessionCreated, SessionStatus } from '../../common/session.js';
 import { getNoWorkspaceChoicePresentation } from './noWorkspaceChoice.js';
 import { INestedChatFolderSources, isSameNestedChatWorkspace, NestedChatWorkspaceControls } from './nestedChatWorkspacePicker.js';
 import { ISessionsRecentWorkspacesService } from '../sessionsRecentWorkspacesService.js';
@@ -61,7 +61,7 @@ const NEW_CHAT_IN_SESSION_HARNESS_PICKER_TELEMETRY_SOURCE = 'NewChatInSessionHar
  * another group); the session's active chat until it is known.
  */
 export function getUnsentPeerChat(session: IActiveSession | undefined, reader: IReader | undefined, composerChat?: IChat): IChat | undefined {
-	if (!session || !session.isCreated.read(reader)) {
+	if (!session || !isSessionCreated(session, reader)) {
 		return undefined;
 	}
 	const chat = composerChat ?? session.activeChat.read(reader);

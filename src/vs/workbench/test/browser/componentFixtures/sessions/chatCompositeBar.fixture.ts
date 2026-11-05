@@ -73,6 +73,7 @@ function createMockSession(chats: readonly IChat[], activeChat: IChat, sessionTi
 		override readonly activeChat: IObservable<IChat> = observableValue('activeChat', activeChat);
 		override readonly capabilities: IObservable<ISessionCapabilities> = observableValue('capabilities', { supportsMultipleChats: true });
 		override readonly isCreated: IObservable<boolean> = observableValue('isCreated', true);
+		override readonly status = this.isCreated.map(created => created ? SessionStatus.Completed : SessionStatus.Untitled);
 		override readonly isArchived: IObservable<boolean> = observableValue('isArchived', false);
 	}();
 }

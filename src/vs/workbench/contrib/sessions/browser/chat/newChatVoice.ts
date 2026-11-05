@@ -20,6 +20,7 @@ import { IVoiceSessionController } from '../../../chat/browser/voiceClient/voice
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../chat/common/languageModels.js';
 import { IFocusedSessionHostService } from '../sessionHost.js';
 import { setupVoiceInputDecorations } from './voiceInputDecorations.js';
+import { isSessionCreated } from '../../common/session.js';
 
 /**
  * Stable resource for targeting the new-session composer before a session exists.
@@ -96,7 +97,7 @@ export class NewChatVoiceTargetService extends Disposable implements INewChatVoi
 		this.currentVoiceInputResource = derivedOpts({ owner: this, equalsFn: isEqual }, reader => {
 			const composer = this._activeComposer.read(reader);
 			const active = this._focusedSessionHostService.focusedHost.read(reader).session.read(reader);
-			const created = active?.isCreated.read(reader) ? this._focusedSessionHostService.focusedHost.read(reader).chat.read(reader)?.resource : undefined;
+			const created = isSessionCreated(active, reader) ? this._focusedSessionHostService.focusedHost.read(reader).chat.read(reader)?.resource : undefined;
 			// The composer wins while it opts in (or before a session exists),
 			// matching `_chat.voice.getCurrentSession` routing.
 			if (composer && (composer.routesWhileSessionActive || !created)) {

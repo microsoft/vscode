@@ -33,7 +33,7 @@ import { CustomizationMigrationType, ICustomizationMigrationHint, ICustomization
 import { ICustomizationMigrationTelemetryService } from '../../../../chat/common/promptSyntax/service/customizationMigrationTelemetryService.js';
 import { PromptsStorage } from '../../../../chat/common/promptSyntax/service/promptsService.js';
 import { IChatEntitlementService, IChatSentiment } from '../../../../../services/chat/common/chatEntitlementService.js';
-import { ISessionFolder, ISessionWorkspace } from '../../../common/session.js';
+import { ISessionFolder, ISessionWorkspace, SessionStatus } from '../../../common/session.js';
 import { IActiveSession } from '../../../common/sessionsManagement.js';
 import { NewChatMigrationNotice } from '../../../browser/chat/newChatMigrationNotice.js';
 import { NEW_SESSION_BANNERS_MIN_CREATED_SESSIONS, NewSessionBannerPriority, NewSessionBanners } from '../../../common/newSessionBanners.js';
@@ -80,6 +80,7 @@ function createSession(name: string, withWorkspace = true, scheme = 'agent-host-
 			}()];
 		}() : undefined);
 		override readonly isCreated = constObservable(false);
+		override readonly status = this.isCreated.map(created => created ? SessionStatus.Completed : SessionStatus.Untitled);
 		override readonly loading = constObservable(false);
 	}();
 }

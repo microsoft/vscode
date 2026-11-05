@@ -18,7 +18,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
-import { ChatInteractivity, getChatCapabilities, IChat, isSideChatOf, SessionStatus } from '../../common/session.js';
+import { ChatInteractivity, getChatCapabilities, IChat, isSessionCreated, isSideChatOf, SessionStatus } from '../../common/session.js';
 import { IActiveSession } from '../../common/sessionsManagement.js';
 import { SessionActiveChatCanArchiveContext, SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatIsDeletableContext, SessionActiveChatIsUntitledContext, SessionActiveChatResourceContext, SessionFocusedChatIsRenameTargetContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionHeaderTargetsChatContext, SessionToolbarShowsSessionContext } from '../../common/contextkeys.js';
 import { IChatViewFactory } from '../chatViewFactory.js';
@@ -407,7 +407,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 			}
 
 			let desiredKind: ChatViewKind;
-			if (session.isCreated.read(reader) === false) {
+			if (!isSessionCreated(session, reader)) {
 				desiredKind = session.isNewSessionRequestInProgress?.read(reader) === true || chat?.interactivity.read(reader) === ChatInteractivity.ReadOnly
 					? 'chat'
 					: 'newSession';

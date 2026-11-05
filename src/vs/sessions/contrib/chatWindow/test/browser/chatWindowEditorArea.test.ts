@@ -37,6 +37,7 @@ import { TestEditorInput } from '../../../../../workbench/test/browser/workbench
 import '../../../sessions/browser/sessionsActions.js';
 import '../../../../browser/actions/vscodeActions.js';
 import '../../../chat/browser/runScriptAction.js';
+import { withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 function evaluate(expression: ContextKeyExpression | undefined, values: Record<string, ContextKeyValue>): boolean {
 	return expression?.evaluate({ getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined } satisfies IContext) !== false;
@@ -79,7 +80,7 @@ suite('Chat window editor area', () => {
 			readonly activeSession = observableValue<IActiveSession | undefined>('active', undefined);
 		}());
 		// It shows the chat `session` names as its own.
-		const shown = session && upcastPartial<IActiveSession>({ ...session, isCreated: constObservable(true) });
+		const shown = session && upcastPartial<IActiveSession>({ ...session, ...withCreatedStatus(constObservable(true)) });
 		const chat = session?.scopedChatResource && upcastPartial<IChat>({ resource: session.scopedChatResource });
 		const windowHost = new ActiveSessionHost({ kind: SessionHostKind.ChatWindow, parent: undefined, session: constObservable(shown), chat: constObservable(chat), contextKeyService: upcastPartial<IContextKeyService>({}) });
 		instantiationService.stub(ISessionHostService, upcastPartial<ISessionHostService>({ getHostOfWindow: () => windowHost }));

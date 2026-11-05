@@ -19,7 +19,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { contrastBorder } from '../../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService, Themable } from '../../../../../platform/theme/common/themeService.js';
 import { agentsPanelBorder } from '../../common/theme.js';
-import { ChatOriginKind, IChat } from '../../common/session.js';
+import { ChatOriginKind, IChat, isSessionCreated } from '../../common/session.js';
 import { IActiveSession } from '../../common/sessionsManagement.js';
 import { ISessionsService } from '../sessionsService.js';
 import { IChatHostOpenerService } from '../chatHostOpener.js';
@@ -221,7 +221,7 @@ export class ChatGroupsView extends Themable {
 			reusableView = undefined;
 			return view;
 		};
-		const grid = session.isCreated.get()
+		const grid = isSessionCreated(session)
 			? (carriedLayout ? this._tryRestoreLayout(session, store, carriedLayout) : !session.scopedChatResource && this._tryRestoreLayout(session, store)) || this._createSingleGroupGrid(session, store, takeReusableView())
 			: this._createSingleGroupGrid(session, store, takeReusableView());
 		// A restored layout never claims the reusable view; release it now instead of keeping it detached.
@@ -367,7 +367,7 @@ export class ChatGroupsView extends Themable {
 		});
 
 		const tabsVisible = derived(reader => {
-			if (!session.isCreated.read(reader) || this.showChatAsSessionView.read(reader)) {
+			if (!isSessionCreated(session, reader) || this.showChatAsSessionView.read(reader)) {
 				return false;
 			}
 			// With more than one group the tab strip is always shown so each group
@@ -1294,7 +1294,7 @@ export class ChatGroupsView extends Themable {
 			return;
 		}
 		const sessionId = this._session.sessionId;
-		if (!this._session.isCreated.get()) {
+		if (!isSessionCreated(this._session)) {
 			this._saveStored(sessionId, undefined);
 			return;
 		}

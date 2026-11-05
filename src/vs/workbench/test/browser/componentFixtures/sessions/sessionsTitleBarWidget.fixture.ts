@@ -15,7 +15,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
-import { IChat, ISession, ISessionWorkspace } from '../../../../contrib/sessions/common/session.js';
+import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../contrib/sessions/common/session.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../contrib/sessions/common/sessionConfig.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../contrib/sessions/browser/sessionsService.js';
@@ -67,6 +67,7 @@ function createMockActiveSession(title: string, workspaceLabel?: string, branch?
 		override readonly workspace: IObservable<ISessionWorkspace | undefined> = constObservable(workspace);
 		override readonly activeChat: IObservable<IChat> = constObservable(activeChat);
 		override readonly isCreated: IObservable<boolean> = constObservable(true);
+		override readonly status = this.isCreated.map(created => created ? SessionStatus.Completed : SessionStatus.Untitled);
 		override readonly isQuickChat: IObservable<boolean> = constObservable<boolean>(workspace === undefined);
 	}();
 }

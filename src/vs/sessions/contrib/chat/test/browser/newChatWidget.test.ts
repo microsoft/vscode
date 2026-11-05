@@ -23,7 +23,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
-import { IChat, ISession, ISessionGitRepository, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB, SessionTypeAuthRequirement } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IChat, ISession, ISessionGitRepository, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB, SessionStatus, SessionTypeAuthRequirement } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession, ICreateNewSessionOptions, ISendRequestOptions, ISendRequestSentEvent, ISessionsManagementService, WorkspaceNotTrustedError } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { IOpenNewSessionOptions, IOpenNewSessionResult, IOpenSessionOptions } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
@@ -69,11 +69,13 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { SessionConfigSchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ISessionHost, ISessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { stubSessionsHostLayout } from '../../../../test/browser/sessionsHostLayoutTestUtils.js';
+import { withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 /** The part of the active session `_recreateOnProviderChange` actually reads. */
 interface IActiveDraft {
 	readonly sessionId: string;
 	readonly isCreated: IObservable<boolean>;
+	readonly status: IObservable<SessionStatus>;
 	readonly providerId: string;
 	readonly sessionType: string;
 }
@@ -549,7 +551,7 @@ suite('NewChatWidget', () => {
 		const calls: string[] = [];
 		const draft = (providerId: string) => upcastPartial<IActiveSession>({
 			providerId, sessionId: `${providerId}:draft`,
-			isCreated: created, isNewSessionRequestInProgress: sending,
+			...withCreatedStatus(created), isNewSessionRequestInProgress: sending,
 		});
 		const harness = {
 			_session: current,
@@ -734,7 +736,7 @@ suite('NewChatWidget', () => {
 				_environmentWorkspaces: new Map<string, URI>(),
 				_environmentWorkspaceChanged: { trigger: () => { } },
 				_pickedEnvironment: picked,
-				_session: constObservable({ sessionId: 'draft', providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionType: 'copilot', isCreated: constObservable(false) }),
+				_session: constObservable({ sessionId: 'draft', providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionType: 'copilot', ...withCreatedStatus(constObservable(false)) }),
 				_workspaceOptOutEnabled: constObservable(false),
 				_workspaceOptOutTarget: constObservable(undefined),
 				_preferredDevContainerFolderUri: undefined as URI | undefined,
@@ -852,7 +854,7 @@ suite('NewChatWidget', () => {
 			const createDraft = (providerId: string, sessionType: string, isQuickChat = true) => upcastPartial<IActiveSession>({
 				sessionId: `${providerId}:${sessionType}`,
 				providerId, sessionType,
-				isCreated: constObservable(false),
+				...withCreatedStatus(constObservable(false)),
 				isQuickChat: constObservable(isQuickChat),
 				workspace: constObservable(isQuickChat ? undefined : upcastPartial<ISessionWorkspace>({ folders: [{ root: folder, workingDirectory: folder, name: 'project', description: undefined }] })),
 			});
@@ -3119,7 +3121,7 @@ suite('NewChatWidget', () => {
 				_session: constObservable(options.noDraft ? undefined : upcastPartial<IActiveSession>({
 					sessionId: 'draft',
 					providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
-					isCreated: constObservable(!!options.isCreated),
+					...withCreatedStatus(constObservable(!!options.isCreated)),
 					workspace: constObservable(upcastPartial<ISessionWorkspace>({ folders: [{ root: folder, workingDirectory: folder, name: 'project', description: undefined }] })),
 				})),
 				_workspacePicker: { selectedResolved: { providerId: options.providerId ?? LOCAL_AGENT_HOST_PROVIDER_ID } },
@@ -3287,7 +3289,7 @@ suite('NewChatWidget', () => {
 
 	test('a provider change only recreates the draft when the pick differs from it', () => {
 		const folder = URI.file('/project');
-		const draft: IActiveDraft = { sessionId: 's1', isCreated: constObservable(false), providerId: 'agent-host', sessionType: 'claude' };
+		const draft: IActiveDraft = { sessionId: 's1', ...withCreatedStatus(constObservable(false)), providerId: 'agent-host', sessionType: 'claude' };
 		const cases: { name: string; pick: IPreferredSessionType; servable: boolean }[] = [
 			{ name: 'pick matches the draft', pick: { providerId: 'agent-host', sessionTypeId: 'claude' }, servable: true },
 			{ name: 'pick names no provider, type matches', pick: { sessionTypeId: 'claude' }, servable: true },
@@ -3324,7 +3326,7 @@ suite('NewChatWidget', () => {
 
 	test('provider-change recreation preserves the selected harness', () => {
 		const folder = URI.file('/project');
-		const draft: IActiveDraft = { sessionId: 's1', isCreated: constObservable(false), providerId: 'cloud', sessionType: 'cloud' };
+		const draft: IActiveDraft = { sessionId: 's1', ...withCreatedStatus(constObservable(false)), providerId: 'cloud', sessionType: 'cloud' };
 		const pick = { providerId: 'local-agent-host', sessionTypeId: 'copilot' };
 		let recreatedWith: IPreferredSessionType | undefined;
 

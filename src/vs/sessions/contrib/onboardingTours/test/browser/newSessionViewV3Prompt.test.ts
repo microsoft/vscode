@@ -19,7 +19,7 @@ import { IGitRepository, IGitService } from '../../../../../workbench/contrib/gi
 import { ONBOARDING_DEVELOPER_MODE_CONFIG, ONBOARDING_DEVELOPER_MODE_VARIATIONS_CONFIG } from '../../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { IWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/test/common/nullAssignmentService.js';
-import { GITHUB_REMOTE_FILE_SCHEME, ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME, ISessionWorkspace, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { INewSessionComposerService, INewSessionPromptOptionsController, NewSessionPromptOptionsState } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
@@ -883,6 +883,7 @@ suite('NewSessionViewV3Prompt', () => {
 			override readonly providerId = 'local-agent-host';
 			override readonly sessionType = 'copilotcli';
 			override readonly isCreated = constObservable(false);
+			override readonly status = this.isCreated.map(created => created ? SessionStatus.Completed : SessionStatus.Untitled);
 			override readonly workspace = workspace;
 		}();
 		let gitServiceCalled = false;
@@ -1215,6 +1216,7 @@ function createSession(workspace: ISessionWorkspace): IActiveSession {
 		override readonly providerId = 'test';
 		override readonly sessionType = 'test';
 		override readonly isCreated = constObservable(false);
+		override readonly status = this.isCreated.map(created => created ? SessionStatus.Completed : SessionStatus.Untitled);
 		override readonly workspace = constObservable(workspace);
 	}();
 }

@@ -63,7 +63,7 @@ suite('ChangesActionsBar', () => {
 		const session = upcastPartial<IActiveSession>({
 			providerId,
 			resource: URI.parse('session:/bar'),
-			status: constObservable(SessionStatus.Completed),
+			status: constObservable(operations.length > 0 ? SessionStatus.Completed : SessionStatus.Untitled),
 			isCreated: constObservable(operations.length > 0),
 			activeChat: constObservable(upcastPartial<IChat>({ workspace: constObservable(upcastPartial<ISessionWorkspace>({ folders: [upcastPartial<ISessionFolder>({ workingDirectory: URI.file('/worktree') })] })) })),
 		});

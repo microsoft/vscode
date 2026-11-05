@@ -23,7 +23,7 @@ import { ISessionsService } from '../../browser/sessionsService.js';
 import { VisibleSessions } from '../../browser/visibleSessions.js';
 import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../common/sessionsManagement.js';
-import { sessionsServiceWithGridHost } from './sessionHostTestUtils.js';
+import { sessionsServiceWithGridHost, withCreatedStatus } from './sessionHostTestUtils.js';
 
 const CHAT_WINDOW_ID = 4242;
 
@@ -38,9 +38,9 @@ suite('resolveSessionCommandTarget', () => {
 	const mainChat = chat('main');
 	const sideChat = chat('side');
 	const otherChat = chat('other');
-	const sessionA = upcastPartial<IActiveSession>({ sessionId: 'a', resource: URI.parse('session:/a'), isCreated: constObservable(true), activeChat: constObservable(mainChat), mainChat: constObservable(mainChat), chats: constObservable([mainChat, sideChat]) });
+	const sessionA = upcastPartial<IActiveSession>({ sessionId: 'a', resource: URI.parse('session:/a'), ...withCreatedStatus(constObservable(true)), activeChat: constObservable(mainChat), mainChat: constObservable(mainChat), chats: constObservable([mainChat, sideChat]) });
 	const sessionAInWindow = upcastPartial<IActiveSession>({ ...sessionA, activeChat: constObservable(sideChat) });
-	const sessionB = upcastPartial<IActiveSession>({ sessionId: 'b', resource: URI.parse('session:/b'), isCreated: constObservable(true), activeChat: constObservable(otherChat), mainChat: constObservable(otherChat), chats: constObservable([otherChat]) });
+	const sessionB = upcastPartial<IActiveSession>({ sessionId: 'b', resource: URI.parse('session:/b'), ...withCreatedStatus(constObservable(true)), activeChat: constObservable(otherChat), mainChat: constObservable(otherChat), chats: constObservable([otherChat]) });
 	const sessions: readonly ISession[] = [sessionA, sessionB];
 
 	function setup(focusedWindow: 'main' | 'chat' = 'main') {

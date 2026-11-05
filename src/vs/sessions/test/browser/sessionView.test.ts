@@ -11,7 +11,7 @@ import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js
 import { constObservable, disposableObservableValue, observableValue } from '../../../base/common/observable.js';
 import { mock } from '../../../base/test/common/mock.js';
 import { IActiveSession } from '../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { ISessionPreparationProgress } from '../../../workbench/contrib/sessions/common/session.js';
+import { ISessionPreparationProgress, SessionStatus } from '../../../workbench/contrib/sessions/common/session.js';
 import { ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../workbench/contrib/sessions/common/workspaceSelection.js';
 import { AbstractChatView, ChatViewKind, IChatViewOptions } from '../../../workbench/contrib/sessions/browser/parts/chatView.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
@@ -659,6 +659,7 @@ suite('Sessions - Session View', () => {
 		const preparationProgress = observableValue<ISessionPreparationProgress | undefined>('preparationProgress', undefined);
 		const session = new class extends mock<IActiveSession>() {
 			override readonly isCreated = isCreated;
+			override readonly status = isCreated.map(created => created ? SessionStatus.Completed : SessionStatus.Untitled);
 			override readonly isNewSessionRequestInProgress = requestInProgress;
 			override readonly preparationProgress = preparationProgress;
 			override readonly mainChat = observableValue('mainChat', createTestActiveSession('draft').mainChat.get());

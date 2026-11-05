@@ -182,7 +182,7 @@ class TestActiveSession extends mock<IActiveSession>() {
 	override readonly title = derived(reader => this.mainChat.read(reader).title.read(reader));
 	override readonly capabilities: IObservable<ISessionCapabilities> = constObservable({ supportsMultipleChats: true });
 	override readonly isCreated: IObservable<boolean>;
-	override readonly status = constObservable(SessionStatus.Completed);
+	override readonly status = derived(reader => this.isCreated.read(reader) ? SessionStatus.Completed : SessionStatus.Untitled);
 	override readonly isRead = constObservable(true);
 	override readonly isNewSessionRequestInProgress = observableValue(this, false);
 	override readonly isArchived = observableValue(this, false);

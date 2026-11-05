@@ -15,7 +15,7 @@ import { createDecorator, IInstantiationService } from '../../../../platform/ins
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { GroupIdentifier } from '../../../common/editor.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
-import { IChat } from '../common/session.js';
+import { IChat, isSessionCreated } from '../common/session.js';
 import { IActiveSession, IHostSession, IShownChat } from '../common/sessionsManagement.js';
 
 export const enum SessionHostKind {
@@ -313,7 +313,7 @@ export class ActiveSessionHost implements ISessionHost {
 				// A composer shows the new-session composer before its draft exists; other hosts show nothing.
 				return options.kind === SessionHostKind.Composer ? { kind: 'newSession', draft: undefined } : { kind: 'empty' };
 			}
-			if (!session.isCreated.read(reader)) {
+			if (!isSessionCreated(session, reader)) {
 				return { kind: 'newSession', draft: session };
 			}
 			return { kind: 'chat', session, chat: options.chat?.read(reader) ?? session.activeChat.read(reader) };

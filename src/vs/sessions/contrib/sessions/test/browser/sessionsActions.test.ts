@@ -79,7 +79,7 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { resolveOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { ICustomViewService, ICustomViewDescriptor } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { WindowCanvasInput, IWindowCanvasService } from '../../../../../workbench/contrib/sessions/browser/windowCanvas.js';
-import { ITestSessionsService, stubMissingSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionsService, stubMissingSessionHostsFromSessionsService, withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Sessions - Actions', () => {
 
@@ -2191,7 +2191,7 @@ suite('Sessions - Actions', () => {
 			const { session } = createTestSession('quick-chat-draft');
 			const activeSession = observableValue<IActiveSession | undefined>('activeSession', upcastPartial<IActiveSession>({
 				...session,
-				isCreated: constObservable(false),
+				...withCreatedStatus(constObservable(false)),
 				isQuickChat: constObservable(true),
 			}));
 			const events: string[] = [];

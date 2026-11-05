@@ -16,7 +16,7 @@ import { IActiveSession } from '../../../common/sessionsManagement.js';
 import { IChat } from '../../../common/session.js';
 import { ISessionsService } from '../../../browser/sessionsService.js';
 import { INewChatVoiceComposer, NEW_CHAT_VOICE_SENTINEL, NewChatVoiceTargetService } from '../../../browser/chat/newChatVoice.js';
-import { focusedSessionHostServiceOf } from '../sessionHostTestUtils.js';
+import { focusedSessionHostServiceOf, withCreatedStatus } from '../sessionHostTestUtils.js';
 
 suite('NewChatVoiceTargetService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -33,7 +33,7 @@ suite('NewChatVoiceTargetService', () => {
 
 	function makeActiveSession(isCreated: boolean, chatResource: URI): IActiveSession {
 		return upcastPartial<IActiveSession>({
-			isCreated: observableValue<boolean>('isCreated', isCreated),
+			...withCreatedStatus(observableValue<boolean>('isCreated', isCreated)),
 			activeChat: observableValue<IChat>('activeChat', upcastPartial<IChat>({ resource: chatResource })),
 		});
 	}

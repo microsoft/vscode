@@ -28,7 +28,7 @@ import { WorkspaceHistoryLoadState } from '../../../../../workbench/contrib/sess
 import { ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { IRecentWorkspace, ISessionsRecentWorkspacesService } from '../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
 import { IOpenNewSessionResult, ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { ISession, ISessionChangesSummary } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ISession, ISessionChangesSummary, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { ISessionChangesService } from '../../../../../workbench/contrib/sessions/common/sessionChangesService.js';
@@ -65,6 +65,7 @@ suite('GetStartedTourRunner', () => {
 		return new class extends mock<IActiveSession>() {
 			override readonly resource = session.resource;
 			override readonly isCreated = constObservable(true);
+			override readonly status = this.isCreated.map(created => created ? SessionStatus.Completed : SessionStatus.Untitled);
 			override readonly isArchived = session.isArchived;
 			override readonly changesSummary = session.changesSummary;
 		}();

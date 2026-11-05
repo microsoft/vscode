@@ -17,7 +17,7 @@ import { combineVoiceInput } from '../../../../workbench/contrib/chat/browser/vo
 import { IVoiceModelSelectionResult, resolveVoiceModel } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceToolDispatchService.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { getFocusedSessionChatSource, getMainWindowHost, IFocusedSessionHostService, ISessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
-import { SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
+import { isSessionCreated, SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
 import { IHostSession, inheritableSessionTarget, ISendRequestOptions, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { INewChatVoiceComposer, INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL } from '../../../../workbench/contrib/sessions/browser/chat/newChatVoice.js';
 import { INewSessionComposerService } from '../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
@@ -341,11 +341,11 @@ export class SessionsVoiceBridgeContribution extends Disposable implements IWork
 
 	/**
 	 * The active chat resource, only after its session exists.
-	 * {@link IHostSession.isCreated} distinguishes it from the welcome composer.
+	 * {@link isSessionCreated} distinguishes it from the welcome composer.
 	 */
 	private _createdActiveChatResource(): URI | undefined {
 		const focusedHost = this.focusedSessionHostService.getFocusedHost();
-		return focusedHost.session.get()?.isCreated.get() ? focusedHost.chat.get()?.resource : undefined;
+		return isSessionCreated(focusedHost.session.get()) ? focusedHost.chat.get()?.resource : undefined;
 	}
 
 	/** The chat widget backing the currently active (created) session, if any. */
@@ -419,10 +419,10 @@ export class SessionsVoiceActiveSessionContribution extends Disposable implement
 			}
 			if (!hasDraftTarget) {
 				voiceDraftSession = undefined;
-			} else if (!voiceDraftSession && active && !active.isCreated.read(reader)) {
+			} else if (!voiceDraftSession && active && !isSessionCreated(active, reader)) {
 				voiceDraftSession = active;
 			}
-			if (!voiceDraftRequest && voiceDraftSession?.isCreated.read(reader)) {
+			if (!voiceDraftRequest && voiceDraftSession && isSessionCreated(voiceDraftSession, reader)) {
 				// Once sent, the draft's chat is its main chat
 				this.voiceSessionController.promoteDraftTarget(voiceDraftSession.mainChat.read(reader).resource);
 				voiceDraftSession = undefined;
@@ -431,7 +431,7 @@ export class SessionsVoiceActiveSessionContribution extends Disposable implement
 				this.voiceSessionController.setActiveSessionShown(undefined);
 				return;
 			}
-			if (!active.isCreated.read(reader)) {
+			if (!isSessionCreated(active, reader)) {
 				this.voiceSessionController.setActiveSessionShown(null);
 				return;
 			}

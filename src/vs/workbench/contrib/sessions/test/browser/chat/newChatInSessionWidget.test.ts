@@ -28,6 +28,7 @@ import { IChatDraft } from '../../../../chat/common/attachments/chatDraft.js';
 import { SharedChatInputComposer } from '../../../browser/chat/sharedChatInputComposer.js';
 import { TestAccessibilityService } from '../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { withCreatedStatus } from '../sessionHostTestUtils.js';
 
 class TestNewChatInSessionWidget extends NewChatInSessionWidget {
 	send(query: string, background: boolean): Promise<boolean> {
@@ -51,7 +52,7 @@ suite('NewChatInSessionWidget', () => {
 		const claudeDraft = chat('claude-draft', SessionStatus.Untitled);
 		const activeChat = observableValue<IChat>('activeChat', copilotDraft);
 		const session = upcastPartial<IActiveSession>({
-			sessionId: 's', providerId: 'p', isCreated: constObservable(true), mainChat: constObservable(main), activeChat,
+			sessionId: 's', providerId: 'p', ...withCreatedStatus(constObservable(true)), mainChat: constObservable(main), activeChat,
 			workspace: constObservable(undefined), capabilities: constObservable({ supportsMultipleChats: true }),
 		});
 		const supportFor: string[] = [];
@@ -122,7 +123,7 @@ suite('NewChatInSessionWidget', () => {
 		const draft = chat('draft', undefined);
 		const replacement = chat('replacement', 'other');
 		const activeChat = observableValue<IChat>('activeChat', draft);
-		const session = upcastPartial<IActiveSession>({ harness: 'main', isCreated: constObservable(true), mainChat: constObservable(main), activeChat });
+		const session = upcastPartial<IActiveSession>({ harness: 'main', ...withCreatedStatus(constObservable(true)), mainChat: constObservable(main), activeChat });
 		const opened: (ICreateNewChatInSessionOptions | undefined)[] = [];
 		const deleted: string[] = [];
 		const widget: TestNewChatInSessionWidget = Object.assign(Object.create(TestNewChatInSessionWidget.prototype), {
@@ -159,7 +160,7 @@ suite('NewChatInSessionWidget', () => {
 		const draft = chat('draft');
 		const replacement = chat('replacement', 'other');
 		const activeChat = observableValue<IChat>('activeChat', draft);
-		const session = upcastPartial<IActiveSession>({ sessionId: 'session', harness: 'main', isCreated: constObservable(true), mainChat: constObservable(main), activeChat });
+		const session = upcastPartial<IActiveSession>({ sessionId: 'session', harness: 'main', ...withCreatedStatus(constObservable(true)), mainChat: constObservable(main), activeChat });
 		let input: IChatDraft = { inputText: '', attachments: [] };
 		const widget: TestNewChatInSessionWidget = Object.assign(Object.create(TestNewChatInSessionWidget.prototype), {
 			_session: constObservable(session),
@@ -192,7 +193,7 @@ suite('NewChatInSessionWidget', () => {
 		const draft = chat('draft');
 		const otherDraft = chat('other-draft');
 		const activeChat = observableValue<IChat>('activeChat', draft);
-		const session = upcastPartial<IActiveSession>({ sessionId: 'session', harness: 'main', isCreated: constObservable(true), mainChat: constObservable(main), activeChat });
+		const session = upcastPartial<IActiveSession>({ sessionId: 'session', harness: 'main', ...withCreatedStatus(constObservable(true)), mainChat: constObservable(main), activeChat });
 		const viewStateService = new SessionsChatViewStateService();
 		viewStateService.setDraft(otherDraft.resource, { inputText: 'the other chat\'s draft', attachments: [] });
 		let input: IChatDraft = { inputText: '', attachments: [] };
@@ -231,7 +232,7 @@ suite('NewChatInSessionWidget', () => {
 		const replacement = chat('replacement', 'other');
 		const otherDraft = chat('other-draft', 'other');
 		const activeChat = observableValue<IChat>('activeChat', draft);
-		const session = upcastPartial<IActiveSession>({ sessionId: 'session', harness: 'main', isCreated: constObservable(true), mainChat: constObservable(main), activeChat });
+		const session = upcastPartial<IActiveSession>({ sessionId: 'session', harness: 'main', ...withCreatedStatus(constObservable(true)), mainChat: constObservable(main), activeChat });
 		const viewStateService = new SessionsChatViewStateService();
 		viewStateService.setDraft(otherDraft.resource, { inputText: 'the other chat\'s draft', attachments: [] });
 		let input: IChatDraft = { inputText: '', attachments: [] };
@@ -278,7 +279,7 @@ suite('NewChatInSessionWidget', () => {
 		const chat = (fragment: string, status = SessionStatus.Untitled) => upcastPartial<IChat>({ resource: URI.parse(`test:///session#${fragment}`), status: constObservable(status) });
 		const main = chat('', SessionStatus.Completed);
 		const activeChat = observableValue<IChat>('activeChat', chat('draft'));
-		const session = upcastPartial<IActiveSession>({ sessionId: 'session', harness: 'main', isCreated: constObservable(true), mainChat: constObservable(main), activeChat });
+		const session = upcastPartial<IActiveSession>({ sessionId: 'session', harness: 'main', ...withCreatedStatus(constObservable(true)), mainChat: constObservable(main), activeChat });
 		const activeSession = observableValue<IActiveSession | undefined>('activeSession', session);
 		const opened: (string | undefined)[] = [];
 		const deleted: string[] = [];
@@ -316,7 +317,7 @@ suite('NewChatInSessionWidget', () => {
 		const draft = chat('draft');
 		const replacement = chat('replacement');
 		const activeChat = observableValue<IChat>('activeChat', draft);
-		const session = upcastPartial<IActiveSession>({ sessionId: 'session', harness: 'main', isCreated: constObservable(true), mainChat: constObservable(main), activeChat });
+		const session = upcastPartial<IActiveSession>({ sessionId: 'session', harness: 'main', ...withCreatedStatus(constObservable(true)), mainChat: constObservable(main), activeChat });
 		const events: string[] = [];
 		let finishOpen!: () => void;
 		const widget: TestNewChatInSessionWidget = Object.assign(Object.create(TestNewChatInSessionWidget.prototype), {

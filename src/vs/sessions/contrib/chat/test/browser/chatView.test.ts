@@ -102,6 +102,7 @@ import '../../../../../workbench/contrib/sessions/browser/chat/media/chatWidget.
 import '../../../../../workbench/contrib/sessions/browser/chat/media/chatView.css';
 import '../../../../../workbench/contrib/sessions/browser/chat/media/newChatInSession.css';
 import '../../../../../workbench/contrib/chat/browser/promptTimeline/media/promptTimeline.css';
+import { withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Sessions - Chat View', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -2659,7 +2660,7 @@ suite('Sessions - Chat View', () => {
 		// Another chat of the session is active, such as one open in another group.
 		const activeChat = upcastPartial<IChat>({ resource: URI.parse('chat:/active-elsewhere') });
 		const sessionsService = new class extends mock<ISessionsService>() {
-			readonly activeSession = constObservable<IActiveSession | undefined>(upcastPartial<IActiveSession>({ sessionId: 'session', activeChat: constObservable(activeChat), mainChat: constObservable(activeChat), isCreated: constObservable(false) }));
+			readonly activeSession = constObservable<IActiveSession | undefined>(upcastPartial<IActiveSession>({ sessionId: 'session', activeChat: constObservable(activeChat), mainChat: constObservable(activeChat), ...withCreatedStatus(constObservable(false)) }));
 		}();
 		const widget = disposables.add(new NewChatInSessionWidget(
 			{ session: sessionsService.activeSession },

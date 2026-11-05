@@ -169,6 +169,7 @@ function createSession(chats: readonly IChat[], activeChat: IChat, isQuickChat =
 		override readonly activeChat: IObservable<IChat> = constObservable(activeChat);
 		override readonly capabilities: IObservable<ISessionCapabilities> = constObservable({ supportsMultipleChats: true, supportsRename });
 		override readonly isCreated: IObservable<boolean> = constObservable(true);
+		override readonly status = this.isCreated.map(created => created ? SessionStatus.Completed : SessionStatus.Untitled);
 		override readonly isArchived: IObservable<boolean> = constObservable(false);
 		override readonly isQuickChat: IObservable<boolean> = constObservable(isQuickChat);
 	}();

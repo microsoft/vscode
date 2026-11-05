@@ -22,7 +22,7 @@ import { ICodeReviewService, PRReviewStateKind } from '../../../browser/codeRevi
 import { ChangesetReviewedFilesContext, ChangesViewService } from '../../../browser/changes/changesViewService.js';
 import { getChangesOfSession } from '../../../common/changesViewService.js';
 import { ChangesViewMode } from '../../../common/changes.js';
-import { sessionHostServiceOf } from '../sessionHostTestUtils.js';
+import { sessionHostServiceOf, withCreatedStatus } from '../sessionHostTestUtils.js';
 
 suite('ChangesViewService', () => {
 
@@ -62,7 +62,7 @@ suite('ChangesViewService', () => {
 		});
 		return upcastPartial<IActiveSession>({
 			resource: URI.from({ scheme: 'test-session', path: `/${id}` }),
-			isCreated: constObservable(true),
+			...withCreatedStatus(constObservable(true)),
 			providerId: 'local-agent-host',
 			sessionType: 'test',
 			loading: options?.loading ?? constObservable(false),

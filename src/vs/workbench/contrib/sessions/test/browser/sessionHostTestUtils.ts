@@ -15,7 +15,7 @@ import { IEditorGroupsService } from '../../../../services/editor/common/editorG
 import { ActiveSessionHost, IFocusedSessionHostService, ISessionHost, ISessionHostService, SessionHostKind } from '../../browser/sessionHost.js';
 import { SessionHostService } from '../../browser/sessionHostService.js';
 import { ISessionsService } from '../../browser/sessionsService.js';
-import { IChat } from '../../common/session.js';
+import { IChat, SessionStatus } from '../../common/session.js';
 import { IActiveSession } from '../../common/sessionsManagement.js';
 
 /**
@@ -27,6 +27,14 @@ export interface ITestSessionsGridState {
 	readonly activeSession?: IObservable<IActiveSession | undefined>;
 	readonly mainWindowActiveSession?: IObservable<IActiveSession | undefined>;
 	readonly windowSessions?: IObservable<readonly IActiveSession[]>;
+}
+
+/**
+ * The `isCreated` of a test session with the `status` that agrees with it, as `isSessionCreated` reads the status: an
+ * untitled session is not created. Spread it into a session fake.
+ */
+export function withCreatedStatus(isCreated: IObservable<boolean>): { readonly isCreated: IObservable<boolean>; readonly status: IObservable<SessionStatus> } {
+	return { isCreated, status: isCreated.map(created => created ? SessionStatus.Completed : SessionStatus.Untitled) };
 }
 
 /** An `ISessionsService` mock with the grid state the host stubs derive from. */

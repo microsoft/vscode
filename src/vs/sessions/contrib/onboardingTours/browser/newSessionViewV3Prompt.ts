@@ -31,6 +31,7 @@ import { IGitHubService } from '../../../../workbench/contrib/sessions/browser/g
 import { computeIssueIcon, computePullRequestIcon, GitHubIssueState, GitHubPullRequestState } from '../../../../workbench/contrib/sessions/common/github/types.js';
 import { resolveGitHubRepositoryFromGitConfig } from '../../../../workbench/contrib/sessions/browser/gitHubRepositoryResolver.js';
 import { NEW_SESSION_VIEW_V3_GITHUB_PROMPT_VARIATION, NEW_SESSION_VIEW_V3_OPTIONS_VARIATION, NEW_SESSION_VIEW_V3_PROMPT_VARIATION, NEW_SESSION_VIEW_V3_TOUR_ID, NEW_SESSION_VIEW_V3_VARIATION_TREATMENT } from './tours/newSessionViewV3Tour.js';
+import { isSessionCreated } from '../../../../workbench/contrib/sessions/common/session.js';
 
 /**
  * Per-stage budgets are sized so the longest dependent chain of timed lookups fits inside `totalMs`:
@@ -400,7 +401,7 @@ export class NewSessionViewV3PromptRunner {
 		}
 		this._logService.info(`${LOG_PREFIX} Showing prompt option loading skeletons.`);
 		const state = await resolveOptions(token);
-		if (token.isCancellationRequested || this._newSessionComposerService.activeComposer.get() !== composer || this._mainWindowSession.get()?.isCreated.get()) {
+		if (token.isCancellationRequested || this._newSessionComposerService.activeComposer.get() !== composer || isSessionCreated(this._mainWindowSession.get())) {
 			composer.showPromptOptions(undefined);
 			this._logService.trace(`${LOG_PREFIX} Prompt option resolution was cancelled or its composer is no longer active.`);
 			this._reportStrategy(configuredVariation, 'options', configuredFallbackReason ?? latestPlan?.fallbackReason ?? 'requestFailed', false, latestPlan?.lookup);
@@ -425,7 +426,7 @@ export class NewSessionViewV3PromptRunner {
 
 	private _getActiveComposer(): INewSessionComposer | undefined {
 		const activeSession = this._mainWindowSession.get();
-		if (activeSession?.isCreated.get()) {
+		if (isSessionCreated(activeSession)) {
 			return undefined;
 		}
 		return this._newSessionComposerService.activeComposer.get();
@@ -903,7 +904,7 @@ export class NewSessionViewV3PromptRunner {
 				this._logService.trace(`${LOG_PREFIX} No active draft session is available for repository resolution.`);
 				return undefined;
 			}
-			if (activeSession.isCreated.get()) {
+			if (isSessionCreated(activeSession)) {
 				this._logService.trace(`${LOG_PREFIX} The active session is already created, so the V3 new-session prompt cannot resolve its repository.`);
 				return undefined;
 			}
@@ -983,7 +984,7 @@ export class NewSessionViewV3PromptRunner {
 				resolve(result);
 			};
 			reaction.value = autorun(reader => {
-				if (this._mainWindowSession.read(reader) !== activeSession || activeSession.isCreated.read(reader)) {
+				if (this._mainWindowSession.read(reader) !== activeSession || isSessionCreated(activeSession, reader)) {
 					finish({ kind: 'sessionChanged' });
 					return;
 				}
@@ -1154,7 +1155,7 @@ export class NewSessionViewV3PromptRunner {
 
 	private _animatePrompt(prompt: string, taskPlaceholder: string, token: CancellationToken): Promise<boolean> | boolean {
 		const activeSession = this._mainWindowSession.get();
-		if (activeSession?.isCreated.get()) {
+		if (isSessionCreated(activeSession)) {
 			this._logService.warn(`${LOG_PREFIX} Skipping prompt insertion because the active session was created before animation started.`);
 			return false;
 		}

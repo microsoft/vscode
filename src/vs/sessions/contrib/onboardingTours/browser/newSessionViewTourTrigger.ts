@@ -14,6 +14,7 @@ import { ChatEntitlement, IChatEntitlementService } from '../../../../workbench/
 import { SessionWorkspacePickerVisibleContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IHostSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { isSessionCreated } from '../../../../workbench/contrib/sessions/common/session.js';
 
 const MAX_REQUESTS_FOR_TOUR = 1;
 /** Drives a new-session view tour using the V2 eligibility and readiness criteria. */
@@ -48,7 +49,7 @@ export class NewSessionViewTourTrigger extends Disposable {
 				return;
 			}
 			const activeSession = this._mainWindowSession.read(reader);
-			const newSessionViewOpen = !activeSession || !activeSession.isCreated.read(reader);
+			const newSessionViewOpen = !activeSession || !isSessionCreated(activeSession, reader);
 			const loggedIn = this._chatEntitlementService.entitlementObs.read(reader) !== ChatEntitlement.Unknown;
 			if (!newSessionViewOpen || !loggedIn) {
 				return;
@@ -73,7 +74,7 @@ export class NewSessionViewTourTrigger extends Disposable {
 
 	private _isReady(): boolean {
 		const activeSession = this._mainWindowSession.get();
-		const newSessionViewOpen = !activeSession || !activeSession.isCreated.get();
+		const newSessionViewOpen = !activeSession || !isSessionCreated(activeSession);
 		return this._sessionsService.initialRestoreComplete.get()
 			&& newSessionViewOpen
 			&& this._chatEntitlementService.entitlement !== ChatEntitlement.Unknown

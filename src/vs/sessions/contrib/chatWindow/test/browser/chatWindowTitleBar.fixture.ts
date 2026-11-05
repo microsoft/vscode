@@ -39,7 +39,7 @@ import { ISessionsService } from '../../../../../workbench/contrib/sessions/brow
 import { AGENTS_FLOATING_PANEL_GAP } from '../../../../../workbench/contrib/sessions/common/layoutConstants.js';
 import { ISessionActivityBarActivityService, SessionActivityBarActivityService } from '../../../../../workbench/contrib/sessions/common/sessionActivityBarActivityService.js';
 import { SESSION_ACTIVITY_BAR_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
-import { IChat, ISession, ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { stubSessionHosts } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
@@ -177,6 +177,7 @@ function createSession(): IActiveSession {
 		override readonly workspace: IObservable<ISessionWorkspace | undefined> = constObservable(workspace);
 		override readonly activeChat: IObservable<IChat> = constObservable(activeChat);
 		override readonly isCreated: IObservable<boolean> = constObservable(true);
+		override readonly status = this.isCreated.map(created => created ? SessionStatus.Completed : SessionStatus.Untitled);
 		override readonly isQuickChat: IObservable<boolean> = constObservable(false);
 	}();
 }

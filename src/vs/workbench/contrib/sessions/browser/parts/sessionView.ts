@@ -17,7 +17,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { IActiveSession } from '../../common/sessionsManagement.js';
-import { IChat } from '../../common/session.js';
+import { IChat, isSessionCreated } from '../../common/session.js';
 import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../common/workspaceSelection.js';
 import { AbstractChatView, IChatViewOptions, ISessionViewHostOptions } from './chatView.js';
 import { ChatGroupsView } from './chatGroupsView.js';
@@ -214,7 +214,7 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 			const session = this._sessionObs.read(reader);
 			const groupCount = this._groupsView.groupCount.read(reader);
 			const showChatAsSessionView = this._groupsView.showChatAsSessionView.read(reader);
-			const tabsReplaceHeader = (session?.isCreated.read(reader) ?? false)
+			const tabsReplaceHeader = (isSessionCreated(session, reader))
 				&& !showChatAsSessionView
 				&& (groupCount > 1 || (session?.shouldShowChatTabs.read(reader) ?? false));
 			this._header.setVisible((this._hostOptions?.showHeader ?? true) && !tabsReplaceHeader && !(showChatAsSessionView && groupCount > 1));
@@ -236,7 +236,7 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 		this._openSessionDisposables.add(this._handleContextKeys(session));
 
 		this._header.setSession(session);
-		if (session && !session.isCreated.get()) {
+		if (session && !isSessionCreated(session)) {
 			this._groupsView.setSession(undefined, options);
 			let view = this._standaloneView.get();
 			if (!view || view.kind !== 'newSession') {
@@ -254,7 +254,7 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 				if (this._currentSession !== session) {
 					return;
 				}
-				if (session.isCreated.read(reader)) {
+				if (isSessionCreated(session, reader)) {
 					const moveFocus = restoreComposerFocus || isAncestorOfActiveElement(view.element);
 					this._showSessionGroups(session, options);
 					if (moveFocus) {

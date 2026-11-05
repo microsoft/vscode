@@ -49,7 +49,7 @@ import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { setActiveSessionContextKeys } from '../../../../../workbench/contrib/sessions/common/sessionContextKeys.js';
 import { createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
 import { IFocusedSessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
-import { stubSessionHosts, stubSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { stubSessionHosts, stubSessionHostsFromSessionsService, withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IChat, ISessionChangeset, ISessionChangesSummary, ISessionFolder, ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
@@ -237,7 +237,7 @@ suite('Changes View Actions', () => {
 		const workspace = observableValue<ISessionWorkspace | undefined>('activeChatWorkspace', undefined);
 		const chat = upcastPartial<IChat>({ workspace });
 		const session = upcastPartial<IActiveSession>({
-			isCreated: constObservable(true),
+			...withCreatedStatus(constObservable(true)),
 			isQuickChat: constObservable(false),
 			activeChat: constObservable(chat),
 		});

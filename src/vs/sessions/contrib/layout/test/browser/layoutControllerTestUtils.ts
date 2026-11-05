@@ -83,7 +83,8 @@ export function makeSession(resource: URI, opts?: {
 	chatWorkspace?: ISessionWorkspace;
 	isQuickChat?: boolean;
 }): IActiveSession {
-	const status = observableValue('status', opts?.status ?? SessionStatus.Completed);
+	// A session is created once it is no longer untitled: `isCreated` alone picks the status that says so.
+	const status = observableValue('status', opts?.status ?? (opts?.isCreated === false ? SessionStatus.Untitled : SessionStatus.Completed));
 	const workspace = opts?.workspace ?? {
 		uri: URI.file('/repo'),
 		label: 'test',
@@ -143,9 +144,7 @@ export function makeSession(resource: URI, opts?: {
 		activeChat: observableValue('activeChat', chat),
 		mainChat: constObservable(chat),
 		capabilities: constObservable({ supportsMultipleChats: false }),
-		isCreated: opts?.isCreated === undefined
-			? status.map(status => status !== SessionStatus.Untitled)
-			: observableValue('isCreated', opts.isCreated),
+		isCreated: status.map(status => status !== SessionStatus.Untitled),
 		sticky: observableValue('sticky', false),
 		openChats: observableValue('openChats', [chat]),
 		closedChats: constObservable([]),

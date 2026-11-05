@@ -25,7 +25,7 @@ import { IOpenNewSessionOptions, ISessionsService } from '../../../../../workben
 import { INewChatVoiceComposer, INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL, NewChatVoiceTargetService } from '../../../../../workbench/contrib/sessions/browser/chat/newChatVoice.js';
 import { INewSessionComposer, INewSessionComposerService } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { prepareNewVoiceSession, SessionsVoiceActiveSessionContribution, SessionsVoiceBridgeContribution, SessionsVoiceNewComposerContribution } from '../../browser/voiceBridge.contribution.js';
-import { focusedSessionHostServiceOf, sessionHostServiceOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { focusedSessionHostServiceOf, sessionHostServiceOf, withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('SessionsVoiceBridgeContribution - input ownership', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -384,7 +384,7 @@ suite('SessionsVoiceActiveSessionContribution', () => {
 		const owner = createDraftOwner();
 		const created = observableValue('isCreated', false);
 		owner.activeSession.set(upcastPartial<IActiveSession>({
-			isCreated: created,
+			...withCreatedStatus(created),
 			activeChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host-copilotcli:/untitled') })),
 		}), undefined);
 		const options: ISendRequestOptions = { query: 'Voice request' };

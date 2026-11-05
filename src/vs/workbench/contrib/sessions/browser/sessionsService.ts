@@ -20,7 +20,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { localize } from '../../../../nls.js';
-import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../common/session.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISession, isSessionCreated, SessionStatus } from '../common/session.js';
 import { IActiveSession, ICreateNewChatInSessionOptions, IHostSession, ICreateNewSessionOptions, inheritableSessionTarget, IRecentlyOpenedSessions, ISessionsChangeEvent, ISessionsManagementService, IToggleSessionStickinessEvent } from '../common/sessionsManagement.js';
 import { IChatMovedEvent } from '../common/sessionsProvider.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
@@ -2073,7 +2073,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 	async submitNewSessionInput(): Promise<boolean> {
 		let activeSession = this.activeSession.get();
-		if (activeSession?.isCreated.get()) {
+		if (isSessionCreated(activeSession)) {
 			return false;
 		}
 
@@ -2082,7 +2082,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		if (!this.sessionsPartService.getSessionView(activeSession)) {
 			await this.openNewSession();
 			activeSession = this.activeSession.get();
-			if (activeSession?.isCreated.get()) {
+			if (isSessionCreated(activeSession)) {
 				return false;
 			}
 		}
@@ -2352,11 +2352,11 @@ export class SessionsService extends Disposable implements ISessionsService {
 			const visible = this._visibility.gridSessions.get();
 			const slots = this._visibility.getRenderedGridSlots();
 			const activeIndex = Math.max(0, visible.findIndex(session => session === this.activeSession.get()));
-			const composerIndex = !visible[activeIndex]?.isCreated.get() ? activeIndex : visible.findIndex(session => !session?.isCreated.get());
+			const composerIndex = !isSessionCreated(visible[activeIndex]) ? activeIndex : visible.findIndex(session => !isSessionCreated(session));
 			const bindings: ISessionGridState['sessions'][number][] = [];
 			for (let index = 0; index < slots.length; index++) {
 				const session = visible[index];
-				const resource = session?.isCreated.get() ? session.resource.toString() : undefined;
+				const resource = session && isSessionCreated(session) ? session.resource.toString() : undefined;
 				if (!resource && index !== composerIndex) {
 					continue;
 				}

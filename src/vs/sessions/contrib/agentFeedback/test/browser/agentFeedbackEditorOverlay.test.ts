@@ -27,7 +27,7 @@ import { constObservable } from '../../../../../base/common/observable.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ActiveSessionHost, ISessionHostService, SessionHostKind } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { IChat, ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IChat, ISession, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
 
 suite('AgentFeedbackEditorOverlay', () => {
 
@@ -51,6 +51,7 @@ suite('AgentFeedbackEditorOverlay', () => {
 			override readonly sessionId = id;
 			override readonly resource = URI.parse(`local-agent-host:/${id}`);
 			override readonly isCreated = constObservable(true);
+			override readonly status = this.isCreated.map(created => created ? SessionStatus.Completed : SessionStatus.Untitled);
 			override readonly activeChat = constObservable(upcastPartial<IChat>({ resource: URI.parse(`local-agent-host:/${id}/chat`) }));
 		}();
 	}

@@ -17,7 +17,7 @@ import { autorun, IObservable, IReader } from '../../../../../base/common/observ
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { localize } from '../../../../../nls.js';
 import { IActiveSession, ISessionsManagementService } from '../../common/sessionsManagement.js';
-import { getChatCapabilities, getUntitledSessionTitle, IChat, SessionStatus } from '../../common/session.js';
+import { getChatCapabilities, getUntitledSessionTitle, IChat, isSessionCreated, SessionStatus } from '../../common/session.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -371,7 +371,7 @@ export class SessionHeaderBar extends Disposable {
 		}));
 
 		store.add(autorun(reader => {
-			this._sessionIsCreated = session.isCreated.read(reader);
+			this._sessionIsCreated = isSessionCreated(session, reader);
 			this._updateVisibility();
 		}));
 	}
@@ -616,7 +616,7 @@ export class SessionViewFloatingToolbar extends Disposable {
 			canDrag = !toolbar.contains(e.target as Node | null) && !isSessionDragFromPaneEdge(this._container, e);
 		}));
 		this._register(addDisposableListener(this._container, EventType.DRAG_START, (e: DragEvent) => {
-			if (!canDrag || !e.dataTransfer || this._session?.isCreated.get()) {
+			if (!canDrag || !e.dataTransfer || isSessionCreated(this._session)) {
 				e.preventDefault();
 				return;
 			}
@@ -647,7 +647,7 @@ export class SessionViewFloatingToolbar extends Disposable {
 		}
 
 		store.add(autorun(reader => {
-			this._setVisible(!session.isCreated.read(reader));
+			this._setVisible(!isSessionCreated(session, reader));
 		}));
 	}
 

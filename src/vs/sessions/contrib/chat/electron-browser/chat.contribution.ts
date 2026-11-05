@@ -50,7 +50,7 @@ import { getChatSessionType } from '../../../../workbench/contrib/chat/common/mo
 import '../../../../workbench/contrib/chat/browser/aiCustomization/copilotCanvases.contribution.js';
 import './chatBackgroundTool.contribution.js';
 import { ScreenshotWindowToolContribution } from '../browser/screenshotWindowTool.js';
-import { ISession } from '../../../../workbench/contrib/sessions/common/session.js';
+import { ISession, isSessionCreated } from '../../../../workbench/contrib/sessions/common/session.js';
 
 /** Revokes editor request ownership when the next request is submitted here. */
 export class AgentsWindowRequestActivity extends Disposable implements IWorkbenchContribution {
@@ -195,7 +195,7 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 
 	private _getWindowOpenViewState(): ISessionsWindowOpenViewState {
 		const activeSession = this._focusedSessionHostService.focusedHost.get().session.get();
-		const isNewSessionView = !activeSession || !activeSession.isCreated.get();
+		const isNewSessionView = !activeSession || !isSessionCreated(activeSession);
 		if (!isNewSessionView) {
 			return {
 				workspacePreselected: undefined,

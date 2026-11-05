@@ -34,7 +34,7 @@ import { isAgentHostProvider } from '../../common/agentHostSessionsProvider.js';
 import { IsPhoneLayoutContext } from '../../common/contextkeys.js';
 import { isDevContainerWorktreeEnabled } from '../../common/devContainerAgentHostService.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
-import { ISessionFileChange, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../common/session.js';
+import { ISessionFileChange, isSessionCreated, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../common/session.js';
 import { IHostSession } from '../../common/sessionsManagement.js';
 import { ISessionsProvider } from '../../common/sessionsProvider.js';
 import { CHANGES_VIEW_ID } from '../../common/changes.js';
@@ -267,7 +267,7 @@ export class WorktreeSuggestionService extends Disposable implements IWorktreeSu
 		if (this._phoneLayout.read(reader)) {
 			return undefined;
 		}
-		if (session.isCreated.read(reader) || session.loading.read(reader)
+		if (isSessionCreated(session, reader) || session.loading.read(reader)
 			|| session.isNewSessionRequestInProgress?.read(reader) || session.isQuickChat?.read(reader)) {
 			return undefined;
 		}

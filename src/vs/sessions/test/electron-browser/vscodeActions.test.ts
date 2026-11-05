@@ -12,7 +12,7 @@ import { constObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { getChatSessionToOpenInEditor, openSessionInVSCode, returnToVSCodeEditor, shouldShowReturnToVSCodeEditor } from '../../electron-browser/actions/vscodeActions.js';
 import { IActiveSession } from '../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { IChat } from '../../../workbench/contrib/sessions/common/session.js';
+import { IChat, SessionStatus } from '../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostEntryType } from '../../../platform/agentHost/common/remoteAgentHostService.js';
 import { Codicon } from '../../../base/common/codicons.js';
@@ -311,6 +311,7 @@ function createSession(id: string, isCreated: boolean, folders?: URI[]): IActive
 		override readonly resource = URI.from({ scheme: 'test', path: `/${id}` });
 		override readonly providerId = 'test';
 		override readonly isCreated = constObservable(isCreated);
+		override readonly status = this.isCreated.map(created => created ? SessionStatus.Completed : SessionStatus.Untitled);
 		override readonly activeChat = constObservable(activeChat);
 	}();
 }

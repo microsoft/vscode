@@ -12,6 +12,7 @@ import { IAICustomizationWorkspaceService } from '../../../chat/common/aiCustomi
 import { isAgentHostSessionResource } from '../../../chat/common/chatSessionsService.js';
 import { IActiveSession } from '../../common/sessionsManagement.js';
 import { NewSessionBannerPriority, NewSessionBanners } from '../../common/newSessionBanners.js';
+import { isSessionCreated } from '../../common/session.js';
 
 export class NewChatMigrationNotice extends Disposable {
 	readonly element: HTMLElement;
@@ -28,7 +29,7 @@ export class NewChatMigrationNotice extends Disposable {
 		const context = derived<IChatCustomizationMigrationNoticeContext | undefined>(this, reader => {
 			const currentSession = session.read(reader);
 			if (!currentSession
-				|| currentSession.isCreated.read(reader)
+				|| isSessionCreated(currentSession, reader)
 				|| currentSession.loading.read(reader)
 				|| !isAgentHostSessionResource(currentSession.resource)) {
 				return undefined;

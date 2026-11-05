@@ -196,10 +196,11 @@ export function createTestActiveSession(sessionId: string, isCreated = true, lif
 		override readonly providerId = 'test';
 		override readonly sessionType = 'test';
 		override readonly title = constObservable('Session');
-		override readonly status = constObservable(SessionStatus.Completed);
+		override readonly isCreated = observableValue(this, isCreated);
+		// Created is what the status says: flipping `isCreated` flips it.
+		override readonly status = this.isCreated.map(created => created ? SessionStatus.Completed : SessionStatus.Untitled);
 		override readonly isRead = constObservable(true);
 		override readonly isArchived = constObservable(false);
-		override readonly isCreated = observableValue(this, isCreated);
 		override readonly sticky = constObservable(false);
 		override readonly workspace = constObservable(undefined);
 		override readonly capabilities: IObservable<ISessionCapabilities> = constObservable({ supportsMultipleChats: true });

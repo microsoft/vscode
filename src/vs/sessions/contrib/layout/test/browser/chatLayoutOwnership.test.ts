@@ -22,6 +22,7 @@ import { DesktopLayoutController } from '../../browser/desktopLayoutController.j
 import { EmptyFileEditorInput } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
 import { ChatLayoutOwnerKeyRegistry } from '../../browser/chatLayoutOwnerKeys.js';
 import { addPeerChat, createTestHarness, ICreateOptions, ITestLayoutHarness, makePaneComposite, makeSession, setActiveChat, TestStubEditorInput } from './layoutControllerTestUtils.js';
+import { withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 const SIDE_PANE_COMPOSITION_STORAGE_KEY = 'sessions.chatLayout.sidePaneComposition';
 const SIDE_PANE_PRE_HIDE_COMPOSITION_STORAGE_KEY = 'sessions.chatLayout.sidePanePreHideComposition';
@@ -616,7 +617,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 				await settle();
 				const isCreated = observableValue('created', quick);
 				const isQuickChat = observableValue('quick', quick);
-				const transient = { ...makeSession(URI.parse('session:conversion-transient')), isCreated, isQuickChat };
+				const transient = { ...makeSession(URI.parse('session:conversion-transient')), ...withCreatedStatus(isCreated), isQuickChat };
 				harness.visibleSessionsObs.set(multiple ? [existing, transient] : [transient], undefined);
 				harness.activeSessionObs.set(transient, undefined);
 				await settle();
@@ -1197,7 +1198,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 			test(`chat: docked-only draft submission preserves only the active transition (sameResource=${sameResource}, active=${activeAtSubmit})`, async () => {
 				createDesktopController({ chatLayoutMode: 'chat', activateAux: true });
 				const isCreated = observableValue('isCreated', false);
-				const draft = { ...makeSession(URI.parse('session:docked-draft'), { isCreated: false }), isCreated };
+				const draft = { ...makeSession(URI.parse('session:docked-draft'), { isCreated: false }), ...withCreatedStatus(isCreated) };
 				const other = makeSession(URI.parse('session:docked-other'));
 				harness.activeSessionObs.set(draft, undefined);
 				await settle();
@@ -1238,7 +1239,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		test(`chat: a session submitted with a closed pane explicitly reopens both areas (sameResource=${sameResource})`, async () => {
 			createDesktopController({ chatLayoutMode: 'chat', activateAux: true });
 			const isCreated = observableValue('isCreated', false);
-			const draft = { ...makeSession(URI.parse('session:closed-submit'), { isCreated: false }), isCreated };
+			const draft = { ...makeSession(URI.parse('session:closed-submit'), { isCreated: false }), ...withCreatedStatus(isCreated) };
 			harness.activeSessionObs.set(draft, undefined);
 			await settle();
 			setVisible(false, true);

@@ -27,7 +27,7 @@ import { ISendRequestOptions } from '../../../../../workbench/contrib/sessions/c
 import { INewSessionComposerService, NewSessionComposerService } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { FIRST_TIME_WINDOW_OPEN_DURATION_LIMIT_MS } from '../../browser/sessionsWindowOpenTelemetry.js';
 import { SessionsWorkspaceSelectionTelemetry } from '../../browser/sessionsWorkspaceSelectionTelemetry.js';
-import { ITestSessionsService, stubFocusedSessionHostFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionsService, stubFocusedSessionHostFromSessionsService, withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('SessionsWorkspaceSelectionTelemetry', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -69,7 +69,7 @@ suite('SessionsWorkspaceSelectionTelemetry', () => {
 			},
 			setReady(folderUri: URI) {
 				activeSession.set(upcastPartial<IActiveSession>({
-					isCreated: observableValue('created', false),
+					...withCreatedStatus(observableValue('created', false)),
 					loading: observableValue('loading', false),
 					workspace: observableValue<ISessionWorkspace>('workspace', {
 						uri: folderUri, label: 'workspace', icon: Codicon.folder,

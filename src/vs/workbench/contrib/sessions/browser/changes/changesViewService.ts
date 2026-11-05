@@ -16,8 +16,8 @@ import { bindContextKey } from '../../../../../platform/observable/common/platfo
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { getMainWindowHost, ISessionHost, ISessionHostService } from '../sessionHost.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
-import { BRANCH_CHANGES_CHANGESET_ID, IChat, ISession, ISessionChangeset, ISessionChangesetOperation, ISessionChangesSummary, ISessionFileChange, ISessionWorkspace, sessionFileChangesEqual, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope, SessionStatus } from '../../common/session.js';
-import { IActiveSession, IHostSession, ISessionsManagementService } from '../../common/sessionsManagement.js';
+import { BRANCH_CHANGES_CHANGESET_ID, IChat, ISession, ISessionChangeset, ISessionChangesetOperation, ISessionChangesSummary, ISessionFileChange, ISessionWorkspace, isSessionCreated, sessionFileChangesEqual, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope } from '../../common/session.js';
+import { IHostSession, ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, IAgentFeedbackService } from '../agentFeedback.js';
 import { AgentFeedbackState } from '../agentFeedbackModel.js';
 import { ICodeReviewService, PRReviewStateKind } from '../codeReviewService.js';
@@ -292,10 +292,7 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 		const reviewCommentCountByFileObs = this._getReviewComments(resourceObs);
 		const feedbackResourceObs = derived(reader => {
 			const session = sessionObs.read(reader);
-			// A session shown in a window is created once its status is not untitled; a session is, as the window shows it.
-			const isCreatedObs = (session as Partial<IActiveSession> | undefined)?.isCreated;
-			const isCreated = session && (isCreatedObs ? isCreatedObs.read(reader) : session.status.read(reader) !== SessionStatus.Untitled);
-			return !session || !isCreated ? AGENT_FEEDBACK_NEW_SESSION_RESOURCE : session.resource;
+			return !session || !isSessionCreated(session, reader) ? AGENT_FEEDBACK_NEW_SESSION_RESOURCE : session.resource;
 		});
 		const agentFeedbackCountByFileObs = this._getAgentFeedback(feedbackResourceObs);
 

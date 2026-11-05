@@ -32,7 +32,7 @@ import { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHo
 import { getSessionWorkspaceProperties } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { localize } from '../../../../../nls.js';
 import { IActiveSession, ICreateNewSessionOptions, ISendRequestOptions, ISessionsManagementService, WorkspaceNotTrustedError } from '../../common/sessionsManagement.js';
-import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB } from '../../common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, isSessionCreated, SESSION_WORKSPACE_GROUP_GITHUB } from '../../common/session.js';
 import { IOpenNewSessionResult, ISessionsService } from '../sessionsService.js';
 import { getMainWindowHost, ISessionHostService } from '../sessionHost.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
@@ -684,7 +684,7 @@ export class NewChatWidget extends Disposable {
 		return autorun(reader => {
 			changed.read(reader);
 			const session = this._session.read(reader);
-			if (session && !session.isCreated.read(reader) && !session.isNewSessionRequestInProgress?.read(reader)
+			if (session && !isSessionCreated(session, reader) && !session.isNewSessionRequestInProgress?.read(reader)
 				&& this._newChatInput.getInputValue().trim()) {
 				this.sessionsProvidersService.getProvider(session.providerId)?.prepareNewSessionWhileComposing?.(session.sessionId);
 			}
@@ -1222,7 +1222,7 @@ export class NewChatWidget extends Disposable {
 	 * host), so the draft is left alone.
 	 */
 	private _replaceDraftOnUnservableHarness(folderUri: URI, draft: IActiveSession): void {
-		if (draft.isCreated.get()) {
+		if (isSessionCreated(draft)) {
 			return;
 		}
 		const pick = { providerId: draft.providerId, sessionTypeId: draft.sessionType };
@@ -1368,7 +1368,7 @@ export class NewChatWidget extends Disposable {
 	private _recreateOnProviderChange(folderUri: URI, userPick: IPreferredSessionType | undefined, created: ISession | undefined): void {
 		if (created) {
 			const active = this._session.get();
-			if (active?.sessionId !== created.sessionId || active.isCreated.get()) {
+			if (active?.sessionId !== created.sessionId || isSessionCreated(active)) {
 				return; // the draft was sent or is no longer the active session
 			}
 			if (userPick) {
@@ -2260,7 +2260,7 @@ export class NewChatWidget extends Disposable {
 
 	private _isCurrentWorkspaceSelection(folderUri: URI | undefined): boolean {
 		const session = this._session.get();
-		if (!folderUri || !session || session.isCreated.get() || this._pendingWorkspaceCreation
+		if (!folderUri || !session || isSessionCreated(session) || this._pendingWorkspaceCreation
 			|| !this.uriIdentityService.extUri.isEqual(session.workspace.get()?.folders[0]?.root, folderUri)
 			|| this._workspacePicker.selectedResolved?.providerId !== session.providerId) {
 			return false;

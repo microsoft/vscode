@@ -40,7 +40,7 @@ import {
 	SessionActiveChatCanvasReferenceKeysContext,
 	SessionHasGitRepositoryContext,
 } from './contextkeys.js';
-import { ChatOriginKind, getChatCapabilities, IChat, isActiveSessionStatus, isSideChatOf, ISession, SessionStatus } from './session.js';
+import { ChatOriginKind, getChatCapabilities, IChat, isActiveSessionStatus, isSessionCreated, isSideChatOf, ISession, SessionStatus } from './session.js';
 import { ISessionChangesStatsCache, readChatChangesStats, readSessionChangesStats } from './sessionChangesStatsCache.js';
 import { IActiveSession, IHostSession } from './sessionsManagement.js';
 
@@ -219,7 +219,7 @@ export function setHostSessionContextKeys(session: IHostSession | undefined, cha
 	contextKeyService.bufferChangeEvents(() => {
 		setSessionContextKeysUnbuffered(session, contextKeyService, reader, changesStatsCache);
 		const keys = getBoundKeys(contextKeyService);
-		keys.isCreated.set(session?.isCreated.read(reader) ?? false);
+		keys.isCreated.set(isSessionCreated(session, reader));
 		keys.sticky.set(session?.sticky.read(reader) ?? false);
 		const focusedChat = chat;
 		const activeChatStats = focusedChat ? readChatChangesStats(focusedChat, reader) : undefined;

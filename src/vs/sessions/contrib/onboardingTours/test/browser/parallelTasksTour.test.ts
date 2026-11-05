@@ -199,7 +199,7 @@ suite('ParallelTasksTour', () => {
 				case 'completed': session.status.set(SessionStatus.Completed, undefined); break;
 				case 'archived': session.isArchived.set(true, undefined); break;
 				case 'automation': session.isAutomation.set(true, undefined); break;
-				case 'draft': session.isCreated.set(false, undefined); break;
+				case 'draft': session.status.set(SessionStatus.Untitled, undefined); break;
 				case 'navigatedAway': activeSession.set(createSession('other').session, undefined); break;
 				case 'disposed': contribution.dispose(); break;
 			}
