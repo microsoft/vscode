@@ -24,12 +24,14 @@ suite('Sessions - Sign-In Dialog', () => {
 		assert.deepStrictEqual({
 			required: {
 				disableCloseButton: required.disableCloseButton,
+				autoDismissOnSignIn: required.autoDismissOnSignIn,
 				allowContinueWithoutSignIn: required.allowContinueWithoutSignIn,
 				hasFooter: required.renderDialogFooter !== undefined,
 				hasDismissHandler: required.onDidDismissDialog !== undefined,
 			},
 			optional: {
 				disableCloseButton: optional.disableCloseButton,
+				autoDismissOnSignIn: optional.autoDismissOnSignIn,
 				allowContinueWithoutSignIn: optional.allowContinueWithoutSignIn,
 				hasFooter: optional.renderDialogFooter !== undefined,
 				continueCount,
@@ -37,12 +39,14 @@ suite('Sessions - Sign-In Dialog', () => {
 		}, {
 			required: {
 				disableCloseButton: true,
+				autoDismissOnSignIn: true,
 				allowContinueWithoutSignIn: false,
 				hasFooter: false,
 				hasDismissHandler: false,
 			},
 			optional: {
 				disableCloseButton: false,
+				autoDismissOnSignIn: true,
 				allowContinueWithoutSignIn: true,
 				hasFooter: false,
 				continueCount: 1,

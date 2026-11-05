@@ -63,13 +63,43 @@
 	font-size: var(--vscode-codiconFontSize-compact, 12px);
 }
 
-/* Connect indicator: independent control sitting next to the picker
- * button. Square-ish 26px hit target aligned with the row height. */
+/* Passive connection status sitting next to the picker. */
 .agent-host-filter-combo.sidebar .agent-host-filter-connect {
 	flex: 0 0 auto;
 	margin-left: 0;
 	width: 26px;
 	height: 26px;
+}
+
+.agent-host-filter-combo .agent-host-filter-diagnostics {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex: 0 0 auto;
+	width: 22px;
+	height: 22px;
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--vscode-descriptionForeground);
+	cursor: pointer;
+}
+
+.agent-host-filter-combo.sidebar .agent-host-filter-diagnostics {
+	width: 26px;
+	height: 26px;
+}
+
+.agent-host-filter-combo .agent-host-filter-diagnostics .codicon {
+	font-size: var(--vscode-codiconFontSize);
+}
+
+.agent-host-filter-combo .agent-host-filter-diagnostics:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-foreground);
+}
+
+.agent-host-filter-combo .agent-host-filter-diagnostics:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
 /* --- Dropdown pill ------------------------------------------------------ */
@@ -140,7 +170,7 @@
 	display: none;
 }
 
-/* --- Connection button (right edge) ------------------------------------- */
+/* --- Passive connection status ------------------------------------------ */
 
 .agent-host-filter-combo .agent-host-filter-connect {
 	display: flex;
@@ -150,11 +180,9 @@
 	margin-left: auto;
 	width: 22px;
 	height: 22px;
-	border-radius: var(--vscode-cornerRadius-small);
-	cursor: pointer;
-	touch-action: manipulation;
 	-webkit-user-select: none;
 	user-select: none;
+	pointer-events: none;
 }
 
 .agent-host-filter-combo .agent-host-filter-connect.hidden {
@@ -180,19 +208,6 @@
 
 .agent-host-filter-combo .agent-host-filter-connect.rediscover .codicon {
 	color: var(--vscode-descriptionForeground);
-}
-
-.agent-host-filter-combo .agent-host-filter-connect:hover {
-	background-color: var(--vscode-toolbar-hoverBackground);
-}
-
-.agent-host-filter-combo .agent-host-filter-connect:hover .codicon {
-	color: var(--vscode-foreground);
-}
-
-.agent-host-filter-combo .agent-host-filter-connect:focus-visible {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px;
 }
 
 @keyframes agent-host-filter-pulse {

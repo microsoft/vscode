@@ -18,6 +18,7 @@ import { localize } from '../../../nls.js';
  * every level is present.
  */
 export const reasoningEffortLevels = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'] as const;
+export const ReasoningEffortConfigKey = 'thinkingLevel';
 
 /**
  * Union of every reasoning-effort / thinking-level value surfaced by any
@@ -83,9 +84,19 @@ export function getReasoningEffortDescription(level: string): string | undefined
 }
 
 /**
+ * Whether Anthropic's default effort for a Claude model is `'medium'` rather than `'high'`:
+ * Claude Opus 5.5 and Claude Haiku 5.5 (e.g. `claude-opus-5.5`, `claude-haiku-5-5-20260101`).
+ * See https://platform.claude.com/docs/en/build-with-claude/effort.
+ */
+function isMediumEffortDefaultClaudeModel(modelId: string | undefined): boolean {
+	return !!modelId && /^claude-(?:opus|haiku)-5[.-]5(?![.\d])/.test(modelId.toLowerCase());
+}
+
+/**
  * Resolve the default reasoning effort for a model so the picker never renders an
- * `undefined` selection. Prefers the declared default, then `'high'` for Claude/Kimi K3
- * and `'medium'` otherwise, then the first supported level.
+ * `undefined` selection. Prefers the declared default, then `'medium'` for Claude Opus/Haiku 5.5,
+ * `'high'` for other Claude/Kimi K3 models and `'medium'` otherwise, then the first supported level.
+ * Mirrors the Copilot extension's `pickDefaultReasoningEffort`.
  */
 export function resolveDefaultReasoningEffort(supportedEfforts: readonly string[] | undefined, declaredDefault?: string, modelId?: string): string | undefined {
 	if (!supportedEfforts?.length) {
@@ -95,6 +106,6 @@ export function resolveDefaultReasoningEffort(supportedEfforts: readonly string[
 		return declaredDefault;
 	}
 	const lowerId = modelId?.toLowerCase() ?? '';
-	const preferred = lowerId.startsWith('claude') || lowerId.includes('kimi-k3') ? 'high' : 'medium';
+	const preferred = !isMediumEffortDefaultClaudeModel(lowerId) && (lowerId.startsWith('claude') || lowerId.includes('kimi-k3')) ? 'high' : 'medium';
 	return supportedEfforts.includes(preferred) ? preferred : supportedEfforts[0];
 }

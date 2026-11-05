@@ -5,26 +5,37 @@
 
 import * as assert from 'assert';
 import * as cp from 'child_process';
+import { randomUUID } from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
-import { Application, ApplicationOptions, Logger } from '../../../../automation';
-import { createApp, dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, getMockLlmServerUrl, installAppAfterHandler, installDiagnosticsHandler, MockLlmServer, suiteCrashPath, suiteLogsPath } from '../../utils';
+import { Application, ApplicationOptions, Logger, Quality } from '../../../../automation';
+import { createApp, dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, getMockLlmServerUrl, installAppAfterHandler, installDiagnosticsHandler, latestUserInputCarriesTag, MockLlmServer, preseedChatExtensionEnablement, suiteCrashPath, suiteLogsPath } from '../../utils';
 import { shellEchoResponseMatcher, shellEchoScenario } from '../chat/shellScenarios';
+import { createRemoteDevContainerFixture, getDevContainerCliInstallCommand, getTunnelSmokeTestAvailability, IRemoteDevContainerFixture, RemoteDevContainerTransport } from './remoteDevContainerFixtures';
 
 // Selector for the send button in the Agents Window new-session homepage.
 // Kept in sync with `SEND_BUTTON_ENABLED` in `test/automation/src/agentsWindow.ts`
 // (without the `:not(.disabled)` filter so we can observe the disabled state).
-const AGENTS_SEND_BUTTON_SELECTOR = '.sessions-chat-widget .new-chat-widget-container .sessions-chat-send-button .monaco-button';
+const AGENTS_SEND_BUTTON_SELECTOR = '.sessions-chat-widget .new-chat-widget-container .sessions-shared-chat-input .chat-execute-toolbar .action-item.chat-submit-button';
 const NETWORK_PROXY_HEADER_NAME = 'X-VSCode-Smoke-Proxy';
 
 function mockServerStartOptions(logger: (message: string) => void, captureRequests = false) {
 	const requiredRequestHeaderValue = process.env.VSCODE_SMOKE_TEST_PROXY_HEADER;
+	const certificatePath = process.env.VSCODE_SMOKE_TEST_MOCK_CERT;
+	const keyPath = process.env.VSCODE_SMOKE_TEST_MOCK_KEY;
+	if (!!certificatePath !== !!keyPath) {
+		throw new Error('Mock HTTPS requires both VSCODE_SMOKE_TEST_MOCK_CERT and VSCODE_SMOKE_TEST_MOCK_KEY');
+	}
 	return {
 		logger,
 		verbose: true,
 		captureRequests,
 		requiredRequestHeader: requiredRequestHeaderValue ? { name: NETWORK_PROXY_HEADER_NAME, value: requiredRequestHeaderValue } : undefined,
 		trustedRequestHost: requiredRequestHeaderValue ? process.env.VSCODE_SMOKE_TEST_MOCK_HOST : undefined,
+		tls: certificatePath && keyPath ? {
+			cert: fs.readFileSync(certificatePath, 'utf8'),
+			key: fs.readFileSync(keyPath, 'utf8'),
+		} : undefined,
 	};
 }
 
@@ -44,6 +55,45 @@ const AGENT_HOST_REPLACEMENT_SCENARIO_ID = 'smoke-agent-host-session-replacement
 const AGENT_HOST_REPLACEMENT_REPLY = 'MOCKED_AGENT_HOST_REPLACEMENT_RESPONSE';
 const DEV_CONTAINER_SCENARIO_ID = 'smoke-dev-container-agent-host';
 
+function prepareDevContainerWorkspace(workspacePath: string, port: number, options: ApplicationOptions): void {
+	const configDirectory = path.join(workspacePath, '.devcontainer');
+	const mockServerUrl = `http://vscode-smoke.test:${port}`;
+	fs.mkdirSync(configDirectory, { recursive: true });
+	fs.writeFileSync(path.join(configDirectory, 'devcontainer.json'), JSON.stringify({
+		name: 'Agents Window Smoke',
+		image: 'mcr.microsoft.com/devcontainers/base:ubuntu-24.04',
+		remoteUser: 'vscode',
+		runArgs: ['--add-host=vscode-smoke.test:host-gateway'],
+		containerEnv: {
+			COPILOT_API_URL: mockServerUrl,
+			COPILOT_DEBUG_GITHUB_API_URL: mockServerUrl,
+			GITHUB_COPILOT_API_TOKEN: 'smoketest-fake-agent-host-token',
+			VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE: mockServerUrl,
+			VSCODE_SMOKE_TEST_PROXY_HEADER: process.env.VSCODE_SMOKE_TEST_PROXY_HEADER ?? 'dev-container',
+		},
+		postCreateCommand: getDevContainerCliInstallCommand(options.codePath),
+	}, null, 2));
+}
+
+function removeDevContainerConfiguration(workspacePath: string): void {
+	fs.rmSync(path.join(workspacePath, '.devcontainer'), { recursive: true, force: true });
+}
+
+function cleanupDevContainerWorkspace(workspacePath: string): void {
+	removeDevContainerConfiguration(workspacePath);
+	removeDevContainer(workspacePath);
+}
+
+function removeDevContainer(workspacePath: string): number {
+	// URI.fsPath normalizes the Windows drive letter in the container label.
+	const labeledPath = process.platform === 'win32' ? workspacePath.replace(/^[A-Z]:/, drive => drive.toLowerCase()) : workspacePath;
+	const containerIds = cp.execFileSync('docker', ['ps', '-aq', '--filter', `label=devcontainer.local_folder=${labeledPath}`], { encoding: 'utf8' }).trim().split(/\s+/).filter(Boolean);
+	if (containerIds.length > 0) {
+		cp.execFileSync('docker', ['rm', '--force', ...containerIds], { stdio: 'pipe' });
+	}
+	return containerIds.length;
+}
+
 const AGENT_HOST_SDK_SANDBOX_SCENARIO_ID = 'smoke-hello-agent-host-sdk-sandbox';
 const AGENT_HOST_SDK_SANDBOX_REPLY = 'MOCKED_AGENT_HOST_SDK_SANDBOX_RESPONSE';
 
@@ -53,28 +103,45 @@ const AGENT_HOST_SDK_SANDBOX_REPLY = 'MOCKED_AGENT_HOST_SDK_SANDBOX_RESPONSE';
 const AGENT_HOST_WARMUP_SCENARIO_ID = 'smoke-hello-agent-host-warmup';
 const AGENT_HOST_WARMUP_REPLY = 'MOCKED_AGENT_HOST_WARMUP_RESPONSE';
 
-function probeLinuxDocker(): { readonly available: boolean; readonly reason?: string } {
-	const result = cp.spawnSync('docker', ['info', '--format', '{{.OSType}}'], {
-		encoding: 'utf8',
-		timeout: 15_000,
-		windowsHide: true,
+const DOCKER_PROBE_TIMEOUT_MS = 60_000;
+
+function probeLinuxDocker(): Promise<{ readonly available: boolean; readonly reason?: string }> {
+	return new Promise(resolve => {
+		cp.execFile('docker', ['info', '--format', '{{.OSType}}'], {
+			encoding: 'utf8',
+			timeout: DOCKER_PROBE_TIMEOUT_MS,
+			windowsHide: true,
+		}, (error, stdout, stderr) => {
+			const operatingSystem = stdout.trim().toLowerCase();
+			resolve(!error && operatingSystem === 'linux'
+				? { available: true }
+				: {
+					available: false,
+					reason: error?.message
+						?? (stderr.trim() || undefined)
+						?? `Docker daemon reports '${operatingSystem || 'unknown'}' containers`,
+				});
+		});
 	});
-	const operatingSystem = result.stdout?.trim().toLowerCase() ?? '';
-	if (result.status === 0 && operatingSystem === 'linux') {
-		return { available: true };
-	}
-	const stderr = result.stderr?.trim() ?? '';
-	return {
-		available: false,
-		reason: result.error?.message
-			?? (stderr || undefined)
-			?? (operatingSystem
-				? `Docker daemon reports '${operatingSystem}' containers`
-				: `docker info exited with code ${result.status ?? 'unknown'}`),
-	};
 }
 
-export function setup(logger: Logger) {
+function installDockerPrerequisite(logger: Logger, required: boolean): void {
+	before('check Linux Docker availability', async function () {
+		this.timeout(DOCKER_PROBE_TIMEOUT_MS + 15_000);
+		const label = this.test?.parent?.title ?? 'Dev Container';
+		const start = Date.now();
+		logger.log(`${label}: checking Linux Docker availability (timeout ${DOCKER_PROBE_TIMEOUT_MS}ms)`);
+		const docker = await probeLinuxDocker();
+		logger.log(`${label}: Docker probe completed in ${Date.now() - start}ms: ${docker.available ? 'available' : docker.reason}`);
+		if (!docker.available && !required) {
+			logger.log(`Skipping ${label}: ${docker.reason}`);
+			this.skip();
+		}
+		assert.ok(docker.available, `Expected a reachable Linux Docker daemon: ${docker.reason}`);
+	});
+}
+
+export function setup(logger: Logger, quality: Quality) {
 
 	describe('Agents Window (local AgentHost)', () => {
 
@@ -93,11 +160,24 @@ export function setup(logger: Logger) {
 			const app = this.app as Application;
 
 			try {
+				const requestsBefore = agentHost.mockServer.getRequests().length;
+				const requestTag = `[proxy-request:${randomUUID()}]`;
+				const worktreesBefore = process.env.VSCODE_SMOKE_TEST_PROXY_HEADER
+					? cp.execFileSync('git', ['worktree', 'list', '--porcelain'], { cwd: app.workspacePathOrFolder, encoding: 'utf8' })
+					: undefined;
 				await app.workbench.agentsWindow.waitForNewSessionView();
 				await app.workbench.agentsWindow.selectSessionType('Copilot');
-				await app.workbench.agentsWindow.submitNewSessionPrompt(`replace the new session UI [scenario:${AGENT_HOST_REPLACEMENT_SCENARIO_ID}]`);
+				await app.workbench.agentsWindow.submitNewSessionPrompt(`replace the new session UI [scenario:${AGENT_HOST_REPLACEMENT_SCENARIO_ID}] ${requestTag}`);
 				await app.workbench.agentsWindow.waitForActiveSessionView();
 				await app.workbench.agentsWindow.waitForAssistantText(AGENT_HOST_REPLACEMENT_REPLY);
+				if (process.env.VSCODE_SMOKE_TEST_PROXY_HEADER) {
+					await waitForPromptRequest(agentHost.mockServer, requestsBefore, requestTag);
+					assert.strictEqual(
+						cp.execFileSync('git', ['worktree', 'list', '--porcelain'], { cwd: app.workspacePathOrFolder, encoding: 'utf8' }),
+						worktreesBefore,
+						'Expected authenticated prompt validation without creating a worktree'
+					);
+				}
 				await app.workbench.agentsWindow.startNewSession();
 			} catch (error) {
 				logger.log(`Agents Window (AgentHost replacement) FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
@@ -148,17 +228,12 @@ export function setup(logger: Logger) {
 
 	});
 
-	const linuxDocker = probeLinuxDocker();
-	const runDevContainerSuite = linuxDocker.available || process.platform === 'linux';
-	if (!linuxDocker.available) {
-		logger.log(process.platform === 'linux'
-			? `Linux Docker probe failed: ${linuxDocker.reason}`
-			: `Skipping Agents Window (Dev Container AgentHost): ${linuxDocker.reason}`);
+	const runDevContainerSuite = quality !== Quality.Exploration;
+	if (!runDevContainerSuite) {
+		logger.log('Skipping Agents Window (Dev Container AgentHost) on Exploration builds');
 	}
 	(runDevContainerSuite ? describe : describe.skip)('Agents Window (Dev Container AgentHost)', () => {
-		if (process.platform === 'linux') {
-			before(() => assert.ok(linuxDocker.available, `Expected a reachable Linux Docker daemon: ${linuxDocker.reason}`));
-		}
+		installDockerPrerequisite(logger, process.platform === 'linux');
 
 		const devContainer = setupAgentHostSuite(logger, {
 			serverLabel: 'Dev Container AgentHost',
@@ -170,49 +245,16 @@ export function setup(logger: Logger) {
 				'chat.agentHost.devContainer.enabled': true,
 				'chat.agentHost.devContainer.worktree.enabled': false,
 				'chat.remoteAgentHostsEnabled': true,
+				// The Agent Host in a local container resolves proxies through this client. The mock CAPI host only
+				// resolves inside the container, so a proxy configured on the CI machine cannot reach it.
+				'http.useLocalProxyConfiguration': false,
 			},
-			prepareWorkspace: workspacePath => {
-				const configDirectory = path.join(workspacePath, '.devcontainer');
-				const mockServerUrl = `http://vscode-smoke.test:${devContainer.mockServer.port}`;
-				fs.mkdirSync(configDirectory, { recursive: true });
-				fs.writeFileSync(path.join(configDirectory, 'devcontainer.json'), JSON.stringify({
-					name: 'Agents Window Smoke',
-					image: 'mcr.microsoft.com/devcontainers/base:ubuntu-24.04',
-					remoteUser: 'vscode',
-					runArgs: ['--add-host=vscode-smoke.test:host-gateway'],
-					containerEnv: {
-						COPILOT_API_URL: mockServerUrl,
-						COPILOT_DEBUG_GITHUB_API_URL: mockServerUrl,
-						GITHUB_COPILOT_API_TOKEN: 'smoketest-fake-agent-host-token',
-						VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE: mockServerUrl,
-						VSCODE_SMOKE_TEST_PROXY_HEADER: 'dev-container',
-					},
-					postCreateCommand: [
-						'set -e',
-						'case "$(uname -m)" in x86_64) cli_arch=x64 ;; aarch64|arm64) cli_arch=arm64 ;; *) exit 1 ;; esac',
-						'mkdir -p ~/.vscode-cli-insider',
-						'curl -fsSL "https://update.code.visualstudio.com/latest/cli-linux-${cli_arch}/insider" | tar xz -C ~/.vscode-cli-insider',
-						'chmod +x ~/.vscode-cli-insider/code-insiders',
-					].join(' && '),
-				}, null, 2));
-			},
-			cleanupWorkspace: workspacePath => {
-				fs.rmSync(path.join(workspacePath, '.devcontainer'), { recursive: true, force: true });
-				const containerIds = cp.execFileSync('docker', [
-					'ps',
-					'-aq',
-					'--filter',
-					`label=devcontainer.local_folder=${workspacePath}`,
-				], { encoding: 'utf8' }).trim().split(/\s+/).filter(Boolean);
-				if (containerIds.length > 0) {
-					cp.execFileSync('docker', ['rm', '--force', ...containerIds], { stdio: 'pipe' });
-				}
-			},
+			prepareWorkspace: (workspacePath, options) => prepareDevContainerWorkspace(workspacePath, devContainer.mockServer.port, options),
+			cleanupWorkspace: cleanupDevContainerWorkspace,
 		});
 
 		it('Starts a session in a Dev Container', async function () {
 			this.timeout(10 * 60 * 1000);
-			cp.execFileSync('docker', ['info'], { stdio: 'pipe' });
 			const app = this.app as Application;
 
 			try {
@@ -220,9 +262,16 @@ export function setup(logger: Logger) {
 				await app.workbench.agentsWindow.waitForNewSessionView();
 				await app.workbench.agentsWindow.selectSessionType('Copilot');
 				await app.workbench.agentsWindow.selectDevContainer();
-				await app.workbench.agentsWindow.submitNewSessionPrompt(`start Dev Container [scenario:${DEV_CONTAINER_SCENARIO_ID}]`, 1_800);
+				const prompt = `start Dev Container [scenario:${DEV_CONTAINER_SCENARIO_ID}]`;
+				await app.workbench.agentsWindow.submitNewSessionPrompt(prompt, 1_800);
+				await app.workbench.agentsWindow.waitForSessionPreparation(prompt);
+				await app.workbench.agentsWindow.showSessionPreparationLog();
+				await app.workbench.agentsWindow.cancelSessionPreparation(prompt);
+				await app.workbench.agentsWindow.retrySessionPreparation();
+				await app.workbench.agentsWindow.waitForSessionPreparation(prompt);
 				await app.workbench.agentsWindow.waitForActiveSessionView(5 * 60 * 1000);
 				const text = await app.workbench.agentsWindow.waitForAssistantText('OK', 2 * 60 * 1000);
+				await app.workbench.agentsWindow.verifyInputEnabledAfterPreparation();
 				logger.log(`Agents Window (Dev Container AgentHost) response: ${text}`);
 				assert.ok(
 					devContainer.mockServer.requestCount() > requestsBefore,
@@ -243,9 +292,214 @@ export function setup(logger: Logger) {
 					30_000,
 				);
 				assert.match(rendererLogs, /\[AgentHost\] _invokeAgent called for resource: remote-devcontainer__/);
+
+				await app.workbench.agentsWindow.startNewSession();
+				await app.workbench.agentsWindow.selectDevContainer();
+				await app.workbench.agentsWindow.selectSessionType('Copilot');
+				assert.strictEqual(removeDevContainer(app.workspacePathOrFolder), 1, 'Expected to remove the fixture container');
+				await waitForLogContent(
+					() => readRendererLogs(devContainer.logsPath),
+					/\[RemoteAgentHostProtocol\] Reconnecting to devcontainer:/,
+					30_000,
+				);
+				const requestsBeforeReconnect = devContainer.mockServer.requestCount();
+				const reconnectPrompt = `join reconnecting Dev Container [scenario:${DEV_CONTAINER_SCENARIO_ID}]`;
+				await app.workbench.agentsWindow.submitNewSessionPrompt(reconnectPrompt, 1_800);
+				await app.workbench.agentsWindow.waitForSessionPreparation(reconnectPrompt);
+				await app.workbench.agentsWindow.waitForAssistantText('OK', 5 * 60 * 1000);
+				assert.ok(devContainer.mockServer.requestCount() > requestsBeforeReconnect, 'Expected a request after joining the automatic reconnect');
 			} catch (error) {
 				logger.log(`Agents Window (Dev Container AgentHost) FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
 				await dumpFailureDiagnostics(app, logger, 'Agents Window (Dev Container AgentHost)', { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
+				throw error;
+			}
+		});
+	});
+
+	for (const transport of ['ssh', 'tunnel', 'wsl'] as const) {
+		const label = transport === 'ssh' ? 'SSH' : transport === 'wsl' ? 'WSL' : 'Tunnel';
+		const isCI = !!process.env.CI || !!process.env.TF_BUILD;
+		const required = transport === 'wsl' && process.env.VSCODE_SMOKE_TEST_WSL_REQUIRED === '1';
+		const supportedPlatform = transport === 'wsl' ? process.platform === 'win32' : process.platform !== 'win32' && (!isCI || process.platform === 'linux');
+		const requested = transport === 'ssh' || (transport === 'wsl' ? !!process.env.VSCODE_SMOKE_TEST_WSL_DISTRO : !!process.env.VSCODE_SMOKE_TEST_TUNNEL_TOKEN);
+		const enabled = runDevContainerSuite && (required || (supportedPlatform && requested));
+		if (!enabled) {
+			logger.log(`Skipping Agents Window (${label} Dev Container AgentHost): ${!runDevContainerSuite ? 'not supported on Exploration builds' : !supportedPlatform ? 'unsupported platform' : transport === 'wsl' ? 'set VSCODE_SMOKE_TEST_WSL_DISTRO to enable the WSL fixture' : 'set VSCODE_SMOKE_TEST_TUNNEL_TOKEN to enable the real tunnel fixture'}`);
+		}
+		(enabled ? describe : describe.skip)(`Agents Window (${label} Dev Container AgentHost)`, () => {
+			if (transport !== 'wsl') {
+				installDockerPrerequisite(logger, process.platform === 'linux' || transport === 'tunnel');
+			}
+			before(() => {
+				if (required) {
+					assert.ok(supportedPlatform, 'Required WSL smoke tests need Windows.');
+					assert.ok(process.env.VSCODE_SMOKE_TEST_WSL_DISTRO, 'Required WSL smoke tests need VSCODE_SMOKE_TEST_WSL_DISTRO from successful provisioning.');
+					assert.ok(process.env.VSCODE_SMOKE_TEST_WSL_SERVER_PATH, 'Required WSL smoke tests need VSCODE_SMOKE_TEST_WSL_SERVER_PATH from successful provisioning.');
+				}
+				if (transport === 'tunnel') {
+					const availability = getTunnelSmokeTestAvailability();
+					assert.ok(availability.available, availability.reason);
+				}
+			});
+			const scenario = `${DEV_CONTAINER_SCENARIO_ID}-${transport}`;
+			const reply = `DEV_CONTAINER_${label.toUpperCase()}_RESPONSE`;
+			const context = setupAgentHostSuite(logger, {
+				serverLabel: `${label} Dev Container AgentHost`,
+				mockServerHost: '0.0.0.0',
+				remoteTransport: transport,
+				registerScenarios: ({ ScenarioBuilder, registerScenario }) => registerScenario(scenario, new ScenarioBuilder().emit(reply).build()),
+				settings: {
+					'chat.agentHost.devContainer.enabled': true,
+					'chat.agentHost.devContainer.worktree.enabled': false,
+					'chat.remoteAgentHostsEnabled': true,
+				},
+				prepareWorkspace: (workspacePath, options) => prepareDevContainerWorkspace(workspacePath, context.mockServer.port, options),
+				// The WSL fixture removes its container from the Docker daemon in WSL, and the Windows host
+				// may have no Docker daemon of its own.
+				cleanupWorkspace: transport === 'wsl' ? removeDevContainerConfiguration : cleanupDevContainerWorkspace,
+			});
+
+			it(`Starts and reopens a Dev Container session over ${label}`, async function () {
+				this.timeout(10 * 60 * 1000);
+				const app = this.app as Application;
+				const fixture = context.remoteFixture;
+				assert.ok(fixture, 'Expected the remote connection fixture');
+				const workspacePath = fixture.workspacePath ?? app.workspacePathOrFolder;
+				const workspaceLabel = `${path.basename(workspacePath)} [${fixture.name}]`;
+				const prompt = `start ${label} Dev Container [scenario:${scenario}]`;
+				try {
+					await app.workbench.agentsWindow.waitForNewSessionView();
+					if (transport === 'ssh') {
+						assert.ok(fixture.ssh);
+						await app.workbench.agentsWindow.connectSSHHost({ ...fixture.ssh, name: fixture.name }, workspacePath);
+					} else if (transport === 'wsl') {
+						await app.workbench.agentsWindow.connectWSLHost(fixture.name, workspacePath);
+					} else {
+						await app.workbench.agentsWindow.connectTunnelHost(fixture.name, workspacePath);
+					}
+					await app.workbench.agentsWindow.selectSessionType('Copilot', { providerLabel: fixture.name });
+					await app.workbench.agentsWindow.selectDevContainer(workspaceLabel);
+					const requestsBefore = context.mockServer.requestCount();
+					await app.workbench.agentsWindow.submitNewSessionPrompt(prompt, 1_800);
+					await app.workbench.agentsWindow.waitForSessionPreparation(prompt);
+					await app.workbench.agentsWindow.waitForActiveSessionView(5 * 60 * 1000);
+					await app.workbench.agentsWindow.waitForAssistantText(reply, 2 * 60 * 1000);
+					assert.ok(context.mockServer.requestCount() > requestsBefore, 'Expected a new request at the mock LLM server');
+					await assertRemoteDevContainerRouting(context.logsPath, transport, workspacePath, reply);
+					await fixture.verifyMockServerRouting?.();
+					await app.workbench.agentsWindow.startNewSession();
+					await app.workbench.agentsWindow.activateSessionByLabel([prompt, reply], reply, 60_000);
+					await app.workbench.agentsWindow.waitForAssistantText(reply);
+				} catch (error) {
+					logger.log(`Agents Window (${label} Dev Container) FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+					if (fixture.dumpConnectionDiagnostics) {
+						let uiState: string;
+						try {
+							uiState = await app.workbench.agentsWindow.getRemoteConnectionDiagnostics();
+						} catch (diagnosticError) {
+							uiState = `UI state unavailable: ${diagnosticError instanceof Error ? diagnosticError.message : String(diagnosticError)}`;
+						}
+						try {
+							await fixture.dumpConnectionDiagnostics(uiState);
+						} catch (diagnosticError) {
+							const message = `Agents Window (${label} Dev Container) connection diagnostics failed: ${diagnosticError instanceof Error ? diagnosticError.message : String(diagnosticError)}`;
+							logger.log(message);
+							console.error(message);
+						}
+					}
+					await dumpFailureDiagnostics(app, logger, `Agents Window (${label} Dev Container)`, { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
+					throw error;
+				}
+			});
+		});
+	}
+
+	// Run by test/smoke/scripts/run-agents-window-wsl-kerberos-proxy.ps1, which provisions the WSL KDC and proxy, the
+	// Windows Kerberos realm, CA and PAC, and launches the smoke tests with the realm credentials.
+	const wslKerberosProxyScheme = process.platform === 'win32' ? process.env.VSCODE_SMOKE_TEST_WSL_KERBEROS_PROXY : undefined;
+	if (!wslKerberosProxyScheme) {
+		logger.log('Skipping the WSL AgentHost Kerberos proxy suites: run test/smoke/scripts/run-agents-window-wsl-kerberos-proxy.ps1 on Windows');
+	}
+	(wslKerberosProxyScheme ? describe : describe.skip)('Agents Window (WSL AgentHost, Kerberos proxy)', () => {
+		const scenario = 'smoke-wsl-kerberos-proxy-agent-host';
+		const reply = 'WSL_KERBEROS_PROXY_RESPONSE';
+		const context = setupAgentHostSuite(logger, {
+			serverLabel: 'WSL Kerberos proxy AgentHost',
+			mockServerHost: '0.0.0.0',
+			remoteTransport: 'wsl',
+			wslClientProxy: 'agentHost',
+			registerScenarios: ({ ScenarioBuilder, registerScenario }) => registerScenario(scenario, new ScenarioBuilder().emit(reply).build()),
+			settings: {
+				'chat.remoteAgentHostsEnabled': true,
+			},
+		});
+
+		it('Uses the Windows proxy, Kerberos ticket and certificates from a WSL AgentHost', async function () {
+			this.timeout(10 * 60 * 1000);
+			const app = this.app as Application;
+			const fixture = context.remoteFixture;
+			assert.ok(fixture, 'Expected the WSL connection fixture');
+			const requestTag = `[proxy-request:${randomUUID()}]`;
+			try {
+				await app.workbench.agentsWindow.waitForNewSessionView();
+				await app.workbench.agentsWindow.connectWSLHost(fixture.name, fixture.workspacePath ?? app.workspacePathOrFolder, '.git');
+				await app.workbench.agentsWindow.selectSessionType('Copilot', { providerLabel: fixture.name });
+				const requestsBefore = context.mockServer.getRequests().length;
+				await app.workbench.agentsWindow.submitNewSessionPrompt(`hello through the Windows proxy [scenario:${scenario}] ${requestTag}`);
+				await app.workbench.agentsWindow.waitForActiveSessionView(5 * 60 * 1000);
+				await app.workbench.agentsWindow.waitForAssistantText(reply, 2 * 60 * 1000);
+				await waitForPromptRequest(context.mockServer, requestsBefore, requestTag);
+				await fixture.verifyMockServerRouting?.();
+				await assertClientNetworkServed(context.logsPath, 'wsl', wslKerberosProxyScheme === 'https' ? 'HTTPS' : 'PROXY');
+			} catch (error) {
+				logger.log(`Agents Window (WSL Kerberos proxy) FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+				if (fixture.dumpConnectionDiagnostics) {
+					try {
+						await fixture.dumpConnectionDiagnostics(await app.workbench.agentsWindow.getRemoteConnectionDiagnostics());
+					} catch (diagnosticError) {
+						logger.log(`Agents Window (WSL Kerberos proxy) connection diagnostics failed: ${diagnosticError instanceof Error ? diagnosticError.message : String(diagnosticError)}`);
+					}
+				}
+				await dumpFailureDiagnostics(app, logger, 'Agents Window (WSL Kerberos proxy)', { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
+				throw error;
+			}
+		});
+	});
+
+	// The same environment, with an editor window connected to a VS Code server in WSL, which spawns the Agent Host.
+	(wslKerberosProxyScheme ? describe : describe.skip)('Editor Window (WSL remote AgentHost, Kerberos proxy)', () => {
+		const scenario = 'smoke-wsl-remote-kerberos-proxy-agent-host';
+		const reply = 'WSL_REMOTE_KERBEROS_PROXY_RESPONSE';
+		const context = setupAgentHostSuite(logger, {
+			serverLabel: 'WSL remote Kerberos proxy AgentHost',
+			mockServerHost: '0.0.0.0',
+			remoteTransport: 'wsl',
+			wslClientProxy: 'server',
+			registerScenarios: ({ ScenarioBuilder, registerScenario }) => registerScenario(scenario, new ScenarioBuilder().emit(reply).build()),
+			settings: {},
+		});
+
+		it('Uses the Windows proxy, Kerberos ticket and certificates from the AgentHost of a WSL remote', async function () {
+			this.timeout(10 * 60 * 1000);
+			const app = this.app as Application;
+			const fixture = context.remoteFixture;
+			assert.ok(fixture, 'Expected the WSL server fixture');
+			const requestTag = `[proxy-request:${randomUUID()}]`;
+			try {
+				await openAgentHostChatEditor(app, 3 * 60 * 1000);
+				const requestsBefore = context.mockServer.getRequests().length;
+				await app.workbench.chat.sendEditorMessage(`hello through the Windows proxy [scenario:${scenario}] ${requestTag}`);
+				await app.workbench.chat.waitForEditorResponseText(reply, 2 * 60 * 1000);
+				await waitForPromptRequest(context.mockServer, requestsBefore, requestTag);
+				await fixture.verifyMockServerRouting?.();
+			} catch (error) {
+				logger.log(`Editor Window (WSL remote Kerberos proxy) FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+				try {
+					await fixture.dumpConnectionDiagnostics?.('remote editor window');
+				} catch (diagnosticError) {
+					logger.log(`Editor Window (WSL remote Kerberos proxy) connection diagnostics failed: ${diagnosticError instanceof Error ? diagnosticError.message : String(diagnosticError)}`);
+				}
+				await dumpFailureDiagnostics(app, logger, 'Editor Window (WSL remote Kerberos proxy)');
 				throw error;
 			}
 		});
@@ -269,10 +523,7 @@ export function setup(logger: Logger) {
 				// customTerminalTool intentionally OFF (default) — the SDK runs
 				// the shell tool, and the AgentHost is expected to forward
 				// `chat.agent.sandbox.*` into the SDK so commands still run
-				// sandboxed. The SDK-sandbox gate defaults to 'off'; set it
-				// to 'on' explicitly so the test exercises the SDK sandbox
-				// override path.
-				'chat.agentHost.sdkSandbox.enabled': 'on',
+				// sandboxed.
 				'chat.agent.sandbox.enabled': 'on',
 			},
 		});
@@ -371,7 +622,7 @@ export function setup(logger: Logger) {
 		it('recovers when the command palette loses focus before finding New Session', async function () {
 			const app = this.app as Application;
 			await app.workbench.agentsWindow.waitForNewSessionView();
-			const inputSelector = `.sessions-chat-editor .monaco-editor[role="code"] ${app.code.editContextEnabled ? '.native-edit-context' : 'textarea'}`;
+			const inputSelector = `.sessions-shared-chat-input .interactive-input-part .monaco-editor[role="code"] ${app.code.editContextEnabled ? '.native-edit-context' : 'textarea'}`;
 			const interruption = await app.code.driver.currentPage.evaluateHandle(selector => {
 				const chatInput = document.querySelector<HTMLElement>(selector);
 				if (!chatInput) {
@@ -563,13 +814,15 @@ async function warmUpCodexModel(app: Application, logger: Logger, label: string)
 interface IAgentHostSuiteContext {
 	readonly mockServer: MockLlmServer;
 	readonly logsPath: string;
+	readonly remoteFixture?: IRemoteDevContainerFixture;
 }
 
 /**
  * Installs the shared `before`/`after` hooks for a "local AgentHost" smoke
  * suite: starts the mock LLM server, creates the app with the AgentHost env
  * vars, pre-seeds `settings.json` into both the default and Agents profiles,
- * and opens the workspace folder in the Agents Window.
+ * and opens the workspace folder in the Agents Window. A remote fixture with a
+ * `remoteAuthority` opens its workspace in a remote editor window instead.
  *
  * The only per-suite differences are the registered scenarios and the
  * sandbox-related settings overlay, so those are passed in.
@@ -579,12 +832,18 @@ function setupAgentHostSuite(logger: Logger, config: {
 	readonly mockServerHost?: string;
 	readonly registerScenarios: (api: { ScenarioBuilder: any; registerScenario: (id: string, scenario: unknown) => void }) => void;
 	readonly settings: Record<string, unknown>;
-	readonly prepareWorkspace?: (workspacePath: string) => Promise<void> | void;
+	readonly remoteTransport?: RemoteDevContainerTransport;
+	readonly wslClientProxy?: 'agentHost' | 'server';
+	readonly prepareWorkspace?: (workspacePath: string, options: ApplicationOptions) => Promise<void> | void;
 	readonly cleanupWorkspace?: (workspacePath: string) => Promise<void> | void;
 }): IAgentHostSuiteContext {
 	let mockServer: MockLlmServer;
 	let logsPath: string;
 	let workspacePath: string | undefined;
+	let remoteFixture: IRemoteDevContainerFixture | undefined;
+	let remoteFixtureSetup: Promise<IRemoteDevContainerFixture> | undefined;
+	let fixtureDataPath: string | undefined;
+	let tearingDown = false;
 
 	before(async function () {
 		const { startServer, ScenarioBuilder, registerScenario } = require(getMockLlmServerPath());
@@ -594,7 +853,7 @@ function setupAgentHostSuite(logger: Logger, config: {
 		config.registerScenarios({ ScenarioBuilder, registerScenario });
 
 		mockServer = await startServer(0, {
-			...mockServerStartOptions((msg: string) => logger.log(msg)),
+			...mockServerStartOptions((msg: string) => logger.log(msg), !!process.env.VSCODE_SMOKE_TEST_PROXY_HEADER),
 			host: config.mockServerHost,
 		});
 		logger.log(`Mock LLM server (${config.serverLabel}) started at ${getMockLlmServerUrl(mockServer)}`);
@@ -603,6 +862,9 @@ function setupAgentHostSuite(logger: Logger, config: {
 	installDiagnosticsHandler(logger);
 
 	before(async function () {
+		if (config.remoteTransport) {
+			this.timeout(5 * 60 * 1000);
+		}
 		const suiteName = this.test?.parent?.title ?? 'unknown';
 		const defaultOptions: ApplicationOptions = {
 			...this.defaultOptions,
@@ -610,8 +872,40 @@ function setupAgentHostSuite(logger: Logger, config: {
 			crashesPath: suiteCrashPath(this.defaultOptions, suiteName),
 		};
 		logsPath = defaultOptions.logsPath;
+		workspacePath = defaultOptions.workspacePath;
+		assert.ok(workspacePath, 'Expected an Agents Window smoke workspace');
+		await config.prepareWorkspace?.(workspacePath, defaultOptions);
+		if (config.remoteTransport) {
+			assert.ok(defaultOptions.userDataDir, 'Expected an isolated smoke user-data directory');
+			fixtureDataPath = fs.mkdtempSync(path.join(path.dirname(defaultOptions.userDataDir), 'remote-devcontainer-'));
+			remoteFixtureSetup = createRemoteDevContainerFixture({
+				transport: config.remoteTransport,
+				workspacePath,
+				testDataPath: fixtureDataPath,
+				logsPath,
+				mockServerUrl: getMockLlmServerUrl(mockServer),
+				appOptions: defaultOptions,
+				wslClientProxy: config.wslClientProxy,
+			}, logger);
+			remoteFixture = await remoteFixtureSetup;
+			if (tearingDown) {
+				return;
+			}
+		}
+		let remoteWindowOptions: Partial<ApplicationOptions> = {};
+		if (remoteFixture?.remoteAuthority && fixtureDataPath) {
+			// A remote editor window opens the fixture's workspace instead of the Agents Window. Earlier windows registered
+			// the shared extensions directory's contents, so the test resolver a packaged build copies into it at launch
+			// would be dropped; a fresh directory with the smoke test extension registers it.
+			const extensionsPath = path.join(fixtureDataPath, 'extensions');
+			fs.cpSync(path.join(__dirname, '..', '..', '..', 'extensions', 'vscode-smoketest-ext-host'), path.join(extensionsPath, 'vscode-smoketest-ext-host'), { recursive: true });
+			remoteWindowOptions = { remote: true, remoteAuthority: remoteFixture.remoteAuthority, workspacePath: remoteFixture.workspacePath, extensionsPath };
+		}
 		this.app = createApp(defaultOptions, opts => ({
 			...opts,
+			...remoteWindowOptions,
+			sourceAppRoot: remoteFixture?.sourceAppRoot ?? opts.sourceAppRoot,
+			extraArgs: [...(opts.extraArgs ?? []), ...(remoteFixture?.extraArgs ?? [])],
 			extraEnv: {
 				...(opts.extraEnv ?? {}),
 				...getCopilotSmokeTestEnv(mockServer, { userDataDir: opts.userDataDir }),
@@ -622,10 +916,10 @@ function setupAgentHostSuite(logger: Logger, config: {
 				// agent-host harnesses for model discovery + requests) at the mock
 				// instead of api.github.com, which would 401 with the fake token.
 				VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE: getMockLlmServerUrl(mockServer),
+				VSCODE_SMOKE_TEST_TUNNEL_TOKEN: undefined,
+				...remoteFixture?.extraEnv,
 			},
 		}));
-		workspacePath = (this.app as Application).workspacePathOrFolder;
-		await config.prepareWorkspace?.(workspacePath);
 
 		// Pre-seed settings.json on disk into BOTH the default profile and the
 		// Agents profile so Agent Host startup observes the test configuration.
@@ -638,6 +932,9 @@ function setupAgentHostSuite(logger: Logger, config: {
 				// scratch, so set the production default explicitly rather than
 				// relying on configuration registration timing.
 				'http.proxySupport': 'override',
+				...(process.env.VSCODE_SMOKE_TEST_PROXY_HEADER ? {
+					'sessions.useWorktree': false,
+				} : {}),
 				'chat.allowAnonymousAccess': true,
 				'github.copilot.chat.githubMcpServer.enabled': false,
 				'chat.agentHost.ahpJsonlLoggingEnabled': true,
@@ -647,6 +944,7 @@ function setupAgentHostSuite(logger: Logger, config: {
 				// These suites exercise Agent Host and sandbox behavior, not Auto routing.
 				'chat.defaultModel': AGENT_HOST_MODEL,
 				...config.settings,
+				...remoteFixture?.settings,
 			}, null, 2);
 			for (const settingsPath of [
 				path.join(userDataDir, 'User', 'settings.json'),
@@ -655,18 +953,41 @@ function setupAgentHostSuite(logger: Logger, config: {
 				fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
 				fs.writeFileSync(settingsPath, settings);
 			}
+			if (remoteFixture?.remoteAuthority) {
+				await preseedChatExtensionEnablement(userDataDir);
+			}
 		}
 
 		await (this.app as Application).start();
 	});
 
 	installAppAfterHandler(undefined, async () => {
-		if (workspacePath) {
-			await config.cleanupWorkspace?.(workspacePath);
+		tearingDown = true;
+		try {
+			if (remoteFixtureSetup && !remoteFixture) {
+				await remoteFixtureSetup.then(
+					fixture => { remoteFixture = fixture; },
+					error => logger.log(`Remote fixture setup failed during teardown: ${error instanceof Error ? error.message : String(error)}`),
+				);
+			}
+			await remoteFixture?.dispose();
+		} finally {
+			try {
+				if (workspacePath) {
+					await config.cleanupWorkspace?.(workspacePath);
+				}
+			} finally {
+				if (fixtureDataPath) {
+					fs.rmSync(fixtureDataPath, { recursive: true, force: true });
+				}
+			}
 		}
 	});
 
 	before(async function () {
+		if (remoteFixture?.remoteAuthority) {
+			return;
+		}
 		const app = this.app as Application;
 		cp.execSync('git checkout . --quiet', { cwd: app.workspacePathOrFolder });
 		const windowsBefore = app.code.driver.getAllWindows().length;
@@ -683,7 +1004,98 @@ function setupAgentHostSuite(logger: Logger, config: {
 	return {
 		get mockServer() { return mockServer; },
 		get logsPath() { return logsPath; },
+		get remoteFixture() { return remoteFixture; },
 	};
+}
+
+/**
+ * Opens an Agent Host Copilot session in a chat editor. The open command gives up when the agent host, which a remote
+ * window starts on first connection, does not register its Copilot agent within 30 seconds, so retry until `timeoutMs`.
+ */
+async function openAgentHostChatEditor(app: Application, timeoutMs: number): Promise<void> {
+	const deadline = Date.now() + timeoutMs;
+	for (; ;) {
+		await app.workbench.quickaccess.runCommand('smoketest.openAgentHostChat');
+		try {
+			await app.workbench.chat.waitForChatEditor(450);
+			return;
+		} catch (error) {
+			if (Date.now() >= deadline) {
+				throw error;
+			}
+		}
+	}
+}
+
+async function waitForPromptRequest(mockServer: MockLlmServer, requestsBefore: number, requestTag: string): Promise<void> {
+	const deadline = Date.now() + 30_000;
+	while (Date.now() < deadline) {
+		if (mockServer.getRequests().slice(requestsBefore).some(request =>
+			request.path === '/responses' &&
+			request.method === 'POST' &&
+			latestUserInputCarriesTag(request.body, requestTag))) {
+			return;
+		}
+		await new Promise(resolve => setTimeout(resolve, 100));
+	}
+	throw new Error(`Timed out waiting for the Copilot model request with ${requestTag}`);
+}
+
+async function assertRemoteDevContainerRouting(logsPath: string, transport: RemoteDevContainerTransport, workspacePath: string, reply: string): Promise<void> {
+	interface IFrame {
+		readonly _ahpLog?: { readonly transport?: string };
+		readonly method?: string;
+		readonly params?: { readonly workspaceFolder?: string; readonly action?: { readonly type?: string } };
+	}
+	const parseFrames = (content: string): IFrame[] => content.split(/\r?\n/).filter(Boolean).map(line => JSON.parse(line));
+	const content = await waitForLogContent(
+		() => readAhpFrames(path.join(logsPath, 'ahp')),
+		content => parseFrames(content).some(frame => frame._ahpLog?.transport === 'devcontainer' && JSON.stringify(frame).includes(reply)),
+		30_000,
+	);
+	const frames = parseFrames(content);
+	assert.ok(frames.some(frame =>
+		frame._ahpLog?.transport === transport
+		&& frame.method === 'vscode/devContainers/connect'
+		&& frame.params?.workspaceFolder === workspacePath
+	), `Expected container startup for the selected workspace on the ${transport} connection`);
+	const containerFrames = frames.filter(frame => frame._ahpLog?.transport === 'devcontainer');
+	assert.ok(containerFrames.some(frame => frame.method === 'dispatchAction' && frame.params?.action?.type === 'chat/turnStarted'), 'Expected a turn sent through the nested Dev Container transport');
+	assert.ok(containerFrames.some(frame => JSON.stringify(frame).includes(reply)), 'Expected the mock response on the nested Dev Container transport');
+}
+
+/**
+ * Asserts that the client answered the Agent Host's proxy, Kerberos and certificate requests on `transport`, resolving
+ * the proxy to a PAC entry of `proxyType`. The AHP transcript redacts Kerberos tokens and certificates, so a redacted
+ * value shows that the client returned one.
+ */
+async function assertClientNetworkServed(logsPath: string, transport: RemoteDevContainerTransport, proxyType: 'PROXY' | 'HTTPS'): Promise<void> {
+	interface IFrame {
+		readonly _ahpLog?: { readonly transport?: string; readonly dir?: string };
+		readonly id?: number | string;
+		readonly method?: string;
+		readonly result?: { readonly proxy?: string; readonly authorization?: string; readonly certificates?: unknown };
+	}
+	const parseFrames = (content: string): IFrame[] => content.split(/\r?\n/).filter(Boolean).map(line => JSON.parse(line));
+	const results = (frames: IFrame[], method: string) => {
+		const requestIds = new Set(frames.filter(frame => frame._ahpLog?.transport === transport && frame._ahpLog.dir === 's2c' && frame.method === method).map(frame => frame.id));
+		return frames.filter(frame => frame._ahpLog?.transport === transport && frame._ahpLog.dir === 'c2s' && requestIds.has(frame.id) && frame.result).map(frame => frame.result!);
+	};
+	const checks = {
+		proxy: (frames: IFrame[]) => results(frames, 'vscode/resolveProxy').some(result => result.proxy?.startsWith(`${proxyType} localhost:`)),
+		kerberos: (frames: IFrame[]) => results(frames, 'vscode/lookupProxyKerberosAuthorization').some(result => result.authorization === '<redacted>'),
+		certificates: (frames: IFrame[]) => results(frames, 'vscode/loadCertificates').some(result => result.certificates === '<redacted>'),
+	};
+	const frames = parseFrames(await waitForLogContent(
+		() => readAhpFrames(path.join(logsPath, 'ahp')),
+		content => Object.values(checks).every(check => check(parseFrames(content))),
+		30_000,
+	));
+	assert.deepStrictEqual(
+		Object.fromEntries(Object.entries(checks).map(([name, check]) => [name, check(frames)])),
+		{ proxy: true, kerberos: true, certificates: true },
+		`Expected the client to resolve the ${proxyType} proxy, return a Kerberos token and return certificates for the ${transport} Agent Host`,
+	);
 }
 
 /**
@@ -692,8 +1104,8 @@ function setupAgentHostSuite(logger: Logger, config: {
  * suites are written through async queues (e.g. AhpJsonlLogger), so an entry
  * may not be on disk yet even after the assistant reply has rendered.
  */
-async function waitForLogContent(readContent: () => string, matcher: RegExp | string, timeoutMs = 5_000): Promise<string> {
-	const matches = (content: string) => typeof matcher === 'string' ? content.includes(matcher) : matcher.test(content);
+async function waitForLogContent(readContent: () => string, matcher: RegExp | string | ((content: string) => boolean), timeoutMs = 5_000): Promise<string> {
+	const matches = (content: string) => typeof matcher === 'function' ? matcher(content) : typeof matcher === 'string' ? content.includes(matcher) : matcher.test(content);
 	const deadline = Date.now() + timeoutMs;
 	let content = readContent();
 	while (!matches(content) && Date.now() < deadline) {

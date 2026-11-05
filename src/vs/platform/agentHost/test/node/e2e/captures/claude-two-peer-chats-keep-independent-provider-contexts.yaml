@@ -2,7 +2,7 @@ version: 1
 dialect: anthropic
 exchanges:
   - request:
-      model: claude-opus-5
+      model: claude-opus-5.5
       system: ${system}
       messages:
         - role: user
@@ -11,7 +11,7 @@ exchanges:
       content: ready
       stopReason: end_turn
   - request:
-      model: claude-opus-5
+      model: claude-opus-5.5
       system: ${system}
       messages:
         - role: user
@@ -20,7 +20,7 @@ exchanges:
       content: ready
       stopReason: end_turn
   - request:
-      model: claude-opus-5
+      model: claude-opus-5.5
       system: ${system}
       messages:
         - role: user
@@ -33,7 +33,7 @@ exchanges:
       content: first
       stopReason: end_turn
   - request:
-      model: claude-opus-5
+      model: claude-opus-5.5
       system: ${system}
       messages:
         - role: user

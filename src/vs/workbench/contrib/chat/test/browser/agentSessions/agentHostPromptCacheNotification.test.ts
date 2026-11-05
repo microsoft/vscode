@@ -187,6 +187,7 @@ function createAssignmentService(enabled: boolean): IWorkbenchAssignmentService 
 		_serviceBrand: undefined,
 		onDidRefetchAssignments: Event.None,
 		getCurrentExperiments: async () => [],
+		getTreatmentWithAssignment: async () => ({ value: undefined, hasAssignment: Promise.resolve(false) }),
 		addTelemetryAssignmentFilter(_filter: IAssignmentFilter): void { },
 		getTreatment: async <T extends string | number | boolean>() => enabled as T,
 	};

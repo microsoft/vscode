@@ -7,7 +7,7 @@ import type { SectionOverride } from '@github/copilot-sdk';
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { BrowserChatToolReferenceName, browserChatToolReferenceNames } from '../../../../browserView/common/browserChatToolReferenceNames.js';
 import type { SchemaValue } from '../../../common/agentHostSchema.js';
-import { CopilotCliConfigKey, copilotCliConfigSchema } from '../../../common/copilotCliConfig.js';
+import { copilotCliConfigSchema } from '../../../common/copilotCliConfig.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME } from '../../../common/toolSearchConstants.js';
 
 /**
@@ -24,8 +24,7 @@ import { CLIENT_TOOL_SEARCH_REFERENCE_NAME } from '../../../common/toolSearchCon
  * To add guidance, write a {@link ToolInstructionLine} and add it to
  * {@link TOOL_INSTRUCTION_LINES}. The browser guidance
  * ({@link browserToolInstructions}) demonstrates a line gated on
- * `openBrowserPage` plus an agentic browser tool; the subagent guidance
- * ({@link subagentToolInstructions}) one gated on a setting.
+ * `openBrowserPage` plus an agentic browser tool.
  */
 
 type CopilotCliConfigDefinition = typeof copilotCliConfigSchema.definition;
@@ -57,8 +56,8 @@ type ToolInstructionLine = (context: IToolInstructionContext) => string | undefi
  */
 const agenticBrowserToolNames = browserChatToolReferenceNames.filter(name => name !== BrowserChatToolReferenceName.OpenBrowserPage);
 
-/** Prevents oversized tool-output temp files from being re-offloaded by shell reads. */
-export const COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION = 'When a tool reports that its output was saved to a temporary file because it was too large, ONLY use the `view` tool with a narrow `view_range` to inspect that file. NEVER read it with shell commands such as `cat`, `head`, `tail`, or `sed`, because their output may be offloaded again.';
+/** Steers inspection of oversized tool-output temp files toward bounded reads so the result is not re-offloaded. */
+export const COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION = 'When a tool reports that its output was saved to a temporary file because it was too large, inspect that file with targeted, bounded reads: search it for what you need with the `grep` or `rg` tool, then use `view` with a narrow `view_range` to read the relevant lines. Do not dump the whole file (for example with `cat` or `view` without a range) or run broad searches, because oversized output will be offloaded again.';
 const largeOutputToolInstructions: ToolInstructionLine = () => COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION;
 
 /** Keeps subagents on their default model unless the user explicitly requests another model. */
@@ -66,9 +65,7 @@ export const COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS = [
 	'When launching subagents with the task tool, leave the `model`, `reasoning_effort`, and `context_tier` parameters unset — each agent type already runs on a model suited to it, and overriding the model changes the session\'s cost and behavior profile.',
 	'Only set the task tool\'s `model` parameter when the user explicitly names the model the subagent should run on.',
 ].join('\n');
-/** Opt-in via {@link CopilotCliConfigKey.SubagentModelGuidance}. */
-const subagentToolInstructions: ToolInstructionLine = ({ getSetting }) =>
-	getSetting(CopilotCliConfigKey.SubagentModelGuidance) === true ? COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS : undefined;
+const subagentToolInstructions: ToolInstructionLine = () => COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS;
 
 /**
  * Front-end guidance for the integrated browser tools, ported from the Copilot

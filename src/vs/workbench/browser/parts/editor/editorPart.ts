@@ -5,7 +5,7 @@
 
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { Part } from '../../part.js';
-import { Dimension, $, EventHelper, addDisposableGenericMouseDownListener, getWindow, isAncestorOfActiveElement, getActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
+import { Dimension, $, EventHelper, addDisposableGenericMouseDownListener, getWindow, isAncestorOfActiveElement, getActiveElement, isHTMLElement, computeScreenAwareSize } from '../../../../base/browser/dom.js';
 import { Event, Emitter, Relay, PauseableEmitter } from '../../../../base/common/event.js';
 import { contrastBorder, editorBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { GroupDirection, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, GroupsOrder, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument, IEditorSideGroup, IEditorDropTargetDelegate, IEditorPart, GroupActivationReason, IEditorGroupActivationEvent } from '../../../services/editor/common/editorGroupsService.js';
@@ -38,7 +38,7 @@ import { EditorAreaFocusContext, EditorPartMaximizedEditorGroupContext, EditorPa
 import { mainWindow } from '../../../../base/browser/window.js';
 
 /**
- * The width (in pixels) of the editor card border drawn on every side when the
+ * The width (in pixels) of each visible editor card border when the
  * Modern UI Update experiment is enabled (`modernUI/media/editorBorder.css`).
  * The editor reserves this thickness when laying out its contents so they sit
  * inside the frame instead of overflowing (and being clipped by) the border.
@@ -314,6 +314,13 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 	get hasRestorableState(): boolean {
 		return !!this.workspaceMemento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY];
 	}
+
+	/**
+	 * Whether the part is owned by someone else than the editor parts service:
+	 * it is not restored, not part of working sets and does not affect the
+	 * labels of other parts. Its owner is responsible for its lifecycle.
+	 */
+	get isTransient(): boolean { return false; }
 
 	private _willRestoreState = false;
 	get willRestoreState(): boolean { return this._willRestoreState; }
@@ -1011,6 +1018,40 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		return result;
 	}
 
+	/**
+	 * Merges all editors of this part into the most recently active
+	 * unlocked group of `targetPart` (by default, the main part),
+	 * without changing the editors that are already there.
+	 */
+	protected mergeGroupsToMainPart(targetPart: IEditorGroupsView = this.editorPartsView.mainPart): boolean {
+		if (!this.groups.some(group => group.count > 0)) {
+			return true; // skip if we have no editors opened
+		}
+
+		// Find the most recent group that is not locked
+		let targetGroup: IEditorGroupView | undefined = undefined;
+		for (const group of targetPart.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
+			if (!group.isLocked) {
+				targetGroup = group;
+				break;
+			}
+		}
+
+		if (!targetGroup) {
+			targetGroup = targetPart.addGroup(targetPart.activeGroup, this.partOptions.openSideBySideDirection === 'right' ? GroupDirection.RIGHT : GroupDirection.DOWN);
+		}
+
+		const result = this.mergeAllGroups(targetGroup, {
+			// Try to reduce the impact of closing this part
+			// as much as possible by not changing existing
+			// editors in the main part.
+			preserveExistingIndex: true
+		});
+		targetGroup.focus();
+
+		return result;
+	}
+
 	protected assertGroupView(group: IEditorGroupView | GroupIdentifier): IEditorGroupView {
 		let groupView: IEditorGroupView | undefined;
 		if (typeof group === 'number') {
@@ -1422,14 +1463,17 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		this.centeredLayoutWidget.boundarySashes = sashes;
 	}
 
+	protected getFloatingBorderWidth(): number {
+		return computeScreenAwareSize(mainWindow, EDITOR_FRAME_BORDER_WIDTH);
+	}
+
 	override layout(width: number, height: number, top: number, left: number): void {
 		this.top = top;
 		this.left = left;
 
 		// When the floating panels experiment is enabled, reserve a margin around the
-		// main editor so it floats like the side bar and panel cards. Scope to the main
-		// window (auxiliary editor windows do not apply the matching CSS).
-		if (this.windowId === mainWindow.vscodeWindowId && this.layoutService.isFloatingPanelsEnabled()) {
+		// main editor so it floats like the side bar and panel cards.
+		if (this === this.editorPartsView.mainPart && this.layoutService.isFloatingPanelsEnabled()) {
 
 			// When the editor becomes the outermost card on a side (no floating part
 			// sits between it and the window edge) it adopts the same doubled gutter the
@@ -1444,19 +1488,22 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 
 			width = Math.max(0, width - leftMargin - rightMargin);
 			const { top, bottom } = getFloatingEditorVerticalMargins(this.layoutService, mainWindow);
+			// Fill the grid cell after margins so fractional-scale rounding cannot widen vertical gaps.
+			this.element.style.height = `calc(100% - ${top + bottom}px)`;
 			height = Math.max(0, height - top - bottom);
 
 			// Reserve space for the Modern UI editor border (modernUI/media/editorBorder.css) so content doesn't get clipped.
-			if (!this.element.classList.contains('modal-editor-part')) {
-				width = Math.max(0, width - EDITOR_FRAME_BORDER_WIDTH * 2);
-				height = Math.max(0, height - EDITOR_FRAME_BORDER_WIDTH * 2);
-			}
+			const borderWidth = this.getFloatingBorderWidth();
+			const leftBorderWidth = this.layoutService.isModernUICompact() && !outerLeft ? 0 : borderWidth;
+			width = Math.max(0, width - (leftBorderWidth + borderWidth));
+			height = Math.max(0, height - borderWidth * 2);
 
 			this.element.classList.toggle('floating-editor-outer-left', outerLeft);
 			this.element.classList.toggle('floating-editor-outer-right', outerRight);
 			this.element.classList.toggle('floating-editor-outer-top', verticalOuterEdges.top);
 			this.element.classList.toggle('floating-editor-outer-bottom', verticalOuterEdges.bottom);
 		} else {
+			this.element.style.height = '';
 			this.element.classList.remove('floating-editor-outer-left', 'floating-editor-outer-right', 'floating-editor-outer-top', 'floating-editor-outer-bottom');
 		}
 

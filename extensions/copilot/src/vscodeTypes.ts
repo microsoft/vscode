@@ -95,6 +95,7 @@ export import LanguageModelToolCallPart = vscode.LanguageModelToolCallPart;
 export import LanguageModelToolResultPart = vscode.LanguageModelToolResultPart;
 export import LanguageModelToolResultPart2 = vscode.LanguageModelToolResultPart2;
 export import LanguageModelChatMessageRole = vscode.LanguageModelChatMessageRole;
+export import LanguageModelChatApiType = vscode.LanguageModelChatApiType;
 export import LanguageModelChatMessage = vscode.LanguageModelChatMessage;
 export import LanguageModelChatToolMode = vscode.LanguageModelChatToolMode;
 export import TextEditorSelectionChangeKind = vscode.TextEditorSelectionChangeKind;

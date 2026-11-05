@@ -24,6 +24,8 @@ import { LanguageFeaturesService } from '../../common/services/languageFeaturesS
 import { LanguageService } from '../../common/services/languageService.js';
 import { IModelService } from '../../common/services/model.js';
 import { ModelService } from '../../common/services/modelService.js';
+import { ITextModelService } from '../../common/services/resolverService.js';
+import { InMemoryTextModelService } from '../../common/services/inMemoryTextModelService.js';
 import { ITextResourcePropertiesService } from '../../common/services/textResourceConfiguration.js';
 import { ViewModel } from '../../common/viewModel/viewModelImpl.js';
 import { TestConfiguration } from './config/testConfiguration.js';
@@ -252,6 +254,7 @@ export function createCodeEditorServices(disposables: Pick<DisposableStore, 'add
 	define(ITreeSitterLibraryService, TestTreeSitterLibraryService);
 	define(IInlineCompletionsService, InlineCompletionsService);
 	define(IUserInteractionService, MockUserInteractionService);
+	define(ITextModelService, InMemoryTextModelService);
 
 	const instantiationService = disposables.add(new TestInstantiationService(services, true));
 	disposables.add(toDisposable(() => {

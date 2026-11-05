@@ -6,7 +6,7 @@
 import * as DOM from '../../../../../base/browser/dom.js';
 import { disposableTimeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 
@@ -22,6 +22,19 @@ export interface ICustomizationCardListItem {
 	readonly contextMenuAction?: HTMLElement;
 }
 
+export function focusFirstCustomizationTreeItem<T>(
+	list: { getFocus(): readonly (T | null)[]; setFocus(elements: T[]): void },
+	entries: readonly T[],
+	isItem: (entry: T) => boolean,
+): void {
+	if (list.getFocus().length === 0) {
+		const firstItem = entries.find(isItem) ?? entries[0];
+		if (firstItem) {
+			list.setFocus([firstItem]);
+		}
+	}
+}
+
 interface ICardListItem extends ICustomizationCardListItem {
 	readonly actions: readonly HTMLElement[];
 	actionsTabbable: boolean;
@@ -33,6 +46,12 @@ export function createCustomizationCardPrimaryAction(parent: HTMLElement, ariaLa
 	button.setAttribute('aria-label', ariaLabel);
 	button.classList.add(...classNames);
 	return button;
+}
+
+export function trackCustomizationCardPrimaryActionFocus(primaryAction: HTMLElement, row: HTMLElement, disposables: DisposableStore): void {
+	const updateFocus = () => row.classList.toggle('primary-action-focus-visible', primaryAction.matches(':focus-visible'));
+	disposables.add(DOM.addDisposableListener(primaryAction, DOM.EventType.FOCUS, updateFocus));
+	disposables.add(DOM.addDisposableListener(primaryAction, DOM.EventType.BLUR, () => row.classList.remove('primary-action-focus-visible')));
 }
 
 export function setupCollapsibleSection(
@@ -118,7 +137,10 @@ export function setVirtualizedRowActionsTabbable(container: HTMLElement, tabbabl
 				|| role === 'menuitem';
 			if (isAction) {
 				const disabled = DOM.isHTMLButtonElement(element) && element.disabled || element.getAttribute('aria-disabled') === 'true';
-				element.tabIndex = tabbable && !disabled ? 0 : -1;
+				const tabIndex = tabbable && !disabled ? 0 : -1;
+				if (element.tabIndex !== tabIndex) {
+					element.tabIndex = tabIndex;
+				}
 			}
 		}
 		for (const child of element.children) {
@@ -126,6 +148,14 @@ export function setVirtualizedRowActionsTabbable(container: HTMLElement, tabbabl
 		}
 	};
 	visit(container);
+}
+
+export function stopListRowActionKeyDownPropagation(container: HTMLElement): IDisposable {
+	return DOM.addDisposableListener(container, DOM.EventType.KEY_DOWN, event => {
+		if (event.key === 'Enter' || event.key === ' ') {
+			event.stopPropagation();
+		}
+	});
 }
 
 export function layoutVirtualizedSections(root: HTMLElement, sections: readonly IVirtualizedSectionLayout[]): readonly number[] {
@@ -228,8 +258,10 @@ export class CustomizationCardListController extends Disposable {
 			this._register(DOM.sharedMutationObserver.observe(action, mutationDisposables, {
 				attributes: true,
 				attributeFilter: ['aria-disabled', 'disabled', 'style', 'tabindex'],
+				childList: true,
+				subtree: true,
 			})(() => this.updateActionTabIndex(entry, action)));
-			this._register(DOM.addDisposableListener(action, 'focus', () => {
+			this._register(DOM.addDisposableListener(action, DOM.EventType.FOCUS_IN, () => {
 				this.setActiveItem(entry);
 				this.setActionsTabbable(entry, true);
 			}));
@@ -243,7 +275,7 @@ export class CustomizationCardListController extends Disposable {
 					this.setActionsTabbable(entry, false);
 				}
 			}));
-			this._register(DOM.addDisposableListener(action, 'blur', () => {
+			this._register(DOM.addDisposableListener(action, DOM.EventType.FOCUS_OUT, () => {
 				DOM.getWindow(entry.row).queueMicrotask(() => {
 					if (!entry.row.contains(entry.row.ownerDocument.activeElement)) {
 						this.setActionsTabbable(entry, false);
@@ -347,14 +379,33 @@ export class CustomizationCardListController extends Disposable {
 	}
 
 	private updateActionTabIndex(item: ICardListItem, action: HTMLElement): void {
-		const tabIndex = item.actionsTabbable && this.isFocusableAction(action) ? 0 : -1;
-		if (action.tabIndex !== tabIndex) {
-			action.tabIndex = tabIndex;
-		}
+		setVirtualizedRowActionsTabbable(action, item.actionsTabbable);
 	}
 
 	private getFocusableActions(item: ICardListItem): readonly HTMLElement[] {
-		return item.actions.filter(action => this.isFocusableAction(action));
+		const result: HTMLElement[] = [];
+		const visit = (element: Element): void => {
+			if (DOM.isHTMLElement(element) && this.isActionElement(element) && this.isFocusableAction(element)) {
+				result.push(element);
+			}
+			for (const child of element.children) {
+				visit(child);
+			}
+		};
+		for (const action of item.actions) {
+			visit(action);
+		}
+		return result;
+	}
+
+	private isActionElement(element: HTMLElement): boolean {
+		const role = element.getAttribute('role');
+		return DOM.isHTMLButtonElement(element)
+			|| DOM.isHTMLAnchorElement(element) && element.hasAttribute('href')
+			|| role === 'button'
+			|| role === 'switch'
+			|| role === 'checkbox'
+			|| role === 'menuitem';
 	}
 
 	private isFocusableAction(action: HTMLElement): boolean {

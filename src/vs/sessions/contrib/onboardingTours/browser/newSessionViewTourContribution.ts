@@ -8,13 +8,13 @@ import { Disposable, DisposableStore, MutableDisposable } from '../../../../base
 import { autorun, observableValue } from '../../../../base/common/observable.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { AgentsWindowUsage } from '../../../../workbench/contrib/chat/common/agentsWindowUsage.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { onboardingScenarioRegistry } from '../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
 import { isOnboardingDeveloperModeEnabled, IOnboardingScenarioService } from '../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { SessionHarnessPickerVisibleContext, SessionIsolationPickerVisibleContext, SessionWorkspacePickerVisibleContext } from '../../../common/contextkeys.js';
-import { TOTAL_SESSIONS_KEY } from '../../sessions/browser/sessionsLifecycleTracker.js';
 import { createNewSessionViewTour, NEW_SESSION_VIEW_TOUR_ID } from './tours/newSessionViewTour.js';
 
 /**
@@ -34,8 +34,8 @@ const NEW_SESSION_PICKER_VISIBLE_KEYS = [
  *
  * The tour targets brand-new users who land on the new-session view when they
  * open the Agents window: it only triggers while the number of requests the user
- * has ever sent (proxied by the cumulative new-session counter persisted under
- * {@link TOTAL_SESSIONS_KEY}) is at most {@link MAX_REQUESTS_FOR_TOUR}. While the
+ * has ever sent (proxied by the cumulative new-session count read through
+ * {@link AgentsWindowUsage}) is at most {@link MAX_REQUESTS_FOR_TOUR}. While the
  * new-session view is open it watches the composer's picker-visibility context
  * keys and flips the tour's trigger signal only once the workspace, harness and
  * isolation pickers all report visible — so the tour never starts unless every
@@ -63,15 +63,17 @@ class NewSessionViewTourContribution extends Disposable implements IWorkbenchCon
 	private readonly _trigger = observableValue<boolean>(this, false);
 
 	private readonly _pendingCheck = this._register(new MutableDisposable());
+	private readonly _usage: AgentsWindowUsage;
 
 	constructor(
 		@IOnboardingScenarioService private readonly onboardingScenarioService: IOnboardingScenarioService,
-		@ISessionsService private readonly sessionsService: ISessionsService,
-		@IStorageService private readonly storageService: IStorageService,
+		@IFocusedSessionHostService private readonly _focusedSessionHostService: IFocusedSessionHostService,
+		@IStorageService storageService: IStorageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
+		this._usage = new AgentsWindowUsage(storageService);
 
 		this._register(onboardingScenarioRegistry.register(createNewSessionViewTour(this._trigger)));
 
@@ -91,7 +93,7 @@ class NewSessionViewTourContribution extends Disposable implements IWorkbenchCon
 				this._pendingCheck.clear();
 				return;
 			}
-			const activeSession = this.sessionsService.activeSession.read(reader);
+			const activeSession = this._focusedSessionHostService.focusedHost.read(reader).session.read(reader);
 			const newSessionViewOpen = !activeSession || !activeSession.isCreated.read(reader);
 			if (!newSessionViewOpen) {
 				this._pendingCheck.clear();
@@ -109,7 +111,7 @@ class NewSessionViewTourContribution extends Disposable implements IWorkbenchCon
 		if (isOnboardingDeveloperModeEnabled(this.configurationService, NEW_SESSION_VIEW_TOUR_ID)) {
 			return true;
 		}
-		const requestsSent = this.storageService.getNumber(TOTAL_SESSIONS_KEY, StorageScope.APPLICATION, 0);
+		const requestsSent = this._usage.createdSessionCount;
 		return requestsSent <= NewSessionViewTourContribution.MAX_REQUESTS_FOR_TOUR;
 	}
 
@@ -130,7 +132,7 @@ class NewSessionViewTourContribution extends Disposable implements IWorkbenchCon
 				this._pendingCheck.clear();
 				return;
 			}
-			const activeSession = this.sessionsService.activeSession.get();
+			const activeSession = this._focusedSessionHostService.focusedHost.get().session.get();
 			const newSessionViewOpen = !activeSession || !activeSession.isCreated.get();
 			if (!newSessionViewOpen) {
 				// The view closed while we waited. The autorun re-arms if it reopens.

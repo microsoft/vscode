@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { CancellationError } from '../../../../../base/common/errors.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { derived, IObservable, observableSignalFromEvent } from '../../../../../base/common/observable.js';
 import { hasKey } from '../../../../../base/common/types.js';
@@ -30,6 +31,7 @@ import {
 	TUNNEL_GATEWAY_MIN_PROTOCOL_VERSION,
 	TUNNEL_MIN_PROTOCOL_VERSION,
 	TunnelAgentHostsSettingId,
+	TunnelAuthenticationRequiredError,
 	type ICachedTunnel,
 	type ITunnelAgentHostMainService,
 	type ITunnelConnectResult,
@@ -37,10 +39,13 @@ import {
 	type ITunnelGatewaySelection,
 	type ITunnelGatewaySelectionSession,
 	type ITunnelInfo,
+	type ITunnelDiscoveryOptions,
+	type ITunnelVisibility,
 	type TunnelAutoConnectMode,
 } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { AhpJsonlLogger } from '../../../../../platform/agentHost/common/ahpJsonlLogger.js';
 import { AgentHostClientConnectionKind } from '../../../../../platform/agentHost/common/agentHostTelemetry.js';
+import { traceConnectionOperation } from '../../../../../platform/agentHost/common/connectionDiagnostics.js';
 import { AgentHostAhpJsonlLoggingSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import {
 	resolveGatewaySelection,
@@ -116,6 +121,10 @@ class TunnelConnectionFactory extends Disposable implements IRemoteAgentHostConn
 		if (this._stagedAuthProviders.delete(address)) {
 			this._onDidStageTunnel.fire();
 		}
+	}
+
+	getPendingConnectionInitiation(entry: IRemoteAgentHostEntry): boolean | undefined {
+		return this._stagedUserInitiated.get(getEntryAddress(entry));
 	}
 
 	createConnection(entry: IRemoteAgentHostEntry, options: IRemoteAgentHostConnectOptions): Promise<IRemoteAgentHostCreatedConnection> {
@@ -195,24 +204,34 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 		this._register(this._remoteAgentHostService.registerConnectionFactory(this._connectionFactory));
 	}
 
-	async listTunnels(options?: { silent?: boolean }): Promise<ITunnelInfo[]> {
+	async listTunnels(options?: ITunnelDiscoveryOptions): Promise<ITunnelInfo[]> {
 		if (!this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
 			return [];
 		}
 
 		const silent = options?.silent ?? false;
-		const auth = await this._getToken(silent);
-		if (!auth) {
-			if (silent) {
-				this._logService.debug(`${LOG_PREFIX} No cached token available for silent tunnel enumeration`);
-			} else {
-				this._logService.warn(`${LOG_PREFIX} No auth token available for tunnel enumeration`);
+		const auth = await traceConnectionOperation(options?.onDiagnostic, 'discovery.authentication', async () => {
+			const auth = options?.authProvider
+				? await this._getTokenForProvider(options.authProvider, silent)
+				: await this._getToken(silent);
+			if (!auth) {
+				if (silent) {
+					this._logService.debug(`${LOG_PREFIX} No cached token available for silent tunnel enumeration`);
+				} else {
+					this._logService.warn(`${LOG_PREFIX} No auth token available for tunnel enumeration`);
+				}
+				const authProvider = options?.authProvider ?? this._lastAuthProvider
+					?? (['github', 'microsoft'] as const).find(provider => this._getScopesForProvider(provider).length > 0);
+				if (authProvider && this._getScopesForProvider(authProvider).length > 0) {
+					throw new TunnelAuthenticationRequiredError(authProvider);
+				}
+				throw new Error(localize('tunnelAgentHost.noAuthentication', "No authentication is available to enumerate tunnels."));
 			}
-			return [];
-		}
+			return auth;
+		});
 
 		const additionalNames = this._configurationService.getValue<string[]>(TunnelAgentHostsSettingId) ?? [];
-		return this._mainService.listTunnels(auth.token, auth.provider, additionalNames.length > 0 ? additionalNames : undefined);
+		return traceConnectionOperation(options?.onDiagnostic, 'discovery.enumeration', () => this._mainService.listTunnels(auth.token, auth.provider, additionalNames.length > 0 ? additionalNames : undefined));
 	}
 
 	getAutoConnectMode(tunnel: ITunnelInfo): TunnelAutoConnectMode {
@@ -241,6 +260,7 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 		// Bind the narrowed connection before the closure: TypeScript does not
 		// carry the discriminant narrowing into the `find` callback below.
 		const connection = entry.connection;
+		const address = getEntryAddress(entry);
 		const cachedTunnel = this._storage.getCachedTunnels().find(cached => cached.tunnelId === connection.tunnelId);
 		const tunnel: ITunnelInfo = {
 			tunnelId: connection.tunnelId,
@@ -251,12 +271,9 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 			protocolVersion: cachedTunnel?.protocolVersion ?? TUNNEL_MIN_PROTOCOL_VERSION,
 			hostConnectionCount: 0,
 		};
-		const connectOptions = this.getAutoConnectMode(tunnel) === 'prompt'
-			? { ...options, userInitiated: true }
-			: options;
 		const auth = authProvider
-			? await this._getTokenForProvider(authProvider, !connectOptions.userInitiated)
-			: await this._getToken(!connectOptions.userInitiated);
+			? await this._getTokenForProvider(authProvider, !options.userInitiated)
+			: await this._getToken(!options.userInitiated);
 		if (!auth) {
 			throw new NonReconnectableTransportError('No cached authentication available to connect the tunnel.');
 		}
@@ -271,7 +288,7 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 					hostLabel: tunnel.name,
 					productName: this._productService.nameShort,
 					inventory: session.inventory,
-					userInitiated: connectOptions.userInitiated,
+					userInitiated: options.userInitiated || this.getAutoConnectMode(tunnel) === 'prompt',
 				});
 				if (!selection) {
 					await this._mainService.cancelSelection(session.selectionId);
@@ -306,9 +323,9 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 				() => new ReconnectingRelayTransport(
 					establish,
 					this._mainService,
-					() => ahpLoggingEnabled ? this._instantiationService.createInstance(
+					activeConnectionId => ahpLoggingEnabled ? this._instantiationService.createInstance(
 						AhpJsonlLogger,
-						{ logsHome: this._environmentService.logsHome, connectionId: result.connectionId, transport: 'tunnel' },
+						{ logsHome: this._environmentService.logsHome, logId: address, connectionId: activeConnectionId, transport: 'tunnel' },
 					) : undefined,
 					this._logService,
 					LOG_PREFIX,
@@ -318,7 +335,7 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 			);
 			return {
 				connection,
-				transportDisposable: this._createTransportDisposable(result, connectOptions.userInitiated, editorFallback),
+				transportDisposable: this._createTransportDisposable(result, options.userInitiated, editorFallback),
 			};
 		} catch (err) {
 			this._mainService.disconnect(result.connectionId).catch(() => { /* best effort */ });
@@ -471,8 +488,8 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 
 	readonly canDeleteTunnels = true;
 
-	async deleteTunnel(tunnel: ITunnelInfo): Promise<void> {
-		const auth = await this._getToken(false);
+	async deleteTunnel(tunnel: ITunnelInfo, authProvider?: 'github' | 'microsoft'): Promise<void> {
+		const auth = authProvider ? await this._getTokenForProvider(authProvider, false) : await this._getToken(false);
 		if (!auth) {
 			throw new Error('No authentication available');
 		}
@@ -592,6 +609,27 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 		return result?.provider;
 	}
 
+	async signIn(authProvider: 'github' | 'microsoft'): Promise<void> {
+		if (!this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)
+			|| this._configurationService.getValue<boolean>('chat.disableAIFeatures')) {
+			throw new Error(localize('tunnelAgentHost.disabled', "Remote agent hosts are disabled."));
+		}
+		const scopes = this._getScopesForProvider(authProvider);
+		if (!scopes.length) {
+			throw new Error(localize('tunnelAgentHost.authenticationUnsupported', "Tunnel sign-in is not supported by this application."));
+		}
+		try {
+			await this._authenticationService.createSession(authProvider, scopes, { activateImmediate: true });
+			this._lastAuthProvider = authProvider;
+		} catch (error) {
+			// GitHub Authentication documents this cancellation shape across the extension-host boundary.
+			if (authProvider === 'github' && (error === 'Cancelled' || error instanceof Error && error.message === 'Cancelled')) {
+				throw new CancellationError();
+			}
+			throw error;
+		}
+	}
+
 	getCachedTunnels(): ICachedTunnel[] {
 		return this._storage.getCachedTunnels();
 	}
@@ -607,6 +645,10 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 
 	isTunnelDismissed(tunnelId: string): boolean {
 		return this._storage.isTunnelDismissed(tunnelId);
+	}
+
+	getTunnelVisibility(): ITunnelVisibility {
+		return this._storage.getTunnelVisibility();
 	}
 
 	dismissTunnel(tunnelId: string): void {

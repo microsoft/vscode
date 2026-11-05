@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { withMessageRequestHiddenFromTranscript } from '../../../common/meta/agentMessageMeta.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
-import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IHydrationContext, IIncomingRequest, IncomingRequestDisposition, ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
+import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IHydrationContext, IIncomingRequest, IncomingRequestDisposition, IRestoredChat, ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
 import { parseAgentWorkspaceTransition, AgentSystemNotificationKind, readAgentSystemNotificationMeta, toAgentSystemNotificationMeta } from '../../../common/meta/agentSystemNotificationMeta.js';
 import { toAgentWorkspaceContinuationMessageMeta } from '../../../common/meta/agentWorkspaceContinuationMeta.js';
-import { ResponsePartKind, withMessageRequestHiddenFromTranscript, type Turn } from '../../../common/state/sessionState.js';
+import { ResponsePartKind, type Turn } from '../../../common/state/sessionState.js';
 import { ISessionWorkspaceConversionService } from './sessionWorkspaceConversionService.js';
 
 /** Finalizes requested workspace conversions after a turn and blocks new turns while conversion is pending. */
@@ -29,6 +30,9 @@ export class SessionWorkspaceConversionContribution extends Disposable implement
 			void this._conversionService.updateSessionWorkspace(turn.channel, turn.turnId);
 		} else {
 			this._conversionService.cancel(turn.channel, turn.turnId);
+			if (turn.reason.kind !== 'rejected' && this._conversionService.isPending(turn.channel)) {
+				void this._conversionService.updateSessionWorkspace(turn.channel, turn.turnId);
+			}
 		}
 	}
 
@@ -46,49 +50,58 @@ export class SessionWorkspaceConversionContribution extends Disposable implement
 		};
 	}
 
-	onHydrateTurns(context: IHydrationContext, turns: readonly Turn[]): readonly Turn[] {
-		const transitions = context.workspaceTransitions;
-		if (turns.length === 0 || !transitions?.size) {
-			return turns;
-		}
-		return turns.map(turn => {
-			const rawTransition = transitions.get(turn.id);
-			if (!rawTransition) {
-				return turn;
-			}
-			const transition = parseAgentWorkspaceTransition(rawTransition);
-			if (!transition) {
-				return turn;
-			}
-			const transitionPart = {
-				kind: ResponsePartKind.SystemNotification,
-				content: transition.content,
-				_meta: toAgentSystemNotificationMeta({
-					kind: AgentSystemNotificationKind.WorkspaceTransition,
-					workspaceKind: transition.workspaceKind,
-					workspaceName: transition.workspaceName,
-				}),
-			} as const;
-			const existingIndex = turn.responseParts.findIndex(part =>
-				part.kind === ResponsePartKind.SystemNotification
-				&& readAgentSystemNotificationMeta(part).kind === AgentSystemNotificationKind.WorkspaceTransition
-			);
-			const responseParts = existingIndex < 0
-				? [transitionPart, ...turn.responseParts]
-				: existingIndex === 0
-					? turn.responseParts
-					: [turn.responseParts[existingIndex], ...turn.responseParts.slice(0, existingIndex), ...turn.responseParts.slice(existingIndex + 1)];
-			return {
-				...turn,
-				message: withMessageRequestHiddenFromTranscript({
-					...turn.message,
-					_meta: {
-						...turn.message._meta,
-						...toAgentWorkspaceContinuationMessageMeta(),
-					},
-				}, true),
-				responseParts,
-			};
-		});
+	async onHydrateChat(context: IHydrationContext, restored: IRestoredChat): Promise<IRestoredChat> {
+		await this._conversionService.restoreChatIsolation(context.session, context.chat, context.storageResource);
+		return restored;
 	}
+
+	onHydrateTurns(context: IHydrationContext, turns: readonly Turn[]): readonly Turn[] {
+		return applySavedWorkspaceTransitions(turns, context.workspaceTransitions);
+	}
+}
+
+/** Projects saved workspace notices onto history without running a conversion. */
+export function applySavedWorkspaceTransitions(turns: readonly Turn[], transitions: ReadonlyMap<string, string> | undefined): readonly Turn[] {
+	if (turns.length === 0 || !transitions?.size) {
+		return turns;
+	}
+	return turns.map(turn => {
+		const rawTransition = transitions.get(turn.id);
+		if (!rawTransition) {
+			return turn;
+		}
+		const transition = parseAgentWorkspaceTransition(rawTransition);
+		if (!transition) {
+			return turn;
+		}
+		const transitionPart = {
+			kind: ResponsePartKind.SystemNotification,
+			content: transition.content,
+			_meta: toAgentSystemNotificationMeta({
+				kind: AgentSystemNotificationKind.WorkspaceTransition,
+				workspaceKind: transition.workspaceKind,
+				workspaceName: transition.workspaceName,
+			}),
+		} as const;
+		const existingIndex = turn.responseParts.findIndex(part =>
+			part.kind === ResponsePartKind.SystemNotification
+			&& readAgentSystemNotificationMeta(part).kind === AgentSystemNotificationKind.WorkspaceTransition
+		);
+		const responseParts = existingIndex < 0
+			? [transitionPart, ...turn.responseParts]
+			: existingIndex === 0
+				? turn.responseParts
+				: [turn.responseParts[existingIndex], ...turn.responseParts.slice(0, existingIndex), ...turn.responseParts.slice(existingIndex + 1)];
+		return {
+			...turn,
+			message: withMessageRequestHiddenFromTranscript({
+				...turn.message,
+				_meta: {
+					...turn.message._meta,
+					...toAgentWorkspaceContinuationMessageMeta(),
+				},
+			}, true),
+			responseParts,
+		};
+	});
 }

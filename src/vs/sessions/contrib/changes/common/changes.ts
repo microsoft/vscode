@@ -11,6 +11,13 @@ export const CHANGES_VIEW_CONTAINER_ID = 'workbench.view.agentSessions.changesCo
 export const CreatePullRequestFocusedContext = new RawContextKey<boolean>('sessions.createPullRequestFocused', false);
 
 /**
+ * Whether the Changes editor shows the changed files list beside its diffs. It is off by default. A host turns it on for
+ * the Changes editors it shows by setting this key in its own scoped context key service, such as the one of an editor
+ * part (a window) or of an editor group, which the editors inherit.
+ */
+export const SessionChangesEditorFileListContext = new RawContextKey<boolean>('sessionChangesEditorFileList', false, localize('sessionChangesEditorFileList', "Whether the Changes editor shows the changed files list beside its diffs"));
+
+/**
  * Command id that opens the session's multi-file diff (Changes) editor, revealing
  * the (possibly hidden) editor area. Defined here (cycle-free common) so both the
  * action (`changesActions.ts`) and the header surfaces (`changesView.ts`) can
@@ -51,7 +58,6 @@ export const ChangesContextKeys = {
 export const ActiveSessionContextKeys = {
 	IsolationMode: new RawContextKey<IsolationMode>('sessions.isolationMode', IsolationMode.Workspace),
 	HasChanges: new RawContextKey<boolean>('sessions.hasChanges', false),
-	HasSelectableChangesets: new RawContextKey<boolean>('sessions.hasSelectableChangesets', false),
 	HasGitRepository: new RawContextKey<boolean>('sessions.hasGitRepository', true),
 	HasUpstream: new RawContextKey<boolean>('sessions.hasUpstream', false),
 	HasIncomingChanges: new RawContextKey<boolean>('sessions.hasIncomingChanges', false),

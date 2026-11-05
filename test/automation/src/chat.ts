@@ -4,10 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Code } from './code';
-import { IModelConfigSection, readModelConfigSections } from './modelConfigPicker';
+import { closeModelConfigDetails, IModelConfigSection, openModelConfigDetails, readModelConfigSections, selectModelConfigDetailsOption } from './modelConfigPicker';
 
 const CHAT_VIEW = 'div[id="workbench.panel.chat"]';
+// The chat view sets `data-bound-chat-resource` once its widget is bound to a
+// chat session and clears it while it rebinds to another one.
+const CHAT_VIEW_BOUND_SESSION = `${CHAT_VIEW} .chat-viewpane[data-bound-chat-resource]`;
+// The resource of a local chat session (`LocalChatSessionUri`).
+const LOCAL_CHAT_SESSION_RESOURCE_PREFIX = 'vscode-chat-session://local/';
 const CHAT_EDITOR = '.editor-instance .interactive-session';
+// The chat editor sets `data-bound-chat-resource` on its editor container (the
+// `.editor-instance` element itself) once its widget is bound to a chat model.
+const CHAT_EDITOR_BOUND_SESSION = '.editor-instance.chat-editor-relative[data-bound-chat-resource]';
 const CHAT_INPUT_EDITOR = `${CHAT_VIEW} .interactive-input-part .monaco-editor[role="code"]`;
 const CHAT_INPUT_EDITOR_FOCUSED = `${CHAT_VIEW} .interactive-input-part .monaco-editor.focused[role="code"]`;
 const CHAT_SEND_BUTTON_ENABLED = `${CHAT_VIEW} .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled) > .action-label.codicon-arrow-up-compact`;
@@ -21,6 +29,7 @@ const CHAT_MODEL_PICKER_CONFIG = `${CHAT_VIEW} .interactive-input-part .model-pi
 // picker out of its width-driven compact (icon-only) layout so the inline
 // model-config button renders. See `ensureModelPickerExpanded`.
 const AUXILIARYBAR_PART = '.part.auxiliarybar';
+const WORKBENCH_VERTICAL_SASH = '.monaco-sash.vertical:not(.part .monaco-sash)';
 const ACTION_WIDGET = '.action-widget';
 const ACTION_WIDGET_ROW = '.action-widget .monaco-list-row.action';
 // Context-usage gauge in the panel chat input. The inline widget only renders a
@@ -54,8 +63,55 @@ export class Chat {
 		await this.code.waitForElement(CHAT_VIEW);
 	}
 
+	/**
+	 * Returns the chat session resource the chat view is bound to, or
+	 * `undefined` when the view is not open or is rebinding to another session.
+	 */
+	async getChatViewSessionResource(): Promise<string | undefined> {
+		const [element] = await this.code.getElements(CHAT_VIEW_BOUND_SESSION, false) ?? [];
+		return element?.attributes['data-bound-chat-resource'];
+	}
+
+	/**
+	 * Waits until the chat view is bound to a chat session other than
+	 * `previousSessionResource`. Commands that start a new chat in the view
+	 * keep running after the command palette closes, so a message sent before
+	 * the new session is bound lands in the outgoing session and its response
+	 * is never shown.
+	 */
+	async waitForChatViewSessionChange(previousSessionResource: string | undefined, retryCount?: number): Promise<void> {
+		await this.code.waitForElement(CHAT_VIEW_BOUND_SESSION, element => !!element && element.attributes['data-bound-chat-resource'] !== previousSessionResource, retryCount);
+	}
+
+	/**
+	 * Waits until the chat view is bound to a local chat session other than
+	 * `previousSessionResource`, such as the one `smoketest.openLocalChat`
+	 * opens. That command keeps running after the command palette closes, and
+	 * first waits for the command that opens a local chat to be registered: a
+	 * message sent before then goes to the session the view had, such as the
+	 * Agent Host Copilot session that is its default, and never gets the
+	 * response the test expects.
+	 */
+	async waitForNewLocalChatViewSession(previousSessionResource: string | undefined, retryCount?: number): Promise<void> {
+		await this.code.waitForElement(CHAT_VIEW_BOUND_SESSION, element => {
+			const sessionResource = element?.attributes['data-bound-chat-resource'];
+			return !!sessionResource && sessionResource !== previousSessionResource && sessionResource.startsWith(LOCAL_CHAT_SESSION_RESOURCE_PREFIX);
+		}, retryCount);
+	}
+
 	async waitForChatEditor(retryCount?: number): Promise<void> {
 		await this.code.waitForElement(CHAT_EDITOR, undefined, retryCount);
+	}
+
+	/**
+	 * Waits until the chat editor is bound to a chat model and returns its
+	 * session resource. A session type whose session cannot be created falls
+	 * back to a local chat session in the same editor, so the resource tells
+	 * which session type the editor actually runs.
+	 */
+	async waitForChatEditorSessionResource(retryCount?: number): Promise<string> {
+		const element = await this.code.waitForElement(CHAT_EDITOR_BOUND_SESSION, undefined, retryCount);
+		return element.attributes['data-bound-chat-resource'];
 	}
 
 	async waitForInputFocus(): Promise<void> {
@@ -68,9 +124,22 @@ export class Chat {
 			.waitFor({ state: 'visible' });
 	}
 
+	/**
+	 * Focuses a chat input by clicking near its bottom-right corner, past the end of its content.
+	 * Attachments can show as inline pills in the input, and clicking a pill opens its attachment
+	 * in an editor, so a click at the center could replace the active editor instead.
+	 */
+	private async clickInputPastContent(inputSelector: string): Promise<void> {
+		await this.code.waitForElement(inputSelector);
+		const box = await this.code.driver.currentPage.locator(inputSelector).first().boundingBox();
+		if (!box) {
+			throw new Error(`Chat input is not visible: ${inputSelector}`);
+		}
+		await this.code.waitAndClick(inputSelector, Math.max(box.width - 30, 1), Math.max(box.height - 5, 1));
+	}
+
 	async sendMessage(message: string): Promise<void> {
-		// Click on the chat input to focus it
-		await this.code.waitAndClick(CHAT_INPUT_EDITOR);
+		await this.clickInputPastContent(CHAT_INPUT_EDITOR);
 
 		// Wait for the editor to be focused
 		await this.waitForInputFocus();
@@ -91,7 +160,7 @@ export class Chat {
 	}
 
 	async sendEditorMessage(message: string): Promise<void> {
-		await this.code.waitAndClick(CHAT_EDITOR_INPUT_EDITOR);
+		await this.clickInputPastContent(CHAT_EDITOR_INPUT_EDITOR);
 		await this.code.waitForElement(CHAT_EDITOR_INPUT_EDITOR_FOCUSED);
 
 		// Insert via Monaco's executeEdits rather than character-by-character
@@ -141,7 +210,7 @@ export class Chat {
 		return await this.pollForResponseText(CHAT_RESPONSE, CHAT_RESPONSE_RENDERED, predicate, timeoutMs, options?.acceptToolConfirmations);
 	}
 
-	async waitForEditorResponseText(predicate: string | RegExp, timeoutMs: number = 60_000, options?: { acceptToolConfirmations?: boolean }): Promise<string> {
+	async waitForEditorResponseText(predicate: string | RegExp, timeoutMs: number = 60_000, options?: { acceptToolConfirmations?: boolean; waitForCommittedResource?: boolean }): Promise<string> {
 		const matched = await this.pollForResponseText(CHAT_EDITOR_RESPONSE, CHAT_EDITOR_RESPONSE_RENDERED, predicate, timeoutMs, options?.acceptToolConfirmations);
 		// After a contributed chat session (e.g. Copilot CLI, Claude) returns
 		// its first response, the workbench commits the untitled session into
@@ -152,7 +221,11 @@ export class Chat {
 		// container after binding its widget to the loaded chat model, and
 		// clears it during rebind — so we can wait for the swap to land via
 		// Playwright's push-based `waitForSelector` (no polling on our side).
-		await this.waitForEditorChatBoundToCommittedResource();
+		// Agent Host chat editors keep their untitled resource, so callers
+		// skip this wait for them.
+		if (options?.waitForCommittedResource !== false) {
+			await this.waitForEditorChatBoundToCommittedResource();
+		}
 		return matched;
 	}
 
@@ -165,7 +238,7 @@ export class Chat {
 	 * untitled → committed swap).
 	 */
 	private async waitForEditorChatBoundToCommittedResource(timeoutMs: number = 15_000): Promise<void> {
-		const selector = `.editor-instance .chat-editor-relative[data-bound-chat-resource]:not([data-bound-chat-resource*="/untitled-"])`;
+		const selector = `${CHAT_EDITOR_BOUND_SESSION}:not([data-bound-chat-resource*="/untitled-"])`;
 		try {
 			await this.code.driver.waitForElement(selector, { state: 'attached', timeout: timeoutMs });
 		} catch {
@@ -319,18 +392,30 @@ export class Chat {
 
 			const box = await auxBar.boundingBox().catch(() => null);
 			if (box) {
-				// The auxiliary bar sits at the right edge of the workbench; its
-				// leading (left) sash lies on the bar's left border. Drag it left to
-				// widen the bar (and shrink the editor). Move the pointer onto the
-				// sash, then in two steps — a small nudge engages the drag before the
-				// larger travel — so the resize registers reliably.
-				const sashX = box.x;
-				const sashY = box.y + Math.min(box.height / 2, 200);
-				await page.mouse.move(sashX, sashY);
-				await page.mouse.down();
-				await page.mouse.move(sashX - 20, sashY);
-				await page.mouse.move(sashX - 160, sashY);
-				await page.mouse.up();
+				let closestSashBox: { x: number; y: number; width: number; height: number } | null = null;
+				let closestSashDistance = Number.POSITIVE_INFINITY;
+				for (const sash of await page.locator(WORKBENCH_VERTICAL_SASH).all()) {
+					const sashBox = await sash.boundingBox().catch(() => null);
+					if (sashBox) {
+						const sashDistance = Math.abs(sashBox.x + sashBox.width / 2 - box.x);
+						if (sashDistance < closestSashDistance) {
+							closestSashBox = sashBox;
+							closestSashDistance = sashDistance;
+						}
+					}
+				}
+
+				if (closestSashBox) {
+					// Floating panels offset the sash into the card gap, so drag from
+					// the sash's rendered bounds rather than the auxiliary bar edge.
+					const sashX = closestSashBox.x + closestSashBox.width / 2;
+					const sashY = closestSashBox.y + Math.min(closestSashBox.height / 2, 200);
+					await page.mouse.move(sashX, sashY);
+					await page.mouse.down();
+					await page.mouse.move(sashX - 20, sashY);
+					await page.mouse.move(sashX - 160, sashY);
+					await page.mouse.up();
+				}
 			}
 
 			// Let the ResizeObserver-driven relayout recompute the picker's compact
@@ -340,118 +425,50 @@ export class Chat {
 	}
 
 	/**
-	 * Size) by clicking the model picker's configuration button. The button is
-	 * only visible when the selected model advertises configurable options, so
-	 * this waits for it to become visible before clicking.
-	 *
-	 * The config popup is shown through the singleton action-widget service and
-	 * its rows are built once at open (rebuilt only on selection), so a popup
-	 * observed mid-teardown of a previous open never self-heals. Waiting only for
-	 * the popup container would therefore race a half-open / tearing-down popup
-	 * that has no rows. To absorb that, this waits for actual option rows to
-	 * render and re-opens (Escape + re-click) until they do — mirroring
-	 * {@link selectModel}.
+	 * Open the selected model's details page, which holds its configuration
+	 * (Effort Level / Context Size), by clicking the model picker's
+	 * configuration readout. The readout is only visible when the selected model
+	 * advertises configurable options, so this waits for it before clicking.
 	 */
 	async openModelConfig(timeoutMs: number = 30_000): Promise<void> {
 		const page = this.code.driver.currentPage;
-		// There can be a hidden duplicate of the config button (e.g. an overflow
-		// copy); target the visible one.
-		const configButton = page.locator(`${CHAT_MODEL_PICKER_CONFIG}:visible`).first();
-		const configWidget = page.locator(`${ACTION_WIDGET}:visible`, {
-			has: page.locator('.monaco-list-row.group-header')
-		}).first();
-		const deadline = Date.now() + timeoutMs;
-		let lastError: unknown;
 
 		// A context-usage details hover from a prior `readContextUsageTokenLabel`
-		// can linger as a body-level overlay over the model-config button; a forced
-		// click would then land on the popup instead of opening the dropdown,
-		// wedging it open without rows. Park the pointer away and wait for the
-		// overlay to detach before clicking.
+		// can linger as a body-level overlay over the model-config readout; a forced
+		// click would then land on the popup instead of opening the picker. Park the
+		// pointer away and wait for the overlay to detach before clicking.
 		await this.dismissContextUsageDetails();
 
-		// The inline model-config button only renders when the model picker is in
+		// The inline model-config readout only renders when the model picker is in
 		// its full layout. At the panel's default width the picker collapses to a
-		// compact, icon-only layout that omits the config button entirely, so widen
-		// the panel until the button appears before waiting on it below.
+		// compact, icon-only layout that omits the readout entirely, so widen the
+		// panel until it appears before waiting on it below.
 		await this.ensureModelPickerExpanded();
 
-		while (Date.now() < deadline) {
-			try {
-				await configButton.waitFor({ state: 'visible', timeout: 15_000 });
-				await configButton.click({ force: true });
-				await configWidget.locator('.monaco-list-row.action').first().waitFor({ state: 'visible', timeout: 5_000 });
-				return;
-			} catch (error) {
-				lastError = error;
-				// Dismiss the (possibly empty / stale) popup so the next attempt
-				// re-opens a freshly-built one.
-				try {
-					await page.keyboard.press('Escape');
-				} catch { /* popup already gone */ }
-				await new Promise(r => setTimeout(r, 250));
-			}
-		}
-		throw new Error(`Timed out opening the model configuration dropdown. Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
+		// There can be a hidden duplicate of the readout (e.g. an overflow copy);
+		// target the visible one.
+		await openModelConfigDetails(page, page.locator(`${CHAT_MODEL_PICKER_CONFIG}:visible`).first(), timeoutMs);
 	}
 
 	/**
-	 * Clicks the option whose label contains `label` in the open model
-	 * configuration dropdown, then waits until that option reads back as checked
-	 * (the dropdown stays open and rebuilds in place after each selection, so the
-	 * checked state confirms the underlying async configuration write resolved).
-	 *
-	 * The config picker only rebuilds its rows on selection, so a popup that
-	 * opened without this option's row (e.g. mid-teardown of a previous open)
-	 * never gains it. If the row doesn't appear, re-open the popup and retry;
-	 * prior selections persist as configuration writes, so re-opening is safe.
+	 * Select the option labelled `label` on the open model details page, then wait
+	 * until the configuration readout shows it, which confirms the underlying async
+	 * configuration write resolved.
 	 */
 	async selectModelConfigOption(label: string, timeoutMs: number = 30_000): Promise<void> {
-		const page = this.code.driver.currentPage;
-		const row = page.locator(ACTION_WIDGET_ROW, { hasText: label }).first();
-		const deadline = Date.now() + timeoutMs;
-		let lastError: unknown;
-
-		while (Date.now() < deadline) {
-			try {
-				await row.waitFor({ state: 'visible', timeout: 5_000 });
-				await row.click({ force: true });
-				await row.locator('.codicon-check').waitFor({ state: 'visible', timeout: 15_000 });
-				return;
-			} catch (error) {
-				lastError = error;
-				// Re-open the popup so the next attempt sees a freshly-built list
-				// containing this option's row.
-				try {
-					await this.openModelConfig(Math.max(5_000, deadline - Date.now()));
-				} catch { /* will retry until the outer deadline */ }
-			}
-		}
-		throw new Error(`Timed out selecting model config option "${label}". Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
+		await selectModelConfigDetailsOption(this.code.driver.currentPage, CHAT_MODEL_PICKER_CONFIG, label, remaining => this.openModelConfig(remaining), timeoutMs);
 	}
 
 	/**
-	 * Dismisses the open model configuration dropdown.
+	 * Dismisses the open model details page.
 	 */
 	async closeModelConfig(): Promise<void> {
-		const page = this.code.driver.currentPage;
-		await page.keyboard.press('Escape');
-		await page.waitForFunction(
-			(sel: string) => { const c = document.querySelector(sel); return !c || c.getAttribute('aria-expanded') !== 'true'; },
-			CHAT_MODEL_PICKER_CONFIG,
-			{ timeout: 15_000 },
-		);
-		// Also wait for the popup's option rows to detach so a subsequent open
-		// starts from a clean state rather than racing this teardown. Best-effort:
-		// the rows may already be gone (the locator then resolves immediately).
-		await page.locator(`${ACTION_WIDGET_ROW}:visible`).first()
-			.waitFor({ state: 'hidden', timeout: 5_000 })
-			.catch(() => { /* already detached */ });
+		await closeModelConfigDetails(this.code.driver.currentPage, CHAT_MODEL_PICKER_CONFIG);
 	}
 
 	/**
-	 * Returns the visible model-configuration button label (the combined
-	 * "Effort Context" summary, e.g. "High 200K", shown in UBB mode).
+	 * Returns the visible model-configuration readout label (the combined
+	 * "Effort · Context" summary, e.g. "High · 200K").
 	 *
 	 * The button only renders in the model picker's full (non-compact) layout, so
 	 * this widens the panel first — callers may read the label before ever opening
@@ -477,8 +494,8 @@ export class Chat {
 	}
 
 	/**
-	 * Returns the section headers and option rows of the open model configuration
-	 * dropdown. Call after {@link openModelConfig}.
+	 * Returns each setting of the open model details page and its options. Call
+	 * after {@link openModelConfig}.
 	 */
 	async getModelConfigSections(): Promise<IModelConfigSection[]> {
 		return readModelConfigSections(this.code.driver.currentPage);

@@ -146,9 +146,41 @@ export async function findExecutable(command: string, cwd?: string, paths?: stri
  * @param forceful whether to forcefully kill the process (default: false). Note
  * that on Windows, terminal processes can _only_ be killed forcefully and this
  * will throw when not forceful.
+ * @param log receives diagnostics for command failures ignored because the root process is no longer running.
+ * @param spawnTerminator spawns the command that kills the process tree
+ * (default: `taskkill` on Windows, `terminateProcess.sh` elsewhere). A failure
+ * of this command is ignored when the process is no longer running afterwards.
  */
-export async function killTree(pid: number, forceful = false) {
-	let child: cp.ChildProcessByStdio<null, Stream.Readable, Stream.Readable>;
+export async function killTree(pid: number, forceful = false, log: (message: string) => void, spawnTerminator = spawnProcessTreeTerminator) {
+	const child = spawnTerminator(pid, forceful);
+	return new Promise<void>((resolve, reject) => {
+		const stdout: Buffer[] = [];
+		child.stdout.on('data', (data) => stdout.push(data));
+		child.stderr.on('data', (data) => stdout.push(data));
+		child.on('error', reject);
+		child.on('exit', (code, signal) => {
+			if (code === 0) {
+				resolve();
+			} else if (!isProcessRunning(pid)) {
+				// Killing the children can make the root exit before the termination command reaches it.
+				try {
+					log(`killTree: ignoring termination command failure for root PID ${pid}, which is no longer running (exit code: ${code}, signal: ${signal}): ${Buffer.concat(stdout).toString()}`);
+				} catch (error) {
+					reject(error);
+					return;
+				}
+				resolve();
+			} else {
+				reject(new Error(`taskkill exited with code ${code}: ${Buffer.concat(stdout).toString()}`));
+			}
+		});
+	});
+}
+
+/**
+ * Spawns `taskkill` on Windows and `terminateProcess.sh` elsewhere to kill a process and all its children.
+ */
+function spawnProcessTreeTerminator(pid: number, forceful: boolean): cp.ChildProcessByStdio<null, Stream.Readable, Stream.Readable> {
 	if (Platform.isWindows) {
 		const windir = process.env['WINDIR'] || 'C:\\Windows';
 		const taskKill = path.join(windir, 'System32', 'taskkill.exe');
@@ -158,23 +190,21 @@ export async function killTree(pid: number, forceful = false) {
 			args.push('/F');
 		}
 		args.push('/PID', String(pid));
-		child = cp.spawn(taskKill, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+		return cp.spawn(taskKill, args, { stdio: ['ignore', 'pipe', 'pipe'] });
 	} else {
 		const killScript = FileAccess.asFileUri('vs/base/node/terminateProcess.sh').fsPath;
-		child = cp.spawn('/bin/sh', [killScript, String(pid), forceful ? '9' : '15'], { stdio: ['ignore', 'pipe', 'pipe'] });
+		return cp.spawn('/bin/sh', [killScript, String(pid), forceful ? '9' : '15'], { stdio: ['ignore', 'pipe', 'pipe'] });
 	}
+}
 
-	return new Promise<void>((resolve, reject) => {
-		const stdout: Buffer[] = [];
-		child.stdout.on('data', (data) => stdout.push(data));
-		child.stderr.on('data', (data) => stdout.push(data));
-		child.on('error', reject);
-		child.on('exit', (code) => {
-			if (code === 0) {
-				resolve();
-			} else {
-				reject(new Error(`taskkill exited with code ${code}: ${Buffer.concat(stdout).toString()}`));
-			}
-		});
-	});
+/**
+ * Returns whether a process with the given id is running. Only a missing process (`ESRCH`) counts as not running.
+ */
+function isProcessRunning(pid: number): boolean {
+	try {
+		process.kill(pid, 0);
+		return true;
+	} catch (error) {
+		return (error as NodeJS.ErrnoException).code !== 'ESRCH';
+	}
 }

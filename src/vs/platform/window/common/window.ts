@@ -5,8 +5,9 @@
 
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { IStringDictionary } from '../../../base/common/collections.js';
+import { AGENTS_AUTHORITY } from '../../../base/common/network.js';
 import { PerformanceMark } from '../../../base/common/performance.js';
-import { isMacintosh, isNative, isWeb } from '../../../base/common/platform.js';
+import { isMacintosh, isNative, isTahoeOrNewer, isWeb } from '../../../base/common/platform.js';
 import { URI, UriComponents, UriDto } from '../../../base/common/uri.js';
 import { ISandboxConfiguration } from '../../../base/parts/sandbox/common/sandboxTypes.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
@@ -105,13 +106,119 @@ export function isOpenedAuxiliaryWindow(candidate: IOpenedMainWindow | IOpenedAu
 
 export interface IOpenEmptyWindowOptions extends IBaseOpenWindowsOptions { }
 
+export interface IAgentsWindowDraft {
+	readonly inputText: string;
+	/** URI-aware serialized chat attachments, including exported image data. */
+	readonly attachments: string;
+}
+
+export function isAgentsWindowDraft(value: unknown): value is IAgentsWindowDraft {
+	const draft = value as Partial<IAgentsWindowDraft> | undefined;
+	return !!draft && typeof draft.inputText === 'string' && typeof draft.attachments === 'string';
+}
+
+export interface IAgentsWindowNewSessionLink {
+	readonly workspaceUri?: URI;
+	readonly draft: IAgentsWindowDraft;
+}
+
+export function parseExternalAgentsWindowNewSessionLinkUri(uri: URI | string, productUrlProtocol: string): IAgentsWindowNewSessionLink | undefined {
+	const parsed = typeof uri === 'string' ? URI.parse(uri) : uri;
+	if (parsed.scheme !== productUrlProtocol || parsed.authority !== AGENTS_AUTHORITY || parsed.path !== '/new') {
+		return undefined;
+	}
+
+	const params = new URLSearchParams(parsed.query);
+	const workspace = params.get('workspace');
+	const prompt = params.get('prompt');
+	if (!prompt || workspace === '') {
+		return undefined;
+	}
+
+	try {
+		return {
+			workspaceUri: workspace === null ? undefined : URI.parse(workspace, true),
+			draft: { inputText: prompt, attachments: '[]' },
+		};
+	} catch {
+		return undefined;
+	}
+}
+
+/**
+ * Query parameter of a `file` or `vscode-remote` product protocol link naming a
+ * chat session resource to open in the window the link opens.
+ */
+export const CHAT_SESSION_LINK_QUERY_PARAM = 'session';
+
+/**
+ * Query parameter of a `file` or `vscode-remote` product protocol link naming a
+ * Copilot CLI session, by its CLI session id, to open in the window the link
+ * opens. The window decides which provider opens the session, so callers such
+ * as the Copilot CLI's `/code` command do not depend on a provider-specific URI.
+ */
+export const COPILOT_CLI_SESSION_LINK_QUERY_PARAM = 'copilotCliSession';
+
+/**
+ * A chat session to open in the window that a product protocol link opens.
+ */
+export type ChatSessionToOpen =
+	| { readonly kind: 'resource'; readonly resource: string }
+	| { readonly kind: 'copilotCli'; readonly sessionId: string };
+
+/**
+ * Whether `sessionId` is a valid Copilot CLI session id. Mirrors the Copilot CLI
+ * runtime's rule (non-empty ASCII letters, digits, `_` and `-`), with an upper
+ * bound on the length.
+ */
+export function isValidCopilotCliSessionId(sessionId: string): boolean {
+	return /^[A-Za-z0-9_-]{1,256}$/.test(sessionId);
+}
+
+/**
+ * Removes the chat session parameters from the query of a product protocol
+ * link and returns the link without them, along with the chat session to open,
+ * if any.
+ *
+ * Both parameters are always removed, even when their values are invalid, so
+ * that they never reach the window that opens for the link. A link without
+ * either parameter is returned unchanged.
+ */
+export function extractChatSessionToOpen(uri: URI): { readonly uri: URI; readonly chatSessionToOpen: ChatSessionToOpen | undefined } {
+	const params = new URLSearchParams(uri.query);
+	const resource = params.get(CHAT_SESSION_LINK_QUERY_PARAM);
+	const copilotCliSessionId = params.get(COPILOT_CLI_SESSION_LINK_QUERY_PARAM);
+	if (resource === null && copilotCliSessionId === null) {
+		return { uri, chatSessionToOpen: undefined };
+	}
+
+	params.delete(CHAT_SESSION_LINK_QUERY_PARAM);
+	params.delete(COPILOT_CLI_SESSION_LINK_QUERY_PARAM);
+	const uriWithoutChatSession = uri.with({ query: params.toString() });
+
+	if (resource) {
+		return { uri: uriWithoutChatSession, chatSessionToOpen: { kind: 'resource', resource } };
+	}
+
+	if (copilotCliSessionId && isValidCopilotCliSessionId(copilotCliSessionId)) {
+		return { uri: uriWithoutChatSession, chatSessionToOpen: { kind: 'copilotCli', sessionId: copilotCliSessionId } };
+	}
+
+	return { uri: uriWithoutChatSession, chatSessionToOpen: undefined };
+}
+
 export const enum AgentsWindowOpenSource {
 	CommandPalette = 'commandPalette',
 	KeyboardShortcut = 'keyboardShortcut',
 	TitleBar = 'titleBar',
 	ChatTitleBar = 'chatTitleBar',
-	ChatHandoff = 'chatHandoff',
-	Banner = 'banner',
+	CurrentChatHandoff = 'currentChatHandoff',
+	EmptyWorkspaceCurrentChatHandoff = 'emptyWorkspaceCurrentChatHandoff',
+	ParallelWorkEmptyChatHandoff = 'parallelWorkEmptyChatHandoff',
+	ContinueInAgentsWindow = 'continueInAgentsWindow',
+	ParallelWorkSameWindow = 'parallelWorkSameWindow',
+	ParallelWorkAllWindows = 'parallelWorkAllWindows',
+	WelcomeTryOut = 'welcomeTryOut',
 	CommandLine = 'commandLine',
 	Link = 'link',
 	Unknown = 'unknown',
@@ -123,8 +230,13 @@ export function isAgentsWindowOpenSource(value: unknown): value is AgentsWindowO
 		case AgentsWindowOpenSource.KeyboardShortcut:
 		case AgentsWindowOpenSource.TitleBar:
 		case AgentsWindowOpenSource.ChatTitleBar:
-		case AgentsWindowOpenSource.ChatHandoff:
-		case AgentsWindowOpenSource.Banner:
+		case AgentsWindowOpenSource.CurrentChatHandoff:
+		case AgentsWindowOpenSource.EmptyWorkspaceCurrentChatHandoff:
+		case AgentsWindowOpenSource.ParallelWorkEmptyChatHandoff:
+		case AgentsWindowOpenSource.ContinueInAgentsWindow:
+		case AgentsWindowOpenSource.ParallelWorkSameWindow:
+		case AgentsWindowOpenSource.ParallelWorkAllWindows:
+		case AgentsWindowOpenSource.WelcomeTryOut:
 		case AgentsWindowOpenSource.CommandLine:
 		case AgentsWindowOpenSource.Link:
 		case AgentsWindowOpenSource.Unknown:
@@ -332,6 +444,13 @@ export function getWindowControlsStyle(configurationService: IConfigurationServi
 }
 
 export const DEFAULT_CUSTOM_TITLEBAR_HEIGHT = 35; // includes space for command center
+
+/** Centers macOS traffic lights vertically, optionally keeping their horizontal inset independent of height. */
+export function getMacOSWindowControlsPosition(height: number, osVersion: string, horizontalInset?: number): IPoint | null {
+	const buttonHeight = isTahoeOrNewer(osVersion) ? 14 : 16;
+	const offset = Math.floor((height - buttonHeight) / 2);
+	return !offset && horizontalInset === undefined ? null : { x: horizontalInset ?? offset + 1, y: offset };
+}
 
 export function useWindowControlsOverlay(configurationService: IConfigurationService): boolean {
 	if (isWeb) {

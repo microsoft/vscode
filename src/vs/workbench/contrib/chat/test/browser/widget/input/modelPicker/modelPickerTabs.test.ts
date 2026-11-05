@@ -4,15 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Codicon } from '../../../../../../../../base/common/codicons.js';
 import { IStringDictionary } from '../../../../../../../../base/common/collections.js';
+import { ThemeIcon } from '../../../../../../../../base/common/themables.js';
+import { URI } from '../../../../../../../../base/common/uri.js';
+import { upcastPartial } from '../../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
-import { IModelConfigurationAccess, getModelConfigProperty, getModelConfigSummary, isExtendedContext, MODEL_CONFIG_GROUP_CONTEXT } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
+import { IModelConfigurationAccess, getModelConfigDescription, getModelConfigProperty, getModelConfigSummary, isExtendedContext, MODEL_CONFIG_GROUP_CONTEXT } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
 import { getModelBadge } from '../../../../../browser/widget/input/modelPicker/modelPickerBadges.js';
 import { latestOfEachLine, parseModelLine } from '../../../../../browser/widget/input/modelPicker/modelPickerLineage.js';
 import { buildSpeedVariants, collapseSpeedVariants } from '../../../../../browser/widget/input/modelPicker/modelPickerVariants.js';
 import { buildModelPickerDestinations, buildModelPickerSections, hasPromotedModels, IModelPickerProviderPlaceholder } from '../../../../../browser/widget/input/modelPicker/modelPickerTabs.js';
 import { getProviderGroupKey } from '../../../../../browser/widget/input/modelPicker/modelPickerItemPrimitives.js';
-import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry } from '../../../../../common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, LanguageModelProviderIcon } from '../../../../../common/languageModels.js';
 
 interface IFixtureModelOptions {
 	readonly vendor?: string;
@@ -107,6 +111,142 @@ suite('Model picker destinations', () => {
 	/** The destination id a provider gets, keyed by identity rather than by display name. */
 	const providerId = (vendor: string, label: string) => `provider:${getProviderGroupKey(vendor, label)}`;
 
+	test('an empty catalog retains the built-in destination only when requested, even without a default vendor', () => {
+		const noDefault = upcastPartial<ILanguageModelsService>({
+			getVendors: () => [],
+			getLanguageModelGroups: () => [],
+		});
+		assert.deepStrictEqual(
+			[service, noDefault].map(service => [
+				buildModelPickerDestinations([], service),
+				buildModelPickerDestinations([], service, [], undefined, true),
+			]),
+			[service, noDefault].map(() => [
+				[],
+				[{ id: 'builtIn', label: 'GitHub Copilot', icon: ThemeIcon.fromId('chat-model-provider-copilot'), models: [], placeholders: [] }],
+			]),
+		);
+	});
+
+	test('a differently named default provider keeps its label, declared icon and first position', () => {
+		const defaultService = upcastPartial<ILanguageModelsService>({
+			getVendors: () => [
+				{ vendor: 'default-provider', displayName: 'Zeta Models', isDefault: true, icon: Codicon.vm },
+				{ vendor: 'ollama', displayName: 'Alpha Models', isDefault: false },
+			].map(provider => ({ ...provider, configuration: undefined, managementCommand: undefined, when: undefined })),
+			getLanguageModelGroups: () => [],
+		});
+		const defaultModel = createModel('default', 'Default Model', { vendor: 'default-provider' });
+		const placeholder: IModelPickerProviderPlaceholder = { vendor: 'default-provider', label: 'Sign-in label', message: 'Sign in.' };
+		assert.deepStrictEqual(
+			buildModelPickerDestinations([llama, defaultModel], defaultService, [placeholder]),
+			[
+				{ id: 'builtIn', label: 'Zeta Models', icon: Codicon.vm, models: [defaultModel], placeholders: [placeholder] },
+				{ id: providerId('ollama', 'Alpha Models'), label: 'Alpha Models', icon: ThemeIcon.fromId('chat-model-provider-generic'), models: [llama], placeholders: [] },
+			],
+		);
+	});
+
+	test('fallback icons match the built-in label and vendor but only the added-provider label', () => {
+		const unbranded = createModel('unbranded', 'Unbranded Model', { vendor: 'openai' });
+		const icons = [true, false].map(isDefault => {
+			const service = upcastPartial<ILanguageModelsService>({
+				getVendors: () => [{ vendor: 'openai', displayName: 'Neutral Provider', isDefault, configuration: undefined, managementCommand: undefined, when: undefined }],
+				getLanguageModelGroups: () => [],
+			});
+			return buildModelPickerDestinations([unbranded], service)[0].icon;
+		});
+		assert.deepStrictEqual(icons, [
+			ThemeIcon.fromId('chat-model-provider-openai'),
+			ThemeIcon.fromId('chat-model-provider-generic'),
+		]);
+	});
+
+	test('models and placeholders keep their order and actions while a later declared icon fills an absent icon', () => {
+		const mixedService = upcastPartial<ILanguageModelsService>({
+			getVendors: () => [
+				...service.getVendors(),
+				{ vendor: 'without-icon', displayName: 'Shared Provider', isDefault: false },
+				{ vendor: 'with-icon', displayName: 'Shared Provider', isDefault: false, icon: Codicon.vm },
+			].map(provider => ({ ...provider, configuration: undefined, managementCommand: undefined, when: undefined })),
+			getLanguageModelGroups: () => [],
+		});
+		const first = createModel('first', 'First', { vendor: 'relay', modelGroupId: 'without-icon' });
+		const second = createModel('second', 'Second', { vendor: 'relay', modelGroupId: 'with-icon' });
+		const actions: string[] = [];
+		const placeholders: IModelPickerProviderPlaceholder[] = [
+			{ vendor: 'relay', label: 'Shared Provider', icon: Codicon.lock, message: 'First reason.', action: { label: 'First action', run: () => actions.push('first') } },
+			{ vendor: 'copilot', label: 'GitHub Copilot', message: 'Built-in reason.' },
+			{ vendor: 'relay', label: 'Shared Provider', message: 'Second reason.', action: { label: 'Second action', run: () => actions.push('second') } },
+		];
+		const destinations = buildModelPickerDestinations([first, gpt, second, claude], mixedService, placeholders);
+		for (const destination of destinations) {
+			for (const placeholder of destination.placeholders) {
+				placeholder.action?.run();
+			}
+		}
+		assert.deepStrictEqual(
+			{
+				destinations,
+				modelIdentity: destinations.flatMap(destination => destination.models).map((model, index) => model === [gpt, claude, first, second][index]),
+				placeholderIdentity: destinations.flatMap(destination => destination.placeholders).map((placeholder, index) => placeholder === [placeholders[1], placeholders[0], placeholders[2]][index]),
+				withoutDeclaredIcon: buildModelPickerDestinations([first], mixedService, placeholders.filter(placeholder => placeholder.vendor === 'relay'))[0].icon,
+				actions,
+			},
+			{
+				destinations: [
+					{ id: 'builtIn', label: 'GitHub Copilot', icon: ThemeIcon.fromId('chat-model-provider-copilot'), models: [gpt, claude], placeholders: [placeholders[1]] },
+					{ id: providerId('relay', 'Shared Provider'), label: 'Shared Provider', icon: Codicon.vm, models: [first, second], placeholders: [placeholders[0], placeholders[2]] },
+				],
+				modelIdentity: [true, true, true, true],
+				placeholderIdentity: [true, true, true],
+				withoutDeclaredIcon: ThemeIcon.fromId('chat-model-provider-generic'),
+				actions: ['first', 'second'],
+			},
+		);
+	});
+
+	test('relayed models retain their original configured-group ownership', () => {
+		const original = createModel('configured', 'Configured Model', { vendor: 'openai', isBYOK: true });
+		const relayed = createModel('relayed', 'Relayed Model', {
+			vendor: 'relay',
+			isBYOK: true,
+			byokModelIdentifier: original.identifier,
+			modelGroupId: 'openai',
+		});
+		const configuredService = upcastPartial<ILanguageModelsService>({
+			getVendors: () => [
+				{ vendor: 'copilot', displayName: 'GitHub Copilot', isDefault: true },
+				{ vendor: 'openai', displayName: 'OpenAI', isDefault: false, icon: Codicon.vm },
+			].map(provider => ({ ...provider, configuration: undefined, managementCommand: undefined, when: undefined })),
+			getLanguageModelGroups: vendor => vendor === 'openai'
+				? [{ group: { vendor, name: 'My Configured Group' }, modelIdentifiers: [original.identifier] }]
+				: [],
+		});
+		assert.deepStrictEqual(
+			buildModelPickerDestinations([relayed, original], configuredService),
+			[{ id: providerId('openai', 'My Configured Group'), label: 'My Configured Group', icon: Codicon.vm, models: [relayed, original], placeholders: [] }],
+		);
+	});
+
+	test('the built-in destination stays distinct from an added group with the same vendor and label', () => {
+		const grouped = createModel('grouped', 'Grouped Model', { modelGroupId: 'other-provider' });
+		const service = upcastPartial<ILanguageModelsService>({
+			getVendors: () => [
+				{ vendor: 'copilot', displayName: 'GitHub Copilot', isDefault: true },
+				{ vendor: 'other-provider', displayName: 'GitHub Copilot', isDefault: false },
+			].map(provider => ({ ...provider, configuration: undefined, managementCommand: undefined, when: undefined })),
+			getLanguageModelGroups: () => [],
+		});
+		assert.deepStrictEqual(
+			buildModelPickerDestinations([grouped, gpt], service).map(({ id, models }) => ({ id, models })),
+			[
+				{ id: 'builtIn', models: [gpt] },
+				{ id: providerId('copilot', 'GitHub Copilot'), models: [grouped] },
+			],
+		);
+	});
+
 	test('a host that relays the built-in provider keeps its models built in', () => {
 		// An agent host registers a vendor of its own and republishes the built-in
 		// provider's catalogue under it, so neither the vendor nor the BYOK flags say
@@ -138,12 +278,58 @@ suite('Model picker destinations', () => {
 		);
 	});
 
+	test('a provider that declares an icon shows it, and the rest are recognised by name', () => {
+		const image = { light: URI.file('/openrouter-light.svg'), dark: URI.file('/openrouter-dark.svg') };
+		const serviceWithIcons = {
+			getVendors: () => [
+				{ vendor: 'copilot', displayName: 'GitHub Copilot', isDefault: true },
+				{ vendor: 'openrouter', displayName: 'OpenRouter', isDefault: false, icon: image },
+				{ vendor: 'ollama', displayName: 'Ollama', isDefault: false, icon: Codicon.vm },
+				{ vendor: 'openai', displayName: 'OpenAI', isDefault: false },
+			],
+			getLanguageModelGroups: () => [],
+		} as unknown as ILanguageModelsService;
+		const routed = createModel('nova-micro', 'Nova Micro', { vendor: 'openrouter', isBYOK: true });
+		// An agent host relays the provider under its own vendor, naming it only by its group.
+		const relayed = createModel('nova-pro', 'Nova Pro', { vendor: 'agent-host-copilotcli', isBYOK: true, modelGroupId: 'openrouter' });
+		const signingIn: IModelPickerProviderPlaceholder = { vendor: 'ollama', label: 'Ollama', message: 'Start Ollama to use its models.' };
+		const describeIcon = (icon: LanguageModelProviderIcon) => ThemeIcon.isThemeIcon(icon) ? icon.id : { light: icon.light.path, dark: icon.dark.path };
+
+		assert.deepStrictEqual(
+			buildModelPickerDestinations([gpt, routed, relayed, mistral], serviceWithIcons, [signingIn])
+				.map(destination => ({ label: destination.label, icon: describeIcon(destination.icon) })),
+			[
+				{ label: 'GitHub Copilot', icon: 'chat-model-provider-copilot' },
+				{ label: 'Ollama', icon: 'vm' },
+				{ label: 'OpenAI', icon: 'chat-model-provider-openai' },
+				{ label: 'OpenRouter', icon: { light: '/openrouter-light.svg', dark: '/openrouter-dark.svg' } },
+				{ label: 'OpenRouter', icon: { light: '/openrouter-light.svg', dark: '/openrouter-dark.svg' } },
+			],
+		);
+	});
+
 	test('a plan that grants only Auto still opens on the built-in destination', () => {
 		// Auto has its own row rather than a place in the list, so without this the
 		// picker would have no destination at all and open on nothing.
 		assert.deepStrictEqual(
 			summarize([auto]),
 			[{ id: 'builtIn', label: 'GitHub Copilot', models: [] }],
+		);
+	});
+
+	test('a model with its own row, such as HydraFusion, is left out of every destination', () => {
+		const hydraFusion = createModel('hydrafusion', 'HydraFusion', { vendor: 'agent-host-copilotcli', isBYOK: true, modelGroupId: 'copilotcli' });
+		const hasOwnRow = (model: ILanguageModelChatMetadataAndIdentifier) => model === auto || model === hydraFusion;
+		const summarizeWithOwnRows = (models: readonly ILanguageModelChatMetadataAndIdentifier[]) =>
+			buildModelPickerDestinations(models, service, [], hasOwnRow).map(destination => ({ id: destination.id, models: destination.models.map(model => model.metadata.name) }));
+		assert.deepStrictEqual(
+			[summarizeWithOwnRows([hydraFusion]), summarizeWithOwnRows([auto, hydraFusion, gpt]), summarize([auto, hydraFusion, gpt])],
+			[
+				[{ id: 'builtIn', models: [] }],
+				[{ id: 'builtIn', models: ['GPT-5.5'] }],
+				// Without its own row, e.g. when this build is too old for it, it stays listed.
+				[{ id: 'builtIn', label: 'GitHub Copilot', models: ['HydraFusion', 'GPT-5.5'] }],
+			],
 		);
 	});
 
@@ -190,12 +376,13 @@ suite('Model picker destinations', () => {
 		} as unknown as ILanguageModelsService;
 
 		assert.deepStrictEqual(
-			buildModelPickerDestinations([sameName, alsoSameName], service)
-				.map(destination => ({ id: destination.id, label: destination.label, models: destination.models.map(model => model.metadata.name) })),
-			[
+			[[sameName, alsoSameName], [alsoSameName, sameName]].map(models =>
+				buildModelPickerDestinations(models, service)
+					.map(destination => ({ id: destination.id, label: destination.label, models: destination.models.map(model => model.metadata.name) }))),
+			[0, 1].map(() => [
 				{ id: providerId('ollama', 'Local Models'), label: 'Local Models', models: ['Local One'] },
 				{ id: providerId('openai', 'Local Models'), label: 'Local Models', models: ['Local Two'] },
-			],
+			]),
 		);
 	});
 
@@ -588,28 +775,25 @@ suite('Model picker destinations', () => {
 		});
 	});
 
-	test('badges rank a retiring model over an offer over the settings a model was tuned to', () => {
+	test('badges retain notices and provider labels independently of configuration', () => {
 		const retiring = { ...gpt, metadata: { ...gpt.metadata, warningText: { model_pending_deprecation: 'Retiring soon.' } } };
 		const promo = { ...claude, metadata: { ...claude.metadata, promo: { id: 'p', discountPercent: 25, message: 'Save now.' } } };
 		const tuned = createConfigurableModel();
-		const badge = (model: ILanguageModelChatMetadataAndIdentifier, values: IStringDictionary<unknown> = {}, providerLabel?: string) =>
-			getModelBadge(model, { configurationAccess: createConfigurationAccess(values), providerLabel });
+		const badge = (model: ILanguageModelChatMetadataAndIdentifier, providerLabel?: string) =>
+			getModelBadge(model, { providerLabel });
 
 		assert.deepStrictEqual(
 			{
 				retiring: badge(retiring),
 				promo: badge(promo),
-				tuned: badge(tuned, { reasoningEffort: 'xhigh', contextSize: 1000000 }),
-				// Left at its defaults, so there is nothing to report.
-				untouched: badge(tuned),
-				provider: badge(gpt, {}, 'Ollama'),
+				configurable: badge(tuned),
+				provider: badge(gpt, 'Ollama'),
 				plain: badge(gpt),
 			},
 			{
 				retiring: { text: 'Retiring', tone: 'warning' },
 				promo: { text: '25% off', tone: 'promo' },
-				tuned: { text: 'Extra high \u00b7 1M', tone: 'selected' },
-				untouched: undefined,
+				configurable: undefined,
 				provider: { text: 'Ollama', tone: 'neutral' },
 				plain: undefined,
 			},
@@ -725,16 +909,99 @@ suite('Model picker destinations', () => {
 		);
 	});
 
-	test('the configuration summary names only what was changed from the defaults', () => {
+	test('the configuration summary includes effective defaults and fixed context', () => {
 		const model = createConfigurableModel();
 		assert.deepStrictEqual(
 			{
 				defaults: getModelConfigSummary(model, createConfigurationAccess()),
+				explicitDefaults: getModelConfigSummary(model, createConfigurationAccess({ reasoningEffort: 'medium', contextSize: 264000 })),
 				bothChanged: getModelConfigSummary(model, createConfigurationAccess({ reasoningEffort: 'xhigh', contextSize: 1000000 })),
 				oneChanged: getModelConfigSummary(model, createConfigurationAccess({ contextSize: 1000000 })),
 				noSchema: getModelConfigSummary(gpt, createConfigurationAccess()),
 			},
-			{ defaults: undefined, bothChanged: 'Extra high · 1M', oneChanged: '1M', noSchema: undefined },
+			{ defaults: 'Medium · 264K', explicitDefaults: 'Medium · 264K', bothChanged: 'Extra high · 1M', oneChanged: 'Medium · 1M', noSchema: 'Max 132K' },
 		);
+	});
+
+	test('summaries use scoped defaults without changing provider metadata', () => {
+		const model = createConfigurableModel();
+		const schema = model.metadata.configurationSchema!;
+		const access: IModelConfigurationAccess = {
+			...createConfigurationAccess(),
+			getModelConfigurationSchema: () => ({
+				properties: {
+					...schema.properties,
+					reasoningEffort: { ...schema.properties!.reasoningEffort, default: 'xhigh' },
+				},
+			}),
+		};
+		assert.deepStrictEqual({
+			summary: getModelConfigSummary(model, access),
+			description: getModelConfigDescription(model, access),
+			providerDefault: schema.properties?.reasoningEffort.default,
+		}, {
+			summary: 'Extra high · 264K',
+			description: 'Effort Level: Extra high, Context: 264K',
+			providerDefault: 'medium',
+		});
+
+	});
+
+	test('read-only option descriptions identify the managed value for screen readers', () => {
+		const model = createConfigurableModel();
+		const schema = model.metadata.configurationSchema!;
+		const access: IModelConfigurationAccess = {
+			...createConfigurationAccess(),
+			getModelConfigurationSchema: () => ({
+				properties: {
+					...schema.properties,
+					reasoningEffort: { ...schema.properties!.reasoningEffort, default: 'xhigh', readOnly: true },
+				},
+			}),
+		};
+		assert.deepStrictEqual({
+			summary: getModelConfigSummary(model, access),
+			description: getModelConfigDescription(model, access),
+		}, {
+			summary: 'Extra high · 264K',
+			description: 'Effort Level: Extra high, managed by the agent host, Context: 264K',
+		});
+	});
+
+	test('unknown settings and routing models never invent effective values', () => {
+		const model = createConfigurableModel();
+		const properties = model.metadata.configurationSchema!.properties!;
+		const unresolved = {
+			...model,
+			metadata: {
+				...model.metadata,
+				configurationSchema: {
+					properties: {
+						reasoningEffort: { ...properties.reasoningEffort, default: undefined },
+						contextSize: { ...properties.contextSize, default: undefined },
+					}
+				},
+			},
+		};
+		assert.deepStrictEqual({
+			unresolved: getModelConfigSummary(unresolved, createConfigurationAccess()),
+			stale: getModelConfigSummary(model, createConfigurationAccess({ reasoningEffort: 'removed', contextSize: NaN })),
+			auto: getModelConfigSummary(createModel('auto', 'Auto'), createConfigurationAccess()),
+			hydra: getModelConfigSummary(createModel('hydrafusion', 'HydraFusion', { modelGroupId: 'copilotcli' }), createConfigurationAccess()),
+			missing: getModelConfigSummary(undefined, createConfigurationAccess()),
+		}, { unresolved: 'Model default', stale: undefined, auto: undefined, hydra: undefined, missing: undefined });
+	});
+
+	test('effort-only and context-only models summarize the available settings', () => {
+		const model = createConfigurableModel();
+		const properties = model.metadata.configurationSchema!.properties!;
+		const summarize = (keys: string[]) => getModelConfigSummary({
+			...model,
+			metadata: { ...model.metadata, configurationSchema: { properties: Object.fromEntries(keys.map(key => [key, properties[key]])) } },
+		}, createConfigurationAccess());
+		assert.deepStrictEqual({
+			effort: summarize(['reasoningEffort']),
+			context: summarize(['contextSize']),
+		}, { effort: 'Medium · Max 132K', context: '264K' });
 	});
 });

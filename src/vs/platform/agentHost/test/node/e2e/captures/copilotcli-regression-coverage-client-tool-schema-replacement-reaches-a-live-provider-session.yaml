@@ -1,0 +1,127 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "READY". Do not call tools.
+    response:
+      content: READY
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "READY". Do not call tools.
+        - role: assistant
+          content: READY
+        - role: user
+          content: Call schema_probe exactly once with oldField set to before and report its result.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: schema_probe
+          input:
+            oldField: before
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "READY". Do not call tools.
+        - role: assistant
+          content: READY
+        - role: user
+          content: Call schema_probe exactly once with oldField set to before and report its result.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: schema_probe
+              input:
+                oldField: before
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: LIVE_PROBE_RESULT
+    response:
+      content: 'The result of calling `schema_probe` with `oldField` set to "before" is: **LIVE_PROBE_RESULT**'
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "READY". Do not call tools.
+        - role: assistant
+          content: READY
+        - role: user
+          content: Call schema_probe exactly once with oldField set to before and report its result.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: schema_probe
+              input:
+                oldField: before
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: LIVE_PROBE_RESULT
+        - role: assistant
+          content: 'The result of calling `schema_probe` with `oldField` set to "before" is: **LIVE_PROBE_RESULT**'
+        - role: user
+          content: Call schema_probe exactly once with newField set to after. Use the current schema, not the previous one.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_1
+          name: schema_probe
+          input:
+            newField: after
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "READY". Do not call tools.
+        - role: assistant
+          content: READY
+        - role: user
+          content: Call schema_probe exactly once with oldField set to before and report its result.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: schema_probe
+              input:
+                oldField: before
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: LIVE_PROBE_RESULT
+        - role: assistant
+          content: 'The result of calling `schema_probe` with `oldField` set to "before" is: **LIVE_PROBE_RESULT**'
+        - role: user
+          content: Call schema_probe exactly once with newField set to after. Use the current schema, not the previous one.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: schema_probe
+              input:
+                newField: after
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: LIVE_PROBE_RESULT
+    response:
+      content: 'The result of calling `schema_probe` with `newField` set to "after" is: **LIVE_PROBE_RESULT**'
+      stopReason: end_turn

@@ -52,6 +52,8 @@ export function decideHostKeyTrust(
 	trustedKeys: readonly ISSHTrustedHostKey[],
 ): SSHHostKeyDecision {
 	const strict = request.strictHostKeyChecking;
+	const storedKeyMatches = trustedKeys.some(key =>
+		key.keyType === request.keyType && key.fingerprint === request.fingerprint);
 
 	// Revocation is checked before everything, including the
 	// `StrictHostKeyChecking` opt-out. Verified against OpenSSH 9.9: with
@@ -77,8 +79,7 @@ export function decideHostKeyTrust(
 		// (public key) login, but it matches the hard-fail contract a changed
 		// key gets everywhere else here, and recovery is the same explicit
 		// "forget this host" step.
-		const storedUnderOptOut = trustedKeys.find(key => key.keyType === request.keyType);
-		if (storedUnderOptOut && storedUnderOptOut.fingerprint !== request.fingerprint) {
+		if (trustedKeys.length > 0 && !storedKeyMatches) {
 			return { kind: 'deny', reason: 'mismatch', source: 'stored' };
 		}
 		if (request.knownHostsMatch === 'mismatch') {
@@ -87,11 +88,11 @@ export function decideHostKeyTrust(
 		return { kind: 'trust', persist: false, reason: 'strict-disabled' };
 	}
 
-	const storedForKeyType = trustedKeys.find(key => key.keyType === request.keyType);
-	if (storedForKeyType) {
-		return storedForKeyType.fingerprint === request.fingerprint
-			? { kind: 'trust', persist: false, reason: 'stored' }
-			: { kind: 'deny', reason: 'mismatch', source: 'stored' };
+	if (storedKeyMatches) {
+		return { kind: 'trust', persist: false, reason: 'stored' };
+	}
+	if (trustedKeys.length > 0) {
+		return { kind: 'deny', reason: 'mismatch', source: 'stored' };
 	}
 
 	if (request.knownHostsMatch === 'mismatch') {
@@ -104,11 +105,14 @@ export function decideHostKeyTrust(
 		return { kind: 'trust', persist: true, reason: 'known-hosts' };
 	}
 
-	// Unknown (or CA-only, which we cannot validate — see below).
+	// No exact known_hosts match.
 	if (strict === 'yes') {
 		return { kind: 'deny', reason: 'strict-yes' };
 	}
-	if (strict === 'accept-new') {
+	if (strict === 'accept-new' && request.knownHostsMatch === 'other-key-type') {
+		return { kind: 'deny', reason: 'mismatch', source: 'known-hosts' };
+	}
+	if (strict === 'accept-new' && request.knownHostsMatch === 'unknown') {
 		return { kind: 'trust', persist: true, reason: 'strict-accept-new' };
 	}
 	if (!request.userInitiated) {

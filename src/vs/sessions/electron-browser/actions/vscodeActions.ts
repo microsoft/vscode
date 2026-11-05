@@ -7,19 +7,22 @@ import { Codicon } from '../../../base/common/codicons.js';
 import { getWindowId } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { URI } from '../../../base/common/uri.js';
+import { Schemas } from '../../../base/common/network.js';
 import { ServicesAccessor } from '../../../editor/browser/editorExtensions.js';
+import { EditorContextKeys } from '../../../editor/common/editorContextKeys.js';
 import { localize2 } from '../../../nls.js';
 import { Action2 } from '../../../platform/actions/common/actions.js';
 import { IRemoteAgentHostService } from '../../../platform/agentHost/common/remoteAgentHostService.js';
 import { KeyCode, KeyMod } from '../../../base/common/keyCodes.js';
 import { ContextKeyExpr } from '../../../platform/contextkey/common/contextkey.js';
+import { IsLinuxContext } from '../../../platform/contextkey/common/contextkeys.js';
 import { KeybindingWeight } from '../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
-import { IsAuxiliaryWindowContext } from '../../../workbench/common/contextkeys.js';
+import { EditorAreaFocusContext, IsAuxiliaryWindowContext, LayoutModeContext } from '../../../workbench/common/contextkeys.js';
 import { IsPhoneLayoutContext, SessionsWelcomeVisibleContext } from '../../common/contextkeys.js';
 import { logSessionsInteraction } from '../../common/sessionsTelemetry.js';
 import { Menus } from '../../browser/menus.js';
-import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
+import { resolveSessionCommandTarget } from '../../services/sessions/browser/sessionCommandTarget.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
 import { IWorkbenchContribution } from '../../../workbench/common/contributions.js';
 import { OpenInVSCodeTitleBarWidget } from '../../browser/widget/openInVSCodeWidget.js';
@@ -28,9 +31,12 @@ import { IInstantiationService } from '../../../platform/instantiation/common/in
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { resolveRemoteFolderUri } from '../../browser/openInVSCodeUtils.js';
 import { INativeHostService } from '../../../platform/native/common/native.js';
-import { IOpenedMainWindow } from '../../../platform/window/common/window.js';
+import { IFolderToOpen, IOpenedMainWindow } from '../../../platform/window/common/window.js';
+import { ILabelService, Verbosity } from '../../../platform/label/common/label.js';
 import { OPEN_VSCODE_WINDOW_COMMAND_ID, RETURN_TO_VSCODE_EDITOR_COMMAND_ID, SHOULD_SHOW_RETURN_TO_VSCODE_EDITOR_COMMAND_ID } from '../../common/sessionCommands.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
+import { IChat, ISession } from '../../services/sessions/common/session.js';
+import { hasKey } from '../../../base/common/types.js';
 
 export class OpenSessionInVSCodeAction extends Action2 {
 	static readonly ID = 'agents.openSessionInVSCode';
@@ -40,55 +46,60 @@ export class OpenSessionInVSCodeAction extends Action2 {
 			id: OpenSessionInVSCodeAction.ID,
 			title: localize2('openInVSCode', 'Open in Editor'),
 			icon: Codicon.vscodeInsiders,
-			precondition: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated()),
+			precondition: ContextKeyExpr.and(ContextKeyExpr.or(IsAuxiliaryWindowContext.toNegated(), LayoutModeContext)!, SessionsWelcomeVisibleContext.toNegated()),
 			menu: [{
 				id: Menus.TitleBarCenterRight,
 				group: 'navigation',
 				order: 7,
-				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), IsPhoneLayoutContext.negate()),
+				when: ContextKeyExpr.and(ContextKeyExpr.or(IsAuxiliaryWindowContext.toNegated(), LayoutModeContext)!, SessionsWelcomeVisibleContext.toNegated(), IsPhoneLayoutContext.negate()),
 			}]
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
+	override async run(accessor: ServicesAccessor, context?: { readonly session: ISession; readonly chat: IChat }): Promise<void> {
 		const telemetryService = accessor.get(ITelemetryService);
 		logSessionsInteraction(telemetryService, 'openInVSCode');
 
-		const sessionsService = accessor.get(ISessionsService);
-		const sessionsProvidersService = accessor.get(ISessionsProvidersService);
-		const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
-		const nativeHostService = accessor.get(INativeHostService);
+		const instantiationService = accessor.get(IInstantiationService);
 
-		const folderUri = this.getFolderUriToOpen(sessionsService, sessionsProvidersService, remoteAgentHostService);
+		// The session of the window it is invoked from, such as from the title row of a chat window, else of the focused window.
+		const target = context?.session ? context : instantiationService.invokeFunction(accessor => resolveSessionCommandTarget(accessor, []));
+		return instantiationService.invokeFunction(openSessionInVSCode, target?.session, target?.chat);
+	}
+}
+
+export async function openSessionInVSCode(accessor: ServicesAccessor, session: ISession | IActiveSession | undefined, chat?: IChat): Promise<void> {
+	const nativeHostService = accessor.get(INativeHostService);
+	const sessionsProvidersService = accessor.get(ISessionsProvidersService);
+	const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
+	const labelService = accessor.get(ILabelService);
+
+	const folders = (chat ?? (session && hasKey(session, { activeChat: true }) ? session.activeChat.get() : session?.mainChat.get()))?.workspace.get()?.folders;
+	if (!session || !folders?.length) {
+		return nativeHostService.openWindow();
+	}
+
+	const foldersToOpen: IFolderToOpen[] = [];
+	for (const folder of folders) {
+		const folderUri = resolveRemoteFolderUri(folder.workingDirectory, session.providerId, sessionsProvidersService, remoteAgentHostService);
 		if (!folderUri) {
-			return nativeHostService.openWindow();
+			return nativeHostService.openWindow({ remoteAuthority: null });
 		}
-
-		const chatSessionToOpen = getChatSessionToOpenInEditor(sessionsService.activeSession.get());
-		return nativeHostService.openWindow([{ folderUri }], { forceNewWindow: true, chatSessionToOpen });
+		foldersToOpen.push({
+			folderUri,
+			label: folderUri.scheme === Schemas.vscodeRemote ? labelService.getWorkspaceLabel(folder.workingDirectory, { verbose: Verbosity.LONG }) : undefined,
+		});
 	}
 
-	private getFolderUriToOpen(sessionsService: ISessionsService, sessionsProvidersService: ISessionsProvidersService, remoteAgentHostService: IRemoteAgentHostService): URI | undefined {
-		const activeSession = sessionsService.activeSession.get();
-		if (!activeSession) {
-			return undefined;
-		}
-
-		const workspace = activeSession.workspace.get();
-		const rawFolderUri = workspace?.folders[0]?.workingDirectory;
-		if (!rawFolderUri) {
-			return undefined;
-		}
-
-		return resolveRemoteFolderUri(rawFolderUri, activeSession.providerId, sessionsProvidersService, remoteAgentHostService);
-	}
+	const chatSessionToOpen = getChatSessionToOpenInEditor(session, chat);
+	return nativeHostService.openWindow(foldersToOpen, { forceNewWindow: true, chatSessionToOpen });
 }
 
 /**
  * Provisional sessions remain owned by the Agents composer and may be replaced or disposed, so only materialized sessions are safe to share across windows.
  */
-export function getChatSessionToOpenInEditor(session: IActiveSession | undefined): URI | undefined {
-	return session?.isCreated.get() ? session.resource : undefined;
+export function getChatSessionToOpenInEditor(session: ISession | IActiveSession | undefined, chat?: IChat): URI | undefined {
+	return session && (!hasKey(session, { isCreated: true }) || session.isCreated.get()) ? chat?.resource ?? session.resource : undefined;
 }
 
 export class OpenVSCodeWindowAction extends Action2 {
@@ -102,6 +113,8 @@ export class OpenVSCodeWindowAction extends Action2 {
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyA,
 				weight: KeybindingWeight.WorkbenchContrib,
+				// On Linux, Ctrl+Shift+A is Toggle Block Comment, so defer to it in a focused writable editor.
+				when: ContextKeyExpr.or(IsLinuxContext.toNegated(), EditorAreaFocusContext.toNegated(), EditorContextKeys.readOnly),
 			},
 		});
 	}

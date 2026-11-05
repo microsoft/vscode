@@ -185,6 +185,7 @@ function createMockAssignmentService(
 		_serviceBrand: undefined,
 		onDidRefetchAssignments: Event.None,
 		getCurrentExperiments: async () => [],
+		getTreatmentWithAssignment: async () => ({ value: undefined, hasAssignment: Promise.resolve(false) }),
 		addTelemetryAssignmentFilter(_filter: IAssignmentFilter): void { },
 		getTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined> {
 			getTreatmentCalls.push(name);

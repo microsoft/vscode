@@ -37,7 +37,7 @@ export class MdLanguageClient implements IDisposable {
 		this.#workspace.dispose();
 	}
 
-	resolveLinkTarget(linkText: string, uri: vscode.Uri): Promise<proto.ResolvedDocumentLinkTarget> {
+	resolveLinkTarget(linkText: string, uri: vscode.Uri): Promise<proto.ResolvedDocumentLinkTarget | undefined> {
 		return this.#client.sendRequest(proto.resolveLinkTarget, { linkText, uri: uri.toString() });
 	}
 

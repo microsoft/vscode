@@ -11,7 +11,7 @@ import { VSBuffer } from '../../../common/buffer.js';
 import { randomPath } from '../../../common/extpath.js';
 import { FileAccess } from '../../../common/network.js';
 import { basename, dirname, join, sep } from '../../../common/path.js';
-import { isWindows } from '../../../common/platform.js';
+import { isCI, isWindows } from '../../../common/platform.js';
 import { configureFlushOnWrite, Promises, realcase, realpathSync, RimRafMode, SymlinkSupport, writeFileSync } from '../../../node/pfs.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../common/utils.js';
 import { flakySuite, getRandomTestPath } from '../testUtils.js';
@@ -181,6 +181,55 @@ flakySuite('PFS', function () {
 		assert.ok(!fs.existsSync(parentDir));
 	});
 
+	test('atomic rename replaces an existing file', async () => {
+		const source = join(testDir, 'source');
+		const target = join(testDir, 'target');
+		await fs.promises.writeFile(source, 'new');
+		await fs.promises.writeFile(target, 'old');
+		await Promises.renameAtomic(source, target);
+		assert.deepStrictEqual({
+			sourceExists: fs.existsSync(source),
+			target: await fs.promises.readFile(target, 'utf8'),
+		}, { sourceExists: false, target: 'new' });
+	});
+
+	for (const { code, suffix } of [{ code: 'EXDEV', suffix: '' }, { code: 'EINVAL', suffix: '.' }]) {
+		test(`atomic rename never copies on ${code} (${suffix || 'regular filename'})`, async () => {
+			const source = join(testDir, `source${suffix}`);
+			const target = join(testDir, 'target');
+			await fs.promises.writeFile(source, 'new');
+			await fs.promises.writeFile(target, 'old');
+			const failure = Object.assign(new Error(code), { code });
+			let attempts = 0;
+			await assert.rejects(Promises.renameAtomic(source, target, undefined, async () => {
+				attempts++;
+				throw failure;
+			}), error => error === failure);
+			assert.deepStrictEqual({
+				attempts,
+				source: await fs.promises.readFile(source, 'utf8'),
+				target: await fs.promises.readFile(target, 'utf8'),
+			}, { attempts: 1, source: 'new', target: 'old' });
+		});
+	}
+
+	(isWindows ? test : test.skip)('atomic rename retains Windows retries for transient errors', async () => {
+		const source = join(testDir, 'source');
+		const target = join(testDir, 'target');
+		await fs.promises.writeFile(source, 'new');
+		await fs.promises.writeFile(target, 'old');
+		let attempts = 0;
+		await Promises.renameAtomic(source, target, 1000, async (from, to) => {
+			if (++attempts === 1) {
+				throw Object.assign(new Error('busy'), { code: 'EBUSY' });
+			}
+			await fs.promises.rename(from, to);
+		});
+		assert.deepStrictEqual({
+			attempts, target: await fs.promises.readFile(target, 'utf8'),
+		}, { attempts: 2, target: 'new' });
+	});
+
 	test('rename without retry', async () => {
 		const sourceDir = FileAccess.asFileUri('vs/base/test/node/pfs/fixtures').fsPath;
 		const parentDir = join(tmpdir(), 'vsctests', 'pfs');
@@ -319,6 +368,24 @@ flakySuite('PFS', function () {
 		assert.ok(result.indexOf('somefolder1') !== -1);
 		assert.ok(result.indexOf('somefolder2') !== -1);
 		assert.ok(result.indexOf('somefolder3') !== -1);
+	});
+
+	test('getFreeDiskSpace - existing directory', async () => {
+		const available = await Promises.getFreeDiskSpace(testDir);
+		assert.ok(Number.isSafeInteger(available) && available >= 0);
+	});
+
+	test('getFreeDiskSpace - deleted worktree with missing parents', async () => {
+		const worktree = join(testDir, 'deleted', 'worktree');
+		await fs.promises.mkdir(worktree, { recursive: true });
+		await Promises.rm(join(testDir, 'deleted'));
+
+		const available = await Promises.getFreeDiskSpace(worktree);
+		assert.ok(Number.isSafeInteger(available) && available >= 0);
+	});
+
+	test('getFreeDiskSpace - propagates invalid path errors', async () => {
+		await assert.rejects(Promises.getFreeDiskSpace(join(testDir, 'invalid\0path')), { code: 'ERR_INVALID_ARG_VALUE' });
 	});
 
 	test('stat link', async () => {
@@ -462,13 +529,19 @@ flakySuite('PFS', function () {
 
 		// assume case insensitive file system
 		if (process.platform === 'win32' || process.platform === 'darwin') {
-			const upper = testDir.toUpperCase();
+			// realcase cannot resolve 8.3 short names, such as `RUNNER~1` in a temp folder
+			// `C:\Users\RUNNER~1\AppData\Local\Temp` on Windows: start from the long path
+			const dir = await fs.promises.realpath(testDir);
+			const upper = dir.toUpperCase();
 			const real = await realcase(upper);
 
-			if (real) { // can be null in case of permission errors
+			// can be null in case of permission errors, but not on CI machines, where
+			// the test would otherwise pass without asserting anything
+			assert.ok(real || !isCI, `realcase returned null for ${upper}`);
+			if (real) {
 				assert.notStrictEqual(real, upper);
 				assert.strictEqual(real.toUpperCase(), upper);
-				assert.strictEqual(real, testDir);
+				assert.strictEqual(real, dir);
 			}
 		}
 

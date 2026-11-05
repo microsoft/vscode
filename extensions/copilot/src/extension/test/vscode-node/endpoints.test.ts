@@ -56,9 +56,9 @@ class FakeModelMetadataFetcher implements IModelMetadataFetcher {
 		};
 	}
 
-	async getEmbeddingsModel(): Promise<IEmbeddingModelInformation> {
+	async getEmbeddingsModel(family: 'text-embedding-3-small' | 'metis'): Promise<IEmbeddingModelInformation> {
 		return {
-			id: 'text-embedding-3-small',
+			id: family,
 			name: 'fake-name',
 			vendor: 'fake-vendor',
 			version: 'fake-version',
@@ -68,7 +68,7 @@ class FakeModelMetadataFetcher implements IModelMetadataFetcher {
 			capabilities: {
 				type: 'embeddings',
 				tokenizer: TokenizerType.O200K,
-				family: 'text-embedding-3-small',
+				family,
 				limits: { max_inputs: 256 }
 			}
 		};
@@ -102,6 +102,26 @@ suite('Endpoint Class Test', function () {
 
 		assert.strictEqual(endpoint.model, 'gpt-5.4-nano');
 	});
+
+	test('resolves embedding endpoints by family with Metis as the default', async function () {
+		const defaultEndpoint = await endpointProvider.getEmbeddingsEndpoint();
+		const metisEndpoint = await endpointProvider.getEmbeddingsEndpoint('metis');
+		const text3smallEndpoint = await endpointProvider.getEmbeddingsEndpoint('text3small');
+
+		assert.deepStrictEqual({
+			defaultFamily: defaultEndpoint.family,
+			metisFamily: metisEndpoint.family,
+			text3smallFamily: text3smallEndpoint.family,
+			reusesMetisEndpoint: defaultEndpoint === metisEndpoint,
+			keepsFamiliesSeparate: metisEndpoint !== text3smallEndpoint,
+		}, {
+			defaultFamily: 'metis',
+			metisFamily: 'metis',
+			text3smallFamily: 'text-embedding-3-small',
+			reusesMetisEndpoint: true,
+			keepsFamiliesSeparate: true,
+		});
+	});
 });
 
 class CopilotMatchableModelMetadataFetcher implements IModelMetadataFetcher {
@@ -122,9 +142,9 @@ class CopilotMatchableModelMetadataFetcher implements IModelMetadataFetcher {
 	async getChatModelFromCapiFamily(family: string): Promise<IChatModelInformation> {
 		return makeChatModel(family);
 	}
-	async getEmbeddingsModel(): Promise<IEmbeddingModelInformation> {
+	async getEmbeddingsModel(family: 'text-embedding-3-small' | 'metis'): Promise<IEmbeddingModelInformation> {
 		return {
-			id: 'text-embedding-3-small',
+			id: family,
 			name: 'fake-name',
 			vendor: 'fake-vendor',
 			version: 'fake-version',
@@ -134,7 +154,7 @@ class CopilotMatchableModelMetadataFetcher implements IModelMetadataFetcher {
 			capabilities: {
 				type: 'embeddings',
 				tokenizer: TokenizerType.O200K,
-				family: 'text-embedding-3-small',
+				family,
 				limits: { max_inputs: 256 }
 			}
 		};

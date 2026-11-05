@@ -6,9 +6,11 @@
 import { localize } from '../../../../../nls.js';
 import { ChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { ISpotlightPayload, SPOTLIGHT_PRESENTATION_KIND } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightTypes.js';
+import { onboardingScenarioRegistry } from '../../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
 import { IOnboardingScenario } from '../../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
 
 export const SESSION_ARCHIVE_TOUR_ID = 'sessions.archiveNudge';
+onboardingScenarioRegistry.registerDescriptor({ id: SESSION_ARCHIVE_TOUR_ID });
 
 export function createSessionArchiveTour(targetId: string, wording: ChatSessionArchiveActionWording, onBeforeShow: () => Promise<void>): IOnboardingScenario<ISpotlightPayload> {
 	const markAsDone = wording === ChatSessionArchiveActionWording.MarkAsDone;
@@ -31,7 +33,7 @@ export function createSessionArchiveTour(targetId: string, wording: ChatSessionA
 					advanceOnTargetClick: 'advanceOnly',
 					hideNext: false,
 					placement: 'right',
-					missingTarget: { kind: 'abort' },
+					missingTarget: { kind: 'wait', timeoutMs: 2000, onTimeout: 'abort' },
 					onBeforeShow,
 				}],
 			},

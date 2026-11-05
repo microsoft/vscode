@@ -9,3 +9,9 @@
 	font-size: var(--vscode-fontSize-label1);
 	line-height: 16px;
 }
+
+/* The codicon is a child of the label, so the global `.monaco-workbench .codicon`
+ * icon color wins over the disabled color the action bar applies to the label. */
+.monaco-action-bar .action-item.changes-commit-action.disabled .action-label > .codicon {
+	color: var(--vscode-disabledForeground);
+}

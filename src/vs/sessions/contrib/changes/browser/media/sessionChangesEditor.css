@@ -11,6 +11,39 @@
 	color: var(--vscode-agentsPanel-foreground);
 }
 
+.session-changes-editor-body {
+	position: relative;
+}
+
+/* While the changed files list shows, the header above the diffs gets a bottom border that the list's separator continues.
+ * It sits on the last row of the header, so the first diff card keeps the full gap of the cards below it. */
+.session-changes-editor-body.file-list-visible::before {
+	content: '';
+	position: absolute;
+	top: calc(-1 * var(--vscode-strokeThickness));
+	left: 0;
+	right: 0;
+	z-index: 10;
+	height: var(--vscode-strokeThickness);
+	background: var(--vscode-multiDiffEditor-border);
+	pointer-events: none;
+}
+
+.session-changes-editor-empty-state {
+	position: absolute;
+	inset: 0;
+	align-items: center;
+	justify-content: center;
+}
+
+.session-changes-editor-empty-state:not([hidden]) {
+	display: flex;
+}
+
+.session-changes-editor-body.has-empty-state .multiDiffEditor .placeholder {
+	display: none;
+}
+
 .session-changes-file-stats {
 	display: inline-flex;
 	flex: 0 0 auto;
@@ -28,7 +61,7 @@
 	color: var(--vscode-chat-linesRemovedForeground);
 }
 
-.changeset-review-action {
+.monaco-action-bar .checkbox-action-item.changeset-review-action {
 	display: flex;
 	align-items: center;
 	height: var(--vscode-spacing-size200);
@@ -174,24 +207,22 @@
 	white-space: nowrap;
 }
 
+.changes-picker-action-rich .changes-picker-label.non-default {
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
 .changes-picker-action-rich .changes-picker-summary {
 	display: inline-flex;
 	align-items: center;
 	gap: var(--vscode-spacing-size40);
 	flex: 0 0 auto;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
 }
 
 .changes-picker-action-rich .changes-picker-separator {
 	color: var(--vscode-descriptionForeground);
 	flex-shrink: 0;
-}
-
-.changes-picker-action-rich .working-set-lines-added {
-	color: var(--vscode-chat-linesAddedForeground);
-}
-
-.changes-picker-action-rich .working-set-lines-removed {
-	color: var(--vscode-chat-linesRemovedForeground);
 }
 
 .changes-picker-action-rich .action-label > .codicon {

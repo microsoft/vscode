@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import type { ProtocolRequest, ProtocolResponse } from 'electron';
-import { Schemas } from '../../../../base/common/network.js';
+import { ipcRenderer } from 'electron';
+import { FileAccess, Schemas } from '../../../../base/common/network.js';
+import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -14,40 +15,19 @@ import { createManagedRemoteResourceRequestHandler } from '../../electron-main/m
 suite('ProtocolMainService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createRequest(authority: string): ProtocolRequest {
-		return {
-			url: URI.from({
-				scheme: Schemas.vscodeManagedRemoteResource,
-				authority,
-				path: '/resource.txt',
-			}).toString(),
-			referrer: '',
-			method: 'GET',
-			headers: {},
-		};
+	function createRequest(authority: string): GlobalRequest {
+		return new Request(URI.from({
+			scheme: Schemas.vscodeManagedRemoteResource,
+			authority,
+			path: '/resource.txt',
+		}).toString());
 	}
 
-	function invoke(
-		handler: ReturnType<typeof createManagedRemoteResourceRequestHandler>,
-		request: ProtocolRequest,
-	): Promise<ProtocolResponse> {
-		return new Promise((resolve, reject) => handler(request, response => {
-			if (Buffer.isBuffer(response)) {
-				reject(new Error('Expected a protocol response'));
-			} else {
-				resolve(response);
-			}
-		}));
-	}
-
-	function summarize(response: ProtocolResponse) {
-		if (!Buffer.isBuffer(response.data)) {
-			throw new Error('Expected response data to be a buffer');
-		}
+	async function summarize(response: GlobalResponse) {
 		return {
-			statusCode: response.statusCode,
-			data: response.data.toString(),
-			mimeType: response.mimeType,
+			statusCode: response.status,
+			data: await response.text(),
+			mimeType: response.headers.get('Content-Type'),
 		};
 	}
 
@@ -62,10 +42,10 @@ suite('ProtocolMainService', () => {
 			};
 		}, store.add(new NullLogService()));
 
-		const response = await invoke(handler, createRequest('window:7'));
+		const response = await handler(createRequest('window:7'));
 
 		assert.deepStrictEqual({
-			response: summarize(response),
+			response: await summarize(response),
 			requested: requested.map(url => url.toString()),
 		}, {
 			response: {
@@ -84,25 +64,78 @@ suite('ProtocolMainService', () => {
 			throw new Error('failed');
 		}, store.add(new NullLogService()));
 
-		const notFound = await invoke(handler, createRequest('invalid'));
-		const failed = await invoke(handler, createRequest('window:7'));
+		const notFound = await handler(createRequest('invalid'));
+		const failed = await handler(createRequest('window:7'));
 
 		assert.deepStrictEqual({
-			notFound: summarize(notFound),
-			failed: summarize(failed),
+			notFound: await summarize(notFound),
+			failed: await summarize(failed),
 			requestCount,
 		}, {
 			notFound: {
 				statusCode: 404,
 				data: 'Not found',
-				mimeType: undefined,
+				mimeType: 'text/plain;charset=UTF-8',
 			},
 			failed: {
 				statusCode: 500,
-				data: 'Error: failed',
-				mimeType: undefined,
+				data: '',
+				mimeType: null,
 			},
 			requestCount: 1,
 		});
+	});
+
+	test('loads vscode-remote-resource with workbench CORS headers', async function () {
+		this.timeout(15_000);
+		const response = await ipcRenderer.invoke('vscode:test-remote-resource');
+
+		assert.deepStrictEqual(response, {
+			loaded: true,
+			requestHeaders: {
+				origin: 'vscode-file://vscode-app',
+				secFetchMode: 'cors',
+			},
+		});
+	});
+
+	test('opts trusted editor and Agents shell documents into JavaScript stack sampling', async () => {
+		const roots = {
+			appRoot: URI.file('/stack-policy-test/app').fsPath,
+			extensionsPath: URI.file('/stack-policy-test/extensions').fsPath,
+			globalStorageHome: URI.file('/stack-policy-test/storage').fsPath,
+			workspaceStorageHome: URI.file('/stack-policy-test/workspaces').fsPath,
+		};
+		const cases = [
+			{ path: join(roots.appRoot, 'out/vs/code/electron-browser/workbench/workbench.html'), expected: true },
+			{ path: join(roots.appRoot, 'out/vs/code/electron-browser/workbench/workbench-dev.html'), expected: true },
+			{ path: join(roots.appRoot, 'out/vs/sessions/electron-browser/sessions.html'), expected: true },
+			{ path: join(roots.appRoot, 'out/vs/sessions/electron-browser/sessions-dev.html'), expected: true },
+			{ path: join(roots.appRoot, 'out/vs/sessions/electron-browser/other.html'), expected: false },
+			{ path: join(roots.extensionsPath, 'extension/sessions.html'), expected: false },
+			{ path: join(roots.globalStorageHome, 'sessions-dev.html'), expected: false },
+			{ path: join(roots.appRoot, 'extensions/example/sessions.html'), expected: false },
+		];
+		const results = await Promise.all(cases.map(async testCase => {
+			const response: { status: number; headers?: Record<string, string>; errors: string[] } = await ipcRenderer.invoke(
+				'vscode:test-file-resource', FileAccess.uriToBrowserUri(URI.file(testCase.path)).toString(true), roots);
+			return { status: response.status, policy: response.headers?.['Document-Policy'], errors: response.errors };
+		}));
+		assert.deepStrictEqual(results, cases.map(testCase => ({
+			status: 200, policy: testCase.expected ? 'include-js-call-stacks-in-crash-reports' : undefined, errors: [],
+		})));
+	});
+
+	test('collects a JavaScript stack from an Agents shell document', async function () {
+		this.timeout(15_000);
+		const roots = {
+			appRoot: URI.file('/stack-sampling-test/app').fsPath,
+			extensionsPath: URI.file('/stack-sampling-test/extensions').fsPath,
+			globalStorageHome: URI.file('/stack-sampling-test/storage').fsPath,
+			workspaceStorageHome: URI.file('/stack-sampling-test/workspaces').fsPath,
+		};
+		const resource = URI.file(join(roots.appRoot, 'out/vs/sessions/electron-browser/sessions-dev.html'));
+		const response: { stack: string } = await ipcRenderer.invoke('vscode:test-file-resource', FileAccess.uriToBrowserUri(resource).toString(true), roots, { sampleStack: true });
+		assert.ok(response.stack.includes('stackSamplingProbe'), `Expected the sampled JavaScript frame, got ${response.stack}`);
 	});
 });

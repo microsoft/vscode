@@ -4,6 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../base/common/errors.js';
+import { isDefined } from '../../../../../base/common/types.js';
+import { GitHubRequestError } from '../../../../../platform/github/common/githubTypes.js';
+import { ApiRequestOptions } from '../../../../../platform/github/common/client/request.js';
 import { GitHubApiClient } from '../githubApiClient.js';
 
 export interface IGitHubRecentIssue {
@@ -34,151 +38,28 @@ export interface IGitHubRecentUserWork {
 	readonly pullRequests: readonly IGitHubRecentPullRequest[];
 }
 
-interface IGitHubRecentIssuesResponse {
-	readonly search: {
-		readonly nodes: readonly ({
-			readonly __typename: 'Issue';
-			readonly number: number;
-			readonly title: string;
-			readonly url: string;
-			readonly updatedAt: string;
-		} | null)[] | null;
-	};
-}
-
-interface IGitHubIssueLinkageResponse {
-	readonly repository: Record<string, {
-		readonly closedByPullRequestsReferences: { readonly totalCount: number } | null;
-	} | null> | null;
-}
-
-interface IGitHubRecentPullRequestsResponse {
-	readonly search: {
-		readonly nodes: readonly ({
-			readonly __typename: 'PullRequest';
-			readonly number: number;
-			readonly title: string;
-			readonly url: string;
-			readonly updatedAt: string;
-			readonly mergeable: 'MERGEABLE' | 'CONFLICTING' | 'UNKNOWN';
-			readonly commits: {
-				readonly nodes: readonly ({
-					readonly commit: {
-						readonly committedDate: string;
-						readonly statusCheckRollup: { readonly state: string } | null;
-					};
-				} | null)[] | null;
-			};
-		} | null)[] | null;
-	};
-}
-
-interface IGitHubPullRequestReviewThreadsResponse {
-	readonly repository: {
-		readonly pullRequest: {
-			readonly reviewThreads: {
-				readonly nodes: readonly ({
-					readonly isResolved: boolean;
-					readonly comments: {
-						readonly nodes: readonly ({
-							readonly createdAt: string;
-						} | null)[] | null;
-					};
-				} | null)[] | null;
-			};
-		} | null;
-	} | null;
-}
-
-const RECENT_ISSUES_QUERY = `
-	query RecentAssignedIssues($query: String!) {
-		search(query: $query, type: ISSUE, first: 5) {
-			nodes {
-				... on Issue {
-					__typename
-					number
-					title
-					url
-					updatedAt
-				}
-			}
-		}
-	}
-`;
-
-const RECENT_PULL_REQUESTS_QUERY = `
-	query RecentAuthoredPullRequests($query: String!) {
-		search(query: $query, type: ISSUE, first: 5) {
-			nodes {
-				... on PullRequest {
-					__typename
-					number
-					title
-					url
-					updatedAt
-					mergeable
-					commits(last: 1) {
-						nodes {
-							commit {
-								committedDate
-								statusCheckRollup {
-									state
-								}
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-`;
-
-const PULL_REQUEST_REVIEW_THREADS_QUERY = `
-	query PullRequestReviewThreads($owner: String!, $repo: String!, $pullRequestNumber: Int!) {
-		repository(owner: $owner, name: $repo) {
-			pullRequest(number: $pullRequestNumber) {
-				reviewThreads(first: 100) {
-					nodes {
-						isResolved
-						comments(last: 1) {
-							nodes {
-								createdAt
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-`;
-
 export class GitHubRecentUserWorkFetcher {
-	constructor(private readonly _apiClient: GitHubApiClient) { }
+	constructor(private readonly _client: GitHubApiClient) { }
 
-	async getRecentAssignedIssues(owner: string, repo: string, token: CancellationToken): Promise<readonly IGitHubRecentIssue[]> {
-		const data = await this._apiClient.graphql<IGitHubRecentIssuesResponse>(
-			RECENT_ISSUES_QUERY,
-			'githubApi.getRecentAssignedIssues',
-			{ query: `repo:${owner}/${repo} is:issue is:open assignee:@me sort:updated-desc` },
-			{ token, createAuthenticationSession: false },
-		);
-
-		return (data.search.nodes ?? [])
-			.filter(isDefined)
-			.map(issue => ({ number: issue.number, title: issue.title, url: issue.url, updatedAt: issue.updatedAt }));
+	getRecentAssignedIssues(owner: string, repo: string, token: CancellationToken, options?: ApiRequestOptions): Promise<readonly IGitHubRecentIssue[]> {
+		return this._client.withClient(async (client, signal) => {
+			const page = await client.search.issues(`repo:${owner}/${repo} is:open assignee:@me`, signal, {
+				...options,
+				query: { per_page: 5, sort: 'updated', order: 'desc' },
+			});
+			return page.items.map(issue => ({
+				number: issue.number,
+				title: issue.title,
+				url: issue.html_url,
+				updatedAt: issue.updated_at
+			}));
+		}, token);
 	}
 
-	async getRecentAuthoredPullRequests(owner: string, repo: string, token: CancellationToken): Promise<readonly IGitHubRecentPullRequest[]> {
-		const data = await this._apiClient.graphql<IGitHubRecentPullRequestsResponse>(
-			RECENT_PULL_REQUESTS_QUERY,
-			'githubApi.getRecentAuthoredPullRequests',
-			{ query: `repo:${owner}/${repo} is:pr is:open author:@me sort:updated-desc` },
-			{ token, createAuthenticationSession: false },
-		);
-
-		return (data.search.nodes ?? [])
-			.filter(isDefined)
-			.map(pullRequest => {
+	getRecentAuthoredPullRequests(owner: string, repo: string, token: CancellationToken, options?: ApiRequestOptions): Promise<readonly IGitHubRecentPullRequest[]> {
+		return this._client.withClient(async (client, signal) => {
+			const page = await client.search.pullRequests(`repo:${owner}/${repo} is:open author:@me sort:updated-desc`, signal, { ...options, query: { first: 5 } });
+			return (page.nodes ?? []).filter(isDefined).map(pullRequest => {
 				const latestCommit = pullRequest.commits.nodes?.find(isDefined)?.commit;
 				return {
 					number: pullRequest.number,
@@ -190,62 +71,40 @@ export class GitHubRecentUserWorkFetcher {
 					latestCommitAt: latestCommit?.committedDate,
 				};
 			});
+		}, token);
 	}
 
-	async getPullRequestReviewThreads(owner: string, repo: string, pullRequestNumber: number, token: CancellationToken): Promise<readonly IGitHubRecentPullRequestReviewThread[]> {
-		const data = await this._apiClient.graphql<IGitHubPullRequestReviewThreadsResponse>(
-			PULL_REQUEST_REVIEW_THREADS_QUERY,
-			'githubApi.getPullRequestReviewThreads',
-			{ owner, repo, pullRequestNumber },
-			{ token, createAuthenticationSession: false },
-		);
-
-		return (data.repository?.pullRequest?.reviewThreads.nodes ?? [])
-			.filter(isDefined)
-			.map(thread => ({
+	getPullRequestReviewThreads(owner: string, repo: string, pullRequestNumber: number, token: CancellationToken, options?: ApiRequestOptions): Promise<readonly IGitHubRecentPullRequestReviewThread[]> {
+		return this._client.withClient(async (client, signal) => {
+			const pullRequest = await client.pullRequests.get({ owner, repo }, pullRequestNumber, signal, options);
+			const threads = await client.reviews.listThreadSummaries(pullRequest.node_id, signal, {
+				...options,
+				query: { first: 100 },
+				maxPages: 100,
+			});
+			if (!threads) {
+				throw new GitHubRequestError('GitHub resource was not returned', 'notFound');
+			}
+			return (threads.nodes ?? []).filter(isDefined).map(thread => ({
 				isResolved: thread.isResolved,
 				latestCommentAt: thread.comments.nodes?.find(isDefined)?.createdAt,
 			}));
+		}, token);
 	}
 
-	async getIssuesWithLinkedPullRequests(owner: string, repo: string, issueNumbers: readonly number[], token: CancellationToken): Promise<ReadonlySet<number>> {
+	getIssuesWithLinkedPullRequests(owner: string, repo: string, issueNumbers: readonly number[], token: CancellationToken, options?: ApiRequestOptions): Promise<ReadonlySet<number>> {
 		if (issueNumbers.length === 0) {
-			return new Set();
+			if (token.isCancellationRequested) {
+				return Promise.reject(new CancellationError());
+			}
+			return Promise.resolve(new Set());
 		}
-		const issueVariables = issueNumbers.map((_, index) => `$issue${index}: Int!`).join(', ');
-		const issueSelections = issueNumbers.map((_, index) => `
-			issue${index}: issue(number: $issue${index}) {
-				closedByPullRequestsReferences(first: 1, includeClosedPrs: true) {
-					totalCount
-				}
+		return this._client.withClient(async (client, signal) => {
+			const counts = await client.issues.getClosingPullRequestCounts({ owner, repo }, issueNumbers, signal, options);
+			if (counts === null) {
+				throw new GitHubRequestError(`GitHub repository not found: ${owner}/${repo}`, 'notFound');
 			}
-		`).join('');
-		const query = `
-			query IssueLinkage($owner: String!, $repo: String!, ${issueVariables}) {
-				repository(owner: $owner, name: $repo) {
-					${issueSelections}
-				}
-			}
-		`;
-		const variables: Record<string, string | number> = { owner, repo };
-		issueNumbers.forEach((issueNumber, index) => variables[`issue${index}`] = issueNumber);
-		const data = await this._apiClient.graphql<IGitHubIssueLinkageResponse>(
-			query,
-			'githubApi.getIssuesWithLinkedPullRequests',
-			variables,
-			{ token, createAuthenticationSession: false },
-		);
-
-		const linkedIssueNumbers = new Set<number>();
-		issueNumbers.forEach((issueNumber, index) => {
-			if ((data.repository?.[`issue${index}`]?.closedByPullRequestsReferences?.totalCount ?? 0) > 0) {
-				linkedIssueNumbers.add(issueNumber);
-			}
-		});
-		return linkedIssueNumbers;
+			return new Set(issueNumbers.filter(number => (counts[number] ?? 0) > 0));
+		}, token);
 	}
-}
-
-function isDefined<T>(value: T | null | undefined): value is T {
-	return value !== null && value !== undefined;
 }

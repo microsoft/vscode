@@ -6,6 +6,19 @@ exchanges:
       system: ${system}
       messages:
         - role: user
+          content: Reply exactly MCP_READY. Do not call tools.
+    response:
+      content: MCP_READY
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly MCP_READY. Do not call tools.
+        - role: assistant
+          content: MCP_READY
+        - role: user
           content: Call runtime_probe exactly once with tag "images", then reply exactly MCP_IMAGES_READY. Do not call any other tools.
     response:
       content:
@@ -19,6 +32,10 @@ exchanges:
       model: claude-sonnet-5
       system: ${system}
       messages:
+        - role: user
+          content: Reply exactly MCP_READY. Do not call tools.
+        - role: assistant
+          content: MCP_READY
         - role: user
           content: Call runtime_probe exactly once with tag "images", then reply exactly MCP_IMAGES_READY. Do not call any other tools.
         - role: assistant
@@ -44,6 +61,10 @@ exchanges:
       model: claude-sonnet-5
       system: ${system}
       messages:
+        - role: user
+          content: Reply exactly MCP_READY. Do not call tools.
+        - role: assistant
+          content: MCP_READY
         - role: user
           content: Call runtime_probe exactly once with tag "images", then reply exactly MCP_IMAGES_READY. Do not call any other tools.
         - role: assistant

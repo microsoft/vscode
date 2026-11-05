@@ -54,7 +54,7 @@ export const chatSessionUnvisitedBorder = registerColor(
 export const chatSessionNeedsInputBorder = registerColor(
 	'chat.sessionStateIndicator.needsInputBorder',
 	{ dark: errorForeground, light: errorForeground, hcDark: activeContrastBorder, hcLight: activeContrastBorder },
-	localize('chat.sessionStateIndicator.needsInputBorder', "Border color of a Chat Editor that needs user input.")
+	localize('chat.sessionStateIndicator.needsInputBorder', "Border color of a Chat Editor that needs attention.")
 );
 
 export const chatSlashCommandBackground = registerColor(
@@ -127,6 +127,16 @@ export const chatThinkingShimmer = registerColor(
 	{ dark: '#ffffff', light: '#000000', hcDark: '#ffffff', hcLight: '#000000' },
 	localize('chat.thinkingShimmer', 'Shimmer highlight for thinking/working labels.'));
 
+export const chatWorkingProgressStableIconForeground = registerColor(
+	'chat.workingProgressStableIconForeground',
+	{ dark: '#007ACC', light: '#007ACC', hcDark: activeContrastBorder, hcLight: activeContrastBorder },
+	localize('chat.workingProgressStableIconForeground', 'Foreground color of the Stable VS Code icon in the chat working progress indicator.'));
+
+export const chatWorkingProgressInsidersIconForeground = registerColor(
+	'chat.workingProgressInsidersIconForeground',
+	{ dark: '#24BFA5', light: '#24BFA5', hcDark: activeContrastBorder, hcLight: activeContrastBorder },
+	localize('chat.workingProgressInsidersIconForeground', 'Foreground color of the Insiders VS Code icon in the chat working progress indicator.'));
+
 export const chatInputWorkingBorderColor1 = registerColor(
 	'chat.inputWorkingBorderColor1',
 	{ dark: buttonBackground, light: buttonBackground, hcDark: '#FFFFFF', hcLight: '#000000' },
@@ -145,25 +155,23 @@ export const chatInputWorkingBorderColor3 = registerColor(
 	localize('chat.inputWorkingBorderColor3.deprecated', "This color is no longer used. Use 'chat.inputWorkingBorderColor1' to customize the animated chat input border."));
 
 // --- Voice Mode ambient glow -------------------------------------------------
-// The listening / processing / speaking glows are derived from a single base
-// accent by hue-shifting (see `resolveVoiceGlowColors` in `voiceGlow.ts`), so the
-// glow harmonizes with whatever accent the active theme uses. Themes can pin any
-// individual state by setting its own token.
+// All connected voice states share the listening accent.
 
 export const chatVoiceGlowBaseColor = registerColor(
 	'chat.voiceGlowBaseColor',
 	focusBorder,
-	localize('chat.voiceGlowBaseColor', 'Base accent the Voice Mode ambient glow is derived from. The listening and speaking glows are hue-shifted from this color.'), true);
+	localize('chat.voiceGlowBaseColor', 'Base accent for the connected Voice Mode ambient glow.'), true);
 
 export const chatVoiceListeningGlow = registerColor(
 	'chat.voiceListeningGlow',
 	{ dark: null, light: null, hcDark: null, hcLight: null },
-	localize('chat.voiceListeningGlow', 'Accent color of the Voice Mode glow while listening. Derived from {0} when unset.', 'chat.voiceGlowBaseColor'), true);
+	localize('chat.voiceListeningGlow', 'Accent color of the Voice Mode glow while connected, including listening and speaking. Derived from {0} when unset.', 'chat.voiceGlowBaseColor'), true);
 
 export const chatVoiceSpeakingGlow = registerColor(
 	'chat.voiceSpeakingGlow',
 	{ dark: null, light: null, hcDark: null, hcLight: null },
-	localize('chat.voiceSpeakingGlow', 'Accent color of the Voice Mode glow while the agent is speaking. Derived from {0} when unset.', 'chat.voiceGlowBaseColor'), true);
+	localize('chat.voiceSpeakingGlow.unused', 'Unused speaking accent color.'), true,
+	localize('chat.voiceSpeakingGlow.deprecated', "This color is no longer used. Use 'chat.voiceListeningGlow' to customize the connected Voice Mode glow."));
 
 // Dictation shares Voice Mode's listening accent, so an open microphone reads the
 // same whichever feature opened it.

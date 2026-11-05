@@ -29,6 +29,9 @@ export interface IEditorPartCreationOptions {
 export const DEFAULT_EDITOR_MIN_DIMENSIONS = new Dimension(220, 70);
 export const DEFAULT_EDITOR_MAX_DIMENSIONS = new Dimension(Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY);
 
+export const CONNECTED_EDITOR_TABS_CLASS = 'modern-ui-connected-editor-tabs';
+export const CONNECTED_EDITOR_TABS_SELECTOR = `.${CONNECTED_EDITOR_TABS_CLASS}`;
+
 export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	showTabs: 'multiple',
 	highlightModifiedTabs: false,
@@ -192,6 +195,12 @@ export interface IEditorPartsView {
 	readonly mainPart: IEditorGroupsView;
 	registerPart(part: IEditorPart): IDisposable;
 
+	/**
+	 * The main part of a window: the first part created in it, or the
+	 * main part if the window has none.
+	 */
+	getWindowMainPart(windowId: number): IEditorGroupsView;
+
 	readonly activeGroup: IEditorGroupView;
 	readonly groups: IEditorGroupView[];
 	getGroup(identifier: GroupIdentifier): IEditorGroupView | undefined;
@@ -275,8 +284,20 @@ export interface IEditorGroupViewOptions {
 	/** Reserves the enabled group header for an editor even when its breadcrumbs and actions are empty. */
 	readonly reserveHeaderSpace?: (editor: EditorInput | undefined) => boolean;
 
+	/**
+	 * Whether the enabled group header shows for the active editor, such as not for a terminal in a group that shows its
+	 * header only for other editors. When unset, it shows for every editor.
+	 */
+	readonly showHeaderFor?: (editor: EditorInput | undefined) => boolean;
+
 	/** Uses the modern UI presentation for editor tabs. */
 	readonly useModernUITabs?: boolean;
+
+	/**
+	 * Hides the actions that lock and unlock the group, such as for a group its owner keeps locked so that other editors
+	 * do not open in it.
+	 */
+	readonly hideLockActions?: boolean;
 }
 
 export interface IEditorGroupMenuIds {
@@ -328,6 +349,14 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 	openEditor(editor: EditorInput, options?: IEditorOptions, internalOptions?: IInternalEditorOpenOptions): Promise<IEditorPane | undefined>;
 
 	relayout(): void;
+}
+
+export function fillActiveEditorSelection(group: IEditorGroup, expectedActiveEditor: EditorInput, options: IEditorOptions): IEditorOptions {
+	if (group.activeEditor && expectedActiveEditor.matches(group.activeEditor)) {
+		return group.activeEditorPane?.getSelection?.()?.restore(options) ?? options;
+	}
+
+	return options;
 }
 
 export function fillActiveEditorViewState(group: IEditorGroup, expectedActiveEditor?: EditorInput, presetOptions?: IEditorOptions): IEditorOptions {

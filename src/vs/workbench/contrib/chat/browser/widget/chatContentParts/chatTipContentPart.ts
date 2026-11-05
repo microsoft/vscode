@@ -9,8 +9,9 @@ import { StandardMouseEvent } from '../../../../../../base/browser/mouseEvent.js
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { onUnexpectedError } from '../../../../../../base/common/errors.js';
-import { Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { FileAccess } from '../../../../../../base/common/network.js';
 import { localize, localize2 } from '../../../../../../nls.js';
 import { getFlatContextMenuActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { MenuWorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
@@ -124,12 +125,22 @@ export class ChatTipContentPart extends Disposable {
 		dom.clearNode(this.domNode);
 		this._toolbar.clear();
 		this._multipleChatTipsContextKey.set(this._chatTipService.hasMultipleTips());
+		const renderStore = new DisposableStore();
 
 		const markdownContent = this._renderer.render(tip.content, {
 			actionHandler: (link, md) => { this._handleTipAction(link, md).catch(onUnexpectedError); }
 		});
-		this._renderedContent.value = markdownContent;
+		renderStore.add(markdownContent);
+		if (tip.icon) {
+			const icon = $('img.chat-tip-icon') as HTMLImageElement;
+			icon.src = FileAccess.uriToBrowserUri(tip.icon).toString(true);
+			icon.alt = '';
+			icon.setAttribute('aria-hidden', 'true');
+			renderStore.add(dom.addDisposableListener(icon, dom.EventType.ERROR, () => icon.remove()));
+			this.domNode.appendChild(icon);
+		}
 		this.domNode.appendChild(markdownContent.element);
+		this._renderedContent.value = renderStore;
 
 		// Toolbar with previous, next, and dismiss actions via MenuWorkbenchToolBar
 		const toolbarContainer = $('.chat-tip-toolbar');

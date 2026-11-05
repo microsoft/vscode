@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise, MAX_TIMEOUT_DELAY, timeout } from '../../../../base/common/async.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { flushAgentHostPersistenceBeforeShutdown, shutdownAgentHostBeforeDispose } from '../../node/agentHostShutdown.js';
+import { DEFAULT_SHUTDOWN_TIMEOUT_MS, flushAgentHostPersistenceBeforeShutdown, parseShutdownTimeoutArg, shutdownAgentHostBeforeDispose } from '../../node/agentHostShutdown.js';
 
 suite('AgentHostShutdown', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -17,6 +18,36 @@ suite('AgentHostShutdown', () => {
 			3000,
 			new NullLogService(),
 		));
+	});
+
+	test('a failed persistence flush still waits for the other writes', async () => {
+		const pending = new DeferredPromise<void>();
+		const errors: unknown[] = [];
+		let flushed = false;
+		const flush = flushAgentHostPersistenceBeforeShutdown(
+			[Promise.reject(new Error('storage unavailable')), pending.p],
+			3000,
+			{ error: (_message, error) => errors.push(error), warn: () => { } },
+		).then(() => { flushed = true; });
+		try {
+			await timeout(0);
+			const flushedBeforeWrite = flushed;
+			const errorsBeforeWrite = errors.length;
+			pending.complete();
+			await flush;
+			assert.deepStrictEqual({
+				flushedBeforeWrite,
+				errorsBeforeWrite,
+				errors: errors.map(error => error instanceof Error ? error.message : String(error)),
+			}, {
+				flushedBeforeWrite: false,
+				errorsBeforeWrite: 1,
+				errors: ['storage unavailable'],
+			});
+		} finally {
+			pending.complete();
+			await flush;
+		}
 	});
 
 	test('providers shut down before persistence is flushed', async () => {
@@ -55,5 +86,24 @@ suite('AgentHostShutdown', () => {
 		);
 
 		assert.strictEqual(persistenceFlushed, true);
+	});
+
+	test('--shutdown-timeout accepts whole milliseconds up to the timer limit', () => {
+		assert.deepStrictEqual([
+			parseShutdownTimeoutArg(['--port', '0']),
+			parseShutdownTimeoutArg(['--shutdown-timeout', '30000']),
+			parseShutdownTimeoutArg(['--shutdown-timeout', String(MAX_TIMEOUT_DELAY)]),
+		], [
+			{ timeoutMs: DEFAULT_SHUTDOWN_TIMEOUT_MS },
+			{ timeoutMs: 30000 },
+			{ timeoutMs: MAX_TIMEOUT_DELAY },
+		]);
+	});
+
+	test('--shutdown-timeout rejects values a timer cannot wait for', () => {
+		const rejected = ['0', '-1', '1.5', 'abc', String(MAX_TIMEOUT_DELAY + 1)].map(value => parseShutdownTimeoutArg(['--shutdown-timeout', value]));
+		assert.deepStrictEqual(rejected.map(result => !!result.error?.includes(`from 1 to ${MAX_TIMEOUT_DELAY}`)), [true, true, true, true, true]);
+		assert.ok(parseShutdownTimeoutArg(['--shutdown-timeout']).error);
+		assert.ok(parseShutdownTimeoutArg(['--shutdown-timeout', '--quiet']).error);
 	});
 });

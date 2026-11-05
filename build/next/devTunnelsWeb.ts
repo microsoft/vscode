@@ -7,24 +7,29 @@ import * as esbuild from 'esbuild';
 import * as fs from 'fs';
 import { createRequire } from 'module';
 import * as path from 'path';
+import { rewriteSourceMappingURL } from './source-map-url.ts';
+
+export const devTunnelsWebOutDir = 'vs/sessions/contrib/providers/remoteAgentHost/browser';
 
 const REPO_ROOT = path.dirname(path.dirname(import.meta.dirname));
 const ENTRY_POINT = path.join(REPO_ROOT, 'build', 'next', 'devTunnelsWebEntry.js');
 const SHIMS_ROOT = path.join(REPO_ROOT, 'build', 'next', 'devTunnelsShims');
-const NODE_MODULES_ROOT = path.join(REPO_ROOT, 'node_modules');
 const BUFFER_GLOBAL_SHIM = path.join(SHIMS_ROOT, 'buffer.js');
 const VSCODE_JSONRPC_SHIM = path.join(SHIMS_ROOT, 'vscodeJsonrpc.cjs');
-const SSH_ALGORITHMS_ROOT = path.join(REPO_ROOT, 'node_modules', '@microsoft', 'dev-tunnels-ssh', 'algorithms');
-const WEB_MODULE_OUT_DIR = path.join('vs', 'sessions', 'contrib', 'providers', 'remoteAgentHost', 'browser');
-const WEB_DEV_OUT_DIR = path.join('out', WEB_MODULE_OUT_DIR);
-const nodeRequire = createRequire(import.meta.url);
+const WEB_DEV_OUT_DIR = path.join('out', devTunnelsWebOutDir);
+const DEV_TUNNELS_SSH_ROOT = resolvePackageFolder('@microsoft/dev-tunnels-ssh');
+const SSH_ALGORITHMS_ROOT = path.join(DEV_TUNNELS_SSH_ROOT, 'algorithms');
 const allowedImporterRoots = [
-	path.join(NODE_MODULES_ROOT, '@microsoft', 'dev-tunnels-ssh'),
-	path.join(NODE_MODULES_ROOT, '@microsoft', 'dev-tunnels-ssh-tcp'),
-	path.join(NODE_MODULES_ROOT, '@microsoft', 'dev-tunnels-connections'),
-	path.join(NODE_MODULES_ROOT, '@microsoft', 'dev-tunnels-management'),
-	path.join(NODE_MODULES_ROOT, '@microsoft', 'dev-tunnels-contracts'),
+	DEV_TUNNELS_SSH_ROOT,
+	resolvePackageFolder('@microsoft/dev-tunnels-ssh-tcp'),
+	resolvePackageFolder('@microsoft/dev-tunnels-connections'),
+	resolvePackageFolder('@microsoft/dev-tunnels-management'),
+	resolvePackageFolder('@microsoft/dev-tunnels-contracts'),
 ];
+const READABLE_STREAM_ROOT = resolvePackageFolder('readable-stream');
+const readableStreamBrowserPath = path.join(READABLE_STREAM_ROOT, 'readable-browser.js');
+const bufferPath = path.join(resolvePackageFolder('buffer'), 'index.js');
+const eventsPath = path.join(resolvePackageFolder('events'), 'events.js');
 const nodeBuiltinNames = ['net', 'os', 'path', 'crypto', 'child_process', 'fs', 'http', 'https', 'tls', 'dns', 'zlib'];
 const nodeBuiltinFilter = new RegExp(`^(?:node:)?(?:${nodeBuiltinNames.join('|')}|stream|buffer)$`);
 const vscodeJsonrpcEventsPath = resolveDevTunnelsJsonRpcModule('events');
@@ -33,13 +38,13 @@ const vscodeJsonrpcCancellationPath = resolveDevTunnelsJsonRpcModule('cancellati
 /**
  * Builds the browser-only Dev Tunnels SDK bundle loaded through a dynamic ESM import.
  */
-export async function bundleDevTunnelsWeb(options: { minify?: boolean; outDir: string }): Promise<void> {
+export async function bundleDevTunnelsWeb(options: { minify?: boolean; outDir: string; sourceMapBaseUrl?: string }): Promise<void> {
 	const outDir = path.resolve(REPO_ROOT, options.outDir);
 	const t1 = Date.now();
 	await fs.promises.mkdir(outDir, { recursive: true });
 
 	console.log(`[dev-tunnels-web] ${path.relative(REPO_ROOT, ENTRY_POINT)} → ${path.relative(REPO_ROOT, outDir) || '.'}${options.minify ? ' (minify)' : ''}`);
-	await esbuild.build({
+	const result = await esbuild.build({
 		entryPoints: [ENTRY_POINT],
 		bundle: true,
 		format: 'esm',
@@ -58,8 +63,15 @@ export async function bundleDevTunnelsWeb(options: { minify?: boolean; outDir: s
 		sourcemap: 'linked',
 		outfile: path.join(outDir, 'devTunnelsModule.js'),
 		plugins: [devTunnelsBrowserShimPlugin()],
+		write: false,
 		logLevel: 'warning',
 	});
+	for (const output of result.outputFiles) {
+		await fs.promises.mkdir(path.dirname(output.path), { recursive: true });
+		await fs.promises.writeFile(output.path, output.path.endsWith('.js')
+			? rewriteSourceMappingURL(output.text, path.relative(outDir, output.path), options.sourceMapBaseUrl)
+			: output.contents);
+	}
 	console.log(`[dev-tunnels-web] Done in ${Date.now() - t1}ms`);
 }
 
@@ -75,7 +87,7 @@ export function devTunnelsBrowserShimPlugin(): esbuild.Plugin {
 				if (specifier === 'stream') {
 					// Stream changes the SDK transport; other Node modules only receive standard browser polyfills.
 					if (isAllowedImporter(args.importer)) {
-						return { path: path.join(NODE_MODULES_ROOT, 'readable-stream', 'readable-browser.js') };
+						return { path: readableStreamBrowserPath };
 					}
 					if (isNodeModulesImporter(args.importer)) {
 						return;
@@ -88,8 +100,16 @@ export function devTunnelsBrowserShimPlugin(): esbuild.Plugin {
 				}
 
 				return specifier === 'buffer'
-					? { path: path.join(NODE_MODULES_ROOT, 'buffer', 'index.js') }
+					? { path: bufferPath }
 					: { path: path.join(SHIMS_ROOT, 'empty.cjs') };
+			});
+
+			build.onResolve({ filter: /^events$/ }, args => {
+				// The stream polyfill requires Node's `events`; give it the browser polyfill that the root declares.
+				if (!isPathWithin(READABLE_STREAM_ROOT, args.importer)) {
+					return;
+				}
+				return { path: eventsPath };
 			});
 
 			build.onResolve({ filter: /^node-rsa$/ }, args => {
@@ -142,8 +162,12 @@ function isAllowedImporter(importer: string): boolean {
 	});
 }
 
+/**
+ * Whether `importer` is a file of an installed package. esbuild reports real paths, which are
+ * outside the repository's `node_modules` folder when pnpm links packages from a store.
+ */
 function isNodeModulesImporter(importer: string): boolean {
-	return isPathWithin(NODE_MODULES_ROOT, importer);
+	return importer.split(path.sep).includes('node_modules');
 }
 
 function isSshNodeAlgorithmImport(args: esbuild.OnResolveArgs): boolean {
@@ -163,10 +187,20 @@ function nodeBuiltinError(args: esbuild.OnResolveArgs): esbuild.OnResolveResult 
 	};
 }
 
+/**
+ * Resolves the `vscode-jsonrpc` module that `@microsoft/dev-tunnels-ssh` depends on.
+ */
 function resolveDevTunnelsJsonRpcModule(moduleName: 'events' | 'cancellation'): string {
-	return nodeRequire.resolve(`vscode-jsonrpc/lib/${moduleName}`, {
-		paths: [path.join(NODE_MODULES_ROOT, '@microsoft', 'dev-tunnels-ssh')]
-	});
+	return createRequire(path.join(DEV_TUNNELS_SSH_ROOT, 'package.json')).resolve(`vscode-jsonrpc/lib/${moduleName}`);
+}
+
+/**
+ * Returns the real path of the folder of a dependency of the repository root, the way Node.js
+ * resolves it from there.
+ */
+function resolvePackageFolder(packageName: string): string {
+	const rootRequire = createRequire(path.join(REPO_ROOT, 'package.json'));
+	return fs.realpathSync(path.dirname(rootRequire.resolve(`${packageName}/package.json`)));
 }
 
 function getArgValue(name: string): string | undefined {

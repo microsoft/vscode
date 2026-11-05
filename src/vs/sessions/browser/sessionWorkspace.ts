@@ -6,7 +6,7 @@
 import { Codicon } from '../../base/common/codicons.js';
 import { IReader } from '../../base/common/observable.js';
 import { ThemeIcon } from '../../base/common/themables.js';
-import { getSessionWorkspaceKind, ISession, SessionWorkspaceKind } from '../services/sessions/common/session.js';
+import { getSessionWorkspaceKind, IChat, ISession, SessionWorkspaceKind } from '../services/sessions/common/session.js';
 
 export interface ISessionWorkspaceDisplayInfo {
 	readonly label: string;
@@ -16,9 +16,12 @@ export interface ISessionWorkspaceDisplayInfo {
 	readonly worktreePending: boolean;
 }
 
-/** Returns the workspace presentation shared by the command center and Files pill. */
-export function getSessionWorkspaceDisplayInfo(session: ISession | undefined, reader: IReader): ISessionWorkspaceDisplayInfo | undefined {
-	const workspace = session?.workspace.read(reader);
+/**
+ * Returns the workspace presentation shared by the command center and Files
+ * pill, for the active chat's workspace, which may differ from the session's.
+ */
+export function getSessionWorkspaceDisplayInfo(session: ISession | undefined, chat: IChat | undefined, reader: IReader): ISessionWorkspaceDisplayInfo | undefined {
+	const workspace = chat?.workspace.read(reader);
 	if (!workspace?.label) {
 		return undefined;
 	}
@@ -27,7 +30,7 @@ export function getSessionWorkspaceDisplayInfo(session: ISession | undefined, re
 	const kind = getSessionWorkspaceKind(workspace, worktreePending);
 	const icon = workspace.typeIcon ?? (kind === SessionWorkspaceKind.Virtual ? Codicon.cloudCompact : kind === SessionWorkspaceKind.Folder ? Codicon.folderCompact : Codicon.worktreeCompact);
 	const folder = workspace.folders[0];
-	const branch = worktreePending ? undefined : folder?.gitRepository?.branchName?.trim() || undefined;
+	const branch = kind === SessionWorkspaceKind.Worktree && !worktreePending ? folder?.gitRepository?.branchName?.trim() || undefined : undefined;
 	const workingDirectoryPath = worktreePending ? undefined : folder?.workingDirectory.fsPath;
 	return { label: workspace.label, icon, workingDirectoryPath, branch, worktreePending };
 }

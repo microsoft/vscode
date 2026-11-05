@@ -32,13 +32,6 @@ export const IOctoKitService = createServiceIdentifier<IOctoKitService>('IOctoKi
 
 export const VSCodeTeamId = 1682102;
 
-export type GithubRepositoryItem = {
-	name: string;
-	path: string;
-	html_url: string;
-	type: 'file' | 'dir';
-};
-
 export interface IGithubRepositoryService {
 
 	_serviceBrand: undefined;
@@ -50,8 +43,6 @@ export interface IGithubRepositoryService {
 	 */
 	isAvailable(org: string, repo: string): Promise<boolean>;
 	getRepositoryInfo(owner: string, repo: string): Promise<IGetRepositoryInfoResponseData>;
-	getRepositoryItems(org: string, repo: string, path: string): Promise<GithubRepositoryItem[]>;
-	getRepositoryItemContent(org: string, repo: string, path: string): Promise<Uint8Array | undefined>;
 }
 
 export interface IOctoKitUser {

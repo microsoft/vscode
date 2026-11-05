@@ -8,11 +8,19 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { compactCodiconsIn, getCompactCodicon } from '../../browser/chatIcons.js';
+import { compactCodiconsIn, getChatWorkingProgressIcon, getCompactCodicon } from '../../browser/chatIcons.js';
 
 suite('ChatIcons', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('uses product branding for working progress', () => {
+		assert.deepStrictEqual([
+			getChatWorkingProgressIcon('stable').id,
+			getChatWorkingProgressIcon('insider').id,
+			getChatWorkingProgressIcon(undefined).id,
+		], [Codicon.vscode.id, Codicon.vscode.id, Codicon.vscode.id]);
+	});
 
 	test('uses compact variants when registered', () => {
 		assert.deepStrictEqual([

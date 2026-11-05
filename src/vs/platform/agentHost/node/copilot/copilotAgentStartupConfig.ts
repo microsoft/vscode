@@ -5,19 +5,31 @@
 
 import { equals } from '../../../../base/common/objects.js';
 import type { IAgentHostManagedSettingsPermissions } from '../../common/agentHostManagedSettings.js';
-import type { CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
+import { DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
 
 export class CopilotAgentStartupConfig {
 	constructor(
-		readonly sessionSync: boolean,
 		readonly rubberDuck: boolean,
 		readonly claudeAdvisor: boolean,
-		readonly hydraFusion: boolean,
+		readonly localMemory: boolean,
+		readonly skillCharBudget: number,
 		readonly copilotSdkLogLevel: CopilotSdkLogLevelSetting,
+		readonly runtimePath: string | undefined,
 		readonly enterpriseHost: string | undefined,
 		readonly systemProxy: boolean,
 		readonly githubMcpServer: boolean,
+		readonly copilotConnectors: boolean,
 		readonly managedSettingsPermissions: IAgentHostManagedSettingsPermissions,
+		readonly localIndexEnabled: boolean,
+		readonly legacyApprovalRestricted = false,
+		readonly searchSubagentModel = '',
+		/** `chat.copilot.localModel.enabled`: the request handler can only be installed when the client starts. */
+		readonly localModel = false,
+		readonly executionSubagent = false,
+		readonly executionSubagentModel = DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL,
+		/** `chat.agentHost.computerUse.enabled`: built-in plugins can only be registered before any session exists. */
+		readonly computerUse = false,
+		readonly policyHelper: string | undefined = undefined,
 	) { }
 
 	equals(other: CopilotAgentStartupConfig): boolean {
@@ -31,7 +43,7 @@ export class CopilotAgentStartupConfig {
 	describeChangesFrom(other: CopilotAgentStartupConfig): string {
 		const values = new Map(Object.entries(this));
 		return this.changedKeysFrom(other)
-			.map(key => key === 'managedSettingsPermissions' ? key : `${key}=${String(values.get(key))}`)
+			.map(key => key === 'managedSettingsPermissions' || key === 'policyHelper' ? key : `${key}=${String(values.get(key))}`)
 			.join(', ');
 	}
 

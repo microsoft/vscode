@@ -10,6 +10,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { FileService } from '../../../../files/common/fileService.js';
 import { IFileSystemWatcher, IWatchOptionsWithoutCorrelation } from '../../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../../files/common/inMemoryFilesystemProvider.js';
@@ -21,10 +22,11 @@ import { EditArcReporterService } from '../../../node/shared/editArcReporter.js'
 import { TestDiffComputeService, createNoopGitService } from '../../common/sessionTestHelpers.js';
 import { IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
 import { IAgentHostGitService } from '../../../common/agentHostGitService.js';
-import { buildSubagentChatUri } from '../../../common/state/sessionState.js';
 import { IDetailedDiffResult, IDiffComputeService } from '../../../common/diffComputeService.js';
 import { AgentHostClientType } from '../../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind } from '../../../common/agentHostTelemetry.js';
+import { createArcTextEditFromDiff } from '../../../node/shared/arcToolEdit.js';
+import { computeDiffCounts, computeDetailedDiff } from '../../../node/diffWorkerMain.js';
 
 class CountingFileService extends FileService {
 	watcherCount = 0;
@@ -89,6 +91,8 @@ suite('Agent Host Edit ARC Reporter', () => {
 				devDeviceId: 'client-dev-device-id',
 			},
 			sessionUri: 'copilotcli:/session-1',
+			ownerSessionUri: 'copilotcli:/session-1',
+			isSubagent: false,
 			turnId: 'turn-1',
 			toolCallId: 'tool-1',
 			filePath: resource.fsPath,
@@ -96,6 +100,8 @@ suite('Agent Host Edit ARC Reporter', () => {
 			afterText: 'hello AI',
 			initialEdit: { replacements: [{ start: 5, endExclusive: 5, text: ' AI' }] },
 			modelId: 'gpt-5',
+			autoTier: 'hydrafusion-max',
+			fusionModel: 'hydrafusion-max',
 			toolName: 'edit',
 			completionTime: Date.now(),
 		});
@@ -126,6 +132,8 @@ suite('Agent Host Edit ARC Reporter', () => {
 				editSessionId: 'session-1',
 				requestId: 'turn-1',
 				modelId: 'gpt-5',
+				autoTier: 'hydrafusion-max',
+				fusionModel: 'hydrafusion-max',
 				languageId: undefined,
 				mode: undefined,
 				uniqueEditId: '<uuid>',
@@ -149,13 +157,66 @@ suite('Agent Host Edit ARC Reporter', () => {
 		});
 	});
 
-	test('reports edits from subagent chat channels', async () => {
+	test('emits only changed characters and lines to Microsoft and GitHub across retention samples', () => runWithFakedTimers({}, async () => {
+		const resource = URI.file('/workspace/precise.ts');
+		const middle = Array.from({ length: 100 }, (_, i) => `// unchanged line ${i}`);
+		const before = ['const first = 1;', ...middle, 'const last = 2;'].join('\n');
+		const after = before.replace('= 1;', '= 3;').replace('= 2;', '= 4;');
+		const initialEdit = createArcTextEditFromDiff(computeDiffCounts(before, after, 5000).changes, before, after);
+		assert.ok(initialEdit);
+		await fileService.writeFile(resource, VSBuffer.fromString(after));
+		const diffService = new class extends TestDiffComputeService {
+			override async computeDetailedDiff(original: string, modified: string) {
+				return computeDetailedDiff(original, modified, 5000);
+			}
+		}();
+		const service = disposables.add(new EditArcReporterService([0, 60_000, 300_000], fileService, diffService, createNoopGitService(), config, new NullLogService(), telemetry));
+		await service.reportEdit({
+			provider: 'copilotcli',
+			sessionUri: 'copilotcli:/session-1',
+			ownerSessionUri: 'copilotcli:/session-1',
+			isSubagent: false,
+			turnId: 'turn-1',
+			toolCallId: 'tool-1',
+			filePath: resource.fsPath,
+			beforeText: before,
+			afterText: after,
+			initialEdit,
+			completionTime: Date.now(),
+		});
+		await timeout(1);
+		await fileService.writeFile(resource, VSBuffer.fromString(after.replace('= 3;', '= 5;')));
+		await timeout(300_000);
+
+		const counts = (data: Record<string, unknown> | undefined) => ({
+			timeDelayMs: data?.timeDelayMs,
+			originalCharCount: data?.originalCharCount,
+			originalLineCount: data?.originalLineCount,
+			originalDeletedLineCount: data?.originalDeletedLineCount,
+			arc: data?.arc,
+			currentLineCount: data?.currentLineCount,
+			currentDeletedLineCount: data?.currentDeletedLineCount,
+		});
+		const expected = [
+			{ timeDelayMs: 0, originalCharCount: 2, originalLineCount: 2, originalDeletedLineCount: 2, arc: 2, currentLineCount: 2, currentDeletedLineCount: 2 },
+			{ timeDelayMs: 60_000, originalCharCount: 2, originalLineCount: 2, originalDeletedLineCount: 2, arc: 1, currentLineCount: 1, currentDeletedLineCount: 1 },
+			{ timeDelayMs: 300_000, originalCharCount: 2, originalLineCount: 2, originalDeletedLineCount: 2, arc: 1, currentLineCount: 1, currentDeletedLineCount: 1 },
+		];
+		assert.deepStrictEqual({
+			microsoft: telemetry.events.map(event => counts(event.data)),
+			github: telemetry.githubEvents.map(event => counts(event.measurements)),
+		}, { microsoft: expected, github: expected });
+	}));
+
+	test('reports edits from subagent sessions', async () => {
 		const resource = URI.file('/workspace/subagent.ts');
 		await fileService.writeFile(resource, VSBuffer.fromString('hello AI'));
 		const service = disposables.add(new EditArcReporterService([0], fileService, new TestDiffComputeService(), createNoopGitService(), config, new NullLogService(), telemetry));
 
 		await service.reportEdit({
-			sessionUri: buildSubagentChatUri('copilotcli:/session-1', 'parent-tool'),
+			sessionUri: 'copilotcli:/session-1',
+			ownerSessionUri: 'copilotcli:/session-1',
+			isSubagent: true,
 			turnId: 'turn-1',
 			toolCallId: 'tool-1',
 			filePath: resource.fsPath,
@@ -164,6 +225,7 @@ suite('Agent Host Edit ARC Reporter', () => {
 			initialEdit: { replacements: [{ start: 5, endExclusive: 5, text: ' AI' }] },
 			completionTime: Date.now(),
 		});
+
 		await timeout(10);
 
 		assert.deepStrictEqual({
@@ -177,6 +239,19 @@ suite('Agent Host Edit ARC Reporter', () => {
 		});
 	});
 
+	test('standard session edit reports retain their explicit provider', async () => {
+		const resource = URI.file('/workspace/standard.ts');
+		await fileService.writeFile(resource, VSBuffer.fromString('hello AI'));
+		const service = disposables.add(new EditArcReporterService([0], fileService, new TestDiffComputeService(), createNoopGitService(), config, new NullLogService(), telemetry));
+		await service.reportEdit({
+			sessionUri: 'ahp-session:/standard', ownerSessionUri: 'ahp-session:/standard', isSubagent: false, provider: 'copilotcli', turnId: 'turn-1', toolCallId: 'tool-1',
+			filePath: resource.fsPath, beforeText: 'hello', afterText: 'hello AI',
+			initialEdit: { replacements: [{ start: 5, endExclusive: 5, text: ' AI' }] }, completionTime: Date.now(),
+		});
+		await timeout(10);
+		assert.deepStrictEqual([telemetry.events[0].data.provider, telemetry.events[0].data.agentSessionId], ['copilotcli', 'standard']);
+	});
+
 	test('updates older reporters before starting the next reporter', async () => {
 		const resource = URI.file('/workspace/order.ts');
 		await fileService.writeFile(resource, VSBuffer.fromString('AIbase'));
@@ -185,6 +260,8 @@ suite('Agent Host Edit ARC Reporter', () => {
 
 		await service.reportEdit({
 			sessionUri: 'claude:/session-1',
+			ownerSessionUri: 'claude:/session-1',
+			isSubagent: false,
 			turnId: 'turn-1',
 			toolCallId: 'tool-1',
 			filePath: resource.fsPath,
@@ -205,6 +282,8 @@ suite('Agent Host Edit ARC Reporter', () => {
 		await fileService.writeFile(resource, VSBuffer.fromString('Abase'));
 		await service.reportEdit({
 			sessionUri: 'claude:/session-1',
+			ownerSessionUri: 'claude:/session-1',
+			isSubagent: false,
 			turnId: 'turn-2',
 			toolCallId: 'tool-2',
 			filePath: resource.fsPath,
@@ -241,12 +320,15 @@ suite('Agent Host Edit ARC Reporter', () => {
 				detailedStarted.complete();
 				return detailedResult.p;
 			},
+			computeDiffHunks: async () => ({ hunks: [], hitTimeout: false }),
 		};
 		const resource = URI.file('/workspace/stale.ts');
 		await fileService.writeFile(resource, VSBuffer.fromString('AIbase'));
 		const service = disposables.add(new EditArcReporterService([0, 60_000], fileService, diffComputeService, createNoopGitService(), config, new NullLogService(), telemetry));
 		await service.reportEdit({
 			sessionUri: 'claude:/session-1',
+			ownerSessionUri: 'claude:/session-1',
+			isSubagent: false,
 			turnId: 'turn-1',
 			toolCallId: 'tool-1',
 			filePath: resource.fsPath,
@@ -259,6 +341,8 @@ suite('Agent Host Edit ARC Reporter', () => {
 
 		const secondReport = service.reportEdit({
 			sessionUri: 'claude:/session-1',
+			ownerSessionUri: 'claude:/session-1',
+			isSubagent: false,
 			turnId: 'turn-2',
 			toolCallId: 'tool-2',
 			filePath: resource.fsPath,
@@ -288,6 +372,8 @@ suite('Agent Host Edit ARC Reporter', () => {
 		for (let index = 0; index <= 200; index++) {
 			await service.reportEdit({
 				sessionUri: 'claude:/session-1',
+				ownerSessionUri: 'claude:/session-1',
+				isSubagent: false,
 				turnId: `turn-${index}`,
 				toolCallId: `tool-${index}`,
 				filePath: `/workspace/file-${index}.ts`,
@@ -308,6 +394,8 @@ suite('Agent Host Edit ARC Reporter', () => {
 
 		await service.reportEdit({
 			sessionUri: 'claude:/session-1',
+			ownerSessionUri: 'claude:/session-1',
+			isSubagent: false,
 			turnId: 'turn-1',
 			toolCallId: 'tool-1',
 			filePath: resource.fsPath,
@@ -349,6 +437,8 @@ suite('Agent Host Edit ARC Reporter', () => {
 
 		await service.reportEdit({
 			sessionUri: 'claude:/session-1',
+			ownerSessionUri: 'claude:/session-1',
+			isSubagent: false,
 			turnId: 'turn-1',
 			toolCallId: 'tool-1',
 			filePath: resource.fsPath,
@@ -380,6 +470,8 @@ suite('Agent Host Edit ARC Reporter', () => {
 
 		await service.reportEdit({
 			sessionUri: 'claude:/session-1',
+			ownerSessionUri: 'claude:/session-1',
+			isSubagent: false,
 			turnId: 'turn-1',
 			toolCallId: 'tool-1',
 			filePath: resource.fsPath,
@@ -421,6 +513,8 @@ suite('Agent Host Edit ARC Reporter', () => {
 
 		await service.reportEdit({
 			sessionUri: 'claude:/session-1',
+			ownerSessionUri: 'claude:/session-1',
+			isSubagent: false,
 			turnId: 'turn-1',
 			toolCallId: 'tool-1',
 			filePath: resource.fsPath,
@@ -449,6 +543,8 @@ suite('Agent Host Edit ARC Reporter', () => {
 
 		await service.reportEdit({
 			sessionUri: 'claude:/session-1',
+			ownerSessionUri: 'claude:/session-1',
+			isSubagent: false,
 			turnId: 'turn-1',
 			toolCallId: 'tool-1',
 			filePath: resource.fsPath,
@@ -481,12 +577,29 @@ function createConfigurationService(enabled: boolean, disposables: DisposableSto
 		_serviceBrand: undefined,
 		onDidRootConfigChange: rootConfigChange.event,
 		onDidSessionConfigChange: Event.None,
+		onDidChatConfigChange: Event.None,
 		getEffectiveValue: () => undefined,
+		getChatEffectiveValue: () => undefined,
+		getChatConfigValues: () => undefined,
+		getChatConfigState: () => undefined,
+		getChatOwnConfigValues: () => ({}),
+		updateChatConfig: () => { },
+		seedChatConfig: () => ({ values: {}, dispose: () => { } }),
+		completeChatConfigs: () => { },
+		getChatPersistedConfigValues: () => undefined,
+		getCompleteChatConfigValues: (_session: string, own: Readonly<Record<string, unknown>>) => ({ ...own }),
 		getEffectiveWorkingDirectories: () => undefined,
 		updateSessionConfig: () => { },
 		getSessionConfigValues: () => undefined,
+		resolveConfigurationOwner: session => session,
 		getSessionSandboxPolicy: () => undefined,
+		getSessionSandboxEnabled: () => undefined,
 		setSessionSandboxPolicy: () => { },
+		getChatSandboxEnabled: () => undefined,
+		getChatAttachmentScopes: target => [target.session],
+		setChatSandboxEnabled: () => { },
+		reportChatSandboxConflict: () => { },
+		rejectChatSandboxChange: () => { },
 		getRootValue: (schema, key) => schema.validate(key, enabled) ? enabled : undefined,
 		updateRootConfig: () => { },
 		persistRootConfig: () => { },

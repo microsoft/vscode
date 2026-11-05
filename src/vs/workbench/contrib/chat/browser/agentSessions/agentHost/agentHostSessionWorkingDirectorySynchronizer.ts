@@ -286,7 +286,7 @@ export class AgentHostSessionWorkingDirectorySynchronizer extends Disposable imp
 			return;
 		}
 
-		const current = state.workingDirectories?.map(directory => URI.parse(directory)) ?? [];
+		const current = state.workingDirectories?.map(directory => registration.connection.resourceUris.fromAgentHost(URI.parse(directory))) ?? [];
 		if (current.length === 0) {
 			return;
 		}
@@ -321,14 +321,14 @@ export class AgentHostSessionWorkingDirectorySynchronizer extends Disposable imp
 				for (const directory of additions) {
 					registration.connection.dispatch(session.toString(), {
 						type: ActionType.SessionWorkingDirectorySet,
-						directory: directory.toString(),
+						directory: registration.connection.resourceUris.toAgentHost(directory).toString(),
 					});
 				}
 			}
 			for (const directory of removals) {
 				registration.connection.dispatch(session.toString(), {
 					type: ActionType.SessionWorkingDirectoryRemoved,
-					directory: directory.toString(),
+					directory: registration.connection.resourceUris.toAgentHost(directory).toString(),
 				});
 			}
 		} finally {

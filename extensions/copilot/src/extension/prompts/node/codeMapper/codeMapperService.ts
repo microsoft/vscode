@@ -10,6 +10,7 @@ import { TextDocumentSnapshot } from '../../../../platform/editing/common/textDo
 import { EditSurvivalResult } from '../../../../platform/editSurvivalTracking/common/editSurvivalReporter';
 import { IEditSurvivalTrackerService, IEditSurvivalTrackingSession } from '../../../../platform/editSurvivalTracking/common/editSurvivalTrackerService';
 import { IFileSystemService } from '../../../../platform/filesystem/common/fileSystemService';
+import { gitHubCopilotRequestTeProperty } from '../../../../platform/networking/common/fetch';
 import { inferAlternativeNotebookContentFormat } from '../../../../platform/notebook/common/alternativeContent';
 import { IAlternativeNotebookContentEditGenerator, NotebookEditGenrationSource } from '../../../../platform/notebook/common/alternativeContentEditGenerator';
 import { INotebookService } from '../../../../platform/notebook/common/notebookService';
@@ -295,7 +296,7 @@ function spyResponseStream(responseStream: vscode.MappedEditsResponseStream, cal
 	};
 }
 
-function reportEditSurvivalEvent(res: EditSurvivalResult, { requestId, speculationRequestId, requestSource, mapper, chatRequestModel }: CodeMapperOutcomeTelemetry, otelService: IOTelService) {
+function reportEditSurvivalEvent(res: EditSurvivalResult, { requestId, speculationRequestId, requestSource, mapper, chatRequestModel, gitHubCopilotRequestTe }: CodeMapperOutcomeTelemetry, otelService: IOTelService) {
 
 	/* __GDPR__
 		"codeMapper.trackEditSurvival" : {
@@ -337,6 +338,7 @@ function reportEditSurvivalEvent(res: EditSurvivalResult, { requestId, speculati
 	res.telemetryService.sendEnhancedGHTelemetryEvent('fastApply/trackEditSurvival', {
 		providerId: mapper,
 		headerRequestId: speculationRequestId,
+		...gitHubCopilotRequestTeProperty(gitHubCopilotRequestTe),
 		completionTextJson: res.currentFileContent,
 		chatRequestModel,
 		requestSource,
