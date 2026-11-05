@@ -26,6 +26,12 @@ import { ISessionsService } from '../../../services/sessions/browser/sessionsSer
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../../chatWindow/common/chatWindows.js';
 import { getSessionSummaryHoverData } from '../../sessions/browser/sessionHoverContent.js';
 
+/** The chat window a link was activated in, and the chat of it the user activated it in. */
+interface ILinkSource {
+	readonly window: IChatWindow;
+	readonly chat: URI;
+}
+
 /**
  * Handles `agent-host-session://` links (surfaced by the `create_session` /
  * `create_chat` server tools) by resolving them to the matching Agents-window
@@ -56,7 +62,7 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 	) {
 		super();
 		this._register(openerService.registerOpener({
-			open: async (resource, options: OpenOptions = {}) => this._open(resource, options.openToSide === true, this._getSourceChatWindow(options)),
+			open: async (resource, options: OpenOptions = {}) => this._open(resource, options.openToSide === true, this._getSource(options)),
 		}));
 		this._register(linkPresentationService.registerLinkPresentationProvider({
 			id: 'sessions.agentSessionLinkPresentation',
@@ -100,15 +106,17 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 	 * or a command opens keeps opening in the main window, whichever window has focus. So does any link while chat windows
 	 * are off. The window's active chat is the clicked one: activating a group of the window makes its chat the active one.
 	 */
-	private _getSourceChatWindow(options: OpenOptions): IChatWindow | undefined {
+	private _getSource(options: OpenOptions): ILinkSource | undefined {
 		if (!options.fromUserGesture || !this._configurationService.getValue<boolean>(CHAT_WINDOWS_ENABLED_SETTING)) {
 			return undefined;
 		}
 		// A page such as a canvas has focus outside the workbench, so it names its window.
-		return this._chatWindowService.getWindow(options.sourceWindowId ?? getWindowId(getActiveWindow()));
+		const window = this._chatWindowService.getWindow(options.sourceWindowId ?? getWindowId(getActiveWindow()));
+		// Read now, as the active chat can change while the link resolves
+		return window && { window, chat: window.chat.get() };
 	}
 
-	private async _open(resource: URI | string, openToSide: boolean, chatWindow: IChatWindow | undefined): Promise<boolean> {
+	private async _open(resource: URI | string, openToSide: boolean, source: ILinkSource | undefined): Promise<boolean> {
 		const session = this._findSessionForLink(resource);
 		if (!session) {
 			return false;
@@ -116,10 +124,9 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 		// An absent chat id means the session's main/default chat, not "no target chat" (see buildOpenSessionLinkUri).
 		const chatId = parseOpenSessionLinkChatId(resource);
 		const chatResource = chatId && !await this._isDefaultChatId(session, chatId) ? session.resource.with({ fragment: chatId }) : session.mainChat.get().resource;
-		if (chatWindow) {
+		if (source) {
 			// Shown in another chat window, it is revealed there; in the main window's grid, it moves into this one.
-			const clicked = chatWindow.chat.get();
-			await this._chatWindowService.open(chatResource, openToSide ? { window: chatWindow, beside: clicked } : { window: chatWindow, tabOf: clicked });
+			await this._chatWindowService.open(chatResource, openToSide ? { window: source.window, beside: source.chat } : { window: source.window, tabOf: source.chat });
 		} else if (openToSide) {
 			if (chatId) {
 				await this._sessionsService.openChatToSide(session, chatResource);

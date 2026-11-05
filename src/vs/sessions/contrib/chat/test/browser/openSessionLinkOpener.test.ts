@@ -294,6 +294,71 @@ suite('OpenSessionLinkOpenerContribution', () => {
 		]);
 	});
 
+	test('a link resolving its chat while the active chat of the window changes opens relative to the chat it was activated in', async () => {
+		let registeredOpener: IOpener | undefined;
+		const sessionResource = URI.parse('copilotcli:/session-1');
+		const defaultChat = 'ahp-chat://default/c2Vzc2lvbi0x';
+		const peerChat = 'ahp-chat://peer-1/c2Vzc2lvbi0x';
+		const activatedChat = URI.parse('copilotcli:/session-0');
+		const otherChat = URI.parse('copilotcli:/session-9');
+		const mainChat = upcastPartial<IChat>({ resource: sessionResource });
+		const peer = upcastPartial<IChat>({ resource: sessionResource.with({ fragment: 'peer-1' }) });
+		const session = upcastPartial<ISession>({ resource: sessionResource, mainChat: observableValue('mainChat', mainChat), chats: observableValue('chats', [mainChat, peer]) });
+		const activeChat = observableValue('chat', activatedChat);
+		const chatWindow = upcastPartial<IChatWindow>({ windowId: 42, chat: activeChat });
+		const log: string[] = [];
+		let listed!: () => void;
+		const listing = new Promise<void>(resolve => listed = resolve);
+		const connectionsService = new class extends mock<IAgentHostConnectionsService>() {
+			override readonly onDidChangeSessionResolution = Event.None;
+			override resolveSessionResourceIdentity() { return undefined; }
+			override resolveSessionResource() {
+				return upcastPartial<IAgentHostSessionResolution>({
+					backendSession: sessionResource,
+					connection: upcastPartial<IAgentConnection>({
+						getSubscriptionUnmanaged: () => undefined,
+						listSessions: async () => {
+							await listing;
+							return [upcastPartial<IAgentSessionMetadata>({ session: sessionResource, chats: [{ chat: URI.parse(defaultChat), kind: 'default' }, { chat: URI.parse(peerChat), kind: 'peer' }] })];
+						},
+					}),
+				});
+			}
+		};
+		store.add(new OpenSessionLinkOpenerContribution(
+			new class extends mock<IOpenerService>() { override registerOpener(opener: IOpener): IDisposable { registeredOpener = opener; return Disposable.None; } },
+			new class extends mock<ISessionsManagementService>() { override getSessions(): ISession[] { return [session]; } },
+			new class extends mock<ISessionsService>() { },
+			connectionsService,
+			new class extends mock<ILinkPresentationService>() { override registerLinkPresentationProvider(): IDisposable { return Disposable.None; } },
+			sessionsProvidersService,
+			createSessionSummaryHoverService().service,
+			new class extends mock<ILabelService>() { },
+			new class extends mock<IChatWindowService>() {
+				override getWindow(): IChatWindow | undefined { return chatWindow; }
+				override async open(resource: URI, options?: IChatWindowOpenOptions): Promise<IChatWindow | undefined> {
+					log.push(`${resource.fragment}:tabOf=${options?.tabOf?.path}:beside=${options?.beside?.path}`);
+					return undefined;
+				}
+			},
+			new TestConfigurationService({ [CHAT_WINDOWS_ENABLED_SETTING]: true }),
+		));
+
+		const link = buildOpenSessionLinkUri(sessionResource, 'peer-1');
+		const pending = [
+			registeredOpener!.open(link, { fromUserGesture: true, sourceWindowId: 42 }),
+			registeredOpener!.open(link, { fromUserGesture: true, sourceWindowId: 42, openToSide: true }),
+		];
+		activeChat.set(otherChat, undefined);
+		listed();
+		await Promise.all(pending);
+
+		assert.deepStrictEqual(log, [
+			'peer-1:tabOf=/session-0:beside=undefined',
+			'peer-1:tabOf=undefined:beside=/session-0',
+		]);
+	});
+
 	test('a request-origin link to the default chat switches away from a different active chat', async () => {
 		let registeredOpener: IOpener | undefined;
 		const openerService = new class extends mock<IOpenerService>() {
