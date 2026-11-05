@@ -76,7 +76,7 @@ suite('ChatRequestParser', () => {
 			.map(part => part.toVariableEntry());
 		assert.deepStrictEqual(entries.map(entry => ({ kind: entry.kind, id: entry.id, name: entry.name, value: entry.value })), [
 			{ kind: 'sessionReference', id: target.toString(), name: 'Target', value: target },
-			{ kind: 'generic', id: 'custom', name: '#custom:Target', value: target },
+			{ kind: 'generic', id: 'custom', name: 'custom:Target', value: target },
 		]);
 	});
 

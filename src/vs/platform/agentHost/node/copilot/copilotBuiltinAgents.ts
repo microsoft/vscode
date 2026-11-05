@@ -17,8 +17,10 @@ import { CustomizationLoadStatus, customizationId, type DirectoryCustomization }
 import { toSdkClientToolName } from './copilotPluginConverters.js';
 import type { IActiveClientSnapshot } from './copilotSessionLauncher.js';
 import { CopilotToolName } from './copilotToolDisplay.js';
+import { COPILOT_BUILTIN_CUSTOMIZATION_SCHEME } from '../../common/agentHostCustomizationUri.js';
+import { buildCopilotBuiltinSkillsContainer, COPILOT_TROUBLESHOOT_SKILL_CONTENT } from './copilotBuiltinSkills.js';
 
-export const COPILOT_BUILTIN_AGENTS_SCHEME = 'copilot-builtin';
+export const COPILOT_BUILTIN_AGENTS_SCHEME = COPILOT_BUILTIN_CUSTOMIZATION_SCHEME;
 const builtinAgentsDirectory = URI.from({ scheme: COPILOT_BUILTIN_AGENTS_SCHEME, path: '/agents' });
 
 /** Describes a provider-owned agent's readable resource and SDK configuration. */
@@ -94,7 +96,7 @@ export function buildCopilotBuiltinAgentMarkdown(agent: ICopilotBuiltinAgent): s
 	].join('\n');
 }
 
-/** Owns read-only built-in agent files served through the host's normal resource-read path. */
+/** Owns read-only built-in customization files served through the host's normal resource-read path. */
 export class CopilotBuiltinAgentsStore extends Disposable {
 	constructor(fileService: IFileService) {
 		super();
@@ -103,6 +105,15 @@ export class CopilotBuiltinAgentsStore extends Disposable {
 		void provider.mkdir(builtinAgentsDirectory);
 		for (const agent of COPILOT_BUILTIN_AGENTS) {
 			void provider.writeFile(getCopilotBuiltinAgentUri(agent), VSBuffer.fromString(buildCopilotBuiltinAgentMarkdown(agent)).buffer, {
+				create: true, overwrite: true, append: false, unlock: false, atomic: false,
+			});
+		}
+		const skills = buildCopilotBuiltinSkillsContainer();
+		void provider.mkdir(URI.parse(skills.uri));
+		for (const skill of skills.children ?? []) {
+			const uri = URI.parse(skill.uri);
+			void provider.mkdir(URI.joinPath(uri, '..'));
+			void provider.writeFile(uri, VSBuffer.fromString(COPILOT_TROUBLESHOOT_SKILL_CONTENT).buffer, {
 				create: true, overwrite: true, append: false, unlock: false, atomic: false,
 			});
 		}

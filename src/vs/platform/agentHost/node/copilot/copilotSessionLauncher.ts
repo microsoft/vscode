@@ -1736,7 +1736,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			...toolConfiguration.sessionConfig,
 			agent: getNativeAgentSelection(plan) ? undefined : plan.resolvedAgentName,
 			skillDirectories: plan.workspace?.kind === 'virtual' ? [] : skillDirectories,
-			skillProvider: plan.workspace?.kind === 'virtual' ? undefined : createCopilotSkillProvider(plan.sessionId, this._copilotHomeService.home, this._fileService, this._logService),
+			skillProvider: plan.workspace?.kind === 'virtual' ? undefined : createCopilotSkillProvider(plan.sessionId, this._copilotHomeService.home),
 			instructionDirectories: plan.workspace?.kind === 'virtual' ? [] : instructionDirectories,
 			additionalDirectories,
 			coauthorEnabled: this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.IncludeCoAuthoredBy),

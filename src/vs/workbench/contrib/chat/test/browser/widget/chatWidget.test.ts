@@ -47,7 +47,7 @@ import { acceptAndAwaitSentRequest, ChatWidget, computeChatSessionStateIndicator
 import { IChatListItemTemplate } from '../../../browser/widget/chatListRenderer.js';
 import { ChatViewPaneTarget, IChatAcceptInputOptions, IChatListItemRendererOptions, IChatScrollAnchor, IChatWidget, IChatWidgetService, IChatWidgetViewModelChangeEvent, IChatWidgetViewOptions } from '../../../browser/chat.js';
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
-import { ChatRequestVariableSet } from '../../../common/attachments/chatVariableEntries.js';
+import { ChatRequestVariableSet, ChatSessionReferenceVariableId } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatOpenDiagnosticsService } from '../../../common/chatOpenDiagnosticsService.js';
 import { clearChatMarks } from '../../../common/chatPerf.js';
 import { CloudSandboxSessionTrace } from '../../../common/cloudSandboxSessionTrace.js';
@@ -59,7 +59,7 @@ import { ChatResponseModelChangeReason, IChatChangeEvent, IChatModel, IChatReque
 import { computeChatModelIsIdle } from '../../../common/model/chatModelIdle.js';
 import { ChatViewModel, IChatRequestViewModel } from '../../../common/model/chatViewModel.js';
 import { IIntendedModelSelection, ModelSelectionReason } from '../../../common/modelSelection.js';
-import { ChatRequestAgentPart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, IParsedChatRequest } from '../../../common/requestParser/chatParserTypes.js';
+import { ChatRequestAgentPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, IParsedChatRequest } from '../../../common/requestParser/chatParserTypes.js';
 import { IChatAgentData, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { IChatVariablesService, IDynamicVariable } from '../../../common/attachments/chatVariables.js';
 import { IChatSlashCommandService } from '../../../common/participants/chatSlashCommands.js';
@@ -79,6 +79,7 @@ import { createChatUserInteractionTestHarness } from '../chatUserInteractionTest
 import { getChatSessionType, LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { IChatSessionsService, ResolvedChatSessionsExtensionPoint, SessionType } from '../../../common/chatSessionsService.js';
 import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
+import { createTextModel } from '../../../../../../editor/test/common/testTextModel.js';
 
 suite('ChatWidget', () => {
 
@@ -848,7 +849,7 @@ suite('ChatWidget', () => {
 		}]);
 	});
 
-	function createStartEditingWidget(input: object, request: IChatRequestViewModel, configurationService: TestConfigurationService) {
+	function createStartEditingWidget(input: object, request: IChatRequestViewModel, configurationService: TestConfigurationService, dynamicVariableModel?: ChatDynamicVariableModel) {
 		let editing: IChatRequestViewModel | undefined;
 		const widget = Object.create(ChatWidget.prototype) as ChatWidget;
 		Object.defineProperties(widget, {
@@ -867,7 +868,7 @@ suite('ChatWidget', () => {
 			},
 			input: { value: input },
 			inputPart: { value: input },
-			contribs: { value: [] },
+			contribs: { value: dynamicVariableModel ? [dynamicVariableModel] : [] },
 			onDidChangeItems: { value: () => { } },
 			listWidget: {
 				value: {
@@ -908,6 +909,46 @@ suite('ChatWidget', () => {
 		widget.startEditing(request.id);
 
 		assert.deepStrictEqual(input.requestModelByIdentifier.firstCall.args, [modelId, modelConfiguration]);
+	});
+
+	test('inline session references preserve their kind, title and metadata when edited and resent', async () => {
+		const text = 'Compare #session:Target';
+		const target = URI.parse('opaque-host-session:/target');
+		const references: IDynamicVariable[] = [{
+			id: ChatSessionReferenceVariableId, fullName: 'Target', data: target, range: new Range(1, 9, 1, 24), _meta: { source: 'test' },
+		}];
+		const parser = new ChatRequestParser(
+			upcastPartial<IChatAgentService>({}),
+			upcastPartial<IChatVariablesService>({ getDynamicVariables: () => references, getSelectedToolAndToolSets: () => ToolAndToolSetEnablementMap.fromEntries([]) }),
+			upcastPartial<IChatSlashCommandService>({}),
+			upcastPartial<IPromptsService>({}),
+		);
+		const session = URI.parse('agent-host-copilot:/session');
+		const first = parser.parseChatRequest(session, text);
+		const variables = first.parts.filter((part): part is ChatRequestDynamicVariablePart => part instanceof ChatRequestDynamicVariablePart).map(part => part.toVariableEntry());
+		const model = store.add(createTextModel(text));
+		const input = mockObject<ChatInputPart>()({
+			element: mainWindow.document.createElement('div'),
+			inputEditor: upcastPartial<ChatInputPart['inputEditor']>({ getValue: () => text, getModel: () => model, focus: () => { } }),
+			attachmentModel: upcastPartial<ChatInputPart['attachmentModel']>({ getAttachmentIDs: () => new Set() }),
+			dnd: upcastPartial<ChatInputPart['dnd']>({ setDisabledOverlay: () => { } }),
+			onDidClickOverlay: Event.None,
+		});
+		const configurationService = new TestConfigurationService();
+		await configurationService.setUserConfiguration('chat.editRequests', 'input');
+		const request = upcastPartial<IChatRequestViewModel>({ id: 'request', message: first, messageText: text, variables });
+		const dynamicVariableModel = upcastPartial<ChatDynamicVariableModel>({
+			id: ChatDynamicVariableModel.ID, addReference: reference => { references.push(reference); },
+		});
+		const widget = createStartEditingWidget(input, request, configurationService, dynamicVariableModel);
+		references.length = 0;
+
+		widget.startEditing(request.id);
+
+		const resent = parser.parseChatRequest(session, text).parts
+			.filter((part): part is ChatRequestDynamicVariablePart => part instanceof ChatRequestDynamicVariablePart)
+			.map(part => part.toVariableEntry());
+		assert.deepStrictEqual(resent, variables);
 	});
 
 	function createFakeInputPart(name: string) {

@@ -33,7 +33,7 @@ import { ChatMode, CustomChatMode } from '../../../common/chatModes.js';
 import { IExtensionPromptPath, IPromptPath, IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
 import { withCustomizationDiscoveryMeta } from '../../../../../../platform/agentHost/common/meta/customizationDiscoveryMeta.js';
-import { hasReadableCustomizationContent } from '../../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
+import { COPILOT_BUILTIN_CUSTOMIZATION_SCHEME, hasReadableCustomizationContent } from '../../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
 import { expandHookFileItems, ICustomizationSkillItem } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
 import { buildMcpResourceUri } from '../../../../../../platform/agentHost/common/mcpResourceUri.js';
 import { withMcpServerDisplayNameMeta, withMcpServerSourceMeta } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
@@ -53,6 +53,26 @@ suite('AgentCustomizationItemProvider', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	for (const kind of agentHostConnectionKinds) {
+		test(`projects host-owned troubleshooting as a readable built-in skill (${kind.name})`, async () => {
+			const directory = URI.from({ scheme: COPILOT_BUILTIN_CUSTOMIZATION_SCHEME, path: '/skills' });
+			const resource = URI.joinPath(directory, 'troubleshoot/SKILL.md');
+			class TestCustomizationService extends NullAgentHostCustomizationService {
+				override getCustomizations(): readonly Customization[] {
+					return [{
+						type: CustomizationType.Directory, id: directory.toString(), uri: directory.toString(), name: 'builtin',
+						contents: CustomizationType.Skill, enabled: true, writable: false,
+						children: [{ type: CustomizationType.Skill, id: resource.toString(), uri: resource.toString(), name: 'troubleshoot' }],
+					}];
+				}
+			}
+			const provider = disposables.add(new AgentCustomizationItemProvider({ clientId: 'vscode', resourceUris: kind.resourceUris }, undefined, undefined,
+				upcastPartial<IFileService>({ canHandleResource: async () => false }), new NullLogService(), new TestCustomizationService(), makePromptsService(), labelService));
+			const items = await provider.provideChatSessionCustomizations(URI.parse('agent-host-copilot:/session'), CancellationToken.None);
+			assert.deepStrictEqual(items.filter(item => item.type === PromptsType.skill).map(item => ({
+				name: item.name, source: item.source, readable: hasReadableCustomizationContent(item.uri),
+			})), [{ name: 'troubleshoot', source: AICustomizationSources.builtin, readable: true }]);
+		});
+
 		test(`groups MCP skills by user source and parent plugin while preserving enablement and host resource mapping (${kind.name})`, async () => {
 			const session = URI.parse('agent-host-copilot:/remote');
 			const resource = URI.parse(buildMcpResourceUri('opaque-mcp-channel:skills', 'skill://server/friendly/SKILL.md', 'Friendly'));

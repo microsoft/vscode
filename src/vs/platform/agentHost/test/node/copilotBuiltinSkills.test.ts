@@ -4,32 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { readFile } from 'fs/promises';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { URI } from '../../../../base/common/uri.js';
-import { upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import type { IFileContent, IFileService } from '../../../files/common/files.js';
+import { FileOperationResult, FileSystemProviderCapabilities, toFileOperationResult } from '../../../files/common/files.js';
+import { FileService } from '../../../files/common/fileService.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { createCopilotSkillProvider } from '../../node/copilot/copilotBuiltinSkills.js';
+import { buildCopilotBuiltinSkillsContainer, COPILOT_TROUBLESHOOT_SKILL_CONTENT, createCopilotSkillProvider } from '../../node/copilot/copilotBuiltinSkills.js';
+import { CopilotBuiltinAgentsStore } from '../../node/copilot/copilotBuiltinAgents.js';
 
 suite('Copilot builtin troubleshoot skill', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('loads lazily and supplies the exact host home and SDK conversation for concurrent reads', async () => {
-		const reads: string[] = [];
-		const fileService = upcastPartial<IFileService>({
-			readFile: async resource => {
-				reads.push(resource.path);
-				return upcastPartial<IFileContent>({ value: VSBuffer.wrap(await readFile(resource.fsPath)) });
-			},
-		});
+	test('supplies the exact host home and SDK conversation for concurrent reads', async () => {
 		const home = URI.file('/custom home/"quoted"/$&');
-		const providers = ['owner-sdk-id', 'peer-sdk-id'].map(id => createCopilotSkillProvider(id, home, fileService, new NullLogService()));
+		const providers = ['owner-sdk-id', 'peer-sdk-id'].map(id => createCopilotSkillProvider(id, home));
 		const options = { signal: new AbortController().signal };
 		await Promise.all(providers.map(provider => provider.listSkills(options)));
-		assert.deepStrictEqual(reads, []);
 		const contents = await Promise.all(providers.map(provider => provider.readSkill('troubleshoot', options)));
 		assert.deepStrictEqual(contents.map((content, index) => ({
 			current: content?.includes(JSON.stringify(URI.joinPath(home, 'session-state', index === 0 ? 'owner-sdk-id' : 'peer-sdk-id', 'events.jsonl').fsPath)),
@@ -39,30 +31,28 @@ suite('Copilot builtin troubleshoot skill', () => {
 		})), Array.from({ length: 2 }, () => ({ current: true, root: true, unresolved: false, xdg: false })));
 	});
 
-	test('unknown skills and cancelled reads do not read the asset', async () => {
-		let reads = 0;
-		const fileService = upcastPartial<IFileService>({
-			readFile: async () => { reads++; throw new Error('Unexpected read'); },
-		});
-		const provider = createCopilotSkillProvider('sdk-id', URI.file('/copilot-home'), fileService, new NullLogService());
+	test('unknown skills and cancelled reads do not return content', async () => {
+		const provider = createCopilotSkillProvider('sdk-id', URI.file('/copilot-home'));
 		const controller = new AbortController();
 		const reason = new Error('Cancelled');
 		controller.abort(reason);
 		assert.strictEqual(await provider.readSkill('other', { signal: new AbortController().signal }), undefined);
 		await assert.rejects(async () => provider.readSkill('troubleshoot', { signal: controller.signal }), reason);
-		assert.strictEqual(reads, 0);
 	});
 
-	test('asset failures are logged and propagated rather than returning an empty skill', async () => {
-		const failure = new Error('Skill asset missing');
-		const logged: unknown[] = [];
-		const logService = new class extends NullLogService {
-			override error(_message: string | Error, ...args: unknown[]): void { logged.push(...args); }
-		};
-		const provider = createCopilotSkillProvider('sdk-id', URI.file('/copilot-home'), upcastPartial<IFileService>({
-			readFile: async () => { throw failure; },
-		}), logService);
-		await assert.rejects(async () => provider.readSkill('troubleshoot', { signal: new AbortController().signal }), failure);
-		assert.deepStrictEqual(logged, [failure]);
+	test('published skill is readable but cannot change the shipped or SDK content', async () => {
+		const fileService = disposables.add(new FileService(new NullLogService()));
+		disposables.add(new CopilotBuiltinAgentsStore(fileService));
+		const child = buildCopilotBuiltinSkillsContainer().children![0];
+		const uri = URI.parse(child.uri);
+		await assert.rejects(fileService.writeFile(uri, VSBuffer.fromString('modified')),
+			(error: Error) => toFileOperationResult(error) === FileOperationResult.FILE_PERMISSION_DENIED);
+		const provider = createCopilotSkillProvider('sdk-id', URI.file('/copilot-home'));
+		assert.deepStrictEqual({
+			scheme: uri.scheme,
+			readonly: fileService.hasCapability(uri, FileSystemProviderCapabilities.Readonly),
+			content: (await fileService.readFile(uri)).value.toString(),
+			sdkContent: (await provider.readSkill('troubleshoot', { signal: new AbortController().signal }))?.startsWith('# Troubleshoot'),
+		}, { scheme: 'copilot-builtin', readonly: true, content: COPILOT_TROUBLESHOOT_SKILL_CONTENT, sdkContent: true });
 	});
 });
