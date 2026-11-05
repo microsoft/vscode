@@ -5,7 +5,6 @@
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IReader, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
-import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IChat, ISession, ISessionChangeset, ISessionFileChange } from './session.js';
@@ -223,5 +222,3 @@ export class SessionChangesStatsCache extends Disposable implements ISessionChan
 		this._storageService.store(STORAGE_KEY, JSON.stringify(stored), StorageScope.APPLICATION, StorageTarget.MACHINE);
 	}
 }
-
-registerSingleton(ISessionChangesStatsCache, SessionChangesStatsCache, InstantiationType.Delayed);

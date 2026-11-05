@@ -469,6 +469,7 @@ import './browser/parts/editorParts.js';
 import './browser/parts/sessionsParts.js';
 import './browser/parts/customViewGridParts.js';
 import './services/sessions/browser/sessionsWindowUsageService.js';
+import './services/sessions/browser/sessionsServices.registration.js';
 import './services/sessions/browser/sessionsService.js';
 import './services/sessions/browser/sessionHostService.js';
 import './services/workspaceFolderLabel/browser/workspaceFolderLabelService.js';
