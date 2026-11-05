@@ -405,4 +405,68 @@ suite('FindSectionHeaders', () => {
 		assert.strictEqual(headers[2].range.startLineNumber, 7);
 		assert.strictEqual(headers[2].range.endLineNumber, 9);
 	});
+
+	test('strips the block comment end token from mark section header labels', () => {
+		const model = new TestSectionHeaderFinderTarget([
+			'<!-- MARK: Html Section -->',
+			'/* MARK: - C Section */',
+			'<!-- MARK: Spaced Section   -->   ',
+			'<!-- MARK: -->',
+			'<!-- MARK: - -->',
+			'// MARK: Line Comment Section */ trailing',
+		]);
+
+		const options: FindSectionHeaderOptions = {
+			findRegionSectionHeaders: false,
+			findMarkSectionHeaders: true,
+			markSectionHeaderRegex: '\\bMARK:\\s*(?<separator>\\-?)\\s*(?<label>.*)$',
+			blockCommentEndToken: '-->'
+		};
+
+		const htmlHeaders = findSectionHeaders(model, options).map(h => ({ line: h.range.startLineNumber, text: h.text, hasSeparatorLine: h.hasSeparatorLine }));
+		const cHeaders = findSectionHeaders(model, { ...options, blockCommentEndToken: '*/' }).map(h => ({ line: h.range.startLineNumber, text: h.text, hasSeparatorLine: h.hasSeparatorLine }));
+
+		assert.deepStrictEqual({ htmlHeaders, cHeaders }, {
+			htmlHeaders: [
+				{ line: 1, text: 'Html Section', hasSeparatorLine: false },
+				{ line: 2, text: 'C Section */', hasSeparatorLine: true },
+				{ line: 3, text: 'Spaced Section', hasSeparatorLine: false },
+				{ line: 5, text: '', hasSeparatorLine: true },
+				{ line: 6, text: 'Line Comment Section */ trailing', hasSeparatorLine: false },
+			],
+			cHeaders: [
+				{ line: 1, text: 'Html Section -->', hasSeparatorLine: false },
+				{ line: 2, text: 'C Section', hasSeparatorLine: true },
+				{ line: 3, text: 'Spaced Section   -->   ', hasSeparatorLine: false },
+				{ line: 4, text: '->', hasSeparatorLine: true },
+				{ line: 5, text: '-->', hasSeparatorLine: true },
+				{ line: 6, text: 'Line Comment Section */ trailing', hasSeparatorLine: false },
+			]
+		});
+	});
+
+	test('keeps mark section header labels without a block comment end token unchanged', () => {
+		const model = new TestSectionHeaderFinderTarget([
+			'<!-- MARK: Html Section -->',
+		]);
+
+		const options: FindSectionHeaderOptions = {
+			findRegionSectionHeaders: false,
+			findMarkSectionHeaders: true,
+			markSectionHeaderRegex: '\\bMARK:\\s*(?<separator>\\-?)\\s*(?<label>.*)$'
+		};
+		const customRegexOptions: FindSectionHeaderOptions = {
+			...options,
+			markSectionHeaderRegex: '\\bMARK:\\s*(?<label>\\w+ \\w+)',
+			blockCommentEndToken: '-->'
+		};
+
+		assert.deepStrictEqual({
+			withoutToken: findSectionHeaders(model, options).map(h => h.text),
+			customRegex: findSectionHeaders(model, customRegexOptions).map(h => h.text),
+		}, {
+			withoutToken: ['Html Section -->'],
+			customRegex: ['Html Section'],
+		});
+	});
 });

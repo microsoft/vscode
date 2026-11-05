@@ -18,6 +18,11 @@ export interface FindSectionHeaderOptions {
 	findRegionSectionHeaders: boolean;
 	findMarkSectionHeaders: boolean;
 	markSectionHeaderRegex: string;
+	/**
+	 * The token that closes a block comment in the model's language (e.g. `-->` or `*\/`).
+	 * When a mark section header label ends with this token, the token is not part of the label.
+	 */
+	blockCommentEndToken?: string;
 }
 
 export interface SectionHeader {
@@ -148,8 +153,8 @@ export function collectMarkHeaders(model: ISectionHeaderFinderTarget, options: F
 				endColumn
 			};
 
-			const text2 = (match.groups ?? {})['label'] ?? '';
-			const hasSeparatorLine = ((match.groups ?? {})['separator'] ?? '') !== '';
+			const { label: text2, separator } = stripBlockCommentEnd((match.groups ?? {})['label'] ?? '', (match.groups ?? {})['separator'] ?? '', options.blockCommentEndToken);
+			const hasSeparatorLine = separator !== '';
 
 			const sectionHeader = {
 				range,
@@ -171,6 +176,24 @@ export function collectMarkHeaders(model: ISectionHeaderFinderTarget, options: F
 	}
 
 	return markHeaders;
+}
+
+/**
+ * Removes a trailing block comment end token (e.g. `-->` in `<!-- MARK: Section -->`) from a mark section header.
+ */
+function stripBlockCommentEnd(label: string, separator: string, blockCommentEndToken: string | undefined): { label: string; separator: string } {
+	if (!blockCommentEndToken) {
+		return { label, separator };
+	}
+	const trimmedLabel = label.trimEnd();
+	if (trimmedLabel.endsWith(blockCommentEndToken)) {
+		return { label: trimmedLabel.substring(0, trimmedLabel.length - blockCommentEndToken.length).trimEnd(), separator };
+	}
+	if (trimmedLabel.length < blockCommentEndToken.length && (separator + trimmedLabel).endsWith(blockCommentEndToken)) {
+		// The token was split across the separator and the label, e.g. `<!-- MARK: -->`
+		return { label: '', separator: '' };
+	}
+	return { label, separator };
 }
 
 function getHeaderText(text: string): { text: string; hasSeparatorLine: boolean } {
