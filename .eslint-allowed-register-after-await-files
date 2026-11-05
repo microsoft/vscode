@@ -31,7 +31,7 @@ src/vs/sessions/contrib/providers/agentHost/browser/baseAgentHostSessionsProvide
 src/vs/sessions/electron-browser/sessions.main.ts
 src/vs/sessions/services/configuration/browser/configurationService.ts
 
-# Workbench chat and agents (29 files)
+# Workbench chat and agents (28 files)
 src/vs/workbench/api/browser/mainThreadChatAgents2.ts
 src/vs/workbench/api/common/extHostChatAgents2.ts
 src/vs/workbench/api/common/extHostMcp.ts
@@ -44,7 +44,6 @@ src/vs/workbench/contrib/chat/browser/chat.shared.contribution.ts
 src/vs/workbench/contrib/chat/browser/chatDebug/chatDebugDetailPanel.ts
 src/vs/workbench/contrib/chat/browser/chatDebug/chatDebugWireLogView.ts
 src/vs/workbench/contrib/chat/browser/chatEditing/chatEditingCodeEditorIntegration.ts
-src/vs/workbench/contrib/chat/browser/chatEditing/chatEditingSession.ts
 src/vs/workbench/contrib/chat/browser/chatSetup/chatSetupContributions.ts
 src/vs/workbench/contrib/chat/browser/chatWindowNotifier.ts
 src/vs/workbench/contrib/chat/browser/promptSyntax/promptFileContributions.ts
