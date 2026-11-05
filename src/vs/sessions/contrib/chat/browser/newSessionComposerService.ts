@@ -10,7 +10,6 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceSelectionSnapshot } from '../../../../workbench/contrib/sessions/common/workspaceSelection.js';
 import { ISendRequestOptions } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
@@ -198,5 +197,3 @@ export class NewSessionComposerService extends Disposable implements INewSession
 		}));
 	}
 }
-
-registerSingleton(INewSessionComposerService, NewSessionComposerService, InstantiationType.Delayed);
