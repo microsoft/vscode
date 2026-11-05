@@ -231,6 +231,22 @@ export interface IPaneViewState {
 }
 
 /**
+ * What the views of a pane show, and how they close it: the provider's session, the chat the pane shows of it, and the
+ * pane's state. A pane of the grid, or the pane of a chat window's editor.
+ */
+export interface ISessionPaneContent {
+	readonly session: ISession;
+	/** The chat the pane shows: a slot's active tab, a detached pane's chat, a chat editor's chat. */
+	readonly chat: IObservable<IChat>;
+	readonly state: IPaneViewState;
+	/**
+	 * Closes the pane: a detached pane returns its chat to its session's slot, a slot leaves the grid, keeping its session's
+	 * detached panes, and the pane of another surface, such as a chat editor's, closes there.
+	 */
+	close(): void;
+}
+
+/**
  * The pane state an {@link IActiveSession} carries, the grid's view of a session in a pane.
  *
  * @deprecated Transitional: views take the state of their pane instead.

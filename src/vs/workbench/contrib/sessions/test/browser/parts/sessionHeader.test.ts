@@ -236,7 +236,7 @@ suite('Sessions - Headers', () => {
 		test(`${paneClass} headers leave a six-pixel drag-free buffer by resize boundaries`, () => {
 			const { store, instantiationService, header: sessionHeader, session, activeChat } = createHarness(disposables);
 			const chatHeader = store.add(instantiationService.createInstance(ChatHeader));
-			chatHeader.setChat({ session, chat: activeChat, activate: () => { } });
+			chatHeader.setChat({ session, chat: activeChat, isDetached: false, activate: () => { } });
 			const header = paneClass === 'session-view' ? sessionHeader : chatHeader;
 			const pane = $(`.${paneClass}`);
 			pane.style.width = '400px';
@@ -263,7 +263,7 @@ suite('Sessions - Headers', () => {
 		const { store, instantiationService, header, session, activeChat, secondChat } = createHarness(disposables);
 		activeChat.set(secondChat, undefined);
 		const chatHeader = store.add(instantiationService.createInstance(ChatHeader));
-		chatHeader.setChat({ session, chat: activeChat, activate: () => { } });
+		chatHeader.setChat({ session, chat: activeChat, isDetached: false, activate: () => { } });
 		const transfer = LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>();
 		const describeDrag = (target: SessionHeader | ChatHeader) => {
 			const event = simulateDragFrom(target, target.element);
@@ -287,7 +287,7 @@ suite('Sessions - Headers', () => {
 	test('a main-chat group header drags its chat while the session header still drags the session', () => {
 		const { store, instantiationService, header, session, activeChat, mainChat } = createHarness(disposables);
 		const chatHeader = store.add(instantiationService.createInstance(ChatHeader));
-		chatHeader.setChat({ session, chat: activeChat, activate: () => { } });
+		chatHeader.setChat({ session, chat: activeChat, isDetached: false, activate: () => { } });
 		const chatDrag = simulateDragFrom(chatHeader, chatHeader.element);
 		const sessionDrag = simulateDragFrom(header, header.element);
 		header.element.dispatchEvent(new DragEvent(EventType.DRAG_END));
@@ -312,7 +312,7 @@ suite('Sessions - Headers', () => {
 	test('chat header toolbar gestures and title editing do not start a drag', () => {
 		const { store, instantiationService, header, session, activeChat } = createHarness(disposables, { supportsRename: true, supportsMultipleChats: true });
 		const chatHeader = store.add(instantiationService.createInstance(ChatHeader));
-		chatHeader.setChat({ session, chat: activeChat, activate: () => { } });
+		chatHeader.setChat({ session, chat: activeChat, isDetached: false, activate: () => { } });
 		const toolbarDrag = simulateDragFrom(chatHeader, chatHeader.element.querySelector<HTMLElement>('.chat-composite-bar-title-actions')!);
 		header.startTitleEditing();
 		const editingDrag = simulateDragFrom(header, header.element);
@@ -423,6 +423,7 @@ suite('Sessions - Headers', () => {
 		header.setChat({
 			session,
 			chat: activeChat,
+			isDetached: false,
 			activate: () => activationCalls++,
 		});
 
@@ -435,7 +436,7 @@ suite('Sessions - Headers', () => {
 	test('middle-clicking a session title closes only the session header', () => {
 		const { store, instantiationService, header, session, activeChat, closedSessions } = createHarness(disposables);
 		const chatHeader = store.add(instantiationService.createInstance(ChatHeader));
-		chatHeader.setChat({ session, chat: activeChat, activate: () => { } });
+		chatHeader.setChat({ session, chat: activeChat, isDetached: false, activate: () => { } });
 		const sessionMiddleClick = new MouseEvent(EventType.AUXCLICK, { bubbles: true, button: 1, cancelable: true });
 		const sessionRightClick = new MouseEvent(EventType.AUXCLICK, { bubbles: true, button: 2, cancelable: true });
 		const chatMiddleClick = new MouseEvent(EventType.AUXCLICK, { bubbles: true, button: 1, cancelable: true });
@@ -489,6 +490,7 @@ suite('Sessions - Headers', () => {
 		chatHeader.setChat({
 			session,
 			chat: activeChat,
+			isDetached: false,
 			activate: () => { },
 		});
 		const describe = (args: readonly unknown[]) => args.map(arg =>
@@ -595,7 +597,7 @@ suite('Sessions - Headers', () => {
 		secondChat.status.set(SessionStatus.InProgress, undefined);
 		const createChatHeader = (chat: IChat) => {
 			const header = store.add(instantiationService.createInstance(ChatHeader));
-			header.setChat({ session, chat: constObservable(chat), activate: () => { } });
+			header.setChat({ session, chat: constObservable(chat), isDetached: false, activate: () => { } });
 			return header;
 		};
 		const mainHeader = createChatHeader(mainChat);
@@ -621,7 +623,7 @@ suite('Sessions - Headers', () => {
 			session.chats.set([mainChat, child], undefined);
 			const createChatHeader = (chat: IChat) => {
 				const chatHeader = store.add(instantiationService.createInstance(ChatHeader));
-				chatHeader.setChat({ session, chat: constObservable(chat), activate: () => { } });
+				chatHeader.setChat({ session, chat: constObservable(chat), isDetached: false, activate: () => { } });
 				return chatHeader;
 			};
 			const mainHeader = createChatHeader(mainChat);
@@ -708,6 +710,7 @@ suite('Sessions - Headers', () => {
 		header.setChat({
 			session,
 			chat: activeChat,
+			isDetached: false,
 			activate: () => { },
 		});
 

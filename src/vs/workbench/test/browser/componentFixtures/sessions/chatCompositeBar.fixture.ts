@@ -82,6 +82,8 @@ function createMockSession(chats: readonly IChat[], activeChat: IChat, sessionTi
 function createMockDelegate(session: IActiveSession, chats: readonly IChat[], activeChat: IChat): IChatCompositeBarDelegate {
 	return {
 		session,
+		isDetached: false,
+		closePane: () => { },
 		chats: observableValue('chats', chats),
 		activeChatResource: observableValue('activeChatResource', activeChat.resource.toString()),
 		mainChatResource: observableValue('mainChatResource', chats[0].resource.toString()),

@@ -10,7 +10,8 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { SessionHeaderTargetsChatContext, SessionToolbarShowsSessionContext } from '../../common/contextkeys.js';
-import { IActiveSession } from '../../common/sessionsManagement.js';
+import { IActiveSession, ISessionPaneContent } from '../../common/sessionsManagement.js';
+import { isSessionPaneContent, paneContentOf } from '../visibleSessions.js';
 import { ISessionsService } from '../sessionsService.js';
 import { SessionHeaderBar } from './sessionHeaderBar.js';
 
@@ -42,23 +43,30 @@ export class SessionHeader extends Disposable {
 		this._bar = this._register(instantiationService.createInstance(SessionHeaderBar, undefined));
 	}
 
-	setSession(session: IActiveSession | undefined): void {
+	/**
+	 * Shows the session of a pane, its chat and its state. A view of a session in a pane is taken as its content, closed
+	 * through {@link ISessionsService.closeSession} (transitional).
+	 */
+	setSession(input: ISessionPaneContent | IActiveSession | undefined): void {
 		this._sessionDisposables.clear();
-		if (!session) {
+		if (!input) {
 			this._headerTargetsChatKey.reset();
 			this._toolbarShowsSessionKey.reset();
 			this._bar.setContext(undefined);
 			return;
 		}
-		const closeSession = () => this._sessionsService.closeSession(session);
+		const content = isSessionPaneContent(input) ? input : paneContentOf(input, () => this._sessionsService.closeSession(input));
+		const { session, chat } = content;
+		const closeSession = () => content.close();
 		this._sessionDisposables.add(autorun(reader => {
-			const activeChat = session.activeChat.read(reader);
+			const activeChat = chat.read(reader);
 			const targetsChat = !!activeChat && !isEqual(activeChat.resource, session.mainChat.read(reader).resource);
 			this._headerTargetsChatKey.set(targetsChat);
 			this._toolbarShowsSessionKey.set(true);
 			this._bar.setContext({
 				session,
-				chat: session.activeChat,
+				chat,
+				isDetached: content.state.isDetached,
 				actionsTargetChat: targetsChat,
 				closeSession,
 			});

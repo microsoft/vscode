@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/comm
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { constObservable, disposableObservableValue, observableValue } from '../../../base/common/observable.js';
 import { mock } from '../../../base/test/common/mock.js';
-import { IActiveSession } from '../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IActiveSession, ISessionPaneContent } from '../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionPreparationProgress, SessionStatus } from '../../../workbench/contrib/sessions/common/session.js';
 import { ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../workbench/contrib/sessions/common/workspaceSelection.js';
 import { AbstractChatView, ChatViewKind, IChatViewOptions } from '../../../workbench/contrib/sessions/browser/parts/chatView.js';
@@ -673,12 +673,13 @@ suite('Sessions - Session View', () => {
 			_hasOpenedSession: false,
 			_currentSession: undefined,
 			_sessionObs: observableValue<IActiveSession | undefined>('session', undefined),
+			_contentObs: observableValue<ISessionPaneContent | undefined>('content', undefined),
 			_isVisibleObs: hostVisible,
 			_openSessionDisposables: openSessionDisposables,
 			_header: { setSession: () => { } },
 			_groupsView: {
 				element: groupsElement,
-				setSession: (activeSession: IActiveSession | undefined) => shownSessions.push(activeSession),
+				setSession: (content: ISessionPaneContent | undefined) => shownSessions.push(content?.session as IActiveSession | undefined),
 				focus: () => groupsInput.focus(),
 			},
 			_standaloneView: standaloneView,

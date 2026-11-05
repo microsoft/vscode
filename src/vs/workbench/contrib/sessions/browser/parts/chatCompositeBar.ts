@@ -30,9 +30,9 @@ import { IKeyboardEvent, StandardKeyboardEvent } from '../../../../../base/brows
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { localize } from '../../../../../nls.js';
-import { ChatInteractivity, getChatCapabilities, getChatHarness, IChat, SessionStatus } from '../../common/session.js';
+import { ChatInteractivity, getChatCapabilities, getChatHarness, IChat, ISession, SessionStatus } from '../../common/session.js';
 import { getHarnessPresentationOrDefault, IHarnessPresentation } from '../../common/sessionsProvider.js';
-import { IActiveSession, ISessionsManagementService } from '../../common/sessionsManagement.js';
+import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { clearChatReferenceDragData, fillChatReferenceDragData, fillSessionChatDragData, isSessionDragFromPaneEdge, onDidEndSessionChatDrag } from '../dnd.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { applySessionBarThemeColors } from './sessionBarStyles.js';
@@ -52,7 +52,6 @@ import { SessionStatusIcon } from '../sessionStatusIcon.js';
 import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { createInstantHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
-import { ISessionsService } from '../sessionsService.js';
 import { ISessionHost, sessionMenuArgs } from '../sessionHost.js';
 
 interface IChatTab {
@@ -76,7 +75,13 @@ export interface IChatCompositeBarDelegate {
 	 * the contributed tab menus (whose actions act on `{ session, chat }`), chat
 	 * drag data, and rename/delete operations.
 	 */
-	readonly session: IActiveSession;
+	readonly session: ISession;
+
+	/** Whether the bar is of a pane that shows one chat of its session apart from its slot, such as a detached pane. */
+	readonly isDetached: boolean;
+
+	/** Closes the pane of the bar, as closing its main chat's tab does. */
+	closePane(): void;
 
 	/** The chats assigned to this group, in tab order. */
 	readonly chats: IObservable<readonly IChat[]>;
@@ -173,7 +178,6 @@ export class ChatCompositeBar extends Disposable {
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@ISessionHost private readonly _sessionHost: ISessionHost,
 	) {
 		super();
@@ -320,7 +324,7 @@ export class ChatCompositeBar extends Disposable {
 	 * Presents a chat's harness, re-evaluating for `reader` as the provider learns its
 	 * harnesses (a restored session can render before its host advertises them).
 	 */
-	private _presentChatHarness(session: IActiveSession, chat: IChat, reader: IReader | undefined): IHarnessPresentation {
+	private _presentChatHarness(session: ISession, chat: IChat, reader: IReader | undefined): IHarnessPresentation {
 		return getHarnessPresentationOrDefault(this._sessionsProvidersService.getProvider(session.providerId), getChatHarness(session, chat), reader);
 	}
 
@@ -411,7 +415,7 @@ export class ChatCompositeBar extends Disposable {
 			const ancestors = session ? getSessionChatAncestors(session, chat, reader) : [];
 			const parentResource = chat.origin?.parentChat ?? session?.mainChat.read(reader).resource;
 			const sharesParent = parentResource && delegate?.chats.read(reader).some(candidate => isEqual(candidate.resource, parentResource));
-			const showParentContext = !!session?.scopedChatResource || (!sharesParent && delegate?.showParentContext?.read(reader));
+			const showParentContext = !!delegate?.isDetached || (!sharesParent && delegate?.showParentContext?.read(reader));
 			const description = showParentContext ? ancestors.join(' / ') : '';
 			labelWidget.setLabel(title, description);
 			tab.classList.toggle('has-description', description.length > 0);
@@ -562,7 +566,7 @@ export class ChatCompositeBar extends Disposable {
 				return;
 			}
 			if (isMainChat) {
-				this._sessionsService.closeSession(session);
+				delegate?.closePane();
 				return;
 			}
 
@@ -600,7 +604,7 @@ export class ChatCompositeBar extends Disposable {
 			// singleton) lets the chat be moved between groups / split out. It must not
 			// use the singleton because the chat-reference payload below also uses it,
 			// and the singleton holds only one payload at a time.
-			fillSessionChatDragData(e, delegate.session.sessionId, chat.resource, !!delegate.session.scopedChatResource);
+			fillSessionChatDragData(e, delegate.session.sessionId, chat.resource, delegate.isDetached);
 
 			// Chat-reference payload: requires the opaque backend chat URI, which
 			// only the owning agent-host provider knows. When it is unavailable

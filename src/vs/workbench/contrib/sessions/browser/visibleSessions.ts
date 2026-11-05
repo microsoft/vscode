@@ -7,7 +7,7 @@ import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable }
 import { IObservable, IReader, ISettableObservable, ITransaction, autorun, derived, observableValue, subtransaction, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IActiveSession, IHostSession, ISessionPaneTabs } from '../common/sessionsManagement.js';
+import { IActiveSession, IHostSession, ISessionPaneContent, ISessionPaneTabs, paneViewStateOfActiveSession } from '../common/sessionsManagement.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../common/session.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { Direction } from '../../../../base/browser/ui/grid/grid.js';
@@ -340,6 +340,20 @@ export class VisibleSession extends Disposable implements IActiveSession {
  */
 export function canonicalSessionOf(session: IActiveSession): ISession {
 	return session instanceof VisibleSession ? session.session : session;
+}
+
+/**
+ * The pane content of `session`, a view of a session in a pane, closed by `close`.
+ *
+ * @deprecated Transitional: views take the content of their pane instead.
+ */
+export function paneContentOf(session: IActiveSession, close: () => void): ISessionPaneContent {
+	return { session: canonicalSessionOf(session), chat: session.activeChat, state: paneViewStateOfActiveSession(session), close };
+}
+
+/** Whether `input` is a pane's content rather than a view of a session. */
+export function isSessionPaneContent(input: ISessionPaneContent | IActiveSession): input is ISessionPaneContent {
+	return typeof (input as Partial<ISessionPaneContent>).close === 'function' && !!(input as Partial<ISessionPaneContent>).state;
 }
 
 /**

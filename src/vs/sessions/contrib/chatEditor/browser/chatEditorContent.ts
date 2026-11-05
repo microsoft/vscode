@@ -14,7 +14,9 @@ import { IChat } from '../../../../workbench/contrib/sessions/common/session.js'
 import { ISessionChangesStatsCache } from '../../../../workbench/contrib/sessions/common/sessionChangesStatsCache.js';
 import { setActiveSessionContextKeys } from '../../../../workbench/contrib/sessions/common/sessionContextKeys.js';
 import { SessionInChatEditorContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
-import { IActiveSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IActiveSession, ISessionPaneContent } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { paneContentOf } from '../../../../workbench/contrib/sessions/browser/visibleSessions.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ChatGroupView, IChatGroupContext } from '../../../../workbench/contrib/sessions/browser/parts/chatGroupView.js';
 import { AbstractChatView, ISessionViewHostOptions } from '../../../../workbench/contrib/sessions/browser/parts/chatView.js';
 import { SessionHeader } from '../../../../workbench/contrib/sessions/browser/parts/sessionHeader.js';
@@ -59,6 +61,7 @@ export class ChatEditorContent extends Disposable {
 		@ISessionHost parentHost: ISessionHost,
 		@ISessionHostService sessionHostService: ISessionHostService,
 		@ISessionChangesStatsCache changesStatsCache: ISessionChangesStatsCache,
+		@ISessionsService private readonly _sessionsService: ISessionsService,
 	) {
 		super();
 		this.element.setAttribute('role', 'region');
@@ -106,14 +109,19 @@ export class ChatEditorContent extends Disposable {
 		}
 		const chat = session?.activeChat.get();
 		this._session.set(session, undefined);
-		this._header.setSession(session);
-		this._group.setContext(session && chat ? this._createContext(session, chat) : undefined);
+		// Closing the pane closes the chat window's chat, through its opener (transitional, until the window shows the provider's session).
+		const content = session && paneContentOf(session, () => this._sessionsService.closeSession(session));
+		this._header.setSession(content);
+		this._group.setContext(content && chat ? this._createContext(content, chat) : undefined);
 		this._layoutChildren();
 	}
 
-	private _createContext(session: IActiveSession, chat: IChat): IChatGroupContext {
+	private _createContext(content: ISessionPaneContent, chat: IChat): IChatGroupContext {
+		const session = content.session;
 		return {
 			session,
+			isDetached: content.state.isDetached,
+			closePane: () => content.close(),
 			options: { session: this._session },
 			chats: constObservable([chat]),
 			activeChatResource: constObservable(chat.resource.toString()),

@@ -15,7 +15,7 @@ import { createErrorWithActions } from '../../../../../base/common/errorMessage.
 import { toAction } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, observableValue, waitForState } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, IObservable, observableValue, waitForState } from '../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase, isEqual } from '../../../../../base/common/resources.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -58,7 +58,7 @@ import { IAutomationSessionTemplate } from '../../../../../workbench/contrib/cha
 import { IChatMovedEvent, ISessionChatMoveDestination, type IForkChatOptions, type INestedChatWorkspace, NestedChatWorkspaceError, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISendRequestOptions, ISessionModelsSnapshot, ISessionModelPickerOptions, ISessionsProvider, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration, type ICreateNewChatOptions } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { SessionsManagementService } from '../../../../../workbench/contrib/sessions/browser/sessionsManagementService.js';
 import { VisibleSessions } from '../../../../../workbench/contrib/sessions/browser/visibleSessions.js';
-import { ISessionsManagementService, IActiveSession, IChatDeletedEvent, ICreateNewSessionOptions, inheritableSessionTarget, ISendRequestSentEvent, WorkspaceNotTrustedError } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionsManagementService, IActiveSession, IChatDeletedEvent, ICreateNewSessionOptions, inheritableSessionTarget, ISendRequestSentEvent, ISessionPaneContent, WorkspaceNotTrustedError } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService, SessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionGridState } from '../../../../../workbench/contrib/sessions/browser/sessionGridState.js';
 import { ISessionOpenTelemetryService, SessionOpenTelemetryService } from '../../../../../workbench/contrib/sessions/browser/sessionOpenTelemetryService.js';
@@ -656,6 +656,48 @@ suite('SessionsManagementService', () => {
 				afterClosing: { slots: ['new session', 'b'], active: 'new session' },
 				afterRemovedPane: { slots: ['new session', 'b'], active: 'new session' },
 				afterClosingNewSessionPane: { slots: ['b'], active: 'b' },
+			});
+		});
+
+		test('a pane\'s content closes its own pane: a detached pane returns its chat, a slot leaves the grid, and a stale content, of a replaced session or a pane that left, closes nothing', async () => {
+			const session = created('parent');
+			const main = session.mainChat.get();
+			const child = { ...main, resource: main.resource.with({ fragment: 'child' }) };
+			const parent = { ...session, chats: constObservable([main, child]) };
+			const other = created('other');
+			const replacement = created('replacement');
+			const { view, part } = harness([parent, other, replacement]);
+			await view.openSessionsInGrid([parent, other]);
+			await view.moveChatToGrid(parent.sessionId, child.resource, view.panes.get()[0].id, 'right');
+			const grid = () => view.panes.get().map(pane => `${pane.kind}:${pane.session.get()?.sessionId ?? 'new session'}${pane.kind === 'detached' ? `:${pane.chat.get()?.resource.fragment}` : ''}`);
+			const contentOf = (sessionId: string, detached = false) => {
+				const pane = view.visibleSessionPanes.get().find(candidate => candidate?.sessionId === sessionId && !!candidate.scopedChatResource === detached);
+				return (Reflect.get(part.getViewOfSession(pane!)!, '_contentObs') as IObservable<ISessionPaneContent | undefined>).get()!;
+			};
+			const detachedContent = contentOf('parent', true);
+			const before = grid();
+			detachedContent.close();
+			const afterDetached = grid();
+			// The provider replaces the session of a slot: the content of the replaced session is stale.
+			const replacedContent = contentOf('other');
+			(Reflect.get(view, '_visibility') as VisibleSessions).updateSession(other, replacement);
+			replacedContent.close();
+			const afterStaleReplaced = grid();
+			contentOf('replacement').close();
+			const afterSlot = grid();
+			// A live new-session slot, which no stale content may close.
+			await view.openNewSession({ toSide: true });
+			const withNewSession = grid();
+			detachedContent.close();
+			replacedContent.close();
+
+			assert.deepStrictEqual({ before, afterDetached, afterStaleReplaced, afterSlot, withNewSession, afterStale: grid() }, {
+				before: ['slot:parent', 'slot:other', 'detached:parent:child'],
+				afterDetached: ['slot:parent', 'slot:other'],
+				afterStaleReplaced: ['slot:parent', 'slot:replacement'],
+				afterSlot: ['slot:parent'],
+				withNewSession: ['slot:parent', 'slot:new session'],
+				afterStale: ['slot:parent', 'slot:new session'],
 			});
 		});
 

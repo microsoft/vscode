@@ -16,7 +16,7 @@ import { IAgentsWindowDraft } from '../../../../../platform/window/common/window
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
-import { IActiveSession } from '../../common/sessionsManagement.js';
+import { IActiveSession, ISessionPaneContent } from '../../common/sessionsManagement.js';
 import { IChat, isSessionCreated } from '../../common/session.js';
 import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../common/workspaceSelection.js';
 import { AbstractChatView, IChatViewOptions, ISessionViewHostOptions } from './chatView.js';
@@ -24,8 +24,9 @@ import { ChatGroupsView } from './chatGroupsView.js';
 import { SessionHeader, SessionViewFloatingToolbar } from './sessionHeader.js';
 import { ChatViewSessionActivityBar } from './sessionActivityBar.js';
 import { createSessionHostServices, ISessionHost, ISessionHostService, SessionHost, SessionHostKind } from '../sessionHost.js';
-import { autorun, derived, disposableObservableValue, IObservable, observableValue, runOnChange } from '../../../../../base/common/observable.js';
-import { canonicalSessionOf } from '../visibleSessions.js';
+import { autorun, derived, disposableObservableValue, IObservable, observableValue, runOnChange, transaction } from '../../../../../base/common/observable.js';
+import { canonicalSessionOf, paneContentOf } from '../visibleSessions.js';
+import { ISessionsService } from '../sessionsService.js';
 import { SessionIsMaximizedContext } from '../../common/contextkeys.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../common/layoutConstants.js';
 import { setActiveSessionContextKeys } from '../../common/sessionContextKeys.js';
@@ -101,6 +102,8 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 	private _isLeafVisible = true;
 
 	private readonly _sessionObs = observableValue<IActiveSession | undefined>(this, undefined);
+	/** The content of the pane it shows: the provider's session, its chat and the pane's state. */
+	private readonly _contentObs = observableValue<ISessionPaneContent | undefined>(this, undefined);
 	/** The host of what this view shows, nested in the host of its window. */
 	readonly host: ISessionHost;
 	private readonly _isVisibleObs = observableValue(this, true);
@@ -137,6 +140,7 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 		@ISessionChangesStatsCache private readonly _changesStatsCache: ISessionChangesStatsCache,
 		@ISessionHost parentHost: ISessionHost,
 		@ISessionHostService sessionHostService: ISessionHostService,
+		@ISessionsService private readonly _sessionsService: ISessionsService,
 	) {
 		super();
 
@@ -224,7 +228,7 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 			const showChatAsSessionView = this._groupsView.showChatAsSessionView.read(reader);
 			const tabsReplaceHeader = (isSessionCreated(session, reader))
 				&& !showChatAsSessionView
-				&& (groupCount > 1 || (session?.shouldShowChatTabs.read(reader) ?? false));
+				&& (groupCount > 1 || (this._contentObs.read(reader)?.state.tabs.shouldShowChatTabs.read(reader) ?? false));
 			this._header.setVisible((this._hostOptions?.showHeader ?? true) && !tabsReplaceHeader && !(showChatAsSessionView && groupCount > 1));
 			this._groupsView.setSingleGroupTabsReplaceHeader(tabsReplaceHeader);
 			this.element.classList.toggle('tabs-replace-header', tabsReplaceHeader);
@@ -238,13 +242,24 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 		options = { ...options, hostVisible: this._isVisibleObs, session: this._sessionObs };
 		this._hasOpenedSession = true;
 		this._currentSession = session;
-		this._sessionObs.set(session, undefined);
+		// Closing closes this view's pane of the grid, while the view still shows this content: a content kept past a rebind,
+		// or past its pane leaving the grid, closes nothing.
+		const content: ISessionPaneContent | undefined = session && paneContentOf(session, () => {
+			const pane = this._contentObs.get() === content ? this._sessionsService.getPaneOfHost(this.host) : undefined;
+			if (pane) {
+				this._sessionsService.closePane(pane);
+			}
+		});
+		transaction(tx => {
+			this._sessionObs.set(session, tx);
+			this._contentObs.set(content, tx);
+		});
 		this._openSessionDisposables.clear();
 
 		this._openSessionDisposables.add(this._handleContextKeys(session));
 
-		this._header.setSession(session);
-		if (session && !isSessionCreated(session)) {
+		this._header.setSession(content);
+		if (session && content && !isSessionCreated(session)) {
 			this._groupsView.setSession(undefined, options);
 			let view = this._standaloneView.get();
 			if (!view || view.kind !== 'newSession') {
@@ -264,7 +279,7 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 				}
 				if (isSessionCreated(session, reader)) {
 					const moveFocus = restoreComposerFocus || isAncestorOfActiveElement(view.element);
-					this._showSessionGroups(session, options);
+					this._showSessionGroups(content, options);
 					if (moveFocus) {
 						this._groupsView.focus();
 					}
@@ -300,8 +315,8 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 					}
 				}
 			}));
-		} else if (session) {
-			this._showSessionGroups(session, options);
+		} else if (content) {
+			this._showSessionGroups(content, options);
 		} else {
 			this._groupsView.setSession(undefined, options);
 			let view = this._standaloneView.get();
@@ -315,14 +330,14 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 			view.setActive(this._isActive);
 			view.setVisible(this._isVisible);
 		}
-		this._floatingToolbar.setSession(session);
+		this._floatingToolbar.setSession(content?.session);
 		this._layoutChildren();
 	}
 
-	private _showSessionGroups(session: IActiveSession, options: ISessionViewOptions): void {
+	private _showSessionGroups(content: ISessionPaneContent, options: ISessionViewOptions): void {
 		this._standaloneView.set(undefined, undefined);
 		this._contentContainer.replaceChildren(this._groupsView.element);
-		this._groupsView.setSession(session, options);
+		this._groupsView.setSession(content, options);
 		this._layoutChildren();
 	}
 

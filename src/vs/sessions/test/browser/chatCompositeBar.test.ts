@@ -266,6 +266,8 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { re
 	const bar = store.add(instantiationService.createInstance(ChatCompositeBar, options?.resizeObserverCtor));
 	const delegate: IChatCompositeBarDelegate = {
 		session,
+		isDetached: !!session.scopedChatResource,
+		closePane: () => sessionsService.closeSession(session),
 		chats,
 		activeChatResource,
 		mainChatResource,
@@ -1729,7 +1731,7 @@ suite('Sessions - ChatCompositeBar', () => {
 		const sessionTitle = observableValue('sessionTitle', 'Parent Session');
 		const session = { ...original, scopedChatResource: child.resource, title: sessionTitle, chats: constObservable([chats.get()[0], parent, child]) };
 		bar.setGroup({
-			session, chats: session.chats, activeChatResource, mainChatResource: constObservable(chats.get()[0].resource.toString()),
+			session, isDetached: true, closePane: () => { }, chats: session.chats, activeChatResource, mainChatResource: constObservable(chats.get()[0].resource.toString()),
 			visible, showSessionActions, openChat: () => { },
 		});
 		const nestedTab = bar.element.querySelector<HTMLElement>('[data-chat-resource="test-chat://nested"]')!;
