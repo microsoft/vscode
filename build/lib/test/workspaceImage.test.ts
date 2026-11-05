@@ -32,13 +32,17 @@ function loadSteps(workflow: string, job: string): readonly IStep[] {
 }
 
 suite('workspace images', () => {
-	// image.ts finds vhd.ps1 in the win32 folder beside it, which the download keeps
-	test('the Windows test jobs download the scripts like the job that builds the Windows image', () => {
+	// image.ts finds vhd.ps1 in the win32 folder beside it, which the download keeps. The jobs of a
+	// test workflow share their steps, so its first job stands for all of them.
+	test('the test jobs download the scripts like the jobs that build the images', () => {
 		const download = (workflow: string, job: string) => {
 			const step = loadSteps(workflow, job).find(step => step.id === 'image-scripts');
 			return { name: step?.name, shell: step?.shell, env: step?.env, run: step?.run };
 		};
-		assert.deepEqual(download('pr-win32-test.yml', 'electron-unit'), download('pr-workspace-images.yml', 'windows'));
+		assert.deepEqual(
+			{ linux: download('pr-linux-test.yml', 'electron-unit-electron'), windows: download('pr-win32-test.yml', 'electron-unit') },
+			{ linux: download('pr-workspace-images.yml', 'linux'), windows: download('pr-workspace-images.yml', 'windows') }
+		);
 	});
 
 	// image.ts runs before the checkout, without the files of the repository, so it lists the inputs
