@@ -18,6 +18,8 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { ICommandDetectionCapability, ITerminalCommand, TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { TerminalCapabilityStore } from '../../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
 import { TerminalLocation } from '../../../../../../platform/terminal/common/terminal.js';
+import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
+import { TestThemeService } from '../../../../../../platform/theme/test/common/testThemeService.js';
 import { TestXtermLogger } from '../../../../../../platform/terminal/test/common/terminalTestHelpers.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../../common/views.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
@@ -175,7 +177,9 @@ suite('TerminalStickyScrollOverlay', () => {
 			contribution.layout();
 		}
 
-		return { raw, contribution, configurationService, root, pane, element, screen, terminalScreen: raw.screenElement, endMarker, clock, write, layout };
+		const themeService = instantiationService.get(IThemeService) as TestThemeService;
+
+		return { raw, contribution, configurationService, themeService, root, pane, element, screen, terminalScreen: raw.screenElement, endMarker, clock, write, layout };
 	}
 
 	function stubWebglAddon() {
@@ -207,12 +211,12 @@ suite('TerminalStickyScrollOverlay', () => {
 
 	test('falls back to the DOM renderer when the WebGL context is lost until the configuration changes', async () => {
 		stubWebglAddon();
-		const { raw, configurationService, clock } = await createOverlay(false, { gpuAcceleration: 'on' });
+		const { configurationService, themeService, clock } = await createOverlay(false, { gpuAcceleration: 'on' });
 		const loaded = getWebglState();
 
 		TestWebglAddon.lastInstance?.fireContextLoss();
-		// Resizing syncs the overlay options, which used to recreate the addon on the lost context
-		raw.resize(81, raw.rows);
+		// Syncing the overlay options, as a resize or theme change does, used to recreate the addon on the lost context
+		themeService.fireThemeChange();
 		await clock.tickAsync(100);
 		const lost = getWebglState();
 
@@ -227,8 +231,8 @@ suite('TerminalStickyScrollOverlay', () => {
 	test('falls back to the DOM renderer when the WebGL addon fails to load until the configuration changes', async () => {
 		stubWebglAddon();
 		TestWebglAddon.shouldThrow = true;
-		const { raw, configurationService, clock } = await createOverlay(false, { gpuAcceleration: 'on' });
-		raw.resize(81, raw.rows);
+		const { configurationService, themeService, clock } = await createOverlay(false, { gpuAcceleration: 'on' });
+		themeService.fireThemeChange();
 		await clock.tickAsync(100);
 		const failed = getWebglState();
 
