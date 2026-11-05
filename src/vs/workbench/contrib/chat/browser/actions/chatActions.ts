@@ -70,6 +70,7 @@ import { ChatEditorInput, showClearEditingSessionConfirmation } from '../widgetH
 import { convertBufferToScreenshotVariable } from '../attachments/chatScreenshotContext.js';
 import { getChatSessionType, getNewChatSessionResource } from '../../common/model/chatUri.js';
 import { localChatSessionType } from '../../common/chatSessionsService.js';
+import { getDocumentationUrl, PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
 
@@ -93,6 +94,51 @@ export const GENERATE_AGENT_COMMAND_ID = 'workbench.action.chat.generateAgent';
 export const GENERATE_HOOK_COMMAND_ID = 'workbench.action.chat.generateHook';
 export const INSERT_FORK_CONVERSATION_COMMAND_ID = 'workbench.action.chat.insertForkConversationCommand';
 export const INSERT_TROUBLESHOOT_COMMAND_ID = 'workbench.action.chat.insertTroubleshootCommand';
+
+/** Opens a customization request using skills only when the destination chat is Local. */
+export async function openCustomizationChat(accessor: ServicesAccessor, type: PromptsType | 'init', workspaceFolder?: URI): Promise<void> {
+	const commandService = accessor.get(ICommandService);
+	const widgetService = accessor.get(IChatWidgetService);
+	const widget = await widgetService.revealWidget();
+	if (!widget) {
+		return;
+	}
+
+	const sessionResource = widget.viewModel?.sessionResource;
+	let query: string;
+	if (sessionResource && getChatSessionType(sessionResource) === localChatSessionType) {
+		query = type === 'init' ? '/init' : `/create-${type} `;
+	} else {
+		const documentationUrl = getDocumentationUrl(type === 'init' ? PromptsType.instructions : type);
+		switch (type) {
+			case 'init':
+				query = localize('generateInstructions.request', "Analyze this codebase and create agent instructions for it. Follow the documentation at {0}.", documentationUrl);
+				break;
+			case PromptsType.instructions:
+				query = localize('generateOnDemandInstructions.request', "Create a new on-demand instructions file. Follow the documentation at {0}. ", documentationUrl);
+				break;
+			case PromptsType.prompt:
+				query = localize('generatePrompt.request', "Create a new reusable prompt file. Follow the documentation at {0}. ", documentationUrl);
+				break;
+			case PromptsType.skill:
+				query = localize('generateSkill.request', "Create a new skill with a SKILL.md file. Follow the documentation at {0}. ", documentationUrl);
+				break;
+			case PromptsType.agent:
+				query = localize('generateAgent.request', "Create a new custom agent file. Follow the documentation at {0}. ", documentationUrl);
+				break;
+			case PromptsType.hook:
+				query = localize('generateHook.request', "Create a new hook configuration file. Follow the documentation at {0}. ", documentationUrl);
+				break;
+		}
+	}
+
+	await commandService.executeCommand(CHAT_OPEN_ACTION_ID, {
+		mode: 'agent',
+		query,
+		isPartialQuery: type !== 'init',
+		attachFiles: workspaceFolder ? [workspaceFolder] : undefined,
+	} satisfies IChatViewOpenOptions);
+}
 
 const defaultChat = {
 	provider: product.defaultChatAgent?.provider ?? { enterprise: { id: '' } },
@@ -1396,12 +1442,7 @@ export function registerChatActions() {
 		}
 
 		async run(accessor: ServicesAccessor): Promise<void> {
-			const commandService = accessor.get(ICommandService);
-			await commandService.executeCommand('workbench.action.chat.open', {
-				mode: 'agent',
-				query: '/init',
-				isPartialQuery: false,
-			});
+			await openCustomizationChat(accessor, 'init');
 		}
 	});
 
@@ -1418,13 +1459,7 @@ export function registerChatActions() {
 		}
 
 		async run(accessor: ServicesAccessor, workspaceFolder?: URI): Promise<void> {
-			const commandService = accessor.get(ICommandService);
-			await commandService.executeCommand('workbench.action.chat.open', {
-				mode: 'agent',
-				query: '/create-instructions ',
-				isPartialQuery: true,
-				attachFiles: workspaceFolder ? [workspaceFolder] : undefined,
-			});
+			await openCustomizationChat(accessor, PromptsType.instructions, workspaceFolder);
 		}
 	});
 
@@ -1442,13 +1477,7 @@ export function registerChatActions() {
 		}
 
 		async run(accessor: ServicesAccessor, workspaceFolder?: URI): Promise<void> {
-			const commandService = accessor.get(ICommandService);
-			await commandService.executeCommand('workbench.action.chat.open', {
-				mode: 'agent',
-				query: '/create-prompt ',
-				isPartialQuery: true,
-				attachFiles: workspaceFolder ? [workspaceFolder] : undefined,
-			});
+			await openCustomizationChat(accessor, PromptsType.prompt, workspaceFolder);
 		}
 	});
 
@@ -1466,13 +1495,7 @@ export function registerChatActions() {
 		}
 
 		async run(accessor: ServicesAccessor, workspaceFolder?: URI): Promise<void> {
-			const commandService = accessor.get(ICommandService);
-			await commandService.executeCommand('workbench.action.chat.open', {
-				mode: 'agent',
-				query: '/create-skill ',
-				isPartialQuery: true,
-				attachFiles: workspaceFolder ? [workspaceFolder] : undefined,
-			});
+			await openCustomizationChat(accessor, PromptsType.skill, workspaceFolder);
 		}
 	});
 
@@ -1490,13 +1513,7 @@ export function registerChatActions() {
 		}
 
 		async run(accessor: ServicesAccessor, workspaceFolder?: URI): Promise<void> {
-			const commandService = accessor.get(ICommandService);
-			await commandService.executeCommand('workbench.action.chat.open', {
-				mode: 'agent',
-				query: '/create-agent ',
-				isPartialQuery: true,
-				attachFiles: workspaceFolder ? [workspaceFolder] : undefined,
-			});
+			await openCustomizationChat(accessor, PromptsType.agent, workspaceFolder);
 		}
 	});
 
@@ -1514,13 +1531,7 @@ export function registerChatActions() {
 		}
 
 		async run(accessor: ServicesAccessor, workspaceFolder?: URI): Promise<void> {
-			const commandService = accessor.get(ICommandService);
-			await commandService.executeCommand('workbench.action.chat.open', {
-				mode: 'agent',
-				query: '/create-hook ',
-				isPartialQuery: true,
-				attachFiles: workspaceFolder ? [workspaceFolder] : undefined,
-			});
+			await openCustomizationChat(accessor, PromptsType.hook, workspaceFolder);
 		}
 	});
 
