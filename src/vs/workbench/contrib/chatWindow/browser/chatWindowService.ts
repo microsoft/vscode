@@ -690,6 +690,11 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			chatPart: window => this._windows.get().find(candidate => candidate === window)?.captureChatPart(),
 			createdParts: window => this._grids.get(window)?.createdParts ?? [],
 			activateChat: (window, chat) => this._windows.get().find(candidate => candidate === window)?.activateChat(chat),
+			windowState: window => {
+				const state = this._auxiliaryWindowService.getWindow(window.windowId)?.createState();
+				const { x, y, width, height } = state?.bounds ?? {};
+				return x !== undefined && y !== undefined && width !== undefined && height !== undefined ? { bounds: { x, y, width, height }, mode: state?.mode } : undefined;
+			},
 		}));
 	}
 
@@ -821,7 +826,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 				firstChat.dispose();
 			}
 		}));
-		const auxiliaryWindow = disposables.add(await this._auxiliaryWindowService.open({ bounds: { ...CHAT_WINDOW_SIZE, ...options?.bounds } }));
+		const auxiliaryWindow = disposables.add(await this._auxiliaryWindowService.open({ bounds: { ...CHAT_WINDOW_SIZE, ...options?.bounds }, mode: options?.mode }));
 		setClose(() => {
 			auxiliaryWindow.window.close();
 			return true;

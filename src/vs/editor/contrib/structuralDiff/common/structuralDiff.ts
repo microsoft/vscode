@@ -133,6 +133,10 @@ function isEnumValue(enumObject: { readonly [value: number]: string }, value: un
 	return typeof value === 'number' && typeof enumObject[value] === 'string';
 }
 
+function isOptionalString(value: unknown): boolean {
+	return value === undefined || typeof value === 'string';
+}
+
 /**
  * Clamps a range to the document, such as the maximal columns of whole-line changes. Ranges are UTF-16 offsets, and the
  * text diff compares code units, so unlike `validateRange`, this does not move a range out of a surrogate pair. Moving
@@ -142,21 +146,27 @@ function clampRange(model: ITextModel, range: IRange): Range {
 	return Range.fromPositions(model.getPositionAt(model.getOffsetAt(Range.getStartPosition(range))), model.getPositionAt(model.getOffsetAt(Range.getEndPosition(range))));
 }
 
-/** Returns the range if it lies within the model, because a range that has to be clamped is not valid. */
+/** Returns the range if it is a range that lies within the model, because a range that has to be clamped is not valid. */
 function toValidRange(model: ITextModel, range: IRange): Range | undefined {
+	if (!Range.isIRange(range)) {
+		return undefined;
+	}
 	const valid = clampRange(model, range);
 	return Range.equalsRange(valid, range) ? valid : undefined;
 }
 
 function validateEntity(node: StructuralDiffNode, side: Side, entity: StructuralDiffEntity, model: ITextModel, parent: StructuralDiffNode | undefined): void {
-	if (typeof entity.name !== 'string' || !isEnumValue(symbolKindNames, entity.kind)) {
-		throw invalid(node, `has an invalid ${side} entity name or kind`);
+	if (typeof entity !== 'object' || entity === null) {
+		throw invalid(node, `has an invalid ${side} entity`);
+	}
+	if (typeof entity.name !== 'string' || !isOptionalString(entity.detail) || !isEnumValue(symbolKindNames, entity.kind) || !isOptionalString(entity.languageKind)) {
+		throw invalid(node, `has an invalid ${side} entity name, detail, kind or language kind`);
 	}
 	const range = toValidRange(model, entity.range);
 	if (!range) {
 		throw invalid(node, `has a range outside the ${side} document`);
 	}
-	if (entity.selectionRange && !(toValidRange(model, entity.selectionRange) && range.containsRange(entity.selectionRange))) {
+	if (entity.selectionRange !== undefined && !(toValidRange(model, entity.selectionRange) && range.containsRange(entity.selectionRange))) {
 		throw invalid(node, `has a selection range in the ${side} document that is invalid or not contained in the entity range`);
 	}
 	const parentEntity = parent?.[side];
@@ -200,13 +210,13 @@ function validateStructuralDiff(diff: StructuralDiff, context: StructuralDiffCon
 			throw invalid(node, 'must have an identifier that is unique within the result');
 		}
 		ids.add(node.id);
-		if (!node.original && !node.modified) {
+		if (node.original === undefined && node.modified === undefined) {
 			throw invalid(node, 'must have an original or a modified entity');
 		}
 		for (const side of sides) {
 			const entity = node[side];
 			const changes = side === 'original' ? node.originalChanges : node.modifiedChanges;
-			if (!entity) {
+			if (entity === undefined) {
 				if (changes.length > 0) {
 					throw invalid(node, `has ${side} changes but no ${side} entity`);
 				}
@@ -228,6 +238,10 @@ function validateStructuralDiff(diff: StructuralDiff, context: StructuralDiffCon
 		}
 	};
 
+	// The completeness checks below depend on this flag, so a value other than a boolean must not skip them.
+	if (typeof diff.isIncomplete !== 'boolean') {
+		throw new Error('Invalid structural diff: isIncomplete must be true or false');
+	}
 	const { root } = diff;
 	if (root.original?.kind !== SymbolKind.File || root.modified?.kind !== SymbolKind.File) {
 		throw invalid(root, 'must be a file on both sides');
