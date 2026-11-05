@@ -2748,13 +2748,16 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 			await harness.contribution.refreshFeed('renewal');
 			await harness.contribution.refreshFeed('renewal');
 			assert.deepStrictEqual({
-				requests, retained: !provider.disposed, rows: provider.seeded.map(session => session.summary),
+				requests: requests.map(({ diagnostics, ...options } = {}) => options),
+				reasons: requests.map(options => options?.diagnostics?.fullScanReason),
+				retained: !provider.disposed, rows: provider.seeded.map(session => session.summary),
 			}, {
 				requests: [
 					{ incremental: false, includeArchived: false, trigger: 'startup' },
 					{ incremental: inventoryComplete, includeArchived: false, trigger: 'feedRenewal' },
 					{ incremental: inventoryComplete, includeArchived: false, trigger: 'feedRenewal' },
 				],
+				reasons: ['initial', inventoryComplete ? 'notFull' : 'initial', inventoryComplete ? 'notFull' : 'initial'],
 				retained: true, rows: [session.name],
 			});
 		});
@@ -2782,7 +2785,7 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 		harness.archiveProvider!.setRequested(false);
 		harness.archiveProvider!.setRequested(true);
 		await harness.contribution.refreshFeed('renewal');
-		assert.deepStrictEqual(requests, [
+		assert.deepStrictEqual(requests.map(({ diagnostics, ...options } = {}) => options), [
 			{ incremental: false, includeArchived: false, trigger: 'startup' },
 			{ incremental: false, includeArchived: true, trigger: 'manual' },
 			{ incremental: true, includeArchived: true, trigger: 'feedRenewal' },
