@@ -12,6 +12,7 @@ import { IAction, IActionRunner } from '../../../base/common/actions.js';
 import { KeyCode } from '../../../base/common/keyCodes.js';
 import { ResolvedKeybinding } from '../../../base/common/keybindings.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { getMenuActionGroupTitle } from '../../../platform/actions/common/actions.js';
 import { IContextViewService } from '../../../platform/contextview/browser/contextView.js';
 import { defaultMenuStyles } from '../../../platform/theme/browser/defaultStyles.js';
 
@@ -116,6 +117,7 @@ export class SubmenuFlyout extends Disposable {
 					actionRunner,
 					getKeyBinding: action => this.options.lookupKeybinding(action.id),
 					context: this.options.getActionsContext?.(),
+					getGroupTitle: getMenuActionGroupTitle,
 				}, defaultMenuStyles));
 				disposables.add(toDisposable(() => this.menu = undefined));
 

@@ -22,7 +22,7 @@ import { EditorAreaFocusContext, IsAuxiliaryWindowContext, LayoutModeContext } f
 import { IsPhoneLayoutContext, SessionsWelcomeVisibleContext } from '../../common/contextkeys.js';
 import { logSessionsInteraction } from '../../common/sessionsTelemetry.js';
 import { Menus } from '../../browser/menus.js';
-import { getFocusedWindowSession } from '../../services/sessions/browser/sessionScope.js';
+import { resolveSessionCommandTarget } from '../../services/sessions/browser/sessionCommandTarget.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
 import { IWorkbenchContribution } from '../../../workbench/common/contributions.js';
 import { OpenInVSCodeTitleBarWidget } from '../../browser/widget/openInVSCodeWidget.js';
@@ -35,6 +35,8 @@ import { IFolderToOpen, IOpenedMainWindow } from '../../../platform/window/commo
 import { ILabelService, Verbosity } from '../../../platform/label/common/label.js';
 import { OPEN_VSCODE_WINDOW_COMMAND_ID, RETURN_TO_VSCODE_EDITOR_COMMAND_ID, SHOULD_SHOW_RETURN_TO_VSCODE_EDITOR_COMMAND_ID } from '../../common/sessionCommands.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
+import { IChat, ISession } from '../../services/sessions/common/session.js';
+import { hasKey } from '../../../base/common/types.js';
 
 export class OpenSessionInVSCodeAction extends Action2 {
 	static readonly ID = 'agents.openSessionInVSCode';
@@ -54,24 +56,25 @@ export class OpenSessionInVSCodeAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
+	override async run(accessor: ServicesAccessor, context?: { readonly session: ISession; readonly chat: IChat }): Promise<void> {
 		const telemetryService = accessor.get(ITelemetryService);
 		logSessionsInteraction(telemetryService, 'openInVSCode');
 
 		const instantiationService = accessor.get(IInstantiationService);
 
-		// The session of the window it is invoked from, such as from the title row of a chat window.
-		return instantiationService.invokeFunction(openSessionInVSCode, instantiationService.invokeFunction(getFocusedWindowSession));
+		// The session of the window it is invoked from, such as from the title row of a chat window, else of the focused window.
+		const target = context?.session ? context : instantiationService.invokeFunction(accessor => resolveSessionCommandTarget(accessor, []));
+		return instantiationService.invokeFunction(openSessionInVSCode, target?.session, target?.chat);
 	}
 }
 
-export async function openSessionInVSCode(accessor: ServicesAccessor, session: IActiveSession | undefined): Promise<void> {
+export async function openSessionInVSCode(accessor: ServicesAccessor, session: ISession | IActiveSession | undefined, chat?: IChat): Promise<void> {
 	const nativeHostService = accessor.get(INativeHostService);
 	const sessionsProvidersService = accessor.get(ISessionsProvidersService);
 	const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
 	const labelService = accessor.get(ILabelService);
 
-	const folders = session?.activeChat.get().workspace.get()?.folders;
+	const folders = (chat ?? (session && hasKey(session, { activeChat: true }) ? session.activeChat.get() : session?.mainChat.get()))?.workspace.get()?.folders;
 	if (!session || !folders?.length) {
 		return nativeHostService.openWindow();
 	}
@@ -88,15 +91,15 @@ export async function openSessionInVSCode(accessor: ServicesAccessor, session: I
 		});
 	}
 
-	const chatSessionToOpen = getChatSessionToOpenInEditor(session);
+	const chatSessionToOpen = getChatSessionToOpenInEditor(session, chat);
 	return nativeHostService.openWindow(foldersToOpen, { forceNewWindow: true, chatSessionToOpen });
 }
 
 /**
  * Provisional sessions remain owned by the Agents composer and may be replaced or disposed, so only materialized sessions are safe to share across windows.
  */
-export function getChatSessionToOpenInEditor(session: IActiveSession | undefined): URI | undefined {
-	return session?.isCreated.get() ? session.resource : undefined;
+export function getChatSessionToOpenInEditor(session: ISession | IActiveSession | undefined, chat?: IChat): URI | undefined {
+	return session && (!hasKey(session, { isCreated: true }) || session.isCreated.get()) ? chat?.resource ?? session.resource : undefined;
 }
 
 export class OpenVSCodeWindowAction extends Action2 {

@@ -517,6 +517,12 @@ export interface IShellLaunchConfig {
 	type?: 'Task' | 'Local';
 
 	/**
+	 * The name of the machine the terminal runs on, when it differs from the window's.
+	 * Shown through the `${host}` variable in terminal titles and descriptions.
+	 */
+	hostLabel?: string;
+
+	/**
 	 * The shell executable (bash, cmd, etc.).
 	 */
 	executable?: string;

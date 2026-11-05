@@ -47,10 +47,11 @@ import { IViewsService } from '../../../../../workbench/services/views/common/vi
 import { Menus } from '../../../../browser/menus.js';
 import { setActiveSessionContextKeys } from '../../../../services/sessions/common/sessionContextKeys.js';
 import { createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
-import { IChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
+import { IFocusedSessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
+import { stubSessionHosts, stubSessionHostsFromSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IChat, ISessionChangeset, ISessionChangesSummary, ISessionFolder, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ActiveSessionContextKeys, ChangesContextKeys, ChangesViewMode } from '../../common/changes.js';
 import { IChangesSessionObservables, IChangesSessionScope, IChangesViewService } from '../../common/changesViewService.js';
 import { CustomViewVisibleContext, IsPhoneLayoutContext, SessionHasChangesContext, SessionHasWorkspaceContext, SessionIsCreatedContext, SessionWorkspaceIsVirtualContext, DesktopChangesEditorTransitionContext, DesktopDiffEditorInputActiveContext, DesktopLayoutContext } from '../../../../common/contextkeys.js';
@@ -113,9 +114,9 @@ suite('Changes View Actions', () => {
 		});
 
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
-			override readonly mainWindowActiveSession = this.activeSession;
+			readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
 		});
+		stubSessionHostsFromSessionsService(instantiationService);
 
 		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.action.agentSessions.openPullRequest')!.handler(accessor));
 
@@ -134,16 +135,22 @@ suite('Changes View Actions', () => {
 
 		async function openChanges(sessionArg: URI, visible: readonly IActiveSession[]): Promise<{ readonly original: string | undefined; readonly modified: string | undefined }[]> {
 			const opened: { readonly original: string | undefined; readonly modified: string | undefined }[] = [];
-			const activeSession = upcastPartial<IActiveSession>({ sessionId: 'active', resource: sessionResource });
+			const activeChat = upcastPartial<IChat>({});
+			const activeSession = upcastPartial<IActiveSession>({ sessionId: 'active', resource: sessionResource, mainChat: constObservable(activeChat), activeChat: constObservable(activeChat) });
 			const instantiationService = disposables.add(new TestInstantiationService());
 			instantiationService.stub(ILogService, new NullLogService());
-			instantiationService.stub(IChatWindowService, upcastPartial<IChatWindowService>({ activeWindow: undefined }));
+			const { mainHost } = stubSessionHosts(instantiationService, disposables);
+			instantiationService.stub(IFocusedSessionHostService, upcastPartial<IFocusedSessionHostService>({ getFocusedHost: () => mainHost }));
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-				override readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
-				override readonly mainWindowActiveSession = this.activeSession;
-				override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
+				readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
+				readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
 				override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>(visible);
 			});
+			stubSessionHostsFromSessionsService(instantiationService);
+			instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
+				getSession: resource => [activeSession, ...visible].find(session => session.resource.toString() === resource.toString()),
+				getSessionForChatResource: () => undefined,
+			}));
 			instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
 				override readonly activeSessionChangesObs = constObservable([{
 					uri: workspaceResource,
@@ -183,7 +190,7 @@ suite('Changes View Actions', () => {
 		});
 
 		test('opens the changes of a visible non-active session', async () => {
-			const other = upcastPartial<IActiveSession>({ sessionId: 'other', resource: otherSessionResource });
+			const other = upcastPartial<IActiveSession>({ sessionId: 'other', resource: otherSessionResource, mainChat: constObservable(upcastPartial<IChat>({})) });
 			assert.deepStrictEqual(await openChanges(otherSessionResource, [other]), [{
 				original: 'readonly-content:/other/before.ts',
 				modified: 'readonly-content:/other/after.ts',
@@ -234,14 +241,14 @@ suite('Changes View Actions', () => {
 		});
 		const mounted = (uri: URI) => [upcastPartial<IWorkspaceFolder>({ uri })];
 
-		const pending = isChangesActionsWorkspaceReady(session, mounted(URI.file('/old-folder')), undefined);
+		const pending = isChangesActionsWorkspaceReady(session, session.activeChat.get(), mounted(URI.file('/old-folder')), undefined);
 		workspace.set(upcastPartial<ISessionWorkspace>({
 			folders: [upcastPartial<ISessionFolder>({ workingDirectory: folder })],
 		}), undefined);
-		const wrongFolder = isChangesActionsWorkspaceReady(session, mounted(URI.file('/old-folder')), undefined);
-		const ready = isChangesActionsWorkspaceReady(session, mounted(folder), undefined);
+		const wrongFolder = isChangesActionsWorkspaceReady(session, session.activeChat.get(), mounted(URI.file('/old-folder')), undefined);
+		const ready = isChangesActionsWorkspaceReady(session, session.activeChat.get(), mounted(folder), undefined);
 		workspace.set(undefined, undefined);
-		const quickChat = isChangesActionsWorkspaceReady({ ...session, isQuickChat: constObservable(true) }, [], undefined);
+		const quickChat = isChangesActionsWorkspaceReady({ ...session, isQuickChat: constObservable(true) }, session.activeChat.get(), [], undefined);
 
 		assert.deepStrictEqual({ pending, wrongFolder, ready, quickChat }, {
 			pending: false,
@@ -567,6 +574,8 @@ suite('Changes View Actions', () => {
 		}();
 		const scope: IChangesSessionScope = {
 			session: constObservable(otherSession),
+			chat: constObservable(undefined),
+			isMainWindow: false,
 			changes: upcastPartial<IChangesSessionObservables>({
 				changesetsObs: constObservable([otherChangeset]),
 				changesetsLoadingObs: constObservable(false),

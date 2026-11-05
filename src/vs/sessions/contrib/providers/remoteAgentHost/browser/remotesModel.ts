@@ -147,6 +147,9 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		this._register(autorun(reader => {
 			providersChanged.read(reader);
 			environmentAvailabilityService.available.read(reader);
+			for (const provider of providersService.getProviders().filter(isAgentHostProvider)) {
+				provider.localRegistration?.read(reader);
+			}
 			this.update(reader);
 		}));
 		this._register(remoteAgentHostService.onDidChangeConnections(() => this.update()));
@@ -702,6 +705,10 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 					break;
 			}
 			const provider = providersByAddress.get(id);
+			// This window already runs sessions on this computer, so its own sharing registrations are not remotes to manage.
+			if (provider?.localRegistration?.read(reader)) {
+				continue;
+			}
 			if (target.kind !== 'environment') {
 				name = this.remoteAgentHostService.getDisplayNameOverride(id) ?? (target.kind === 'tunnel' ? name : provider?.label ?? name);
 			}

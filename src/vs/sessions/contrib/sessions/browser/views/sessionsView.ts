@@ -47,7 +47,7 @@ import { IHostService } from '../../../../../workbench/services/host/browser/hos
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { PANEL_SECTION_BORDER } from '../../../../../workbench/common/theme.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
+import { getMainWindowHost, ISessionHost, ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { Menus } from '../../../../browser/menus.js';
@@ -178,6 +178,9 @@ export class SessionsView extends ViewPane {
 	private currentBodyWidth = 0;
 	private didInitializePaneSizes = false;
 
+	/** The host of the main window, whose session the list reveals. */
+	private readonly _mainWindowHost: ISessionHost;
+
 	constructor(
 		options: IViewPaneOptions,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -191,7 +194,7 @@ export class SessionsView extends ViewPane {
 		@IHoverService hoverService: IHoverService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
-		@ISessionsPartService private readonly sessionsPartService: ISessionsPartService,
+		@ISessionHostService sessionHostService: ISessionHostService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@ISessionComparisonService private readonly sessionComparisonService: ISessionComparisonService,
 		@IHostService private readonly hostService: IHostService,
@@ -204,6 +207,7 @@ export class SessionsView extends ViewPane {
 		@IPinnedCanvasService private readonly pinnedCanvasService: IPinnedCanvasService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
+		this._mainWindowHost = getMainWindowHost(sessionHostService);
 		this.separateNavigation = observableConfigValue(SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING, false, configurationService);
 		this.customizationsNavigationState = this._register(instantiationService.createInstance(CustomizationsNavigationState, this.customizationsNavigationVisible));
 		this.sessionsListRearrangeContext = SessionsListRearrangeContext.bindTo(this.scopedContextKeyService);
@@ -319,7 +323,7 @@ export class SessionsView extends ViewPane {
 			navigationContainer,
 			onDidChangeNavigationHeight: () => this.layoutSidebarSplitView(),
 			pinnedCanvases: this.pinnedCanvasService,
-			focusNewSessionInput: () => this.sessionsPartService.focusSession(this.sessionsService.activeSession.get()),
+			focusNewSessionInput: () => this.sessionsService.focusActiveSession(),
 			findWidgetContainer,
 			onSessionOpen: (resource, preserveFocus, sideBySide) => {
 				const session = this.sessionsManagementService.getSession(resource);
@@ -427,7 +431,7 @@ export class SessionsView extends ViewPane {
 		// When the session the main window shows changes, reveal it in the sessions list: chat windows, which are other
 		// windows, do not select theirs.
 		this._register(autorun(reader => {
-			const activeSession = this.sessionsService.mainWindowActiveSession.read(reader);
+			const activeSession = this._mainWindowHost.session.read(reader);
 			if (activeSession) {
 				if (!sessionsControl.reveal(activeSession.resource)) {
 					sessionsControl.clearFocus();
@@ -635,7 +639,7 @@ export class SessionsView extends ViewPane {
 	}
 
 	private restoreLastSelectedSession(): void {
-		const activeSession = this.sessionsService.activeSession.get();
+		const activeSession = this._mainWindowHost.session.get();
 		if (activeSession && this.sessionsControl) {
 			this.sessionsControl.reveal(activeSession.resource);
 		}

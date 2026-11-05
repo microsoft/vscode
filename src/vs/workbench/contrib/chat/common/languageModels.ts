@@ -283,7 +283,8 @@ export interface ILanguageModelChatMetadata {
 	readonly autoModelFusion?: boolean;
 	/**
 	 * The tier the agent host runs Copilot Fusion at for editor and terminal inline chat, whatever
-	 * effort level is selected, so inline chat offers none. Absent when the host pins no tier there.
+	 * effort level is selected. Absent when the host pins no tier there. Inline chat offers no Fusion
+	 * effort level either way.
 	 */
 	readonly autoModelFusionInlineChatTier?: string;
 	/** Set only on the agent host's Auto model presented as Fusion. */

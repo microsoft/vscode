@@ -40,12 +40,12 @@ import { IChatAgentService } from '../../common/participants/chatAgents.js';
 import { ILanguageModelsService } from '../../common/languageModels.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { chatEditingWidgetFileStateContextKey, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
-import { ChatModel } from '../../common/model/chatModel.js';
+import { ChatModel, type IChatModel } from '../../common/model/chatModel.js';
 import { ChatRequestParser } from '../../common/requestParser/chatRequestParser.js';
 import { getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } from '../attachments/chatVariables.js';
 import { ChatSendResult, IChatService } from '../../common/chatService/chatService.js';
 import { ResolvedChatSessionsExtensionPoint, IChatSessionsService, SessionType } from '../../common/chatSessionsService.js';
-import { ChatAgentLocation, CONTINUE_CHAT_IN_COPILOT_ACTION_ID } from '../../common/constants.js';
+import { ChatAgentLocation, ChatModeKind, CONTINUE_CHAT_IN_COPILOT_ACTION_ID } from '../../common/constants.js';
 import { isChatViewTitleActionContext } from '../../common/actions/chatActions.js';
 import { PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/promptTypes.js';
 import { AgentSessionProviders, AgentSessionTarget, CHAT_DELEGATE_TO_AGENT_HOST_SESSION_COMMAND_ID, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName, IAgentHostDelegationRequest, isAgentHostTarget } from '../agentSessions/agentSessions.js';
@@ -58,11 +58,11 @@ import { CHAT_SETUP_ACTION_ID } from './chatActions.js';
 import { IChatRequestPasteVariableEntry, PromptFileVariableKind, toPasteVariableEntry, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { ChatSessionPosition, getResourceForNewChatSession, openChatSession } from '../chatSessions/chatSessions.contribution.js';
-import { importedTurnsFromChatModel, resolveImportedCopilotModel } from '../agentSessions/agentHost/importLocalConversationToAgentSession.js';
+import { createImportedConversationStats, importedTurnsFromChatModel, resolveImportedCopilotModel, type IImportedConversationStats } from '../agentSessions/agentHost/importLocalConversationToAgentSession.js';
 import { IAgentHostImportConversationStore } from '../agentSessions/agentHost/agentHostImportConversationStore.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostNewSessionFolderService } from '../agentSessions/agentHost/agentHostNewSessionFolderService.js';
-import type { ModelSelection } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import type { ModelSelection, Turn } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 
 /**
  * Extracts the "owner/repo" name-with-owner from a git remote URL.
@@ -194,6 +194,54 @@ type ChatEnterprisePolicyRecoveryClassification = {
 	outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A started attempt or its success, failure, or cancellation outcome. Concurrent duplicate invocations are counted once.' };
 };
 
+type ChatConversationImportEvent = {
+	source: 'move' | 'continueIn';
+	turns: number;
+	editedFiles: number;
+	skippedResponseParts: number;
+	skippedResponsePartKinds: string;
+	skippedAttachments: number;
+	skippedAttachmentKinds: string;
+	droppedToolOutputs: number;
+};
+
+type ChatConversationImportClassification = {
+	owner: 'vijayupadya';
+	comment: 'Tracks what a Local conversation imported into an Agent Host session had to summarize or leave out, to prioritize closing the gaps. Sent only once the destination session holds the imported conversation; failed or cancelled moves send nothing.';
+	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the conversation was imported by Move to Copilot or by Continue In.' };
+	turns: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of turns imported.' };
+	editedFiles: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of edited files summarized as links instead of carrying their edits, counted once per turn.' };
+	skippedResponseParts: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of response parts that could not be imported.' };
+	skippedResponsePartKinds: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Comma-separated, sorted code-defined kinds of the response parts that could not be imported.' };
+	skippedAttachments: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of request attachments that could not be imported.' };
+	skippedAttachmentKinds: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Comma-separated, sorted code-defined kinds of the attachments that could not be imported.' };
+	droppedToolOutputs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of non-text tool result items left out of imported tool calls.' };
+};
+
+function logConversationImport(telemetryService: ITelemetryService, source: ChatConversationImportEvent['source'], stats: IImportedConversationStats): void {
+	telemetryService.publicLog2<ChatConversationImportEvent, ChatConversationImportClassification>('chat.importConversation', {
+		source,
+		turns: stats.turns,
+		editedFiles: stats.editedFiles,
+		skippedResponseParts: stats.skippedResponseParts,
+		skippedResponsePartKinds: [...stats.skippedResponsePartKinds].sort().join(','),
+		skippedAttachments: stats.skippedAttachments,
+		skippedAttachmentKinds: [...stats.skippedAttachmentKinds].sort().join(','),
+		droppedToolOutputs: stats.droppedToolOutputs,
+	});
+}
+
+/**
+ * Whether a session opened by Continue In holds the imported conversation:
+ * its first user requests carry the imported prompts, in order. Opening still
+ * returns a session when the import or the initial send fails, and the host
+ * gives imported turns new ids, so the history itself is what confirms it.
+ */
+export function holdsImportedTurns(destination: IChatModel | undefined, turns: readonly Turn[]): boolean {
+	const requests = destination?.getRequests().filter(request => !request.isSystemInitiated) ?? [];
+	return turns.length > 0 && requests.length >= turns.length && turns.every((turn, index) => requests[index].message.text === turn.message.text);
+}
+
 export class ContinueChatInCopilotAction extends Action2 {
 	private readonly pending = new ResourceMap<Promise<void>>();
 
@@ -236,14 +284,23 @@ export class ContinueChatInCopilotAction extends Action2 {
 			}
 		};
 		const resolveModel = (identifier: string) => resolveImportedCopilotModel(languageModelsService, identifier);
-		const sourceTurns = importedTurnsFromChatModel(sourceModel, { resourceUris: agentHostService.resourceUris, resolveModel });
+		const importStats = createImportedConversationStats();
+		const sourceTurns = importedTurnsFromChatModel(sourceModel, { resourceUris: agentHostService.resourceUris, resolveModel, stats: importStats });
 		// A host that cannot import history gets the conversation as an attached
 		// transcript instead. That is not a move, so the source is not archived.
 		const transcriptOnly = sourceTurns.length > 0 && !agentHostService.supportsConversationImport;
 		const turns = transcriptOnly ? [] : sourceTurns;
 		const transcript = transcriptOnly ? createDelegationTranscriptAttachment(buildDelegationTranscript(sourceModel.getRequests()), getAgentSessionProviderName(AgentSessionProviders.Local)) : undefined;
 		const input = widget.getInputState();
-		const draft = { inputText: widget.getInput(), attachments: [...(transcript ? [transcript] : []), ...(input?.attachments ?? [])], selections: input?.selections ?? [] };
+		// Continue on the source's custom agent, which Agent Host identifies by the URI of its agent file.
+		const sourceMode = widget.input.currentModeInfo;
+		const agentUri = sourceMode && !sourceMode.isBuiltin ? sourceMode.modeInstructions?.uri : undefined;
+		const draft = {
+			inputText: widget.getInput(),
+			attachments: [...(transcript ? [transcript] : []), ...(input?.attachments ?? [])],
+			selections: input?.selections ?? [],
+			...(agentUri ? { mode: { id: agentUri.toString(), kind: sourceMode?.kind ?? ChatModeKind.Agent } } : {}),
+		};
 		const sidebar = isIChatViewViewContext(widget.viewContext);
 		const openOptions = {
 			type: SessionType.AgentHostCopilot,
@@ -335,6 +392,10 @@ export class ContinueChatInCopilotAction extends Action2 {
 		try {
 			await work;
 			logOutcome('succeeded');
+			// Reported only once the destination holds every moved turn.
+			if (turns.length) {
+				logConversationImport(telemetryService, 'move', importStats);
+			}
 		} catch (error) {
 			logOutcome(isCancellationError(error) ? 'cancelled' : 'failed');
 			throw error;
@@ -647,6 +708,7 @@ export class CreateRemoteAgentJobAction {
 		const instantiationService = accessor.get(IInstantiationService);
 		const agentHostService = accessor.get(IAgentHostService);
 		const languageModelsService = accessor.get(ILanguageModelsService);
+		const telemetryService = accessor.get(ITelemetryService);
 
 		const remoteJobCreatingKey = ChatContextKeys.remoteJobCreating.bindTo(contextKeyService);
 
@@ -736,8 +798,9 @@ export class CreateRemoteAgentJobAction {
 				// `openChatSession` flow so the session lifecycle (model picker,
 				// config chips, etc.) is unchanged. Hosts that cannot import fall
 				// back to the transcript attachment.
+				const importStats = createImportedConversationStats();
 				const importConversationTurns = (continuationTargetType === SessionType.AgentHostCopilot && !isSessionsWindow && agentHostService.supportsConversationImport)
-					? importedTurnsFromChatModel(chatModel, { resourceUris: agentHostService.resourceUris, resolveModel: identifier => resolveImportedCopilotModel(languageModelsService, identifier) })
+					? importedTurnsFromChatModel(chatModel, { resourceUris: agentHostService.resourceUris, resolveModel: identifier => resolveImportedCopilotModel(languageModelsService, identifier), stats: importStats })
 					: undefined;
 				// Carry the source session's selected model so the imported session
 				// resumes on the same model rather than the host default. The raw
@@ -778,7 +841,7 @@ export class CreateRemoteAgentJobAction {
 						};
 						await commandService.executeCommand(CHAT_DELEGATE_TO_AGENT_HOST_SESSION_COMMAND_ID, delegationRequest);
 					} else {
-						await instantiationService.invokeFunction(innerAccessor => openChatSession(
+						const opened = await instantiationService.invokeFunction(innerAccessor => openChatSession(
 							innerAccessor,
 							{
 								type: continuationTargetType,
@@ -800,6 +863,10 @@ export class CreateRemoteAgentJobAction {
 								importConversation: importConversationTurns ? { turns: importConversationTurns, model: importConversationModel, title: chatModel.title } : undefined,
 							}
 						));
+						// Reported only once the new session holds the imported conversation.
+						if (importConversationTurns && opened && holdsImportedTurns(chatService.getSession(opened), importConversationTurns)) {
+							logConversationImport(telemetryService, 'continueIn', importStats);
+						}
 					}
 					return;
 				}

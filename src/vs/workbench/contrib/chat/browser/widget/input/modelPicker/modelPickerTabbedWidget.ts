@@ -41,11 +41,11 @@ import { IEditorService } from '../../../../../../services/editor/common/editorS
 import { DEFAULT_EDITOR_ASSOCIATION } from '../../../../../../common/editor.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, isUserProvidedModel } from '../../../../common/languageModels.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
-import { getModelConfigDescription, getModelConfigProperty, getModelConfigSummary, IModelConfigurationAccess, MODEL_CONFIG_GROUP_EFFORT, ModelConfigChangeListener } from './modelPickerModelConfig.js';
+import { getModelConfigDescription, getModelConfigProperty, getModelConfigSummary, IModelConfigurationAccess, MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT, ModelConfigChangeListener } from './modelPickerModelConfig.js';
 import { IModelCardOptions, IPricingDisclosure, ModelCard } from './modelPickerCard.js';
 import { getPreferredSpeedVariant, IModelSpeedVariants } from './modelPickerVariants.js';
 import { getModelBadge, getOrganizationDefaultDescription, getOrganizationDefaultModel, organizationDefaultLabel } from './modelPickerBadges.js';
-import { buildModelToProviderGroupMap, createModelAction, createUnavailableModelItem, getUnavailableReason, IProviderGroupInfo, requiresNewerVSCode } from './modelPickerItemPrimitives.js';
+import { buildModelToProviderGroupMap, createModelAction, createUnavailableModelItem, getUnavailableReason, IModelPickerOrganizationSupport, IProviderGroupInfo, requiresNewerVSCode } from './modelPickerItemPrimitives.js';
 import { getModelPickerAccessibilityProvider, getModelPickerControlModels } from './modelPickerItems.js';
 import { filterModelPickerControlModelsForEntitlement, filterModelPickerModelsForEntitlement, getFusionDiscountPercent, getFusionTierLabel, getHydraFusionTierLabel, getRoutingModelBadge, isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly } from './modelPickerPresentation.js';
 import { buildModelPickerDestinations, buildModelPickerSections, getModelProviderLabel, hasPromotedModels, IModelPickerDestination, IModelPickerProviderPlaceholder, IModelPickerSections, IModelPickerUnavailableEntry, MODEL_PICKER_BUILT_IN_DESTINATION, MODEL_PICKER_ON_DEVICE_DESTINATION } from './modelPickerTabs.js';
@@ -94,6 +94,8 @@ export interface ITabbedModelPickerContext {
 		readonly show: boolean;
 		readonly currentVSCodeVersion: string;
 		readonly manageSettingsUrl: string | undefined;
+		/** When set, "Contact Admin" opens the organization's help page instead of GitHub's settings. */
+		readonly organizationSupport?: IModelPickerOrganizationSupport;
 		readonly updateStateType: StateType;
 	};
 	/** Reports a click on an upgrade or contact-admin link in an unavailable model row. */
@@ -846,6 +848,9 @@ export class TabbedModelPicker extends Disposable {
 				alignEnd: true,
 				useManagedHover: true,
 				checked: !!comparison.state.get(),
+				render: !comparison.state.get() && !comparison.summary.get() && comparison.renderToggle
+					? button => comparison.renderToggle!(button)
+					: undefined,
 				run: () => {
 					// Starting or leaving a comparison supersedes a pending selection.
 					this._selectionVersion++;
@@ -1017,6 +1022,7 @@ export class TabbedModelPicker extends Disposable {
 					unavailableEntry.entry,
 					this._getUnavailableReason(unavailableEntry, context),
 					unavailableContext.manageSettingsUrl,
+					unavailableContext.organizationSupport,
 					unavailableContext.updateStateType,
 					this._entitlementService,
 				));
@@ -1321,8 +1327,12 @@ export class TabbedModelPicker extends Disposable {
 				: getModelConfigDescription(model, context.configurationAccess, useModelConfigurationSchema);
 		const defaultModel = this._getOrganizationDefaultForModel(model, context);
 		const defaultDescription = defaultModel && getOrganizationDefaultDescription(defaultModel.metadata.name);
-		// Auto opens its tiers like any model's details; HydraFusion only when it has tiers of its own.
-		const hasDetails = !isHydraFusionModel(model) || !!ownTierLabel;
+		// Auto opens its tiers like any model's details; HydraFusion only when it has tiers of its own, and
+		// Copilot Fusion only when it offers something to configure, which it does not in inline chat.
+		const fusionWithoutConfiguration = !!model.metadata.autoModelFusion
+			&& !getModelConfigProperty(model, context.configurationAccess, MODEL_CONFIG_GROUP_EFFORT, useModelConfigurationSchema)
+			&& !getModelConfigProperty(model, context.configurationAccess, MODEL_CONFIG_GROUP_CONTEXT, useModelConfigurationSchema);
+		const hasDetails = (!isHydraFusionModel(model) || !!ownTierLabel) && !fusionWithoutConfiguration;
 		return {
 			item: {
 				...action,

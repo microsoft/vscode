@@ -34,6 +34,7 @@ import { ISessionsProvidersService } from '../../../services/sessions/browser/se
 import { SHOW_SESSIONS_PICKER_COMMAND_ID } from './sessionsActions.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { getWindowHost, ISessionHost } from '../../../services/sessions/browser/sessionHost.js';
 import { BlockedSessionsList, IBlockedSessionsHeaderActionContext, registerBlockedSessionsItemActions } from './blockedSessionsList.js';
 import { SessionActionFeedback } from './sessionActionFeedback.js';
 import { BlockedSessionsIndicatorModel, RequiresInputKind } from './blockedSessionsIndicatorModel.js';
@@ -176,6 +177,9 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	/** Tracks whether the blocked-sessions dropdown is open (drives the Escape keybinding). */
 	private readonly _blockedSessionsVisibleContext: IContextKey<boolean>;
 
+	/** The host of the window whose title bar shows the widget. */
+	private readonly _windowHost: ISessionHost;
+
 	constructor(
 		action: SubmenuItemAction,
 		options: IBaseActionViewItemOptions | undefined,
@@ -185,6 +189,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		private readonly _blockedIndicator: BlockedSessionsIndicatorModel,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
+		@ISessionHost sessionHost: ISessionHost,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
@@ -196,6 +201,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		@IBrowserWorkbenchEnvironmentService environmentService: IBrowserWorkbenchEnvironmentService,
 	) {
 		super(undefined, action, options);
+		this._windowHost = getWindowHost(sessionHost);
 
 		this._sessionTitle = environmentService.sessionTitle?.replace(/\s+/g, ' ').trim() || undefined;
 		this._blockedSessionsVisibleContext = SessionsBlockedSessionsVisibleContext.bindTo(contextKeyService);
@@ -210,8 +216,8 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 
 		// Re-render when the active session's workspace or quick-chat kind changes
 		this._register(autorun(reader => {
-			const sessionData = this.sessionsService.activeSession.read(reader);
-			this._workspaceInfo = getSessionWorkspaceDisplayInfo(sessionData, reader);
+			const sessionData = this._windowHost.session.read(reader);
+			this._workspaceInfo = getSessionWorkspaceDisplayInfo(sessionData, this._windowHost.chat.read(reader), reader);
 			this._isQuickChat = sessionData?.isQuickChat?.read(reader) ?? false;
 			this._lastRenderState = undefined;
 			this._render();
@@ -438,7 +444,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			return title;
 		}
 
-		const session = this.sessionsService.activeSession.get();
+		const session = this._windowHost.session.get();
 		const provider = session ? this.sessionsProvidersService.getProvider(session.providerId) : undefined;
 		return provider && isAgentHostProvider(provider) && provider.remoteAddress
 			? localize('noWorkspaceOnRemoteHost', "No workspace [{0}]", provider.label)
@@ -742,14 +748,15 @@ export class SessionsTitleBarContribution extends Disposable implements IWorkben
 		this._register(registerBlockedSessionsHeaderActions());
 		this._register(registerBlockedSessionsItemActions());
 
-		this._register(actionViewItemService.register(Menus.CommandCenter, Menus.TitleBarSessionTitle, (action, options) => {
+		this._register(actionViewItemService.register(Menus.CommandCenter, Menus.TitleBarSessionTitle, (action, options, scopedInstantiationService) => {
 			if (!(action instanceof SubmenuItemAction)) {
 				return undefined;
 			}
 			// Traced because each call means the command center threw the previous
 			// widget away; the state above deliberately survives it.
 			logService.trace('[SessionsTitleBar] creating the title bar widget');
-			return instantiationService.createInstance(SessionsTitleBarWidget, action, options, sessionActionFeedback, blockedIndicator);
+			// Created in the title bar of its window, it shows the session of that window.
+			return scopedInstantiationService.createInstance(SessionsTitleBarWidget, action, options, sessionActionFeedback, blockedIndicator);
 		}, undefined));
 	}
 }

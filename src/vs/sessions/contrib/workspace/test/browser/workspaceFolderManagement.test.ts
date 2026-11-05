@@ -22,6 +22,7 @@ import { ChatInteractivity, IChat, ISessionFolder, ISessionGitRepository, ISessi
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { WorkspaceFolderManagementContribution } from '../../browser/workspaceFolderManagement.js';
+import { focusedSessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 const stubChat = {
 	resource: URI.parse('test:///chat'),
@@ -175,8 +176,7 @@ suite('WorkspaceFolderManagementContribution', () => {
 		};
 
 		const sessionsService = new class extends mock<ISessionsService>() {
-			override readonly activeSession = activeSession;
-			override readonly mainWindowActiveSession = this.activeSession;
+			readonly activeSession = activeSession;
 		};
 		const workspaceContextService = new class extends mock<IWorkspaceContextService>() {
 			override readonly onDidChangeWorkspaceFolders = workspaceFoldersChanged.event;
@@ -199,7 +199,7 @@ suite('WorkspaceFolderManagementContribution', () => {
 		};
 
 		const contribution = disposables.add(new WorkspaceFolderManagementContribution(
-			sessionsService,
+			focusedSessionHostServiceOf(sessionsService.activeSession),
 			uriIdentityService,
 			workspaceContextService,
 			workspaceEditing,

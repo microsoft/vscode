@@ -26,6 +26,7 @@ import { Target } from '../../../../../../workbench/contrib/chat/common/promptSy
 import { IChat, ISession } from '../../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { ModePicker, ModePickerModel, ScopedModePickerModelCache } from '../../browser/modePicker.js';
+import { sessionChatSourceOf } from '../../../../../services/sessions/browser/sessionHost.js';
 
 suite('ScopedModePickerModelCache', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -180,7 +181,7 @@ suite('ModePicker', () => {
 		model.setSession(upcastPartial<ISession>({ resource: URI.parse('agent-host-copilotcli:/session') }), custom[0].id);
 		let rows: { label: string | undefined; source: string | undefined; aria: string | null | undefined }[] = [];
 		const picker = store.add(new ModePicker(
-			model, observableValue<IActiveSession | undefined>('session', undefined),
+			model, sessionChatSourceOf(observableValue<IActiveSession | undefined>('session', undefined)),
 			upcastPartial<IActionWidgetService>({
 				isVisible: false, hide: () => { },
 				show: (_id, _preview, items, delegate, _anchor, _container, _actions, accessibilityProvider) => {
@@ -270,7 +271,7 @@ suite('ModePicker', () => {
 		chatSessionsService.setContributions([{ type: 'agent-host-claude', agentHostProviderId: 'claude', name: 'Claude', displayName: 'Claude', description: '' }]);
 		const picker = store.add(new ModePicker(
 			model,
-			scopedSession,
+			sessionChatSourceOf(scopedSession),
 			new class extends mock<IActionWidgetService>() {
 				override readonly isVisible = false;
 				override show<T>(_user: string, _supportsPreview: boolean, items: readonly IActionListItem<T>[], delegate: IActionListDelegate<T>): void {

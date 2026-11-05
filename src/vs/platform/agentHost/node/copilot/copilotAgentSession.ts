@@ -10,6 +10,7 @@ import type { AttributedPermissionResult, CopilotClient, CopilotSession, Current
 import { attributePermissionResult, isPermissionDeniedKind, permissionResultToConfirmKind } from './copilotPermissionAttribution.js';
 import { McpSkillCacheWriter } from '../shared/mcpSkillCache.js';
 import { parseCopilotMcpSkillConsentRequest, type ICopilotMcpSkillConsentRequest } from './copilotMcpSkillConsent.js';
+import { createHash } from 'crypto';
 import { realpath as fsRealpath } from 'fs';
 import { cp, rm } from 'fs/promises';
 import { promisify } from 'util';
@@ -25,8 +26,8 @@ import { Schemas } from '../../../../base/common/network.js';
 import { isAuthorizationProtectedResourceMetadata } from '../../../../base/common/oauth.js';
 import { equals, safeStringify } from '../../../../base/common/objects.js';
 import { waitForState } from '../../../../base/common/observable.js';
-import { isAbsolute, join } from '../../../../base/common/path.js';
-import { extUriBiasedIgnorePathCase, isEqual, normalizePath } from '../../../../base/common/resources.js';
+import { isAbsolute } from '../../../../base/common/path.js';
+import { basename, extUriBiasedIgnorePathCase, isEqual, normalizePath } from '../../../../base/common/resources.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { splitLinesIncludeSeparators } from '../../../../base/common/strings.js';
 import { hasKey, isDefined, isObject, isString, type Mutable } from '../../../../base/common/types.js';
@@ -113,6 +114,8 @@ import { CopilotComputerUseActivation } from './copilotComputerUseActivationTool
 import { classifyComputerUsePrompt, type CopilotComputerUsePermissionSetup, type ICopilotComputerUseSetupChat, type IComputerUsePermissionPrompt } from './copilotComputerUsePermissionSetup.js';
 import { CopilotToolName, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getSandboxPathGrantConfirmation, getSdkImageGenerationMetadata, getToolIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getPhaseTaskCompleteMarkdown, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolSummaryInputContract, isAgentCoordinationTool, isCopilotSdkToolOutputFile, isEditTool, isHiddenTool, isShellHelperTool, isShellTool, isTaskCompleteTool, parseCopilotStreamingToolInput, synthesizeSkillToolCall, tryStringify, getAssistedApprovalNotice, type TaskCompletionReview } from './copilotToolDisplay.js';
 import { imageGenerationToolMetaKey } from '../../common/meta/agentImageGenerationMeta.js';
+import { COPILOT_VIRTUAL_SESSION_STATE_PATH, copilotSdkPathToUri, createCopilotSdkPathMapper, resolveCopilotSdkPath, toCopilotWorkspace, type ICopilotSdkPathMapper } from './copilotWorkspace.js';
+import { toAgentClientUri } from '../../common/agentClientUri.js';
 import { FileEditTracker } from '../shared/fileEditTracker.js';
 import { ICopilotApiService, type IRestrictedTelemetryContext } from '../shared/copilotApiService.js';
 import type { IAgentHostRestrictedTelemetryContext } from '../agentHostRestrictedTelemetry.js';
@@ -685,6 +688,7 @@ export interface ICopilotAgentSessionOptions {
 	readonly shellManager: ShellManager | undefined;
 	/** Working directory associated with the session, used to strip redundant `cd` prefixes from shell commands. */
 	readonly workingDirectory?: URI;
+	readonly pathMapper: ICopilotSdkPathMapper;
 	/** Directory used to resolve workspace-scoped customizations for this session. */
 	readonly customizationDirectory?: URI;
 	/** Snapshot of the active client's tools and plugins at session creation time. */
@@ -768,6 +772,7 @@ interface ICopilotCanvasProjection {
 /** Canvases a configuration refresh carries from a chat's previous runtime to its replacement. */
 export interface ICopilotCanvasHandoff {
 	readonly projections: readonly ICopilotCanvasProjection[];
+	pendingCloseInstanceIds?: Set<string>;
 }
 
 /** A projected canvas; `handedOver` marks one seeded from a handoff that the replacement runtime has not reported since. */
@@ -2021,6 +2026,9 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _canvasCloses = new Map<string, Promise<void>>();
 	/** Closed events still expected, by instance ID, for closes applied when the runtime acknowledged them first. */
 	private readonly _expectedCanvasClosedEvents = new Map<string, number>();
+	private readonly _deferredCanvasCloseInstanceIds = new Set<string>();
+	private readonly _settledDeferredCanvasCloseInstanceIds = new Set<string>();
+	private _deferredCanvasCloseFlush: Promise<void> | undefined;
 	private _canvasExtensions: SessionEventPayload<'session.extensions_loaded'>['data']['extensions'] | undefined;
 	private _canvasRegistryGeneration = 0;
 	private _canvasRegistrySettlementPending = false;
@@ -2041,6 +2049,7 @@ export class CopilotAgentSession extends Disposable {
 	/** Streams runtime-executed shell output into output-only (non-pty) terminal channels. */
 	private readonly _nonPtyShellTerminals: NonPtyShellTerminalStreams;
 	private _workingDirectory: URI | undefined;
+	private _pathMapper: ICopilotSdkPathMapper;
 	private _customizationDirectory: URI | undefined;
 	private readonly _serverToolHost: IAgentServerToolHost | undefined;
 	private readonly _mcpSkillCacheWriter: McpSkillCacheWriter;
@@ -2209,6 +2218,9 @@ export class CopilotAgentSession extends Disposable {
 		);
 		this._onDidSessionProgress = options.onDidSessionProgress;
 		this._pendingCanvasHandoff = options.canvasHandoff;
+		for (const instanceId of options.canvasHandoff?.pendingCloseInstanceIds ?? []) {
+			this._deferredCanvasCloseInstanceIds.add(instanceId);
+		}
 		for (const projection of options.canvasHandoff?.projections ?? []) {
 			this._canvasByInstanceId.set(projection.canvas.instanceId, { ...projection, handedOver: true });
 			// Withdraws any source published by a replacement the refresh discarded.
@@ -2242,7 +2254,7 @@ export class CopilotAgentSession extends Disposable {
 			removeCertificate: async (scopeId, validate) => { await options.sandboxCertificate.remove(this._launchPlan.client.rpc.sandbox.proxyCa, scopeId, validate); },
 			getShellInitDirectory: () => this._shellInitScriptMaterialized ? this._shellInitScriptDirectory() : undefined,
 			getAppliedPluginDirectories: () => this._appliedPluginDirectories,
-			getWorkingDirectory: () => this._workingDirectory,
+			getWorkingDirectory: () => this._workingDirectory?.scheme === Schemas.file ? this._workingDirectory : undefined,
 			getAdditionalWorkingDirectories: () => this._appliedAdditionalDirectories,
 			shellManager: options.shellManager,
 			onDidChangeRuntimeConfig: () => this._recordRuntimeMutation('sandboxUpdate'),
@@ -2268,6 +2280,7 @@ export class CopilotAgentSession extends Disposable {
 		this._shellManager = options.shellManager;
 		this._nonPtyShellTerminals = this._register(this._instantiationService.createInstance(NonPtyShellTerminalStreams, options.owner, this._storageUri, options.chatChannelUri));
 		this._workingDirectory = options.workingDirectory;
+		this._pathMapper = options.pathMapper;
 		this._customizationDirectory = options.customizationDirectory;
 		this._serverToolHost = options.serverToolHost;
 		this._mcpToolRoutingCache = new CopilotMcpToolRoutingCache(storageService, this._logService);
@@ -2322,6 +2335,7 @@ export class CopilotAgentSession extends Disposable {
 			this._storageUri.toString(),
 			() => this._ownerSessionUri.toString(),
 			COPILOT_CLI_AGENT_PROVIDER_ID,
+			{ toUri: path => copilotSdkPathToUri(this._pathMapper, path), toFileServiceUri: path => this._sdkFileServiceUri(path) },
 		));
 		// The edit tool calls wait for the host's changes of their files (see `_handlePreToolUse`),
 		// so the user can undo changes while the agent works, and the agent is told.
@@ -3394,7 +3408,7 @@ export class CopilotAgentSession extends Disposable {
 		return {
 			parameters,
 			meta: this._createToolCallMeta(toolName, parameters),
-			invocationMessage: getStreamingInvocationMessage(toolName, getToolDisplayName(toolName), partialInput, path => this._resolveEditFilePath(path), this._resolveAgentName),
+			invocationMessage: getStreamingInvocationMessage(toolName, getToolDisplayName(toolName), partialInput, path => this._resolveDisplayFilePath(path), this._resolveAgentName),
 		};
 	}
 
@@ -3543,7 +3557,7 @@ export class CopilotAgentSession extends Disposable {
 				toolCallId,
 				...(toolCall.contributor ? { contributor: toolCall.contributor } : {}),
 				...(toolCall.intention !== undefined ? { intention: toolCall.intention } : {}),
-				invocationMessage: getInvocationMessage(toolCall.toolName, toolCall.displayName, toolCall.parameters, path => this._resolveEditFilePath(path), this._resolveAgentName),
+				invocationMessage: getInvocationMessage(toolCall.toolName, toolCall.displayName, toolCall.parameters, path => this._resolveDisplayFilePath(path), this._resolveAgentName),
 				toolInput: getToolInputString(toolCall.toolName, toolCall.parameters, tryStringify(toolCall.parameters)),
 				confirmed: ToolCallConfirmationReason.NotNeeded,
 				_meta: toolCall.meta && toToolCallMeta(toolCall.meta),
@@ -3875,10 +3889,23 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private _resolveEditFilePath(path: string): string {
-		if (isAbsolute(path) || !this._workingDirectory || this._workingDirectory.scheme !== Schemas.file) {
-			return path;
+		return this._workingDirectory ? resolveCopilotSdkPath(this._pathMapper, path) : path;
+	}
+
+	private _resolveDisplayFilePath(path: string): URI {
+		return copilotSdkPathToUri(this._pathMapper, this._resolveEditFilePath(path));
+	}
+
+	private _sdkFileServiceUri(path: string): URI {
+		const uri = copilotSdkPathToUri(this._pathMapper, path);
+		if (uri.scheme === Schemas.file) {
+			return uri;
 		}
-		return join(this._workingDirectory.fsPath, path);
+		const clientId = this._launchPlan.virtualWorkspaceClientId?.();
+		if (!clientId) {
+			throw new Error(localize('copilot.virtualWorkspaceDisconnected', "The window that owns the virtual workspace is not connected."));
+		}
+		return toAgentClientUri(uri, clientId);
 	}
 
 	/**
@@ -4473,7 +4500,7 @@ export class CopilotAgentSession extends Disposable {
 			toolCallId,
 			...(tracked.contributor ? { contributor: tracked.contributor } : {}),
 			...(tracked.intention !== undefined ? { intention: tracked.intention } : {}),
-			invocationMessage: getInvocationMessage(tracked.toolName, tracked.displayName, tracked.parameters, path => this._resolveEditFilePath(path), this._resolveAgentName),
+			invocationMessage: getInvocationMessage(tracked.toolName, tracked.displayName, tracked.parameters, path => this._resolveDisplayFilePath(path), this._resolveAgentName),
 			toolInput: getToolInputString(tracked.toolName, tracked.parameters, tracked.parameters ? tryStringify(tracked.parameters) : undefined),
 			confirmed: ToolCallConfirmationReason.NotNeeded,
 			_meta: toToolCallMeta({ ...(tracked.meta ?? {}), toolSearchCandidates: candidates }),
@@ -4865,11 +4892,22 @@ export class CopilotAgentSession extends Disposable {
 		this._registeredShellInitScriptPath = undefined;
 	}
 
-	/** Persists the host-owned catalog title through the runtime's naming API. */
+	/** Synchronizes the host-owned catalog title without rewriting an unchanged runtime name. */
 	async synchronizeTitle(title: string): Promise<void> {
 		const name = Array.from(title.trim()).slice(0, 100).join('');
 		if (name && !this._store.isDisposed) {
-			const completed = await raceTimeout(this._wrapper.session.rpc.name.set({ name }).then(() => true), this._controlPlaneRpcTimeoutMs);
+			const wrapper = this._wrapper;
+			const current = await raceTimeout(wrapper.session.rpc.name.get(), this._controlPlaneRpcTimeoutMs);
+			if (!current) {
+				throw new Error('Mission Control title synchronization timed out');
+			}
+			if (this._store.isDisposed || this._wrapper !== wrapper) {
+				throw new CancellationError();
+			}
+			if (current.name === name) {
+				return;
+			}
+			const completed = await raceTimeout(wrapper.session.rpc.name.set({ name }).then(() => true), this._controlPlaneRpcTimeoutMs);
 			if (!completed) {
 				throw new Error('Mission Control title synchronization timed out');
 			}
@@ -4879,6 +4917,19 @@ export class CopilotAgentSession extends Disposable {
 	/** Refreshes inventory observers after registration without changing projected canvas membership. */
 	publishCanvases(): void {
 		if (this._wrapper.canvasRuntimeEnabled && this._canvasPhase === 'live') {
+			this._publishCanvasProjectionStates();
+			this._publishCanvases();
+		}
+	}
+
+	republishCanvasProjection(published: readonly string[] | undefined): void {
+		if (!this._wrapper.canvasRuntimeEnabled || this._canvasPhase !== 'live' || this._pendingCanvasHandoff) {
+			return;
+		}
+		this._publishCanvasProjectionStates();
+		const resources = [...this._canvasByInstanceId.values()].map(projection => projection.resource.toString());
+		const current = published ?? [];
+		if (resources.length !== current.length || resources.some((resource, index) => resource !== current[index])) {
 			this._publishCanvases();
 		}
 	}
@@ -4946,6 +4997,9 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	async openCanvas(request: IAgentCanvasOpenRequest): Promise<void> {
+		if (this._deferredCanvasCloseInstanceIds.has(request.instanceId)) {
+			await this._deferredCanvasCloseFlush;
+		}
 		const wrapper = this._wrapper;
 		if (!wrapper.canvasRuntimeEnabled) {
 			throw new Error('Canvases are disabled for this session.');
@@ -4961,6 +5015,8 @@ export class CopilotAgentSession extends Disposable {
 		}) : undefined;
 		try {
 			const canvas = await this._awaitControlPlaneRpc('rpc.canvas.open', wrapper.session.rpc.canvas.open(request));
+			this._deferredCanvasCloseInstanceIds.delete(request.instanceId);
+			this._settledDeferredCanvasCloseInstanceIds.delete(request.instanceId);
 			if (!wasIgnored || this._wrapper !== wrapper || this._store.isDisposed || this._canvasPhase !== 'live'
 				|| this._canvasByInstanceId.has(request.instanceId)) {
 				return;
@@ -4977,19 +5033,25 @@ export class CopilotAgentSession extends Disposable {
 
 	/** Releases this session's canvases and hands them over without sources, so a replacement runtime can keep their channels. */
 	takeCanvasProjection(): ICopilotCanvasHandoff | undefined {
-		const projections = [...this._canvasByInstanceId.values()].map(({ resource, canvas: { url: _url, ...canvas } }) => ({ resource, canvas }));
+		const projections = [...this._canvasByInstanceId.values()].map(({ resource, canvas: { url: _url, ...canvas } }) => ({
+			resource,
+			canvas,
+		}));
+		const pendingCloseInstanceIds = new Set(this._deferredCanvasCloseInstanceIds);
 		this._releaseCanvasRegistrySnapshot();
 		this._canvasPhase = 'released';
 		this._canvasByInstanceId.clear();
 		this._ignoredRestoredCanvasInstanceIds.clear();
 		this._expectedCanvasClosedEvents.clear();
-		if (projections.length === 0) {
+		this._deferredCanvasCloseInstanceIds.clear();
+		this._settledDeferredCanvasCloseInstanceIds.clear();
+		if (projections.length === 0 && pendingCloseInstanceIds.size === 0) {
 			return undefined;
 		}
 		for (const projection of projections) {
 			this._publishCanvasState(projection);
 		}
-		return { projections };
+		return { projections, pendingCloseInstanceIds };
 	}
 
 	/** Takes ownership of canvases handed to this session once its refresh keeps it, publishing membership changes made meanwhile. */
@@ -4997,8 +5059,36 @@ export class CopilotAgentSession extends Disposable {
 		if (this._store.isDisposed || this._pendingCanvasHandoff !== handoff) {
 			return false;
 		}
+		for (const instanceId of handoff.pendingCloseInstanceIds ?? []) {
+			this._canvasByInstanceId.delete(instanceId);
+			this._ignoredRestoredCanvasInstanceIds.add(instanceId);
+			if (!this._settledDeferredCanvasCloseInstanceIds.delete(instanceId)) {
+				this._deferredCanvasCloseInstanceIds.add(instanceId);
+			}
+		}
 		this._pendingCanvasHandoff = undefined;
 		this._publishAuthoritativeCanvasRegistry();
+		void this._flushDeferredCanvasCloses(this._wrapper);
+		return true;
+	}
+
+	discardCanvasHandoff(handoff: ICopilotCanvasHandoff): boolean {
+		if (this._store.isDisposed || this._pendingCanvasHandoff !== handoff) {
+			return false;
+		}
+		this._pendingCanvasHandoff = undefined;
+		for (const instanceId of new Set([
+			...handoff.projections.map(projection => projection.canvas.instanceId),
+			...(handoff.pendingCloseInstanceIds ?? []),
+		])) {
+			this._canvasByInstanceId.delete(instanceId);
+			this._ignoredRestoredCanvasInstanceIds.add(instanceId);
+			this._expectedCanvasClosedEvents.delete(instanceId);
+			this._deferredCanvasCloseInstanceIds.add(instanceId);
+			this._settledDeferredCanvasCloseInstanceIds.delete(instanceId);
+		}
+		this._publishAuthoritativeCanvasRegistry();
+		void this._flushDeferredCanvasCloses(this._wrapper);
 		return true;
 	}
 
@@ -5040,6 +5130,13 @@ export class CopilotAgentSession extends Disposable {
 
 	/** Handles the runtime's closed event for an instance whose projection may belong to a later lifetime than the event. */
 	private _handleCanvasClosed(wrapper: CopilotSessionWrapper, instanceId: string): void {
+		if (this._settleDeferredCanvasClose(instanceId)) {
+			const projection = this._canvasByInstanceId.get(instanceId);
+			if (projection) {
+				void this._removeCanvasUnlessOpen(wrapper, projection);
+			}
+			return;
+		}
 		const expected = this._expectedCanvasClosedEvents.get(instanceId);
 		if (!expected) {
 			if (this._canvasByInstanceId.delete(instanceId)) {
@@ -5166,6 +5263,12 @@ export class CopilotAgentSession extends Disposable {
 		});
 	}
 
+	private _publishCanvasProjectionStates(): void {
+		for (const projection of this._canvasByInstanceId.values()) {
+			this._publishCanvasState(projection);
+		}
+	}
+
 	private _invalidateCanvasRegistrySnapshot(): void {
 		this._canvasRegistryGeneration++;
 	}
@@ -5191,9 +5294,11 @@ export class CopilotAgentSession extends Disposable {
 		this._publishAuthoritativeCanvasRegistry();
 	}
 
-	/** Reopens handed-over canvases the runtime restored and drops the ones it no longer has open. */
+	/** Reconciles handed-over canvases with the instances the resumed runtime restored. */
 	private async _reconcileCanvasHandoff(wrapper: CopilotSessionWrapper): Promise<void> {
-		if (!wrapper.canvasRuntimeEnabled || ![...this._canvasByInstanceId.values()].some(projection => projection.handedOver)) {
+		const handoff = this._pendingCanvasHandoff;
+		const pendingCloseInstanceIds = handoff?.pendingCloseInstanceIds;
+		if (!wrapper.canvasRuntimeEnabled || (!pendingCloseInstanceIds?.size && ![...this._canvasByInstanceId.values()].some(projection => projection.handedOver))) {
 			return;
 		}
 		let openCanvases: CopilotSession['openCanvases'];
@@ -5207,18 +5312,85 @@ export class CopilotAgentSession extends Disposable {
 			return;
 		}
 		const openByInstanceId = new Map(openCanvases.map(canvas => [canvas.instanceId, canvas]));
+		try {
+			await this._applyDeferredCanvasCloses(wrapper, openByInstanceId);
+		} catch (error) {
+			// Unapplied closes stay deferred and are retried after adoption; they must not fail the resume.
+			this._logService.warn(`[Copilot:${this.sessionId}] Failed to apply deferred canvas closes during reconciliation: ${getErrorMessage(error)}`);
+		}
+		if (this._store.isDisposed) {
+			return;
+		}
 		// Canvases the runtime reported while the request was pending are no longer marked, so they keep that newer state.
 		for (const projection of [...this._canvasByInstanceId.values()]) {
 			if (!projection.handedOver) {
 				continue;
 			}
-			const open = openByInstanceId.get(projection.canvas.instanceId);
+			const instanceId = projection.canvas.instanceId;
+			const open = this._deferredCanvasCloseInstanceIds.has(instanceId) ? undefined : openByInstanceId.get(instanceId);
 			if (open) {
 				this._projectOpenedCanvas(open);
 			} else {
-				this._canvasByInstanceId.delete(projection.canvas.instanceId);
+				this._canvasByInstanceId.delete(instanceId);
 			}
 		}
+	}
+
+	private _flushDeferredCanvasCloses(wrapper: CopilotSessionWrapper): Promise<void> {
+		const flush = this._doFlushDeferredCanvasCloses(wrapper);
+		this._deferredCanvasCloseFlush = flush;
+		return flush.finally(() => {
+			if (this._deferredCanvasCloseFlush === flush) {
+				this._deferredCanvasCloseFlush = undefined;
+			}
+		});
+	}
+
+	private async _doFlushDeferredCanvasCloses(wrapper: CopilotSessionWrapper): Promise<void> {
+		if (this._deferredCanvasCloseInstanceIds.size === 0 || this._store.isDisposed) {
+			return;
+		}
+		let openCanvases: CopilotSession['openCanvases'];
+		try {
+			({ openCanvases } = await this._awaitControlPlaneRpc('rpc.canvas.listOpen', wrapper.session.rpc.canvas.listOpen()));
+		} catch (error) {
+			this._logService.warn(`[Copilot:${this.sessionId}] Failed to reconcile deferred canvas closes: ${getErrorMessage(error)}`);
+			return;
+		}
+		try {
+			await this._applyDeferredCanvasCloses(wrapper, new Map(openCanvases.map(canvas => [canvas.instanceId, canvas])));
+		} catch (error) {
+			this._logService.warn(`[Copilot:${this.sessionId}] Failed to apply deferred canvas closes: ${getErrorMessage(error)}`);
+		} finally {
+			if (!this._pendingCanvasHandoff) {
+				this._settledDeferredCanvasCloseInstanceIds.clear();
+			}
+		}
+	}
+
+	private async _applyDeferredCanvasCloses(wrapper: CopilotSessionWrapper, openByInstanceId: Map<string, CopilotSession['openCanvases'][number]>): Promise<void> {
+		for (const instanceId of [...this._deferredCanvasCloseInstanceIds]) {
+			if (!openByInstanceId.has(instanceId)) {
+				this._settleDeferredCanvasClose(instanceId);
+				continue;
+			}
+			await this._awaitControlPlaneRpc('rpc.canvas.close', wrapper.session.rpc.canvas.close({ instanceId }));
+			openByInstanceId.delete(instanceId);
+			if (this._settleDeferredCanvasClose(instanceId)) {
+				this._expectedCanvasClosedEvents.set(instanceId, (this._expectedCanvasClosedEvents.get(instanceId) ?? 0) + 1);
+			}
+			if (this._store.isDisposed) {
+				return;
+			}
+		}
+	}
+
+	private _settleDeferredCanvasClose(instanceId: string): boolean {
+		if (!this._deferredCanvasCloseInstanceIds.delete(instanceId)) {
+			return false;
+		}
+		this._settledDeferredCanvasCloseInstanceIds.add(instanceId);
+		return true;
 	}
 
 	private _publishCanvasState(projection: ICopilotCanvasProjection): void {
@@ -5262,6 +5434,10 @@ export class CopilotAgentSession extends Disposable {
 				this._logService.warn(`[Copilot:${this.sessionId}] Evicted oldest projected canvas after reaching the ${MAX_PROJECTED_CANVASES}-canvas limit`);
 			}
 		}
+		if (!existing) {
+			this._deferredCanvasCloseInstanceIds.delete(data.instanceId);
+			this._settledDeferredCanvasCloseInstanceIds.delete(data.instanceId);
+		}
 		const canvas: CanvasState = {
 			instanceId: data.instanceId,
 			extensionId: data.extensionId,
@@ -5292,6 +5468,8 @@ export class CopilotAgentSession extends Disposable {
 		this._canvasByInstanceId.clear();
 		this._ignoredRestoredCanvasInstanceIds.clear();
 		this._expectedCanvasClosedEvents.clear();
+		this._deferredCanvasCloseInstanceIds.clear();
+		this._settledDeferredCanvasCloseInstanceIds.clear();
 		if (hadCanvases) {
 			this._publishCanvases();
 		}
@@ -5988,6 +6166,7 @@ export class CopilotAgentSession extends Disposable {
 					shellAlignmentError = `failed to align the local shell working directory: ${getErrorMessage(error)}`;
 				} finally {
 					this._workingDirectory = workingDirectory;
+					this._pathMapper = createCopilotSdkPathMapper(toCopilotWorkspace(workingDirectory));
 					this._customizationDirectory = workingDirectory;
 					this._requiresRestartAfterWorkingDirectoryChange = true;
 				}
@@ -6006,6 +6185,7 @@ export class CopilotAgentSession extends Disposable {
 				alignmentErrors.push(`failed to align the local shell working directory: ${getErrorMessage(shellError)}`);
 			} finally {
 				this._workingDirectory = actualUri;
+				this._pathMapper = createCopilotSdkPathMapper(toCopilotWorkspace(actualUri));
 				this._customizationDirectory = actualUri;
 				this._requiresRestartAfterWorkingDirectoryChange = true;
 			}
@@ -6153,7 +6333,7 @@ export class CopilotAgentSession extends Disposable {
 				continue;
 			}
 			const uri = URI.parse(attachment.uri);
-			paths.push(uri.scheme === 'file' ? uri.fsPath : uri.toString());
+			paths.push(this._sdkAttachmentPath(uri));
 		}
 		if (paths.length === 0) {
 			return undefined;
@@ -6777,6 +6957,16 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
+	private _sdkAttachmentPath(uri: URI): string {
+		const path = uri.scheme === Schemas.file || uri.scheme === this._workingDirectory?.scheme
+			? this._pathMapper.toSdkPath(uri) : uri.toString();
+		if (this._launchPlan.workspace?.kind !== 'virtual' || uri.scheme !== Schemas.file || path.startsWith(`${COPILOT_VIRTUAL_SESSION_STATE_PATH}/`)) {
+			return path;
+		}
+		const id = createHash('sha256').update(uri.toString()).digest('hex');
+		return `${COPILOT_VIRTUAL_SESSION_STATE_PATH}/files/attachments/${id}/${basename(uri)}`;
+	}
+
 	/**
 	 * Translate a protocol {@link MessageAttachment} into the Copilot CLI SDK's `attachments` payload shape. Resource
 	 * attachments map to the SDK's reference-style `file`/`directory`/`selection` variants (the
@@ -6823,7 +7013,16 @@ export class CopilotAgentSession extends Disposable {
 			return undefined;
 		}
 		const uri = URI.parse(attachment.uri);
-		const path = uri.scheme === 'file' ? uri.fsPath : uri.toString();
+		const path = this._sdkAttachmentPath(uri);
+		if (this._launchPlan.virtualSessionFs && uri.scheme === Schemas.file && path !== this._pathMapper.toSdkPath(uri)) {
+			// Host snapshots must live in the provider's state namespace for the virtual runtime to read them.
+			if ((await this._fileService.stat(uri)).isDirectory) {
+				// Host folders are not copied there, so the virtual runtime cannot list them.
+				this._logService.warn(`[Copilot:${this.sessionId}] Skipping host folder attachment in a virtual workspace: ${uri.toString()}`);
+				return undefined;
+			}
+			await this._launchPlan.virtualSessionFs.writeFileBytes(path, (await this._fileService.readFile(uri)).value.buffer);
+		}
 		const displayName = attachment.label ?? path;
 		// A host-created snapshot (pasted content, unsaved editor, git: diff, …) is shaped like any other
 		// resource here (file or selection). Its read-only signal is carried separately on the prompt — via
@@ -6848,7 +7047,9 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private async _readSelectedText(uri: URI, range: { readonly start: { readonly line: number; readonly character: number }; readonly end: { readonly line: number; readonly character: number } }): Promise<string> {
-		const content = await this._fileService.readFile(uri);
+		const resource = uri.scheme === this._workingDirectory?.scheme && uri.scheme !== Schemas.file
+			? this._sdkFileServiceUri(this._pathMapper.toSdkPath(uri)) : uri;
+		const content = await this._fileService.readFile(resource);
 		const text = content.value.toString();
 		// AHP carries the resource range; the public SDK can carry the selected text too.
 		// This reads the resource URI, so unsaved editor changes are not included.
@@ -7050,7 +7251,7 @@ export class CopilotAgentSession extends Disposable {
 		this._seedSubagentDisplayNames(events);
 		this._logService.trace(`[Copilot:${this.sessionId}] Read ${events.length} persisted event(s); reconstructing turns`);
 		return this._withDatabase(async db => {
-			const result = await mapSessionEvents(this._storageUri, db, events, this._chatChannelUri, this._ownerSessionUri, {
+			const result = await mapSessionEvents(this._storageUri, db, events, this._chatChannelUri, this._ownerSessionUri, this._pathMapper, {
 				logService: this._logService,
 				workingDirectory: this._workingDirectory,
 				clientToolNames: this._clientToolNames,
@@ -7992,7 +8193,7 @@ export class CopilotAgentSession extends Disposable {
 							toolCallId,
 							toolName: request.toolName,
 							displayName,
-							invocationMessage: getInvocationMessage(request.toolName, displayName, parameters, path => this._resolveEditFilePath(path), this._resolveAgentName),
+							invocationMessage: getInvocationMessage(request.toolName, displayName, parameters, path => this._resolveDisplayFilePath(path), this._resolveAgentName),
 							toolInput: getToolInputString(request.toolName, parameters, tryStringify(parameters)),
 							riskAssessment: judgeRationale
 								? {
@@ -8162,7 +8363,7 @@ export class CopilotAgentSession extends Disposable {
 
 			const isNewFile = edits?.items.some(edit => !edit.before && !!edit.after);
 			const trackedToolCall = this._activeToolCalls.get(toolCallId);
-			const permissionDisplay = getPermissionDisplay(request, this._workingDirectory, isNewFile, this._appliedAdditionalDirectories, trackedToolCall?.parameters);
+			const permissionDisplay = getPermissionDisplay(request, this._workingDirectory, isNewFile, this._appliedAdditionalDirectories, trackedToolCall?.parameters, path => this._resolveDisplayFilePath(path));
 			// A server tool's confirmation as its group builds it with the host's state (e.g. linking only known sessions).
 			const serverConfirmation = serverToolName && request.kind === 'custom-tool' ? serverToolHost?.getConfirmationDisplay(serverToolName, request.args) : undefined;
 			const { permissionKind, permissionPath, permissionUrl, shellCommand } = permissionDisplay;
@@ -8224,6 +8425,7 @@ export class CopilotAgentSession extends Disposable {
 				},
 				permissionKind,
 				permissionPath,
+				permissionResource: permissionPath ? copilotSdkPathToUri(this._pathMapper, permissionPath) : undefined,
 				permissionUrl,
 				managedApprovalRequired,
 				requestSandboxBypass,
@@ -8287,7 +8489,7 @@ export class CopilotAgentSession extends Disposable {
 			return undefined;
 		}
 
-		const permissionUri = normalizePath(URI.file(permissionPath));
+		const permissionUri = normalizePath(copilotSdkPathToUri(this._pathMapper, permissionPath));
 		return extUriBiasedIgnorePathCase.isEqualOrParent(permissionUri, sessionDir) ? permissionPath : undefined;
 	}
 
@@ -8495,7 +8697,7 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private async _applyAssistedApprovalRepositoryContext(wrapper: CopilotSessionWrapper): Promise<void> {
 		const workingDirectory = this._workingDirectory;
-		if (!workingDirectory) {
+		if (!workingDirectory || workingDirectory.scheme !== Schemas.file) {
 			return;
 		}
 		try {
@@ -8560,7 +8762,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private _syncShellInitScript(recorder?: IAgentProviderSendStageRecorder): Promise<void> {
-		if (this._shellInitScriptDisposing || this._isInactiveForBackgroundConfigSync()) {
+		if (this._launchPlan.workspace?.kind === 'virtual' || this._shellInitScriptDisposing || this._isInactiveForBackgroundConfigSync()) {
 			return Promise.resolve();
 		}
 		return measureAgentProviderOperation(recorder, 'shell', () => this._applyEffectiveShellInitScripts(recorder), this._shellInitScriptSequencer);
@@ -8827,12 +9029,12 @@ export class CopilotAgentSession extends Disposable {
 			return undefined;
 		}
 
-		const fileUri = URI.file(filePath);
+		const fileUri = copilotSdkPathToUri(this._pathMapper, this._resolveEditFilePath(filePath));
 		const fileUriStr = fileUri.toString();
 
 		let beforeExists = false;
 		try {
-			beforeExists = await this._fileService.exists(fileUri);
+			beforeExists = await this._fileService.exists(this._sdkFileServiceUri(this._resolveEditFilePath(filePath)));
 		} catch (err) {
 			this._logService.warn(`[Copilot:${this.sessionId}] Failed to check file for edit preview: ${filePath}`, err);
 		}
@@ -10115,7 +10317,7 @@ export class CopilotAgentSession extends Disposable {
 					toolCallId: e.data.toolCallId,
 					...(contributor ? { contributor } : {}),
 					...(intention !== undefined ? { intention } : {}),
-					invocationMessage: getInvocationMessage(e.data.toolName, displayName, parameters, path => this._resolveEditFilePath(path), this._resolveAgentName),
+					invocationMessage: getInvocationMessage(e.data.toolName, displayName, parameters, path => this._resolveDisplayFilePath(path), this._resolveAgentName),
 					toolInput: getToolInputString(e.data.toolName, parameters, toolArgs),
 					confirmed: ToolCallConfirmationReason.NotNeeded,
 					_meta: toToolCallMeta(meta),
@@ -10158,7 +10360,7 @@ export class CopilotAgentSession extends Disposable {
 				toolCallId: e.data.toolCallId,
 				...(contributor ? { contributor } : {}),
 				...(intention !== undefined ? { intention } : {}),
-				invocationMessage: getInvocationMessage(e.data.toolName, displayName, parameters, path => this._resolveEditFilePath(path), this._resolveAgentName),
+				invocationMessage: getInvocationMessage(e.data.toolName, displayName, parameters, path => this._resolveDisplayFilePath(path), this._resolveAgentName),
 				toolInput: getToolInputString(e.data.toolName, parameters, toolArgs),
 				confirmed: ToolCallConfirmationReason.NotNeeded,
 				_meta: toToolCallMeta(clientToolAutoApproved ? { ...meta, autoApproveBySetting: true } : meta),
@@ -10366,7 +10568,7 @@ export class CopilotAgentSession extends Disposable {
 					toolCallId: e.data.toolCallId,
 					result: {
 						success: e.data.success,
-						pastTenseMessage: getPastTenseMessage(tracked.toolName, displayName, tracked.parameters, e.data.success, e.data.success ? toolOutput : undefined, path => this._resolveEditFilePath(path), this._resolveAgentName, tracked.meta?.[imageGenerationToolMetaKey]),
+						pastTenseMessage: getPastTenseMessage(tracked.toolName, displayName, tracked.parameters, e.data.success, e.data.success ? toolOutput : undefined, path => this._resolveDisplayFilePath(path), this._resolveAgentName, tracked.meta?.[imageGenerationToolMetaKey]),
 						content: content.length > 0 ? content : undefined,
 						structuredContent: e.data.result?.structuredContent as Record<string, unknown> | undefined,
 						resultMetadata: getSdkMcpResultMeta(e.data.result),
@@ -12023,7 +12225,7 @@ export class CopilotAgentSession extends Disposable {
 				actions,
 				canProvideFeedback: true,
 				answerQuestionId: questionId,
-				...(planPath ? { planUri: URI.file(planPath).toString() } : {}),
+				...(planPath ? { planUri: copilotSdkPathToUri(this._pathMapper, planPath).toString() } : {}),
 			},
 			questions: [{
 				kind: ChatInputQuestionKind.SingleSelect,
@@ -12723,7 +12925,9 @@ export class CopilotAgentSession extends Disposable {
 				return;
 			}
 			const projected = this._canvasByInstanceId.has(e.data.instanceId);
-			if (!projected && (this._canvasPhase !== 'live' || this._ignoredRestoredCanvasInstanceIds.has(e.data.instanceId))) {
+			if (!projected && (this._canvasPhase !== 'live'
+				|| this._ignoredRestoredCanvasInstanceIds.has(e.data.instanceId)
+				|| this._deferredCanvasCloseInstanceIds.has(e.data.instanceId))) {
 				return;
 			}
 			this._projectOpenedCanvas(e.data);

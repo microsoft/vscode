@@ -182,9 +182,15 @@ export const enum ExtensionBlockingOrigin {
 	Policy = 'policy',
 }
 
+export const enum ExtensionBlockingScope {
+	Extension = 'extension',
+	Version = 'version',
+}
+
 /** Present only when the gallery reports an extension, or the version in hand, as blocked. */
 export interface IExtensionBlockingInfo {
 	readonly origin: ExtensionBlockingOrigin;
+	readonly scope: ExtensionBlockingScope;
 }
 
 export interface IGalleryExtensionAsset {
@@ -406,6 +412,7 @@ export interface IExtensionQueryOptions {
 	productVersion?: IProductVersion;
 	compatible?: boolean;
 	queryAllVersions?: boolean;
+	/** Include a blocked version only when it is requested by exact version. */
 	includeBlockedVersions?: boolean;
 	source?: string;
 }

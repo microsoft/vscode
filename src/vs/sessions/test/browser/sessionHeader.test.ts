@@ -271,14 +271,21 @@ suite('Sessions - Headers', () => {
 		const chatDrag = simulateDragFrom(chatHeader, chatHeader.element);
 		const sessionDrag = simulateDragFrom(header, header.element);
 		header.element.dispatchEvent(new DragEvent(EventType.DRAG_END));
+		// Like an editor tab's new-window drag, only `vnd.code` types: other apps such as Finder
+		// reject the drop (no text clipping is created), so dropping it there opens a chat window.
+		const externalTypes = (e: DragEvent) => [...e.dataTransfer!.types].filter(type => !type.startsWith('application/vnd.code.'));
 		assert.deepStrictEqual({
 			chat: getSessionChatDragData(chatDrag),
 			session: JSON.parse(sessionDrag.dataTransfer!.getData(SessionsDataTransfers.SESSION)),
 			cleaned: !LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>().hasData(DraggedSessionIdentifier.prototype),
+			chatExternalTypes: externalTypes(chatDrag),
+			sessionExternalTypes: externalTypes(sessionDrag),
 		}, {
 			chat: { sessionId: session.sessionId, resource: mainChat.resource.toString() },
 			session: { sessionId: session.sessionId, resource: session.resource.toString() },
 			cleaned: true,
+			chatExternalTypes: [],
+			sessionExternalTypes: [],
 		});
 	});
 

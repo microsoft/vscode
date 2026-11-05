@@ -22,7 +22,7 @@ import { AgentHostCustomizationService } from '../../browser/agentHostCustomizat
 import { IChat, ISession } from '../../../sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../sessions/browser/sessionsProvidersService.js';
-import { ISessionsService } from '../../../sessions/browser/sessionsService.js';
+import { focusedSessionHostServiceOf } from '../../../sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsProvider } from '../../../sessions/common/sessionsProvider.js';
 import { assertCodexSkillItems, createCodexSkillCustomizations } from '../../../../../workbench/contrib/chat/test/browser/agentSessions/agentHostSkillDiscoveryTestUtils.js';
 
@@ -59,10 +59,7 @@ suite('AgentHostCustomizationService', () => {
 				override readonly automationSession = constObservable<ISession | undefined>(undefined);
 				override getSession(): ISession { return session; }
 			}(),
-			new class extends mock<ISessionsService>() {
-				override readonly activeSession = observableValue<IActiveSession | undefined>(this, session);
-				override readonly mainWindowActiveSession = this.activeSession;
-			}(),
+			focusedSessionHostServiceOf(observableValue<IActiveSession | undefined>('activeSession', session)),
 			new class extends mock<ISessionsProvidersService>() {
 				constructor(private readonly _provider: ISessionsProvider) { super(); }
 				override getProvider<T extends ISessionsProvider>(): T { return this._provider as T; }
@@ -91,10 +88,7 @@ suite('AgentHostCustomizationService', () => {
 				return !automationDraft && resource.toString() === sessionResource.toString() ? session : undefined;
 			}
 		};
-		const sessionsService = new class extends mock<ISessionsService>() {
-			override readonly activeSession = observableValue(this, undefined);
-			override readonly mainWindowActiveSession = this.activeSession;
-		};
+		const focusedSessionHostService = focusedSessionHostServiceOf(constObservable(undefined));
 		const sessionsProvidersService = new class extends mock<ISessionsProvidersService>() {
 			constructor(private readonly _provider: ISessionsProvider) {
 				super();
@@ -112,7 +106,7 @@ suite('AgentHostCustomizationService', () => {
 		});
 		const service = store.add(new AgentHostCustomizationService(
 			sessionsManagementService,
-			sessionsService,
+			focusedSessionHostService,
 			sessionsProvidersService,
 			instantiationService,
 			new NullLogService(),
@@ -186,9 +180,7 @@ suite('AgentHostCustomizationService', () => {
 					return { session, chat: mainChat };
 				}
 			}(),
-			new class extends mock<ISessionsService>() {
-				override readonly activeSession = constObservable<IActiveSession | undefined>(session);
-			}(),
+			focusedSessionHostServiceOf(constObservable<IActiveSession | undefined>(session)),
 			new class extends mock<ISessionsProvidersService>() {
 				override getProvider<T extends ISessionsProvider>(): T {
 					return provider as unknown as T;
