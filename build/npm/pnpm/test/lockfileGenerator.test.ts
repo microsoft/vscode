@@ -11,7 +11,7 @@ import { suite, test, type TestContext } from 'node:test';
 import { parsePnpmLockfile } from '../../../lib/pnpmLock.ts';
 import { createUniverse } from '../checks.ts';
 import { addPnpmfileChecksum, computePins, getPinnedDistTags, getPnpmfileChecksum, getShadowWorkspace, restoreImporterSpecifiers, type LockfilePlan } from '../lockfileGenerator.ts';
-import { createNativeBuildHooks, getNativeBuildEnv, getNativeBuildExtraEnv, readNpmrc } from '../nativeBuildEnv.ts';
+import { createNativeBuildHooks, getNativeBuildEnv, getNativeBuildExtraEnv, readNativeBuildConfig, type NativeBuildConfig } from '../nativeBuildEnv.ts';
 import { parseNpmLockfile, type NpmLockfile } from '../npmLockfile.ts';
 import { checkPnpmfileChecksum } from '../verify-locks.ts';
 import { renderWorkspaceYaml, type NpmFolder } from '../workspaceConfig.ts';
@@ -102,48 +102,91 @@ suite('pnpm conversion: lockfile generation', () => {
 
 suite('pnpm conversion: native build environment', () => {
 
-	function createRoot(t: TestContext, npmrc: string): string {
+	function createRoot(t: TestContext, nativeBuild: NativeBuildConfig | undefined): string {
 		const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vscode-native-build-env-'));
 		t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
-		fs.writeFileSync(path.join(dir, '.npmrc'), npmrc);
+		fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ name: 'root', nativeBuild }));
 		return dir;
 	}
 
-	test('reads .npmrc and clears native build keys it does not set', t => {
-		// build/: no target in .npmrc, builds for the running Node.js on the host architecture
-		const build = createRoot(t, '# comment\ndisturl="https://nodejs.org/dist"\nruntime="node"\nforce_process_config="true"\n');
-		// remote/: builds for the remote server's Node.js version in .npmrc
-		const remote = createRoot(t, 'disturl="https://nodejs.org/dist"\ntarget="24.22.1"\nruntime="node"\n');
-		assert.deepStrictEqual(Object.fromEntries(readNpmrc(path.join(build, '.npmrc'))), { disturl: 'https://nodejs.org/dist', runtime: 'node', force_process_config: 'true' });
+	// build/: no target, builds for the running Node.js on the host architecture
+	const build: NativeBuildConfig = { runtime: 'node', disturl: 'https://nodejs.org/dist', buildFromSource: true, forceProcessConfig: true };
+	// remote/: builds for the remote server's Node.js version
+	const remote: NativeBuildConfig = { runtime: 'node', target: '24.22.1', disturl: 'https://nodejs.org/dist', msBuildId: '488038', buildFromSource: true, forceProcessConfig: true };
+	// root: builds for Electron
+	const electron: NativeBuildConfig = { runtime: 'electron', target: '43.8.3', disturl: 'https://electronjs.org/headers', msBuildId: '15784459', buildFromSource: true };
+
+	test('reads the nativeBuild field of package.json and clears native build keys it does not set', t => {
+		const buildRoot = createRoot(t, build);
+		const remoteRoot = createRoot(t, remote);
 		assert.deepStrictEqual([
-			getNativeBuildEnv(build, { forceProcessConfigOnDarwin: true, hostArch: true, runningNodeTarget: true }, 'darwin', 'arm64', '22.21.1'),
-			getNativeBuildEnv(remote, { forceProcessConfigOnDarwin: true }, 'linux', 'x64', '22.21.1'),
+			readNativeBuildConfig(buildRoot),
+			readNativeBuildConfig(createRoot(t, undefined)),
+			getNativeBuildEnv(buildRoot, { hostArch: true, runningNodeTarget: true }, 'darwin', 'arm64', '22.21.1'),
+			getNativeBuildEnv(remoteRoot, {}, 'linux', 'x64', '22.21.1'),
+			getNativeBuildEnv(createRoot(t, electron), {}, 'darwin', 'arm64', '22.21.1'),
 		], [
+			build,
+			undefined,
 			{
 				npm_config_disturl: 'https://nodejs.org/dist',
 				npm_config_target: '22.21.1',
 				npm_config_ms_build_id: undefined,
 				npm_config_runtime: 'node',
-				npm_config_build_from_source: undefined,
+				npm_config_build_from_source: 'true',
 				npm_config_force_process_config: 'true',
 				npm_config_arch: 'arm64',
 			},
 			{
 				npm_config_disturl: 'https://nodejs.org/dist',
 				npm_config_target: '24.22.1',
-				npm_config_ms_build_id: undefined,
+				npm_config_ms_build_id: '488038',
 				npm_config_runtime: 'node',
-				npm_config_build_from_source: undefined,
+				npm_config_build_from_source: 'true',
+				// process.config only has the clang settings that node-gyp needs on macOS
+				npm_config_force_process_config: undefined,
+			},
+			{
+				npm_config_disturl: 'https://electronjs.org/headers',
+				npm_config_target: '43.8.3',
+				npm_config_ms_build_id: '15784459',
+				npm_config_runtime: 'electron',
+				npm_config_build_from_source: 'true',
 				npm_config_force_process_config: undefined,
 			},
 		]);
 	});
 
+	test('rejects an invalid nativeBuild field', t => {
+		const messages = [
+			'not an object',
+			{ runtime: 'electron', disturl: 'x', ms_build_id: '1' },
+			{ runtime: 'electron', disturl: 'x', buildFromSource: 'true' },
+			{ runtime: 'bun', disturl: 'x' },
+			{ runtime: 'node' },
+		].map(nativeBuild => {
+			const dir = createRoot(t, nativeBuild as unknown as NativeBuildConfig);
+			try {
+				getNativeBuildEnv(dir);
+				return 'no error';
+			} catch (error) {
+				return (error as Error).message.replace(`Invalid nativeBuild field in ${path.join(dir, 'package.json')}: `, '').replace('. See NativeBuildConfig in build/npm/pnpm/nativeBuildEnv.ts.', '');
+			}
+		});
+		assert.deepStrictEqual(messages, [
+			'expected an object',
+			'unknown property "ms_build_id"',
+			'"buildFromSource" must be a boolean',
+			'"runtime" must be "electron" or "node"',
+			'"disturl" is required',
+		]);
+	});
+
 	test('passes the native build variables as extraEnv, with empty values for keys to clear', t => {
-		const remote = createRoot(t, 'disturl="https://nodejs.org/dist"\ntarget="24.22.1"\nruntime="node"\n');
+		const remoteRoot = createRoot(t, { runtime: 'node', target: '24.22.1', disturl: 'https://nodejs.org/dist' });
 		// The root postinstall installs remote/ with the root's Electron variables in its environment:
-		// the keys that remote/.npmrc doesn't set get empty values instead
-		assert.deepStrictEqual(getNativeBuildExtraEnv(remote, { forceProcessConfigOnDarwin: true }, { npm_command: 'install', other: 'kept' }, 'linux', 'x64', '22.21.1'), {
+		// the keys that the nativeBuild field of remote/package.json doesn't set get empty values instead
+		assert.deepStrictEqual(getNativeBuildExtraEnv(remoteRoot, {}, { npm_command: 'install', other: 'kept' }, 'linux', 'x64', '22.21.1'), {
 			npm_command: 'install',
 			other: 'kept',
 			npm_config_disturl: 'https://nodejs.org/dist',
@@ -156,7 +199,7 @@ suite('pnpm conversion: native build environment', () => {
 	});
 
 	test('passes the frozen lockfile of pnpm ci on to the nested installs', t => {
-		const root = createRoot(t, 'runtime="electron"\n');
+		const root = createRoot(t, electron);
 		const frozen = (command: string, exportFrozenLockfileOfCi: boolean) => getNativeBuildExtraEnv(root, { exportFrozenLockfileOfCi }, { npm_command: command }, 'linux', 'x64', '22.21.1').pnpm_config_frozen_lockfile;
 		// pnpm reports `pnpm ci` and its aliases (clean-install, ic, install-clean) as `ci`, and
 		// `pnpm install --frozen-lockfile` as `install`.
@@ -164,7 +207,7 @@ suite('pnpm conversion: native build environment', () => {
 	});
 
 	test('the updateConfig hook keeps the rest of the configuration', t => {
-		const root = createRoot(t, 'runtime="electron"\n');
+		const root = createRoot(t, electron);
 		const config = createNativeBuildHooks(root, { exportFrozenLockfileOfCi: true }).updateConfig({ nodeLinker: 'hoisted', extraEnv: { npm_command: 'ci' } });
 		assert.deepStrictEqual([config.nodeLinker, config.extraEnv?.npm_command, config.extraEnv?.npm_config_runtime, config.extraEnv?.pnpm_config_frozen_lockfile], ['hoisted', 'ci', 'electron', 'true']);
 	});

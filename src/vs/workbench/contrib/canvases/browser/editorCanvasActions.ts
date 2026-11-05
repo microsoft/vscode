@@ -22,6 +22,14 @@ export const OPEN_EDITOR_CANVAS_COMMAND_ID = 'workbench.action.chat.openCanvas';
 export const REOPEN_EDITOR_CANVAS_COMMAND_ID = 'workbench.action.chat.reopenCanvas';
 export const ChatNewCanvasMenuId = new MenuId('ChatNewCanvasMenu');
 
+/** The groups of {@link ChatNewCanvasMenuId}, top to bottom, the same as in the Agents window's Canvas menus. */
+const CanvasMenuGroup = {
+	/** The chat's canvases whose tab was closed but which are still running. */
+	Running: '1_running',
+	/** The chat's canvas types, which open a canvas. */
+	Available: '2_available',
+} as const;
+
 class CanvasMenuActionRegistration extends Disposable {
 
 	private readonly menuRegistration = this._register(new MutableDisposable<IDisposable>());
@@ -69,6 +77,8 @@ export function registerEditorCanvasActions(
 	notificationService: INotificationService,
 ): IDisposable {
 	const store = new DisposableStore();
+	store.add(MenuRegistry.appendMenuGroup(ChatNewCanvasMenuId, { group: CanvasMenuGroup.Running, title: localize('editorCanvas.running', "Running") }));
+	store.add(MenuRegistry.appendMenuGroup(ChatNewCanvasMenuId, { group: CanvasMenuGroup.Available, title: localize('editorCanvas.available', "Available") }));
 	const registrations = store.add(new DisposableMap<string, CanvasMenuActionRegistration>());
 	const submenuRegistration = store.add(new MutableDisposable<IDisposable>());
 	const widgetStateChanged = observableSignal(store);
@@ -121,7 +131,7 @@ export function registerEditorCanvasActions(
 				}
 				registration.update(
 					label,
-					'1_available',
+					CanvasMenuGroup.Available,
 					index,
 					() => openCanvasDefinition(context.owner, canvas, label),
 				);
@@ -143,7 +153,7 @@ export function registerEditorCanvasActions(
 				}
 				registration.update(
 					label,
-					'2_open',
+					CanvasMenuGroup.Running,
 					index,
 					() => reopenCanvas(target.reference, label),
 				);

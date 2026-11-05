@@ -158,6 +158,15 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		sinon.restore();
 	});
 
+	test('removes its widget from the container when disposed', () => {
+		const pick = store.add(controller.createQuickPick());
+		pick.show();
+		pick.hide();
+		const attachedBefore = fixture.querySelectorAll('.quick-input-widget').length;
+		controller.dispose();
+		assert.deepStrictEqual({ attachedBefore, attachedAfter: fixture.querySelectorAll('.quick-input-widget').length }, { attachedBefore: 1, attachedAfter: 0 });
+	});
+
 	test('custom content is exclusive to QuickWidget and cleared when switching controls', () => {
 		const widget = store.add(controller.createQuickWidget());
 		const content = mainWindow.document.createElement('div');

@@ -17,6 +17,20 @@
 	height: 100%;
 }
 
+.remotes-editor-content:not([hidden]) {
+	display: flex;
+	flex-direction: column;
+}
+
+.remotes-editor-this-computer {
+	flex-shrink: 0;
+}
+
+.remotes-editor-table {
+	flex: 1;
+	min-height: 0;
+}
+
 .remotes-editor-disabled {
 	color: var(--vscode-descriptionForeground);
 }

@@ -103,7 +103,7 @@ Section counts and rendered rows consume the same filtered model so hidden or di
 
 Prompt-based items use the prompts service adapter. MCP servers, tools, plugins, and external harness items use their owning providers directly when their data does not fit the prompt-file contract.
 
-Host-published MCP items retain the runtime-reported configuration source through typed metadata and the shared item contract, independently of lifecycle state or the availability of a local configuration definition.
+Host-published MCP items retain the runtime-reported configuration source through typed metadata and the shared item contract, independently of lifecycle state or the availability of a local configuration definition. `IAgentHostMcpServer.skillBundle` carries the raw skill-bundle identity and listed child count for effectively enabled MCP containers, allowing navigation from MCP rows to the same bundle in Skills without interpreting scoped server IDs.
 
 The home page shows the original Overview until the default-off marketplace visibility flag and at least one marketplace source are enabled; it then shows unified Discover. With Marketplace visibility off, the legacy MCP and Plugin Available sections remain available. Switching surfaces disposes the previous surface and restores the current visible sections and harness context. Discover normalizes installed item-bearing sections from their existing owners and uses the platform `ICustomizationMarketplaceService` as its available catalog source. Catalog results are not installed customizations, do not contribute to customization counts, and do not imply compatibility with the active harness or permission to install. The UI and installation consumers depend on source-neutral contracts, not individual catalog backends. Marketplace-backed installation state and reversible install, repair, or uninstall operations remain owned by `ICustomizationMarketplaceInstallService`.
 
@@ -151,7 +151,7 @@ Contributed management sections can declare `enablementSettings` to gate visibil
 
 ## Active-session context
 
-In the Agents Window, the customization harness and project root track `ISessionsService.activeSession`. Opening the editor synchronizes it with the currently active session, and switching the active session can update the editor's harness and project context. A transient project-root override takes precedence while it is set.
+In the Agents Window, the customization harness and project root track the chat of the focused session host (`IFocusedSessionHostService`). Opening the editor synchronizes it with that chat, and focusing another chat or window can update the editor's harness and project context. A transient project-root override takes precedence while it is set.
 
 The management-editor command may select a section, target a session type, reveal a URI-addressable customization, and open migration mode for a targeted migration category. Operations that migrate files bind destination resolution and confirmation to their initiating session and stop if the active session changes.
 

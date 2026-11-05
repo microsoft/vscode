@@ -138,7 +138,7 @@ suite('Combined mode and permissions picker', () => {
 		row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
 	}
 
-	test('renders a compact neutral right-aligned New badge and announces it', () => {
+	test('renders a compact neutral right-aligned Recommended badge and announces it', () => {
 		const { popup } = setup(true);
 		popup.style.setProperty('--vscode-fontSize-label3', '10px');
 		popup.style.setProperty('--vscode-spacing-size160', '16px');
@@ -174,7 +174,7 @@ suite('Combined mode and permissions picker', () => {
 			alignedWithTitle: Math.abs(titleBounds.top + titleBounds.height / 2 - badgeBounds.top - badgeBounds.height / 2) < 0.5,
 			ariaLabel: row.ariaLabel,
 		}, {
-			badge: 'New',
+			badge: 'Recommended',
 			afterTitle: true,
 			titleFlexGrow: '0',
 			fontSize: '10px',
@@ -187,7 +187,7 @@ suite('Combined mode and permissions picker', () => {
 			textCenteredHorizontally: true,
 			textCenteredVertically: true,
 			alignedWithTitle: true,
-			ariaLabel: 'Assisted permissions, New, Assisted permissions description, Assisted permissions details',
+			ariaLabel: 'Assisted permissions, Recommended, Assisted permissions description, Assisted permissions details',
 		});
 	});
 
@@ -208,12 +208,12 @@ suite('Combined mode and permissions picker', () => {
 			badge: 'Org default',
 			background: 'color(srgb 0.8 0.8 0.8 / 0.1)',
 			color: 'rgb(153, 153, 153)',
-			ariaLabel: 'Assisted permissions, New, Org default, Assisted permissions description, Assisted permissions details',
+			ariaLabel: 'Assisted permissions, Recommended, Org default, Assisted permissions description, Assisted permissions details',
 			otherRows: [null, null],
 		});
 	});
 
-	test('the New badge respects focus and high-contrast colors with a neutral fill', () => {
+	test('the Recommended badge respects focus and high-contrast colors with a neutral fill', () => {
 		const { service, popup } = setup(true);
 		popup.style.setProperty('--vscode-strokeThickness', '1px');
 		popup.style.setProperty('--vscode-foreground', '#cccccc');

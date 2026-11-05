@@ -28,12 +28,13 @@ import { ChatInputPart } from '../../browser/widget/input/chatInputPart.js';
 import { ChatViewPane } from '../../browser/widgetHosts/viewPane/chatViewPane.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { IChatSessionsService, SessionType } from '../../common/chatSessionsService.js';
+import { ChatModeKind } from '../../common/constants.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
-import { IChatModel, IChatModelInputState, IChatRequestModel, IChatResponseModel, IInputModel } from '../../common/model/chatModel.js';
+import { IChatModel, IChatModelInputState, IChatRequestModeInfo, IChatRequestModel, IChatResponseModel, IInputModel } from '../../common/model/chatModel.js';
 import { LocalChatSessionUri, getChatSessionType } from '../../common/model/chatUri.js';
 import { ChatViewModel } from '../../common/model/chatViewModel.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
-import { ILanguageModelChatMetadataAndIdentifier } from '../../common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../common/languageModels.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostNewSessionFolderService } from '../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentSessionsService } from '../../browser/agentSessions/agentSessionsService.js';
@@ -45,17 +46,27 @@ suite('Continue in Copilot policy recovery', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	for (const sidebar of [false, true]) {
-		for (const scenario of ['local', SessionType.AgentHostClaude, SessionType.AgentHostCodex, 'empty', 'unavailable', 'unsupported', 'archived-unsupported', 'archived-remote', 'prepare-failed', 'import-failed', 'import-missing', 'history-missing', 'history-load-error', 'open-failed', 'open-cancelled', 'double-click', 'archived', 'unresolved-history', 'missing-history', 'cancelled', 'in-progress', 'hidden', 'switched', 'hidden-during-preparation', 'hidden-during-materialization', 'switched-during-materialization', 'cleanup-failed']) {
+		for (const scenario of ['local', 'selected-model', 'historical-model', 'unresolved-model', 'custom-agent', SessionType.AgentHostClaude, SessionType.AgentHostCodex, 'empty', 'unavailable', 'unsupported', 'archived-unsupported', 'archived-remote', 'prepare-failed', 'import-failed', 'import-missing', 'history-missing', 'history-load-error', 'open-failed', 'open-cancelled', 'double-click', 'archived', 'unresolved-history', 'missing-history', 'cancelled', 'in-progress', 'hidden', 'switched', 'hidden-during-preparation', 'hidden-during-materialization', 'switched-during-materialization', 'cleanup-failed']) {
 			test(`preserves draft and does not send for ${scenario} in ${sidebar ? 'panel' : 'editor'}`, async () => {
 				const services = store.add(new TestInstantiationService());
 				const imports = new AgentHostImportConversationStore();
 				const source = scenario === SessionType.AgentHostClaude || scenario === SessionType.AgentHostCodex
 					? URI.from({ scheme: scenario, path: '/source' }) : LocalChatSessionUri.forSession('source');
 				const inputUri = URI.parse('vscode-chat-input:source');
+				const agentFile = URI.file('/workspace/.github/agents/reviewer.agent.md');
+				// The request's model is resolved per turn; the input's selected model, else the last turn's, becomes the session model.
+				const requestModelId = scenario === 'selected-model' || scenario === 'historical-model' ? 'copilot/gpt-5' : scenario === 'unresolved-model' ? 'byok/llama' : undefined;
+				const selectedModelId = scenario === 'selected-model' ? 'copilot/claude-sonnet-5' : scenario === 'unresolved-model' ? 'byok/llama' : 'old-model';
+				const expected = {
+					turnModel: requestModelId === 'copilot/gpt-5' ? { id: 'gpt-5' } : undefined,
+					sessionModel: scenario === 'selected-model' ? { id: 'claude-sonnet-5' } : scenario === 'historical-model' ? { id: 'gpt-5' } : undefined,
+				};
 				const request = upcastPartial<IChatRequestModel>({
 					message: { text: 'Original question', parts: [] },
+					modelId: requestModelId,
 					response: upcastPartial<IChatResponseModel>({
 						entireResponse: upcastPartial<IChatResponseModel['entireResponse']>({ value: [{ kind: 'markdownContent', content: new MarkdownString('Original answer') }] }),
+						contentReferences: [], codeCitations: [],
 						response: upcastPartial<IChatResponseModel['response']>({ getMarkdown: () => 'Original answer' }),
 					}),
 				});
@@ -66,7 +77,10 @@ suite('Continue in Copilot policy recovery', () => {
 					viewModel: upcastPartial<ChatViewModel>({ sessionResource: source, model }),
 					viewContext: sidebar ? { viewId: ChatViewId } : {},
 					input: upcastPartial<ChatInputPart>({
-						selectedLanguageModel: constObservable(upcastPartial<ILanguageModelChatMetadataAndIdentifier>({ identifier: 'old-model' })),
+						selectedLanguageModel: constObservable(upcastPartial<ILanguageModelChatMetadataAndIdentifier>({ identifier: selectedModelId })),
+						currentModeInfo: upcastPartial<IChatRequestModeInfo>(scenario === 'custom-agent'
+							? { kind: ChatModeKind.Agent, isBuiltin: false, modeInstructions: { uri: agentFile, name: 'reviewer', content: '', toolReferences: [] } }
+							: { kind: ChatModeKind.Agent, isBuiltin: true, modeInstructions: undefined }),
 					}),
 					getInput: () => 'Unsent follow-up',
 					getInputState: () => upcastPartial<IChatModelInputState>({ inputText: 'Unsent follow-up', attachments: [attachment], selections: [] }),
@@ -76,11 +90,20 @@ suite('Continue in Copilot policy recovery', () => {
 				let draft: Partial<IChatModelInputState> | undefined;
 				const preparation: string[] = [];
 				const telemetry: { event: string; data: object | undefined }[] = [];
+				const importEvents: (object | undefined)[] = [];
 				const assertTelemetry = (outcome: 'succeeded' | 'failed' | 'cancelled') => assert.deepStrictEqual(telemetry, ['started', outcome].map(outcome => ({
 					event: 'chat.enterprisePolicyRecovery',
 					data: { action: scenario === 'empty' ? 'newChat' : 'migrate', location: sidebar ? 'panel' : 'editor', outcome },
 				})));
-				services.stub(ITelemetryService, { publicLog2: (event, data) => { telemetry.push({ event, data }); } });
+				services.stub(ITelemetryService, {
+					publicLog2: (event, data) => {
+						if (event === 'chat.importConversation') {
+							importEvents.push(data);
+						} else {
+							telemetry.push({ event, data });
+						}
+					}
+				});
 				let archived = scenario === 'archived' || scenario === 'archived-unsupported' || scenario === 'archived-remote';
 				let historyResolved = scenario !== 'unresolved-history';
 				const openStarted = new DeferredPromise<void>();
@@ -199,6 +222,12 @@ suite('Continue in Copilot policy recovery', () => {
 				});
 				services.stub(ICustomizationHarnessService, {});
 				services.stub(ILanguageModelToolsService, {});
+				const languageModels: Record<string, Partial<ILanguageModelChatMetadata>> = {
+					'copilot/gpt-5': { id: 'gpt-5', vendor: 'copilot' },
+					'copilot/claude-sonnet-5': { id: 'claude-sonnet-5', vendor: 'copilot' },
+					'byok/llama': { id: 'llama', vendor: 'byok' },
+				};
+				services.stub(ILanguageModelsService, { lookupLanguageModel: identifier => languageModels[identifier] && upcastPartial<ILanguageModelChatMetadata>(languageModels[identifier]) });
 				services.stub(IProgressService, { withProgress: (_options, task) => task({ report: () => { } }) });
 				services.stub(IEditorGroupsService, { groups: [] });
 				services.stub(IEditorService, {
@@ -264,9 +293,10 @@ suite('Continue in Copilot policy recovery', () => {
 				if (scenario === 'hidden' || scenario === 'switched' || scenario === 'hidden-during-preparation') {
 					await assert.rejects(run, CancellationError);
 					assertTelemetry('cancelled');
-					assert.deepStrictEqual({ target, archived, draft, preparation }, {
+					assert.deepStrictEqual({ target, archived, draft, preparation, importEvents }, {
 						target: undefined, archived: false, draft: undefined,
 						preparation: scenario === 'hidden-during-preparation' ? ['prepare', 'release draft'] : [],
+						importEvents: [],
 					});
 					return;
 				}
@@ -277,10 +307,12 @@ suite('Continue in Copilot policy recovery', () => {
 								: /Couldn't move this chat to Copilot/;
 					await assert.rejects(run, error);
 					assertTelemetry(scenario === 'cancelled' ? 'cancelled' : 'failed');
-					assert.deepStrictEqual({ target, draft: widget.getInput(), destinationDraft: draft, history: model.getRequests().length, preparation, archived }, {
+					assert.deepStrictEqual({ target, draft: widget.getInput(), destinationDraft: draft, history: model.getRequests().length, preparation, archived, importEvents }, {
 						target: scenario === 'history-missing' || scenario === 'history-load-error' ? real : undefined, draft: 'Unsent follow-up', destinationDraft: undefined, history: 1, archived: scenario === 'archived',
 						preparation: scenario === 'unavailable' || scenario === 'archived' || scenario === 'missing-history' || scenario === 'cancelled' || scenario === 'in-progress' ? [] : scenario === 'prepare-failed' ? ['prepare', 'release draft']
 							: scenario === 'open-failed' || scenario === 'open-cancelled' || scenario === 'history-missing' || scenario === 'history-load-error' ? ['prepare', 'import', 'release draft', 'open'] : ['prepare', 'import', 'release draft'],
+						// A move that did not complete reports no import.
+						importEvents: [],
 					});
 					return;
 				}
@@ -293,17 +325,19 @@ suite('Continue in Copilot policy recovery', () => {
 				assert.deepStrictEqual({
 					target: target && getChatSessionType(target),
 					title: imported?.title,
-					history: imported?.turns.map(turn => ({ text: turn.message.text, response: turn.responseParts.map(part => part.kind === 'markdown' ? { kind: part.kind, content: part.content } : part) })),
+					history: imported?.turns.map(turn => ({ text: turn.message.text, model: turn.message.model, response: turn.responseParts.map(part => part.kind === 'markdown' ? { kind: part.kind, content: part.content } : part) })),
 					draft: draft && { ...draft, attachments: draft.attachments?.map(entry => entry.id.startsWith('chat-delegation-transcript-') ? { transcript: entry.value } : entry) },
 					preparation, archived, backendExists, listed, deleted, aliases, published, modelOverride: imported?.model, originalDraft: widget.getInput(), originalRequests: model.getRequests().length,
+					importEvents,
 				}, {
 					target: SessionType.AgentHostCopilot,
 					title: newChat ? undefined : 'Local conversation title',
-					history: newChat ? undefined : [{ text: 'Original question', response: [{ kind: 'markdown', content: 'Original answer' }] }],
+					history: newChat ? undefined : [{ text: 'Original question', model: expected.turnModel, response: [{ kind: 'markdown', content: 'Original answer' }] }],
 					draft: {
 						inputText: 'Unsent follow-up',
 						attachments: transcriptOnly ? [{ transcript: 'The following is the conversation history from a previous Local session. Continue working on it.\n\nUser: Original question\nAssistant: Original answer' }, attachment] : [attachment],
 						selections: [],
+						...(scenario === 'custom-agent' ? { mode: { id: agentFile.toString(), kind: ChatModeKind.Agent } } : {}),
 					},
 					preparation: newChat ? ['open'] : ['prepare', 'import', 'release draft', 'open', 'release imported ownership', 'archive'],
 					// A transcript continuation leaves the source archive state alone.
@@ -311,7 +345,14 @@ suite('Continue in Copilot policy recovery', () => {
 					backendExists: !newChat, listed: !newChat, deleted: [],
 					aliases: newChat ? [] : [real],
 					published: newChat ? [] : [real],
-					modelOverride: undefined, originalDraft: 'Unsent follow-up', originalRequests: scenario === 'empty' ? 0 : 1,
+					modelOverride: expected.sessionModel, originalDraft: 'Unsent follow-up', originalRequests: scenario === 'empty' ? 0 : 1,
+					// Only an actual import reports what it carried over.
+					importEvents: newChat ? [] : [{
+						source: 'move', turns: 1, editedFiles: 0,
+						skippedResponseParts: 0, skippedResponsePartKinds: '',
+						skippedAttachments: 0, skippedAttachmentKinds: '',
+						droppedToolOutputs: 0,
+					}],
 				});
 			});
 		}

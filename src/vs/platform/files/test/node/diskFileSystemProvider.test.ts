@@ -13,14 +13,30 @@ import { stub } from 'sinon';
 import { FileAccess } from '../../../../base/common/network.js';
 import { join } from '../../../../base/common/path.js';
 import { isWindows } from '../../../../base/common/platform.js';
-import { URI } from '../../../../base/common/uri.js';
+import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { getRandomTestPath } from '../../../../base/test/node/testUtils.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../../common/files.js';
+import { Event } from '../../../../base/common/event.js';
+import { DefaultURITransformer, IURITransformer } from '../../../../base/common/uriIpc.js';
+import { DiskFileSystemProviderClient } from '../../common/diskFileSystemProviderClient.js';
+import { AbstractDiskFileSystemProviderChannel } from '../../node/diskFileSystemProviderServer.js';
 import { DiskFileSystemProvider } from '../../node/diskFileSystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
 
 const execFileAsync = promisify(execFile);
+
+class TestDiskFileSystemProviderChannel extends AbstractDiskFileSystemProviderChannel<void> {
+	protected override getUriTransformer(): IURITransformer {
+		return DefaultURITransformer;
+	}
+	protected override transformIncoming(_transformer: IURITransformer, resource: UriComponents): URI {
+		return URI.revive(resource);
+	}
+	protected override createSessionFileWatcher(): never {
+		throw new Error('Watching is not used by this test channel');
+	}
+}
 
 suite('DiskFileSystemProvider', function () {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -51,6 +67,71 @@ suite('DiskFileSystemProvider', function () {
 			error => error instanceof Error && toFileSystemProviderErrorCode(error) === FileSystemProviderErrorCode.FileNotFound
 		);
 	});
+
+	test('atomic rename is forwarded through the disk provider channel', async () => {
+		const server = store.add(new TestDiskFileSystemProviderChannel(provider, new NullLogService()));
+		const commands: string[] = [];
+		const client = store.add(new DiskFileSystemProviderClient({
+			call: (command, args) => {
+				commands.push(command);
+				return server.call(undefined, command, args);
+			},
+			listen: () => Event.None,
+		}, {}));
+		const source = join(testDir, 'source');
+		const target = join(testDir, 'target');
+		await promises.writeFile(source, 'new');
+		await promises.writeFile(target, 'old');
+		await client.renameFileAtomic(URI.file(source), URI.file(target), { overwrite: true });
+		assert.deepStrictEqual({
+			commands,
+			sourceExists: await promises.stat(source).then(() => true, () => false),
+			target: await promises.readFile(target, 'utf8'),
+		}, { commands: ['renameFileAtomic'], sourceExists: false, target: 'new' });
+	});
+
+	test('atomic rename errors cross IPC without falling back to ordinary rename', async () => {
+		const server = store.add(new TestDiskFileSystemProviderChannel(provider, new NullLogService()));
+		const commands: string[] = [];
+		const client = store.add(new DiskFileSystemProviderClient({
+			call: (command, args) => {
+				commands.push(command);
+				return server.call(undefined, command, args);
+			},
+			listen: () => Event.None,
+		}, {}));
+		const source = join(testDir, 'source');
+		const target = join(testDir, 'target');
+		await promises.writeFile(source, 'new');
+		await promises.writeFile(target, 'old');
+		const failure = new Error('EXDEV');
+		const rename = stub(provider, 'renameFileAtomic').rejects(failure);
+		try {
+			await assert.rejects(client.renameFileAtomic(URI.file(source), URI.file(target), { overwrite: true }), error => error === failure);
+		} finally {
+			rename.restore();
+		}
+		assert.deepStrictEqual({
+			commands,
+			source: await promises.readFile(source, 'utf8'),
+			target: await promises.readFile(target, 'utf8'),
+		}, { commands: ['renameFileAtomic'], source: 'new', target: 'old' });
+	});
+
+	for (const sourceDirectory of [true, false]) {
+		test(`atomic rename rejects ${sourceDirectory ? 'source' : 'target'} directories without deleting them`, async () => {
+			const source = join(testDir, 'source');
+			const target = join(testDir, 'target');
+			await promises.mkdir(sourceDirectory ? source : target);
+			await promises.writeFile(sourceDirectory ? target : source, 'preserved');
+			await assert.rejects(provider.renameFileAtomic(URI.file(source), URI.file(target), { overwrite: true }), /only support/);
+			assert.deepStrictEqual({
+				sourceDirectory: (await promises.stat(source)).isDirectory(),
+				targetDirectory: (await promises.stat(target)).isDirectory(),
+				content: await promises.readFile(sourceDirectory ? target : source, 'utf8'),
+			}, { sourceDirectory, targetDirectory: !sourceDirectory, content: 'preserved' });
+		});
+	}
 
 	for (const method of ['open', 'readFile', 'readFileStream']) {
 		(isWindows ? test.skip : test)(`${method} rejects named pipes without a writer`, async function () {

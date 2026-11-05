@@ -169,7 +169,8 @@ suite('Agent Host Provider Integration - Copilot managed permissions', function 
 					await session.rpc.tools.initializeAndValidate();
 					assert.strictEqual((await session.rpc.permissions.setMode({ mode: 'manual' })).success, true);
 					requests.length = 0;
-					const shellResult = await session.rpc.tools.execute({ name: shell, arguments: { command: isWindows ? 'Get-Location' : 'pwd', description: 'Read working directory' } });
+					// A script retains the approval boundary even when native analysis auto-approves safe commands.
+					const shellResult = await session.rpc.tools.execute({ name: shell, arguments: { command: 'node -e "console.log(process.cwd())"', description: 'Read working directory' } });
 					const readResult = await session.rpc.tools.execute({ name: 'view', arguments: { path: join(directory, 'input.txt') } });
 					const outputPath = join(directory, `${phase}.txt`);
 					const writeResult = await session.rpc.tools.execute({ name: 'create', arguments: { path: outputPath, file_text: phase } });
@@ -193,7 +194,7 @@ suite('Agent Host Provider Integration - Copilot managed permissions', function 
 						requests: phase === 'removed' ? [{ kind: 'url', managedApprovalRequired: false }] : [],
 					} : {
 						result: 'success',
-						requests: [{ kind: 'shell', managedApprovalRequired: managedShellApprovalRequired }],
+						requests: managedShellApprovalRequired || isWindows ? [{ kind: 'shell', managedApprovalRequired: managedShellApprovalRequired }] : [],
 					}, phase);
 
 					if (managedShellApprovalRequired) {

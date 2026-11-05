@@ -23,8 +23,10 @@ const clientProxySettings = ['http.useLocalProxyConfiguration', 'http.proxy', 'h
  */
 export class AgentHostClientProxy implements IAgentHostClientProxyProvider {
 
-	/** Hosts of the proxies this client resolved for the agent host. */
+	/** Hosts of the proxies this client resolved for the agent host or for GitHub Copilot. */
 	private readonly _resolvedProxyHosts = new Set<string>();
+	/** Hosts of the proxies this client declined tickets for, to log each once. */
+	private readonly _declinedProxyHosts = new Set<string>();
 
 	constructor(
 		private readonly _isEnabled: () => boolean,
@@ -55,7 +57,11 @@ export class AgentHostClientProxy implements IAgentHostClientProxyProvider {
 
 	async lookupKerberosAuthorization(proxyUrl: string): Promise<string | undefined> {
 		if (!await this._isAgentHostProxy(proxyUrl)) {
-			this._logService.info(`[AgentHostClientProxy] Declined Kerberos lookup for ${getUrlHost(proxyUrl) ?? 'an invalid URL'}: not a proxy this client points the agent host at`);
+			const host = getUrlHost(proxyUrl) ?? 'an invalid URL';
+			if (!this._declinedProxyHosts.has(host)) {
+				this._declinedProxyHosts.add(host);
+				this._logService.info(`[AgentHostClientProxy] Declined Kerberos lookup for ${host}: not a proxy this client points the agent host at`);
+			}
 			return undefined;
 		}
 		return this._requestService.lookupKerberosAuthorization(proxyUrl);
@@ -87,7 +93,12 @@ export class AgentHostClientProxy implements IAgentHostClientProxyProvider {
 		}
 		const apiUrl = this._defaultAccountService.currentDefaultAccount?.entitlementsData?.endpoints?.api || GITHUB_DOT_COM_COPILOT_API_BASE_URI;
 		try {
-			return getResolvedProxyHosts(await this._requestService.resolveProxy(apiUrl));
+			const hosts = getResolvedProxyHosts(await this._requestService.resolveProxy(apiUrl));
+			// Remembered like the proxies resolved for the agent host, so that later lookups for them resolve nothing.
+			for (const host of hosts) {
+				this._resolvedProxyHosts.add(host);
+			}
+			return hosts;
 		} catch (error) {
 			this._logService.debug('[AgentHostClientProxy] Failed to resolve the GitHub Copilot proxy', error);
 			return [];

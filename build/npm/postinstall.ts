@@ -8,12 +8,12 @@ import path from 'path';
 import * as os from 'os';
 import * as child_process from 'child_process';
 import { separateRoots, distroRoots } from './dirs.ts';
-import { root, stateFile, stateContentsFile, computeState, computeContents, isUpToDate } from './installStateHash.ts';
 import { ensureElectronTypes } from './electronTypes.ts';
 import { finishCloudSandbox } from './cloudSandbox.ts';
 import { getNativeBuildEnv, nativeBuildKeys } from './pnpm/nativeBuildEnv.ts';
 import { getPinnedPnpmVersion, getPnpmCommand } from '../lib/pnpm.ts';
 
+const root = fs.realpathSync.native(path.dirname(path.dirname(import.meta.dirname)));
 const pnpm = getPnpmCommand();
 
 function log(dir: string, message: string) {
@@ -207,15 +207,12 @@ async function runWithConcurrency(tasks: (() => Promise<void>)[], concurrency: n
 async function main() {
 	await ensureElectronTypes();
 
-	if (!process.env['VSCODE_FORCE_INSTALL'] && isUpToDate()) {
-		finishCloudSandbox();
-		log('.', 'All dependencies up to date, skipping postinstall.');
-		child_process.execSync('git config pull.rebase merges');
-		child_process.execSync('git config blame.ignoreRevsFile .git-blame-ignore-revs');
-		return;
+	// Older branches, such as release branches, skip their install scripts when
+	// node_modules/.postinstall-state matches their inputs. Remove it on every install here, so
+	// that switching back to such a branch doesn't skip an install that it needs.
+	for (const file of ['.postinstall-state', '.postinstall-state-contents']) {
+		fs.rmSync(path.join(root, 'node_modules', file), { force: true });
 	}
-
-	const _state = computeState();
 
 	const nativeTasks: (() => Promise<void>)[] = [];
 	const parallelTasks: (() => Promise<void>)[] = [];
@@ -224,8 +221,8 @@ async function main() {
 		const install = (env: NodeJS.ProcessEnv) => () => pnpmInstallAsync(dir, env);
 
 		if (dir === 'build') {
-			// build/.pnpmfile.mjs sets the native module build variables: build/.npmrc, the running
-			// Node.js version and the host architecture.
+			// build/.pnpmfile.mjs sets the native module build variables: the `nativeBuild` field of
+			// build/package.json, the running Node.js version and the host architecture.
 			const env: NodeJS.ProcessEnv = { ...process.env };
 			if (process.env['CC']) { env['CC'] = 'gcc'; }
 			if (process.env['CXX']) { env['CXX'] = 'g++'; }
@@ -233,14 +230,14 @@ async function main() {
 			if (process.env['LDFLAGS']) { env['LDFLAGS'] = ''; }
 			nativeTasks.push(install(env));
 		} else if (dir === 'remote') {
-			// remote/.pnpmfile.mjs sets the native module build variables of remote/.npmrc.
+			// remote/.pnpmfile.mjs sets the native module build variables of remote/package.json.
 			nativeTasks.push(install(getRemoteEnv()));
 		} else if (dir === 'extensions/copilot') {
-			// No .npmrc or pnpmfile: builds native modules for Electron with the workspace's variables.
+			// No `nativeBuild` field or pnpmfile: builds native modules for Electron with the workspace's variables.
 			nativeTasks.push(install({ ...process.env }));
 		} else if (dir === '.build/distro/npm/remote') {
-			// Distro roots have no .npmrc or pnpmfile: build for the remote server like remote/.
-			nativeTasks.push(install(applyEnv(getRemoteEnv(), getNativeBuildEnv(path.join(root, 'remote'), { forceProcessConfigOnDarwin: true }))));
+			// Distro roots have no `nativeBuild` field or pnpmfile: build for the remote server like remote/.
+			nativeTasks.push(install(applyEnv(getRemoteEnv(), getNativeBuildEnv(path.join(root, 'remote')))));
 		} else {
 			parallelTasks.push(install(clearNativeBuildEnv({ ...process.env })));
 		}
@@ -260,9 +257,6 @@ async function main() {
 	child_process.execSync('git config blame.ignoreRevsFile .git-blame-ignore-revs');
 
 	finishCloudSandbox();
-
-	fs.writeFileSync(stateFile, JSON.stringify(_state));
-	fs.writeFileSync(stateContentsFile, JSON.stringify(computeContents()));
 
 	// Symlink .claude/ files to their canonical locations to test Claude agent harness
 	const claudeDir = path.join(root, '.claude');

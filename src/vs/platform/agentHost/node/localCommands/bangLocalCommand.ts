@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import type { CreateTerminalParams } from '../../common/state/protocol/commands.js';
 import { TerminalClaimKind, type TerminalSessionClaim } from '../../common/state/protocol/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { ToolCallConfirmationReason, ToolResultContentType, type ToolResultContent, type URI as ProtocolURI } from '../../common/state/sessionState.js';
+import { createErrorResponsePart, ToolCallConfirmationReason, ToolResultContentType, type ToolResultContent, type URI as ProtocolURI } from '../../common/state/sessionState.js';
 import { parseBangCommand } from '../agentHostBangCommand.js';
 import { DEFAULT_SHELL_COMMAND_TIMEOUT_MS, executeShellCommand, shellTypeForExecutable, type IShellCommandResult } from '../shared/shellCommandExecution.js';
 import { ILocalChatCommand, ILocalChatCommandContext, ILocalChatCommandHandling, ILocalChatCommandRequest, LocalChatCommandRegistry } from './localChatCommand.js';
@@ -52,13 +53,26 @@ export class BangLocalCommand extends Disposable implements ILocalChatCommand {
 	private async _run(turnChannel: ProtocolURI, turnId: string, command: string): Promise<void> {
 		const ctx = this._context;
 		const sessionChannel = ctx.getOwner(turnChannel);
+		const workingDirStr = ctx.getState(sessionChannel)?.workingDirectories?.[0];
+		const workingDirectory = workingDirStr ? URI.parse(workingDirStr) : undefined;
+		if (workingDirectory && workingDirectory.scheme !== Schemas.file) {
+			ctx.dispatch(turnChannel, {
+				type: ActionType.ChatError,
+				turnId,
+				duration: 0,
+				part: createErrorResponsePart({
+					errorType: 'terminalUnavailable',
+					message: localize('agentHostBang.virtualWorkspace', "Terminal commands are unavailable in virtual workspaces."),
+				}),
+			});
+			return;
+		}
 		const toolCallId = generateUuid();
 		const terminalUri = `agenthost-terminal://bang/${generateUuid()}`;
 		const displayName = localize('agentHostBang.terminal', "Terminal");
 		let terminalCreated = false;
 		try {
-			const workingDirStr = ctx.getState(sessionChannel)?.workingDirectories?.[0];
-			const cwd = workingDirStr ? URI.parse(workingDirStr).fsPath : undefined;
+			const cwd = workingDirectory?.fsPath;
 			const shellPath = await ctx.terminalManager.getDefaultShell();
 			const shellType = shellTypeForExecutable(shellPath);
 

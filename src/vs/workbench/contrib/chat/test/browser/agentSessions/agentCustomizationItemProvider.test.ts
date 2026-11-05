@@ -5,9 +5,9 @@
 
 import assert from 'assert';
 import { agentHostConnectionKinds } from '../../../../../../platform/agentHost/test/common/testAgentHostResourceUriMappers.js';
-import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { DeferredPromise, raceCancellation } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
@@ -22,9 +22,9 @@ import { createInMemoryFileService } from '../../../../../../platform/files/test
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../../../../platform/extensions/common/extensions.js';
-import { CustomizationLoadStatus, CustomizationType, type AgentCustomization, type ClientPluginCustomization, type Customization, type PluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { createAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { CustomizationEnablementKind } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { CustomizationLoadStatus, CustomizationType, type AgentCustomization, type ClientPluginCustomization, type Customization, type McpServerCustomization, type PluginCustomization, type SkillCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { createAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { CustomizationEnablementKind, McpServerStatus } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AgentCustomizationItemProvider } from '../../../browser/agentSessions/agentHost/agentCustomizationItemProvider.js';
 import { NullAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { AICustomizationSources, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
@@ -34,7 +34,9 @@ import { IExtensionPromptPath, IPromptPath, IPromptsService, PromptsStorage } fr
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
 import { withCustomizationDiscoveryMeta } from '../../../../../../platform/agentHost/common/meta/customizationDiscoveryMeta.js';
 import { hasReadableCustomizationContent } from '../../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
-import { expandHookFileItems } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
+import { expandHookFileItems, ICustomizationSkillItem } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
+import { buildMcpResourceUri } from '../../../../../../platform/agentHost/common/mcpResourceUri.js';
+import { withMcpServerDisplayNameMeta, withMcpServerSourceMeta } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import { TestPathService } from '../../../../../test/browser/workbenchTestServices.js';
 
 function makePromptsService(extensionFiles: readonly IExtensionPromptPath[] = []): IPromptsService {
@@ -49,6 +51,73 @@ const labelService = upcastPartial<ILabelService>({ getUriLabel: resource => res
 
 suite('AgentCustomizationItemProvider', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const kind of agentHostConnectionKinds) {
+		test(`groups MCP skills by user source and parent plugin while preserving enablement and host resource mapping (${kind.name})`, async () => {
+			const session = URI.parse('agent-host-copilot:/remote');
+			const resource = URI.parse(buildMcpResourceUri('opaque-mcp-channel:skills', 'skill://server/friendly/SKILL.md', 'Friendly'));
+			const skill = (name: string, enabled = true, userInvocable = true): SkillCustomization => ({
+				type: CustomizationType.Skill, id: `skill:${name}`, uri: resource.toString(), name, description: 'MCP skill',
+				enabled, disableUserInvocation: !userInvocable,
+			});
+			const server = (name: string, children: SkillCustomization[], enabled = true): McpServerCustomization => ({
+				type: CustomizationType.McpServer, id: `server:${name}`, uri: `mcp-config:/${name}`, name, children,
+				state: { kind: McpServerStatus.Ready }, enablement: [{ kind: CustomizationEnablementKind.Session, enabled }],
+			});
+			class TestCustomizationService extends NullAgentHostCustomizationService {
+				override getCustomizations(): readonly Customization[] {
+					return [
+						{ ...server('top', [skill('Friendly'), skill('Disabled', false), skill('Not Invocable', true, false)]), _meta: withMcpServerDisplayNameMeta(withMcpServerSourceMeta(undefined, 'user'), 'Friendly Server') },
+						{ type: CustomizationType.Plugin, id: 'foreign-plugin', uri: 'file:///foreign/plugin', clientId: 'other-client', name: 'Plugin', children: [server('nested', [skill('Nested')])] },
+						{ type: CustomizationType.Plugin, id: 'host-plugin', uri: 'other-host:/plugin', name: 'Host Plugin', children: [server('host-nested', [skill('Host Nested')])] },
+						server('disabled', [skill('Disabled Server')], false),
+						{ ...server('workspace', [skill('Workspace')]), _meta: withMcpServerSourceMeta(undefined, 'workspace') },
+						{ type: CustomizationType.Plugin, id: 'disabled-plugin', uri: 'file:///disabled/plugin', name: 'Disabled Plugin', enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }], children: [server('disabled-parent', [skill('Disabled Parent')])] },
+						server('unreadable', [{ ...skill('No Channel'), uri: 'agent-discovery://server/no-channel/SKILL.md' }]),
+					];
+				}
+			}
+			const provider = disposables.add(new AgentCustomizationItemProvider({ clientId: 'vscode', resourceUris: kind.resourceUris }, undefined, undefined,
+				upcastPartial<IFileService>({ canHandleResource: async () => false }), new NullLogService(), new TestCustomizationService(), makePromptsService(), labelService));
+			const items: ICustomizationSkillItem[] = (await provider.provideChatSessionCustomizations(session, CancellationToken.None)).filter(item => item.type === PromptsType.skill);
+			const clientResource = kind.name === 'remote agent host' ? toAgentHostUri(resource, 'remote-test')
+				: kind.name === 'editor remote' ? toAgentHostUri(resource, 'editor-remote-test') : resource;
+			const expected = (name: string, server: string, label: string, group: string, enabled = true, userInvocable = true) => ({
+				key: `skill:${name}`, name, uri: clientResource.toString(), source: AICustomizationSources.plugin, group, description: 'MCP skill', enabled, userInvocable, readable: true,
+				bundle: { id: `server:${server}`, name: `Skills from ${label}`, description: 'MCP Server', namePrefix: `${server}:` },
+			});
+			assert.deepStrictEqual(items.map(item => ({
+				key: item.itemKey, name: item.name, uri: hasReadableCustomizationContent(item.uri) ? item.uri.toString() : undefined,
+				source: item.source, group: item.groupKey, description: item.description, enabled: item.enabled, userInvocable: item.userInvocable,
+				readable: hasReadableCustomizationContent(item.uri), bundle: item.skillBundle,
+			})), [
+				expected('Friendly', 'top', 'Friendly Server', AICustomizationSources.user),
+				expected('Disabled', 'top', 'Friendly Server', AICustomizationSources.user, false),
+				expected('Not Invocable', 'top', 'Friendly Server', AICustomizationSources.user, true, false),
+				expected('Nested', 'nested', 'nested', 'remote-client'),
+				expected('Host Nested', 'host-nested', 'host-nested', 'remote-host'),
+				expected('Workspace', 'workspace', 'workspace', AICustomizationSources.local),
+				{ ...expected('No Channel', 'unreadable', 'unreadable', AICustomizationSources.builtin), uri: undefined, readable: false },
+			]);
+		});
+	}
+
+	test('omits MCP skill bundles for servers without skills', async () => {
+		class TestCustomizationService extends NullAgentHostCustomizationService {
+			override getCustomizations(): readonly Customization[] {
+				const server: McpServerCustomization = {
+					type: CustomizationType.McpServer, id: 'empty', uri: 'mcp-config:/empty', name: 'Empty', state: { kind: McpServerStatus.Ready },
+				};
+				return [server, { ...server, id: 'empty-children', children: [] }, {
+					type: CustomizationType.Plugin, id: 'plugin', uri: 'other-host:/plugin', clientId: 'other-client', name: 'Plugin', children: [server],
+				}];
+			}
+		}
+		const provider = disposables.add(new AgentCustomizationItemProvider({ clientId: 'vscode', resourceUris: agentHostConnectionKinds[0].resourceUris }, undefined, undefined,
+			upcastPartial<IFileService>({ canHandleResource: async () => false }), new NullLogService(), new TestCustomizationService(), makePromptsService(), labelService));
+		const items = await provider.provideChatSessionCustomizations(URI.parse('agent-host-copilot:/session'), CancellationToken.None);
+		assert.deepStrictEqual(items.filter(item => item.type === PromptsType.skill), []);
+	});
 
 	for (const kind of agentHostConnectionKinds) {
 		test(`maps host children of own and foreign plugins while preserving own client containers (${kind.name})`, async () => {
@@ -179,6 +248,30 @@ suite('AgentCustomizationItemProvider', () => {
 		assert.deepStrictEqual(result.map(agent => ({ id: agent.id, source: agent.source.label })), [
 			{ id: createAgentHostResourceUriMapper('remote').fromAgentHost(URI.parse(agents[0].uri)).toString(), source: 'Plugin: source-0' },
 			{ id: createAgentHostResourceUriMapper('remote').fromAgentHost(URI.parse(agents[1].uri)).toString(), source: 'Plugin: source-1' },
+		]);
+	});
+
+	test('projects optional host model preferences into cached chat modes', async () => {
+		const agents: AgentCustomization[] = [
+			{ type: CustomizationType.Agent, id: 'plain', uri: 'other-host:/plain', name: 'Plain' },
+			{ type: CustomizationType.Agent, id: 'scalar', uri: 'other-host:/scalar', name: 'Scalar', model: 'sonnet' },
+			{ type: CustomizationType.Agent, id: 'ordered', uri: 'other-host:/ordered', name: 'Ordered', model: 'missing', _meta: { 'vscode.models': ['missing', 'sonnet'], 'vscode.reasoningEffort': 'low' } },
+		];
+		class TestCustomizationService extends NullAgentHostCustomizationService {
+			override getCustomAgents() { return agents; }
+		}
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('remote') }, undefined, undefined, upcastPartial<IFileService>({}), new NullLogService(),
+			new TestCustomizationService(), makePromptsService(), labelService,
+		));
+		const result = await provider.provideCustomAgents(URI.parse('other-session:/opaque'), CancellationToken.None);
+		assert.deepStrictEqual(result.map(agent => {
+			const mode = new CustomChatMode(agent);
+			return { model: mode.toJSON().model, effort: mode.toJSON().reasoningEffort };
+		}), [
+			{ model: undefined, effort: undefined },
+			{ model: ['sonnet'], effort: undefined },
+			{ model: ['missing', 'sonnet'], effort: 'low' },
 		]);
 	});
 
@@ -449,6 +542,55 @@ suite('AgentCustomizationItemProvider', () => {
 			cancelledInventory: undefined,
 			inventoryReads: 1,
 		});
+	});
+
+	test('waits for the first snapshot before reading the tool inventory', async () => {
+		const ready = new DeferredPromise<void>();
+		const waiting = new DeferredPromise<void>();
+		let reads = 0;
+		class TestCustomizationService extends NullAgentHostCustomizationService {
+			override async whenCustomizationsReady(_session: URI, token = CancellationToken.None) {
+				waiting.complete();
+				await raceCancellation(ready.p, token);
+				return !token.isCancellationRequested;
+			}
+			override getAgentFileToolInventory() {
+				reads++;
+				return [{ name: 'custom/tool', availability: 'available' as const }];
+			}
+		}
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('remote') }, undefined, undefined, upcastPartial<IFileService>({}),
+			new NullLogService(), new TestCustomizationService(), makePromptsService(), labelService,
+		));
+		const operation = provider.provideAgentFileTools(URI.parse('remote-agent-host-test-copilot:/session'), CancellationToken.None);
+		await waiting.p;
+		assert.strictEqual(reads, 0);
+		await ready.complete();
+		assert.deepStrictEqual({ inventory: await operation, reads }, { inventory: [{ name: 'custom/tool', availability: 'available' }], reads: 1 });
+	});
+
+	test('cancels a tool inventory readiness wait without reading unresolved state', async () => {
+		const waiting = new DeferredPromise<void>();
+		const ready = new DeferredPromise<void>();
+		const tokenSource = disposables.add(new CancellationTokenSource());
+		let reads = 0;
+		class TestCustomizationService extends NullAgentHostCustomizationService {
+			override async whenCustomizationsReady(_session: URI, token = CancellationToken.None) {
+				waiting.complete();
+				await raceCancellation(ready.p, token);
+				return !token.isCancellationRequested;
+			}
+			override getAgentFileToolInventory() { reads++; return undefined; }
+		}
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('remote') }, undefined, undefined, upcastPartial<IFileService>({}),
+			new NullLogService(), new TestCustomizationService(), makePromptsService(), labelService,
+		));
+		const operation = provider.provideAgentFileTools(URI.parse('remote-agent-host-test-copilot:/session'), tokenSource.token);
+		await waiting.p;
+		tokenSource.cancel();
+		assert.deepStrictEqual({ inventory: await operation, reads }, { inventory: undefined, reads: 0 });
 	});
 
 	test('maps explicit Ask semantics without relying on host names or URI conventions', async () => {
