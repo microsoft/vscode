@@ -51,12 +51,15 @@ suite('Editor transfer vetoes', () => {
 	const TEST_EDITOR_INPUT_ID = 'testEditorInputForTransferVetoes';
 
 	const disposables = new DisposableStore();
+	/** Closes the parts of a test while the main part they merge back into still exists. */
+	const partClosers = new DisposableStore();
 
 	setup(() => {
 		disposables.add(registerTestEditor(TEST_EDITOR_ID, [new SyncDescriptor(TestFileEditorInput), new SyncDescriptor(SideBySideEditorInput)], TEST_EDITOR_INPUT_ID));
 	});
 
 	teardown(() => {
+		partClosers.clear();
 		disposables.clear();
 	});
 
@@ -96,7 +99,7 @@ suite('Editor transfer vetoes', () => {
 		disposables.add({ dispose: () => container.remove() });
 		const part = parts.createEditorPart({ container });
 		// Force: a part that holds an editor that cannot go back to the main part refuses to close
-		disposables.add({ dispose: () => part.forceClose() });
+		partClosers.add({ dispose: () => part.forceClose() });
 		part.layout(800, 600, 0, 0);
 
 		return part;
@@ -334,20 +337,35 @@ suite('Editor transfer vetoes', () => {
 			});
 		});
 
-		test('closing a part whose editor cannot go back adds no group to a main part whose groups are all locked, and keeps focus', async () => {
+		test('closing a part merges its editors back as before, without the check of explicit transfers, while Restore Editors into Main Window is checked', async () => {
 			const { parts, dialogs } = await createServices();
+			const part = createPart(parts);
+			await part.activeGroup.openEditors([{ editor: createInput('/ordinary', { dirty: true, confirming: true }), options: { pinned: true } }, { editor: createInput('/vetoing', { veto: true, dirty: true, confirming: true }), options: { pinned: true, inactive: true } }]);
+			const mainGroup = parts.mainPart.activeGroup;
+
+			// What Restore Editors into Main Window does with the part it runs in
+			const restored = (part as unknown as EditorPart).mergeAllGroups(mainGroup.id);
+			const afterRestore = { restored, partEditors: editorsOf(part.activeGroup), mainEditors: editorsOf(mainGroup), dialogs: dialogs.errors.splice(0) };
+
+			// Each editor is asked as it moves: one that cannot go stays, with the part
+			const closed = part.close();
+
+			assert.deepStrictEqual({ afterRestore, afterClose: { closed, partEditors: editorsOf(part.activeGroup), mainEditors: editorsOf(mainGroup), dialogs: dialogs.errors } }, {
+				afterRestore: { restored: false, partEditors: ['/ordinary', '/vetoing'], mainEditors: [], dialogs: [{ message: VETO, detail: 'Try saving or reverting the editor first and then try again.' }] },
+				afterClose: { closed: false, partEditors: ['/vetoing'], mainEditors: ['/ordinary'], dialogs: [{ message: VETO, detail: 'Try saving or reverting the editor first and then try again.' }] },
+			});
+		});
+
+		test('closing a part whose editor cannot go back still adds a group to a main part whose groups are all locked, as before', async () => {
+			const { parts } = await createServices();
 			parts.mainPart.activeGroup.lock(true);
 			const part = createPart(parts);
 			await part.activeGroup.openEditor(createInput('/vetoing', { veto: true, confirming: true }), { pinned: true });
-			const activeBefore = parts.mainPart.activeGroup;
 			const mainGroupCount = parts.mainPart.count;
-			const events = recordEvents(parts.mainPart);
 
 			const closed = part.close();
 
-			assert.deepStrictEqual({ closed, mainGroupCount: parts.mainPart.count, active: parts.mainPart.activeGroup === activeBefore, locked: activeBefore.isLocked, partEditors: editorsOf(part.activeGroup), events, dialogs: dialogs.errors.length }, {
-				closed: false, mainGroupCount, active: true, locked: true, partEditors: ['/vetoing'], events: [], dialogs: 1
-			});
+			assert.deepStrictEqual({ closed, mainGroupCount: parts.mainPart.count, partEditors: editorsOf(part.activeGroup) }, { closed: false, mainGroupCount: mainGroupCount + 1, partEditors: ['/vetoing'] });
 		});
 
 		test('closing a part whose editors can go back still adds a group to a main part whose groups are all locked', async () => {
