@@ -607,6 +607,12 @@ importers:
       esbuild:
         specifier: 0.28.1
         version: 0.28.1
+      minimatch:
+        specifier: ^3.1.5
+        version: 3.1.5
+      path-browserify:
+        specifier: ^1.0.1
+        version: 1.0.1
       vscode-grammar-updater:
         specifier: ^1.1.0
         version: 1.1.0
@@ -617,9 +623,15 @@ importers:
         specifier: ^3.2.0
         version: 3.2.0
     devDependencies:
+      '@types/mocha':
+        specifier: ^10.0.10
+        version: 10.0.10
       '@types/node':
         specifier: 24.x
         version: 24.12.4
+      mocha:
+        specifier: ^10.8.2
+        version: 10.8.2
 
   extensions/css-language-features:
     dependencies:
@@ -652,6 +664,9 @@ importers:
       '@types/node':
         specifier: 24.x
         version: 24.12.4
+      glob:
+        specifier: ^5.0.13
+        version: 5.0.15
 
   extensions/debug-auto-launch:
     devDependencies:
@@ -686,9 +701,18 @@ importers:
         specifier: ^1.0.1
         version: 1.0.12
     devDependencies:
+      '@types/mocha':
+        specifier: ^10.0.10
+        version: 10.0.10
       '@types/node':
         specifier: 24.x
         version: 24.12.4
+      mocha:
+        specifier: ^10.8.2
+        version: 10.8.2
+      util:
+        specifier: ^0.12.4
+        version: 0.12.5
 
   extensions/extension-editing:
     dependencies:
@@ -745,15 +769,30 @@ importers:
       '@types/picomatch':
         specifier: ^2.3.0
         version: 2.3.0
+      '@types/sinon':
+        specifier: ^10.0.2
+        version: 10.0.2
       '@types/which':
         specifier: ^3.0.0
         version: 3.0.0
+      mocha:
+        specifier: ^10.8.2
+        version: 10.8.2
+      sinon:
+        specifier: ^12.0.1
+        version: 12.0.1
 
   extensions/git-base:
     devDependencies:
+      '@types/mocha':
+        specifier: ^10.0.10
+        version: 10.0.10
       '@types/node':
         specifier: 24.x
         version: 24.12.4
+      mocha:
+        specifier: ^10.8.2
+        version: 10.8.2
 
   extensions/github:
     dependencies:
@@ -773,9 +812,15 @@ importers:
         specifier: ^0.0.6
         version: 0.0.6
     devDependencies:
+      '@types/mocha':
+        specifier: ^10.0.10
+        version: 10.0.10
       '@types/node':
         specifier: 24.x
         version: 24.12.4
+      mocha:
+        specifier: ^10.8.2
+        version: 10.8.2
 
   extensions/github-authentication:
     dependencies:
@@ -792,6 +837,12 @@ importers:
       '@types/node':
         specifier: 24.x
         version: 24.12.4
+      '@types/sinon':
+        specifier: ^10.0.2
+        version: 10.0.2
+      sinon:
+        specifier: ^12.0.1
+        version: 12.0.1
 
   extensions/grunt:
     devDependencies:
@@ -845,6 +896,9 @@ importers:
       '@types/node':
         specifier: 24.x
         version: 24.12.4
+      glob:
+        specifier: ^5.0.13
+        version: 5.0.15
 
   extensions/ipynb:
     dependencies:
@@ -861,9 +915,24 @@ importers:
       '@types/markdown-it':
         specifier: 12.2.3
         version: 12.2.3
+      '@types/mocha':
+        specifier: ^10.0.10
+        version: 10.0.10
       '@types/node':
         specifier: 24.x
         version: 24.12.4
+      '@types/sinon':
+        specifier: ^10.0.2
+        version: 10.0.2
+      '@types/vscode-notebook-renderer':
+        specifier: ^1.72.0
+        version: 1.72.4
+      mocha:
+        specifier: ^10.8.2
+        version: 10.8.2
+      sinon:
+        specifier: ^12.0.1
+        version: 12.0.1
 
   extensions/jake:
     devDependencies:
@@ -886,12 +955,18 @@ importers:
       '@types/glob':
         specifier: 7.1.3
         version: 7.1.3
+      '@types/mocha':
+        specifier: ^10.0.10
+        version: 10.0.10
       '@types/node':
         specifier: 24.x
         version: 24.12.4
       glob:
         specifier: ^5.0.13
         version: 5.0.15
+      mocha:
+        specifier: ^10.8.2
+        version: 10.8.2
 
   extensions/json-language-features/server:
     dependencies:
@@ -969,6 +1044,9 @@ importers:
       '@types/markdown-it':
         specifier: ^14.1.2
         version: 14.1.2
+      '@types/mocha':
+        specifier: ^10.0.10
+        version: 10.0.10
       '@types/node':
         specifier: 24.x
         version: 24.12.4
@@ -993,6 +1071,9 @@ importers:
       lodash.throttle:
         specifier: ^4.1.1
         version: 4.1.1
+      mocha:
+        specifier: ^10.8.2
+        version: 10.8.2
       playwright:
         specifier: ^1.61.1
         version: 1.61.1
@@ -1028,6 +1109,9 @@ importers:
       '@types/markdown-it':
         specifier: ^0.0.0
         version: 0.0.0
+      '@types/node':
+        specifier: 24.x
+        version: 24.12.4
       '@types/vscode-notebook-renderer':
         specifier: ^1.60.0
         version: 1.72.0
@@ -1103,15 +1187,27 @@ importers:
         specifier: ^0.1.84
         version: 0.1.84
     devDependencies:
+      '@types/mocha':
+        specifier: ^10.0.10
+        version: 10.0.10
       '@types/node':
         specifier: 24.x
         version: 24.12.4
+      '@types/sinon':
+        specifier: ^10.0.2
+        version: 10.0.2
+      sinon:
+        specifier: ^12.0.1
+        version: 12.0.1
 
   extensions/notebook-renderers:
     devDependencies:
       '@types/jsdom':
         specifier: ^21.1.0
         version: 21.1.0
+      '@types/mocha':
+        specifier: ^10.0.10
+        version: 10.0.10
       '@types/node':
         specifier: 24.x
         version: 24.12.4
@@ -1121,6 +1217,9 @@ importers:
       jsdom:
         specifier: ^28.1.0
         version: 28.1.0
+      mocha:
+        specifier: ^10.8.2
+        version: 10.8.2
 
   extensions/npm:
     dependencies:
@@ -1152,12 +1251,24 @@ importers:
       '@types/minimatch':
         specifier: ^5.1.2
         version: 5.1.2
+      '@types/mocha':
+        specifier: ^10.0.10
+        version: 10.0.10
       '@types/node':
         specifier: 24.x
         version: 24.12.4
+      '@types/sinon':
+        specifier: ^10.0.2
+        version: 10.0.2
       '@types/which':
         specifier: ^3.0.0
         version: 3.0.0
+      mocha:
+        specifier: ^10.8.2
+        version: 10.8.2
+      sinon:
+        specifier: ^12.0.1
+        version: 12.0.1
 
   extensions/php-language-features:
     dependencies:
@@ -1165,12 +1276,24 @@ importers:
         specifier: ^2.0.2
         version: 2.0.2
     devDependencies:
+      '@types/mocha':
+        specifier: ^10.0.10
+        version: 10.0.10
       '@types/node':
         specifier: 24.x
         version: 24.12.4
+      '@types/sinon':
+        specifier: ^10.0.2
+        version: 10.0.2
       '@types/which':
         specifier: ^2.0.0
         version: 2.0.0
+      mocha:
+        specifier: ^10.8.2
+        version: 10.8.2
+      sinon:
+        specifier: ^12.0.1
+        version: 12.0.1
 
   extensions/references-view:
     devDependencies:
@@ -1198,9 +1321,15 @@ importers:
 
   extensions/terminal-suggest:
     devDependencies:
+      '@types/mocha':
+        specifier: ^10.0.10
+        version: 10.0.10
       '@types/node':
         specifier: 24.x
         version: 24.12.4
+      mocha:
+        specifier: ^10.8.2
+        version: 10.8.2
 
   extensions/tunnel-forwarding:
     devDependencies:
@@ -1238,12 +1367,24 @@ importers:
         specifier: ^3.0.3
         version: 3.0.3
     devDependencies:
+      '@types/mocha':
+        specifier: ^10.0.10
+        version: 10.0.10
       '@types/node':
         specifier: 24.x
         version: 24.12.4
       '@types/semver':
         specifier: ^5.5.0
         version: 5.5.0
+      '@types/sinon':
+        specifier: ^10.0.2
+        version: 10.0.2
+      mocha:
+        specifier: ^10.8.2
+        version: 10.8.2
+      sinon:
+        specifier: ^12.0.1
+        version: 12.0.1
 
   extensions/vscode-api-tests:
     devDependencies:
@@ -1256,6 +1397,9 @@ importers:
       '@types/node-forge':
         specifier: ^1.3.11
         version: 1.3.11
+      mocha:
+        specifier: ^10.8.2
+        version: 10.8.2
       node-forge:
         specifier: ^1.4.0
         version: 1.4.0
@@ -1265,9 +1409,15 @@ importers:
 
   extensions/vscode-colorize-perf-tests:
     devDependencies:
+      '@types/mocha':
+        specifier: ^10.0.10
+        version: 10.0.10
       '@types/node':
         specifier: 24.x
         version: 24.12.4
+      mocha:
+        specifier: ^10.8.2
+        version: 10.8.2
 
   extensions/vscode-colorize-tests:
     dependencies:
@@ -1275,9 +1425,15 @@ importers:
         specifier: ^3.2.0
         version: 3.2.0
     devDependencies:
+      '@types/mocha':
+        specifier: ^10.0.10
+        version: 10.0.10
       '@types/node':
         specifier: 24.x
         version: 24.12.4
+      mocha:
+        specifier: ^10.8.2
+        version: 10.8.2
 
   extensions/vscode-test-resolver:
     devDependencies:
