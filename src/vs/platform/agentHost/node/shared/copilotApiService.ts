@@ -126,6 +126,8 @@ interface ICopilotSkuCacheCell {
 interface IClientRequest {
 	promise: Promise<ICachedClient> | undefined;
 	discoveryGeneration: number;
+	/** Retains rejection provenance when a transient refresh failure clears the discovery value. */
+	lastPublishedClient: CAPIClient | undefined;
 	readonly skuCell: ICopilotSkuCacheCell;
 	telemetryCaptured: boolean;
 }
@@ -956,6 +958,7 @@ export class CopilotApiService extends Disposable implements ICopilotApiService 
 				request.discoveryGeneration++;
 				request.skuCell.value = refreshed;
 				request.skuCell.trackingId = refreshed.trackingId;
+				request.lastPublishedClient = refreshed.capiClient;
 				outcome = 'published';
 			}
 			this._reportDiscovery(attempt, outcome);
@@ -1021,6 +1024,7 @@ export class CopilotApiService extends Disposable implements ICopilotApiService 
 				if (request.discoveryGeneration === generation && !this._entitlementRefreshes.has(request)) {
 					request.skuCell.value = entry;
 					request.skuCell.trackingId = entry.trackingId;
+					request.lastPublishedClient = entry.capiClient;
 					outcome = 'published';
 				}
 			}
@@ -1037,7 +1041,7 @@ export class CopilotApiService extends Disposable implements ICopilotApiService 
 					this._invalidateClientRequest(githubToken, request);
 				} else if (existing && existing.expiresAt > Date.now() / 1000) {
 					request.skuCell.value = existing;
-				} else if (request.telemetryCaptured) {
+				} else if (request.telemetryCaptured || request.skuCell.trackingId !== undefined) {
 					request.skuCell.value = undefined;
 				} else {
 					this._invalidateClientRequest(githubToken, request);
@@ -1055,6 +1059,7 @@ export class CopilotApiService extends Disposable implements ICopilotApiService 
 			request = {
 				promise: undefined,
 				discoveryGeneration: 0,
+				lastPublishedClient: undefined,
 				skuCell: { valid: true },
 				telemetryCaptured: false,
 			};
@@ -1074,7 +1079,7 @@ export class CopilotApiService extends Disposable implements ICopilotApiService 
 
 	private _invalidateClientForToken(githubToken: string, capiClient: CAPIClient): void {
 		const request = this._clientsByToken.get(githubToken);
-		if (request?.skuCell.value?.capiClient === capiClient) {
+		if (request?.lastPublishedClient === capiClient) {
 			this._invalidateClientRequest(githubToken, request);
 		}
 	}
@@ -1086,6 +1091,7 @@ export class CopilotApiService extends Disposable implements ICopilotApiService 
 		request.skuCell.valid = false;
 		request.skuCell.value = undefined;
 		request.skuCell.trackingId = undefined;
+		request.lastPublishedClient = undefined;
 		request.promise = undefined;
 		this._clientsByToken.delete(githubToken);
 	}
@@ -1095,6 +1101,7 @@ export class CopilotApiService extends Disposable implements ICopilotApiService 
 			request.skuCell.valid = false;
 			request.skuCell.value = undefined;
 			request.skuCell.trackingId = undefined;
+			request.lastPublishedClient = undefined;
 			request.promise = undefined;
 		}
 		this._clientsByToken.clear();
