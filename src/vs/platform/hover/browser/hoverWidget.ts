@@ -64,7 +64,6 @@ export class HoverWidget extends Widget implements IHoverWidget {
 	private _x: number = 0;
 	private _y: number = 0;
 	private _isLocked: boolean = false;
-	private _isVisible: boolean = true;
 	private _enableFocusTraps: boolean = false;
 	private _addedFocusTrap: boolean = false;
 	private _maxHeightRatioRelativeToWindow: number = 0.5;
@@ -79,15 +78,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 
 	get isDisposed(): boolean { return this._isDisposed; }
 	get isMouseIn(): boolean { return this._lockMouseTracker.isMouseIn; }
-	get isFocused(): boolean { return this._lockMouseTracker?.isFocused ?? false; }
-	get isVisible(): boolean { return this._isVisible; }
 	get domNode(): HTMLElement { return this._hover.containerDomNode; }
-
-	setVisible(visible: boolean): void {
-		this._isVisible = visible;
-		this._hoverContainer.style.visibility = visible ? '' : 'hidden';
-		this._hoverContainer.setAttribute('aria-hidden', String(!visible));
-	}
 
 	private readonly _onDispose = this._register(new Emitter<void>());
 	get onDispose(): Event<void> { return this._onDispose.event; }
@@ -99,10 +90,10 @@ export class HoverWidget extends Widget implements IHoverWidget {
 	get y(): number { return this._y; }
 
 	/**
-	 * Whether the hover has focus, is temporarily hidden, or is "locked" by holding the alt/option key. When locked, the hover will not
+	 * Whether the hover is "locked" by holding the alt/option key. When locked, the hover will not
 	 * hide and can be hovered regardless of whether the `hideOnHover` hover option is set.
 	 */
-	get isLocked(): boolean { return this._isLocked || !this._isVisible || this.isFocused; }
+	get isLocked(): boolean { return this._isLocked; }
 	set isLocked(value: boolean) {
 		if (this._isLocked === value) {
 			return;
@@ -154,10 +145,6 @@ export class HoverWidget extends Widget implements IHoverWidget {
 
 		this._hoverPointer = options.appearance?.showPointer ? $('div.workbench-hover-pointer') : undefined;
 		this._hover = this._register(new BaseHoverWidget(!options.appearance?.skipFadeInAnimation));
-		if (options.accessibility) {
-			this._hover.containerDomNode.setAttribute('role', options.accessibility.role);
-			this._hover.containerDomNode.setAttribute('aria-label', options.accessibility.label);
-		}
 		this._hover.containerDomNode.classList.add('workbench-hover');
 		if (options.appearance?.compact) {
 			this._hover.containerDomNode.classList.add('workbench-hover', 'compact');
@@ -293,9 +280,9 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		if (!hideOnHover) {
 			mouseTrackerTargets.push(this._hoverContainer);
 		}
-		const mouseTracker = this._mouseTracker = this._register(new CompositeMouseTracker(mouseTrackerTargets, [this._hoverContainer]));
+		const mouseTracker = this._mouseTracker = this._register(new CompositeMouseTracker(mouseTrackerTargets));
 		this._register(mouseTracker.onMouseOut(() => {
-			if (!this.isLocked) {
+			if (!this._isLocked) {
 				this.dispose();
 			}
 		}));
@@ -305,9 +292,9 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		// released to unlock the element.
 		if (hideOnHover) {
 			const mouseTracker2Targets = [...this._target.targetElements, this._hoverContainer];
-			this._lockMouseTracker = this._register(new CompositeMouseTracker(mouseTracker2Targets, [this._hoverContainer]));
+			this._lockMouseTracker = this._register(new CompositeMouseTracker(mouseTracker2Targets));
 			this._register(this._lockMouseTracker.onMouseOut(() => {
-				if (!this.isLocked) {
+				if (!this._isLocked) {
 					this.dispose();
 				}
 			}));
@@ -756,7 +743,6 @@ class CompositeMouseTracker extends Widget {
 	get onMouseOut(): Event<void> { return this._onMouseOut.event; }
 
 	get isMouseIn(): boolean { return this._isMouseIn; }
-	get isFocused(): boolean { return this._focusElements.some(element => dom.isAncestorOfActiveElement(element)); }
 
 	/**
 	 * @param _elements The target elements to track mouse in/out events on.
@@ -766,7 +752,6 @@ class CompositeMouseTracker extends Widget {
 	 */
 	constructor(
 		private _elements: HTMLElement[],
-		private _focusElements: HTMLElement[],
 		private _eventDebounceDelay: number = 200
 	) {
 		super();
@@ -775,17 +760,6 @@ class CompositeMouseTracker extends Widget {
 			this.onmouseover(element, () => this._onTargetMouseOver());
 			this.onmouseleave(element, () => this._onTargetMouseLeave());
 		}
-		for (const element of this._focusElements) {
-			this._trackFocus(element, this._store);
-		}
-	}
-
-	private _trackFocus(element: HTMLElement, store: DisposableStore): void {
-		const tracker = store.add(dom.trackFocus(element));
-		store.add(tracker.onDidBlur(() => {
-			this._suppressNextMouseOut = false;
-			this._fireIfMouseOutside();
-		}));
 	}
 
 	private _onTargetMouseOver(): void {
@@ -796,20 +770,13 @@ class CompositeMouseTracker extends Widget {
 
 	private _onTargetMouseLeave(): void {
 		this._isMouseIn = false;
-		this._scheduleMouseOut();
-	}
-
-	private _scheduleMouseOut(): void {
-		if (this._store.isDisposed) {
-			return;
-		}
 		// Evaluate whether the mouse is still outside asynchronously such that other mouse targets
 		// have the opportunity to first their mouse in event.
 		this._mouseTimer.value = new TimeoutTimer(() => this._fireIfMouseOutside(), this._eventDebounceDelay);
 	}
 
 	private _fireIfMouseOutside(): void {
-		if (!this._isMouseIn && !this.isFocused && !this._suppressNextMouseOut) {
+		if (!this._isMouseIn && !this._suppressNextMouseOut) {
 			this._onMouseOut.fire();
 		}
 	}
@@ -835,23 +802,13 @@ class CompositeMouseTracker extends Widget {
 			return Disposable.None;
 		}
 		this._elements.push(element);
-		this._focusElements.push(element);
 		const store = new DisposableStore();
 		store.add(dom.addDisposableListener(element, dom.EventType.MOUSE_OVER, () => this._onTargetMouseOver()));
 		store.add(dom.addDisposableListener(element, dom.EventType.MOUSE_LEAVE, () => this._onTargetMouseLeave()));
-		this._trackFocus(element, store);
 		store.add(toDisposable(() => {
 			const index = this._elements.indexOf(element);
 			if (index >= 0) {
 				this._elements.splice(index, 1);
-			}
-			const focusIndex = this._focusElements.indexOf(element);
-			if (focusIndex >= 0) {
-				this._focusElements.splice(focusIndex, 1);
-			}
-			if (!this._isMouseIn) {
-				this._suppressNextMouseOut = false;
-				this._scheduleMouseOut();
 			}
 		}));
 		return store;

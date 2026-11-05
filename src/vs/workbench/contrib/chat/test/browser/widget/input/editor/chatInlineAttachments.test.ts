@@ -4,72 +4,74 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import sinon from 'sinon';
 import * as dom from '../../../../../../../../base/browser/dom.js';
-import { setARIAContainer } from '../../../../../../../../base/browser/ui/aria/aria.js';
 import { timeout } from '../../../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../../../../base/common/lifecycle.js';
+import sinon from 'sinon';
 import { URI } from '../../../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
-import { runWithFakedTimers } from '../../../../../../../../base/test/common/timeTravelScheduler.js';
 import { EditorAutoIndentStrategy } from '../../../../../../../../editor/common/config/editorOptions.js';
 import { Position } from '../../../../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../../../../editor/common/core/range.js';
+import { HoverStartMode, HoverStartSource } from '../../../../../../../../editor/contrib/hover/browser/hoverOperation.js';
 import { Selection } from '../../../../../../../../editor/common/core/selection.js';
+import { IMarkerDecorationsService } from '../../../../../../../../editor/common/services/markerDecorations.js';
+import { ICodeEditor } from '../../../../../../../../editor/browser/editorBrowser.js';
+import { EditorExtensionsRegistry } from '../../../../../../../../editor/browser/editorExtensions.js';
+import { CodeEditorWidget } from '../../../../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
+import { ContentHoverController } from '../../../../../../../../editor/contrib/hover/browser/contentHoverController.js';
+import { ShowOrFocusHoverAction } from '../../../../../../../../editor/contrib/hover/browser/hoverActions.js';
+import { SHOW_OR_FOCUS_HOVER_ACTION_ID } from '../../../../../../../../editor/contrib/hover/browser/hoverActionIds.js';
+import { EditorContextKeys } from '../../../../../../../../editor/common/editorContextKeys.js';
+import { HoverAccessibleView } from '../../../../../../../../editor/contrib/hover/browser/hoverAccessibleViews.js';
+import '../../../../../../../../editor/contrib/hover/browser/hoverContribution.js';
 import { MoveLinesCommand } from '../../../../../../../../editor/contrib/linesOperations/browser/moveLinesCommand.js';
 import { CopyLinesCommand } from '../../../../../../../../editor/contrib/linesOperations/browser/copyLinesCommand.js';
-import { createCodeEditorServices, instantiateTestCodeEditor, ITestCodeEditor } from '../../../../../../../../editor/test/browser/testCodeEditor.js';
+import { createCodeEditorServices, instantiateTestCodeEditor } from '../../../../../../../../editor/test/browser/testCodeEditor.js';
 import { instantiateTextModel } from '../../../../../../../../editor/test/common/testTextModel.js';
 import { IConfigurationService } from '../../../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../../../../../platform/contextview/browser/contextView.js';
+import { KeybindingsRegistry } from '../../../../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { TestConfigurationService } from '../../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IFileService, IFileSystemWatcher } from '../../../../../../../../platform/files/common/files.js';
 import { ServiceCollection } from '../../../../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILabelService } from '../../../../../../../../platform/label/common/label.js';
-import { IHoverService } from '../../../../../../../../platform/hover/browser/hover.js';
-import { HoverService } from '../../../../../../../../platform/hover/browser/hoverService.js';
-import { NullHoverService } from '../../../../../../../../platform/hover/test/browser/nullHoverService.js';
-import { ILayoutService } from '../../../../../../../../platform/layout/browser/layoutService.js';
-import { AccessibleViewType } from '../../../../../../../../platform/accessibility/browser/accessibleView.js';
-import { IAccessibilityService } from '../../../../../../../../platform/accessibility/common/accessibility.js';
 import { ISharedWebContentExtractorService } from '../../../../../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { ChatAttachmentModel } from '../../../../../browser/attachments/chatAttachmentModel.js';
 import { ChatDynamicVariableModel } from '../../../../../browser/attachments/chatDynamicVariables.js';
 import { IChatAttachmentResolveService } from '../../../../../browser/attachments/chatAttachmentResolveService.js';
-import { IChatWidget } from '../../../../../browser/chat.js';
+import { IChatWidget, IChatWidgetService } from '../../../../../browser/chat.js';
 import { ChatInlineAttachments } from '../../../../../browser/widget/input/editor/chatInlineAttachments.js';
+import '../../../../../browser/widget/input/editor/chatInputEditorHover.js';
+import { GitHubResourceDetailsResolver } from '../../../../../../github/browser/githubResourceDetails.js';
+import { IWorkbenchGitHubService } from '../../../../../../../services/github/common/githubService.js';
 import { IChatWidgetContrib } from '../../../../../browser/widget/chatWidget.js';
 import { ChatContextKeys } from '../../../../../common/actions/chatContextKeys.js';
 import { IChatRequestVariableEntry } from '../../../../../common/attachments/chatVariableEntries.js';
 import { IDynamicVariable, toAttachedContextDynamicVariable } from '../../../../../common/attachments/chatVariables.js';
 import { ChatConfiguration } from '../../../../../common/constants.js';
 import { IParsedChatRequest } from '../../../../../common/requestParser/chatParserTypes.js';
-import { workbenchInstantiationService } from '../../../../../../../test/browser/workbenchTestServices.js';
-import { GitHubResourceDetailsResolver } from '../../../../../../github/browser/githubResourceDetails.js';
-import { IWorkbenchGitHubService } from '../../../../../../../services/github/common/githubService.js';
-import { AccessibilityVerbositySettingId } from '../../../../../../accessibility/browser/accessibilityConfiguration.js';
 
 suite('ChatInlineAttachments', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	interface ITestInput {
-		readonly editor: ITestCodeEditor;
+		readonly editor: ICodeEditor;
 		readonly attachments: ChatAttachmentModel;
 		readonly controller: ChatInlineAttachments;
 		readonly instantiationService: TestInstantiationService;
-		readonly configurationService: TestConfigurationService;
+		readonly attachmentResolvers: (GitHubResourceDetailsResolver | undefined)[];
+		setSessionResource(resource: URI): void;
 		/** Adds a reference to the input, as accepting a completion does. */
 		addReference(reference: IDynamicVariable): void;
 		/** Whether the pill right before the cursor is active, which Enter opens. */
 		isActive(): boolean;
 		/** The prompt that the input stands for, and the ids of its attachments. */
 		state(): { prompt: string; attachments: string[] };
-		readonly attachmentElements: HTMLElement[];
-		readonly attachmentResolvers: (GitHubResourceDetailsResolver | undefined)[];
-		setSessionResource(resource: URI): void;
 	}
 
 	/**
@@ -77,7 +79,7 @@ suite('ChatInlineAttachments', () => {
 	 * whose chat widget does not own the input, such as the Automation dialog's,
 	 * does not.
 	 */
-	function createInput(text: string, showsPills = true, hoverContent?: HTMLElement | (() => HTMLElement), hoverService: IHoverService = NullHoverService): ITestInput {
+	function createInput(text: string, showsPills = true, preview?: () => HTMLElement, realEditor = false): ITestInput {
 		const disposables = store.add(new DisposableStore());
 		const configurationService = new TestConfigurationService({ [ChatConfiguration.InlineAttachmentsEnabled]: true });
 		const instantiationService = createCodeEditorServices(disposables, new ServiceCollection([IConfigurationService, configurationService]));
@@ -89,19 +91,27 @@ suite('ChatInlineAttachments', () => {
 		});
 		instantiationService.stub(ISharedWebContentExtractorService, new class extends mock<ISharedWebContentExtractorService>() { });
 		instantiationService.stub(IChatAttachmentResolveService, new class extends mock<IChatAttachmentResolveService>() { });
-		instantiationService.stub(IHoverService, hoverService);
 		instantiationService.stub(IWorkbenchGitHubService, upcastPartial<IWorkbenchGitHubService>({ onDidChangeDefaultClient: Event.None }));
+		instantiationService.stub(IMarkerDecorationsService, upcastPartial<IMarkerDecorationsService>({ getMarker: () => null }));
+		instantiationService.stub(IContextMenuService, upcastPartial<IContextMenuService>({
+			onDidShowContextMenu: Event.None,
+			onDidHideContextMenu: Event.None,
+		}));
 
 		const model = disposables.add(instantiateTextModel(instantiationService, text));
-		const editor = disposables.add(instantiateTestCodeEditor(instantiationService, model));
-		if (hoverService !== NullHoverService) {
-			const sandbox = sinon.createSandbox();
-			disposables.add(toDisposable(() => sandbox.restore()));
-			const host = dom.$('div', { tabIndex: 0 });
-			sandbox.stub(editor, 'getContainerDomNode').returns(host);
-			sandbox.stub(editor, 'focus').callsFake(() => host.focus());
-			sandbox.stub(editor, 'hasTextFocus').callsFake(() => dom.getActiveElement() === host);
-			sandbox.stub(editor, 'hasWidgetFocus').callsFake(() => dom.isAncestorOfActiveElement(host));
+		let editor: ICodeEditor;
+		if (realEditor) {
+			const container = dom.append(document.body, dom.$('div'));
+			container.style.width = '800px';
+			container.style.height = '300px';
+			disposables.add(toDisposable(() => container.remove()));
+			editor = disposables.add(instantiationService.createInstance(CodeEditorWidget, container, {}, {
+				isSimpleWidget: true,
+				contributions: EditorExtensionsRegistry.getEditorContributions().filter(contribution => contribution.id === ContentHoverController.ID),
+			}));
+			editor.setModel(model);
+		} else {
+			editor = disposables.add(instantiateTestCodeEditor(instantiationService, model));
 		}
 		const attachments = disposables.add(instantiationService.createInstance(ChatAttachmentModel));
 		const onDidChangeParsedInput = disposables.add(new Emitter<void>());
@@ -124,25 +134,20 @@ suite('ChatInlineAttachments', () => {
 			}
 			override refreshParsedInput(): void { }
 		};
-		const attachmentElements: HTMLElement[] = [];
+		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({ getWidgetByInputUri: () => widget }));
 		const attachmentResolvers: (GitHubResourceDetailsResolver | undefined)[] = [];
 		let sessionResource = URI.parse('chat-session:test-1');
 		const controller = disposables.add(instantiationService.createInstance(ChatInlineAttachments, editor, attachments, {
 			widget: showsPills ? widget : undefined,
 			get sessionResource() { return sessionResource; },
-			createAttachmentWidget: (attachment: IChatRequestVariableEntry, container: HTMLElement, options: { gitHubResourceDetailsResolver?: GitHubResourceDetailsResolver }) => {
+			createAttachmentWidget: (attachment, container, options) => {
 				attachmentResolvers.push(options.gitHubResourceDetailsResolver);
 				const element = dom.append(container, dom.$('span.chat-attached-context-attachment', undefined, attachment.name));
-				const preview = typeof hoverContent === 'function' ? hoverContent() : hoverContent;
-				attachmentElements.push(element);
+				const onDidChangePreview = new Emitter<void>();
 				return {
-					element, onDidDelete: Event.None, onDidOpen: Event.None,
-					supportsPreview: !!hoverContent,
-					getPreviewHoverContent: () => preview ? {
-						element: preview,
-						get tabbableElements() { return [...preview.querySelectorAll<HTMLElement>('a[href], button:not([disabled])')]; },
-					} : undefined,
-					dispose: () => element.remove(),
+					element, supportsPreview: !!preview, getPreviewHoverContent: preview,
+					onDidChangePreview: onDidChangePreview.event, onDidDelete: Event.None, onDidOpen: Event.None,
+					dispose: () => { onDidChangePreview.fire(); onDidChangePreview.dispose(); element.remove(); },
 				};
 			},
 			removeAttachments: (removed: readonly IChatRequestVariableEntry[]) => attachments.delete(...removed.map(attachment => attachment.id)),
@@ -153,8 +158,6 @@ suite('ChatInlineAttachments', () => {
 			attachments,
 			controller,
 			instantiationService,
-			configurationService,
-			attachmentElements,
 			attachmentResolvers,
 			setSessionResource: resource => { sessionResource = resource; },
 			addReference: reference => dynamicVariableModel.addReference(reference),
@@ -166,42 +169,98 @@ suite('ChatInlineAttachments', () => {
 		};
 	}
 
-	function focusPreview(input: ITestInput): void {
-		input.editor.getContainerDomNode().dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }));
+	function file(name: string): IChatRequestVariableEntry {
+		return { kind: 'file', id: `file:${name}`, name, value: URI.file(`/${name}`) };
 	}
 
-	for (const { supportsPreview, verbose } of [
-		{ supportsPreview: true, verbose: true },
-		{ supportsPreview: false, verbose: true },
-		{ supportsPreview: true, verbose: false },
-	]) {
-		test(`screen-reader preview guidance follows the active reference (preview=${supportsPreview}, verbosity=${verbose})`, async () => {
-			const sandbox = sinon.createSandbox();
-			store.add(toDisposable(() => sandbox.restore()));
-			const ariaHost = dom.$('div');
-			setARIAContainer(ariaHost);
-			const input = createInput('review ', true, supportsPreview ? dom.$('div') : undefined);
-			sandbox.stub(input.instantiationService.get(IAccessibilityService), 'isScreenReaderOptimized').returns(true);
-			await input.configurationService.setUserConfiguration(AccessibilityVerbositySettingId.Chat, verbose);
-			input.editor.setPosition(new Position(1, 8));
-			input.attachments.addContext(file('a.ts'));
-			await settle();
-			const announcement = () => [...ariaHost.querySelectorAll('.monaco-status')].map(element => element.textContent).join('');
-			input.editor.setPosition(new Position(1, 8), 'keyboard');
-			input.editor.trigger('keyboard', 'cursorRight', {});
-			const selected = announcement();
-			input.editor.trigger('keyboard', 'cursorLeft', {});
-			const crossed = announcement();
-			assert.deepStrictEqual({ selected, crossed }, {
-				selected: !verbose ? 'a.ts, attachment' : supportsPreview
-					? 'a.ts, attachment, press Enter to open. Pause to preview reference details, then press Tab to enter the preview.'
-					: 'a.ts, attachment, press Enter to open',
-				crossed: 'a.ts, attachment',
-			});
+	/** Lets the pills catch up with the input, which they do once the current task settled. */
+	function settle(): Promise<void> {
+		return timeout(0);
+	}
+
+	test('Show or Focus Hover displays reference details and Escape returns to the draft', async () => {
+		const content = dom.$('div', undefined, 'Issue title and description');
+		let rendered = 0;
+		const input = createInput('review ', true, () => {
+			rendered++;
+			return content;
+		}, true);
+		const hover = ContentHoverController.get(input.editor)!;
+		input.editor.setPosition(new Position(1, 8));
+		input.attachments.addContext({
+			kind: 'generic',
+			id: 'github-context:https://github.com/microsoft/vscode/issues/123',
+			name: 'microsoft/vscode#123',
+			value: '',
 		});
-	}
+		await settle();
+		input.editor.trigger('keyboard', 'cursorLeft', {});
+		input.editor.trigger('keyboard', 'cursorRight', {});
+		await settle();
+		input.editor.setPosition(new Position(1, 9), 'keyboard');
+		hover.showContentHover(Range.fromPositions(input.editor.getPosition()!), HoverStartMode.Immediate, HoverStartSource.Mouse, false);
+		await settle();
+		const shownForMouse = hover.isHoverVisible;
+		const renderedBeforeCommand = rendered;
+		const before = input.state();
+		input.editor.focus();
+		const context = input.editor.invokeWithinContext(accessor => {
+			const contextKeyService = accessor.get(IContextKeyService);
+			ChatContextKeys.inChatInput.bindTo(contextKeyService).set(true);
+			return { getValue: <T>(key: string) => contextKeyService.getContextKeyValue<T>(key) };
+		});
+		const hoverBinding = KeybindingsRegistry.getDefaultKeybindings().some(binding =>
+			binding.command === SHOW_OR_FOCUS_HOVER_ACTION_ID &&
+			binding.when?.evaluate(context));
+		assert.deepStrictEqual({ editorTextFocus: EditorContextKeys.editorTextFocus.evaluate(context), hoverBinding }, {
+			editorTextFocus: false, hoverBinding: true,
+		});
+		input.editor.invokeWithinContext(accessor => new ShowOrFocusHoverAction().run(accessor, input.editor, { focus: true }));
+		await settle();
+		const shown = hover.isHoverVisible;
+		const provider = input.editor.invokeWithinContext(accessor => new HoverAccessibleView().getProvider(accessor));
+		assert.ok(provider);
+		store.add(provider);
+		provider.onOpen?.();
+		const accessibleContent = provider.provideContent();
+		assert.deepStrictEqual({ shownForMouse, renderedBeforeCommand, renderedAfterCommand: rendered > 0, shown, accessibleContent }, {
+			shownForMouse: false, renderedBeforeCommand: 0, renderedAfterCommand: true, shown: true, accessibleContent: 'Issue title and description',
+		});
+		let contentUpdates = 0;
+		store.add(hover.onHoverContentsChanged(() => contentUpdates++));
+		content.textContent = 'Refreshed issue description';
+		await settle();
+		const refreshedAccessibleContent = provider.provideContent();
+		provider.onClose();
+		const container = content.closest('.monaco-hover');
+		assert.ok(container);
+		container.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
+		await settle();
+		assert.deepStrictEqual({
+			contentUpdated: contentUpdates > 0,
+			refreshedAccessibleContent,
+			dismissed: !hover.isHoverVisible,
+			focusReturned: input.editor.hasTextFocus(),
+			draft: input.state(),
+		}, { contentUpdated: true, refreshedAccessibleContent: 'Refreshed issue description', dismissed: true, focusReturned: true, draft: before });
+		input.editor.invokeWithinContext(accessor => new ShowOrFocusHoverAction().run(accessor, input.editor, { focus: true }));
+		await settle();
+		input.controller.refresh();
+		await settle();
+		const reference = input.editor.getDomNode()!.querySelector<HTMLElement>('.chat-inline-attachment .chat-attached-context-attachment');
+		assert.ok(reference);
+		const sandbox = sinon.createSandbox();
+		store.add(toDisposable(() => sandbox.restore()));
+		const click = sandbox.spy(reference, 'click');
+		assert.deepStrictEqual({
+			dismissedOnRefresh: !hover.isHoverVisible,
+			opensActiveReference: input.controller.openActivePill(),
+			clicks: click.callCount,
+			draft: input.state(),
+		}, { dismissedOnRefresh: true, opensActiveReference: true, clicks: 1, draft: before });
+	});
 
-	test('the input owns one GitHub resolver across pill rerenders and warms new arrivals through shared retention', async () => {
+	test('the input owns one GitHub resolver across pill rerenders and warms only new arrivals', async () => {
 		const sandbox = sinon.createSandbox();
 		store.add(toDisposable(() => sandbox.restore()));
 		const prefetch = sandbox.stub(GitHubResourceDetailsResolver.prototype, 'prefetchIssue').resolves(undefined);
@@ -232,881 +291,6 @@ suite('ChatInlineAttachments', () => {
 			warmed: prefetch.args.map(([target]) => target.number),
 		}, { hasResolver: true, sameResolver: true, warmed: [456] });
 	});
-
-	test('keyboard selection requests a delayed preview without changing the draft and restores Accessible View focus', async () => {
-		const preview = dom.$('div');
-		const link = dom.append(preview, dom.$('a', { href: 'https://github.com/microsoft/vscode' }, 'Repository'));
-		let shown = 0;
-		let disposed = 0;
-		const hoverService: IHoverService = {
-			...NullHoverService,
-			showDelayedHover: options => {
-				shown++;
-				assert.strictEqual(options.content, preview);
-				dom.getActiveDocument().body.appendChild(preview);
-				options.onDidShow?.();
-				let isDisposed = false;
-				return {
-					get isDisposed() { return isDisposed; },
-					dispose: () => {
-						if (!isDisposed) {
-							isDisposed = true;
-							disposed++;
-							preview.remove();
-						}
-					},
-				};
-			},
-		};
-		const input = createInput('review ', true, preview, hoverService);
-		const host = input.editor.getContainerDomNode();
-		dom.getActiveDocument().body.appendChild(host);
-		store.add(toDisposable(() => host.remove()));
-		input.editor.focus();
-		input.editor.setPosition(new Position(1, 8));
-		input.attachments.addContext(file('a.ts'));
-		await settle();
-		assert.strictEqual(shown, 0, 'Adding an attachment must not open the preview');
-
-		input.editor.setPosition(new Position(1, 8), 'keyboard');
-		input.editor.setPosition(new Position(1, 9), 'keyboard');
-		assert.strictEqual(shown, 1, 'Arrow navigation delegates preview timing to the hover service');
-		focusPreview(input);
-		const before = input.state();
-		const press = (key: string, shiftKey = false) => {
-			const event = new KeyboardEvent('keydown', { key, shiftKey, bubbles: true, cancelable: true });
-			dom.getActiveElement()!.dispatchEvent(event);
-			return event.defaultPrevented;
-		};
-		const opened = shown;
-		const linkFocused = dom.getActiveElement() === link;
-		const provider = store.add(input.controller.getAccessiblePreviewProvider(AccessibleViewType.View)!);
-		assert.strictEqual(ChatInlineAttachments.getPreviewOwner(link), input.controller);
-		assert.ok(provider.provideContent().includes('Repository'));
-		const observation = provider.onOpen?.();
-		if (observation) {
-			store.add(observation);
-		}
-		const accessibleHost = dom.append(dom.getActiveDocument().body, dom.$('div', { tabIndex: 0 }));
-		store.add(toDisposable(() => accessibleHost.remove()));
-		accessibleHost.focus();
-		accessibleHost.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
-		assert.strictEqual(disposed, 0, 'Accessible View must not dispose the preview it reads');
-		provider.onClose();
-		assert.strictEqual(dom.getActiveElement(), link, 'Closing Accessible View restores its invoking link');
-		provider.dispose();
-		const backTabConsumed = press('Tab', true);
-		const inputFocused = input.editor.hasTextFocus();
-		const escaped = disposed;
-		input.controller.refresh();
-		await settle();
-		assert.strictEqual(shown, 1, 'Rerender must not reopen a dismissed preview');
-		input.editor.setPosition(new Position(1, 8), 'keyboard');
-		input.editor.setPosition(new Position(1, 9), 'keyboard');
-		focusPreview(input);
-		input.controller.refresh();
-		await settle();
-		assert.strictEqual(shown, 2, 'Rerender must preserve a focused preview rather than reopening it');
-		input.editor.setPosition(new Position(1, 10), 'keyboard');
-		input.editor.setPosition(new Position(1, 9), 'keyboard');
-		focusPreview(input);
-		const outside = dom.append(dom.getActiveDocument().body, dom.$('button'));
-		store.add(toDisposable(() => outside.remove()));
-		outside.focus();
-		assert.strictEqual(dom.getActiveElement(), outside);
-		outside.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
-		const closedOnBlur = disposed;
-		input.editor.focus();
-		input.editor.setPosition(new Position(1, 8), 'keyboard');
-		input.editor.setPosition(new Position(1, 9), 'keyboard');
-		focusPreview(input);
-		input.editor.setSelection(new Selection(1, 8, 1, 9), 'keyboard');
-
-		assert.deepStrictEqual({
-			opened, linkFocused, backTabConsumed, inputFocused, escaped,
-			closedOnBlur, shown, disposed, unchanged: input.state(),
-		}, {
-			opened: 1, linkFocused: true, backTabConsumed: true, inputFocused: true, escaped: 1,
-			closedOnBlur: 3, shown: 4, disposed: 4, unchanged: before,
-		});
-	});
-
-	test('Accessible View resnapshots details that finish loading while its help is open', async () => {
-		const preview = dom.$('div', undefined, 'Loading reference details');
-		dom.append(preview, dom.$('a', { href: 'https://github.com/microsoft/vscode/pull/123' }, 'Open Pull Request #123'));
-		preview.setAttribute('aria-busy', 'true');
-		const input = createInput('review ', true, preview, {
-			...NullHoverService,
-			showDelayedHover: () => {
-				dom.getActiveDocument().body.appendChild(preview);
-				return { isDisposed: false, setVisible: () => { }, dispose: () => preview.remove() };
-			},
-		});
-		const host = input.editor.getContainerDomNode();
-		dom.getActiveDocument().body.appendChild(host);
-		store.add(toDisposable(() => host.remove()));
-		input.editor.focus();
-		input.editor.setPosition(new Position(1, 8));
-		input.attachments.addContext(file('a.ts'));
-		await settle();
-		input.editor.setPosition(new Position(1, 9), 'keyboard');
-		focusPreview(input);
-		const provider = store.add(input.controller.getAccessiblePreviewProvider(AccessibleViewType.View)!);
-		const firstOpen = provider.onOpen?.();
-		assert.ok(firstOpen);
-		store.add(firstOpen);
-		const initial = provider.provideContent();
-		firstOpen.dispose();
-		preview.replaceChildren(
-			dom.$('h3', undefined, 'Resolved reference title'),
-			dom.$('div', undefined, 'Merged'),
-			dom.$('p', undefined, 'Resolved reference description'));
-		preview.setAttribute('aria-busy', 'false');
-		await settle();
-		const whileHelpOpen = provider.provideContent();
-		const reopened = provider.onOpen?.();
-		assert.ok(reopened);
-		store.add(reopened);
-		assert.deepStrictEqual({ initial, whileHelpOpen, restored: provider.provideContent() }, {
-			initial: 'Loading reference detailsOpen Pull Request #123',
-			whileHelpOpen: 'Loading reference detailsOpen Pull Request #123',
-			restored: 'Resolved reference title\nMerged\nResolved reference description',
-		});
-	});
-
-	function createRealHoverService(fixture: HTMLElement, delay = 0): HoverService {
-		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
-		instantiationService.stub(IConfigurationService, new TestConfigurationService({ 'workbench.hover.delay': delay }));
-		instantiationService.stub(ILayoutService, {
-			activeContainer: fixture,
-			mainContainer: fixture,
-			getContainer: () => fixture,
-			onDidLayoutContainer: Event.None,
-		});
-		const hoverService = store.add(instantiationService.createInstance(HoverService));
-		instantiationService.stub(IHoverService, hoverService);
-		return hoverService;
-	}
-
-	test('Accessible View preserves its hidden delayed preview when a toolbar requests an instant hover', async () => {
-		const fixture = dom.append(dom.getActiveDocument().body, dom.$('div'));
-		store.add(toDisposable(() => fixture.remove()));
-		const preview = dom.$('div');
-		const link = dom.append(preview, dom.$('a', { href: 'https://github.com/microsoft/vscode' }, 'Repository'));
-		const hoverService = createRealHoverService(fixture);
-		const input = createInput('review ', true, preview, hoverService);
-		const host = input.editor.getContainerDomNode();
-		fixture.appendChild(host);
-		input.editor.focus();
-		input.editor.setPosition(new Position(1, 8));
-		input.attachments.addContext(file('a.ts'));
-		await settle();
-		host.appendChild(input.attachmentElements[0].closest('.chat-inline-attachment')!);
-		input.editor.setPosition(new Position(1, 2), 'keyboard');
-		input.attachmentElements[0].dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
-		await settle();
-		focusPreview(input);
-		const provider = store.add(input.controller.getAccessiblePreviewProvider(AccessibleViewType.View)!);
-		const opened = provider.onOpen?.();
-		assert.ok(opened);
-		store.add(opened);
-		const toolbarAction = dom.append(fixture, dom.$('button', undefined, 'Accessible View action'));
-		const tooltip = hoverService.showInstantHover({ content: 'Toolbar tooltip', target: toolbarAction });
-		const preserved = preview.isConnected;
-		opened.dispose();
-		provider.onClose?.();
-		assert.deepStrictEqual({
-			tooltipRejected: !tooltip,
-			preserved,
-			returnedToLink: dom.getActiveElement() === link,
-			ownerRetained: ChatInlineAttachments.getPreviewOwner(link) === input.controller,
-		}, { tooltipRejected: true, preserved: true, returnedToLink: true, ownerRetained: true });
-	});
-
-	test('disposing the input removes ownership of the cached preview element', async () => {
-		const fixture = dom.append(dom.getActiveDocument().body, dom.$('div'));
-		store.add(toDisposable(() => fixture.remove()));
-		const preview = dom.$('div');
-		dom.append(preview, dom.$('a', { href: 'https://github.com/microsoft/vscode' }, 'Repository'));
-		const input = createInput('review ', true, preview, createRealHoverService(fixture));
-		const host = input.editor.getContainerDomNode();
-		fixture.appendChild(host);
-		input.editor.focus();
-		input.editor.setPosition(new Position(1, 8));
-		input.attachments.addContext(file('a.ts'));
-		await settle();
-		host.appendChild(input.attachmentElements[0].closest('.chat-inline-attachment')!);
-		input.editor.setPosition(new Position(1, 9), 'keyboard');
-		await settle();
-		const ownedBefore = ChatInlineAttachments.getPreviewOwner(preview) === input.controller;
-		input.controller.dispose();
-		assert.deepStrictEqual({
-			ownedBefore,
-			ownerAfter: ChatInlineAttachments.getPreviewOwner(preview),
-			editorControllerAfter: ChatInlineAttachments.get(input.editor),
-			visibleAfter: preview.isConnected,
-		}, { ownedBefore: true, ownerAfter: undefined, editorControllerAfter: undefined, visibleAfter: false });
-	});
-
-	test('a pointer preview stays open while its controls have keyboard focus and closes after focus leaves', async () => {
-		const fixture = dom.append(dom.getActiveDocument().body, dom.$('div'));
-		store.add(toDisposable(() => fixture.remove()));
-		const preview = dom.$('div');
-		const link = dom.append(preview, dom.$('a', { href: 'https://github.com/microsoft/vscode' }, 'Repository'));
-		const input = createInput('review ', true, preview, createRealHoverService(fixture));
-		const host = input.editor.getContainerDomNode();
-		fixture.appendChild(host);
-		input.editor.focus();
-		input.editor.setPosition(new Position(1, 8));
-		input.attachments.addContext(file('a.ts'));
-		await settle();
-		const target = input.attachmentElements[0];
-		host.appendChild(target.closest('.chat-inline-attachment')!);
-		input.editor.setPosition(new Position(1, 2), 'keyboard');
-		target.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
-		await settle();
-		focusPreview(input);
-		link.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
-		target.dispatchEvent(new MouseEvent('mouseleave'));
-		preview.closest('.workbench-hover-container')?.dispatchEvent(new MouseEvent('mouseleave'));
-		await timeout(250);
-		const duringKeyboardNavigation = { visible: preview.isConnected, linkFocused: dom.getActiveElement() === link };
-		input.editor.focus();
-		link.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: host }));
-		await new Promise<void>(resolve => dom.getWindow(link).setTimeout(resolve, 0));
-		assert.deepStrictEqual({ duringKeyboardNavigation, visibleAfterBlur: preview.isConnected }, {
-			duringKeyboardNavigation: { visible: true, linkFocused: true },
-			visibleAfterBlur: false,
-		});
-	});
-
-	for (const trigger of ['mouse', 'keyboard']) {
-		test(`${trigger} preview preserves focused controls through a composer refresh`, async () => {
-			const fixture = dom.append(dom.getActiveDocument().body, dom.$('div'));
-			store.add(toDisposable(() => fixture.remove()));
-			const previews: HTMLElement[] = [];
-			const input = createInput('review ', true, () => {
-				const preview = dom.$('div');
-				dom.append(preview, dom.$('a', { href: 'https://github.com/microsoft/vscode' }, 'Repository'));
-				previews.push(preview);
-				return preview;
-			}, createRealHoverService(fixture));
-			const host = input.editor.getContainerDomNode();
-			fixture.appendChild(host);
-			input.editor.focus();
-			input.editor.setPosition(new Position(1, 8));
-			input.attachments.addContext(file('a.ts'));
-			await settle();
-			host.appendChild(input.attachmentElements[0].closest('.chat-inline-attachment')!);
-			input.editor.setPosition(new Position(1, 2), 'keyboard');
-			if (trigger === 'mouse') {
-				input.attachmentElements[0].dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
-			} else {
-				input.editor.setPosition(new Position(1, 9), 'keyboard');
-			}
-			await settle();
-			focusPreview(input);
-			const link = previews[0].querySelector('a')!;
-			const before = input.state();
-			input.controller.refresh();
-			await settle();
-			const refreshed = {
-				linkFocused: dom.getActiveElement() === link,
-				previewRetained: previews[0].isConnected,
-				ownerRetained: ChatInlineAttachments.getPreviewOwner(link) === input.controller,
-				widgetsRendered: input.attachmentElements.length,
-				state: input.state(),
-			};
-			link.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
-			await settle();
-			assert.deepStrictEqual({ refreshed, widgetsAfterDismiss: input.attachmentElements.length }, {
-				refreshed: { linkFocused: true, previewRetained: true, ownerRetained: true, widgetsRendered: 1, state: before },
-				widgetsAfterDismiss: 2,
-			});
-		});
-	}
-
-	for (const state of ['loading', 'unavailable']) {
-		test(`${state} hover uses passive shared presentation without a focusable placeholder`, async () => {
-			const fixture = dom.append(dom.getActiveDocument().body, dom.$('div'));
-			store.add(toDisposable(() => fixture.remove()));
-			const preview = dom.$('.chat-pill-hover-content', undefined, state === 'loading' ? 'Pull Request #123' : 'https://github.com/microsoft/vscode/pull/123');
-			preview.setAttribute('aria-busy', String(state === 'loading'));
-			const input = createInput('review ', true, preview, createRealHoverService(fixture));
-			const host = input.editor.getContainerDomNode();
-			fixture.appendChild(host);
-			input.editor.focus();
-			input.editor.setPosition(new Position(1, 8));
-			input.attachments.addContext(file('a.ts'));
-			await settle();
-			const pill = input.attachmentElements[0].closest('.chat-inline-attachment');
-			assert.ok(pill);
-			host.appendChild(pill);
-			input.editor.setPosition(new Position(1, 9), 'keyboard');
-			await timeout(0);
-			assert.deepStrictEqual({
-				editorFocused: input.editor.hasTextFocus(),
-				contentFocusable: preview.hasAttribute('tabindex'),
-				contentFocused: dom.getActiveElement() === preview,
-				role: preview.closest('.monaco-hover')?.getAttribute('role'),
-				links: preview.querySelectorAll('a,button').length,
-				accessiblePreview: input.controller.getAccessiblePreviewProvider(AccessibleViewType.View),
-			}, { editorFocused: true, contentFocusable: false, contentFocused: false, role: 'tooltip', links: 0, accessiblePreview: undefined });
-			host.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }));
-			assert.deepStrictEqual({ dismissed: !preview.isConnected, editorFocused: input.editor.hasTextFocus() }, { dismissed: true, editorFocused: true });
-		});
-	}
-
-	for (const type of [AccessibleViewType.View, AccessibleViewType.Help]) {
-		test(`${type} mouse interaction preserves the real hover and invoking link`, async () => {
-			const fixture = dom.append(dom.getActiveDocument().body, dom.$('div'));
-			store.add(toDisposable(() => fixture.remove()));
-			const hoverService = createRealHoverService(fixture);
-			const preview = dom.$('div');
-			const link = dom.append(preview, dom.$('a', { href: 'https://github.com/microsoft/vscode/pull/123' }, 'Open Pull Request #123'));
-			const input = createInput('review ', true, preview, hoverService);
-			const host = input.editor.getContainerDomNode();
-			fixture.appendChild(host);
-			input.editor.focus();
-			input.editor.setPosition(new Position(1, 8));
-			input.attachments.addContext(file('a.ts'));
-			await settle();
-			const pill = input.attachmentElements[0].closest('.chat-inline-attachment');
-			assert.ok(pill);
-			host.appendChild(pill);
-			input.editor.setPosition(new Position(1, 9), 'keyboard');
-			await timeout(0);
-			focusPreview(input);
-			const provider = store.add(input.controller.getAccessiblePreviewProvider(type)!);
-			const observation = provider.onOpen?.();
-			if (observation) {
-				store.add(observation);
-			}
-			const accessibleEditor = dom.append(fixture, dom.$('div', { tabIndex: 0 }));
-			const toolbarButton = dom.append(accessibleEditor, dom.$('button'));
-			accessibleEditor.focus();
-			accessibleEditor.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
-			const afterEditorClick = ChatInlineAttachments.getPreviewOwner(link) === input.controller;
-			toolbarButton.focus();
-			toolbarButton.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
-			const afterToolbarClick = ChatInlineAttachments.getPreviewOwner(link) === input.controller;
-			provider.onClose();
-			const returnedToInvokingLink = dom.getActiveElement() === link;
-			const previewConnected = preview.isConnected;
-			link.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
-			assert.deepStrictEqual({
-				afterEditorClick,
-				afterToolbarClick,
-				previewConnected,
-				returnedToInvokingLink,
-				previewDismissed: !preview.isConnected,
-				escapeReturnsToEditor: input.editor.hasTextFocus(),
-			}, { afterEditorClick: true, afterToolbarClick: true, previewConnected: true, returnedToInvokingLink: true, previewDismissed: true, escapeReturnsToEditor: true });
-		});
-
-		test(`${type} preserves the invoking link while existing details refresh`, async () => {
-			const preview = dom.$('div');
-			preview.setAttribute('aria-busy', 'true');
-			const link = dom.append(preview, dom.$('a', { href: 'https://github.com/microsoft/vscode' }, 'Repository'));
-			const input = createInput('review ', true, preview, {
-				...NullHoverService,
-				showDelayedHover: () => {
-					dom.getActiveDocument().body.appendChild(preview);
-					return { isDisposed: false, setVisible: () => { }, dispose: () => preview.remove() };
-				},
-			});
-			const host = input.editor.getContainerDomNode();
-			dom.getActiveDocument().body.appendChild(host);
-			store.add(toDisposable(() => host.remove()));
-			input.editor.focus();
-			input.editor.setPosition(new Position(1, 8));
-			input.attachments.addContext(file('a.ts'));
-			await settle();
-			input.editor.setPosition(new Position(1, 9), 'keyboard');
-			focusPreview(input);
-			const provider = store.add(input.controller.getAccessiblePreviewProvider(type)!);
-			const observation = provider.onOpen?.();
-			if (observation) {
-				store.add(observation);
-			}
-			const accessibleHost = dom.append(dom.getActiveDocument().body, dom.$('div', { tabIndex: 0 }));
-			store.add(toDisposable(() => accessibleHost.remove()));
-			accessibleHost.focus();
-			dom.append(preview, dom.$('p', undefined, 'Resolved reference details'));
-			preview.setAttribute('aria-busy', 'false');
-			await settle();
-			const readingPreserved = dom.getActiveElement() === accessibleHost;
-			const placeholderTabIndex = preview.getAttribute('tabindex');
-			const textUpdated = type === AccessibleViewType.Help || provider.provideContent().includes('Resolved reference details');
-			provider.onClose();
-			assert.deepStrictEqual({
-				readingPreserved,
-				placeholderTabIndex,
-				textUpdated,
-				returnedToLink: dom.getActiveElement() === link,
-			}, { readingPreserved: true, placeholderTabIndex: null, textUpdated: true, returnedToLink: true });
-		});
-
-		test(`${type} retains preview ownership through a deferred composer refresh`, async () => {
-			const preview = dom.$('div');
-			dom.append(preview, dom.$('a', { href: 'https://github.com/microsoft/vscode' }, 'Repository'));
-			const reference = dom.append(preview, dom.$('a', { href: 'https://github.com/microsoft/vscode/pull/123' }, 'Reference'));
-			let shown = 0;
-			let disposed = 0;
-			let visible = true;
-			const input = createInput('review ', true, preview, {
-				...NullHoverService,
-				showDelayedHover: () => {
-					shown++;
-					dom.getActiveDocument().body.appendChild(preview);
-					let isDisposed = false;
-					return {
-						get isDisposed() { return isDisposed; },
-						setVisible: value => { visible = value; },
-						dispose: () => {
-							if (!isDisposed) {
-								isDisposed = true;
-								disposed++;
-								preview.remove();
-							}
-						},
-					};
-				},
-			});
-			const host = input.editor.getContainerDomNode();
-			dom.getActiveDocument().body.appendChild(host);
-			store.add(toDisposable(() => host.remove()));
-			input.editor.focus();
-			input.editor.setPosition(new Position(1, 8));
-			input.attachments.addContext(file('a.ts'));
-			await settle();
-			input.editor.setPosition(new Position(1, 9), 'keyboard');
-			focusPreview(input);
-			reference.focus();
-			const provider = store.add(input.controller.getAccessiblePreviewProvider(type)!);
-			const observation = provider.onOpen?.();
-			if (observation) {
-				store.add(observation);
-			}
-			const accessibleHost = dom.append(dom.getActiveDocument().body, dom.$('div', { tabIndex: 0 }));
-			store.add(toDisposable(() => accessibleHost.remove()));
-			accessibleHost.focus();
-			input.controller.refresh();
-			await settle();
-			const reading = {
-				shown, disposed, visible,
-				focusPreserved: dom.getActiveElement() === accessibleHost,
-				ownerPreserved: ChatInlineAttachments.getPreviewOwner(reference) === input.controller,
-				widgetRenders: input.attachmentElements.length,
-			};
-			provider.onClose();
-			provider.dispose();
-			await settle();
-			const returned = { shown, disposed, visible, focusPreserved: dom.getActiveElement() === reference };
-			input.controller.openActivePill();
-			await settle();
-			assert.deepStrictEqual({
-				reading, returned,
-				dismissed: { shown, disposed, editorFocused: input.editor.hasTextFocus(), widgetRenders: input.attachmentElements.length },
-			}, {
-				reading: { shown: 1, disposed: 0, visible: false, focusPreserved: true, ownerPreserved: true, widgetRenders: 1 },
-				returned: { shown: 1, disposed: 0, visible: true, focusPreserved: true },
-				dismissed: { shown: 1, disposed: 1, editorFocused: true, widgetRenders: 2 },
-			});
-		});
-	}
-
-	test('unresolved details stay passive and Tab reaches links only after they arrive', async () => {
-		const preview = dom.$('div');
-		preview.setAttribute('aria-busy', 'true');
-		const input = createInput('review ', true, preview, {
-			...NullHoverService,
-			showDelayedHover: () => {
-				dom.getActiveDocument().body.appendChild(preview);
-				return { isDisposed: false, dispose: () => preview.remove() };
-			},
-		});
-		const host = input.editor.getContainerDomNode();
-		dom.getActiveDocument().body.appendChild(host);
-		store.add(toDisposable(() => host.remove()));
-		input.editor.focus();
-		input.editor.setPosition(new Position(1, 8));
-		input.attachments.addContext(file('a.ts'));
-		await settle();
-		input.editor.setPosition(new Position(1, 8), 'keyboard');
-		input.editor.setPosition(new Position(1, 9), 'keyboard');
-		assert.notStrictEqual(dom.getActiveElement(), preview);
-		assert.ok(input.editor.hasTextFocus());
-		assert.strictEqual(preview.hasAttribute('tabindex'), false);
-		assert.strictEqual(input.controller.getAccessiblePreviewProvider(AccessibleViewType.View), undefined);
-		const link = dom.append(preview, dom.$('a', { href: 'https://github.com/microsoft/vscode' }, 'Repository'));
-		preview.setAttribute('aria-busy', 'false');
-		await settle();
-		assert.deepStrictEqual({
-			editorStillFocused: input.editor.hasTextFocus(),
-			role: preview.getAttribute('role'),
-			label: preview.getAttribute('aria-label'),
-		}, { editorStillFocused: true, role: null, label: null });
-		host.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }));
-		assert.strictEqual(dom.getActiveElement(), link);
-		input.attachments.delete('file:a.ts');
-		await settle();
-		assert.strictEqual(preview.isConnected, false);
-	});
-
-	for (const shiftKey of [false, true]) {
-		test(`${shiftKey ? 'Shift+Tab' : 'Tab'} leaves a preview with no interactive controls`, async () => {
-			const preview = dom.$('div');
-			const input = createInput('review ', true, preview, {
-				...NullHoverService,
-				showDelayedHover: () => {
-					dom.getActiveDocument().body.appendChild(preview);
-					return { isDisposed: false, dispose: () => preview.remove() };
-				},
-			});
-			const host = input.editor.getContainerDomNode();
-			dom.getActiveDocument().body.appendChild(host);
-			store.add(toDisposable(() => host.remove()));
-			input.editor.focus();
-			input.editor.setPosition(new Position(1, 8));
-			input.attachments.addContext(file('a.ts'));
-			await settle();
-			input.editor.setPosition(new Position(1, 9), 'keyboard');
-			const draft = input.editor.getValue();
-			assert.deepStrictEqual({
-				editorFocused: input.editor.hasTextFocus(),
-				focusablePlaceholder: preview.hasAttribute('tabindex'),
-				accessiblePreview: input.controller.getAccessiblePreviewProvider(AccessibleViewType.View),
-			}, { editorFocused: true, focusablePlaceholder: false, accessiblePreview: undefined });
-			const event = new KeyboardEvent('keydown', { key: 'Tab', shiftKey, bubbles: true, cancelable: true });
-			preview.dispatchEvent(event);
-			assert.deepStrictEqual({
-				dismissed: !preview.isConnected,
-				editorFocused: input.editor.hasTextFocus(),
-				consumed: event.defaultPrevented,
-				draftUnchanged: input.editor.getValue() === draft,
-			}, { dismissed: true, editorFocused: true, consumed: true, draftUnchanged: true });
-		});
-	}
-
-	test('hover requests a preview while click and Enter activate the attachment', async () => {
-		const preview = dom.$('div');
-		dom.append(preview, dom.$('a', { href: 'https://github.com/microsoft/vscode' }, 'Repository'));
-		let shown = 0;
-		const input = createInput('review ', true, preview, {
-			...NullHoverService,
-			showDelayedHover: () => {
-				shown++;
-				dom.getActiveDocument().body.appendChild(preview);
-				return { isDisposed: false, dispose: () => preview.remove() };
-			},
-		});
-		const host = input.editor.getContainerDomNode();
-		dom.getActiveDocument().body.appendChild(host);
-		store.add(toDisposable(() => host.remove()));
-		input.editor.focus();
-		input.editor.setPosition(new Position(1, 8));
-		input.attachments.addContext(file('a.ts'));
-		await settle();
-		input.editor.setPosition(new Position(1, 2), 'keyboard');
-		const before = input.state();
-		const position = input.editor.getPosition();
-		let opened = 0;
-		store.add(dom.addDisposableListener(input.attachmentElements[0], dom.EventType.CLICK, () => opened++));
-		input.attachmentElements[0].dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
-		input.attachmentElements[0].click();
-		const mouse = { shown, opened, focusStayedInComposer: input.editor.hasTextFocus(), position: input.editor.getPosition(), state: input.state() };
-		input.editor.setPosition(new Position(1, 9), 'keyboard');
-		const openedByEnter = input.controller.openActivePill();
-		assert.deepStrictEqual({ mouse, openedByEnter, opened, dismissed: !preview.isConnected }, {
-			mouse: { shown: 1, opened: 1, focusStayedInComposer: true, position, state: before },
-			openedByEnter: true, opened: 2, dismissed: true,
-		});
-	});
-
-	for (const trigger of ['mouse', 'keyboard']) {
-		for (const delay of [500, 700]) {
-			test(`${trigger} preview waits for the configured ${delay}ms hover delay without stealing focus`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-				const fixture = dom.append(dom.getActiveDocument().body, dom.$('div'));
-				store.add(toDisposable(() => fixture.remove()));
-				const preview = dom.$('div');
-				const link = dom.append(preview, dom.$('a', { href: 'https://github.com/microsoft/vscode/pull/123' }, 'Open Pull Request #123'));
-				const input = createInput('review ', true, preview, createRealHoverService(fixture, delay));
-				const host = input.editor.getContainerDomNode();
-				fixture.appendChild(host);
-				input.editor.focus();
-				input.editor.setPosition(new Position(1, 8));
-				input.attachments.addContext(file('a.ts'));
-				await settle();
-				const pill = input.attachmentElements[0].closest('.chat-inline-attachment');
-				assert.ok(pill);
-				host.appendChild(pill);
-				input.editor.setPosition(new Position(1, 2), 'keyboard');
-				if (trigger === 'mouse') {
-					input.attachmentElements[0].dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
-				} else {
-					input.editor.setPosition(new Position(1, 9), 'keyboard');
-				}
-				await timeout(delay - 1);
-				const beforeDeadline = { visible: preview.isConnected, expanded: input.attachmentElements[0].getAttribute('aria-expanded') === 'true' };
-				await timeout(1);
-				const afterDeadline = { visible: preview.isConnected, expanded: input.attachmentElements[0].getAttribute('aria-expanded'), editorFocused: input.editor.hasTextFocus() };
-				focusPreview(input);
-				assert.deepStrictEqual({ beforeDeadline, afterDeadline, enteredLink: dom.getActiveElement() === link }, {
-					beforeDeadline: { visible: false, expanded: false },
-					afterDeadline: { visible: true, expanded: 'true', editorFocused: true },
-					enteredLink: true,
-				});
-			}));
-		}
-	}
-
-	test('moving the keyboard selection away cancels the pending preview', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		const fixture = dom.append(dom.getActiveDocument().body, dom.$('div'));
-		store.add(toDisposable(() => fixture.remove()));
-		const preview = dom.$('div', undefined, 'Details');
-		const input = createInput('review ', true, preview, createRealHoverService(fixture, 500));
-		fixture.appendChild(input.editor.getContainerDomNode());
-		input.editor.focus();
-		input.editor.setPosition(new Position(1, 8));
-		input.attachments.addContext(file('a.ts'));
-		await settle();
-		input.editor.setPosition(new Position(1, 9), 'keyboard');
-		await timeout(499);
-		input.editor.setPosition(new Position(1, 10), 'keyboard');
-		await timeout(501);
-		assert.deepStrictEqual({ visible: preview.isConnected, editorFocused: input.editor.hasTextFocus() }, { visible: false, editorFocused: true });
-	}));
-
-	test('moving between visible pointer previews shares the hover group without a second delay', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		const fixture = dom.append(dom.getActiveDocument().body, dom.$('div'));
-		store.add(toDisposable(() => fixture.remove()));
-		let sequence = 0;
-		const previews: HTMLElement[] = [];
-		const input = createInput('review ', true, () => {
-			const preview = dom.$('div', undefined, `Reference ${++sequence}`);
-			previews.push(preview);
-			return preview;
-		}, createRealHoverService(fixture, 500));
-		const host = input.editor.getContainerDomNode();
-		fixture.appendChild(host);
-		input.editor.focus();
-		input.editor.setPosition(new Position(1, 8));
-		input.attachments.addContext(file('a.ts'), file('b.ts'));
-		await settle();
-		for (const target of input.attachmentElements) {
-			host.appendChild(target.closest('.chat-inline-attachment')!);
-		}
-		input.editor.setPosition(new Position(1, 2), 'keyboard');
-		input.attachmentElements[0].dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
-		await timeout(500);
-		const firstShown = previews[0].isConnected;
-		input.attachmentElements[1].dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
-		assert.deepStrictEqual({
-			firstShown,
-			firstDismissed: !previews[0].isConnected,
-			secondShownImmediately: previews[1].isConnected,
-			secondExpanded: input.attachmentElements[1].getAttribute('aria-expanded'),
-		}, { firstShown: true, firstDismissed: true, secondShownImmediately: true, secondExpanded: 'true' });
-	}));
-
-	test('a rejected pointer replacement preserves the locked keyboard preview and its owner', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		const fixture = dom.append(dom.getActiveDocument().body, dom.$('div'));
-		store.add(toDisposable(() => fixture.remove()));
-		const previews: HTMLElement[] = [];
-		const input = createInput('review ', true, () => {
-			const preview = dom.$('div');
-			dom.append(preview, dom.$('a', { href: 'https://github.com/microsoft/vscode' }, `Reference ${previews.length + 1}`));
-			previews.push(preview);
-			return preview;
-		}, createRealHoverService(fixture, 500));
-		const host = input.editor.getContainerDomNode();
-		fixture.appendChild(host);
-		input.editor.focus();
-		input.editor.setPosition(new Position(1, 8));
-		input.attachments.addContext(file('a.ts'), file('b.ts'));
-		await settle();
-		for (const target of input.attachmentElements) {
-			host.appendChild(target.closest('.chat-inline-attachment')!);
-		}
-		input.editor.setPosition(new Position(1, 9), 'keyboard');
-		await timeout(500);
-		const previewId = previews[0].id;
-		input.attachmentElements[1].dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
-		await timeout(500);
-		focusPreview(input);
-		assert.deepStrictEqual({
-			firstVisible: previews[0].isConnected,
-			secondVisible: previews[1].isConnected,
-			firstOwner: ChatInlineAttachments.getPreviewOwner(previews[0]) === input.controller,
-			firstControls: input.attachmentElements[0].getAttribute('aria-controls'),
-			focusedText: dom.getActiveElement()?.textContent,
-		}, { firstVisible: true, secondVisible: false, firstOwner: true, firstControls: previewId, focusedText: 'Reference 1' });
-	}));
-
-	test('modified Tab shortcuts are not intercepted at either preview boundary', async () => {
-		const fixture = dom.append(dom.getActiveDocument().body, dom.$('div'));
-		store.add(toDisposable(() => fixture.remove()));
-		const preview = dom.$('div');
-		const link = dom.append(preview, dom.$('a', { href: 'https://github.com/microsoft/vscode' }, 'Repository'));
-		const input = createInput('review ', true, preview, createRealHoverService(fixture));
-		const host = input.editor.getContainerDomNode();
-		fixture.appendChild(host);
-		input.editor.focus();
-		input.editor.setPosition(new Position(1, 8));
-		input.attachments.addContext(file('a.ts'));
-		await settle();
-		host.appendChild(input.attachmentElements[0].closest('.chat-inline-attachment')!);
-		input.editor.setPosition(new Position(1, 9), 'keyboard');
-		await settle();
-		focusPreview(input);
-		const modifiers = ['ctrlKey', 'altKey', 'metaKey'] as const;
-		const results: { modifier: string; shiftKey: boolean; prevented: boolean; previewVisible: boolean }[] = [];
-		for (const modifier of modifiers) {
-			for (const shiftKey of [false, true]) {
-				const event = new KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, shiftKey, [modifier]: true, bubbles: true, cancelable: true });
-				link.dispatchEvent(event);
-				results.push({ modifier, shiftKey, prevented: event.defaultPrevented, previewVisible: preview.isConnected });
-			}
-		}
-		assert.deepStrictEqual(results, modifiers.flatMap(modifier => [false, true].map(shiftKey => ({ modifier, shiftKey, prevented: false, previewVisible: true }))));
-	});
-
-	test('grouped duplicate references preserve the owner of their shared cached preview', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		const fixture = dom.append(dom.getActiveDocument().body, dom.$('div'));
-		store.add(toDisposable(() => fixture.remove()));
-		const preview = dom.$('div');
-		const link = dom.append(preview, dom.$('a', { href: 'https://github.com/microsoft/vscode' }, 'Repository'));
-		const input = createInput('review ', true, preview, createRealHoverService(fixture, 500));
-		const host = input.editor.getContainerDomNode();
-		fixture.appendChild(host);
-		input.editor.focus();
-		input.editor.setPosition(new Position(1, 8));
-		input.attachments.addContext(file('a.ts'));
-		await settle();
-		input.editor.setPosition(new Position(1, 1), 'keyboard');
-		input.editor.executeCommand('test', new CopyLinesCommand(input.editor.getSelection()!, true));
-		await settle();
-		const targets = input.attachmentElements.slice(-2);
-		for (const target of targets) {
-			host.appendChild(target.closest('.chat-inline-attachment')!);
-		}
-		input.editor.setPosition(new Position(1, 2), 'keyboard');
-		targets[0].dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
-		await timeout(500);
-		targets[1].dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
-		focusPreview(input);
-		const owner = ChatInlineAttachments.getPreviewOwner(link);
-		const provider = owner?.getAccessiblePreviewProvider(AccessibleViewType.View);
-		assert.deepStrictEqual({
-			visible: preview.isConnected,
-			ownerRetained: owner === input.controller,
-			linkFocused: dom.getActiveElement() === link,
-			accessibleText: provider?.provideContent(),
-		}, { visible: true, ownerRetained: true, linkFocused: true, accessibleText: 'Repository' });
-		provider?.dispose();
-	}));
-
-	test('rerender restarts a pending preview for the still-selected keyboard pill', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		const fixture = dom.append(dom.getActiveDocument().body, dom.$('div'));
-		store.add(toDisposable(() => fixture.remove()));
-		const preview = dom.$('div', undefined, 'Details');
-		const input = createInput('review ', true, preview, createRealHoverService(fixture, 500));
-		fixture.appendChild(input.editor.getContainerDomNode());
-		input.editor.focus();
-		input.editor.setPosition(new Position(1, 8));
-		input.attachments.addContext(file('a.ts'));
-		await settle();
-		input.editor.getContainerDomNode().appendChild(input.attachmentElements[0].closest('.chat-inline-attachment')!);
-		input.editor.setPosition(new Position(1, 9), 'keyboard');
-		await timeout(250);
-		input.controller.refresh();
-		await settle();
-		await timeout(500);
-		assert.deepStrictEqual({ visible: preview.isConnected, editorFocused: input.editor.hasTextFocus() }, { visible: true, editorFocused: true });
-	}));
-
-	test('rerender does not resurrect a pending preview cancelled by another surface', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		const fixture = dom.append(dom.getActiveDocument().body, dom.$('div'));
-		store.add(toDisposable(() => fixture.remove()));
-		const preview = dom.$('div', undefined, 'Details');
-		const hoverService = createRealHoverService(fixture, 500);
-		const input = createInput('review ', true, preview, hoverService);
-		const host = input.editor.getContainerDomNode();
-		fixture.appendChild(host);
-		input.editor.focus();
-		input.editor.setPosition(new Position(1, 8));
-		input.attachments.addContext(file('a.ts'));
-		await settle();
-		host.appendChild(input.attachmentElements[0].closest('.chat-inline-attachment')!);
-		input.editor.setPosition(new Position(1, 9), 'keyboard');
-		await timeout(250);
-		hoverService.hideHover();
-		input.controller.refresh();
-		await settle();
-		await timeout(1000);
-		assert.deepStrictEqual({
-			visible: preview.isConnected,
-			expanded: input.attachmentElements.at(-1)?.getAttribute('aria-expanded') === 'true',
-			editorFocused: input.editor.hasTextFocus(),
-		}, { visible: false, expanded: false, editorFocused: true });
-	}));
-
-	test('leaving the mouse target just before the deadline cancels without a late flash', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		const fixture = dom.append(dom.getActiveDocument().body, dom.$('div'));
-		store.add(toDisposable(() => fixture.remove()));
-		const preview = dom.$('div', undefined, 'Details');
-		const input = createInput('review ', true, preview, createRealHoverService(fixture, 500));
-		fixture.appendChild(input.editor.getContainerDomNode());
-		input.editor.focus();
-		input.editor.setPosition(new Position(1, 8));
-		input.attachments.addContext(file('a.ts'));
-		await settle();
-		input.editor.setPosition(new Position(1, 2), 'keyboard');
-		const target = input.attachmentElements[0];
-		target.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
-		await timeout(499);
-		target.dispatchEvent(new MouseEvent('mouseleave'));
-		await timeout(1);
-		const atDeadline = preview.isConnected;
-		await timeout(300);
-		assert.deepStrictEqual({ atDeadline, later: preview.isConnected, expanded: target.getAttribute('aria-expanded') }, { atDeadline: false, later: false, expanded: 'false' });
-	}));
-
-	test('leaving after Escape cancels a pending pointer preview even while its pill stays selected', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		const fixture = dom.append(dom.getActiveDocument().body, dom.$('div'));
-		store.add(toDisposable(() => fixture.remove()));
-		const preview = dom.$('div', undefined, 'Details');
-		const input = createInput('review ', true, preview, createRealHoverService(fixture, 500));
-		const host = input.editor.getContainerDomNode();
-		fixture.appendChild(host);
-		input.editor.focus();
-		input.editor.setPosition(new Position(1, 8));
-		input.attachments.addContext(file('a.ts'));
-		await settle();
-		const target = input.attachmentElements[0];
-		host.appendChild(target.closest('.chat-inline-attachment')!);
-		input.editor.setPosition(new Position(1, 9), 'keyboard');
-		await timeout(500);
-		host.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
-		const selectedAfterEscape = input.isActive();
-		target.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
-		await timeout(499);
-		target.dispatchEvent(new MouseEvent('mouseleave'));
-		await timeout(1);
-		const atDeadline = preview.isConnected;
-		await timeout(300);
-		assert.deepStrictEqual({ selectedAfterEscape, atDeadline, later: preview.isConnected }, { selectedAfterEscape: true, atDeadline: false, later: false });
-	}));
-
-	function file(name: string): IChatRequestVariableEntry {
-		return { kind: 'file', id: `file:${name}`, name, value: URI.file(`/${name}`) };
-	}
-
-	/** Lets the pills catch up with the input, which they do once the current task settled. */
-	function settle(): Promise<void> {
-		return timeout(0);
-	}
 
 	test('moving a line moves the pills on it, and undo moves them back', async () => {
 		const input = createInput('summarize\nreview ');

@@ -175,14 +175,11 @@ class CachedChatPillHover {
 				} else {
 					renderedView.element.textContent = provider.failedFallback ?? provider.fallback;
 					renderedView.tabbableElements = [];
-					renderedView.liveElements = undefined;
 					renderedView.resolved = false;
 				}
 			}, () => {
 				if (!renderedView.resolved) {
 					renderedView.element.textContent = provider.failedFallback ?? provider.fallback;
-					renderedView.tabbableElements = [];
-					renderedView.liveElements = undefined;
 				}
 			}).finally(() => {
 				renderedView.element.setAttribute('aria-busy', 'false');

@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { Event } from '../../../../../../../base/common/event.js';
 import { ICodeEditor } from '../../../../../../../editor/browser/editorBrowser.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { IModelDecoration } from '../../../../../../../editor/common/model.js';
@@ -20,10 +21,19 @@ import { isImageVariableEntry, type IImageVariableEntry } from '../../../../comm
 import { coerceImageBuffer } from '../../../../common/chatImageExtraction.js';
 import { createChatImageHoverContent } from '../../../../../../browser/chatImagePreview.js';
 import { URI } from '../../../../../../../base/common/uri.js';
-import { getActiveElement, isHTMLElement } from '../../../../../../../base/browser/dom.js';
 import { ChatInlineAttachments } from './chatInlineAttachments.js';
-import { AccessibleViewRegistry } from '../../../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
-import { AccessibleViewType } from '../../../../../../../platform/accessibility/browser/accessibleView.js';
+import { HoverStartSource } from '../../../../../../../editor/contrib/hover/browser/hoverOperation.js';
+import { KeyChord, KeyCode, KeyMod } from '../../../../../../../base/common/keyCodes.js';
+import { SHOW_OR_FOCUS_HOVER_ACTION_ID } from '../../../../../../../editor/contrib/hover/browser/hoverActionIds.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
+
+KeybindingsRegistry.registerKeybindingRule({
+	id: SHOW_OR_FOCUS_HOVER_ACTION_ID,
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: ChatContextKeys.inChatInput,
+	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyI),
+});
 
 export class ChatAgentHoverParticipant implements IEditorHoverParticipant<ChatAgentHoverPart> {
 
@@ -181,14 +191,55 @@ export class ChatAttachmentReferenceHoverPart implements IHoverPart {
 
 HoverParticipantRegistry.register(ChatAttachmentReferenceHoverParticipant);
 
-for (const type of [AccessibleViewType.View, AccessibleViewType.Help]) {
-	AccessibleViewRegistry.register({
-		type,
-		name: 'chat-reference-preview',
-		priority: 125,
-		getProvider: () => {
-			const active = getActiveElement();
-			return ChatInlineAttachments.getPreviewOwner(isHTMLElement(active) ? active : undefined)?.getAccessiblePreviewProvider(type);
-		},
-	});
+class ChatInlineReferenceHoverParticipant implements IEditorHoverParticipant<ChatInlineReferenceHoverPart> {
+
+	readonly hoverOrdinal = 3;
+
+	constructor(private readonly editor: ICodeEditor) { }
+
+	computeSync(anchor: HoverAnchor, _lineDecorations: IModelDecoration[], source: HoverStartSource): ChatInlineReferenceHoverPart[] {
+		if (source !== HoverStartSource.Keyboard || anchor.type !== HoverAnchorType.Range) {
+			return [];
+		}
+		const reference = ChatInlineAttachments.get(this.editor)?.getReferenceHover(anchor.range);
+		return reference ? [new ChatInlineReferenceHoverPart(this, reference.range, reference.createContent, reference.onDidChange)] : [];
+	}
+
+	renderHoverParts(context: IEditorHoverRenderContext, hoverParts: ChatInlineReferenceHoverPart[]): IRenderedHoverParts<ChatInlineReferenceHoverPart> {
+		const hoverPart = hoverParts[0];
+		const content = hoverPart?.createContent();
+		if (!content) {
+			return new RenderedHoverParts([]);
+		}
+		const store = new DisposableStore();
+		hoverPart.element = content;
+		context.fragment.appendChild(content);
+		const observer = new MutationObserver(() => context.onContentsChanged());
+		observer.observe(content, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['aria-busy'] });
+		store.add(toDisposable(() => observer.disconnect()));
+		store.add(hoverPart.onDidChange(() => context.hide()));
+		return new RenderedHoverParts([{ hoverPart, hoverElement: content, dispose: () => store.dispose() }]);
+	}
+
+	getAccessibleContent(hoverPart: ChatInlineReferenceHoverPart): string {
+		return hoverPart.element?.innerText || hoverPart.element?.textContent || '';
+	}
 }
+
+class ChatInlineReferenceHoverPart implements IHoverPart {
+
+	element: HTMLElement | undefined;
+
+	constructor(
+		readonly owner: ChatInlineReferenceHoverParticipant,
+		readonly range: Range,
+		readonly createContent: () => HTMLElement | undefined,
+		readonly onDidChange: Event<void>,
+	) { }
+
+	isValidForHoverAnchor(anchor: HoverAnchor): boolean {
+		return anchor.type === HoverAnchorType.Range && Range.containsRange(this.range, anchor.range);
+	}
+}
+
+HoverParticipantRegistry.register(ChatInlineReferenceHoverParticipant);

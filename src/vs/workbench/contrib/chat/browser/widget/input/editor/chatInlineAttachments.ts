@@ -7,10 +7,8 @@ import * as dom from '../../../../../../../base/browser/dom.js';
 import { createStyleSheet } from '../../../../../../../base/browser/domStylesheets.js';
 import { status } from '../../../../../../../base/browser/ui/aria/aria.js';
 import { StandardKeyboardEvent } from '../../../../../../../base/browser/keyboardEvent.js';
-import { HoverStyle, IHoverWidget } from '../../../../../../../base/browser/ui/hover/hover.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
-import { generateUuid } from '../../../../../../../base/common/uuid.js';
 import { Lazy } from '../../../../../../../base/common/lazy.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
@@ -37,9 +35,6 @@ import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../../
 import { IInstantiationService, ServicesAccessor } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
-import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
-import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType } from '../../../../../../../platform/accessibility/browser/accessibleView.js';
-import { IChatPillHoverContent } from '../../../../../../browser/chatPillHover.js';
 import { AccessibilityVerbositySettingId } from '../../../../../accessibility/browser/accessibilityConfiguration.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { canOpenAttachment, canShowAttachmentInline, getAttachmentLabel, getAttachmentMention, getAttachmentPromptText, GITHUB_CONTEXT_ATTACHMENT_ID_PREFIX, IInlineAttachmentAnchor, IInlineAttachmentProjection, INLINE_ATTACHMENT_ANCHOR, isInlineAttachmentCandidate, projectInlineAttachments, toRelativeRange } from '../../../../common/attachments/chatInlineAttachments.js';
@@ -52,7 +47,7 @@ import { ChatAttachmentModel } from '../../../attachments/chatAttachmentModel.js
 import { IChatAttachmentWidgetInstance } from '../../../attachments/chatAttachmentWidgetRegistry.js';
 import { ChatDynamicVariableModel } from '../../../attachments/chatDynamicVariables.js';
 import { getGitHubIssueOrPullRequestAttachments } from './chatPasteProviders.js';
-import { GitHubResourceDetailsResolver } from '../../../../../github/browser/githubResourceDetails.js';
+import { GitHubResourceDetailsResolver, parseGitHubReferenceTarget } from '../../../../../github/browser/githubResourceDetails.js';
 import './media/chatInlineAttachments.css';
 
 /** What an inline attachment pill stands for. */
@@ -109,7 +104,6 @@ interface IInputChange {
 export interface IChatInlineAttachmentsHost {
 	/** The widget whose input contains the pills, once it is rendered. */
 	readonly widget: IChatWidget | undefined;
-	/** The conversation bound to the input, which can switch before the widget's view model. */
 	readonly sessionResource?: URI;
 	/** Creates a pill with the widget that the attachments above the input use for the attachment. */
 	createAttachmentWidget(attachment: IChatRequestVariableEntry, container: HTMLElement, options: { shouldFocusClearButton: boolean; supportsDeletion: boolean; gitHubResourceDetailsResolver?: GitHubResourceDetailsResolver }): IChatAttachmentWidgetInstance;
@@ -143,17 +137,6 @@ const gitHubLinkPattern = /https?:\/\/github\.com\/[^\s/]+\/[^\s/]+\/(?:issues|p
 export class ChatInlineAttachments extends Disposable {
 
 	private static readonly _byEditor = new WeakMap<ICodeEditor, ChatInlineAttachments>();
-	private static readonly _previewOwners = new WeakMap<HTMLElement, ChatInlineAttachments>();
-
-	static getPreviewOwner(element: HTMLElement | undefined): ChatInlineAttachments | undefined {
-		for (let current = element; current; current = current.parentElement ?? undefined) {
-			const owner = ChatInlineAttachments._previewOwners.get(current);
-			if (owner) {
-				return owner;
-			}
-		}
-		return undefined;
-	}
 
 	/** The controller of the pills in a chat input editor. */
 	static get(editor: ICodeEditor): ChatInlineAttachments | undefined {
@@ -214,17 +197,7 @@ export class ChatInlineAttachments extends Disposable {
 	 * see {@link ChatContextKeys.inputInlineAttachmentActive}.
 	 */
 	private _activePill: InlineAttachmentPill | undefined;
-	private readonly _activePillHover = this._register(new MutableDisposable<DisposableStore>());
-	private readonly _previewHoverGroupId = generateUuid();
 	private readonly _gitHubResourceDetailsResolver = new Lazy(() => this._register(this._instantiationService.createInstance(GitHubResourceDetailsResolver)));
-	private _activePillHoverContent: IChatPillHoverContent | undefined;
-	private _activePillHoverWidget: IHoverWidget | undefined;
-	private _previewInAccessibleView = false;
-	private _deferredPreviewRender = false;
-	private _restorePillPreview: { pill: InlineAttachmentPill; fromKeyboard: boolean } | undefined;
-	private _previewPill: InlineAttachmentPill | undefined;
-	private _previewShown = false;
-	private _previewFromKeyboard = false;
 	/**
 	 * Whether the cursor was placed by an edit rather than by the user, as when a
 	 * prompt is pasted or restored, in which case the pill before it is not
@@ -242,7 +215,6 @@ export class ChatInlineAttachments extends Disposable {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@ILabelService private readonly _labelService: ILabelService,
-		@IHoverService private readonly _hoverService: IHoverService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
@@ -342,7 +314,6 @@ export class ChatInlineAttachments extends Disposable {
 		// The pills are not tab stops, so the keys that open the context menu of a pill with focus open the menu of
 		// the pill right before the cursor. This runs before the editor shows its own context menu for these keys.
 		this._register(dom.addDisposableListener(this._editor.getContainerDomNode(), dom.EventType.KEY_DOWN, e => this._showActivePillContextMenu(e), true));
-		this._register(dom.addDisposableListener(this._editor.getContainerDomNode(), dom.EventType.KEY_DOWN, e => this._handlePreviewKeyDown(e), true));
 
 		// Copied text stands for the pills it contains, so it reads as the prompt wherever it is pasted.
 		const copyPrompt = (e: IClipboardCopyEvent) => this._copyPrompt(e);
@@ -531,9 +502,24 @@ export class ChatInlineAttachments extends Disposable {
 		if (!pill?.canOpen) {
 			return false;
 		}
-		this._activePillHover.clear();
 		pill.open();
 		return true;
+	}
+
+	/** Returns a lazy, independent presentation for the editor's standard keyboard hover. */
+	getReferenceHover(range: Range): { range: Range; createContent: () => HTMLElement | undefined; onDidChange: Event<void> } | undefined {
+		for (const pill of this._pills) {
+			const pillRange = pill.range;
+			if (pillRange && Range.containsRange(pillRange, range) && pill.widget?.supportsPreview) {
+				const widget = pill.widget;
+				return {
+					range: pillRange,
+					createContent: () => widget.getPreviewHoverContent?.(),
+					onDidChange: widget.onDidChangePreview ?? Event.None,
+				};
+			}
+		}
+		return undefined;
 	}
 
 	/** Shows the context menu of the pill right before the cursor for Shift+F10 and the Context Menu key, when the pill has one. */
@@ -1053,11 +1039,7 @@ export class ChatInlineAttachments extends Disposable {
 		if (!isAnchorRange(model, range)) {
 			return;
 		}
-		const pill = new InlineAttachmentPill(this._editor, data, range, offset, () => this._removePill(pill), () => this._showPillPreview(pill), () => {
-			if (this._previewPill === pill && !this._previewFromKeyboard && !this._previewShown) {
-				this._activePillHover.clear();
-			}
-		});
+		const pill = new InlineAttachmentPill(this._editor, data, range, offset, () => this._removePill(pill));
 		pill.lastLine = model.getLineContent(range.startLineNumber);
 		this._pills.add(pill);
 		this._needsRender = true;
@@ -1117,27 +1099,12 @@ export class ChatInlineAttachments extends Disposable {
 		if (!this._needsRender && ![...this._pills].some(pill => pill.needsRender(this._resolveEntry(pill.data)))) {
 			return;
 		}
-		const previewElement = this._activePillHoverContent?.element;
-		const previewHasFocus = previewElement && dom.isAncestorOfActiveElement(previewElement.closest('.monaco-hover') ?? previewElement);
-		const preservedPreview = this._previewPill && (this._previewInAccessibleView || this._deferredPreviewRender || previewHasFocus) ? this._previewPill : undefined;
-		if (preservedPreview) {
-			// Keep the reader's DOM owner stable until its preview closes.
-			this._deferredPreviewRender = true;
-		} else {
-			this._restorePillPreview = this._activePillHoverWidget && !this._activePillHoverWidget.isDisposed && this._previewPill && (this._previewShown || this._previewFromKeyboard)
-				? { pill: this._previewPill, fromKeyboard: this._previewFromKeyboard }
-				: undefined;
-			this._activePillHover.clear();
-		}
 		this._needsRender = false;
 
 		const fontInfo = this._editor.getOption(EditorOption.fontInfo);
 		const lineHeight = this._editor.getOption(EditorOption.lineHeight);
 		const anchorWidth = measureAnchorWidth(`${fontInfo.fontWeight} ${fontInfo.fontSize}px ${fontInfo.fontFamily}`);
 		for (const pill of this._pills) {
-			if (pill === preservedPreview) {
-				continue;
-			}
 			const entry = this._resolveEntry(pill.data);
 			pill.render(entry, lineHeight, container => this._host.createAttachmentWidget(entry, container, {
 				shouldFocusClearButton: false,
@@ -1310,200 +1277,12 @@ export class ChatInlineAttachments extends Disposable {
 			}
 		}
 		if (active !== this._activePill) {
-			this._activePillHover.clear();
 			this._activePill?.setActive(false);
 			this._activePill = active;
 			active?.setActive(true);
-			if (active?.supportsPreview) {
-				this._showPillPreview(active, true);
-			}
 		}
-		if (this._restorePillPreview && this._pills.has(this._restorePillPreview.pill)) {
-			this._showPillPreview(this._restorePillPreview.pill, this._restorePillPreview.fromKeyboard);
-		}
-		this._restorePillPreview = undefined;
 		// Enter opens the pill only when that does something, and otherwise sends the request.
 		this._activePillContextKey.set(!!active?.canOpen);
-	}
-
-	private _showPillPreview(pill: InlineAttachmentPill, fromKeyboard = false): void {
-		if (this._previewPill === pill && this._activePillHoverWidget && !this._activePillHoverWidget.isDisposed) {
-			return;
-		}
-		const content = pill.getHoverContent();
-		const target = pill.getHoverTarget();
-		if (!content || !target) {
-			return;
-		}
-		const store = new DisposableStore();
-		store.add(toDisposable(() => {
-			if (this._activePillHoverContent !== content || this._previewPill !== pill) {
-				return;
-			}
-			const hadFocus = dom.isAncestorOfActiveElement(content.element.closest('.monaco-hover') ?? content.element);
-			ChatInlineAttachments._previewOwners.delete(content.element);
-			target.setAttribute('aria-expanded', 'false');
-			target.removeAttribute('aria-controls');
-			this._activePillHoverContent = undefined;
-			this._activePillHoverWidget = undefined;
-			this._previewPill = undefined;
-			this._previewShown = false;
-			this._previewFromKeyboard = false;
-			if (this._deferredPreviewRender) {
-				this._deferredPreviewRender = false;
-				this._needsRender = true;
-				this._scheduleReconcile();
-			}
-			if (hadFocus) {
-				this._editor.focus();
-			}
-		}));
-		const previewId = `chat-reference-preview-${generateUuid()}`;
-		let shown = false;
-		const isInteractive = () => content.tabbableElements.some(element => element.tabIndex >= 0);
-		const hover = this._hoverService.showDelayedHover({
-			content: content.element,
-			target,
-			style: HoverStyle.Pointer,
-			accessibility: isInteractive() ? { role: 'dialog', label: localize('chat.inlineAttachment.preview', "Reference preview") } : undefined,
-			trapFocus: false,
-			persistence: { sticky: fromKeyboard, hideOnHover: false },
-			onDidShow: () => {
-				shown = true;
-				if (this._activePillHover.value === store) {
-					this._previewShown = true;
-				}
-				target.setAttribute('aria-expanded', 'true');
-				target.setAttribute('aria-controls', previewId);
-			},
-			onDidHide: () => {
-				if (this._activePillHover.value === store) {
-					this._activePillHover.clear();
-				} else {
-					store.dispose();
-				}
-			},
-		}, { groupId: this._previewHoverGroupId });
-		if (!hover || hover.isDisposed) {
-			store.dispose();
-			return;
-		}
-		store.add(hover);
-		this._activePillHover.value = store;
-		this._activePillHoverWidget = hover;
-		this._previewPill = pill;
-		this._previewShown = shown;
-		this._previewFromKeyboard = fromKeyboard;
-		this._activePillHoverContent = content;
-		content.element.id = previewId;
-		ChatInlineAttachments._previewOwners.set(content.element, this);
-		const loadingObserver = new MutationObserver(() => {
-			if (content.element.getAttribute('aria-busy') === 'false') {
-				const container = content.element.closest('.monaco-hover');
-				container?.setAttribute('role', isInteractive() ? 'dialog' : 'tooltip');
-				if (isInteractive()) {
-					container?.setAttribute('aria-label', localize('chat.inlineAttachment.preview', "Reference preview"));
-				} else {
-					container?.removeAttribute('aria-label');
-				}
-			}
-		});
-		loadingObserver.observe(content.element, { attributes: true, attributeFilter: ['aria-busy'] });
-		store.add(toDisposable(() => loadingObserver.disconnect()));
-		store.add(pill.onDidChangePreview(() => this._activePillHover.clear()));
-		store.add(dom.addDisposableListener(dom.getWindow(target).document, dom.EventType.FOCUS_IN, e => {
-			if (!this._previewInAccessibleView && dom.isHTMLElement(e.target) && !dom.isAncestor(e.target, this._editor.getContainerDomNode()) && !dom.isAncestor(e.target, content.element.closest('.monaco-hover') ?? content.element)) {
-				this._activePillHover.clear();
-			}
-		}, true));
-		store.add(dom.addDisposableListener(content.element, dom.EventType.KEY_DOWN, e => {
-			const first = content.tabbableElements[0];
-			const last = content.tabbableElements.at(-1);
-			if (e.key === 'Tab' && !e.ctrlKey && !e.altKey && !e.metaKey && (!first || (e.shiftKey && dom.getActiveElement() === first) || (!e.shiftKey && dom.getActiveElement() === last))) {
-				dom.EventHelper.stop(e, true);
-				this._activePillHover.clear();
-				this._editor.focus();
-			}
-		}));
-	}
-
-	getAccessiblePreviewProvider(type: AccessibleViewType): AccessibleContentProvider | undefined {
-		const content = this._activePillHoverContent;
-		if (!content || this._activePillHoverWidget?.isDisposed || !content.tabbableElements.some(element => element.isConnected && element.tabIndex >= 0)) {
-			return undefined;
-		}
-		const focused = dom.getActiveElement();
-		const help = localize('chat.inlineAttachment.previewHelp', "You are in a reference preview. Hovering over a reference or pausing with it selected opens details after the configured workbench hover delay. Click the reference or press Enter in the composer to open the referenced item. Press Tab or Shift+Tab to move through the preview's links and copy-branch buttons. Unresolved or unavailable details are plain, noninteractive hover text. Shift+Tab from the first link, Tab from the last control, and Escape dismiss the preview and return to the composer. Open Accessible View{0} to read the preview as text.", '<keybinding:editor.action.accessibleView>');
-		const changed = new Emitter<void>();
-		const readPreviewText = () => this._previewInAccessibleView
-			? [...content.element.children].map(element => element.textContent ?? '').join('\n') || content.element.textContent || ''
-			: content.element.innerText;
-		let accessibleText = readPreviewText();
-		const readText = () => {
-			if (!this._previewInAccessibleView) {
-				accessibleText = readPreviewText();
-			}
-			return accessibleText;
-		};
-		const provider = new AccessibleContentProvider(
-			AccessibleViewProviderId.Hover,
-			{ type, customHelp: () => help },
-			() => type === AccessibleViewType.Help ? help : readText(),
-			() => {
-				this._previewInAccessibleView = false;
-				this._activePillHoverWidget?.setVisible?.(true);
-				const currentContent = this._activePillHoverContent;
-				const focusTarget = currentContent && dom.isHTMLElement(focused) && focused.isConnected && focused !== currentContent.element
-					? focused
-					: currentContent?.tabbableElements.find(element => element.isConnected && element.tabIndex >= 0);
-				if (focusTarget) {
-					focusTarget.focus();
-				} else {
-					this._editor.focus();
-				}
-			},
-			AccessibilityVerbositySettingId.Hover,
-			() => {
-				accessibleText = readPreviewText();
-				this._previewInAccessibleView = true;
-				this._activePillHoverWidget?.setVisible?.(false);
-				const observer = new MutationObserver(() => {
-					accessibleText = readPreviewText();
-					changed.fire();
-				});
-				observer.observe(content.element, { childList: true, subtree: true, characterData: true });
-				return toDisposable(() => observer.disconnect());
-			},
-			undefined, undefined, undefined, changed.event,
-		);
-		provider.onDispose = () => {
-			this._previewInAccessibleView = false;
-			this._activePillHoverWidget?.setVisible?.(true);
-			changed.dispose();
-		};
-		return provider;
-	}
-
-	private _handlePreviewKeyDown(e: KeyboardEvent): void {
-		const content = this._activePillHoverContent;
-		if (!content || this._activePillHoverWidget?.isDisposed) {
-			return;
-		}
-		if (e.key === 'Escape') {
-			dom.EventHelper.stop(e, true);
-			this._activePillHover.clear();
-		} else if (e.key === 'Tab' && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
-			dom.EventHelper.stop(e, true);
-			const target = content.tabbableElements.find(element => element.isConnected && element.tabIndex >= 0);
-			if (target) {
-				target.focus();
-			} else {
-				this._activePillHover.clear();
-				this._editor.focus();
-			}
-		} else if (e.key === 'Tab' && e.shiftKey) {
-			this._activePillHover.clear();
-		}
 	}
 
 	/**
@@ -1541,7 +1320,7 @@ export class ChatInlineAttachments extends Disposable {
 		if (!selection.isEmpty()) {
 			status(localize('chat.inlineAttachment.selected', "{0}, attachment, selected", label));
 		} else if (pill === active) {
-			this._announceActivePill(pill);
+			status(localize('chat.inlineAttachment.open', "{0}, attachment, press Enter to open", label));
 		} else if (pill.isUnavailable) {
 			status(localize('chat.inlineAttachment.unavailable', "{0}, attachment, unavailable", label));
 		} else {
@@ -1554,22 +1333,21 @@ export class ChatInlineAttachments extends Disposable {
 		return !!this._activePill?.canOpen && this._accessibilityService.isScreenReaderOptimized() && !!this._configurationService.getValue<boolean>(AccessibilityVerbositySettingId.Chat);
 	}
 
-	private _announceActivePill(pill: InlineAttachmentPill): void {
-		const label = getAttachmentLabel(this._resolveEntry(pill.data));
-		status(pill.supportsPreview
-			? localize('chat.inlineAttachment.openWithPreview', "{0}, attachment, press Enter to open. Pause to preview reference details, then press Tab to enter the preview.", label)
-			: localize('chat.inlineAttachment.open', "{0}, attachment, press Enter to open", label));
-	}
-
 	/** Announces the pill that became active without the cursor moving, as when a completion became a pill. */
 	private _announceActivatedPill(previousActive: InlineAttachmentPill | undefined): void {
 		const pill = this._activePill;
 		if (pill && pill !== previousActive && this._shouldAnnounceActivePill()) {
-			this._announceActivePill(pill);
+			status(localize('chat.inlineAttachment.open', "{0}, attachment, press Enter to open", getAttachmentLabel(this._resolveEntry(pill.data))));
 		}
 	}
 
-	private _getHoverMessage(entry: IChatRequestVariableEntry): IMarkdownString {
+	private _getHoverMessage(entry: IChatRequestVariableEntry): IMarkdownString | undefined {
+		if (entry.kind === 'generic' && entry.id.startsWith(GITHUB_CONTEXT_ATTACHMENT_ID_PREFIX)) {
+			const resource = URI.parse(entry.id.substring(GITHUB_CONTEXT_ATTACHMENT_ID_PREFIX.length));
+			if (parseGitHubReferenceTarget(resource, 'issue') || parseGitHubReferenceTarget(resource, 'pullRequest')) {
+				return undefined;
+			}
+		}
 		const resource = IChatRequestVariableEntry.toUri(entry);
 		// The full name of a dropped image is its path, as the path of a file is.
 		const label = resource ? this._labelService.getUriLabel(resource, { relative: true }) : entry.fullName ?? entry.name;
@@ -1613,7 +1391,6 @@ export class ChatInlineAttachments extends Disposable {
 	}
 
 	private _clearPills(): void {
-		this._activePillHover.clear();
 		if (this._gitHubResourceDetailsResolver.hasValue) {
 			this._gitHubResourceDetailsResolver.value.retain([]);
 		}
@@ -1650,6 +1427,7 @@ class InlineAttachmentPill extends Disposable implements IContentWidget {
 	private _decorationKey: string | undefined;
 	private _width = 0;
 	private _widget: IChatAttachmentWidgetInstance | undefined;
+	get widget(): IChatAttachmentWidgetInstance | undefined { return this._widget; }
 	/** The position that the pill was last laid out at. */
 	private _layoutPosition: Position | undefined;
 
@@ -1666,8 +1444,6 @@ class InlineAttachmentPill extends Disposable implements IContentWidget {
 		range: Range,
 		offset: number,
 		private readonly _onRemove: () => void,
-		private readonly _onPreview: () => void,
-		private readonly _onPreviewLeave: () => void,
 	) {
 		super();
 		this.lastOffset = offset;
@@ -1738,19 +1514,6 @@ class InlineAttachmentPill extends Disposable implements IContentWidget {
 		// Opening an attachment focuses its pill, which leaves the cursor in the input instead.
 		store.add(dom.addDisposableListener(widget.element, dom.EventType.FOCUS, () => this._editor.focus()));
 		store.add(widget.onDidDelete(() => this._onRemove()));
-		if (widget.supportsPreview) {
-			store.add(dom.addDisposableListener(widget.element, dom.EventType.MOUSE_LEAVE, () => this._onPreviewLeave()));
-			const isClearButton = (target: EventTarget | null) => dom.isHTMLElement(target) && !!target.closest('.monaco-button');
-			store.add(dom.addDisposableListener(widget.element, dom.EventType.MOUSE_OVER, e => {
-				if (isClearButton(e.target)) {
-					return;
-				}
-				if (dom.isHTMLElement(e.relatedTarget) && widget.element.contains(e.relatedTarget)) {
-					return;
-				}
-				this._onPreview();
-			}));
-		}
 
 		this._width = this._measure();
 		this._updateDecoration();
@@ -1787,25 +1550,9 @@ class InlineAttachmentPill extends Disposable implements IContentWidget {
 		this._widget?.element.click();
 	}
 
-	get supportsPreview(): boolean {
-		return this._widget?.supportsPreview === true;
-	}
-
-	getHoverContent(): IChatPillHoverContent | undefined {
-		return this._widget?.getPreviewHoverContent?.();
-	}
-
-	getHoverTarget(): HTMLElement | undefined {
-		return this._widget?.element;
-	}
-
-	get onDidChangePreview(): Event<void> {
-		return this._widget?.onDidChangePreview ?? Event.None;
-	}
-
 	/** Whether opening the pill's attachment does something, see {@link canOpenAttachment}. */
 	get canOpen(): boolean {
-		return this.supportsPreview || (!!this._widget && !!this._renderedEntry && canOpenAttachment(this._renderedEntry));
+		return !!this._widget?.supportsPreview || (!!this._widget && !!this._renderedEntry && canOpenAttachment(this._renderedEntry));
 	}
 
 	/**

@@ -143,9 +143,6 @@ export interface IHoverDelegate2 {
 }
 
 export interface IHoverWidget extends IDisposable {
-	/** Temporarily hides a preview while its content is presented in Accessible View. */
-	setVisible?(visible: boolean): void;
-
 	/**
 	 * Whether the hover widget has been disposed.
 	 */
@@ -164,9 +161,6 @@ export const enum HoverStyle {
 }
 
 export interface IHoverOptions {
-	/** Accessible identity for interactive previews; ordinary hovers retain tooltip semantics. */
-	accessibility?: { role: 'tooltip' | 'dialog'; label: string };
-
 	/**
 	 * The content to display in the primary section of the hover. The type of text determines the
 	 * default `hideOnHover` behavior.

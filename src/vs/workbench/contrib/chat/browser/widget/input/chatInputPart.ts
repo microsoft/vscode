@@ -14,6 +14,7 @@ import { ActionViewItem, BaseActionViewItem, IActionViewItemOptions } from '../.
 import * as aria from '../../../../../../base/browser/ui/aria/aria.js';
 import { ButtonWithIcon } from '../../../../../../base/browser/ui/button/button.js';
 import { createInstantHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { IHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegate.js';
 import { IAction } from '../../../../../../base/common/actions.js';
 import { equals as arraysEqual } from '../../../../../../base/common/arrays.js';
 import { DeferredPromise, RunOnceScheduler } from '../../../../../../base/common/async.js';
@@ -3987,12 +3988,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.updateInputEditorFontFamily();
 		this._register(addDisposableListener(this._inputEditorElement, dom.EventType.PASTE, e => this.handleTerminalCommandPaste(e), true));
 
+		const hoverDelegate = this._register(createInstantHoverDelegate());
 		const getWidget = () => this._widget;
 		const getSessionResource = () => this._inputModelSessionResource ?? this._widget?.viewModel?.sessionResource;
 		this._inlineAttachments = this._register(this.instantiationService.createInstance(ChatInlineAttachments, this._inputEditor, this._attachmentModel, {
 			get widget() { return getWidget(); },
 			get sessionResource() { return getSessionResource(); },
-			createAttachmentWidget: (attachment, container, attachmentOptions) => this.createAttachmentWidget(attachment, container, attachmentOptions),
+			createAttachmentWidget: (attachment, container, attachmentOptions) => this.createAttachmentWidget(attachment, container, { ...attachmentOptions, hoverDelegate }),
 			removeAttachments: (attachments, explicit) => this.removeInlineAttachments(attachments, explicit),
 		}));
 		this._register(this._inlineAttachments.onDidChange(() => this.renderAttachedContext()));
@@ -4116,8 +4118,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			CopyPasteController.get(this._inputEditor)?.clearWidgets();
 			DropIntoEditorController.get(this._inputEditor)?.clearWidgets();
 		}));
-
-		const hoverDelegate = this._register(createInstantHoverDelegate());
 
 		const { location } = this.getWidgetLocationInfo(widget);
 		const focusedWidget = observableFromEvent(this, this.chatWidgetService.onDidChangeFocusedSession, () => this.chatWidgetService.lastFocusedWidget);
@@ -4895,7 +4895,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * Creates the pill for an attachment, using the widget that matches its kind.
 	 * Used for the attachments above the input and for inline attachment pills.
 	 */
-	createAttachmentWidget(attachment: IChatRequestVariableEntry, container: HTMLElement, options: { shouldFocusClearButton: boolean; supportsDeletion: boolean; gitHubResourceDetailsResolver?: GitHubResourceDetailsResolver }): IChatAttachmentWidgetInstance {
+	createAttachmentWidget(attachment: IChatRequestVariableEntry, container: HTMLElement, options: { shouldFocusClearButton: boolean; supportsDeletion: boolean; gitHubResourceDetailsResolver?: GitHubResourceDetailsResolver; hoverDelegate?: IHoverDelegate }): IChatAttachmentWidgetInstance {
 		const resource = URI.isUri(attachment.value) ? attachment.value : isLocation(attachment.value) ? attachment.value.uri : undefined;
 		const range = isLocation(attachment.value) ? attachment.value.range : undefined;
 		const widgetOptions = { ...options, isCurrentInput: true };

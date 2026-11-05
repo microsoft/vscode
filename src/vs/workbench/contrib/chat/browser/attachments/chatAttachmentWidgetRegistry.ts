@@ -8,7 +8,6 @@ import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
-import { IChatPillHoverContent } from '../../../../browser/chatPillHover.js';
 
 /**
  * Interface for a contributed attachment widget instance.
@@ -20,10 +19,10 @@ export interface IChatAttachmentWidgetInstance extends IDisposable {
 	/** Optional label element, used for applying warning styles on omitted attachments. */
 	readonly label?: { readonly element: HTMLElement };
 	/** Creates the detail preview used by the input editor's keyboard hover. */
-	getPreviewHoverContent?(): IChatPillHoverContent | undefined;
+	getPreviewHoverContent?(): HTMLElement | undefined;
 	/** Whether the attachment provides a delayed reference preview. Activation still navigates. */
 	readonly supportsPreview?: boolean;
-	/** Fires when account changes invalidate displayed preview details. */
+	/** Fires when account changes or widget disposal invalidate displayed preview details. */
 	readonly onDidChangePreview?: event.Event<void>;
 }
 

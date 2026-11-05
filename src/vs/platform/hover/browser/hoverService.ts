@@ -248,15 +248,9 @@ export class HoverService extends Disposable implements IHoverService {
 	}
 
 	private _createHover(options: IHoverOptions, skipLastFocusedUpdate?: boolean): ICreateHoverResult | undefined {
-		const containingHoverIndex = this._getContainingHoverIndex(options.target);
-		const isNesting = containingHoverIndex >= 0;
-		if (!isNesting && this._currentHover?.isLocked) {
-			this._cancelPendingDelayedHover();
-			return undefined;
-		}
 		const delayedHoverIndex = this._hoverStack.findIndex(entry => entry.hover === this._currentDelayedHover);
 		// Keep a shown delayed hover alive when it owns the target of a nested hover.
-		if (delayedHoverIndex < 0 || delayedHoverIndex > containingHoverIndex) {
+		if (delayedHoverIndex < 0 || delayedHoverIndex > this._getContainingHoverIndex(options.target)) {
 			this._currentDelayedHover?.dispose();
 		}
 		this._currentDelayedHover = undefined;
@@ -270,6 +264,10 @@ export class HoverService extends Disposable implements IHoverService {
 			options.id = getHoverIdFromContent(options.content);
 		}
 
+		// Check if the target is inside an existing hover (nesting scenario)
+		const containingHoverIndex = this._getContainingHoverIndex(options.target);
+		const isNesting = containingHoverIndex >= 0;
+
 		if (isNesting) {
 			// Check max nesting depth
 			if (this._hoverStack.length >= MAX_HOVER_NESTING_DEPTH) {
@@ -277,6 +275,11 @@ export class HoverService extends Disposable implements IHoverService {
 			}
 			// When nesting, don't check if the parent is locked - we allow nested hovers inside locked parents
 		} else {
+			// Not nesting: check if current top-level hover is locked
+			if (this._currentHover?.isLocked) {
+				return undefined;
+			}
+
 			// Check if identity is the same as current hover
 			if (getHoverOptionsIdentity(this._currentHoverOptions) === getHoverOptionsIdentity(options)) {
 				return undefined;
@@ -341,7 +344,7 @@ export class HoverService extends Disposable implements IHoverService {
 		}
 
 		hoverDisposables.add(addDisposableListener(getWindow(options.container).document, EventType.MOUSE_DOWN, e => {
-			if (hover.isVisible && !isAncestor(e.target as HTMLElement, hover.domNode)) {
+			if (!isAncestor(e.target as HTMLElement, hover.domNode)) {
 				this._hideHoverAndDescendants(hover);
 			}
 		}));
@@ -484,13 +487,15 @@ export class HoverService extends Disposable implements IHoverService {
 	}
 
 	hideHover(force?: boolean): void {
+		// If not forcing and the topmost hover is locked, don't hide
+		if (!force && this._currentHover?.isLocked) {
+			return;
+		}
+
 		// A delayed hover that has not been shown yet is not part of the stack, so it has to
 		// be cancelled explicitly. Otherwise it pops up once its delay elapses, on top of
 		// whatever took over in the meantime such as a context menu.
 		this._cancelPendingDelayedHover();
-		if (!force && this._currentHover?.isLocked) {
-			return;
-		}
 
 		if (this._hoverStack.length === 0) {
 			return;
@@ -578,8 +583,8 @@ export class HoverService extends Disposable implements IHoverService {
 				}
 			}
 			// Hide all hovers if the mouse is not over any of them
-			const anyHoverActive = this._hoverStack.some(entry => entry.hover.isMouseIn || !entry.hover.isVisible || entry.hover.isFocused);
-			if (!anyHoverActive) {
+			const anyMouseIn = this._hoverStack.some(entry => entry.hover.isMouseIn);
+			if (!anyMouseIn) {
 				const topEntry = this._hoverStack[this._hoverStack.length - 1];
 				this._hideAllHovers();
 				topEntry?.lastFocusedElementBeforeOpen?.focus();
