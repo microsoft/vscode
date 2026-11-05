@@ -44,7 +44,7 @@ import { IDropdownMenuActionViewItemOptions } from '../../../../../base/browser/
 import { agentsBackground } from '../../../../common/theme.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
-import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
+import { Parts, IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { PANEL_SECTION_BORDER } from '../../../../../workbench/common/theme.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { getMainWindowHost, ISessionHost, ISessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
@@ -55,7 +55,7 @@ import { MobileSessionFilterChips } from '../../../../browser/parts/mobile/mobil
 import { IMobileSortGroupSheetItem, showMobileSortGroupSheet } from '../../../../browser/parts/mobile/mobileSortGroupSheet.js';
 import { isPhoneLayout } from '../../../../../workbench/contrib/sessions/browser/mobileLayout.js';
 import { IsPhoneLayoutContext, SessionsListRearrangeContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
-import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
+import { ISessionsHostLayoutService } from '../../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
 import { ISessionsListPresentation } from '../../../../../workbench/contrib/sessions/browser/sessionsListPresentation.js';
 import { logSessionsListCompactViewState } from '../../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
 import { IPinnedCanvasService } from '../../../canvases/browser/pinnedCanvases.js';
@@ -198,7 +198,8 @@ export class SessionsView extends ViewPane {
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@ISessionComparisonService private readonly sessionComparisonService: ISessionComparisonService,
 		@IHostService private readonly hostService: IHostService,
-		@IAgentWorkbenchLayoutService private readonly layoutService: IAgentWorkbenchLayoutService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@ISessionsHostLayoutService private readonly hostLayoutService: ISessionsHostLayoutService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
@@ -243,7 +244,7 @@ export class SessionsView extends ViewPane {
 		// The open may have been cancelled or superseded; only hide the side pane for a session that is actually shown.
 		const isShown = this.sessionsService.visibleSessions.get().some(visible => visible?.sessionId === session.sessionId);
 		if (comparison && comparison.archivedAt === undefined && isShown) {
-			this.layoutService.hideSidePane();
+			this.hostLayoutService.sidePane?.hideSidePane();
 		}
 		if (isWeb && isPhoneLayout(this.layoutService)) {
 			this.layoutService.setPartHidden(true, Parts.SIDEBAR_PART);

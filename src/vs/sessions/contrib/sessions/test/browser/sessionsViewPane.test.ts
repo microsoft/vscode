@@ -33,7 +33,8 @@ const registerEditorTabHeightClass = Reflect.get(Workbench.prototype, 'registerE
 const handleSessionOpened = Reflect.get(SessionsView.prototype, '_handleSessionOpened') as (this: {
 	readonly sessionComparisonService: { getComparisonForSession(resource: URI): ISessionComparison | undefined };
 	readonly sessionsService: { readonly visibleSessions: IObservable<readonly (ISession | undefined)[]> };
-	readonly layoutService: { hideSidePane(): void; mainContainer: HTMLElement; setPartHidden(hidden: boolean, part: string): void };
+	readonly layoutService: { mainContainer: HTMLElement; setPartHidden(hidden: boolean, part: string): void };
+	readonly hostLayoutService: { readonly sidePane?: { hideSidePane(): void } };
 }, session: ISession) => void;
 const updateHeaderLayout = Reflect.get(SessionsView.prototype, 'updateHeaderLayout') as (this: {
 	readonly sessionsHeaders: ReadonlySet<{
@@ -347,9 +348,11 @@ suite('Sessions - SessionsViewPane', () => {
 			},
 			sessionsService: { visibleSessions },
 			layoutService: {
-				hideSidePane: () => hideSidePaneCalls++,
 				mainContainer: mainWindow.document.createElement('div'),
 				setPartHidden: () => { },
+			},
+			hostLayoutService: {
+				sidePane: { hideSidePane: () => hideSidePaneCalls++ },
 			},
 		};
 
