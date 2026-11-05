@@ -1858,11 +1858,20 @@ class InnerMinimap extends Disposable {
 		const fitWidth = InnerMinimap._fitSectionHeader.bind(null, canvasContext,
 			canvasInnerWidth - MINIMAP_GUTTER_WIDTH);
 
+		let previousLabelBottom = Number.NEGATIVE_INFINITY;
 		for (const decoration of decorations) {
 			const y = layout.getYForLineNumber(decoration.range.startLineNumber, minimapLineHeight) + sectionHeaderFontSize;
 			const backgroundFillY = y - sectionHeaderFontSize;
 			const separatorY = backgroundFillY + 2;
 			const headerText = this._model.getSectionHeaderText(decoration, fitWidth);
+
+			if (headerText) {
+				if (backgroundFillY < previousLabelBottom) {
+					// Skip labels that would be drawn on top of the previous label, e.g. for nested regions on adjacent lines
+					continue;
+				}
+				previousLabelBottom = backgroundFillY + backgroundFillHeight;
+			}
 
 			InnerMinimap._renderSectionLabel(
 				canvasContext,
