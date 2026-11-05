@@ -11099,7 +11099,7 @@ suite('CopilotAgentSession', () => {
 			mockSession.fire('assistant.message', {
 				messageId: 'message', apiCallId: 'call', content: 'done',
 			} as SessionEventPayload<'assistant.message'>['data'], { agentId: 'agent-1' });
-			new CopilotGitHubTelemetryForwarder(() => false, telemetryService).forward({
+			new CopilotGitHubTelemetryForwarder(telemetryService).forward({
 				sessionId: session.sessionId, restricted: false,
 				event: { kind: 'response.success', properties: { modelCallId: 'call' }, metrics: {} },
 			}, 'child-turn', undefined, session.modelCallTurnCorrelation.getTelemetryContext('call'));
