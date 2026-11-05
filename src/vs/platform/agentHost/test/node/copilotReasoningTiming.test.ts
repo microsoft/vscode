@@ -15,6 +15,7 @@ import type { StoredAssistantResponsePart } from '../../common/sessionDataServic
 import type { ChatReasoningAction } from '../../common/state/sessionActions.js';
 import { ResponsePartKind } from '../../common/state/sessionState.js';
 import { CopilotReasoningTiming } from '../../node/copilot/copilotReasoningTiming.js';
+import { createCopilotSdkPathMapper, toCopilotWorkspace } from '../../node/copilot/copilotWorkspace.js';
 import { mapSessionEvents } from '../../node/copilot/mapSessionEvents.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { toSessionEvents, type ISessionEvent } from './copilotTestEvents.js';
@@ -189,7 +190,7 @@ suite('CopilotReasoningTiming', () => {
 						{ type: 'tool.execution_complete', data: { toolCallId: 'tool', success: true, result: { content: 'Tool result' } } },
 					);
 				}
-				const result = await mapSessionEvents(session, restored, toSessionEvents(events), URI.parse('ahp-chat:/opaque-chat'), session);
+				const result = await mapSessionEvents(session, restored, toSessionEvents(events), URI.parse('ahp-chat:/opaque-chat'), session, createCopilotSdkPathMapper(toCopilotWorkspace(URI.file(process.cwd()))));
 
 				assert.deepStrictEqual(result.turns[0].responseParts.map(part => part.kind === ResponsePartKind.ToolCall
 					? { kind: part.kind, id: part.toolCall.toolCallId }
@@ -232,7 +233,7 @@ suite('CopilotReasoningTiming', () => {
 				{ type: 'user.message', id: 'user', data: { content: 'Request' } },
 				{ type: 'assistant.message', id: 'first-message', data: { reasoningText: 'First', content: '' } },
 				{ type: 'assistant.message', id: 'second-message', data: { reasoningText: 'Second', content: 'Done' } },
-			]), URI.parse('ahp-chat:/chat'), session);
+			]), URI.parse('ahp-chat:/chat'), session, createCopilotSdkPathMapper(toCopilotWorkspace(URI.file(process.cwd()))));
 
 			assert.deepStrictEqual(result.turns[0].responseParts, [
 				{ kind: ResponsePartKind.Reasoning, id: 'run', content: 'FirstSecond', startedAt: '1970-01-01T00:00:01.000Z', duration: 24_000 },

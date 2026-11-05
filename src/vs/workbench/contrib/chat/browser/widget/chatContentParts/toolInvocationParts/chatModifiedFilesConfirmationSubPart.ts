@@ -34,6 +34,7 @@ import { IUntypedEditorInput } from '../../../../../../common/editor.js';
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
 import { AbstractToolConfirmationSubPart, buildCustomOptionButtons } from './abstractToolConfirmationSubPart.js';
 import { createApprovalReasonBadge } from './toolRiskBadgeHelper.js';
+import { renderToolConfirmationFeedback } from './toolConfirmationFeedback.js';
 
 type ModifiedFileConfirmationEntry = IChatModifiedFilesConfirmationData['modifiedFiles'][number];
 
@@ -126,9 +127,10 @@ export class ChatModifiedFilesConfirmationSubPart extends AbstractToolConfirmati
 						this.confirmWith(toolInvocation, { type: ToolConfirmKind.UserAction, selectedButton: option.id, selectedButtonKind: option.kind });
 					})
 					: this.createButtons(data.options),
-				message: this.createWidgetContentElement(state.confirmationMessages.message, data),
+				message: this.createWidgetContentElement(state.confirmationMessages.message, state.confirmationMessages.disclaimer, data),
 				footerBanner: createApprovalReasonBadge(this._store, this.instantiationService, state.confirmationMessages.approvalReason)?.domNode
 					?? this.createRiskBadgeDomNode(state.parameters),
+				additionalContent: state.confirmationMessages.feedback ? renderToolConfirmationFeedback(this._store, toolInvocation, state.confirmationMessages.feedback) : undefined,
 			}
 		));
 
@@ -161,17 +163,22 @@ export class ChatModifiedFilesConfirmationSubPart extends AbstractToolConfirmati
 		];
 	}
 
-	private createWidgetContentElement(message: string | IMarkdownString | undefined, data: IChatModifiedFilesConfirmationData): HTMLElement {
+	private createWidgetContentElement(message: string | IMarkdownString | undefined, disclaimer: string | IMarkdownString | undefined, data: IChatModifiedFilesConfirmationData): HTMLElement {
 		const container = dom.$('.chat-modified-files-confirmation');
+		const renderer = this.instantiationService.createInstance(ChatContentMarkdownRenderer);
 
 		if (message) {
-			const renderer = this.instantiationService.createInstance(ChatContentMarkdownRenderer);
 			const renderedMessage = this._register(renderer.render(typeof message === 'string' ? new MarkdownString(message) : message));
 			renderFileWidgets(renderedMessage.element, this.instantiationService, this.chatMarkdownAnchorService, this._store, {
 				...this.openedEditors.fileWidgetOptions,
 				openResource: (resource, editorOptions) => this.openModifiedFilePreview(data, resource, editorOptions),
 			});
 			container.append(renderedMessage.element);
+		}
+
+		if (disclaimer) {
+			const renderedDisclaimer = this._register(renderer.render(typeof disclaimer === 'string' ? new MarkdownString(disclaimer) : disclaimer));
+			container.append(dom.$('.disclaimer', undefined, renderedDisclaimer.element));
 		}
 
 		container.append(this.createModifiedFilesElement(data));

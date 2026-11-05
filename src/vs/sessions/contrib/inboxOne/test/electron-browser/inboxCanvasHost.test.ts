@@ -5,7 +5,8 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
-import { Event } from '../../../../../base/common/event.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -37,13 +38,15 @@ suite('Inbox native canvas presentation', () => {
 		const created = new DeferredPromise<IBrowserViewModel>();
 		const calls: object[] = [];
 		const visible: boolean[] = [];
+		const opened: { resource: unknown; options: unknown }[] = [];
+		const openExternal = store.add(new Emitter<string>());
 		instantiation.stub(IBrowserViewWorkbenchService, { createExternalBrowserView: (url, source, owner) => { calls.push({ url, source, owner }); return created.p; } });
 		instantiation.stub(ICanvasService, { enabled });
 		instantiation.stub(ISessionsManagementService, { getSession: () => session, onDidChangeSessions: Event.None, onDidDeleteChat: Event.None });
 		const config = new TestConfigurationService({ [CHAT_INBOX_ENABLED_SETTING]: inboxEnabled });
 		store.add(config.onDidChangeConfigurationEmitter);
 		instantiation.stub(IConfigurationService, config);
-		instantiation.stub(IOpenerService, { open: async () => true });
+		instantiation.stub(IOpenerService, { open: async (resource, options) => { opened.push({ resource, options }); return true; } });
 		instantiation.stub(ILogService, new NullLogService());
 		instantiation.stubInstance(WebContentsViewHost, {
 			screenshotElement: document.createElement('div'), pauseElement: document.createElement('div'),
@@ -60,11 +63,22 @@ suite('Inbox native canvas presentation', () => {
 		let disposed = false;
 		const layout = new DeferredPromise<void>();
 		const model = upcastPartial<IBrowserViewModel>({
-			onDidChangeFocus: Event.None, onDidChangeLoadingState: Event.None, onDidRequestOpenExternal: Event.None,
+			onDidChangeFocus: Event.None, onDidChangeLoadingState: Event.None, onDidRequestOpenExternal: openExternal.event,
 			layout: () => layout.p, dispose: () => { disposed = true; },
 		});
-		return { host, canvases, enabled, created, calls, visible, model, layout, get disposed() { return disposed; } };
+		return { host, canvases, enabled, created, calls, visible, opened, openExternal, model, layout, get disposed() { return disposed; } };
 	}
+
+	test('opens external links from the canvas in the window of the canvas', async () => {
+		const test = harness();
+		await test.created.complete(test.model);
+		await timeout(0);
+		test.openExternal.fire('https://github.com/microsoft/vscode/issues/1');
+		assert.deepStrictEqual(test.opened, [{
+			resource: 'https://github.com/microsoft/vscode/issues/1',
+			options: { openExternal: true, fromUserGesture: true, allowContributedOpeners: true, sourceWindowId: mainWindow.vscodeWindowId },
+		}]);
+	});
 
 	test('disabled Inbox never creates native content', () => {
 		const test = harness(false);

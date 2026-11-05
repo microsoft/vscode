@@ -120,6 +120,7 @@ import { ChatSubmitAction } from '../../../../../workbench/contrib/chat/browser/
 import { ChatVoiceInputModeAction } from '../../../../../workbench/contrib/chat/browser/voiceInputMode/voiceInputModeActionViewItem.js';
 import { ModelPickerToolbarsContribution } from '../../browser/modelPicker.js';
 import { COMPOSER_SESSION_CONTROLS_ACTION_ID, SharedChatInputComposerContribution } from '../../browser/sharedChatInputComposer.contribution.js';
+import { focusedSessionHostServiceOf, stubSessionHosts } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 const DEFAULT_WIDTH = 800;
 const DEFAULT_HEIGHT = 560;
@@ -343,7 +344,7 @@ const loudChatBackground: ISessionsChatBackground = {
 
 /** Wraps the composer in the Agents Window host and paints its resolved background. */
 function createChatBackgroundPart(container: HTMLElement, disposableStore: DisposableStore, background: ISessionsChatBackground | undefined): HTMLElement {
-	const part = dom.append(container, dom.$('.part.sessionspart'));
+	const part = dom.append(container, dom.$('.part.sessionspart.sessions-chat-surface'));
 	part.style.position = 'relative';
 	part.style.width = '100%';
 	part.style.height = '100%';
@@ -460,7 +461,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	const composerService = disposableStore.add(new NewSessionComposerService());
 	const sessionsService = new class extends mock<ISessionsService>() {
 		override readonly initialRestoreComplete = constObservable(true);
-		override readonly activeSession = activeSessionObservable;
+		readonly activeSession = activeSessionObservable;
 	}();
 	const configurationService = new TestConfigurationService({
 		// Editor settings the composer's chat widget reads.
@@ -621,6 +622,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 				override readonly onDidChangeRecentWorkspaces = Event.None;
 				override readonly historyLoadState = constObservable('loaded' as const);
 				override getRecentWorkspaces(): IRecentWorkspace[] { return activeSession ? [{ workspace, providerId: provider.id, checked: true, source: 'agents' }] : []; }
+				override getWorkspaceCatalog(): IRecentWorkspace[] { return this.getRecentWorkspaces(); }
 				override addRecentWorkspace(): void { }
 				override removeRecentWorkspace(): void { }
 				override clearCheckedWorkspace(): void { }
@@ -724,7 +726,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 				override async getSlashCommands() { return []; }
 			}());
 			reg.defineInstance(INewChatVoiceTargetService, disposableStore.add(new NewChatVoiceTargetService(
-				sessionsService,
+				focusedSessionHostServiceOf(sessionsService.activeSession),
 				new class extends mock<IChatWidgetService>() {
 					override readonly onDidChangeFocusedSession = Event.None;
 				}(),
@@ -765,6 +767,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			reg.define(ISessionsChatBackgroundService, SessionsChatBackgroundService);
 		},
 	});
+	stubSessionHosts(instantiationService, disposableStore, { session: sessionsService.activeSession });
 	if (showTip || connectorRecommendations) {
 		ChatContextKeys.foregroundSessionCount.bindTo(instantiationService.get(IContextKeyService)).set(1);
 	}
@@ -884,6 +887,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	}
 	const view = disposableStore.add(instantiationService.createInstance(NewChatView, false, {
 		initialAttachments: withAttachedContext ? createFixtureAttachments() : undefined,
+		session: activeSessionObservable,
 	}));
 	sessionViewContent.appendChild(view.element);
 	view.layout(width, height, 0, 0);
@@ -2004,6 +2008,7 @@ function createFixtureActiveSession(workspace: ISessionWorkspace, sessionType: I
 		override readonly status = constObservable(SessionStatus.Untitled);
 		override readonly modelId = constObservable<string | undefined>(undefined);
 		override readonly modelSource = constObservable<ChatModelSource | undefined>(undefined);
+		override readonly mode = constObservable(undefined);
 		override readonly changesets = constObservable(undefined);
 	}();
 	return new class extends mock<IActiveSession>() {

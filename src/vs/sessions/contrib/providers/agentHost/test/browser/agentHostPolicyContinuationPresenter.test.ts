@@ -21,6 +21,7 @@ import { IChat, ISession } from '../../../../../services/sessions/common/session
 import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { SessionsAgentHostPolicyContinuationPresenter } from '../../browser/agentHostPolicyContinuationPresenter.js';
 import { LocalAgentHostSessionsProvider } from '../../browser/localAgentHostSessionsProvider.js';
+import { ITestSessionsService, stubFocusedSessionHostFromSessionsService } from '../../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Sessions Agent Host policy continuation presenter', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -55,7 +56,7 @@ suite('Sessions Agent Host policy continuation presenter', () => {
 			return provider;
 		});
 		services.stub(ISessionsProvidersService, { getProvider: providers.getProvider });
-		services.stub(ISessionsService, {
+		services.stub(ISessionsService, upcastPartial<ITestSessionsService>({
 			activeSession: constObservable(upcastPartial<IActiveSession>({ activeChat })),
 			canOpenSession: async session => {
 				assert.strictEqual(session, destination);
@@ -63,7 +64,8 @@ suite('Sessions Agent Host policy continuation presenter', () => {
 				return state.canOpen;
 			},
 			openSession: async resource => { opened.push(resource.toString()); },
-		});
+		}));
+		stubFocusedSessionHostFromSessionsService(services);
 		const source = upcastPartial<IChatWidget>({ viewModel: upcastPartial<ChatViewModel>({ sessionResource: sourceResource }) });
 		const presenter = services.createInstance(SessionsAgentHostPolicyContinuationPresenter);
 		return {

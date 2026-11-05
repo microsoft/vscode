@@ -25,7 +25,8 @@ import { Target } from '../../../../../workbench/contrib/chat/common/promptSynta
 import { AICustomizationManagementCommands } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
 import { AICustomizationManagementSection } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import type { ISession } from '../../../../services/sessions/common/session.js';
-import type { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import type { IHostSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import type { ISessionChatSource } from '../../../../services/sessions/browser/sessionHost.js';
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
 import { CopilotCLISessionType } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -159,13 +160,13 @@ interface IModePickerModelEntry {
 
 /** Retains each surface's model across synchronous toolbar rebuilds. */
 export class ScopedModePickerModelCache extends Disposable {
-	private readonly entries = new Map<IObservable<IActiveSession | undefined>, IModePickerModelEntry>();
+	private readonly entries = new Map<IObservable<IHostSession | undefined>, IModePickerModelEntry>();
 
 	constructor(private readonly acceptsSession: (session: ISession) => boolean) {
 		super();
 	}
 
-	acquire(session: IObservable<IActiveSession | undefined>, instantiationService: IInstantiationService): IDisposable & { readonly model: ModePickerModel } {
+	acquire(session: IObservable<IHostSession | undefined>, instantiationService: IInstantiationService): IDisposable & { readonly model: ModePickerModel } {
 		let entry = this.entries.get(session);
 		if (!entry) {
 			const store = new DisposableStore();
@@ -193,7 +194,7 @@ export class ScopedModePickerModelCache extends Disposable {
 		};
 	}
 
-	private release(session: IObservable<IActiveSession | undefined>, entry: IModePickerModelEntry): void {
+	private release(session: IObservable<IHostSession | undefined>, entry: IModePickerModelEntry): void {
 		entry.references--;
 		const disposalGeneration = ++entry.disposalGeneration;
 		queueMicrotask(() => {
@@ -229,7 +230,7 @@ export class ModePicker extends Disposable {
 
 	constructor(
 		modePickerModel: ModePickerModel,
-		private readonly session: IObservable<IActiveSession | undefined>,
+		private readonly source: ISessionChatSource,
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 		@ICommandService private readonly commandService: ICommandService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -304,7 +305,7 @@ export class ModePicker extends Disposable {
 			onSelect: (item) => {
 				this.actionWidgetService.hide();
 				if (item.kind === 'mode') {
-					const activeChat = this.session.get()?.activeChat.get();
+					const activeChat = this.source.chat.get();
 					const previousModeId = activeChat?.mode.get()?.id;
 					const previousMode = modes.find(mode => mode.id === previousModeId) ?? ChatMode.Agent;
 					reportNewChatPickerClosed(this.telemetryService, {
@@ -316,7 +317,7 @@ export class ModePicker extends Disposable {
 						isPII: true,
 					});
 					const requestCount = activeChat ? this.chatService.getSession(activeChat.resource)?.getRequests().length ?? 0 : 0;
-					reportChatModeChange(this.telemetryService, previousMode, item.mode, requestCount, getAgentHostProviderForTelemetry(this.session.get()?.sessionType, this.chatSessionsService));
+					reportChatModeChange(this.telemetryService, previousMode, item.mode, requestCount, getAgentHostProviderForTelemetry(this.source.session.get()?.sessionType, this.chatSessionsService));
 					this._selectMode(item.mode);
 				} else {
 					this.commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, AICustomizationManagementSection.Agents);

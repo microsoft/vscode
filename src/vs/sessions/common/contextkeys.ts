@@ -40,6 +40,7 @@ export const SessionSupportsForkContext = new RawContextKey<boolean>('sessionSup
 export const SessionSupportsSideChatContext = new RawContextKey<boolean>('sessionSupportsSideChat', false, localize('sessionSupportsSideChat', "Whether the session view's session supports creating a side chat from a turn (via /btw)"));
 export const SessionHasMultipleCommittedChatsContext = new RawContextKey<boolean>('sessionHasMultipleCommittedChats', false, localize('sessionHasMultipleCommittedChats', "Whether the session view's session has more than one committed (non-draft) chat, which drives the Chats dropdown visibility"));
 export const SessionActiveChatResourceContext = new RawContextKey<string>('sessionActiveChatResource', '', localize('sessionActiveChatResource', "The resource of the chat represented by the session or chat header"));
+export const SessionActiveChatCanvasReferenceKeysContext = new RawContextKey<string[]>('sessionActiveChatCanvasReferenceKeys', [], localize('sessionActiveChatCanvasReferenceKeys', "The live Canvas references owned by the chat represented by the session view"));
 export const SessionActiveChatHasSideChatsContext = new RawContextKey<boolean>('sessionActiveChatHasSideChats', false, localize('sessionActiveChatHasSideChats', "Whether the chat represented by the session or chat header has side chats"));
 export const SessionShouldShowChatTabsContext = new RawContextKey<boolean>('sessionShouldShowChatTabs', false, localize('sessionShouldShowChatTabs', "Whether the session view's chat tab strip is shown, i.e. the session has more than one chat actually showing as a tab. A single visible tab always hides the strip"));
 export const SessionHasMultipleOpenChatsContext = new RawContextKey<boolean>('sessionHasMultipleOpenChats', false, localize('sessionHasMultipleOpenChats', "Whether the session view's session has more than one open chat (the tabs shown in the strip, including in-composer drafts). Used to scope chat-to-chat navigation (next/previous chat, the Ctrl+Tab chat switcher)"));
@@ -49,6 +50,7 @@ export const SessionActiveChatIsUntitledContext = new RawContextKey<boolean>('se
 export const SessionToolbarShowsSessionContext = new RawContextKey<boolean>('sessionToolbarShowsSession', false, localize('sessionToolbarShowsSession', "Whether the session toolbar represents the whole session rather than a side-by-side chat group"));
 export const SessionHeaderShowsChatContext = new RawContextKey<boolean>('sessionHeaderShowsChat', false, localize('sessionHeaderShowsChat', "Whether the session-style header represents one chat in a side-by-side chat group rather than the whole session"));
 export const SessionHeaderTargetsChatContext = new RawContextKey<boolean>('sessionHeaderTargetsChat', false, localize('sessionHeaderTargetsChat', "Whether nested-session lifecycle actions in the session-style header target the represented chat rather than the whole session"));
+export const SessionInChatEditorContext = new RawContextKey<boolean>('sessionInChatEditor', false, localize('sessionInChatEditor', "Whether the session shows in a chat editor, scoped to its chat, rather than in the main window's grid"));
 export const SessionHeaderActiveChatIsPinnedContext = new RawContextKey<boolean>('sessionHeaderActiveChatIsPinned', false, localize('sessionHeaderActiveChatIsPinned', "Whether the chat represented by a side-by-side chat group header is pinned"));
 export const SessionFocusedChatIsRenameTargetContext = new RawContextKey<boolean>('sessionFocusedChatIsRenameTarget', false, localize('sessionFocusedChatIsRenameTarget', "Whether the focused chat group's visible chat is a non-main chat that should receive the chat-specific rename command instead of the session rename command"));
 export const SessionActiveChatIsDeletableContext = new RawContextKey<boolean>('sessionActiveChatIsDeletable', false, localize('sessionActiveChatIsDeletable', "Whether the session's active chat can be permanently deleted from the tab strip, i.e. it is a real, user-created non-main chat (not the main chat and not a tool-spawned subagent chat, which are transient children). Used to scope the delete-chat keybinding"));
@@ -65,6 +67,9 @@ export const SessionWorktreeCleanupEditorFocusedContext = new RawContextKey<bool
 export const SessionsChatBackgroundConfiguredContext = new RawContextKey<boolean>('sessionsChatBackgroundConfigured', false, localize('sessionsChatBackgroundConfigured', "Whether a chat background is configured for the current color theme"));
 export const SessionsChatBackgroundImageConfiguredContext = new RawContextKey<boolean>('sessionsChatBackgroundImageConfigured', false, localize('sessionsChatBackgroundImageConfigured', "Whether a chat background image is configured for the current color theme"));
 export const IsQuickChatSessionContext = new RawContextKey<boolean>('isQuickChatSession', false, localize('isQuickChatSession', "Whether the session in scope is a workspace-less quick chat"));
+
+/** Whether the session in scope has a workspace, as the Changes and Files tabs of a chat window need. */
+export const SessionWithWorkspaceContext = ContextKeyExpr.and(SessionHasWorkspaceContext, IsQuickChatSessionContext.negate())!;
 
 //#endregion
 
@@ -83,6 +88,7 @@ export const SessionsHasClosedItemContext = new RawContextKey<boolean>('sessions
  * commands defer to those commands while this holds.
  */
 export const SessionsEditorScopeContext = ContextKeyExpr.or(EditorAreaFocusContext, AuxiliaryBarFocusContext)!;
+export const ActiveSessionCanvasReferenceContext = new RawContextKey<string>('activeSessionCanvasReference', '', localize('activeSessionCanvasReference', "The reference key of the active session Canvas editor"));
 
 //#endregion
 

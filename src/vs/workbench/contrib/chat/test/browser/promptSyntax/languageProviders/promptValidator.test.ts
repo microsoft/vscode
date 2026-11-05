@@ -592,7 +592,7 @@ suite('PromptValidator', () => {
 			assert.deepStrictEqual(
 				markers.map(m => ({ severity: m.severity, message: m.message, tags: m.tags })),
 				[
-					{ severity: MarkerSeverity.Hint, message: `Attribute 'applyTo' is not supported in VS Code agent files. Supported: agents, argument-hint, description, disable-model-invocation, github, handoffs, hooks, model, name, reasoning-effort, target, tools, user-invocable.`, tags: [MarkerTag.Unnecessary] },
+					{ severity: MarkerSeverity.Hint, message: `Attribute 'applyTo' is not supported in VS Code agent files. Supported: agents, argument-hint, description, disable-model-invocation, github, handoffs, hooks, model, model-policy, name, reasoning-effort, target, tools, user-invocable.`, tags: [MarkerTag.Unnecessary] },
 				]
 			);
 		});
@@ -1025,6 +1025,13 @@ suite('PromptValidator', () => {
 				{ message: `Tool 'missing' is not recognized by the matching GitHub Copilot harness.`, tags: [MarkerTag.Unnecessary] },
 				{ message: `Tool set 'newToolSetRef' is not supported by the GitHub Copilot harness. List individual tools instead.`, tags: [MarkerTag.Unnecessary] },
 			]);
+		});
+
+		test('recognizes spec-defined github-copilot namespaces without inventory entries', async () => {
+			copilotToolInventory = [];
+			otherCopilotToolInventory = [];
+			const content = '---\ndescription: Test\ntarget: github-copilot\ntools: [github/*, playwright/*]\n---';
+			assert.deepStrictEqual(await validate(content, PromptsType.agent), []);
 		});
 
 		test('github-copilot tool validation remains fail-open until every inventory is ready', async () => {

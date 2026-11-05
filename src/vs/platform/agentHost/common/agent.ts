@@ -16,7 +16,7 @@ import type { IAgentServerToolHost } from './agentServerTools.js';
 import type { AgentHostClientType } from './agentHostClientInfo.js';
 import type { IAgentHostCredentialSource } from './agentHostCredentials.js';
 import type { IAgentHostProcessExitEvent } from './agentHostProcessExit.js';
-import type { CodexModelProvider, IAgentTurnTelemetryCorrelation, IAgentHostClientTelemetryContext, IAgentProviderSendStageRecorder, IAgentProviderTurnTelemetryContext } from './agentHostTelemetry.js';
+import type { AgentHostPrewarmSkipReason, CodexModelProvider, IAgentTurnTelemetryCorrelation, IAgentHostClientTelemetryContext, IAgentProviderSendStageRecorder, IAgentProviderTurnTelemetryContext } from './agentHostTelemetry.js';
 import type { AgentPermissionDecisionSource } from './meta/agentPermissionResponseMeta.js';
 import type { IChatSurfaceMeta } from './meta/agentChatSurfaceMeta.js';
 import type { IAgentChatUsage } from './meta/agentUsageMeta.js';
@@ -34,6 +34,17 @@ export interface IAgentPermissionResponseContext {
 	readonly origin?: ActionOrigin;
 	readonly decisionSource?: AgentPermissionDecisionSource;
 	readonly sandboxPathGrantSaved?: true;
+	/**
+	 * The request reached a point where only a person could decide, but none can be asked. Providers
+	 * report this to their runtime instead of a denial, so it can recover without a person.
+	 */
+	readonly userNotAvailable?: true;
+	/**
+	 * Optional feedback the user wrote with their decision on an Assisted permissions prompt.
+	 * Providers may record it only as restricted telemetry; it must not be logged, persisted,
+	 * or sent to the agent or the permissions judge.
+	 */
+	readonly userFeedback?: string;
 }
 
 /** Error returned when the Agent Host process cannot be started. */
@@ -188,6 +199,23 @@ export interface IAgentDiscoveredChat extends IAgentListedChat {
 	readonly external: boolean;
 }
 
+/** Options for {@link IAgent.importChat}. */
+export interface IAgentImportChatOptions {
+	/**
+	 * Import the chat even though another process holds it. In-use records are
+	 * best effort: one left behind by a process that exited abnormally would
+	 * otherwise block the chat for good.
+	 */
+	readonly takeOver?: boolean;
+}
+
+/** The selection an imported chat continues with, as its provider's runtime restored it. */
+export interface IAgentImportedChat {
+	readonly model: ModelSelection | undefined;
+	/** `undefined` when the chat runs without a custom agent, or with one this host does not offer. */
+	readonly agent: AgentSelection | undefined;
+}
+
 /** A fresh provider transcript for a chat being observed without running a host turn. */
 export interface IAgentChatHistoryChange {
 	readonly chat: URI;
@@ -294,6 +322,7 @@ export interface IAgentMaterializeChatEvent {
 }
 
 export type AgentProvider = string;
+export type AgentSandboxCertificateOperation = 'install' | 'rotate' | 'remove';
 
 export interface IAgentPluginUninstallRequest {
 	readonly name: string;
@@ -789,6 +818,14 @@ export interface IAgentChatOwnerRef {
 	get(): URI;
 	/** The current owner's subagent chat format, read at use because this reference can predate default-chat registration. */
 	getSubagentChatUriFormat(): ChatUriFormat;
+	/**
+	 * Whether the chat is the default chat of its current owner, read at use;
+	 * `undefined` while the host records no default chat for that owner. Decided
+	 * by the host, never from where the chat stores: a chat keeps its storage when
+	 * it becomes another session's default chat. Read it through
+	 * {@link isAgentChatDefaultChat}.
+	 */
+	isDefaultChat?(): boolean | undefined;
 	/** Fires after the chat's owner changed. */
 	readonly onDidChange: Event<IAgentChatOwnerChange>;
 }
@@ -849,6 +886,12 @@ export interface IAgentChatContext {
 	 */
 	readonly reportPrewarmedSession?: (discardReason?: string) => void;
 	/**
+	 * Records, before progress can complete the addressed turn, that its send
+	 * materialized a deferred provider session without a pre-warmed one to
+	 * claim or discard, and the bounded reason.
+	 */
+	readonly reportPrewarmSkipped?: (reason: AgentHostPrewarmSkipReason) => void;
+	/**
 	 * The addressed chat's origin, taken verbatim from the host-owned chat
 	 * catalog, and exhaustive across every way a chat comes into existence:
 	 * a plainly user-created peer chat and the session-backed default chat
@@ -905,6 +948,17 @@ export function resolveAgentChatContext(sessionOrContext: AgentChatOperationCont
 		throw new Error(`Chat context resource must be the addressed chat or a session: ${context.resource.toString()} for ${resource.toString()}`);
 	}
 	return context;
+}
+
+/**
+ * Whether a chat is the default chat of its current owner: the host's
+ * {@link IAgentChatOwnerRef.isDefaultChat} when it answers, else (owner
+ * references the host did not create, or no default chat recorded yet) whether
+ * the chat stores in its owner, which holds for every chat a session was
+ * created with.
+ */
+export function isAgentChatDefaultChat(chat: { readonly resource: URI; readonly owner: IAgentChatOwnerRef }): boolean {
+	return chat.owner.isDefaultChat?.() ?? isEqual(chat.resource, chat.owner.get());
 }
 
 /**
@@ -1213,6 +1267,13 @@ export interface IAgentPrepareChatResult {
 	readonly error?: ErrorInfo;
 }
 
+export type AgentChatReleaseReason = 'idle' | 'archived' | 'other';
+
+export interface IAgentChatReleaseOptions {
+	readonly reason: () => AgentChatReleaseReason;
+	readonly canContinue?: () => boolean;
+}
+
 /**
  * The chat-addressed operation surface an agent exposes for the chats
  * within a session.
@@ -1249,6 +1310,13 @@ export interface IAgentChats {
 	warmChat?(chat: URI, context: IAgentChatContext): Promise<boolean>;
 
 	/**
+	 * Records why the host is not (yet) warming a deferred chat
+	 * ({@link warmChat}), so its first send can report it. The latest call
+	 * wins; a later warm launch supersedes it.
+	 */
+	noteWarmSkipped?(chat: URI, context: IAgentChatContext, reason: AgentHostPrewarmSkipReason): void;
+
+	/**
 	 * Create a fresh additional chat within an already-provisioned `session`,
 	 * using the complete working directory and config supplied in
 	 * {@link IAgentCreateChatOptions}. `chat` is the client-chosen channel URI.
@@ -1265,7 +1333,7 @@ export interface IAgentChats {
 	canReleaseChat?(chat: URI, context: AgentChatOperationContext): Promise<boolean>;
 
 	/** Release the addressed chat's in-memory backing without deleting durable data. */
-	releaseChat(chat: URI, context: AgentChatOperationContext): Promise<void>;
+	releaseChat(chat: URI, context: AgentChatOperationContext, options?: IAgentChatReleaseOptions): Promise<void>;
 
 	/**
 	 * Send a user message into `chat`. On every send, the host passes the complete
@@ -1473,6 +1541,12 @@ export interface IAgentToolPendingConfirmationSignal {
 	readonly permissionKind?: AgentPermissionKind;
 	/** Host-only auto-approval path target (not part of the dispatched action). */
 	readonly permissionPath?: string;
+	/**
+	 * Host-only resource that {@link permissionPath} names, for providers whose
+	 * paths are not local disk paths (such as virtual workspaces). Defaults to
+	 * `URI.file(permissionPath)`.
+	 */
+	readonly permissionResource?: URI;
 	/** Host-only URL target for request approval (not part of the dispatched action). */
 	readonly permissionUrl?: string;
 	/** Host-only command for shell approval when the displayed tool input contains structured arguments. */
@@ -1486,6 +1560,12 @@ export interface IAgentToolPendingConfirmationSignal {
 	 * Host-only flag indicating that the runtime requested sandbox escalation.
 	 */
 	readonly requestSandboxBypass?: boolean;
+	/**
+	 * Host-only flag: no person can answer this request, as in Copilot's Assisted Autopilot.
+	 * Host policy may still approve or deny it; otherwise it is reported as user-not-available
+	 * instead of showing a confirmation.
+	 */
+	readonly unattended?: true;
 	/**
 	 * Host-only flag indicating that the sandbox escalation keeps the sandbox attached
 	 * while file and process restrictions record instead of block.
@@ -1759,12 +1839,19 @@ export interface IAgentSessionPlan {
 	readonly dependencies: readonly { readonly todoId: string; readonly dependsOn: string }[];
 }
 
+export interface IAgentChatCanvasWatchHost {
+	readonly published: () => readonly string[] | undefined;
+	resolveContext(): Promise<IAgentChatContext>;
+}
+
 /**
  * Implemented by each agent backend (e.g. Copilot SDK).
  * The {@link IAgentService} dispatches to the appropriate agent based on
  * the agent id.
  */
 export interface IAgent {
+	/** Host-internal opt-in to client-backed, non-file working directories. */
+	readonly supportsVirtualWorkspaces?: true;
 	readonly supportsScopedCredentials?: boolean;
 	// ---- Identity and catalog -----------------------------------------------
 
@@ -1804,6 +1891,12 @@ export interface IAgent {
 
 	/** Close one canvas that a live provider chat presents, notifying its canvas provider. Never resumes a cold chat. */
 	closeSessionCanvas?(session: URI, request: IAgentCanvasCloseRequest, chat: URI, context: AgentChatOperationContext): Promise<void>;
+
+	/** Observe one hydrated chat's canvas projection and restore provider-owned continuity when needed. */
+	watchChatCanvases?(chat: URI, host: IAgentChatCanvasWatchHost): IDisposable;
+
+	/** Invalidate retained canvas continuity when a chat or session is archived or removed. */
+	clearCanvasContinuity?(session: URI, chat?: URI): void;
 
 	/** Install a plugin through the provider that owns its installation state. */
 	installPlugin?(request: IAgentPluginInstallRequest, session?: URI, chat?: URI): Promise<void>;
@@ -1931,12 +2024,16 @@ export interface IAgent {
 	 * stoppable. Resolves false when the entry is unknown or had already finished.
 	 */
 	stopBackgroundWork?(chat: URI, id: string): Promise<boolean>;
+	/** Manages the host's sandbox CA from saved runtime settings without creating a chat. */
+	manageHostSandboxCertificate?(operation: AgentSandboxCertificateOperation): Promise<void>;
 	/** Installs the live chat runtime's sandbox certificate after explicit client consent, preserving the advertised chat string. */
 	installSandboxCertificate?(chat: string, scopeId: string): Promise<void>;
 	/** Replaces the live runtime's sandbox CA after explicit client consent. */
 	rotateSandboxCertificate?(chat: string, scopeId: string): Promise<void>;
 	/** Removes OS trust for the live runtime's sandbox CA after explicit client consent, retaining the stored CA. */
 	removeSandboxCertificate?(chat: string, scopeId: string): Promise<void>;
+	/** Rechecks the live runtime without changing trust and publishes updated certificate diagnostics. */
+	refreshSandboxCertificate?(chat: string, scopeId: string): Promise<void>;
 
 	/**
 	 * Changes the working directory of an exact chat's existing provider-native
@@ -2040,6 +2137,27 @@ export interface IAgent {
 
 	/** Lets discovery drop registered candidates before per-session I/O. */
 	setKnownSessionsFilter?(filter: IAgentKnownSessionsFilter): void;
+
+	/**
+	 * Classifies one provider-native session for an explicit import that names a
+	 * session the host has not registered, for example one that discovery hides or
+	 * has not scanned yet. Applies the same eligibility rules as discovery and
+	 * returns `undefined` for a session discovery would not surface.
+	 */
+	discoverChat?(session: URI): Promise<IAgentDiscoveredChat | undefined>;
+
+	/**
+	 * Takes over a restored default chat that a client explicitly imports, before
+	 * the host adopts its session. Rejects when the chat cannot move to this host;
+	 * a chat that another process is using is rejected with `Conflict` unless
+	 * {@link IAgentImportChatOptions.takeOver} is set. A provider may wait briefly
+	 * for that process to release it first, as a process that just handed the
+	 * chat off may still be exiting. A provider may also align
+	 * the chat's configuration with the state its runtime persisted for the chat,
+	 * and returns the model and agent the chat continues with so the host can
+	 * offer them for the next turn.
+	 */
+	importChat?(chat: URI, context: IAgentChatContext, options?: IAgentImportChatOptions): Promise<IAgentImportedChat | void>;
 
 	// ---- Legacy migration ---------------------------------------------------
 

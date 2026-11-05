@@ -8,6 +8,8 @@ steps:
   - template: ../common/checkout.yml@self
 
   - template: ../common/setup-node.yml@self
+    parameters:
+      os: windows
 
   - task: UsePythonVersion@0
     inputs:

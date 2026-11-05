@@ -12,7 +12,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IChatSessionFileChange, IChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { getChatHarness, getSessionFolderGitHubRepository, getSessionOwnedGitHubPullRequestRefs, hasMixedChatHarnesses, IChat, ISession, getSessionStatusMessage, getSessionWorkspaceKind, getUntitledSessionTitle, IGitHubInfo, isActiveSessionStatus, ISessionFolder, ISessionTurnFileChange, ISessionWorkspace, sessionFileChangesEqual, sessionTurnFileChangesEqual, SessionStatus, SessionWorkspaceKind, sessionWorkspaceEqual } from '../../common/session.js';
+import { getChatHarness, getSessionFolderGitHubRepository, getSessionOwnedGitHubPullRequestRefs, hasMixedChatHarnesses, IChat, ISession, getSessionPresentationWorkspace, getSessionStatusMessage, getSessionWorkspaceKind, getUntitledSessionTitle, IGitHubInfo, isActiveSessionStatus, ISessionFolder, ISessionTurnFileChange, ISessionWorkspace, sessionFileChangesEqual, sessionTurnFileChangesEqual, SessionStatus, SessionWorkspaceKind, sessionWorkspaceEqual } from '../../common/session.js';
 
 suite('getSessionFolderGitHubRepository', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -348,6 +348,54 @@ suite('getSessionWorkspaceKind', () => {
 			undefinedWorkspace: SessionWorkspaceKind.Worktree,
 			pendingWorktree: SessionWorkspaceKind.Worktree,
 			pendingVirtual: SessionWorkspaceKind.Virtual,
+		});
+	});
+});
+
+suite('getSessionPresentationWorkspace', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function folder(path: string, repositoryRoot?: string): ISessionFolder {
+		const workingDirectory = URI.file(path);
+		const root = repositoryRoot ? URI.file(repositoryRoot) : workingDirectory;
+		return {
+			root,
+			workingDirectory,
+			name: path,
+			description: undefined,
+			gitRepository: { uri: root, workTreeUri: repositoryRoot ? workingDirectory : undefined, baseBranchName: 'main', gitHubInfo: constObservable(undefined) },
+		};
+	}
+
+	function workspace(...folders: ISessionFolder[]): ISessionWorkspace {
+		return { uri: folders[0].root, label: folders[0].name, icon: Codicon.repo, folders, requiresWorkspaceTrust: true, isVirtualWorkspace: false };
+	}
+
+	function presentationOf(sessionWorkspace: ISessionWorkspace | undefined, mainChatWorkspace: ISessionWorkspace | undefined): string | undefined {
+		const session = upcastPartial<ISession>({
+			workspace: constObservable(sessionWorkspace),
+			mainChat: constObservable(upcastPartial<IChat>({ workspace: constObservable(mainChatWorkspace) })),
+		});
+		return getSessionPresentationWorkspace(session, undefined)?.folders.map(folder => folder.workingDirectory.path).join(', ');
+	}
+
+	test('describes the main chat of a multi-folder session', () => {
+		const repo = folder('/repo');
+		const peerWorktree = folder('/repo.worktrees/peer', '/repo');
+		const mainWorktree = folder('/repo.worktrees/main', '/repo');
+		assert.deepStrictEqual({
+			singleFolder: presentationOf(workspace(repo), workspace(mainWorktree)),
+			mainChatMovedToWorktree: presentationOf(workspace(repo, peerWorktree, mainWorktree), workspace(mainWorktree)),
+			mainChatInSessionFolder: presentationOf(workspace(repo, peerWorktree), workspace(repo)),
+			mainChatWorkspaceUnavailable: presentationOf(workspace(repo, mainWorktree), undefined),
+			noSessionWorkspace: presentationOf(undefined, workspace(repo)),
+		}, {
+			singleFolder: '/repo',
+			mainChatMovedToWorktree: '/repo.worktrees/main',
+			mainChatInSessionFolder: '/repo',
+			mainChatWorkspaceUnavailable: '/repo, /repo.worktrees/main',
+			noSessionWorkspace: undefined,
 		});
 	});
 });
