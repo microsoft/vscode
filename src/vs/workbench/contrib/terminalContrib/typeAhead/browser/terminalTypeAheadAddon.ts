@@ -49,6 +49,9 @@ const enum StatsConstants {
  *   CSI Ps n
  *   CSI ? Ps n
  */
+/** Bound on fragmented escape sequence data withheld while predictions are pending. */
+const MAX_INCOMPLETE_ESCAPE_LENGTH = 16 * 1024;
+
 const PREDICTION_OMIT_RE = /^(?:(?:\x1b\[|\x9b)(?:\?(?:25|12)[hl]|\??[0-9;]+n))+/;
 
 /** Carriage returns or absolute positioning indicate that a shell may be repainting the line. */
@@ -88,7 +91,9 @@ class Cursor implements ICoordinate {
 	private _x = 0;
 	private _y = 1;
 	private _baseY = 1;
+	/** Predicted cells, shared copy-on-write between clones. */
 	private _cells = new Map<string, ICellSnapshot>();
+	private _cellsShared = false;
 
 	get x() {
 		return this._x;
@@ -134,10 +139,14 @@ class Cursor implements ICoordinate {
 	}
 
 	setCell(chars: string, attributes: string) {
-		this._cells.set(`${this._baseY + this._y}:${this._x}`, { chars, attributes, width: 1 });
+		this.setCellAt(this.coordinate, chars, attributes);
 	}
 
 	setCellAt(pos: ICoordinate, chars: string, attributes: string) {
+		if (this._cellsShared) {
+			this._cells = new Map(this._cells);
+			this._cellsShared = false;
+		}
 		this._cells.set(`${pos.baseY + pos.y}:${pos.x}`, { chars, attributes, width: 1 });
 	}
 
@@ -154,7 +163,8 @@ class Cursor implements ICoordinate {
 	}
 
 	adopt(cursor: Cursor) {
-		this._cells = new Map(cursor._cells);
+		this._cells = cursor._cells;
+		this._cellsShared = cursor._cellsShared = true;
 		return this.moveTo(cursor);
 	}
 
@@ -576,8 +586,8 @@ class CharacterPrediction implements IPrediction {
 
 		const { oldAttributes, oldChar, pos } = this.appliedAt;
 		cursor.setCellAt(pos, oldChar, oldAttributes);
-		const eraseStyle = oldAttributes === attributes ? '' : oldAttributes;
-		return cursor.moveTo(pos) + (oldChar ? oldAttributes + oldChar + cursor.moveTo(pos) : eraseStyle + VT.DeleteChar);
+		// Erase with the saved style explicitly: rolling back a later cell may have changed the pen.
+		return cursor.moveTo(pos) + (oldChar ? oldAttributes + oldChar + cursor.moveTo(pos) : (oldAttributes || attributes) + VT.DeleteChar);
 	}
 
 	rollForwards(cursor: Cursor, input: string, lookBehind?: IPrediction, attributes = this._style.currentAttributes + getStyles(input)) {
@@ -1141,6 +1151,30 @@ export class PredictionTimeline extends Disposable {
 		this._clearPredictionState();
 	}
 
+	private _hasLongIncompleteEscape() {
+		let length = 0;
+		for (const chunk of this._incompleteEscapeChunks) {
+			length += chunk.length;
+		}
+		return length > MAX_INCOMPLETE_ESCAPE_LENGTH;
+	}
+
+	/**
+	 * Withheld output is not acknowledged for flow control, so a long control
+	 * string (e.g. an image or clipboard payload) could pause the pty before its
+	 * terminator arrives. Give up on predictions and stream it through instead.
+	 */
+	private _abandonIncompleteEscape(input: string, originalInput: string): string {
+		const buffer = this._getActiveBuffer();
+		const output = this._showPredictions
+			? (buffer ? this._rollbackPredictions(this._currentGenerationPredictions, buffer) : '') + (this._inputBuffer ?? '') + input + this._incompleteEscapeChunks.join('')
+			: originalInput;
+		this._inputBuffer = undefined;
+		this._incompleteEscapeChunks = [];
+		this._clearPredictionState();
+		return output;
+	}
+
 	private _rollbackPredictions(predictions: IPrediction[], buffer: IBuffer, cursor = this.physicalCursor(buffer), attributes = this._currentAttributes): string {
 		const restoreStyle = predictions.some(p => p.affectsStyle)
 			? attributes
@@ -1168,7 +1202,9 @@ export class PredictionTimeline extends Disposable {
 		if (this._incompleteEscapeChunks.length) {
 			if (incompleteEscape === 0) {
 				this._incompleteEscapeChunks.push(input);
-				return this._showPredictions ? '' : originalInput;
+				return this._hasLongIncompleteEscape()
+					? this._abandonIncompleteEscape('', originalInput)
+					: this._showPredictions ? '' : originalInput;
 			}
 			const complete = incompleteEscape === -1 ? input : input.slice(0, incompleteEscape);
 			input = this._incompleteEscapeChunks.join('') + complete;
@@ -1176,6 +1212,10 @@ export class PredictionTimeline extends Disposable {
 		} else if (incompleteEscape !== -1) {
 			this._incompleteEscapeChunks.push(input.slice(incompleteEscape));
 			input = input.slice(0, incompleteEscape);
+		}
+
+		if (this._hasLongIncompleteEscape()) {
+			return this._abandonIncompleteEscape(input, originalInput);
 		}
 
 		if (this._inputBuffer) {
@@ -1549,10 +1589,11 @@ const attributesToArgs = (cell: XtermAttributes) => {
 	if (cell.isBold()) { args.push(1); }
 	if (cell.isDim()) { args.push(2); }
 	if (cell.isItalic()) { args.push(3); }
-	if (cell.isUnderline()) {
+	const underlineStyle = cell.getUnderlineStyle();
+	if (underlineStyle) {
 		args.push(4);
-		if (cell.getUnderlineStyle() > 1) {
-			args.push([cell.getUnderlineStyle()]);
+		if (underlineStyle > 1) {
+			args.push([underlineStyle]);
 		}
 	}
 	if (cell.isBlink()) { args.push(5); }
@@ -1836,6 +1877,11 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 		const terminal = this._timeline.terminal;
 		// Predictions assume characters overwrite cells and wrap at the right margin.
 		if (terminal.modes.insertMode || !terminal.modes.wraparoundMode) {
+			return;
+		}
+		// xterm.js can restore (DECRC, ?1049l) an underline flag without its extended style; no SGR reproduces that pen.
+		const pen = core(terminal)._inputHandler._curAttrData;
+		if (pen.isUnderline() && !pen.getUnderlineStyle()) {
 			return;
 		}
 		const buffer = terminal.buffer.active;

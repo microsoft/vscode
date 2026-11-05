@@ -233,7 +233,7 @@ suite('Workbench - Terminal Typeahead', () => {
 			t.onData('ab');
 			t.clearWritten();
 			clock.tick(500);
-			t.expectWritten(`${CSI}2;8H${CSI}X${CSI}2;7H${CSI}X${CSI}0m`);
+			t.expectWritten(`${CSI}2;8H${CSI}0m${CSI}X${CSI}2;7H${CSI}0m${CSI}X${CSI}0m`);
 		});
 
 		test('does not run scheduled work after disposal', () => {
@@ -300,6 +300,7 @@ suite('Workbench - Terminal Typeahead', () => {
 			expectProcessed('\bqx', [
 				`${CSI}?25l`, // hide cursor
 				`${CSI}2;8H`, // move cursor cursor
+				`${CSI}0m`, // restore the empty cell's attributes
 				`${CSI}X`, // delete character
 				`${CSI}0m`, // reset style
 				'\bqx', // new data
@@ -316,6 +317,7 @@ suite('Workbench - Terminal Typeahead', () => {
 			expectProcessed('q', [
 				`${CSI}?25l`, // hide cursor
 				`${CSI}2;7H`, // move cursor cursor
+				`${CSI}0m`, // restore the empty cell's attributes
 				`${CSI}X`, // delete character
 				`${CSI}0m`, // reset style
 				'q', // new character
@@ -1709,6 +1711,36 @@ suite('Workbench - Terminal Typeahead', () => {
 				}
 			});
 		}
+
+		test('streams a long fragmented control string instead of withholding it', async () => {
+			await input('b');
+			const payload = 'x'.repeat(10 * 1024);
+			const first = await server(`\x1b]9999;${payload}`);
+			const second = await server(payload);
+			await server('\x07b');
+			assert.deepStrictEqual({ first, streamed: second.endsWith(payload), ...state(), pending: addon.pendingPredictionState }, {
+				first: '', streamed: true, lines: ['$ ab', '', ''], cursorX: 4, cursorY: 0, baseY: 0, pending: { count: 0, hasIncompleteInput: false }
+			});
+		});
+
+		test('erases a rolled back blank cell with its saved style after restoring a styled cell', async () => {
+			const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
+			const control = ds.add(new TerminalCtor({ allowProposedApi: true, cols: 20, rows: 3 }));
+			const styledCell = `${CSI}5G${CSI}41mZ${CSI}0m${CSI}4G`;
+			await writeP(control, '$ a' + styledCell);
+			await server(styledCell);
+			await input('bc');
+			addon.undoAllPredictions();
+			await writeP(terminal, '');
+			assert.deepStrictEqual(snapshotTerminal(terminal), snapshotTerminal(control));
+		});
+
+		test('does not predict with an underline pen that SGR cannot reproduce', async () => {
+			await server(`${CSI}4:3m\x1b7${CSI}24m\x1b8`);
+			const before = state();
+			await input('b');
+			assert.deepStrictEqual(state(), before);
+		});
 	});
 
 	suite('deterministic differential fuzzing', () => {
@@ -1741,7 +1773,9 @@ suite('Workbench - Terminal Typeahead', () => {
 			'0', '31', '38;5;123;48;5;42', '38;2;18;52;86;48;2;101;67;33',
 			'38:2::18:52:86', '1;2;3', '22;23;24;27', '4:3;58:2::12:34:56', '7;9;53', '29;55;39;49'
 		];
-		// xterm.js restores the saved pen without its extended underline attributes, which no SGR can reproduce.
+		// xterm.js restores the saved pen without its extended underline attributes, leaving hidden state
+		// that no SGR can reproduce. Predictions are suspended for a visibly inconsistent underline (see
+		// 'does not predict with an underline pen that SGR cannot reproduce'); normalize the rest here.
 		const restoreSavedPen = `${CSI}24;59m`;
 		const controls = [
 			'\x1b]0;fuzz\x07', '\x1b]0;fuzz\x1b\\', '\x1bPignored\x1b\\', '\x1b_ignored\x1b\\',
@@ -2003,13 +2037,13 @@ suite('Workbench - Terminal Typeahead', () => {
 						configurationService,
 						upcastPartial<ITelemetryService>({ publicLog: () => { } })
 					));
-					const parse = async (milliseconds = 1) => {
+					const parse = (milliseconds = 1) => {
 						let completed = 0;
 						for (const t of [terminal, control]) {
 							t.write('', () => completed++);
 						}
 						record({ parseAt: clock.now + milliseconds });
-						await clock.tickAsync(milliseconds);
+						clock.tick(milliseconds);
 						if (completed !== 2) {
 							assert.fail(`Parser did not drain: ${context()}`);
 						}
@@ -2036,11 +2070,11 @@ suite('Workbench - Terminal Typeahead', () => {
 					};
 
 					server('$ ');
-					await parse();
+					parse();
 					addon.activate(terminal);
 					input('a', true);
 					server('a');
-					await parse();
+					parse();
 					assertSettled();
 
 					const editor: Editor = { text: 'a', cursor: profile === 'wrapping' ? 3 : 1 };
@@ -2063,25 +2097,25 @@ suite('Workbench - Terminal Typeahead', () => {
 							input(batch.map(operation => operation.input).join(''), random.nextIntRange(0, 2) === 0);
 							pending += batch.map(operation => operation.reply).join('');
 							if (profile !== 'basic' && random.nextIntRange(0, 12) === 0) {
-								await parse(501);
+								parse(501);
 							}
 							if (random.nextIntRange(0, 3) === 0) {
-								await parse();
+								parse();
 							}
 							if (pending.length && random.nextIntRange(0, 2) === 0) {
 								deliver();
 								if (random.nextIntRange(0, 2) === 0) {
-									await parse();
+									parse();
 								}
 							}
 						}
 						while (pending.length) {
 							deliver();
 							if (random.nextIntRange(0, 2) === 0) {
-								await parse();
+								parse();
 							}
 						}
-						await parse();
+						parse();
 						assertSettled();
 					}
 					assert.ok(addon.isShowing && addon.stats && addon.stats.sampleSize > 1, `No active prediction coverage: ${context()}`);
