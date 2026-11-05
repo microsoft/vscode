@@ -26,7 +26,7 @@ import { activationTimeIcon, errorIcon, infoIcon, installCountIcon, preReleaseIc
 import { registerColor, textLinkForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
-import { createCommandUri, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { createCommandUri, escapeUntrustedMarkdown, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
@@ -780,6 +780,10 @@ export class ExtensionRuntimeStatusWidget extends ExtensionWidget {
 
 }
 
+function toHoverText(text: string): string {
+	return escapeUntrustedMarkdown(text).replace(/ /g, '&nbsp;');
+}
+
 export type ExtensionHoverOptions = {
 	position: () => HoverPosition;
 	readonly target: HTMLElement;
@@ -852,7 +856,7 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 		}
 		const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
 
-		markdown.appendMarkdown(`**`).appendText(this.extension.displayName).appendMarkdown(`**`);
+		markdown.appendMarkdown(`**`).appendMarkdown(toHoverText(this.extension.displayName)).appendMarkdown(`**`);
 		if (semver.valid(this.extension.version)) {
 			markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">**&nbsp;_v${this.extension.version}${(this.extension.isPreReleaseVersion ? ' (pre-release)' : '')}_**&nbsp;</span>`);
 		}
@@ -903,7 +907,7 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 		}
 
 		if (this.extension.description) {
-			markdown.appendText(this.extension.description);
+			markdown.appendMarkdown(toHoverText(this.extension.description));
 			markdown.appendText(`\n`);
 		}
 
@@ -916,7 +920,7 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 
 		if (this.extension.outdated) {
 			markdown.appendMarkdown(localize('updateRequired', "Latest version:"));
-			markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">**&nbsp;_v${this.extension.latestVersion}_**&nbsp;</span>`);
+			markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">**&nbsp;_v${escapeUntrustedMarkdown(this.extension.latestVersion)}_**&nbsp;</span>`);
 			markdown.appendText(`\n`);
 		}
 
