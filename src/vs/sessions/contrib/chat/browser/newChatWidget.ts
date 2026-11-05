@@ -86,7 +86,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { getSessionComparisonWorkspaceError, ISessionComparisonHarness, ISessionComparisonService } from '../../../services/sessions/common/sessionComparison.js';
 import { OPEN_SESSION_COMPARISON_COMMAND_ID } from '../../sessionComparison/common/sessionComparison.js';
 import { SessionComparisonModelSelection } from './sessionComparisonModelSelection.js';
-import { isAutoModel, isHydraFusionModel } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerPresentation.js';
+import { isModelComparisonSupported } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerPresentation.js';
 import { IAgentsWindowDraft } from '../../../../platform/window/common/window.js';
 import { reviveChatDraft } from '../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
 import { NewChatMigrationNotice } from './newChatMigrationNotice.js';
@@ -1683,7 +1683,7 @@ export class NewChatWidget extends Disposable {
 
 	private _getComparisonModelIds(): Set<string> {
 		return new Set(this._newChatInput.getComparisonModels()
-			.filter(model => !isAutoModel(model) && !isHydraFusionModel(model))
+			.filter(isModelComparisonSupported)
 			.map(model => model.identifier));
 	}
 
