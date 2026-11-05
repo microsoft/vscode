@@ -48,7 +48,7 @@ import { GitHubPullRequestModel } from '../../../../../workbench/contrib/session
 import { GitHubPullRequestState, IGitHubPullRequest } from '../../../../../workbench/contrib/sessions/common/github/types.js';
 import { getPullRequestKey } from '../../../../../workbench/contrib/sessions/common/github/utils.js';
 import { AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_QUERY } from '../../../../../workbench/contrib/sessions/common/github/sessionLifecycleSettings.js';
-import { SESSION_ARCHIVE_TOUR_ID } from '../../../onboardingTours/browser/tours/sessionArchiveTour.js';
+import { SESSION_ARCHIVE_TOUR_ID } from '../../../../../workbench/contrib/sessions/browser/tours/sessionArchiveTour.js';
 import { SESSION_ARCHIVE_NUDGE_SETTING, SessionArchiveNudge, SessionArchiveNudgeService } from '../../browser/sessionArchiveNudge.js';
 import { getSessionArchiveOnboardingTargetId, SessionsList } from '../../../sessions/browser/views/sessionsList.js';
 import { SessionsView, SessionsViewId } from '../../../sessions/browser/views/sessionsView.js';

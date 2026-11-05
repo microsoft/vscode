@@ -21,7 +21,7 @@ import { IChat, ISession, ISessionCanvasDefinition } from '../../../../workbench
 import { IHostSession, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionEditorWorkingSetService } from '../../layout/common/sessionEditorWorkingSet.js';
 import { createSessionCanvasReference, getSessionCanvasDefinitionInstanceId, ISessionCanvasRegistryService } from '../common/sessionCanvas.js';
-import { IPinnedCanvasService } from '../browser/pinnedCanvases.js';
+import { IPinnedCanvasService } from '../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
 
 export class SessionCanvasContextService extends Disposable implements ICanvasContextService {
 

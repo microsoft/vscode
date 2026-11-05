@@ -14,7 +14,7 @@ import '../workbench/api/browser/extensionHost.contribution.js';
 import '../workbench/browser/workbench.contribution.js';
 import '../workbench/contrib/modernUI/browser/media/notificationsDialogs.css';
 import '../workbench/contrib/modernUI/browser/media/suggestWidget.css';
-import { agentsPanelBackground } from './common/theme.js';
+import { agentsPanelBackground } from '../workbench/contrib/sessions/common/theme.js';
 import './common/sizes.js';
 import './contrib/providers/remoteAgentHost/browser/connectionDiagnostics.contribution.js';
 

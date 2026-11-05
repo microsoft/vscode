@@ -46,7 +46,7 @@ import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.j
 import { applyAgentsPartCardStyles } from '../../../../browser/parts/agentsPartCard.js';
 import { applySessionViewThemeColors } from '../../../../browser/parts/sessionBarStyles.js';
 import { SessionsChatBackgroundAvailableContext, SessionsChatBackgroundImageConfiguredContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
-import { activeSessionViewBackground, activeSessionViewForeground, agentsBackground, agentsChatInputBackground, agentsChatInputForeground, agentsChatInputPlaceholderForeground, agentsDetailBackground, agentsPanelBackground, agentsPanelForeground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../../../common/theme.js';
+import { activeSessionViewBackground, activeSessionViewForeground, agentsBackground, agentsChatInputBackground, agentsChatInputForeground, agentsChatInputPlaceholderForeground, agentsDetailBackground, agentsPanelBackground, agentsPanelForeground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../../../../workbench/contrib/sessions/common/theme.js';
 import { AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET, AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING, AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING, SessionsChatBackgroundService } from '../../../../../workbench/contrib/sessions/browser/chatBackgroundService.js';
 import { AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_TINT_SETTING, generateChatBackgroundTheme, getChatBackgroundImageColor, getChatBackgroundTintedColor, SessionsChatBackgroundTint, ToggleChatBackgroundTintAction } from '../../browser/chatBackgroundTint.js';
 

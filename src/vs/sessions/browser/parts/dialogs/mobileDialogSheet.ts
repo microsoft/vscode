@@ -8,7 +8,7 @@ import { Button } from '../../../../base/browser/ui/button/button.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
-import { showMobileContentSheet } from '../mobile/mobilePickerSheet.js';
+import { showMobileContentSheet } from '../../../../workbench/contrib/sessions/browser/mobile/mobilePickerSheet.js';
 
 /** Monotonic seed for unique aria id wiring across concurrent sheets. */
 let idSeed = 0;

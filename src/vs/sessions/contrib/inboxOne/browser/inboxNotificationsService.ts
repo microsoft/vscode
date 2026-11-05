@@ -66,10 +66,10 @@ import {
 	InboxNotificationKind,
 	InboxNotificationPriority,
 	InboxNotificationsSortMode,
-} from '../common/inboxNotificationsService.js';
+} from '../../../../workbench/contrib/sessions/common/inboxNotificationsService.js';
 import { getSessionsTelemetryProviderId, hashSessionIdForTelemetry } from '../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
 import { isAgentHostProviderId } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
-import { CHAT_INBOX_ENABLED_SETTING } from './inboxNotificationsConstants.js';
+import { CHAT_INBOX_ENABLED_SETTING } from '../../../../workbench/contrib/sessions/browser/inboxNotificationsConstants.js';
 import { collectInboxCommandEvidence, collectInboxEvidence, IInboxEvidenceCommand } from '../common/inboxEvidence.js';
 
 const DISMISSED_NOTIFICATION_IDS_STORAGE_KEY = 'sessions.inboxNotifications.dismissedIds';

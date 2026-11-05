@@ -7,7 +7,7 @@ import { LayoutPriority } from '../../../base/browser/ui/splitview/splitview.js'
 import { mainWindow } from '../../../base/browser/window.js';
 import { MainEditorPart as MainEditorPartBase } from '../../../workbench/browser/parts/editor/editorPart.js';
 import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
-import { AGENTS_FLOATING_PANEL_GAP } from '../../common/layoutConstants.js';
+import { AGENTS_FLOATING_PANEL_GAP } from '../../../workbench/contrib/sessions/common/layoutConstants.js';
 import { type IAgentWorkbenchLayoutService } from '../workbench.js';
 import { AgentWorkbenchLayout } from '../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
 import { getSidePaneBottomFrameInset } from './agentsPartCard.js';

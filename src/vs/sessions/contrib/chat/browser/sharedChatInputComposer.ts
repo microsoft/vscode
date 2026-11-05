@@ -52,7 +52,7 @@ import { ChatRequestParser } from '../../../../workbench/contrib/chat/common/req
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
-import { activeSessionViewBackground, activeSessionViewForeground, agentsPanelBackground, inactiveSessionViewBackground } from '../../../common/theme.js';
+import { activeSessionViewBackground, activeSessionViewForeground, agentsPanelBackground, inactiveSessionViewBackground } from '../../../../workbench/contrib/sessions/common/theme.js';
 import { IWorkspaceSelectionSnapshot } from '../../../../workbench/contrib/sessions/common/workspaceSelection.js';
 import { ISessionsProvidersService, observeSessionSandboxToggle } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ActiveSessionHost, ISessionHost, ISessionHostService, SessionHostKind } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
@@ -74,7 +74,7 @@ import { SessionTypePicker } from './sessionTypePicker.js';
 import { ChatInputPickerResponsiveLayout } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerResponsiveLayout.js';
 import { markOnboardingTarget } from '../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { isPhoneLayout } from '../../../../workbench/contrib/sessions/browser/mobileLayout.js';
-import { installMobileChipLaneScroll } from '../../../browser/parts/mobile/mobileChipLaneScroll.js';
+import { installMobileChipLaneScroll } from '../../../../workbench/contrib/sessions/browser/mobile/mobileChipLaneScroll.js';
 
 /** Body height the composer lays its chat widget out with; the transcript is hidden, so it only bounds the input. */
 const COMPOSER_LAYOUT_HEIGHT = 200;

@@ -17,7 +17,7 @@ import { ColorScheme } from '../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { TestColorTheme, TestThemeService } from '../../../platform/theme/test/common/testThemeService.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
-import { agentsCardBorder, agentsPanelBorder } from '../../common/theme.js';
+import { agentsCardBorder, agentsPanelBorder } from '../../../workbench/contrib/sessions/common/theme.js';
 import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import { mock } from '../../../base/test/common/mock.js';
 import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';

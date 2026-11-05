@@ -15,7 +15,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { agentsPanelBackground } from '../../../common/theme.js';
+import { agentsPanelBackground } from '../../../../workbench/contrib/sessions/common/theme.js';
 import { ExplorerView } from '../../../../workbench/contrib/files/browser/views/explorerView.js';
 import { localize } from '../../../../nls.js';
 import { URI } from '../../../../base/common/uri.js';

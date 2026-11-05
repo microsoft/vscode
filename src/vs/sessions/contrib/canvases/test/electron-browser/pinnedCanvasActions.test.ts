@@ -25,7 +25,7 @@ import { IEditorService } from '../../../../../workbench/services/editor/common/
 import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
-import { CanvasesPinnedToSidebarContext, IPinnedCanvasService } from '../../browser/pinnedCanvases.js';
+import { CanvasesPinnedToSidebarContext, IPinnedCanvasService } from '../../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
 import { ADD_CANVAS_TO_SIDEBAR_COMMAND_ID, REMOVE_CANVAS_FROM_SIDEBAR_COMMAND_ID, TOGGLE_CANVAS_PINNED_TO_SIDEBAR_COMMAND_ID } from '../../electron-browser/pinnedCanvasActions.js';
 
 suite('PinnedCanvasActions', () => {

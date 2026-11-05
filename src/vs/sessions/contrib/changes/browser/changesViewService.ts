@@ -18,9 +18,9 @@ import { getMainWindowHost, ISessionHost, ISessionHostService } from '../../../.
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { BRANCH_CHANGES_CHANGESET_ID, IChat, ISession, ISessionChangeset, ISessionChangesetOperation, ISessionChangesSummary, ISessionFileChange, ISessionWorkspace, sessionFileChangesEqual, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope, SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession, IHostSession, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedback.js';
-import { AgentFeedbackState } from '../../agentFeedback/browser/agentFeedbackModel.js';
-import { ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReview.js';
+import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, IAgentFeedbackService } from '../../../../workbench/contrib/sessions/browser/agentFeedback.js';
+import { AgentFeedbackState } from '../../../../workbench/contrib/sessions/browser/agentFeedbackModel.js';
+import { ICodeReviewService, PRReviewStateKind } from '../../../../workbench/contrib/sessions/browser/codeReviewService.js';
 import { ChangesViewMode, IsolationMode } from '../../../../workbench/contrib/sessions/common/changes.js';
 import { getChangesEditorFileResource } from './changesEditorLabels.js';
 import { ActiveSessionState, ChangesViewSection, findDefaultChangeset, IChangesDetailsViewState, IChangesDetailsViewStateTransfer, IChangesSessionObservables, IChangesViewSectionCollapseState, IChangesViewService, getActiveSessionChanges, getChangesOfSession } from '../../../../workbench/contrib/sessions/common/changesViewService.js';

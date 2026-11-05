@@ -35,7 +35,7 @@ import { ISessionsManagementService } from '../../../../workbench/contrib/sessio
 import { SessionChangesEditorInput } from '../../changes/browser/sessionChangesEditorInput.js';
 import { IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { VIEW_SESSION_CHANGES_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/changes.js';
-import { ISessionChangesService } from '../../changes/common/sessionChangesService.js';
+import { ISessionChangesService } from '../../../../workbench/contrib/sessions/common/sessionChangesService.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../sessions/browser/automationsConstants.js';
 import { SessionsList } from '../../sessions/browser/views/sessionsList.js';
 import { SessionsView, SessionsViewId } from '../../sessions/browser/views/sessionsView.js';

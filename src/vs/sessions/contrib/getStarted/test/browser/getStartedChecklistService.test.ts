@@ -36,7 +36,7 @@ import { ISessionsService } from '../../../../../workbench/contrib/sessions/brow
 import { ISession, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
-import { ISessionChangesService } from '../../../changes/common/sessionChangesService.js';
+import { ISessionChangesService } from '../../../../../workbench/contrib/sessions/common/sessionChangesService.js';
 import { createTestSession } from '../../../sessions/test/browser/sessionsListTestUtils.js';
 import { GET_STARTED_CHECKLIST_SETTING, GET_STARTED_DEVELOPER_MODE_ID, GET_STARTED_ITEM_IDS, GET_STARTED_STATE_STORAGE_KEY, GetStartedChecklistMode, GetStartedItemId, readGetStartedState } from '../../common/getStartedChecklist.js';
 import { GetStartedChecklistService } from '../../browser/getStartedChecklistService.js';

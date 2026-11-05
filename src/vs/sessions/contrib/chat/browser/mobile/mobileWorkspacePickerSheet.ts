@@ -6,7 +6,7 @@
 import { ActionListItemKind, IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { isPhoneLayout } from '../../../../../workbench/contrib/sessions/browser/mobileLayout.js';
-import { IMobilePickerSheetHeaderAction, IMobilePickerSheetItem, IMobilePickerSheetSearchSource, MOBILE_PICKER_SHEET_CONFIRM, MOBILE_PICKER_SHEET_HEADER_ACTION_PREFIX, showMobilePickerSheet } from '../../../../browser/parts/mobile/mobilePickerSheet.js';
+import { IMobilePickerSheetHeaderAction, IMobilePickerSheetItem, IMobilePickerSheetSearchSource, MOBILE_PICKER_SHEET_CONFIRM, MOBILE_PICKER_SHEET_HEADER_ACTION_PREFIX, showMobilePickerSheet } from '../../../../../workbench/contrib/sessions/browser/mobile/mobilePickerSheet.js';
 import { localize } from '../../../../../nls.js';
 import { IWorkspacePickerItem } from '../sessionWorkspacePicker.js';
 import { SubmenuAction, IAction } from '../../../../../base/common/actions.js';

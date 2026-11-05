@@ -21,8 +21,7 @@ import { IActiveSession, ISessionsManagementService } from '../../../../contrib/
 import { ISessionsService } from '../../../../contrib/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../../contrib/sessions/browser/sessionsProvidersService.js';
 import { IAgentHostFilterService } from '../../../../contrib/sessions/common/agentHostFilter.js';
-// eslint-disable-next-line local/code-import-patterns
-import { BlockedSessionReason, BlockedSessions, IBlockedSession } from '../../../../../sessions/contrib/blockedSessions/browser/blockedSessions.js';
+import { BlockedSessionReason, BlockedSessions, IBlockedSession } from '../../../../contrib/sessions/browser/blockedSessions.js';
 // eslint-disable-next-line local/code-import-patterns
 import { SessionActionFeedback } from '../../../../../sessions/contrib/sessions/browser/sessionActionFeedback.js';
 // eslint-disable-next-line local/code-import-patterns

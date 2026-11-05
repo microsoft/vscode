@@ -46,7 +46,7 @@ import { IAICustomizationMcpServerCountService } from '../../browser/customizati
 import { CustomizationLinkViewItem, CustomizationsToolbarContribution } from '../../browser/customizationsToolbar.contribution.js';
 import { CUSTOMIZATION_ITEMS, readCustomizationCount } from '../../browser/customizationItems.js';
 import { CustomizationsNavigationState } from '../../browser/customizationsNavigationState.js';
-import { IAgentsWindowExtensionSuggestionsService } from '../../../extensions/browser/agentsWindowExtensionSuggestions.js';
+import { IAgentsWindowExtensionSuggestionsService } from '../../../../../workbench/contrib/sessions/browser/agentsWindowExtensionSuggestions.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 import { focusedSessionHostServiceOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';

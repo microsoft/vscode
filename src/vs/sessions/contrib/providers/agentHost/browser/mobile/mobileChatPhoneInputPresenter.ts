@@ -27,7 +27,7 @@ import { IWorkbenchLayoutService } from '../../../../../../workbench/services/la
 import { type IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { IFocusedSessionHostService } from '../../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { showMobilePickerSheet, IMobilePickerSheetItem } from '../../../../../browser/parts/mobile/mobilePickerSheet.js';
+import { showMobilePickerSheet, IMobilePickerSheetItem } from '../../../../../../workbench/contrib/sessions/browser/mobile/mobilePickerSheet.js';
 import { getAgentHostModeIcon } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostModeIcon.js';
 import { isWellKnownModeSchema, isWellKnownModeValue } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostPermissionPickerDelegate.js';
 import { normalizeModelPickerOptions } from '../../../../chat/browser/sessionModelPickerState.js';

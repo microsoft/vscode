@@ -82,7 +82,7 @@ import { EditorResourceAccessor, SideBySideEditor } from '../../../../workbench/
 import { logChangesViewFileSelect, logChangesViewVersionModeChange, logChangesViewViewModeChange } from '../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
 import { ChangesEmptyState } from './changesEmptyState.js';
 import { ChecksViewModel } from './checksViewModel.js';
-import { REVEAL_CI_CHECKS_COMMAND_ID } from './fixCIChecks.js';
+import { REVEAL_CI_CHECKS_COMMAND_ID } from '../../../../workbench/contrib/sessions/browser/fixCIChecks.js';
 // eslint-disable-next-line local/code-import-patterns -- TODO: move skill button constants out of providers
 import { AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID, isAgentHostSkillButtonId } from '../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostSkillButtons.js';
 import { AGENT_HOST_AUTO_MERGE_OPERATION_IDS, AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';

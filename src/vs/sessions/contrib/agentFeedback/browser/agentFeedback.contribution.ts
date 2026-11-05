@@ -18,8 +18,8 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { AgentFeedbackService } from './agentFeedbackService.js';
-import { IAgentFeedbackService } from './agentFeedback.js';
-import { AgentFeedbackState } from './agentFeedbackModel.js';
+import { IAgentFeedbackService } from '../../../../workbench/contrib/sessions/browser/agentFeedback.js';
+import { AgentFeedbackState } from '../../../../workbench/contrib/sessions/browser/agentFeedbackModel.js';
 import { AgentFeedbackAttachmentContribution } from './agentFeedbackAttachment.js';
 import { AgentEditorCommentsProviderContribution } from './agentEditorCommentsProvider.js';
 import { AgentFeedbackPRThreadResolverContribution } from './agentFeedbackPRThreadResolver.js';

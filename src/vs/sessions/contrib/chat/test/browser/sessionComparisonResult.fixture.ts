@@ -18,7 +18,7 @@ import { ILayoutService } from '../../../../../platform/layout/browser/layoutSer
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
-import { activeSessionViewBackground } from '../../../../common/theme.js';
+import { activeSessionViewBackground } from '../../../../../workbench/contrib/sessions/common/theme.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';

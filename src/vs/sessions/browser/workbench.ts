@@ -84,7 +84,7 @@ import { ISessionsPartService } from '../../workbench/contrib/sessions/browser/s
 import { ICustomViewService, ICustomViewDescriptor } from '../../workbench/contrib/sessions/browser/customView.js';
 import { ICustomViewGridPartService } from '../services/customView/browser/customViewGridPartService.js';
 import { ISessionsSetUpService } from './sessionsSetUpService.js';
-import { AGENTS_FLOATING_PANEL_GAP } from '../common/layoutConstants.js';
+import { AGENTS_FLOATING_PANEL_GAP } from '../../workbench/contrib/sessions/common/layoutConstants.js';
 import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
 import { createMainWindowInstantiationService } from '../../workbench/contrib/sessions/browser/sessionHost.js';
 import { AgentWorkbenchLayout, ISessionsHostLayoutService, ISessionsHostSidePane } from '../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';

@@ -23,7 +23,7 @@ import { IHostService } from '../../../../../workbench/services/host/browser/hos
 import { IPreferencesService } from '../../../../../workbench/services/preferences/common/preferences.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { AgentsWindowExtensionsWidget } from '../../browser/agentsWindowExtensionsWidget.js';
-import { IAgentsWindowExtensionSuggestionsService } from '../../browser/agentsWindowExtensionSuggestions.js';
+import { IAgentsWindowExtensionSuggestionsService } from '../../../../../workbench/contrib/sessions/browser/agentsWindowExtensionSuggestions.js';
 
 interface IFixtureExtension {
 	readonly name: string;

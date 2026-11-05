@@ -20,7 +20,7 @@ import { ISessionsManagementService } from '../../../../workbench/contrib/sessio
 import { IFocusedSessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { parsePRContentUri } from '../../../../workbench/contrib/sessions/common/github/utils.js';
-import { PRReviewStateKind, IPRReviewState, IPRReviewComment, IPRReviewCommentTarget, ICodeReviewService } from './codeReview.js';
+import { PRReviewStateKind, IPRReviewState, IPRReviewComment, IPRReviewCommentTarget, ICodeReviewService } from '../../../../workbench/contrib/sessions/browser/codeReviewService.js';
 
 // --- Implementation ----------------------------------------------------------
 

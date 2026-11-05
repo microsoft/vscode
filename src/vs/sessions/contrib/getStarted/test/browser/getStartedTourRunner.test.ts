@@ -31,7 +31,7 @@ import { IOpenNewSessionResult, ISessionsService } from '../../../../../workbenc
 import { ISession, ISessionChangesSummary } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
-import { ISessionChangesService } from '../../../changes/common/sessionChangesService.js';
+import { ISessionChangesService } from '../../../../../workbench/contrib/sessions/common/sessionChangesService.js';
 import { SessionsList } from '../../../sessions/browser/views/sessionsList.js';
 import { SessionsView } from '../../../sessions/browser/views/sessionsView.js';
 import { createTestSession } from '../../../sessions/test/browser/sessionsListTestUtils.js';

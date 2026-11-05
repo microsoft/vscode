@@ -24,7 +24,7 @@ import { ISessionsService } from '../../../../../workbench/contrib/sessions/brow
 import { ChatOriginKind, IChat, ISession, ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession, IHostSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
-import { AGENTS_FLOATING_PANEL_GAP } from '../../../../common/layoutConstants.js';
+import { AGENTS_FLOATING_PANEL_GAP } from '../../../../../workbench/contrib/sessions/common/layoutConstants.js';
 import { SessionsChatTabsMode } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { createSessionsWorkbenchFixture } from './sessionsWorkbenchFixtureUtils.js';
 

@@ -26,8 +26,8 @@ import { IWindowCanvasService } from '../../../../workbench/contrib/sessions/bro
 import { InboxNotificationsView } from './inboxNotificationsView.js';
 import { InboxNotificationsService } from './inboxNotificationsService.js';
 import { IInboxCanvasHostService, UnsupportedInboxCanvasHostService } from './inboxCanvasHost.js';
-import { IInboxNotificationsService } from '../common/inboxNotificationsService.js';
-import { CHAT_INBOX_ENABLED_SETTING, ChatInboxEnabledContext, INBOX_CANVAS_ID, SHOW_INBOX_NOTIFICATIONS_COMMAND_ID } from './inboxNotificationsConstants.js';
+import { IInboxNotificationsService } from '../../../../workbench/contrib/sessions/common/inboxNotificationsService.js';
+import { CHAT_INBOX_ENABLED_SETTING, ChatInboxEnabledContext, INBOX_CANVAS_ID, SHOW_INBOX_NOTIFICATIONS_COMMAND_ID } from '../../../../workbench/contrib/sessions/browser/inboxNotificationsConstants.js';
 
 registerSingleton(IInboxNotificationsService, InboxNotificationsService, InstantiationType.Delayed);
 registerSingleton(IInboxCanvasHostService, UnsupportedInboxCanvasHostService, InstantiationType.Delayed);

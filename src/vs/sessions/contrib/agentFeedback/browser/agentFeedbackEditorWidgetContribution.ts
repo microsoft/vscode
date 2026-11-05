@@ -15,10 +15,10 @@ import { IEditorContribution, ScrollType } from '../../../../editor/common/edito
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISessionFileChange } from '../../../../workbench/contrib/sessions/common/session.js';
-import { ICodeReviewService, IPRReviewState } from '../../codeReview/browser/codeReview.js';
+import { ICodeReviewService, IPRReviewState } from '../../../../workbench/contrib/sessions/browser/codeReviewService.js';
 import { AgentFeedbackEditorWidget, IComposerDraft, IComposerDraftState } from './agentFeedbackEditorWidget.js';
 import { shouldIncludeRawPRReviewComments } from './agentFeedbackService.js';
-import { IAgentFeedbackService } from './agentFeedback.js';
+import { IAgentFeedbackService } from '../../../../workbench/contrib/sessions/browser/agentFeedback.js';
 import { getSessionEditorComments, groupNearbySessionEditorComments, ISessionEditorComment } from './sessionEditorComments.js';
 
 /**

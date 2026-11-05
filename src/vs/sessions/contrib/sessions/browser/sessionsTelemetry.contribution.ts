@@ -21,8 +21,8 @@ import { isChatRequestFileEntry, isImageVariableEntry } from '../../../../workbe
 import { EditorChatUsage } from '../../../../workbench/contrib/chat/common/editorChatUsage.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { getExcludes, ISearchConfiguration, ISearchService, QueryType } from '../../../../workbench/services/search/common/search.js';
-import { IAgentFeedbackAddedEvent, IAgentFeedbackConvertedEvent, IAgentFeedbackReplyAddedEvent, IAgentFeedbackService, IAgentFeedbackSubmittedEvent } from '../../agentFeedback/browser/agentFeedback.js';
-import { AgentFeedbackKind } from '../../agentFeedback/browser/agentFeedbackModel.js';
+import { IAgentFeedbackAddedEvent, IAgentFeedbackConvertedEvent, IAgentFeedbackReplyAddedEvent, IAgentFeedbackService, IAgentFeedbackSubmittedEvent } from '../../../../workbench/contrib/sessions/browser/agentFeedback.js';
+import { AgentFeedbackKind } from '../../../../workbench/contrib/sessions/browser/agentFeedbackModel.js';
 import { ISessionsTasksService } from '../../chat/browser/sessionsTasksService.js';
 import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
 import { ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';

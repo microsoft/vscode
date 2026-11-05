@@ -12,7 +12,7 @@ import { IInstantiationService } from '../../../platform/instantiation/common/in
 import { activeContrastBorder } from '../../../platform/theme/common/colorRegistry.js';
 import { IThemeService, Themable } from '../../../platform/theme/common/themeService.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../workbench/common/theme.js';
-import { getChatReferenceDropClipPath, IDraggedSessionChat, isChatReferenceInputDrop } from '../dnd.js';
+import { getChatReferenceDropClipPath, IDraggedSessionChat, isChatReferenceInputDrop } from '../../../workbench/contrib/sessions/browser/dnd.js';
 
 /** Zone of a target group where a dragged chat can be dropped. */
 export type ChatDropZone = 'left' | 'right' | 'top' | 'bottom' | 'center';

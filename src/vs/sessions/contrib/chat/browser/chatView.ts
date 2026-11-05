@@ -61,7 +61,7 @@ import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionR
 import { AbstractChatView, ChatViewKind, IChatViewOptions, IChatViewRequestOutcome, IChatViewRequestSubmission } from '../../../browser/parts/chatView.js';
 import { IsPhoneLayoutContext, SessionUsesExperimentalComposerLayoutContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ChatInteractivity, getChatHarness, getSessionStatusMessage, IChat, isActiveSessionStatus, ISession, SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
-import { SessionStatusIcon } from '../../../browser/sessionStatusIcon.js';
+import { SessionStatusIcon } from '../../../../workbench/contrib/sessions/browser/sessionStatusIcon.js';
 import { IChatViewFactory } from '../../../services/chatView/browser/chatViewFactory.js';
 import { NewChatWidget } from './newChatWidget.js';
 import { NewChatInSessionWidget } from './newChatInSessionWidget.js';
@@ -72,7 +72,7 @@ import { logResponseSelectionWidgetAction } from '../../../../workbench/contrib/
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { ISessionChatPillsDebugService } from './sessionChatInputToolbarDebug.js';
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
-import { activeSessionViewBackground, activeSessionViewForeground, agentsPanelBackground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../../common/theme.js';
+import { activeSessionViewBackground, activeSessionViewForeground, agentsPanelBackground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../../../workbench/contrib/sessions/common/theme.js';
 import { setupVoiceInputDecorations } from './voiceInputDecorations.js';
 import { INewChatVoiceTargetService } from './newChatVoice.js';
 import { ISessionsChatViewStateService } from './chatViewStateService.js';
@@ -86,7 +86,7 @@ import { SessionComparisonResult } from './sessionComparisonResult.js';
 import { ISessionPickerVisibility, noSessionPickerVisibility } from '../../../../workbench/contrib/sessions/common/sessionPickerVisibility.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { IAgentsWindowDraft } from '../../../../platform/window/common/window.js';
-import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../../common/layoutConstants.js';
+import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../../../workbench/contrib/sessions/common/layoutConstants.js';
 import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING } from '../../../../workbench/contrib/sessions/common/chatConstants.js';
 
 const SESSION_CHAT_RESPONSE_INTERNAL_HORIZONTAL_PADDING = 12;

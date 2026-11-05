@@ -31,7 +31,7 @@ import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/com
 import { IChat, ISessionArtifact, ISessionChangeset, ISessionChangesetOperation, SessionArtifactKind, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, type IGitHubInfo, type ISession, type ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { cleanPreviewText, InboxNotificationsService, parseDetailSummary } from '../../browser/inboxNotificationsService.js';
-import { getInboxPullRequestMergeOperation, InboxNotificationActionKind, InboxNotificationKind, InboxNotificationPriority, InboxNotificationsSortMode, InboxTab, type IInboxNotificationItem } from '../../common/inboxNotificationsService.js';
+import { getInboxPullRequestMergeOperation, InboxNotificationActionKind, InboxNotificationKind, InboxNotificationPriority, InboxNotificationsSortMode, InboxTab, type IInboxNotificationItem } from '../../../../../workbench/contrib/sessions/common/inboxNotificationsService.js';
 import { GitHubPullRequestModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestModel.js';
 import { GitHubPullRequestCIModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
 import { GitHubPullRequestReviewThreadsModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestReviewThreadsModel.js';
@@ -43,7 +43,7 @@ import { IChatUtilityModelRequest, IChatUtilityModelService } from '../../../../
 import { IChatChangeEvent, IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatPlanReviewData } from '../../../../../workbench/contrib/chat/common/model/chatProgressTypes/chatPlanReviewData.js';
 import { IChatEntitlementService, IChatSentiment } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { CHAT_INBOX_ENABLED_SETTING } from '../../browser/inboxNotificationsConstants.js';
+import { CHAT_INBOX_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/browser/inboxNotificationsConstants.js';
 
 suite('InboxNotificationsService', () => {
 	const dismissedStorageKey = 'sessions.inboxNotifications.dismissedIds';

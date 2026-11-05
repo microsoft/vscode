@@ -24,9 +24,9 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AgentFeedbackAttachmentContribution } from '../../browser/agentFeedbackAttachment.js';
 import { AgentFeedbackAttachmentWidget } from '../../browser/agentFeedbackAttachmentWidget.js';
-import { IAgentFeedbackChangeEvent, IAgentFeedbackService } from '../../browser/agentFeedback.js';
-import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback } from '../../browser/agentFeedbackModel.js';
-import { buildNewSessionPrompt } from '../../browser/agentFeedbackAttachmentEntry.js';
+import { IAgentFeedbackChangeEvent, IAgentFeedbackService } from '../../../../../workbench/contrib/sessions/browser/agentFeedback.js';
+import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback } from '../../../../../workbench/contrib/sessions/browser/agentFeedbackModel.js';
+import { buildNewSessionPrompt } from '../../../../../workbench/contrib/sessions/browser/agentFeedbackAttachmentEntry.js';
 import { IAgentFeedbackVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 
 class TestHoverService extends mock<IHoverService>() {

@@ -16,7 +16,7 @@ import { IAgentHostFilterService } from '../../../../workbench/contrib/sessions/
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISession, SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { BlockedSessionReason, BlockedSessions, describeBlockedSessions, IBlockedSession } from '../../blockedSessions/browser/blockedSessions.js';
+import { BlockedSessionReason, BlockedSessions, describeBlockedSessions, IBlockedSession } from '../../../../workbench/contrib/sessions/browser/blockedSessions.js';
 import { BlockedSessionsCIFixModel } from './blockedSessionsCIFixModel.js';
 import { getFirstApprovalAcrossChats, IApprovedSession } from './views/sessionsList.js';
 

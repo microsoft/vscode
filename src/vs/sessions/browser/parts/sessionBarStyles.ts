@@ -8,7 +8,7 @@ import { ColorIdentifier } from '../../../platform/theme/common/colorRegistry.js
 import { IColorTheme } from '../../../platform/theme/common/themeService.js';
 import { MODERN_EDITOR_TAB_ACTIVE_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_BACKGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, TAB_ACTIVE_BACKGROUND, TAB_HOVER_BACKGROUND, TAB_UNFOCUSED_ACTIVE_BACKGROUND, TAB_UNFOCUSED_HOVER_BACKGROUND } from '../../../workbench/common/theme.js';
 import { ColorThemeData } from '../../../workbench/services/themes/common/colorThemeData.js';
-import { activeSessionViewBackground, activeSessionViewForeground, agentsPanelBackground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../common/theme.js';
+import { activeSessionViewBackground, activeSessionViewForeground, agentsPanelBackground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../../workbench/contrib/sessions/common/theme.js';
 
 /**
  * Applies the shared session bar CSS custom properties onto the given container.

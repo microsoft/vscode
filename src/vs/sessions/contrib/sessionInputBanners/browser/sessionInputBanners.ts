@@ -17,9 +17,9 @@ import { ArtifactIntegrationsSettingId } from '../../../../platform/artifactInte
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
-import { IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedback.js';
-import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback } from '../../agentFeedback/browser/agentFeedbackModel.js';
-import { buildFixCIPrompt, countRequiredChecks, submitFixCIChecks } from '../../changes/browser/fixCIChecks.js';
+import { IAgentFeedbackService } from '../../../../workbench/contrib/sessions/browser/agentFeedback.js';
+import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback } from '../../../../workbench/contrib/sessions/browser/agentFeedbackModel.js';
+import { buildFixCIPrompt, countRequiredChecks, submitFixCIChecks } from '../../../../workbench/contrib/sessions/browser/fixCIChecks.js';
 import { whenChatWidgetForSession } from '../../chat/browser/chatWidgetUtils.js';
 import type { ISessionChatPillsDebugData } from '../../chat/browser/sessionChatInputToolbarDebug.js';
 import { IGitHubService } from '../../../../workbench/contrib/sessions/browser/github/githubService.js';
@@ -28,7 +28,7 @@ import { GitHubPullRequestState, OPEN_PULL_REQUEST_ACTION_ID } from '../../../..
 import { getWindowHost, ISessionHost } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { getGitHubPullRequestRefs, IGitHubPullRequestRef, SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
-import { getSessionAgentMergeConfigurationObservable } from '../../../browser/sessionAgentMerge.js';
+import { getSessionAgentMergeConfigurationObservable } from '../../../../workbench/contrib/sessions/browser/sessionAgentMerge.js';
 import { ISessionInputBanner, ISessionInputBannerAction, SessionInputBannerWidget } from './sessionInputBannerWidget.js';
 
 const STORAGE_KEY_DISMISSED = 'sessions.inputBanners.dismissedItems';

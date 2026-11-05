@@ -11,8 +11,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IPlanReviewFeedbackService } from '../../../../../workbench/contrib/chat/browser/planReviewFeedback/planReviewFeedbackService.js';
 import { AgentEditorCommentsBridge } from '../../../../../workbench/services/agentEditorComments/common/agentEditorComments.js';
 import { AgentEditorCommentsProviderContribution } from '../../browser/agentEditorCommentsProvider.js';
-import { IAgentFeedbackService } from '../../browser/agentFeedback.js';
-import { AgentFeedbackKind, AgentFeedbackState } from '../../browser/agentFeedbackModel.js';
+import { IAgentFeedbackService } from '../../../../../workbench/contrib/sessions/browser/agentFeedback.js';
+import { AgentFeedbackKind, AgentFeedbackState } from '../../../../../workbench/contrib/sessions/browser/agentFeedbackModel.js';
 
 suite('AgentEditorCommentsProviderContribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

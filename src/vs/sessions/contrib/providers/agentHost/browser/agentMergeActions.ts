@@ -29,7 +29,7 @@ import { ISessionActionContextKeysSource, registerSessionActionContextKeyBinder 
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { resolveSessionCommandTarget } from '../../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
-import { getGlobalAgentMergeConfiguration, getSessionAgentMergeConfigurationObservable } from '../../../../browser/sessionAgentMerge.js';
+import { getGlobalAgentMergeConfiguration, getSessionAgentMergeConfigurationObservable } from '../../../../../workbench/contrib/sessions/browser/sessionAgentMerge.js';
 
 const agentMergeCommandPrecondition = ContextKeyExpr.and(
 	IsSessionsWindowContext,

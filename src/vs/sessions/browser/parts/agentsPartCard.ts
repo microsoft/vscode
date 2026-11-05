@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IColorTheme } from '../../../platform/theme/common/themeService.js';
-import { agentsCardBorder, agentsPanelBackground, agentsPanelForeground } from '../../common/theme.js';
-import { AGENTS_FLOATING_PANEL_GAP } from '../../common/layoutConstants.js';
+import { agentsCardBorder, agentsPanelBackground, agentsPanelForeground } from '../../../workbench/contrib/sessions/common/theme.js';
+import { AGENTS_FLOATING_PANEL_GAP } from '../../../workbench/contrib/sessions/common/layoutConstants.js';
 
 const AGENTS_PART_CARD_BORDER_WIDTH = 1;
 

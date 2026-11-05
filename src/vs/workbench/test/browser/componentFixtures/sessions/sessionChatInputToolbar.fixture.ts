@@ -26,8 +26,7 @@ import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS } from '../.
 import { BrowserEditorInput } from '../../../../contrib/browserView/common/browserEditorInput.js';
 import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../../../contrib/browserView/common/browserView.js';
 import { IWorkbenchGitHubService } from '../../../../services/github/common/githubService.js';
-// eslint-disable-next-line local/code-import-patterns
-import { IAgentFeedbackService } from '../../../../../sessions/contrib/agentFeedback/browser/agentFeedback.js';
+import { IAgentFeedbackService } from '../../../../contrib/sessions/browser/agentFeedback.js';
 // eslint-disable-next-line local/code-import-patterns
 import { SESSION_CHAT_INPUT_TOOLBAR_HEIGHT, SessionChatInputToolbar } from '../../../../../sessions/contrib/chat/browser/sessionChatInputToolbar.js';
 // eslint-disable-next-line local/code-import-patterns

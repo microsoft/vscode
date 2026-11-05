@@ -20,7 +20,7 @@ import { PullRequestCheck } from '../../../../../platform/github/common/githubPu
 import { RequiredPullRequestChecks } from '../../../../../platform/github/common/pullRequestRequiredChecks.js';
 import { ActiveSessionState } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { registerSessionActionContextKeyBinder, bindSessionActionContextKeys, ISessionActionContextKeysSource } from '../../browser/sessionActionContextKeys.js';
-import { activeSessionCIFixRequested, hasActiveSessionFailedCIChecks } from '../../browser/fixCIChecks.js';
+import { activeSessionCIFixRequested, hasActiveSessionFailedCIChecks } from '../../../../../workbench/contrib/sessions/browser/fixCIChecks.js';
 import { SessionChangesReviewedFilesContext } from '../../browser/changesMultiDiffSourceResolver.js';
 
 suite('Session Action Context Keys', () => {

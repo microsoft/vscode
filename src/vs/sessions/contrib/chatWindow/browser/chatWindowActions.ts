@@ -38,7 +38,7 @@ import { ISessionHostService, SessionHostKind } from '../../../../workbench/cont
 import { IChat } from '../../../../workbench/contrib/sessions/common/session.js';
 import { IHostSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { SessionChangesEditorInput } from '../../changes/browser/sessionChangesEditorInput.js';
-import { ISessionChangesService } from '../../changes/common/sessionChangesService.js';
+import { ISessionChangesService } from '../../../../workbench/contrib/sessions/common/sessionChangesService.js';
 import { EmptyFileEditorInput } from '../../editor/browser/emptyFileEditorInput.js';
 
 //#region Close

@@ -67,7 +67,7 @@ import { type IAgentHostSessionsProvider, isAgentHostProvider, LOCAL_AGENT_HOST_
 import { PermissionPicker } from '../../../../../workbench/contrib/sessions/providers/copilotChatSessions/browser/permissionPicker.js';
 import { MobilePermissionPicker } from '../../copilotChatSessions/browser/mobilePermissionPicker.js';
 import { isPhoneLayout } from '../../../../../workbench/contrib/sessions/browser/mobileLayout.js';
-import { showMobilePickerSheet, IMobilePickerSheetItem, IMobilePickerSheetSearchSource, MOBILE_PICKER_SHEET_CONFIRM } from '../../../../browser/parts/mobile/mobilePickerSheet.js';
+import { showMobilePickerSheet, IMobilePickerSheetItem, IMobilePickerSheetSearchSource, MOBILE_PICKER_SHEET_CONFIRM } from '../../../../../workbench/contrib/sessions/browser/mobile/mobilePickerSheet.js';
 import { AgentHostModePicker } from '../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostModePicker.js';
 import { MobileAgentHostModePicker } from '../../../../../workbench/contrib/sessions/providers/agentHost/browser/mobile/mobileAgentHostModePicker.js';
 import { AgentHostPermissionPickerActionItem } from '../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostPermissionPickerActionItem.js';

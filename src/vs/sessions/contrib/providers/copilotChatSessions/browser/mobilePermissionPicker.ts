@@ -19,7 +19,7 @@ import { ChatPermissionLevel } from '../../../../../workbench/contrib/chat/commo
 import { getPermissionLevelBadge } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { IPermissionPickerDelegate, PermissionPicker } from '../../../../../workbench/contrib/sessions/providers/copilotChatSessions/browser/permissionPicker.js';
 import { isPhoneLayout } from '../../../../../workbench/contrib/sessions/browser/mobileLayout.js';
-import { IMobilePickerSheetItem, showMobilePickerSheet } from '../../../../browser/parts/mobile/mobilePickerSheet.js';
+import { IMobilePickerSheetItem, showMobilePickerSheet } from '../../../../../workbench/contrib/sessions/browser/mobile/mobilePickerSheet.js';
 
 const LEARN_MORE_ID = 'learn-more';
 

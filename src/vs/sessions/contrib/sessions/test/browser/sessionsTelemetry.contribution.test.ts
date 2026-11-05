@@ -26,7 +26,7 @@ import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/com
 import { TelemetryLevel } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IFileQuery, ISearchComplete, ISearchService } from '../../../../../workbench/services/search/common/search.js';
-import { IAgentFeedbackService } from '../../../agentFeedback/browser/agentFeedback.js';
+import { IAgentFeedbackService } from '../../../../../workbench/contrib/sessions/browser/agentFeedback.js';
 import { ISessionsTasksService } from '../../../chat/browser/sessionsTasksService.js';
 import { ChatInteractivity, IChat, ISession, ISessionFolder, ISessionWorkspace, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession, ISendRequestSentEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';

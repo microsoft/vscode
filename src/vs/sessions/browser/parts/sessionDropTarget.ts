@@ -13,7 +13,7 @@ import { LocalSelectionTransfer } from '../../../platform/dnd/browser/dnd.js';
 import { activeContrastBorder } from '../../../platform/theme/common/colorRegistry.js';
 import { IThemeService, Themable } from '../../../platform/theme/common/themeService.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../workbench/common/theme.js';
-import { DraggedSessionIdentifier, getChatReferenceDropClipPath, getSessionChatDragData, isChatReferenceInputDrop, isSessionChatDrag } from '../dnd.js';
+import { DraggedSessionIdentifier, getChatReferenceDropClipPath, getSessionChatDragData, isChatReferenceInputDrop, isSessionChatDrag } from '../../../workbench/contrib/sessions/browser/dnd.js';
 import { URI } from '../../../base/common/uri.js';
 import { ISession } from '../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../workbench/contrib/sessions/common/sessionsManagement.js';

@@ -22,7 +22,7 @@ import { WebContentsViewHost } from '../../../../../workbench/contrib/browserVie
 import { ICanvas, ICanvasService } from '../../../../../workbench/contrib/canvases/common/canvas.js';
 import { IChat, ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { CHAT_INBOX_ENABLED_SETTING } from '../../browser/inboxNotificationsConstants.js';
+import { CHAT_INBOX_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/browser/inboxNotificationsConstants.js';
 import { InboxCanvasHostService } from '../../electron-browser/inboxCanvasHost.js';
 
 suite('Inbox native canvas presentation', () => {

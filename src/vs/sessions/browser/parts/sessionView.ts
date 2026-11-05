@@ -26,7 +26,7 @@ import { ChatViewSessionActivityBar } from './sessionActivityBar.js';
 import { ActiveSessionHost, createSessionHostServices, ISessionHost, ISessionHostService, SessionHostKind } from '../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { autorun, derived, disposableObservableValue, IObservable, observableFromEvent, observableValue, runOnChange } from '../../../base/common/observable.js';
 import { SessionIsMaximizedContext } from '../../../workbench/contrib/sessions/common/contextkeys.js';
-import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../common/layoutConstants.js';
+import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../../workbench/contrib/sessions/common/layoutConstants.js';
 import { setActiveSessionContextKeys } from '../../../workbench/contrib/sessions/common/sessionContextKeys.js';
 import { ISessionChangesStatsCache } from '../../../workbench/contrib/sessions/common/sessionChangesStatsCache.js';
 import { applySessionViewThemeColors } from './sessionBarStyles.js';

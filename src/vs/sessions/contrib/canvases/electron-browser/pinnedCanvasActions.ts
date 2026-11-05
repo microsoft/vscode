@@ -23,7 +23,7 @@ import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 import { SessionsCategories } from '../../../../workbench/contrib/sessions/common/categories.js';
 import { ICustomViewService } from '../../../../workbench/contrib/sessions/browser/customView.js';
-import { CanvasesPinnedToSidebarContext, IPinnedCanvas, IPinnedCanvasService, PINNED_CANVAS_PAGE_ID, PinnedCanvasConnectedContext } from '../browser/pinnedCanvases.js';
+import { CanvasesPinnedToSidebarContext, IPinnedCanvas, IPinnedCanvasService, PINNED_CANVAS_PAGE_ID, PinnedCanvasConnectedContext } from '../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
 
 export const TOGGLE_CANVAS_PINNED_TO_SIDEBAR_COMMAND_ID = 'workbench.action.agentSessions.toggleCanvasPinnedToSidebar';
 export const ADD_CANVAS_TO_SIDEBAR_COMMAND_ID = 'workbench.action.agentSessions.addCanvasToSidebar';

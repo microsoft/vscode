@@ -17,7 +17,7 @@ import { IChat } from '../../../../workbench/contrib/sessions/common/session.js'
 import { IGitHubSessionPullRequestObservables } from '../../../../workbench/contrib/sessions/browser/github/githubService.js';
 import { IChangesSessionObservables } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { SessionChangesReviewedFilesContext } from './changesMultiDiffSourceResolver.js';
-import { bindSessionCIChecksContextKeys } from './fixCIChecks.js';
+import { bindSessionCIChecksContextKeys } from '../../../../workbench/contrib/sessions/browser/fixCIChecks.js';
 
 /** The session the session action context keys are derived from. */
 export interface ISessionActionContextKeysSource {

@@ -26,7 +26,7 @@ import { IEditorGroupsService } from '../../../../../workbench/services/editor/c
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { ChatGroupDropTarget } from '../../../../browser/parts/chatGroupDropTarget.js';
 import { SessionDropTarget } from '../../../../browser/parts/sessionDropTarget.js';
-import { clearChatReferenceDragData, fillChatReferenceDragData, fillSessionChatDragData, getSessionChatDragData, isSessionChatDrag } from '../../../../browser/dnd.js';
+import { clearChatReferenceDragData, fillChatReferenceDragData, fillSessionChatDragData, getSessionChatDragData, isSessionChatDrag } from '../../../../../workbench/contrib/sessions/browser/dnd.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import '../../../../../workbench/contrib/chat/browser/widget/media/chat.css';

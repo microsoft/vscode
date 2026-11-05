@@ -55,7 +55,7 @@ import { hasNativeContextMenu } from '../../../../platform/window/common/window.
 import { IResolvedFolderWorkspace, IWorkspacePickerItem, WorkspacePicker } from '../../chat/browser/sessionWorkspacePicker.js';
 import { BranchPicker, IBranchPickerBranch, NEW_WORKTREE_LABEL } from '../../chat/browser/branchPicker.js';
 import { MobileSessionTypePicker } from '../../chat/browser/mobile/mobileSessionTypePicker.js';
-import { isMobilePickerSheetTarget } from '../../../browser/parts/mobile/mobilePickerSheet.js';
+import { isMobilePickerSheetTarget } from '../../../../workbench/contrib/sessions/browser/mobile/mobilePickerSheet.js';
 import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../../workbench/contrib/sessions/common/session.js';
 import { IGitRepository, IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
 import { AutomationInterval, AutomationTarget, IAutomationDescriptor } from '../../../../workbench/contrib/chat/common/automations/automation.js';

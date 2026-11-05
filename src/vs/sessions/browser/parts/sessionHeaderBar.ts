@@ -23,14 +23,14 @@ import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/acti
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
 import { Menus } from '../../../workbench/contrib/sessions/browser/menus.js';
 import { LocalSelectionTransfer } from '../../../platform/dnd/browser/dnd.js';
-import { DraggedSessionIdentifier, fillSessionChatDragData, fillSessionDataTransfer, fillSessionDragData, isSessionDragFromPaneEdge, onDidEndSessionChatDrag } from '../dnd.js';
+import { DraggedSessionIdentifier, fillSessionChatDragData, fillSessionDataTransfer, fillSessionDragData, isSessionDragFromPaneEdge, onDidEndSessionChatDrag } from '../../../workbench/contrib/sessions/browser/dnd.js';
 import { applyDragImage } from '../../../base/browser/ui/dnd/dnd.js';
 import { applySessionBarThemeColors } from './sessionBarStyles.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
-import { SessionStatusIcon } from '../sessionStatusIcon.js';
+import { SessionStatusIcon } from '../../../workbench/contrib/sessions/browser/sessionStatusIcon.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
-import { createSessionActionViewItemProvider } from '../sessionActionViewItem.js';
+import { createSessionActionViewItemProvider } from '../../../workbench/contrib/sessions/browser/sessionActionViewItem.js';
 import { CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID } from '../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { IHoverService } from '../../../platform/hover/browser/hover.js';
 import { HoverStyle } from '../../../base/browser/ui/hover/hover.js';

@@ -10,7 +10,7 @@ import { TestColorTheme } from '../../../platform/theme/test/common/testThemeSer
 import { MODERN_EDITOR_TAB_ACTIVE_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_BACKGROUND, TAB_UNFOCUSED_ACTIVE_BACKGROUND, TAB_UNFOCUSED_HOVER_BACKGROUND } from '../../../workbench/common/theme.js';
 import { ColorThemeData } from '../../../workbench/services/themes/common/colorThemeData.js';
 import { applySessionViewThemeColors } from '../../browser/parts/sessionBarStyles.js';
-import { activeSessionViewBackground, activeSessionViewForeground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../common/theme.js';
+import { activeSessionViewBackground, activeSessionViewForeground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../../workbench/contrib/sessions/common/theme.js';
 
 suite('Sessions - SessionBarStyles', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

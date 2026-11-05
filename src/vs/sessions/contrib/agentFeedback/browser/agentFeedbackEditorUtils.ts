@@ -15,7 +15,7 @@ import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/co
 import { MultiDiffEditorInput } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
 import { ISessionFileChange } from '../../../../workbench/contrib/sessions/common/session.js';
 import { SessionChangesEditorInput } from '../../changes/browser/sessionChangesEditorInput.js';
-import { type IAgentFeedbackService, IAgentFeedbackContext } from './agentFeedback.js';
+import { type IAgentFeedbackService, IAgentFeedbackContext } from '../../../../workbench/contrib/sessions/browser/agentFeedback.js';
 
 export function changeMatchesResource(change: ISessionFileChange, resourceUri: URI): boolean {
 	if (isIChatSessionFileChange2(change)) {

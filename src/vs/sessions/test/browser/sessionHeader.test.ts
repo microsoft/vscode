@@ -18,7 +18,7 @@ import { IAccessibilityService } from '../../../platform/accessibility/common/ac
 import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { LocalSelectionTransfer } from '../../../platform/dnd/browser/dnd.js';
-import { DraggedSessionIdentifier, getSessionChatDragData, SessionsDataTransfers } from '../../browser/dnd.js';
+import { DraggedSessionIdentifier, getSessionChatDragData, SessionsDataTransfers } from '../../../workbench/contrib/sessions/browser/dnd.js';
 import { DraggedEditorIdentifier } from '../../../workbench/browser/dnd.js';
 import { IEditorIdentifier } from '../../../workbench/common/editor.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';

@@ -15,7 +15,7 @@ import { IConfigurationService } from '../../../platform/configuration/common/co
 import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { RunOnceScheduler } from '../../../base/common/async.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
-import { agentsBackground, agentsPanelForeground } from '../../common/theme.js';
+import { agentsBackground, agentsPanelForeground } from '../../../workbench/contrib/sessions/common/theme.js';
 import { isLinux, isMacintosh, isWeb, isNative, platformLocale } from '../../../base/common/platform.js';
 import { EventType, EventHelper, append, $, addDisposableListener, prepend, getWindow, getWindowId, AnimationFrameScheduler, isHTMLElement } from '../../../base/browser/dom.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';

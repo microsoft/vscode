@@ -19,7 +19,7 @@ import { TestExperimentTriggerTelemetryService } from '../../../../../platform/t
 import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { ISession, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { BlockedSessions } from '../../../blockedSessions/browser/blockedSessions.js';
+import { BlockedSessions } from '../../../../../workbench/contrib/sessions/browser/blockedSessions.js';
 import { SESSIONS_APPLICATION_BADGE_OPTIONS_DEFAULT, SESSIONS_APPLICATION_BADGE_OPTIONS_SETTING, SESSIONS_APPLICATION_BADGE_SETTING, SessionsApplicationBadge } from '../../electron-browser/sessionsApplicationBadge.js';
 
 class TestSessionsManagementService extends mock<ISessionsManagementService>() {

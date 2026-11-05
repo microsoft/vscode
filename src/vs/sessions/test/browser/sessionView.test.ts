@@ -32,7 +32,7 @@ import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../platform/a
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { Menus } from '../../../workbench/contrib/sessions/browser/menus.js';
 import { LocalSelectionTransfer } from '../../../platform/dnd/browser/dnd.js';
-import { DraggedSessionIdentifier, SessionsDataTransfers } from '../../browser/dnd.js';
+import { DraggedSessionIdentifier, SessionsDataTransfers } from '../../../workbench/contrib/sessions/browser/dnd.js';
 import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
 import { stubSessionsHostLayout } from './sessionsHostLayoutTestUtils.js';
 

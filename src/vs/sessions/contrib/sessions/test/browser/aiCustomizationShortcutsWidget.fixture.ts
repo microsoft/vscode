@@ -33,10 +33,10 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ContributionEnablementState } from '../../../../../workbench/contrib/chat/common/enablement.js';
 import { IAgentHostCustomizationService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { AICustomizationMcpServerCountService, IAICustomizationMcpServerCountService } from '../../browser/customizationMcpServerCount.js';
-import { IAgentsWindowExtensionSuggestionsService } from '../../../extensions/browser/agentsWindowExtensionSuggestions.js';
+import { IAgentsWindowExtensionSuggestionsService } from '../../../../../workbench/contrib/sessions/browser/agentsWindowExtensionSuggestions.js';
 
 // Ensure color registrations are loaded
-import '../../../../common/theme.js';
+import '../../../../../workbench/contrib/sessions/common/theme.js';
 import '../../../../../platform/theme/common/colors/inputColors.js';
 
 

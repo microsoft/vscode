@@ -20,7 +20,7 @@ import { IWorkbenchContribution } from '../../../../workbench/common/contributio
 import { ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND } from '../../../../workbench/common/theme.js';
 import { ISession, SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { BlockedSessions } from '../../blockedSessions/browser/blockedSessions.js';
+import { BlockedSessions } from '../../../../workbench/contrib/sessions/browser/blockedSessions.js';
 
 export const SESSIONS_APPLICATION_BADGE_SETTING = 'sessions.showApplicationBadge';
 export const SESSIONS_APPLICATION_BADGE_DEFAULT = true;

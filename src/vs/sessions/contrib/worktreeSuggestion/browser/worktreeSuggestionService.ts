@@ -38,8 +38,8 @@ import { ISessionFileChange, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../.
 import { IHostSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { CHANGES_VIEW_ID } from '../../../../workbench/contrib/sessions/common/changes.js';
-import { ISessionChangesService } from '../../changes/common/sessionChangesService.js';
-import { createWorktreeSuggestionTour } from '../../onboardingTours/browser/tours/worktreeSuggestionTour.js';
+import { ISessionChangesService } from '../../../../workbench/contrib/sessions/common/sessionChangesService.js';
+import { createWorktreeSuggestionTour } from '../../../../workbench/contrib/sessions/browser/tours/worktreeSuggestionTour.js';
 import { isWorktreeSuggestionVariant, WORKTREE_SUGGESTION_MIN_CREATED_SESSIONS, WORKTREE_SUGGESTION_SETTING, WORKTREE_SUGGESTION_TOUR_ID, WorktreeSuggestionVariant } from '../../../../workbench/contrib/sessions/common/worktreeSuggestion.js';
 import { formatChangeStats, getChangedFileAriaDescription, getChangedFileLabel, getChangedFilesRoot, getChangedFileUri, getMoreFilesLabel, getSendInWorktreeLabel, getSendLabel, getUncommittedChangesMessage } from './worktreeSuggestionPresentation.js';
 

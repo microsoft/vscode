@@ -19,7 +19,7 @@ import { ISession } from '../../../../../workbench/contrib/sessions/common/sessi
 import { IObservable } from '../../../../../base/common/observable.js';
 import { SessionTypePicker, ISessionTypePickerOptions } from '../sessionTypePicker.js';
 import { isPhoneLayout } from '../../../../../workbench/contrib/sessions/browser/mobileLayout.js';
-import { IMobilePickerSheetItem, showMobilePickerSheet } from '../../../../browser/parts/mobile/mobilePickerSheet.js';
+import { IMobilePickerSheetItem, showMobilePickerSheet } from '../../../../../workbench/contrib/sessions/browser/mobile/mobilePickerSheet.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';

@@ -21,7 +21,7 @@ import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/l
 import { SessionsAquariumActiveContext } from '../../../common/agentsWindowContextKeys.js';
 import { disposeSharedFishDefs, Fish, pickRandomSpecies } from './fish.js';
 import { FishFeedingStreak, type FishHungerState } from './fishFeedingStreak.js';
-import { IAquariumService, IMountedToggleHandle } from './aquarium.js';
+import { IAquariumService, IMountedToggleHandle } from '../../../../workbench/contrib/sessions/browser/aquarium.js';
 
 export const SESSIONS_DEVELOPER_JOY_ENABLED_SETTING = 'sessions.developerJoy.enabled';
 

@@ -18,11 +18,11 @@ import { GroupsOrder, IEditorGroupsService } from '../../../../workbench/service
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { shouldIncludeRawPRReviewComments } from './agentFeedbackService.js';
-import { IAgentFeedbackService } from './agentFeedback.js';
-import { AgentFeedbackState } from './agentFeedbackModel.js';
+import { IAgentFeedbackService } from '../../../../workbench/contrib/sessions/browser/agentFeedback.js';
+import { AgentFeedbackState } from '../../../../workbench/contrib/sessions/browser/agentFeedbackModel.js';
 import { getActiveResourceCandidates, getFeedbackSessionCandidates } from './agentFeedbackEditorUtils.js';
 import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
-import { ICodeReviewService } from '../../codeReview/browser/codeReview.js';
+import { ICodeReviewService } from '../../../../workbench/contrib/sessions/browser/codeReviewService.js';
 import { getSessionEditorComments } from './sessionEditorComments.js';
 import { IPlanReviewFeedbackService } from '../../../../workbench/contrib/chat/browser/planReviewFeedback/planReviewFeedbackService.js';
 export const submitFeedbackActionId = 'agentFeedbackEditor.action.submit';

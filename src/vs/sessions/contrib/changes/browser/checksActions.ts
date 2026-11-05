@@ -18,7 +18,7 @@ import { IGitHubService } from '../../../../workbench/contrib/sessions/browser/g
 import { SessionIsActiveContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { resolveSessionCommandTarget } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
 import { whenChatWidgetForSession } from '../../chat/browser/chatWidgetUtils.js';
-import { submitFixCIChecks, hasActiveSessionFailedCIChecks, activeSessionCIFixRequested } from './fixCIChecks.js';
+import { submitFixCIChecks, hasActiveSessionFailedCIChecks, activeSessionCIFixRequested } from '../../../../workbench/contrib/sessions/browser/fixCIChecks.js';
 
 /** Command that sends the `fix-ci` prompt for the active session's failed checks. */
 export const FIX_CI_CHECKS_COMMAND_ID = 'sessions.action.fixCIChecks';

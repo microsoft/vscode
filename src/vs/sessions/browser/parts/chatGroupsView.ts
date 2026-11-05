@@ -18,7 +18,7 @@ import { observableConfigValue } from '../../../platform/observable/common/platf
 import { IStorageService, StorageScope, StorageTarget } from '../../../platform/storage/common/storage.js';
 import { contrastBorder } from '../../../platform/theme/common/colorRegistry.js';
 import { IThemeService, Themable } from '../../../platform/theme/common/themeService.js';
-import { agentsPanelBorder } from '../../common/theme.js';
+import { agentsPanelBorder } from '../../../workbench/contrib/sessions/common/theme.js';
 import { ChatOriginKind, IChat } from '../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession } from '../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../workbench/contrib/sessions/browser/sessionsService.js';
@@ -28,7 +28,7 @@ import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionR
 import { AbstractChatView, IChatViewOptions, ISessionViewHostOptions } from './chatView.js';
 import { ChatGroupView, IChatGroupContext } from './chatGroupView.js';
 import { ChatDropZone, ChatGroupDropTarget, IChatGroupDropTargetDelegate } from './chatGroupDropTarget.js';
-import { DraggedSessionIdentifier, getSessionChatDragData, IDraggedSessionChat, isSessionChatDrag, SessionsDataTransfers } from '../dnd.js';
+import { DraggedSessionIdentifier, getSessionChatDragData, IDraggedSessionChat, isSessionChatDrag, SessionsDataTransfers } from '../../../workbench/contrib/sessions/browser/dnd.js';
 import { SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { getGridBottomCornerViews, getGridEdgeInsets, NO_GRID_EDGE_INSETS, updateGridGapSashes } from '../../../workbench/browser/parts/partGrid/partGridGap.js';
 
