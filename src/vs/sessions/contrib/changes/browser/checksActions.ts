@@ -17,7 +17,7 @@ import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/action
 import { IGitHubService } from '../../../../workbench/contrib/sessions/browser/github/githubService.js';
 import { SessionIsActiveContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { resolveSessionCommandTarget } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
-import { whenChatWidgetForSession } from '../../chat/browser/chatWidgetUtils.js';
+import { whenChatWidgetForSession } from '../../../../workbench/contrib/sessions/browser/chat/chatWidgetUtils.js';
 import { submitFixCIChecks, hasActiveSessionFailedCIChecks, activeSessionCIFixRequested } from '../../../../workbench/contrib/sessions/browser/fixCIChecks.js';
 
 /** Command that sends the `fix-ci` prompt for the active session's failed checks. */

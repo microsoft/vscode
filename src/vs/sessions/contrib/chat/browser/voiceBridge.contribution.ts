@@ -19,7 +19,7 @@ import { ISessionsService } from '../../../../workbench/contrib/sessions/browser
 import { getFocusedSessionChatSource, getMainWindowHost, IFocusedSessionHostService, ISessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
 import { IHostSession, inheritableSessionTarget, ISendRequestOptions, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { INewChatVoiceComposer, INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL } from './newChatVoice.js';
+import { INewChatVoiceComposer, INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL } from '../../../../workbench/contrib/sessions/browser/chat/newChatVoice.js';
 import { INewSessionComposerService } from '../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { ChatRequestQueueKind } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 

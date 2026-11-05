@@ -32,7 +32,7 @@ import { INewSessionComposerService, NewSessionComposerService } from '../../../
 import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IChatDraft, reviveChatDraft, serializeChatDraft } from '../../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
 import { toFileVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
-import { writeNewChatDraftState } from '../../common/newChatDraftState.js';
+import { writeNewChatDraftState } from '../../../../../workbench/contrib/sessions/common/newChatDraftState.js';
 import { ITestSessionsService, stubFocusedSessionHostFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { IRemoteWorkspaceFolder, IRemoteWorkspaceHandoffService, RemoteWorkspaceHandoffResult } from '../../../../common/remoteWorkspaceHandoff.js';
 import { AGENT_HOST_SCHEME } from '../../../../../platform/agentHost/common/agentHostUri.js';

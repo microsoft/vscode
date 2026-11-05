@@ -39,8 +39,8 @@ import { ISessionFileChange } from '../../../../../workbench/contrib/sessions/co
 import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IDiffEditorOptionsService, SessionsWordWrap } from '../../../editor/common/diffEditorOptionsService.js';
 import { SessionChangesEditor } from '../../browser/sessionChangesEditor.js';
-import { SessionChangesEditorInput } from '../../browser/sessionChangesEditorInput.js';
-import { ISessionChangesService } from '../../browser/sessionChangesService.js';
+import { SessionChangesEditorInput } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesEditorInput.js';
+import { ISessionChangesService } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesService.js';
 import { IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
 
 suite('SessionChangesEditorInput', () => {

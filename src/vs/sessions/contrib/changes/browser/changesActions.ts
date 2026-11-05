@@ -36,7 +36,7 @@ import { IChat, ISessionChangeset, ISessionChangesetOperation, ISessionFileChang
 import { ISessionChangesStatsCache, readSessionChangesStats } from '../../../../workbench/contrib/sessions/common/sessionChangesStatsCache.js';
 import { getChangesOfSession, IChangesSessionObservables, IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { ChangesMultiDiffSourceResolver } from './changesMultiDiffSourceResolver.js';
-import { ISessionChangesService } from './sessionChangesService.js';
+import { ISessionChangesService } from '../../../../workbench/contrib/sessions/browser/changes/sessionChangesService.js';
 import { getFileActionEditorPane, IChangesEditorFileActionContext, SessionChangesEditor } from './sessionChangesEditor.js';
 import { VIEW_SESSION_CHANGES_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/changes.js';
 import { getChangesFileUri, isChangesFileResource } from './changesViewRenderer.js';

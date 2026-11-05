@@ -41,8 +41,8 @@ import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/com
 import { CHANGES_VIEW_ID } from '../../../../../workbench/contrib/sessions/common/changes.js';
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../../../workbench/contrib/sessions/common/sessionChangesService.js';
 import { WORKTREE_SUGGESTION_SETTING, WORKTREE_SUGGESTION_TOUR_ID, WorktreeSuggestionVariant } from '../../../../../workbench/contrib/sessions/common/worktreeSuggestion.js';
-import { getChangedFileLabel, getInlineHintMessage } from '../../browser/worktreeSuggestionPresentation.js';
-import { IUncommittedChangesListItem, IWorktreeSuggestion, WorktreeSpotlightChoice, WorktreeSuggestionService } from '../../browser/worktreeSuggestionService.js';
+import { getChangedFileLabel, getInlineHintMessage } from '../../../../../workbench/contrib/sessions/browser/worktreeSuggestion/worktreeSuggestionPresentation.js';
+import { IUncommittedChangesListItem, IWorktreeSuggestion, WorktreeSpotlightChoice, WorktreeSuggestionService } from '../../../../../workbench/contrib/sessions/browser/worktreeSuggestion/worktreeSuggestionService.js';
 
 class RecordingTelemetryService extends TestExperimentTriggerTelemetryService {
 	readonly events: unknown[] = [];

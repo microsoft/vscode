@@ -51,8 +51,8 @@ import { AgentHostModePicker } from '../../../../../../workbench/contrib/session
 import { AgentHostPermissionPickerDelegate } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostPermissionPickerDelegate.js';
 import { PickerActionViewItem } from '../../browser/agentHostSessionConfigPicker.js';
 import '../../../../../../workbench/contrib/chat/browser/widget/media/chat.css';
-import '../../../../chat/browser/media/chatWidget.css';
-import '../../../../chat/browser/media/chatInput.css';
+import '../../../../../../workbench/contrib/sessions/browser/chat/media/chatWidget.css';
+import '../../../../../../workbench/contrib/sessions/browser/chat/media/chatInput.css';
 import { sessionChatSourceOf } from '../../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 
 suite('AgentHostModePicker', () => {

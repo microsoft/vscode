@@ -17,7 +17,7 @@ import { defaultButtonStyles, defaultCheckboxStyles, defaultDialogStyles, defaul
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
-import { ExternalSessionBanner, getExternalSessionVisibilityConfirmation } from '../../browser/externalSessionBanner.js';
+import { ExternalSessionBanner, getExternalSessionVisibilityConfirmation } from '../../../../../workbench/contrib/sessions/browser/chat/externalSessionBanner.js';
 
 export default defineThemedFixtureGroup({ path: 'sessions/externalSessionBanner/' }, {
 	Codex: defineComponentFixture({

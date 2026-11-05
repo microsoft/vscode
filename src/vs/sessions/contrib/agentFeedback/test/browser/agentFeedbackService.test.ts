@@ -25,7 +25,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IEditorService, IVisibleEditorsChangeEvent } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { whenChatWidgetForSession } from '../../../chat/browser/chatWidgetUtils.js';
+import { whenChatWidgetForSession } from '../../../../../workbench/contrib/sessions/browser/chat/chatWidgetUtils.js';
 import { IChat, ISession, ISessionFileChange, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';

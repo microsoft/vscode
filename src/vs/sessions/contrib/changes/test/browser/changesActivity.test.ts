@@ -25,7 +25,7 @@ import { IChat, ISessionChangesSummary, ISessionFileChange, ISessionWorkspace } 
 import { ISessionChangesStatsCache } from '../../../../../workbench/contrib/sessions/common/sessionChangesStatsCache.js';
 import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ChangesActivityContribution, hasNewChanges, MAX_SEEN_CHANGES_CHATS, SeenChangesStore } from '../../browser/changesActivity.js';
-import { ISessionChangesService } from '../../browser/sessionChangesService.js';
+import { ISessionChangesService } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesService.js';
 import { focusedSessionHostServiceOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Sessions - Changes Activity', () => {

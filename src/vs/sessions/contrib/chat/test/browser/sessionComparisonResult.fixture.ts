@@ -23,7 +23,7 @@ import { ISessionsService } from '../../../../../workbench/contrib/sessions/brow
 import { ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionComparison, ISessionComparisonAttemptVerdict, ISessionComparisonHarness, ISessionComparisonParticipant, ISessionComparisonService, SessionComparisonParticipantRole, SessionComparisonValidationEvidence, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
-import { SessionComparisonResult } from '../../browser/sessionComparisonResult.js';
+import { SessionComparisonResult } from '../../../../../workbench/contrib/sessions/browser/chat/sessionComparisonResult.js';
 
 import '../../../../browser/media/style.css';
 

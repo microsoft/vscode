@@ -18,7 +18,7 @@ import { ISessionsPartService } from '../../../../workbench/contrib/sessions/bro
 import { getSessionPaneId, ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { IActiveSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { HIDE_INACTIVE_COMPARISON_INPUTS_SETTING } from '../common/sessionComparison.js';
+import { HIDE_INACTIVE_COMPARISON_INPUTS_SETTING } from '../../../../workbench/contrib/sessions/common/sessionComparisonConstants.js';
 
 const HIDE_INACTIVE_COMPARISON_INPUTS_CLASS = 'session-comparison-hide-inactive-inputs';
 const COMPARISON_GRID_ACTIVE_CLASS = 'session-comparison-grid-active';

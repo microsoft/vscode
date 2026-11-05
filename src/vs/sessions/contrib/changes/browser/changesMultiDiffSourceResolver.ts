@@ -15,7 +15,7 @@ import { ChangesViewMode } from '../../../../workbench/contrib/sessions/common/c
 import { getActiveSessionChanges, IChangesSessionObservables, IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { getMainWindowHost, getWindowHost, ISessionHostService, SessionHostKind } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { ISessionChangesService } from './sessionChangesService.js';
+import { ISessionChangesService } from '../../../../workbench/contrib/sessions/browser/changes/sessionChangesService.js';
 import { getChangesEditorFileResource } from './changesEditorLabels.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 

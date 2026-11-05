@@ -27,7 +27,7 @@ import { SessionsView, SessionsViewId } from '../../sessions/browser/views/sessi
 import { INewSessionComposerService } from '../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { IAgentsWindowDraft } from '../../../../platform/window/common/window.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
-import { readNewChatDraftState } from '../common/newChatDraftState.js';
+import { readNewChatDraftState } from '../../../../workbench/contrib/sessions/common/newChatDraftState.js';
 import { IRemoteWorkspaceHandoffService } from '../../../common/remoteWorkspaceHandoff.js';
 import { IAgentsWindowRemoteWorkspace } from './agentsWindowOpenIntent.js';
 

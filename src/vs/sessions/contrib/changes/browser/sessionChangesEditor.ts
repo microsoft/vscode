@@ -51,8 +51,8 @@ import { IHostSession, ISessionsManagementService } from '../../../../workbench/
 import { getChangesEditorChanges } from './changesMultiDiffSourceResolver.js';
 import { IChangesSessionScope, IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { ChangesActionsBar, createChangesSessionScope } from './changesView.js';
-import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
-import { ISessionChangesService } from './sessionChangesService.js';
+import { SessionChangesEditorInput } from '../../../../workbench/contrib/sessions/browser/changes/sessionChangesEditorInput.js';
+import { ISessionChangesService } from '../../../../workbench/contrib/sessions/browser/changes/sessionChangesService.js';
 import { ISessionFileChange } from '../../../../workbench/contrib/sessions/common/session.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { IAction } from '../../../../base/common/actions.js';

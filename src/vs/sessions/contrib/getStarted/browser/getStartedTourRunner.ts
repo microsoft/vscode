@@ -32,7 +32,7 @@ import { ISessionsService } from '../../../../workbench/contrib/sessions/browser
 import { IFocusedSessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { ISession, SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { SessionChangesEditorInput } from '../../changes/browser/sessionChangesEditorInput.js';
+import { SessionChangesEditorInput } from '../../../../workbench/contrib/sessions/browser/changes/sessionChangesEditorInput.js';
 import { IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { VIEW_SESSION_CHANGES_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/changes.js';
 import { ISessionChangesService } from '../../../../workbench/contrib/sessions/common/sessionChangesService.js';

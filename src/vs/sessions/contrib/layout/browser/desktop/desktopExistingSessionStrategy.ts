@@ -27,10 +27,10 @@ import { Parts } from '../../../../../workbench/services/layout/browser/layoutSe
 import { IAgentWorkbenchLayoutService, ISidePaneState, ISidePaneToggleEvent } from '../../../../browser/workbench.js';
 import { DesktopLayoutContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { HasDockedDetailsContext } from '../../../../common/agentsWindowContextKeys.js';
-import { DockedEditorInput } from '../../../../browser/dockedEditorInput.js';
+import { DockedEditorInput } from '../../../../../workbench/contrib/sessions/browser/dockedEditorInput.js';
 import { IHostSession, IShownChat } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionWorkspace, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
+import { ISessionChangesService } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesService.js';
 import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
 import { DetailPanelTarget, DesktopDetailPanelCoordinator } from './desktopDetailPanelCoordinator.js';
 import { DesktopDockedTabsCoordinator } from './desktopDockedTabsCoordinator.js';

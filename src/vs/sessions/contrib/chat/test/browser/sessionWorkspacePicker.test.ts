@@ -47,15 +47,15 @@ import { ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../
 import { AgentHostFilterConnectionStatus, IAgentHostFilterEntry, IAgentHostFilterService } from '../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
 import { IAgentHostSessionsProvider } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo, ISession, ISessionWorkspace, ISessionWorkspaceBrowseAction, SessionStatus, SessionTypeAuthRequirement, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { type IResolvedFolderWorkspace, IWorkspacePickerItem, IWorkspacePickerOptions, WorkspacePicker } from '../../browser/sessionWorkspacePicker.js';
-import { WebWorkspacePicker } from '../../browser/webWorkspacePicker.js';
+import { type IResolvedFolderWorkspace, IWorkspacePickerItem, IWorkspacePickerOptions, WorkspacePicker } from '../../../../../workbench/contrib/sessions/browser/chat/sessionWorkspacePicker.js';
+import { WebWorkspacePicker } from '../../../../../workbench/contrib/sessions/browser/chat/webWorkspacePicker.js';
 import { NewSessionWorkspacePreselectionSource } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { WorkspaceSelectionOrigin } from '../../../../../workbench/contrib/sessions/common/workspaceSelection.js';
-import '../../browser/media/chatWidget.css';
+import '../../../../../workbench/contrib/sessions/browser/chat/media/chatWidget.css';
 import { ISessionsRecentWorkspacesService, SessionsRecentWorkspacesService } from '../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
 import { AutomationsWorkspacePicker, MobileAutomationsWorkspacePicker } from '../../../automations/browser/automationDialog.js';
 import { AutomationIsolationModel } from '../../../automations/common/isolationGroupModel.js';
-import { buildMobileWorkspacePickerRows, showMobileWorkspacePickerSheet } from '../../browser/mobile/mobileWorkspacePickerSheet.js';
+import { buildMobileWorkspacePickerRows, showMobileWorkspacePickerSheet } from '../../../../../workbench/contrib/sessions/browser/chat/mobile/mobileWorkspacePickerSheet.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { AutomationToolCatalog, IAutomationProviderConfiguration, IAutomationWorkspaceTarget } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IWorkspacesService } from '../../../../../platform/workspaces/common/workspaces.js';
@@ -75,13 +75,13 @@ import { IProgressService } from '../../../../../platform/progress/common/progre
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { AGENTIC_SIGN_IN_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { IChatRequestVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
-import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../../common/newChatContextIds.js';
+import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../../../../../workbench/contrib/sessions/common/newChatContextIds.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { hasOnboardingTargetSelection, onDidSelectOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
-import { ISessionCreationEnvironment } from '../../browser/sessionEnvironmentPicker.js';
+import { ISessionCreationEnvironment } from '../../../../../workbench/contrib/sessions/browser/chat/sessionEnvironmentPicker.js';
 
 // ---- Storage key (must match the one in sessionWorkspacePicker.ts) ----------
 const STORAGE_KEY_RECENT_WORKSPACES = 'sessions.recentlyPickedWorkspaces';

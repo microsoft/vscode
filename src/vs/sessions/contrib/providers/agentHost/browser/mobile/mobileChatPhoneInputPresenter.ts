@@ -30,7 +30,7 @@ import { ISessionsProvidersService } from '../../../../../../workbench/contrib/s
 import { showMobilePickerSheet, IMobilePickerSheetItem } from '../../../../../../workbench/contrib/sessions/browser/mobile/mobilePickerSheet.js';
 import { getAgentHostModeIcon } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostModeIcon.js';
 import { isWellKnownModeSchema, isWellKnownModeValue } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostPermissionPickerDelegate.js';
-import { normalizeModelPickerOptions } from '../../../../chat/browser/sessionModelPickerState.js';
+import { normalizeModelPickerOptions } from '../../../../../../workbench/contrib/sessions/browser/chat/sessionModelPickerState.js';
 import { createChatPhoneInputSessionContext, createChatPhoneInputTarget, IChatPhoneInputTarget, matchesChatPhoneInputTarget } from '../../../../../../workbench/contrib/sessions/browser/chatPhoneInputContext.js';
 
 /**

@@ -41,7 +41,7 @@ import { SESSIONS_LAYOUT_SCOPE_SETTING, ChatLayoutMode, ChatLayoutPresentation }
 import { IAgentWorkbenchLayoutService, ISidePaneToggleEvent } from '../../../../browser/workbench.js';
 import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
 import { ChatInteractivity, IChat, ISession, ISessionChangeset, ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { ISessionChangesService, SessionChangesService } from '../../../changes/browser/sessionChangesService.js';
+import { ISessionChangesService, SessionChangesService } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesService.js';
 import { CHANGES_VIEW_CONTAINER_ID } from '../../../../../workbench/contrib/sessions/common/changes.js';
 import { SESSIONS_FILES_CONTAINER_ID } from '../../../files/browser/files.contribution.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';

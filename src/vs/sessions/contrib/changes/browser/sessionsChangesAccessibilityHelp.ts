@@ -14,7 +14,7 @@ import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/a
 import { ActiveEditorContext, EditorAreaFocusContext, FocusedViewContext } from '../../../../workbench/common/contextkeys.js';
 import { CHANGES_VIEW_ID, CreatePullRequestFocusedContext } from '../../../../workbench/contrib/sessions/common/changes.js';
 import { ChangesViewPane } from './changesView.js';
-import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
+import { SessionChangesEditorInput } from '../../../../workbench/contrib/sessions/browser/changes/sessionChangesEditorInput.js';
 
 /**
  * Accessibility help dialog for the Changes view. Documents the file tree and

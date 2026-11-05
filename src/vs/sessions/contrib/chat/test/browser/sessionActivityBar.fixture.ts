@@ -34,7 +34,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { FixtureContextViewService, FixtureKeybindingService, FixtureMenuService, fixtureBrowser, fixtureCanvas, fixtureChanges, fixtureFiles, fixtureTerminal, fixtureTogglePanel, fixtureToggleSidePanel, IFixtureEntry } from '../../../../test/browser/addTabFixtureUtils.js';
 import { SessionActivityBarGroup } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { OPEN_PULL_REQUEST_ACTION_ID } from '../../../../../workbench/contrib/sessions/common/github/types.js';
-import { ExternalSessionBanner } from '../../browser/externalSessionBanner.js';
+import { ExternalSessionBanner } from '../../../../../workbench/contrib/sessions/browser/chat/externalSessionBanner.js';
 import '../../browser/media/chatView.css';
 import '../../../../../workbench/contrib/sessions/browser/parts/media/chatCompositeBar.css';
 import '../../../../../workbench/contrib/sessions/browser/parts/media/chatGroupsView.css';

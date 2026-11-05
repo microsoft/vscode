@@ -67,8 +67,8 @@ import type { IResolvedSessionPullRequest } from '../../../../../workbench/contr
 import { IGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
 import { GitHubPullRequestModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestModel.js';
 import { GitHubIssueModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubIssueModel.js';
-import { buildSessionIssueSections, buildSessionPullRequestSections, computeSessionInputPillStats, findSessionOfChat, readLoadedSessionInputPillStats, SessionChatInputToolbar } from '../../browser/sessionChatInputToolbar.js';
-import { buildSessionArtifactSections, type ISessionArtifactActions } from '../../browser/sessionArtifacts.js';
+import { buildSessionIssueSections, buildSessionPullRequestSections, computeSessionInputPillStats, findSessionOfChat, readLoadedSessionInputPillStats, SessionChatInputToolbar } from '../../../../../workbench/contrib/sessions/browser/chat/sessionChatInputToolbar.js';
+import { buildSessionArtifactSections, type ISessionArtifactActions } from '../../../../../workbench/contrib/sessions/browser/chat/sessionArtifacts.js';
 import { ITestSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { stubSessionsHostLayout } from '../../../../test/browser/sessionsHostLayoutTestUtils.js';
 

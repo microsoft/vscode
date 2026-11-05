@@ -66,14 +66,14 @@ import { DevContainerIdleTimeoutSettingId, DevContainerWorktreeEnabledSettingId,
 import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ChatInteractivity, ChatModelSource, getChatCapabilities, getGitHubPullRequestRefs, getSessionOwnedGitHubPullRequestRefs, SessionRemoteConnectionFailureReason, SessionStatus, type ISession, type ISessionFileChange } from '../../../../../../workbench/contrib/sessions/common/session.js';
 import { SessionPullRequestPresentationModel } from '../../../../../../workbench/contrib/sessions/browser/github/pullRequestIconStatus.js';
-import { buildSessionPullRequestSections } from '../../../../chat/browser/sessionChatInputToolbar.js';
+import { buildSessionPullRequestSections } from '../../../../../../workbench/contrib/sessions/browser/chat/sessionChatInputToolbar.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { RemoteAgentHostSessionsProvider, type IRemoteAgentHostSessionsProviderConfig } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remoteAgentHostSessionsProvider.js';
 import { getRemoteAgentHostPickerKey, RemoteAgentHostPickerVisibility } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remoteAgentHostPickerVisibility.js';
 import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING } from '../../../../../../workbench/contrib/sessions/common/chatConstants.js';
-import { getSessionCreationEnvironments } from '../../../../chat/browser/sessionEnvironmentPicker.js';
+import { getSessionCreationEnvironments } from '../../../../../../workbench/contrib/sessions/browser/chat/sessionEnvironmentPicker.js';
 import { CloudSandboxSessionsProvider } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/cloudSandboxSessionsProvider.js';
 import { CLOUD_SANDBOX_CREATION_PROVIDER_ID, COPILOT_PROVIDER_ID } from '../../../../../../workbench/contrib/sessions/providers/copilotChatSessions/common/copilotChatSessions.js';
 import { ProviderAutomationService } from '../../../../automations/browser/providerAutomationService.js';

@@ -11,7 +11,7 @@ import { EditorInputCapabilities, IEditorSerializer, IUntypedEditorInput, Verbos
 import { EditorInput } from '../../../../workbench/common/editor/editorInput.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
-import { DockedEditorInput } from '../../../browser/dockedEditorInput.js';
+import { DockedEditorInput } from '../../../../workbench/contrib/sessions/browser/dockedEditorInput.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { ISessionWorkspace } from '../../../../workbench/contrib/sessions/common/session.js';
 

@@ -35,7 +35,7 @@ import { AnnotationsAgentFeedbackItemsBackend, IAgentFeedbackItemsBackend, InMem
 import { ATTACHMENT_ID_PREFIX, createAgentFeedbackVariableEntry } from '../../../../workbench/contrib/sessions/browser/agentFeedbackAttachmentEntry.js';
 import { AgentFeedbackKind, AgentFeedbackState, type IAgentFeedback } from '../../../../workbench/contrib/sessions/browser/agentFeedbackModel.js';
 import { SessionEditorCommentSource, toSessionEditorCommentId } from './sessionEditorComments.js';
-import { whenChatWidgetForSession } from '../../chat/browser/chatWidgetUtils.js';
+import { whenChatWidgetForSession } from '../../../../workbench/contrib/sessions/browser/chat/chatWidgetUtils.js';
 
 export function shouldIncludeRawPRReviewComments(agentFeedbackService: IAgentFeedbackService, sessionResource: URI): boolean {
 	return !agentFeedbackService.isAgentHostSession(sessionResource) || !agentFeedbackService.hasLoadedFeedback(sessionResource);

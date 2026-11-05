@@ -12,7 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { ISessionWorktreeCleanupService, ISessionWorktreeCleanupSuggestion } from '../../../sessionInputBanners/browser/sessionWorktreeCleanupService.js';
+import { ISessionWorktreeCleanupService, ISessionWorktreeCleanupSuggestion } from '../../../../../workbench/contrib/sessions/browser/sessionInputBanners/sessionWorktreeCleanupService.js';
 import { SessionStorageCleanupNotice } from '../../browser/views/sessionStorageCleanupNotice.js';
 import '../../browser/media/sessionsViewPane.css';
 

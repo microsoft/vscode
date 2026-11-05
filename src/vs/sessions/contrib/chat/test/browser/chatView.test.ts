@@ -74,17 +74,17 @@ import { SessionsChatBackgroundRenderer, SessionsChatBackgroundReplica } from '.
 import { ISessionsChatBackground } from '../../../../../workbench/contrib/sessions/browser/chatBackgroundService.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../../../../workbench/contrib/sessions/common/layoutConstants.js';
 import { ChatView, EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE, findInitialTranscriptContextEntry, getChatRespondent, getInputOnlyProgressMessage, getInputOnlyResponseState, getInputOnlyResponseText, IInputOnlyStatus, needsConversationForInput, findTranscriptContextEntry, getSessionChatItemHorizontalPadding, getSessionComparisonRequestSummary, getTranscriptProgress, isFocusChatPillsKeyDown, NewChatView, shouldRenderRunningSessionSecondaryToolbar, shouldShowSessionChatTip, shouldShowTranscriptPreparationCompletion, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
-import { SessionsChatViewStateService } from '../../browser/chatViewStateService.js';
-import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js';
-import { NestedChatWorkspaceControls } from '../../browser/nestedChatWorkspacePicker.js';
+import { SessionsChatViewStateService } from '../../../../../workbench/contrib/sessions/browser/chat/chatViewStateService.js';
+import { NewChatInSessionWidget } from '../../../../../workbench/contrib/sessions/browser/chat/newChatInSessionWidget.js';
+import { NestedChatWorkspaceControls } from '../../../../../workbench/contrib/sessions/browser/chat/nestedChatWorkspacePicker.js';
 import { IChatDraft } from '../../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { ISessionsRecentWorkspacesService } from '../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
-import { SharedChatInputComposer } from '../../browser/sharedChatInputComposer.js';
-import { INewChatComposerInputOptions } from '../../browser/newChatComposerInput.js';
-import { NewChatWidget } from '../../browser/newChatWidget.js';
+import { SharedChatInputComposer } from '../../../../../workbench/contrib/sessions/browser/chat/sharedChatInputComposer.js';
+import { INewChatComposerInputOptions } from '../../../../../workbench/contrib/sessions/browser/chat/newChatComposerInput.js';
+import { NewChatWidget } from '../../../../../workbench/contrib/sessions/browser/chat/newChatWidget.js';
 import '../../../../../workbench/browser/media/style.css';
 import '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/media/chatAgentMergeContent.css';
 import '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/media/chatRequestOrigin.css';
@@ -97,10 +97,10 @@ import '../../../../../workbench/contrib/sessions/browser/parts/media/chatCompos
 import '../../../../../workbench/contrib/sessions/browser/parts/media/chatGroupsView.css';
 import '../../../../../workbench/contrib/sessions/browser/parts/media/sessionView.css';
 import '../../../../../workbench/contrib/sessions/browser/parts/media/sessionsPart.css';
-import '../../browser/media/externalSessionBanner.css';
-import '../../browser/media/chatWidget.css';
+import '../../../../../workbench/contrib/sessions/browser/chat/media/externalSessionBanner.css';
+import '../../../../../workbench/contrib/sessions/browser/chat/media/chatWidget.css';
 import '../../browser/media/chatView.css';
-import '../../browser/media/newChatInSession.css';
+import '../../../../../workbench/contrib/sessions/browser/chat/media/newChatInSession.css';
 import '../../../../../workbench/contrib/chat/browser/promptTimeline/media/promptTimeline.css';
 
 suite('Sessions - Chat View', () => {

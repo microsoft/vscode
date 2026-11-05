@@ -70,7 +70,7 @@ import { IChatViewFactory } from '../../../../../workbench/contrib/sessions/brow
 import { AbstractChatView, IChatViewOptions, IChatViewRequestOutcome, IChatViewRequestSubmission } from '../../../../../workbench/contrib/sessions/browser/parts/chatView.js';
 import { getChatRequestOutcome } from '../../../chat/browser/chatView.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { WelcomeName } from '../../../chat/browser/welcomeName.js';
+import { WelcomeName } from '../../../../../workbench/contrib/sessions/browser/chat/welcomeName.js';
 import { IChat, ISession, ISessionArtifact, ISessionCapabilities, ISessionChangeset, ISessionChangesetOperation, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionArtifactKind, SessionChangesetOperationScope, SessionChangesetOperationStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { InboxNotificationsView } from '../../browser/inboxNotificationsView.js';
 import { InboxEvidenceWidget } from '../../browser/inboxEvidenceWidget.js';
@@ -85,8 +85,8 @@ import { GitHubPullRequestModel } from '../../../../../workbench/contrib/session
 import { GitHubPullRequestReviewThreadsModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestReviewThreadsModel.js';
 import { IGitHubPRComment } from '../../../../../workbench/contrib/sessions/common/github/types.js';
 import { PullRequestCheck } from '../../../../../platform/github/common/githubPullRequestService.js';
-import '../../../chat/browser/media/chatWidget.css';
-import '../../../chat/browser/media/chatInput.css';
+import '../../../../../workbench/contrib/sessions/browser/chat/media/chatWidget.css';
+import '../../../../../workbench/contrib/sessions/browser/chat/media/chatInput.css';
 import { stubSessionsHostLayout } from '../../../../test/browser/sessionsHostLayoutTestUtils.js';
 
 suite('InboxNotificationsView', () => {

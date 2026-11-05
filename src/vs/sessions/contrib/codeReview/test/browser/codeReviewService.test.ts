@@ -29,7 +29,7 @@ import { GitHubPullRequestReviewThreadsModel } from '../../../../../workbench/co
 import { GitHubPullRequestModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestModel.js';
 import { GitHubPullRequestState, IGitHubPRComment, IGitHubPullRequestReview, IGitHubPullRequestReviewThread } from '../../../../../workbench/contrib/sessions/common/github/types.js';
 import { toPRContentUri } from '../../../../../workbench/contrib/sessions/common/github/utils.js';
-import { SessionChangesEditorInput } from '../../../changes/browser/sessionChangesEditorInput.js';
+import { SessionChangesEditorInput } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesEditorInput.js';
 import { IChat, IGitHubInfo, SessionStatus, ISession, ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { commentableRightLines, mapCurrentLineToPullRequestLine, mapCurrentRangeToPullRequestRange, CodeReviewService } from '../../browser/codeReviewService.js';
 import { ICodeReviewService, PRReviewStateKind } from '../../../../../workbench/contrib/sessions/browser/codeReviewService.js';
@@ -37,7 +37,7 @@ import { ISessionsService } from '../../../../../workbench/contrib/sessions/brow
 import { ICreateNewChatInSessionOptions, IActiveSession, ISendRequestOptions, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
+import { ISessionChangesService } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesService.js';
 import '../../browser/codeReview.contributions.js';
 import { stubFocusedSessionHostFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 

@@ -88,8 +88,8 @@ import { AgentHostFilterConnectionStatus, IAgentHostFilterService } from '../../
 import { AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET, AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING, AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING, ISessionsChatBackground, ISessionsChatBackgroundService, SessionsChatBackgroundService } from '../../../../../workbench/contrib/sessions/browser/chatBackgroundService.js';
 import { SessionsChatBackgroundRenderer } from '../../../../../workbench/contrib/sessions/browser/chatBackgroundRenderer.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { IWorktreeSuggestionService } from '../../../worktreeSuggestion/browser/worktreeSuggestionService.js';
-import { NullWorktreeSuggestionService } from '../../../worktreeSuggestion/test/browser/worktreeSuggestionTestUtils.js';
+import { IWorktreeSuggestionService } from '../../../../../workbench/contrib/sessions/browser/worktreeSuggestion/worktreeSuggestionService.js';
+import { NullWorktreeSuggestionService } from '../../../../../workbench/contrib/sessions/test/browser/worktreeSuggestion/worktreeSuggestionTestUtils.js';
 import { IRecentWorkspace, ISessionsRecentWorkspacesService } from '../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
@@ -102,11 +102,11 @@ import { IAquariumService } from '../../../../../workbench/contrib/sessions/brow
 import { computeIssueIcon, computePullRequestIcon, GitHubIssueState, GitHubPullRequestState } from '../../../../../workbench/contrib/sessions/common/github/types.js';
 import { NewChatView } from '../../browser/chatView.js';
 import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_ENABLED_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_MESSAGES_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
-import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../../common/newChatContextIds.js';
-import { NEW_SESSION_BANNERS_MIN_CREATED_SESSIONS } from '../../common/newSessionBanners.js';
+import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../../../../../workbench/contrib/sessions/common/newChatContextIds.js';
+import { NEW_SESSION_BANNERS_MIN_CREATED_SESSIONS } from '../../../../../workbench/contrib/sessions/common/newSessionBanners.js';
 import { INewSessionComposerService, INewSessionPromptOption, NewSessionComposerService, NewSessionPromptOptionsState } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
-import { INewChatVoiceTargetService, NewChatVoiceTargetService } from '../../browser/newChatVoice.js';
-import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
+import { INewChatVoiceTargetService, NewChatVoiceTargetService } from '../../../../../workbench/contrib/sessions/browser/chat/newChatVoice.js';
+import { ISessionChangesService } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesService.js';
 import { AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY } from '../../../../../platform/chat/common/agentsWindowInvitation.js';
 
 import '../../../../browser/media/style.css';

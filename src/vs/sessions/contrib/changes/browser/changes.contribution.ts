@@ -18,10 +18,10 @@ import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, SESSIONS_CHANGES_OPEN_SINGL
 import { ChangesViewPane, DesktopChangesViewPane, ChangesViewPaneContainer } from './changesView.js';
 import './changesView.contribution.js';
 import { SessionChangesEditor } from './sessionChangesEditor.js';
-import { SessionChangesEditorInput, SessionChangesEditorSerializer } from './sessionChangesEditorInput.js';
+import { SessionChangesEditorInput, SessionChangesEditorSerializer } from '../../../../workbench/contrib/sessions/browser/changes/sessionChangesEditorInput.js';
 import { IsPhoneLayoutContext, SessionHasWorkspaceContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { ISessionChangesService, SessionChangesService } from './sessionChangesService.js';
+import { ISessionChangesService, SessionChangesService } from '../../../../workbench/contrib/sessions/browser/changes/sessionChangesService.js';
 import './changesActions.js';
 import './changesViewActions.js';
 import './changesetReviewActions.js';

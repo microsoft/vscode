@@ -25,11 +25,11 @@ import { IChat } from '../../../../../../workbench/contrib/sessions/common/sessi
 import { ISessionInputPickerVisibility, SessionInputPickerVisibility } from '../../../../../../workbench/contrib/sessions/common/sessionPickerVisibility.js';
 import { IActiveSession } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
-import { ISessionChangesService } from '../../../../changes/browser/sessionChangesService.js';
+import { ISessionChangesService } from '../../../../../../workbench/contrib/sessions/browser/changes/sessionChangesService.js';
 import { AgentHostSessionConfigPicker } from '../../browser/agentHostSessionConfigPicker.js';
-import { IWorktreeSuggestionService } from '../../../../worktreeSuggestion/browser/worktreeSuggestionService.js';
-import { NullWorktreeSuggestionService } from '../../../../worktreeSuggestion/test/browser/worktreeSuggestionTestUtils.js';
-import '../../../../chat/browser/media/chatWidget.css';
+import { IWorktreeSuggestionService } from '../../../../../../workbench/contrib/sessions/browser/worktreeSuggestion/worktreeSuggestionService.js';
+import { NullWorktreeSuggestionService } from '../../../../../../workbench/contrib/sessions/test/browser/worktreeSuggestion/worktreeSuggestionTestUtils.js';
+import '../../../../../../workbench/contrib/sessions/browser/chat/media/chatWidget.css';
 import '../../../../../browser/media/style.css';
 import { sessionChatSourceOf } from '../../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 

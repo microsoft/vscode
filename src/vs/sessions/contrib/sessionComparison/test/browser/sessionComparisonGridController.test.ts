@@ -24,7 +24,7 @@ import { ISessionComparison, ISessionComparisonService, SessionComparisonPartici
 import { IChat, ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { SessionComparisonGridController } from '../../browser/sessionComparisonGridController.js';
-import { HIDE_INACTIVE_COMPARISON_INPUTS_SETTING } from '../../common/sessionComparison.js';
+import { HIDE_INACTIVE_COMPARISON_INPUTS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionComparisonConstants.js';
 
 suite('Session comparison grid controller', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

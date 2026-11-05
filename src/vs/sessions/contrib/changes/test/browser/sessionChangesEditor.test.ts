@@ -30,7 +30,7 @@ import { SessionChangesEditorFileListContext } from '../../../../../workbench/co
 import { isMultiDiffEditorFileListHost, multiDiffEditorExperimentalFileListSetting, MultiDiffEditorFileListAvailableContext, MultiDiffEditorFileListEnabledContext, MultiDiffEditorFileListVisibleContext, toggleMultiDiffEditorFileList } from '../../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { ISessionChangesService } from '../../browser/sessionChangesService.js';
+import { ISessionChangesService } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesService.js';
 import { stubSessionHosts } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
@@ -48,7 +48,7 @@ import { DiffItemSource, IDocumentDiffItem } from '../../../../../editor/browser
 import { Event, ValueWithChangeEvent } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../../base/common/errors.js';
-import { SessionChangesEditorInput } from '../../browser/sessionChangesEditorInput.js';
+import { SessionChangesEditorInput } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesEditorInput.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { EditorPane } from '../../../../../workbench/browser/parts/editor/editorPane.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';

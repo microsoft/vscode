@@ -52,7 +52,7 @@ import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../
 import { SessionUsesExperimentalComposerLayoutContext } from '../../../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { DevContainerWorktreeEnabledSettingId } from '../../../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { devContainerSamples, devContainerSampleUri } from '../../../../../../../platform/agentHost/common/devContainerSamples.js';
-import { ISessionChangesService } from '../../../../../../contrib/changes/browser/sessionChangesService.js';
+import { ISessionChangesService } from '../../../../../../../workbench/contrib/sessions/browser/changes/sessionChangesService.js';
 import { CHANGES_VIEW_ID } from '../../../../../../../workbench/contrib/sessions/common/changes.js';
 import { ISessionsProvidersService } from '../../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../../../../workbench/contrib/sessions/browser/sessionsService.js';
@@ -63,11 +63,11 @@ import { AgentHostSessionConfigPicker, AgentHostSessionConfigPickerContribution,
 import { getWindow } from '../../../../../../../base/browser/dom.js';
 import { createStyleSheet } from '../../../../../../../base/browser/domStylesheets.js';
 import { ENVIRONMENT_PICKER_SETTING } from '../../../../../../../workbench/contrib/sessions/common/chatConstants.js';
-import { IWorktreeSuggestionService } from '../../../../../worktreeSuggestion/browser/worktreeSuggestionService.js';
-import { NullWorktreeSuggestionService, TestWorktreeSuggestionService } from '../../../../../worktreeSuggestion/test/browser/worktreeSuggestionTestUtils.js';
+import { IWorktreeSuggestionService } from '../../../../../../../workbench/contrib/sessions/browser/worktreeSuggestion/worktreeSuggestionService.js';
+import { NullWorktreeSuggestionService, TestWorktreeSuggestionService } from '../../../../../../../workbench/contrib/sessions/test/browser/worktreeSuggestion/worktreeSuggestionTestUtils.js';
 import { WorktreeSuggestionVariant } from '../../../../../../../workbench/contrib/sessions/common/worktreeSuggestion.js';
 import { IChatSessionFileChange2 } from '../../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import '../../../../../chat/browser/media/chatWidget.css';
+import '../../../../../../../workbench/contrib/sessions/browser/chat/media/chatWidget.css';
 import { InSessionHostScopeContext, ISessionHost, sessionChatSourceOf } from '../../../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 
 const SESSION_ID = 'local-agent-host:s1';

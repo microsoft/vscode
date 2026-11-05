@@ -46,7 +46,7 @@ import { IStorageService } from '../../../../platform/storage/common/storage.js'
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { SessionAgentMergeEnabledContext, SessionIsActiveContext, DesktopChangesEditorTransitionContext, DesktopLayoutContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
-import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
+import { SessionChangesEditorInput } from '../../../../workbench/contrib/sessions/browser/changes/sessionChangesEditorInput.js';
 import { defaultCountBadgeStyles, defaultProgressBarStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { fillEditorsDragData } from '../../../../workbench/browser/dnd.js';
@@ -67,7 +67,7 @@ import { IWorkspaceFolderLabelService } from '../../../../workbench/services/wor
 import { IMultiDiffEditorOptions } from '../../../../editor/common/multiDiffEditor.js';
 import { isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
 import { getChangesEditorLabels } from './changesEditorLabels.js';
-import { ISessionChangesService } from './sessionChangesService.js';
+import { ISessionChangesService } from '../../../../workbench/contrib/sessions/browser/changes/sessionChangesService.js';
 import { createSessionActionsInstantiationService } from './sessionActionsHost.js';
 import { getWindowHost, ISessionHost, SessionHostKind } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { IHostSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';

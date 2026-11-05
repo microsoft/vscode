@@ -51,8 +51,8 @@ import { ISessionsProvidersService } from '../../../../../../workbench/contrib/s
 import { IChat } from '../../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
-import '../../../../chat/browser/media/chatWidget.css';
-import '../../../../chat/browser/media/chatInput.css';
+import '../../../../../../workbench/contrib/sessions/browser/chat/media/chatWidget.css';
+import '../../../../../../workbench/contrib/sessions/browser/chat/media/chatInput.css';
 import '../../../../../browser/media/style.css';
 import { sessionChatSourceOf } from '../../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 

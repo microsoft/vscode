@@ -27,18 +27,14 @@ import { BrowserEditorInput } from '../../../../contrib/browserView/common/brows
 import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../../../contrib/browserView/common/browserView.js';
 import { IWorkbenchGitHubService } from '../../../../services/github/common/githubService.js';
 import { IAgentFeedbackService } from '../../../../contrib/sessions/browser/agentFeedback.js';
-// eslint-disable-next-line local/code-import-patterns
-import { SESSION_CHAT_INPUT_TOOLBAR_HEIGHT, SessionChatInputToolbar } from '../../../../../sessions/contrib/chat/browser/sessionChatInputToolbar.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ISessionChatPillsDebugData } from '../../../../../sessions/contrib/chat/browser/sessionChatInputToolbarDebug.js';
+import { SESSION_CHAT_INPUT_TOOLBAR_HEIGHT, SessionChatInputToolbar } from '../../../../contrib/sessions/browser/chat/sessionChatInputToolbar.js';
+import { ISessionChatPillsDebugData } from '../../../../contrib/sessions/browser/chat/sessionChatInputToolbarDebug.js';
 import { IGitHubService } from '../../../../contrib/sessions/browser/github/githubService.js';
-// eslint-disable-next-line local/code-import-patterns
-import { SessionInputBanners } from '../../../../../sessions/contrib/sessionInputBanners/browser/sessionInputBanners.js';
+import { SessionInputBanners } from '../../../../contrib/sessions/browser/sessionInputBanners/sessionInputBanners.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../contrib/sessions/common/agentHostSessionsProvider.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IAgentWorkbenchLayoutService } from '../../../../../sessions/browser/workbench.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ISessionChangesService } from '../../../../../sessions/contrib/changes/browser/sessionChangesService.js';
+import { ISessionChangesService } from '../../../../contrib/sessions/browser/changes/sessionChangesService.js';
 import { ChatOriginKind, type IGitHubInfo, type IGitHubPullRequestRef, ISessionArtifact, ISessionCanvas, ISessionChatCustomization, ISessionTurnFileChange, ISessionWorkspace, IChat, ISessionCapabilities, ISessionFolder, ISessionGitRepository, SessionArtifactKind, SessionCustomizationKind, SessionStatus } from '../../../../contrib/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../contrib/sessions/common/sessionsManagement.js';
 import { ISessionHost, SessionHostKind } from '../../../../contrib/sessions/browser/sessionHost.js';

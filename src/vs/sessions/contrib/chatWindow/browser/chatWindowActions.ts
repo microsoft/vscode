@@ -37,7 +37,7 @@ import { CHAT_WINDOW_OPEN_BROWSER_COMMAND_ID, CHAT_WINDOW_OPEN_CHANGES_COMMAND_I
 import { ISessionHostService, SessionHostKind } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { IChat } from '../../../../workbench/contrib/sessions/common/session.js';
 import { IHostSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { SessionChangesEditorInput } from '../../changes/browser/sessionChangesEditorInput.js';
+import { SessionChangesEditorInput } from '../../../../workbench/contrib/sessions/browser/changes/sessionChangesEditorInput.js';
 import { ISessionChangesService } from '../../../../workbench/contrib/sessions/common/sessionChangesService.js';
 import { EmptyFileEditorInput } from '../../editor/browser/emptyFileEditorInput.js';
 

@@ -38,7 +38,7 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { SessionSyncChangesActionViewItem, SessionSyncChangesContribution } from '../../browser/sessionSyncChanges.js';
 import '../../../../../base/browser/ui/actionbar/actionbar.css';
 import '../../../../../workbench/browser/media/style.css';
-import '../../../chat/browser/media/chatWidget.css';
+import '../../../../../workbench/contrib/sessions/browser/chat/media/chatWidget.css';
 import { stubMissingSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 

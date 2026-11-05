@@ -55,8 +55,8 @@ import { DevContainerWorktreeEnabledSettingId, isDevContainerWorktreeEnabled } f
 import { SessionIdContext, SessionProviderIdContext, IsPhoneLayoutContext, IsQuickChatSessionContext, SessionUsesExperimentalComposerLayoutContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { reportNewChatPickerClosed } from '../../../../../workbench/contrib/sessions/browser/newChatPickerTelemetry.js';
-import { NEW_WORKTREE_LABEL } from '../../../chat/browser/branchPicker.js';
-import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
+import { NEW_WORKTREE_LABEL } from '../../../../../workbench/contrib/sessions/browser/chat/branchPicker.js';
+import { ISessionChangesService } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesService.js';
 import { CHANGES_VIEW_ID } from '../../../../../workbench/contrib/sessions/common/changes.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IHostSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
@@ -85,8 +85,8 @@ import { BRANCH_PICKER_MAX_VISIBLE_ITEMS, ensureSelectedBranchPickerItem, filter
 import { CodexSessionConfigKey } from '../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
 import { type IChat, type ISessionChangeset, type ISessionFileChange, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { IUncommittedChangesListItem, IWorktreeSuggestion, IWorktreeSuggestionService } from '../../../worktreeSuggestion/browser/worktreeSuggestionService.js';
-import { getChangedFileUri, getUncommittedFilesDescription, getUncommittedFilesSectionLabel } from '../../../worktreeSuggestion/browser/worktreeSuggestionPresentation.js';
+import { IUncommittedChangesListItem, IWorktreeSuggestion, IWorktreeSuggestionService } from '../../../../../workbench/contrib/sessions/browser/worktreeSuggestion/worktreeSuggestionService.js';
+import { getChangedFileUri, getUncommittedFilesDescription, getUncommittedFilesSectionLabel } from '../../../../../workbench/contrib/sessions/browser/worktreeSuggestion/worktreeSuggestionPresentation.js';
 import { WorktreeSuggestionVariant } from '../../../../../workbench/contrib/sessions/common/worktreeSuggestion.js';
 
 const ExperimentalSessionComposerLayout = SessionUsesExperimentalComposerLayoutContext;

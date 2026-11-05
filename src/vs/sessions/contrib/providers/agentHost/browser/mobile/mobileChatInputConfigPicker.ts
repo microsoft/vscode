@@ -33,8 +33,8 @@ import { ISessionsProvidersService } from '../../../../../../workbench/contrib/s
 import { IFocusedSessionHostService, ISessionChatSource, ISessionHost } from '../../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { isWellKnownModeSchema } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostPermissionPickerDelegate.js';
 import { getAgentHostModeIcon } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostModeIcon.js';
-import { INewChatModelPickerService } from '../../../../chat/browser/newChatModelPicker.js';
-import { ISessionModelSelection } from '../../../../chat/browser/sessionModelSelection.js';
+import { INewChatModelPickerService } from '../../../../../../workbench/contrib/sessions/browser/chat/newChatModelPicker.js';
+import { ISessionModelSelection } from '../../../../../../workbench/contrib/sessions/browser/chat/sessionModelSelection.js';
 import { reportNewChatPickerClosed } from '../../../../../../workbench/contrib/sessions/browser/newChatPickerTelemetry.js';
 import { createChatPhoneInputSessionContext, createChatPhoneInputTarget, matchesChatPhoneInputTarget } from '../../../../../../workbench/contrib/sessions/browser/chatPhoneInputContext.js';
 

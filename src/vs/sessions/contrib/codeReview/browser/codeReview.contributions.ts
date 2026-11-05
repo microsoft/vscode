@@ -21,8 +21,8 @@ import { CodeReviewService } from './codeReviewService.js';
 import { ICodeReviewService } from '../../../../workbench/contrib/sessions/browser/codeReviewService.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
-import { SessionChangesEditorInput } from '../../changes/browser/sessionChangesEditorInput.js';
-import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
+import { SessionChangesEditorInput } from '../../../../workbench/contrib/sessions/browser/changes/sessionChangesEditorInput.js';
+import { ISessionChangesService } from '../../../../workbench/contrib/sessions/browser/changes/sessionChangesService.js';
 
 registerSingleton(ICodeReviewService, CodeReviewService, InstantiationType.Delayed);
 

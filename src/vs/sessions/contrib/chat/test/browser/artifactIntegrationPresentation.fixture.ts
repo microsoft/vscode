@@ -32,9 +32,9 @@ import { chartsBlue, chartsForeground, chartsGreen, chartsOrange, chartsPurple, 
 import { ChatPillsRow, ChatPillsWidget, IChatPillEntry, withChatPillHoverLabel } from '../../../../../workbench/browser/chatPills.js';
 import '../../../../../workbench/browser/media/style.css';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureDomCondition } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
-import { ArtifactIntegrationPresentation } from '../../browser/artifactIntegrationPresentation.js';
-import { ArtifactIntegrationGroup, IArtifactIntegrationGroupMember } from '../../browser/artifactIntegrationGroup.js';
-import { ArtifactDetailsContextView } from '../../browser/artifactDetailsContextView.js';
+import { ArtifactIntegrationPresentation } from '../../../../../workbench/contrib/sessions/browser/chat/artifactIntegrationPresentation.js';
+import { ArtifactIntegrationGroup, IArtifactIntegrationGroupMember } from '../../../../../workbench/contrib/sessions/browser/chat/artifactIntegrationGroup.js';
+import { ArtifactDetailsContextView } from '../../../../../workbench/contrib/sessions/browser/chat/artifactDetailsContextView.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatRequestViewModel, IChatViewModel } from '../../../../../workbench/contrib/chat/common/model/chatViewModel.js';

@@ -74,7 +74,7 @@ import { AbstractChatView, IChatViewRequestOutcome } from '../../../../workbench
 import { IChatViewFactory } from '../../../../workbench/contrib/sessions/browser/chatViewFactory.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { WelcomeName } from '../../chat/browser/welcomeName.js';
+import { WelcomeName } from '../../../../workbench/contrib/sessions/browser/chat/welcomeName.js';
 import { createSessionSummaryHover, getSessionSummaryHoverData } from '../../sessions/browser/sessionHoverContent.js';
 import { getChatSessionArtifacts, IChat, ISession } from '../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
