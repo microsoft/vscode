@@ -8,8 +8,11 @@ import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { constObservable, derived, IObservable, IReader } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { localize } from '../../../../nls.js';
+import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { GroupIdentifier } from '../../../../workbench/common/editor.js';
 import { IEditorGroup } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IChat } from '../common/session.js';
@@ -183,6 +186,27 @@ export function getMainWindowHost(sessionHostService: ISessionHostService): ISes
 	return host;
 }
 
+/**
+ * The host the main window's UI injects as {@link ISessionHost}, through {@link createMainWindowInstantiationService}: the
+ * grid's host, the instance the sessions service owns, not another one. Its constructor returns that instance; it has no
+ * state of its own. The grid host is not disposable, so disposing the services disposes nothing twice.
+ */
+export interface MainWindowSessionHost extends ISessionHost { }
+export class MainWindowSessionHost {
+	constructor(@ISessionHostService sessionHostService: ISessionHostService) {
+		return getMainWindowHost(sessionHostService);
+	}
+}
+
+/**
+ * A child of `instantiationService` for the main window's parts, whose UI injects the main window's host as
+ * {@link ISessionHost}. The root has none, so a root singleton cannot inject it. The caller disposes it.
+ */
+export function createMainWindowInstantiationService(instantiationService: IInstantiationService): IInstantiationService {
+	// Not delayed: a delayed service is a proxy, not the grid host itself. Resolved on first use, after the sessions service.
+	return instantiationService.createChild(new ServiceCollection([ISessionHost, new SyncDescriptor(MainWindowSessionHost, [], false)]));
+}
+
 /** The chat `host` shows, with its session, once it shows both. */
 export function shownChatOf(host: ISessionHost, reader?: IReader): IShownChat | undefined {
 	const session = reader ? host.session.read(reader) : host.session.get();
@@ -193,6 +217,33 @@ export function shownChatOf(host: ISessionHost, reader?: IReader): IShownChat | 
 /** The menu options of the toolbars and button bars a host creates, so their commands act on the host. */
 export function createHostMenuOptions(host: ISessionHost): { readonly arg: ISessionHostCommandContext; readonly shouldForwardArgs: true } {
 	return { arg: host.commandContext, shouldForwardArgs: true };
+}
+
+/**
+ * Whether a context is that of a session host's scope, whose services provide {@link ISessionHost}. Items of workbench-wide
+ * menus, such as the chat input's, that act on the host show only there, and not in chat inputs outside session hosts,
+ * such as Quick Chat's.
+ */
+export const InSessionHostScopeContext = new RawContextKey<boolean>('inSessionHostScope', false, localize('inSessionHostScope', "Whether the context is that of a session host's scope."));
+
+/**
+ * The services of the scope of `host`, with `contextKeyService` as its context: binds {@link InSessionHostScopeContext}
+ * on it, so the context has the key only where its scope provides the host.
+ */
+export function createSessionHostServices(contextKeyService: IContextKeyService, host: ISessionHost): ServiceCollection {
+	InSessionHostScopeContext.bindTo(contextKeyService).set(true);
+	return new ServiceCollection([IContextKeyService, contextKeyService], [ISessionHost, host]);
+}
+
+/**
+ * Binds {@link InSessionHostScopeContext} on the context of `instantiationService`, a session host's scope whose services
+ * were collected elsewhere, such as a chat window's. Throws when the scope provides no host.
+ */
+export function bindSessionHostScopeContext(instantiationService: IInstantiationService): void {
+	instantiationService.invokeFunction(accessor => {
+		accessor.get(ISessionHost);
+		InSessionHostScopeContext.bindTo(accessor.get(IContextKeyService)).set(true);
+	});
 }
 
 let hostIds = 0;

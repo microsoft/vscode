@@ -14,7 +14,6 @@ import { URI } from '../../../base/common/uri.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { IAgentsWindowDraft } from '../../../platform/window/common/window.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
-import { ServiceCollection } from '../../../platform/instantiation/common/serviceCollection.js';
 import { IContextKey, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
@@ -23,7 +22,7 @@ import { AbstractChatView, IChatViewOptions, ISelectNoWorkspaceOptions, ISession
 import { ChatGroupsView } from './chatGroupsView.js';
 import { SessionHeader, SessionViewFloatingToolbar } from './sessionHeader.js';
 import { ChatViewSessionActivityBar } from './sessionActivityBar.js';
-import { ActiveSessionHost, ISessionHost, ISessionHostService, SessionHostKind } from '../../services/sessions/browser/sessionHost.js';
+import { ActiveSessionHost, createSessionHostServices, ISessionHost, ISessionHostService, SessionHostKind } from '../../services/sessions/browser/sessionHost.js';
 import { autorun, derived, disposableObservableValue, IObservable, observableFromEvent, observableValue, runOnChange } from '../../../base/common/observable.js';
 import { SessionIsMaximizedContext } from '../../common/contextkeys.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../common/layoutConstants.js';
@@ -153,10 +152,7 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 		// action view items (e.g. the changes diff stats in the header) can read it.
 		this.host = new ActiveSessionHost({ kind: SessionHostKind.Pane, parent: parentHost, session: this._sessionObs, contextKeyService: scopedContextKeyService });
 		this._register(sessionHostService.registerHost(this.host));
-		this._scopedInstantiationService = this._register(instantiationService.createChild(new ServiceCollection(
-			[IContextKeyService, scopedContextKeyService],
-			[ISessionHost, this.host],
-		)));
+		this._scopedInstantiationService = this._register(instantiationService.createChild(createSessionHostServices(scopedContextKeyService, this.host)));
 
 		// Expose the content cap so aligned chat surfaces do not duplicate it.
 		this.element.style.setProperty('--session-view-centered-content-max-width', `${SessionView.CENTERED_CONTENT_MAX_WIDTH}px`);

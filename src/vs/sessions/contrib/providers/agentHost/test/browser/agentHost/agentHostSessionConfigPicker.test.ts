@@ -67,7 +67,7 @@ import { NullWorktreeSuggestionService, TestWorktreeSuggestionService } from '..
 import { WorktreeSuggestionVariant } from '../../../../../worktreeSuggestion/common/worktreeSuggestion.js';
 import { IChatSessionFileChange2 } from '../../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import '../../../../../chat/browser/media/chatWidget.css';
-import { ISessionHost, sessionChatSourceOf } from '../../../../../../services/sessions/browser/sessionHost.js';
+import { InSessionHostScopeContext, ISessionHost, sessionChatSourceOf } from '../../../../../../services/sessions/browser/sessionHost.js';
 
 const SESSION_ID = 'local-agent-host:s1';
 const SESSION_RESOURCE = URI.parse('agent-session:/s1');
@@ -899,6 +899,8 @@ suite('Agent Host Session Config Picker', () => {
 		];
 		const context = new Context(1, null);
 		context.setValue(ChatContextKeys.chatIsAgentHostSession.key, true);
+		// The chat input of a session host's scope.
+		context.setValue(InSessionHostScopeContext.key, true);
 		const visible = (menu: MenuId) => MenuRegistry.getMenuItems(menu)
 			.filter(isIMenuItem)
 			.filter(item => runningSessionIds.includes(item.command.id))

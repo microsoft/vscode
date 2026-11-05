@@ -33,7 +33,7 @@ import { ISessionsProvidersService } from '../../../../services/sessions/browser
 import { IChat, ISession, ISessionAgentRef, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IHostSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ModePicker, ScopedModePickerModelCache } from '../../copilotChatSessions/browser/modePicker.js';
-import { IFocusedSessionHostService, ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
+import { IFocusedSessionHostService, InSessionHostScopeContext, ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IAction } from '../../../../../base/common/actions.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -134,7 +134,7 @@ registerAction2(class extends Action2 {
 				group: 'navigation',
 				order: 0,
 				// Hide the agent picker while a delegation (continue in) target is pending.
-				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, IsSessionsWindowContext, IsPhoneLayoutContext.negate(), ChatContextKeys.hasPendingDelegationTarget.negate()),
+				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, IsSessionsWindowContext, InSessionHostScopeContext, IsPhoneLayoutContext.negate(), ChatContextKeys.hasPendingDelegationTarget.negate()),
 			}],
 		});
 	}
@@ -312,6 +312,7 @@ export class AgentHostAgentPickerContribution extends Disposable implements IWor
 		this._register(actionViewItemService.register(Menus.NewSessionChatInputToolbar, AGENT_HOST_AGENT_PICKER_ACTION_ID, createFactory(true)));
 		this._register(actionViewItemService.register(Menus.NewSessionControl, AGENT_HOST_AGENT_PICKER_ACTION_ID, createFactory(true)));
 		this._register(actionViewItemService.register(Menus.AutomationsDialogInputToolbar, AGENT_HOST_AGENT_PICKER_ACTION_ID, createFactory(false)));
+		// The chat input's menu is the workbench's: its item shows only in session host scopes (InSessionHostScopeContext).
 		this._register(actionViewItemService.register(MenuId.ChatInput, AGENT_HOST_AGENT_PICKER_ACTION_ID, createFactory(true)));
 	}
 

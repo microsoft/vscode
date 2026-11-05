@@ -12,20 +12,8 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { GroupIdentifier } from '../../../../workbench/common/editor.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
-import { IFocusedSessionHostService, ISessionHost, ISessionHostService, hostShows, SessionHostKind } from './sessionHost.js';
+import { getMainWindowHost, IFocusedSessionHostService, ISessionHost, ISessionHostService, hostShows, SessionHostKind } from './sessionHost.js';
 import { ISessionsService } from './sessionsService.js';
-
-/**
- * The host the main window's UI injects as {@link ISessionHost}: the grid's host, the instance the sessions service owns,
- * not another one. Its constructor returns that instance; it has no state of its own. The grid host is not disposable, so
- * disposing the services disposes nothing twice. Temporary: C10 removes it with the root registration.
- */
-export interface MainWindowSessionHost extends ISessionHost { }
-export class MainWindowSessionHost {
-	constructor(@ISessionsService sessionsService: ISessionsService) {
-		return sessionsService.gridHost;
-	}
-}
 
 /** Whether a host owns what it shows: windows and panes do, while composers and dialogs only draft in them. */
 function ownsContent(host: ISessionHost): boolean {
@@ -108,7 +96,6 @@ export class FocusedSessionHostService extends Disposable implements IFocusedSes
 
 	constructor(
 		@ISessionHostService private readonly _sessionHostService: ISessionHostService,
-		@ISessionHost private readonly _mainWindowHost: ISessionHost,
 		@IHostService private readonly _hostService: IHostService,
 	) {
 		super();
@@ -118,7 +105,7 @@ export class FocusedSessionHostService extends Disposable implements IFocusedSes
 		// While the host of the window that gained focus is still loading, as a chat window does while it restores, the
 		// previously focused host stays focused until it has loaded.
 		this.focusedHost = derivedObservableWithCache<ISessionHost>(this, (reader, previous) => {
-			const host = _sessionHostService.getHostOfWindow(this._focusedWindowId.read(reader), reader) ?? _mainWindowHost;
+			const host = _sessionHostService.getHostOfWindow(this._focusedWindowId.read(reader), reader) ?? getMainWindowHost(_sessionHostService);
 			return this._loadingFallback(host, previous, reader);
 		});
 		// Observed for the service's lifetime, so the previously focused host is always known.
@@ -138,12 +125,10 @@ export class FocusedSessionHostService extends Disposable implements IFocusedSes
 		if (!this._hostService.hasFocus) {
 			return this.focusedHost.get();
 		}
-		const host = this._sessionHostService.getHostOfWindow(getActiveWindow().vscodeWindowId) ?? this._mainWindowHost;
+		const host = this._sessionHostService.getHostOfWindow(getActiveWindow().vscodeWindowId) ?? getMainWindowHost(this._sessionHostService);
 		return this._loadingFallback(host, this.focusedHost.get(), undefined);
 	}
 }
 
-// Eager: a delayed service is a proxy, not the grid host itself.
-registerSingleton(ISessionHost, MainWindowSessionHost, InstantiationType.Eager);
 registerSingleton(ISessionHostService, SessionHostService, InstantiationType.Delayed);
 registerSingleton(IFocusedSessionHostService, FocusedSessionHostService, InstantiationType.Delayed);

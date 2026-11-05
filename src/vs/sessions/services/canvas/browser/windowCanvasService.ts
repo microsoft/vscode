@@ -26,6 +26,7 @@ import { IEditorService } from '../../../../workbench/services/editor/common/edi
 import { ILifecycleService } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { ICanvasWorkingSets } from '../../../../workbench/contrib/canvases/common/canvas.js';
 import { ICustomViewService } from '../../customView/browser/customViewService.js';
+import { createMainWindowInstantiationService } from '../../sessions/browser/sessionHost.js';
 
 export interface IWindowCanvas extends IDisposable {
 	render(container: HTMLElement): void;
@@ -369,6 +370,12 @@ export class WindowCanvasService extends Disposable implements IWindowCanvasServ
 		}
 	}
 
+	private _mainWindowInstantiationService: IInstantiationService | undefined;
+	/** Canvases show in the main window only: their content is the main window's UI, created once. */
+	private get mainWindowInstantiationService(): IInstantiationService {
+		return this._mainWindowInstantiationService ??= this._register(createMainWindowInstantiationService(this.instantiationService));
+	}
+
 	getPresentation(input: WindowCanvasInput): IWindowCanvasPresentation {
 		const entry = this.entries.get(input.descriptor.id);
 		if (!entry || entry.input !== input || !this.descriptors.has(input.descriptor.id)) {
@@ -379,7 +386,7 @@ export class WindowCanvasService extends Disposable implements IWindowCanvasServ
 			const store = entry.store.add(new DisposableStore());
 			try {
 				const context = store.add(this.contextKeyService.createScoped(element));
-				const instantiationService = store.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, context])));
+				const instantiationService = store.add(this.mainWindowInstantiationService.createChild(new ServiceCollection([IContextKeyService, context])));
 				const content = store.add(instantiationService.createInstance<IWindowCanvas>(input.descriptor.ctor));
 				content.render(element);
 				entry.presentation = { element, content };

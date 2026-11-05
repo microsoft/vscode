@@ -60,7 +60,7 @@ import { ISessionChangesService } from '../../../changes/browser/sessionChangesS
 import { CHANGES_VIEW_ID } from '../../../changes/common/changes.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IHostSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { getFocusedSessionChatSource, IFocusedSessionHostService, ISessionChatSource, ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
+import { getFocusedSessionChatSource, IFocusedSessionHostService, InSessionHostScopeContext, ISessionChatSource, ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import type { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { type IAgentHostSessionsProvider, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_RE } from '../../../../common/agentHostSessionsProvider.js';
@@ -2079,6 +2079,7 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 				));
 			},
 		));
+		// The chat input's menus are the workbench's: their items show only in session host scopes (InSessionHostScopeContext).
 		const registerRunningSessionPicker = (actionId: string, factory: IActionViewItemFactory) => {
 			this._register(actionViewItemService.register(MenuId.ChatInput, actionId, factory));
 			this._register(actionViewItemService.register(MenuId.ChatInputSecondary, actionId, factory));
@@ -2371,12 +2372,12 @@ registerAction2(class extends Action2 {
 				id: MenuId.ChatInput,
 				group: 'navigation',
 				order: 0.2,
-				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, ExperimentalSessionComposerLayout),
+				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, ExperimentalSessionComposerLayout),
 			}, {
 				id: MenuId.ChatInputSecondary,
 				group: 'navigation',
 				order: 10,
-				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, LegacySessionComposerLayout),
+				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, LegacySessionComposerLayout),
 			}],
 		});
 	}
@@ -2396,12 +2397,12 @@ registerAction2(class extends Action2 {
 				id: MenuId.ChatInput,
 				group: 'navigation',
 				order: 0.3,
-				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, ExperimentalSessionComposerLayout),
+				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, ExperimentalSessionComposerLayout),
 			}, {
 				id: MenuId.ChatInputSecondary,
 				group: 'navigation',
 				order: 11,
-				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, LegacySessionComposerLayout),
+				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, LegacySessionComposerLayout),
 			}],
 		});
 	}
@@ -2426,12 +2427,12 @@ registerAction2(class extends Action2 {
 				id: MenuId.ChatInput,
 				group: 'navigation',
 				order: 0.4,
-				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, ExperimentalSessionComposerLayout),
+				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, ExperimentalSessionComposerLayout),
 			}, {
 				id: MenuId.ChatInputSecondary,
 				group: 'navigation',
 				order: 12,
-				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, LegacySessionComposerLayout),
+				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, LegacySessionComposerLayout),
 			}],
 		});
 	}
@@ -2456,6 +2457,7 @@ registerAction2(class extends Action2 {
 				order: 0.1,
 				when: ContextKeyExpr.and(
 					ChatContextKeyExprs.isAgentHostSession,
+					InSessionHostScopeContext,
 					ChatContextKeys.hasPendingDelegationTarget.negate(),
 					ExperimentalSessionComposerLayout,
 				),
@@ -2466,6 +2468,7 @@ registerAction2(class extends Action2 {
 				// Hide the agent mode picker while a delegation (continue in) target is pending.
 				when: ContextKeyExpr.and(
 					ChatContextKeyExprs.isAgentHostSession,
+					InSessionHostScopeContext,
 					ChatContextKeys.hasPendingDelegationTarget.negate(),
 					LegacySessionComposerLayout,
 				),

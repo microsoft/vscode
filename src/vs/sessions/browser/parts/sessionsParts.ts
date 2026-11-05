@@ -18,6 +18,7 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { ISessionGridSlot, ISessionsPartService, IToggleMaximizeSessionEvent, SessionGridRequest } from '../../services/sessions/browser/sessionsPartService.js';
 import { Direction } from '../../../base/browser/ui/grid/grid.js';
 import { IAgentWorkbenchLayoutService } from '../workbench.js';
+import { createMainWindowInstantiationService } from '../../services/sessions/browser/sessionHost.js';
 
 /**
  * Owns the lifecycle of the {@link SessionsPart}. Selects the mobile vs. desktop
@@ -56,7 +57,8 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 			? layoutService.initialViewportClass === 'phone'
 			: getClientArea(mainWindow.document.body).width < 640;
 
-		this._mainPart = this._register(instantiationService.createInstance(isPhoneLayout ? MobileSessionsPart : SessionsPart));
+		const mainWindowInstantiationService = this._register(createMainWindowInstantiationService(instantiationService));
+		this._mainPart = this._register(mainWindowInstantiationService.createInstance(isPhoneLayout ? MobileSessionsPart : SessionsPart));
 	}
 
 	updateVisibleSessions(visible: readonly (IActiveSession | undefined)[], active: IActiveSession | undefined, slots?: readonly ISessionGridSlot[], request?: SessionGridRequest): void {

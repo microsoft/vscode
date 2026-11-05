@@ -1695,19 +1695,15 @@ export class ChatViewFactory implements IChatViewFactory {
 	declare readonly _serviceBrand: undefined;
 	protected readonly viewOptions: IChatViewOptions = {};
 
-	constructor(
-		@IInstantiationService protected readonly instantiationService: IInstantiationService
-	) { }
-
 	get inputEditorOptions(): IChatViewOptions['inputEditorOptions'] {
 		return this.viewOptions.inputEditorOptions;
 	}
 
-	createNewChatView(isNewChatInSession: boolean, options: IChatViewOptions, instantiationService = this.instantiationService): AbstractChatView {
+	createNewChatView(isNewChatInSession: boolean, options: IChatViewOptions, instantiationService: IInstantiationService): AbstractChatView {
 		return instantiationService.createInstance(NewChatView, isNewChatInSession, { ...this.viewOptions, ...options });
 	}
 
-	createChatView(instantiationService = this.instantiationService, options: IChatViewOptions = {}): AbstractChatView {
+	createChatView(instantiationService: IInstantiationService, options: IChatViewOptions = {}): AbstractChatView {
 		return instantiationService.createInstance(ChatView, { ...this.viewOptions, ...options });
 	}
 }

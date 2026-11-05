@@ -2901,7 +2901,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		}
 
 		if (!this.detailChat.value) {
-			const view = this.detailChat.value = this.chatViewFactory.createChatView(undefined, { inputOnly: true, renderChatPet: false });
+			const view = this.detailChat.value = this.chatViewFactory.createChatView(this.instantiationService, { inputOnly: true, renderChatPet: false });
 			this.detailChatElement.appendChild(view.element);
 			view.setPrimary(false, true);
 			view.setActive(true);

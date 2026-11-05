@@ -9,8 +9,7 @@ import { autorun, constObservable, derived, IObservable, observableFromEvent, ob
 import { localize } from '../../../../nls.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
-import { ActiveSessionHost, ISessionHost, ISessionHostService, SessionHostKind } from '../../../services/sessions/browser/sessionHost.js';
+import { ActiveSessionHost, createSessionHostServices, ISessionHost, ISessionHostService, SessionHostKind } from '../../../services/sessions/browser/sessionHost.js';
 import { IChat } from '../../../services/sessions/common/session.js';
 import { ISessionChangesStatsCache } from '../../../services/sessions/common/sessionChangesStatsCache.js';
 import { setActiveSessionContextKeys } from '../../../services/sessions/common/sessionContextKeys.js';
@@ -69,10 +68,7 @@ export class ChatEditorContent extends Disposable {
 		SessionInChatEditorContext.bindTo(scopedContextKeyService).set(true);
 		this.host = new ActiveSessionHost({ kind: SessionHostKind.Pane, parent: parentHost, session: this._session, contextKeyService: scopedContextKeyService });
 		this._register(sessionHostService.registerHost(this.host));
-		const scopedInstantiationService = this._register(instantiationService.createChild(new ServiceCollection(
-			[IContextKeyService, scopedContextKeyService],
-			[ISessionHost, this.host],
-		)));
+		const scopedInstantiationService = this._register(instantiationService.createChild(createSessionHostServices(scopedContextKeyService, this.host)));
 		this._register(autorun(reader => setActiveSessionContextKeys(this._session.read(reader), scopedContextKeyService, reader, changesStatsCache)));
 
 		this._headerContainer = $('.session-view-centered-content');

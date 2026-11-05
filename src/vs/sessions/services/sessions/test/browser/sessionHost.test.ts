@@ -229,10 +229,10 @@ suite('SessionHost', () => {
 	});
 
 	test('the focused host follows the window that gains focus and stays while the app is in the background; commands read DOM focus', () => {
-		const { service, mainHost } = createService();
+		const { service } = createService();
 		disposables.add(service.registerHost(host(SessionHostKind.ChatWindow, undefined, constObservable(sessionAInWindow), { windowId: CHAT_WINDOW_ID })));
 		const onDidChangeActiveWindow = disposables.add(new Emitter<number>());
-		const focused = disposables.add(new FocusedSessionHostService(service, mainHost, upcastPartial<IHostService>({ hasFocus: true, onDidChangeActiveWindow: onDidChangeActiveWindow.event })));
+		const focused = disposables.add(new FocusedSessionHostService(service, upcastPartial<IHostService>({ hasFocus: true, onDidChangeActiveWindow: onDidChangeActiveWindow.event })));
 
 		const initially = describe(focused.focusedHost.get());
 		onDidChangeActiveWindow.fire(CHAT_WINDOW_ID);
@@ -250,12 +250,12 @@ suite('SessionHost', () => {
 	});
 
 	test('a chat window that gains focus before its host knows its window becomes the focused host once it does', () => {
-		const { service, mainHost } = createService();
+		const { service } = createService();
 		const windowId = observableValue<number | undefined>('windowId', undefined);
 		const chatWindow = new ActiveSessionHost({ kind: SessionHostKind.ChatWindow, parent: undefined, session: constObservable(sessionAInWindow), contextKeyService, windowId });
 		disposables.add(service.registerHost(chatWindow));
 		const onDidChangeActiveWindow = disposables.add(new Emitter<number>());
-		const focused = disposables.add(new FocusedSessionHostService(service, mainHost, upcastPartial<IHostService>({ hasFocus: true, onDidChangeActiveWindow: onDidChangeActiveWindow.event })));
+		const focused = disposables.add(new FocusedSessionHostService(service, upcastPartial<IHostService>({ hasFocus: true, onDidChangeActiveWindow: onDidChangeActiveWindow.event })));
 
 		onDidChangeActiveWindow.fire(CHAT_WINDOW_ID);
 		const beforeBind = describe(focused.focusedHost.get());
@@ -266,11 +266,11 @@ suite('SessionHost', () => {
 	});
 
 	test('while the focused window restores its chat, the previously focused host stays focused until it has loaded', () => {
-		const { service, mainHost } = createService();
+		const { service } = createService();
 		const windowSession = observableValue<IActiveSession | undefined>('window', undefined);
 		disposables.add(service.registerHost(host(SessionHostKind.ChatWindow, undefined, windowSession, { windowId: CHAT_WINDOW_ID, loadingChat: sideChat.resource })));
 		const onDidChangeActiveWindow = disposables.add(new Emitter<number>());
-		const focused = disposables.add(new FocusedSessionHostService(service, mainHost, upcastPartial<IHostService>({ hasFocus: false, onDidChangeActiveWindow: onDidChangeActiveWindow.event })));
+		const focused = disposables.add(new FocusedSessionHostService(service, upcastPartial<IHostService>({ hasFocus: false, onDidChangeActiveWindow: onDidChangeActiveWindow.event })));
 		const snapshot = () => ({ focused: describe(focused.focusedHost.get()), chat: focused.focusedHost.get().chat.get()?.resource.toString() });
 
 		onDidChangeActiveWindow.fire(CHAT_WINDOW_ID);
@@ -285,11 +285,11 @@ suite('SessionHost', () => {
 	});
 
 	test('while the app is in the background, commands act on the window that last had focus', () => {
-		const { service, mainHost } = createService();
+		const { service } = createService();
 		disposables.add(service.registerHost(host(SessionHostKind.ChatWindow, undefined, constObservable(sessionAInWindow), { windowId: CHAT_WINDOW_ID })));
 		const onDidChangeActiveWindow = disposables.add(new Emitter<number>());
 		let hasFocus = true;
-		const focused = disposables.add(new FocusedSessionHostService(service, mainHost, upcastPartial<IHostService>({ get hasFocus() { return hasFocus; }, onDidChangeActiveWindow: onDidChangeActiveWindow.event })));
+		const focused = disposables.add(new FocusedSessionHostService(service, upcastPartial<IHostService>({ get hasFocus() { return hasFocus; }, onDidChangeActiveWindow: onDidChangeActiveWindow.event })));
 
 		onDidChangeActiveWindow.fire(CHAT_WINDOW_ID);
 		hasFocus = false;

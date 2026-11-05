@@ -82,7 +82,7 @@ import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/service
 import { ChatHostOpenerService, IChatHostOpenerService } from '../../browser/chatHostOpener.js';
 import { SessionActivatingActionRunner } from '../../../../browser/sessionActionRunner.js';
 import { SessionHostService } from '../../browser/sessionHostService.js';
-import { getMainWindowHost, ISessionHost, SessionHostKind } from '../../browser/sessionHost.js';
+import { createMainWindowInstantiationService, getMainWindowHost, ISessionHost, ISessionHostService, SessionHostKind } from '../../browser/sessionHost.js';
 import { IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { getSingletonServiceDescriptors } from '../../../../../platform/instantiation/common/extensions.js';
 import { InstantiationService } from '../../../../../platform/instantiation/common/instantiationService.js';
@@ -496,14 +496,25 @@ suite('SessionsManagementService', () => {
 			}, { chats: [main.resource.toString(), child.resource.toString()], active: child.resource.toString() });
 		});
 
-		test('the grid host is one instance: the one the host lookups register and the main window\'s UI injects, showing the grid\'s active pane', async () => {
+		test('the grid host is one instance: the one the host lookups register and the main window\'s UI injects, showing the grid\'s active pane; the root has none', async () => {
 			const a = created('a');
 			const b = created('b');
 			const { view } = harness([a, b]);
 			const sessionHostService = disposables.add(new SessionHostService(view, upcastPartial<IEditorGroupsService>({ getGroup: () => undefined })));
-			// Resolved as the main window's UI resolves it: through its registration.
-			const registration = getSingletonServiceDescriptors().find(([id]) => id === ISessionHost)![1];
-			const injected = disposables.add(new InstantiationService(new ServiceCollection([ISessionsService, view], [ISessionHost, registration]))).invokeFunction(accessor => accessor.get(ISessionHost));
+			// Resolved as the main window's UI resolves it: through the main window's instantiation service.
+			// Strict, as the workbench's: it rejects a service it does not know.
+			const root = disposables.add(new InstantiationService(new ServiceCollection([ISessionsService, view], [ISessionHostService, sessionHostService]), true));
+			const injected = disposables.add(createMainWindowInstantiationService(root)).invokeFunction(accessor => accessor.get(ISessionHost));
+			class RootConsumer {
+				constructor(@ISessionHost readonly host: ISessionHost) { }
+			}
+			let rootInjection: string;
+			try {
+				root.createInstance(RootConsumer);
+				rootInjection = 'created';
+			} catch {
+				rootInjection = 'throws';
+			}
 			await view.openSession(a.resource);
 			await view.openSessionsAt([b], a.sessionId, 'right', { activate: false });
 			const shownBefore = view.gridHost.session.get()?.sessionId;
@@ -515,9 +526,11 @@ suite('SessionsManagementService', () => {
 				disposable: (view.gridHost as Partial<IDisposable>).dispose !== undefined,
 				hosts: sessionHostService.hosts.get().filter(host => host.kind === SessionHostKind.MainWindow).length,
 				injected: injected === view.gridHost,
+				rootRegistration: getSingletonServiceDescriptors().some(([id]) => id === ISessionHost),
+				rootInjection,
 				shownBefore,
 				shownAfter: view.gridHost.session.get()?.sessionId,
-			}, { registered: true, mainWindowHost: true, disposable: false, hosts: 1, injected: true, shownBefore: 'a', shownAfter: 'b' });
+			}, { registered: true, mainWindowHost: true, disposable: false, hosts: 1, injected: true, rootRegistration: false, rootInjection: 'throws', shownBefore: 'a', shownAfter: 'b' });
 		});
 
 		test('the active pane is always one of the grid panes: a detached pane, a draft and a quick chat', async () => {

@@ -36,7 +36,7 @@ import { CustomViewVisibleContext } from '../../../common/contextkeys.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../../../common/layoutConstants.js';
 import { SESSION_ACTIVITY_BAR_SETTING } from '../../../common/sessionConfig.js';
 import { SessionsChatSurface } from '../../../services/chatBackground/browser/sessionsChatSurface.js';
-import { ActiveSessionHost, getMainWindowHost, ISessionHost, ISessionHostService, SessionHostKind } from '../../../services/sessions/browser/sessionHost.js';
+import { ActiveSessionHost, bindSessionHostScopeContext, getMainWindowHost, ISessionHost, ISessionHostService, SessionHostKind } from '../../../services/sessions/browser/sessionHost.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IChatHostOpenerService } from '../../../services/sessions/browser/chatHostOpener.js';
 import { IChat, ISession } from '../../../services/sessions/common/session.js';
@@ -450,6 +450,8 @@ export class SessionsChatWindowContent extends Disposable implements IChatWindow
 
 		// The keys of the session it shows on the window's context, as the main window binds those of its own session.
 		const contextKeyService = instantiationService.invokeFunction(accessor => accessor.get(IContextKeyService));
+		// The window's scope provides its host: what applies in session host scopes shows in it.
+		bindSessionHostScopeContext(instantiationService);
 		this._windowContextKeyService = contextKeyService;
 		store.add(toDisposable(() => this._windowContextKeyService = undefined));
 		CustomViewVisibleContext.bindTo(contextKeyService).set(false);
