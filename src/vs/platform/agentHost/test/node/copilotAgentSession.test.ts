@@ -18464,6 +18464,23 @@ Use the attached image as context.
 				});
 			});
 
+			test('shows a queued request in a provider-initiated turn', async () => {
+				const { session, runtime, mockSession, signals } = await createAgentSession(disposables);
+				const response = runtime.handlePermissionRequest(request);
+				await timeout(0);
+				const beforeTurn = getActions(signals).length;
+				mockSession.fire('user.message', {
+					content: 'Run the extension command.',
+					messageId: 'provider-message',
+					turnId: 'provider-sdk-turn',
+				} as SessionEventPayload<'user.message'>['data']);
+				await timeout(0);
+				const ready = consentReady(signals);
+				session.respondToPermissionRequest(ready.toolCallId, true, { selectedOptionId: 'allow-once' });
+				const started = getActions(signals).find(action => action.type === ActionType.ChatTurnStarted);
+				assert.deepStrictEqual({ beforeTurn, sameTurn: ready.turnId === started?.turnId, answer: await response }, { beforeTurn: 0, sameTurn: true, answer: { kind: 'approve-once' } });
+			});
+
 			test('stored denial is silent and Allow Once covers repeated session requests without writing settings', async () => {
 				const denied = await createAgentSession(disposables, { rootValues: { [AgentHostExtensionPermissionApprovalsConfigKey]: { [identity]: 'deny' } } });
 				const deniedAnswer = await denied.runtime.handlePermissionRequest(request);

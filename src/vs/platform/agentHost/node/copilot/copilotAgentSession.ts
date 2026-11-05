@@ -2733,6 +2733,10 @@ export class CopilotAgentSession extends Disposable {
 		if (activeSdkTurnId) {
 			this._recordHostSdkTurn(activeSdkTurnId, newTurnId);
 		}
+		// The SDK already runs this turn with the permission mode of the turn it preempted.
+		if (turn) {
+			this._markPermissionPromptsReady(turn);
+		}
 	}
 
 	/**
@@ -2763,6 +2767,7 @@ export class CopilotAgentSession extends Disposable {
 		if (turn) {
 			turn.messageCharLen = event.data.content.length;
 			turn.markRunning();
+			this._markPermissionPromptsReady(turn);
 		}
 	}
 
@@ -6921,9 +6926,14 @@ export class CopilotAgentSession extends Disposable {
 		await this._syncShellInitScript(recorder);
 		await this._reconcileMcpServerEnablement(recorder);
 		if (turn && turn === this._currentTurn.value && !abortToken.isCancellationRequested) {
-			turn.permissionPromptsReady = true;
-			this._onPermissionTurnReady.fire();
+			this._markPermissionPromptsReady(turn);
 		}
+	}
+
+	/** Lets requests that wait for a turn, such as extension consent, show their confirmation in `turn`. */
+	private _markPermissionPromptsReady(turn: CopilotTurn): void {
+		turn.permissionPromptsReady = true;
+		this._onPermissionTurnReady.fire();
 	}
 
 	/**
