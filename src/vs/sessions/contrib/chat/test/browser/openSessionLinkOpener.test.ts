@@ -217,11 +217,13 @@ suite('OpenSessionLinkOpenerContribution', () => {
 		const sessionResource = URI.parse('copilotcli:/session-1');
 		const chatResource = sessionResource.with({ fragment: 'chat-2' });
 		const clickedChat = URI.parse('copilotcli:/session-0');
-		const mainChat = upcastPartial<IChat>({ resource: sessionResource, isArchived: observableValue('mainArchived', false) });
+		const mainArchived = observableValue('mainArchived', false);
+		const mainChat = upcastPartial<IChat>({ resource: sessionResource, isArchived: mainArchived });
 		const chatArchived = observableValue('chatArchived', false);
 		const chat = upcastPartial<IChat>({ resource: chatResource, isArchived: chatArchived });
+		const loading = observableValue('loading', false);
 		const chats = observableValue<readonly IChat[]>('chats', [mainChat, chat]);
-		const session = upcastPartial<ISession>({ resource: sessionResource, mainChat: observableValue('mainChat', mainChat), chats, loading: observableValue('loading', false) });
+		const session = upcastPartial<ISession>({ resource: sessionResource, mainChat: observableValue('mainChat', mainChat), chats, loading });
 		const sessionsManagementService = new class extends mock<ISessionsManagementService>() {
 			override getSessions(): ISession[] {
 				return [session];
@@ -290,6 +292,16 @@ suite('OpenSessionLinkOpenerContribution', () => {
 		chats.set([], undefined);
 		await registeredOpener.open(link, { fromUserGesture: true, sourceWindowId: 42 });
 		chats.set([mainChat, chat], undefined);
+		// A main chat the loading session does not list yet, archived, and not
+		const mainLink = buildOpenSessionLinkUri(sessionResource);
+		chats.set([chat], undefined);
+		loading.set(true, undefined);
+		mainArchived.set(true, undefined);
+		await registeredOpener.open(mainLink, { fromUserGesture: true, sourceWindowId: 42 });
+		mainArchived.set(false, undefined);
+		await registeredOpener.open(mainLink, { fromUserGesture: true, sourceWindowId: 42 });
+		chats.set([mainChat, chat], undefined);
+		loading.set(false, undefined);
 		// A link of a chat window while chat windows are off
 		await configurationService.setUserConfiguration(CHAT_WINDOWS_ENABLED_SETTING, false);
 		await registeredOpener.open(link, { fromUserGesture: true, sourceWindowId: 42 });
@@ -302,6 +314,8 @@ suite('OpenSessionLinkOpenerContribution', () => {
 			'main:copilotcli:/session-1#chat-2',
 			'main:copilotcli:/session-1#chat-2',
 			'main:copilotcli:/session-1#chat-2',
+			'main:copilotcli:/session-1',
+			`window:copilotcli:/session-1:tabOf=${clickedChat}:beside=undefined:in=true`,
 			'main:copilotcli:/session-1#chat-2',
 		]);
 	});

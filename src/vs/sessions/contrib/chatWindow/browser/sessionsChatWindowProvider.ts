@@ -274,7 +274,7 @@ class SessionsChatWindowChat extends Disposable implements IChatWindowChat, ISes
 				owner.session.loading.read(reader);
 			}
 			this._knownSession = owner.session;
-			if (owner.chat.isArchived.read(reader)) {
+			if (isChatWindowChatGone(owner.session, chatResource, reader)) {
 				this._end();
 				return;
 			}
