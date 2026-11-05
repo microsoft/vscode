@@ -140,10 +140,33 @@ import '../../../../contrib/chat/browser/aiCustomization/customizationMarketplac
 import { ISecretStorageService } from '../../../../../platform/secrets/common/secrets.js';
 import '../../../../contrib/chat/browser/aiCustomization/copilotCanvases.contribution.js';
 import { TestSecretStorageService } from '../../../../../platform/secrets/test/common/testSecretStorageService.js';
+import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 
 // ============================================================================
 // Mock helpers
 // ============================================================================
+
+/** Describes the badge of the contributed Extensions section in a fixture. */
+interface IFixtureExtensionsSectionBadge {
+	readonly _serviceBrand: undefined;
+	readonly badge: IObservable<string | undefined>;
+}
+
+const IFixtureExtensionsSectionBadge = createDecorator<IFixtureExtensionsSectionBadge>('fixtureExtensionsSectionBadge');
+
+// The explorer mounts the fixtures of a folder together, and they share the section registry, which returns the first
+// contribution of a section. So the Extensions section is registered once, and each fixture supplies its badge with its
+// own services.
+aiCustomizationManagementSectionRegistry.register({
+	id: AICustomizationManagementSection.Extensions,
+	label: 'Extensions',
+	icon: Codicon.extensions,
+	description: 'Choose which installed extensions run in the Agents window.',
+	separatorBefore: true,
+	supportsHarness: () => true,
+	getBadge: accessor => accessor.get(IFixtureExtensionsSectionBadge).badge,
+	create: () => ({ dispose: () => { } }),
+});
 
 const userHome = URI.file('/home/dev');
 const BUILTIN_STORAGE = 'builtin';
@@ -1265,6 +1288,8 @@ interface IRenderEditorOptions {
 	readonly pluginMarketplaceMigration?: boolean;
 	readonly pluginMarketplaceMigrationOnly?: boolean;
 	readonly pluginMarketplaceMigrationDeselected?: boolean;
+	/** Describes the badge of the contributed Extensions section, which shows none unless given. */
+	readonly extensionsSectionBadge?: string;
 }
 
 // ============================================================================
@@ -1492,6 +1517,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			const sourceEnabled = () => configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) === true;
 			ctx.disposableStore.add({ dispose: () => configurationService.onDidChangeConfigurationEmitter.dispose() });
 			registerWorkbenchServices(reg);
+			reg.defineInstance(IFixtureExtensionsSectionBadge, { _serviceBrand: undefined, badge: constObservable(options.extensionsSectionBadge) });
 			if (options.migrationConfirmation) {
 				reg.defineInstance(IDialogService, new class extends mock<IDialogService>() {
 					override confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
@@ -3747,36 +3773,25 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// Sessions variant whose contributed section shows a badge in the navigation list.
 	SessionsContributedSectionBadge: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		render: ctx => {
-			ctx.disposableStore.add(aiCustomizationManagementSectionRegistry.register({
-				id: AICustomizationManagementSection.Extensions,
-				label: 'Extensions',
-				icon: Codicon.extensions,
-				description: 'Choose which installed extensions run in the Agents window.',
-				separatorBefore: true,
-				supportsHarness: () => true,
-				getBadge: () => constObservable('Some installed extensions can be enabled in the Agents window.'),
-				create: () => ({ dispose: () => { } }),
-			}));
-			return renderEditor(ctx, {
-				sessionResource: localSessionResource,
-				isSessionsWindow: true,
-				selectedSection: AICustomizationManagementSection.Agents,
-				availableHarnesses: [
-					createVSCodeHarnessDescriptor(),
-				],
-				managementSections: [
-					AICustomizationManagementSection.Plugins,
-					AICustomizationManagementSection.McpServers,
-					AICustomizationManagementSection.Skills,
-					AICustomizationManagementSection.Instructions,
-					AICustomizationManagementSection.Agents,
-					AICustomizationManagementSection.Hooks,
-					AICustomizationManagementSection.Tools,
-					AICustomizationManagementSection.Extensions,
-				],
-			});
-		},
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			isSessionsWindow: true,
+			selectedSection: AICustomizationManagementSection.Agents,
+			availableHarnesses: [
+				createVSCodeHarnessDescriptor(),
+			],
+			managementSections: [
+				AICustomizationManagementSection.Plugins,
+				AICustomizationManagementSection.McpServers,
+				AICustomizationManagementSection.Skills,
+				AICustomizationManagementSection.Instructions,
+				AICustomizationManagementSection.Agents,
+				AICustomizationManagementSection.Hooks,
+				AICustomizationManagementSection.Tools,
+				AICustomizationManagementSection.Extensions,
+			],
+			extensionsSectionBadge: 'Some installed extensions can be enabled in the Agents window.',
+		}),
 	}),
 
 	// Sessions variant whose contributed section after the separator is selected in the navigation list.
@@ -3784,36 +3799,26 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		labels: { kind: 'screenshot', blocksCi: false },
 		expectedVisualDescriptions: [
 			'In the navigation list, a thin divider separates Hooks from the selected Extensions entry. The divider is not inside the selection background of Extensions, which has the same height and the same space above and below its label as the backgrounds of the other entries.',
+			'The Extensions entry shows no badge.',
 		],
-		render: ctx => {
-			ctx.disposableStore.add(aiCustomizationManagementSectionRegistry.register({
-				id: AICustomizationManagementSection.Extensions,
-				label: 'Extensions',
-				icon: Codicon.extensions,
-				description: 'Choose which installed extensions run in the Agents window.',
-				separatorBefore: true,
-				supportsHarness: () => true,
-				create: () => ({ dispose: () => { } }),
-			}));
-			return renderEditor(ctx, {
-				sessionResource: localSessionResource,
-				isSessionsWindow: true,
-				selectedSection: AICustomizationManagementSection.Extensions,
-				availableHarnesses: [
-					createVSCodeHarnessDescriptor(),
-				],
-				managementSections: [
-					AICustomizationManagementSection.Plugins,
-					AICustomizationManagementSection.McpServers,
-					AICustomizationManagementSection.Skills,
-					AICustomizationManagementSection.Instructions,
-					AICustomizationManagementSection.Agents,
-					AICustomizationManagementSection.Hooks,
-					AICustomizationManagementSection.Tools,
-					AICustomizationManagementSection.Extensions,
-				],
-			});
-		},
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			isSessionsWindow: true,
+			selectedSection: AICustomizationManagementSection.Extensions,
+			availableHarnesses: [
+				createVSCodeHarnessDescriptor(),
+			],
+			managementSections: [
+				AICustomizationManagementSection.Plugins,
+				AICustomizationManagementSection.McpServers,
+				AICustomizationManagementSection.Skills,
+				AICustomizationManagementSection.Instructions,
+				AICustomizationManagementSection.Agents,
+				AICustomizationManagementSection.Hooks,
+				AICustomizationManagementSection.Tools,
+				AICustomizationManagementSection.Extensions,
+			],
+		}),
 	}),
 
 	// Sessions Skills tab showing UI Integration badges on built-in skills
