@@ -1188,18 +1188,16 @@ suite('AgentService (node dispatcher)', () => {
 		const session = await service.createSession({ legacyChatUris: false, provider: 'copilot' });
 		const sessionChannel = session.toString();
 		const chatChannel = getStateManager(service).getDefaultChat(sessionChannel)!;
-		getStateManager(service).dispatchServerAction(sessionChannel, {
-			type: ActionType.SessionInputNeededSet,
-			request: {
-				kind: SessionInputRequestKind.ExtensionPermission,
-				id: 'extension-permission-1',
-				extensionName: 'plugin:test-extension:test-extension',
-				capabilities: ['register hooks'],
-				options: [
-					{ id: 'allow-once', label: 'Allow', kind: ConfirmationOptionKind.Approve },
-					{ id: 'deny', label: 'Deny', kind: ConfirmationOptionKind.Deny },
-				],
-			},
+		copilotAgent.fireProgress({
+			kind: 'session_permission_requested',
+			session,
+			requestId: 'extension-permission-1',
+			extensionName: 'plugin:test-extension:test-extension',
+			capabilities: ['register hooks'],
+			options: [
+				{ id: 'allow-once', label: 'Allow', kind: ConfirmationOptionKind.Approve },
+				{ id: 'deny', label: 'Deny', kind: ConfirmationOptionKind.Deny },
+			],
 		});
 		const dispatch = async (channel: string, requestId: string, clientSeq: number, approved: boolean, selectedOptionId?: string) => {
 			const envelopePromise = Event.toPromise(Event.filter(service.onDidAction, envelope => envelope.origin?.clientSeq === clientSeq));
