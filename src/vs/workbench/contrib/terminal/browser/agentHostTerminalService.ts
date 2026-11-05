@@ -6,11 +6,13 @@
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
+import { isWeb } from '../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
+import { IRemoteAgentHostService } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { ITerminalLogService } from '../../../../platform/terminal/common/terminal.js';
@@ -39,12 +41,6 @@ export interface IAgentHostEntry {
 	readonly address: string;
 	/** Getter for the connection (may be lazily resolved). */
 	readonly getConnection: () => IAgentConnection | undefined;
-	/**
-	 * Returns the name to show for the host on its terminals, through the `${host}` variable
-	 * in terminal titles and descriptions. It is read when each terminal is created, so new
-	 * terminals show the host's current name. Leave unset for a host on this computer.
-	 */
-	readonly getTerminalHostLabel?: () => string | undefined;
 }
 
 export interface IAgentHostTerminalProfileInfo {
@@ -182,6 +178,7 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 		@ITerminalProfileService private readonly _terminalProfileService: ITerminalProfileService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
+		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
 	) {
 		super();
 	}
@@ -511,9 +508,19 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 		return this._entries.find(entry => entry.getConnection()?.clientId === clientId)?.address;
 	}
 
-	/** The label of the host that owns the given connection, for the terminals created on it. */
+	/**
+	 * The name of the remote agent host that owns the given connection, for the terminals created on it,
+	 * like `${local}` marks a local terminal in a remote window. Looked up here rather than per entry
+	 * because regular windows have no entry for the remote hosts of their chat sessions. Read when each
+	 * terminal is created, so new terminals show the host's current name. Desktop only: on the web,
+	 * the Agents window shows one host at a time, so the name would repeat on every terminal.
+	 */
 	private _getHostLabel(connection: IAgentConnection): string | undefined {
-		return this._entries.find(entry => entry.getConnection()?.clientId === connection.clientId)?.getTerminalHostLabel?.();
+		if (isWeb) {
+			return undefined;
+		}
+		const host = this._remoteAgentHostService.connections.find(info => info.clientId === connection.clientId);
+		return host && (host.name || host.address);
 	}
 
 	isCommandExecuting(instance: ITerminalInstance): boolean | undefined {

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
-import { isWeb } from '../../../../../base/common/platform.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { IAgentHostTerminalService } from '../../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
@@ -43,9 +42,6 @@ class RemoteAgentHostTerminalContribution extends Disposable {
 					name: info.name || info.address,
 					address: info.address,
 					getConnection: () => connection,
-					// Like a local terminal in a remote window, mark the terminals that run on another
-					// machine than the window's. On the web, the window shows one host at a time.
-					getTerminalHostLabel: isWeb ? undefined : () => this._getName(info.address),
 				}));
 			}
 		}
@@ -56,11 +52,6 @@ class RemoteAgentHostTerminalContribution extends Disposable {
 				this._remoteEntries.deleteAndDispose(address);
 			}
 		}
-	}
-
-	/** The host's current name. A host can be renamed while it is connected, which only fires `onDidChangeDisplayName`. */
-	private _getName(address: string): string {
-		return this._remoteAgentHostService.connections.find(info => info.address === address)?.name || address;
 	}
 }
 

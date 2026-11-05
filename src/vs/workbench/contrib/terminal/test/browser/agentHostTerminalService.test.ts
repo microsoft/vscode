@@ -7,11 +7,13 @@ import assert from 'assert';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, IReference } from '../../../../../base/common/lifecycle.js';
+import { isWeb } from '../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
+import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType } from '../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { TerminalClaimKind } from '../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -118,12 +120,14 @@ suite('AgentHostTerminalService', () => {
 	let terminalService: TestTerminalService;
 	let connection: TestAgentConnection;
 	let profileProviders: Map<string, ITerminalProfileProvider>;
+	let remoteHosts: IRemoteAgentHostConnectionInfo[];
 	let service: AgentHostTerminalService;
 
 	setup(() => {
 		terminalService = new TestTerminalService(store);
 		connection = new TestAgentConnection();
 		profileProviders = new Map();
+		remoteHosts = [];
 		service = store.add(new AgentHostTerminalService(
 			terminalService,
 			new class extends mock<ITerminalChatService>() {
@@ -139,6 +143,7 @@ suite('AgentHostTerminalService', () => {
 			},
 			new class extends mock<IQuickInputService>() { },
 			new class extends NullLogService { readonly _logBrand = undefined; },
+			new class extends mock<IRemoteAgentHostService>() { override readonly connections = remoteHosts; },
 		));
 	});
 
@@ -150,23 +155,22 @@ suite('AgentHostTerminalService', () => {
 		await profileProviders.get('__local__')!.createContributedTerminalProfile({});
 		await service.reviveTerminal(connection, URI.parse('agenthost-terminal:/tool-terminal'), 'tool-session');
 
-		let remoteName = 'devbox';
+		// Like a chat session in a regular window, which has no entry for the remote host it runs on.
 		const remote = new TestAgentConnection('remote-client');
-		const remoteEntry = service.registerEntry({ name: 'devbox', address: 'ssh://devbox', getConnection: () => remote, getTerminalHostLabel: () => remoteName });
+		remoteHosts.push({ address: 'ssh://devbox', name: 'devbox', clientId: remote.clientId, status: RemoteAgentHostConnectionStatus.connected });
 		await service.createTerminal(remote);
 		// The host is renamed while it stays connected.
-		remoteName = 'buildbox';
+		remoteHosts[0] = { ...remoteHosts[0], name: 'buildbox' };
 		await service.reviveTerminal(remote, URI.parse('agenthost-terminal:/remote-tool-terminal'), 'remote-tool-session');
-		// The host disconnects, before the suite's store disposes the service.
-		remoteEntry.dispose();
 
+		// The host is named on desktop only.
 		assert.deepStrictEqual(terminalService.createdConfigs.map(({ name, icon, hostLabel }) => ({ name, icon, hostLabel })), [
 			{ name: undefined, icon: undefined, hostLabel: undefined },
 			{ name: 'Task: build', icon: undefined, hostLabel: undefined },
 			{ name: undefined, icon: undefined, hostLabel: undefined },
 			{ name: undefined, icon: ThemeIcon.fromId(Codicon.chatSparkle.id), hostLabel: undefined },
-			{ name: undefined, icon: undefined, hostLabel: 'devbox' },
-			{ name: undefined, icon: ThemeIcon.fromId(Codicon.chatSparkle.id), hostLabel: 'buildbox' },
+			{ name: undefined, icon: undefined, hostLabel: isWeb ? undefined : 'devbox' },
+			{ name: undefined, icon: ThemeIcon.fromId(Codicon.chatSparkle.id), hostLabel: isWeb ? undefined : 'buildbox' },
 		]);
 	});
 
