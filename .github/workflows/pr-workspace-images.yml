@@ -394,7 +394,7 @@ jobs:
   # job. The cache key hashes the files that define the distribution, so that the shard of a commit that changes them
   # builds the distribution instead; the shard restores the newest entry of its key.
   wsl-distro:
-    name: Windows (WSL distribution)
+    name: Windows (WSL distro)
     if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-windows-2022-x64, "JobId=wsl-distro-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
     timeout-minutes: 30
