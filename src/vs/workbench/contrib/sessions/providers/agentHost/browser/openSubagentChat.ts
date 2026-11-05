@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { ResourceMap } from '../../../../../base/common/map.js';
-import { autorun, derived, IReader } from '../../../../../base/common/observable.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
-import { MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
-import { getAgentHostChatId, isAhpChatChannel, parseSubagentSessionUri } from '../../../../../platform/agentHost/common/state/sessionState.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IWorkbenchContribution } from '../../../../../workbench/common/contributions.js';
-import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID } from '../../../../../workbench/contrib/chat/common/constants.js';
-import { IOpenSubagentChatContext, OpenSubagentChatActionViewItem, shouldShowSubagentModel, subagentChatOpenerRegistry } from '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatSubagentOpenChat.js';
-import { fillSessionChatDragData } from '../../../../../workbench/contrib/sessions/browser/dnd.js';
-import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { isAgentHostProvider } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
-import { IHostSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { ISessionHostService, SessionHostKind } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
-import { IChat } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { Emitter } from '../../../../../../base/common/event.js';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../../../base/common/map.js';
+import { autorun, derived, IReader } from '../../../../../../base/common/observable.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { IActionViewItemService } from '../../../../../../platform/actions/browser/actionViewItemService.js';
+import { MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
+import { getAgentHostChatId, isAhpChatChannel, parseSubagentSessionUri } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { IWorkbenchContribution } from '../../../../../common/contributions.js';
+import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID } from '../../../../chat/common/constants.js';
+import { IOpenSubagentChatContext, OpenSubagentChatActionViewItem, shouldShowSubagentModel, subagentChatOpenerRegistry } from '../../../../chat/browser/widget/chatContentParts/chatSubagentOpenChat.js';
+import { fillSessionChatDragData } from '../../../browser/dnd.js';
+import { ISessionsService } from '../../../browser/sessionsService.js';
+import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
+import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
+import { IHostSession } from '../../../common/sessionsManagement.js';
+import { ISessionHostService, SessionHostKind } from '../../../browser/sessionHost.js';
+import { IChat } from '../../../common/session.js';
 
 export { OpenSubagentChatActionViewItem, shouldShowSubagentModel };
 

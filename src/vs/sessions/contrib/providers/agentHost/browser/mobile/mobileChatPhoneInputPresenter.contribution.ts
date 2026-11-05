@@ -4,6 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../../workbench/common/contributions.js';
-import { MobileChatPhoneInputPresenterContribution } from './mobileChatPhoneInputPresenter.js';
+import { MobileChatPhoneInputPresenterContribution } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/mobile/mobileChatPhoneInputPresenter.js';
 
 registerWorkbenchContribution2(MobileChatPhoneInputPresenterContribution.ID, MobileChatPhoneInputPresenterContribution, WorkbenchPhase.AfterRestored);

@@ -7,7 +7,7 @@ import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
-import { AgentHostAgentPickerAction, AgentHostAgentPickerContribution, AgentHostAgentPickerKeybindingContext, OPEN_AGENT_HOST_AGENT_PICKER_COMMAND_ID, openActiveAgentHostAgentPicker } from './agentHostAgentPicker.js';
+import { AgentHostAgentPickerAction, AgentHostAgentPickerContribution, AgentHostAgentPickerKeybindingContext, OPEN_AGENT_HOST_AGENT_PICKER_COMMAND_ID, openActiveAgentHostAgentPicker } from '../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostAgentPicker.js';
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: OPEN_AGENT_HOST_AGENT_PICKER_COMMAND_ID,

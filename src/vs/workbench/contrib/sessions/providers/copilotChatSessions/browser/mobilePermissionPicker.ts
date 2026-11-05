@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from '../../../../../base/common/uri.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
-import { localize } from '../../../../../nls.js';
-import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
-import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
-import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
-import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { IStorageService } from '../../../../../platform/storage/common/storage.js';
-import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
-import { ChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
-import { getPermissionLevelBadge } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
-import { IPermissionPickerDelegate, PermissionPicker } from '../../../../../workbench/contrib/sessions/providers/copilotChatSessions/browser/permissionPicker.js';
-import { isPhoneLayout } from '../../../../../workbench/contrib/sessions/browser/mobileLayout.js';
-import { IMobilePickerSheetItem, showMobilePickerSheet } from '../../../../../workbench/contrib/sessions/browser/mobile/mobilePickerSheet.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
+import { localize } from '../../../../../../nls.js';
+import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
+import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { IWorkbenchLayoutService } from '../../../../../services/layout/browser/layoutService.js';
+import { ChatPermissionLevel } from '../../../../chat/common/constants.js';
+import { getPermissionLevelBadge } from '../../../../chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
+import { IPermissionPickerDelegate, PermissionPicker } from './permissionPicker.js';
+import { isPhoneLayout } from '../../../browser/mobileLayout.js';
+import { IMobilePickerSheetItem, showMobilePickerSheet } from '../../../browser/mobile/mobilePickerSheet.js';
 
 const LEARN_MORE_ID = 'learn-more';
 

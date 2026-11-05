@@ -4,23 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/connectionDiagnostics.css';
-import * as dom from '../../../../../base/browser/dom.js';
-import { Gesture } from '../../../../../base/browser/touch.js';
-import { Button } from '../../../../../base/browser/ui/button/button.js';
-import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
-import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
-import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
-import { Emitter } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
-import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { localize } from '../../../../../nls.js';
-import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
-import { IMobileContentSheetApi, showMobileContentSheet } from '../../../../../workbench/contrib/sessions/browser/mobile/mobilePickerSheet.js';
-import { ConnectionHostManagementAction, IConnectionDiagnosticsService, IConnectionDiagnosticsSnapshot, IConnectionHostManagementEntry } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/connectionDiagnostics.js';
+import * as dom from '../../../../../../base/browser/dom.js';
+import { Gesture } from '../../../../../../base/browser/touch.js';
+import { Button } from '../../../../../../base/browser/ui/button/button.js';
+import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { VSBuffer } from '../../../../../../base/common/buffer.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
+import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
+import { Emitter } from '../../../../../../base/common/event.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import { localize } from '../../../../../../nls.js';
+import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { defaultButtonStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
+import { IMobileContentSheetApi, showMobileContentSheet } from '../../../browser/mobile/mobilePickerSheet.js';
+import { ConnectionHostManagementAction, IConnectionDiagnosticsService, IConnectionDiagnosticsSnapshot, IConnectionHostManagementEntry } from './connectionDiagnostics.js';
 
 export class ConnectionDiagnosticsReport extends Disposable {
 	private readonly _onDidChangeFocusTargets = this._register(new Emitter<void>());

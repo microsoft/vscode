@@ -13,7 +13,7 @@ import { IChatEntitlementService } from '../../../../../../workbench/services/ch
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureCondition } from '../../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { IAgentHostFilterService } from '../../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
 import { IConnectionDiagnosticsService, IConnectionDiagnosticsSnapshot, ShowConnectionDiagnosticsCommandId } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/connectionDiagnostics.js';
-import { showConnectionDiagnosticsSheet } from '../../browser/connectionDiagnosticsReport.js';
+import { showConnectionDiagnosticsSheet } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/connectionDiagnosticsReport.js';
 import { MobileHostFilterActionViewItem } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/mobileHostFilterActionViewItem.js';
 
 const snapshotContent: Omit<IConnectionDiagnosticsSnapshot, 'text'> = {

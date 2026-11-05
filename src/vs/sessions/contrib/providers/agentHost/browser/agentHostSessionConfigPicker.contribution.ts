@@ -5,7 +5,7 @@
 
 import { registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
-import { AgentHostSessionConfigPickerContribution, NewSessionApprovePickerAction, NewSessionCodexApprovalsPickerAction, NewSessionModePickerAction, NewSessionPermissionModePickerAction, RunningSessionCodexApprovalsPickerAction, RunningSessionConfigPickerAction, RunningSessionModePickerAction, RunningSessionPermissionModePickerAction } from './agentHostSessionConfigPicker.js';
+import { AgentHostSessionConfigPickerContribution, NewSessionApprovePickerAction, NewSessionCodexApprovalsPickerAction, NewSessionModePickerAction, NewSessionPermissionModePickerAction, RunningSessionCodexApprovalsPickerAction, RunningSessionConfigPickerAction, RunningSessionModePickerAction, RunningSessionPermissionModePickerAction } from '../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostSessionConfigPicker.js';
 
 registerAction2(NewSessionApprovePickerAction);
 registerAction2(NewSessionPermissionModePickerAction);

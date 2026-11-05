@@ -26,7 +26,7 @@ import { ISessionInputPickerVisibility, SessionInputPickerVisibility } from '../
 import { IActiveSession } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { ISessionChangesService } from '../../../../../../workbench/contrib/sessions/browser/changes/sessionChangesService.js';
-import { AgentHostSessionConfigPicker } from '../../browser/agentHostSessionConfigPicker.js';
+import { AgentHostSessionConfigPicker } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostSessionConfigPicker.js';
 import { IWorktreeSuggestionService } from '../../../../../../workbench/contrib/sessions/browser/worktreeSuggestion/worktreeSuggestionService.js';
 import { NullWorktreeSuggestionService } from '../../../../../../workbench/contrib/sessions/test/browser/worktreeSuggestion/worktreeSuggestionTestUtils.js';
 import '../../../../../../workbench/contrib/sessions/browser/chat/media/chatWidget.css';

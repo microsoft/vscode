@@ -240,7 +240,7 @@ src/vs/workbench/contrib/sessions/providers/agentHost/browser/agentHostAutomatio
 src/vs/sessions/contrib/providers/agentHost/test/browser/agentHostAutomationStore.test.ts
 src/vs/workbench/contrib/sessions/providers/agentHost/test/browser/agentHostSettingsFileSystemProvider.test.ts
 src/vs/workbench/contrib/sessions/providers/agentHost/test/browser/agentSessionSettingsFileSystemProvider.test.ts
-src/vs/sessions/contrib/providers/copilotChatSessions/test/browser/permissionPicker.test.ts
+src/vs/workbench/contrib/sessions/providers/copilotChatSessions/test/browser/permissionPicker.test.ts
 src/vs/sessions/contrib/providers/remoteAgentHost/browser/cloudSandboxApiService.ts
 src/vs/sessions/electron-browser/sessions.ts
 src/vs/sessions/test/browser/chatGroupsView.test.ts

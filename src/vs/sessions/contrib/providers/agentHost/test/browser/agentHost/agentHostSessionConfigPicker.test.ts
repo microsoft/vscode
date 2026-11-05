@@ -59,7 +59,7 @@ import { ISessionsService } from '../../../../../../../workbench/contrib/session
 import { IActiveSession } from '../../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IChat, ISessionChangeset, ISessionChangesetOperationTarget, ISessionWorkspace, SessionChangesetOperationScope, SessionChangesetOperationStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
-import { AgentHostSessionConfigPicker, AgentHostSessionConfigPickerContribution, IConfigPickerItem, PickerActionViewItem } from '../../../browser/agentHostSessionConfigPicker.js';
+import { AgentHostSessionConfigPicker, AgentHostSessionConfigPickerContribution, IConfigPickerItem, PickerActionViewItem } from '../../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostSessionConfigPicker.js';
 import { getWindow } from '../../../../../../../base/browser/dom.js';
 import { createStyleSheet } from '../../../../../../../base/browser/domStylesheets.js';
 import { ENVIRONMENT_PICKER_SETTING } from '../../../../../../../workbench/contrib/sessions/common/chatConstants.js';

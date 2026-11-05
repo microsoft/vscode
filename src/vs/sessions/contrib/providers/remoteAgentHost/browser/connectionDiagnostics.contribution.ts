@@ -28,7 +28,7 @@ import { isPhoneLayout } from '../../../../../workbench/contrib/sessions/browser
 import { IConnectionDiagnosticsService, IConnectionDiagnosticsSnapshot, ShowConnectionDiagnosticsCommandId } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/connectionDiagnostics.js';
 import { ConnectionDiagnosticsService } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/connectionDiagnosticsService.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
-import { ConnectionDiagnosticsReport, showConnectionDiagnosticsSheet } from './connectionDiagnosticsReport.js';
+import { ConnectionDiagnosticsReport, showConnectionDiagnosticsSheet } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/connectionDiagnosticsReport.js';
 
 const connectionDiagnosticsFocused = new RawContextKey<boolean>('connectionDiagnosticsFocused', false);
 

@@ -4,32 +4,32 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { EventType } from '../../../../../../base/browser/dom.js';
-import { Action } from '../../../../../../base/common/actions.js';
-import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
-import { URI } from '../../../../../../base/common/uri.js';
-import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { IActionViewItemFactory, IActionViewItemService } from '../../../../../../platform/actions/browser/actionViewItemService.js';
-import { MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
-import { buildSubagentChatUri } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
-import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatConfiguration } from '../../../../../../workbench/contrib/chat/common/constants.js';
-import { ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
-import { workbenchInstantiationService } from '../../../../../../workbench/test/browser/workbenchTestServices.js';
-import { ISessionsService } from '../../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { ISessionHost, ISessionHostService } from '../../../../../../workbench/contrib/sessions/browser/sessionHost.js';
-import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
-import { ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
-import { IChat } from '../../../../../../workbench/contrib/sessions/common/session.js';
-import { IActiveSession } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { EventType } from '../../../../../../../base/browser/dom.js';
+import { Action } from '../../../../../../../base/common/actions.js';
+import { Emitter, Event } from '../../../../../../../base/common/event.js';
+import { Disposable, DisposableStore } from '../../../../../../../base/common/lifecycle.js';
+import { constObservable, observableValue } from '../../../../../../../base/common/observable.js';
+import { URI } from '../../../../../../../base/common/uri.js';
+import { mock, upcastPartial } from '../../../../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
+import { IActionViewItemFactory, IActionViewItemService } from '../../../../../../../platform/actions/browser/actionViewItemService.js';
+import { MenuId, MenuItemAction } from '../../../../../../../platform/actions/common/actions.js';
+import { buildSubagentChatUri } from '../../../../../../../platform/agentHost/common/state/sessionState.js';
+import { CommandsRegistry } from '../../../../../../../platform/commands/common/commands.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatConfiguration } from '../../../../../chat/common/constants.js';
+import { ILanguageModelsService } from '../../../../../chat/common/languageModels.js';
+import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
+import { ISessionsService } from '../../../../browser/sessionsService.js';
+import { ISessionHost, ISessionHostService } from '../../../../browser/sessionHost.js';
+import { ISessionsProvidersService } from '../../../../browser/sessionsProvidersService.js';
+import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
+import { ISessionsProvider } from '../../../../common/sessionsProvider.js';
+import { IChat } from '../../../../common/session.js';
+import { IActiveSession } from '../../../../common/sessionsManagement.js';
 import { OpenSubagentChatActionViewItem, OpenSubagentChatActionViewItemContribution, shouldShowSubagentModel } from '../../browser/openSubagentChat.js';
-import { ITestSessionsService } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionsService } from '../../../../test/browser/sessionHostTestUtils.js';
 
 class TestOpenSubagentChatActionViewItem extends OpenSubagentChatActionViewItem {
 	get tooltip(): string | undefined {

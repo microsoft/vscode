@@ -3,35 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ThemeIcon } from '../../../../../../base/common/themables.js';
-import { Disposable, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
-import { derived, IObservable } from '../../../../../../base/common/observable.js';
-import { localize } from '../../../../../../nls.js';
-import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
-import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
-import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
-import { observableContextKey } from '../../../../../../platform/observable/common/platformObservableUtils.js';
-import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IWorkbenchContribution } from '../../../../../../workbench/common/contributions.js';
-import { IToggleChatModeArgs, ToggleAgentModeActionId } from '../../../../../../workbench/contrib/chat/browser/actions/chatExecuteActions.js';
-import { ChatPetAchievementIds, didExplicitlyEnableChatPetAutopilot } from '../../../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
-import { IChatPetService } from '../../../../../../workbench/contrib/chat/browser/chatPetService.js';
-import { ChatPhoneInputPresenterRequest, IChatPhoneInputPresenter, IChatPhoneInputSessionContext, IChatPhonePresenterImpl } from '../../../../../../workbench/contrib/chat/browser/widget/input/chatPhoneInputPresenter.js';
-import { IModePickerDelegate } from '../../../../../../workbench/contrib/chat/browser/widget/input/modePickerActionItem.js';
-import { IModelPickerDelegate } from '../../../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerActionItem.js';
-import { getModelProviderIcon } from '../../../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelProviderIcons.js';
-import { IChatMode } from '../../../../../../workbench/contrib/chat/common/chatModes.js';
-import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
-import { IWorkbenchLayoutService } from '../../../../../../workbench/services/layout/browser/layoutService.js';
-import { type IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
-import { IFocusedSessionHostService } from '../../../../../../workbench/contrib/sessions/browser/sessionHost.js';
-import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { showMobilePickerSheet, IMobilePickerSheetItem } from '../../../../../../workbench/contrib/sessions/browser/mobile/mobilePickerSheet.js';
-import { getAgentHostModeIcon } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostModeIcon.js';
-import { isWellKnownModeSchema, isWellKnownModeValue } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostPermissionPickerDelegate.js';
-import { normalizeModelPickerOptions } from '../../../../../../workbench/contrib/sessions/browser/chat/sessionModelPickerState.js';
-import { createChatPhoneInputSessionContext, createChatPhoneInputTarget, IChatPhoneInputTarget, matchesChatPhoneInputTarget } from '../../../../../../workbench/contrib/sessions/browser/chatPhoneInputContext.js';
+import { ThemeIcon } from '../../../../../../../base/common/themables.js';
+import { Disposable, IDisposable, MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { derived, IObservable } from '../../../../../../../base/common/observable.js';
+import { localize } from '../../../../../../../nls.js';
+import { SessionConfigKey } from '../../../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
+import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
+import { observableContextKey } from '../../../../../../../platform/observable/common/platformObservableUtils.js';
+import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
+import { IUriIdentityService } from '../../../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IWorkbenchContribution } from '../../../../../../common/contributions.js';
+import { IToggleChatModeArgs, ToggleAgentModeActionId } from '../../../../../chat/browser/actions/chatExecuteActions.js';
+import { ChatPetAchievementIds, didExplicitlyEnableChatPetAutopilot } from '../../../../../chat/browser/chatPetAchievements.js';
+import { IChatPetService } from '../../../../../chat/browser/chatPetService.js';
+import { ChatPhoneInputPresenterRequest, IChatPhoneInputPresenter, IChatPhoneInputSessionContext, IChatPhonePresenterImpl } from '../../../../../chat/browser/widget/input/chatPhoneInputPresenter.js';
+import { IModePickerDelegate } from '../../../../../chat/browser/widget/input/modePickerActionItem.js';
+import { IModelPickerDelegate } from '../../../../../chat/browser/widget/input/modelPicker/modelPickerActionItem.js';
+import { getModelProviderIcon } from '../../../../../chat/browser/widget/input/modelPicker/modelProviderIcons.js';
+import { IChatMode } from '../../../../../chat/common/chatModes.js';
+import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../chat/common/languageModels.js';
+import { IWorkbenchLayoutService } from '../../../../../../services/layout/browser/layoutService.js';
+import { type IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
+import { IFocusedSessionHostService } from '../../../../browser/sessionHost.js';
+import { ISessionsProvidersService } from '../../../../browser/sessionsProvidersService.js';
+import { showMobilePickerSheet, IMobilePickerSheetItem } from '../../../../browser/mobile/mobilePickerSheet.js';
+import { getAgentHostModeIcon } from '../agentHostModeIcon.js';
+import { isWellKnownModeSchema, isWellKnownModeValue } from '../agentHostPermissionPickerDelegate.js';
+import { normalizeModelPickerOptions } from '../../../../browser/chat/sessionModelPickerState.js';
+import { createChatPhoneInputSessionContext, createChatPhoneInputTarget, IChatPhoneInputTarget, matchesChatPhoneInputTarget } from '../../../../browser/chatPhoneInputContext.js';
 
 /**
  * Action id passed to the workbench `ToggleAgentModeActionId` command when

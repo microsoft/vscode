@@ -4,6 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
-import { OpenSubagentChatActionViewItemContribution } from './openSubagentChat.js';
+import { OpenSubagentChatActionViewItemContribution } from '../../../../../workbench/contrib/sessions/providers/agentHost/browser/openSubagentChat.js';
 
 registerWorkbenchContribution2(OpenSubagentChatActionViewItemContribution.ID, OpenSubagentChatActionViewItemContribution, WorkbenchPhase.BlockStartup);

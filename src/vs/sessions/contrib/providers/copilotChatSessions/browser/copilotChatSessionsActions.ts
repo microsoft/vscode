@@ -16,8 +16,8 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { ISessionHost } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { AgentHostModePicker } from '../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostModePicker.js';
 import { AgentHostPermissionPickerDelegate } from '../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostPermissionPickerDelegate.js';
-import { PickerActionViewItem } from '../../agentHost/browser/agentHostSessionConfigPicker.js';
-import { MobilePermissionPicker } from './mobilePermissionPicker.js';
+import { PickerActionViewItem } from '../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostSessionConfigPicker.js';
+import { MobilePermissionPicker } from '../../../../../workbench/contrib/sessions/providers/copilotChatSessions/browser/mobilePermissionPicker.js';
 import { MobileAgentHostModePicker } from '../../../../../workbench/contrib/sessions/providers/agentHost/browser/mobile/mobileAgentHostModePicker.js';
 import { isPhoneLayout } from '../../../../../workbench/contrib/sessions/browser/mobileLayout.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';

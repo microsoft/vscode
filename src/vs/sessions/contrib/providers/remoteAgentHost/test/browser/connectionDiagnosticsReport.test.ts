@@ -43,7 +43,7 @@ import { AccessibilityVerbositySettingId } from '../../../../../../workbench/con
 import { IChatEntitlementService } from '../../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { AgentHostFilterConnectionStatus, IAgentHostFilterService } from '../../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
 import { ConnectionHostManagementAction, IConnectionDiagnosticsService, IConnectionDiagnosticsSnapshot, IConnectionHostManagementEntry, IConnectionHostManagementState, ShowConnectionDiagnosticsCommandId } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/connectionDiagnostics.js';
-import { ConnectionDiagnosticsReport, showConnectionDiagnosticsSheet } from '../../browser/connectionDiagnosticsReport.js';
+import { ConnectionDiagnosticsReport, showConnectionDiagnosticsSheet } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/connectionDiagnosticsReport.js';
 import { ConnectionDiagnosticsContribution } from '../../browser/connectionDiagnostics.contribution.js';
 import { SessionsChatAccessibilityHelp } from '../../../../chat/browser/sessionsChatAccessibilityHelp.js';
 import { HostFilterActionViewItem } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/hostFilterActionViewItem.js';
