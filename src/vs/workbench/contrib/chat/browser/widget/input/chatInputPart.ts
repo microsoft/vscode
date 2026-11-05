@@ -1799,6 +1799,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this._modelConfigStore.getModelConfiguration(modelId);
 	}
 
+	/** Applies a user's configuration choice for a model, as the model picker would. */
+	setModelConfiguration(modelId: string, values: IStringDictionary<unknown>): Promise<void> {
+		return this.applyNotificationModelConfiguration(modelId, values);
+	}
+
 	/**
 	 * Restores a model's configuration captured in a session's persisted input
 	 * state. Called when the selected model is restored from session history so

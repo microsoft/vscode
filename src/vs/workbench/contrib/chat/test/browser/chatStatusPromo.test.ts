@@ -46,7 +46,7 @@ import type { ChatInputPart } from '../../browser/widget/input/chatInputPart.js'
 import type { ChatViewPane } from '../../browser/widgetHosts/viewPane/chatViewPane.js';
 import { ChatClosedPromoNotification, ChatConfiguration } from '../../common/constants.js';
 import { IChatSessionsService, SessionType } from '../../common/chatSessionsService.js';
-import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../common/languageModels.js';
+import { IAutoModelTierPromotion, ILanguageModelChatMetadata, ILanguageModelsService } from '../../common/languageModels.js';
 import { getChatSessionType, LocalChatSessionUri } from '../../common/model/chatUri.js';
 
 class PromoTelemetry extends NullTelemetryServiceShape {
@@ -132,7 +132,7 @@ suite('ChatStatusPromo', () => {
 		return { promo, state, models, modelChanged, storage, configuration, treatment, refetch, warn, telemetry, widgets, widgetAdded, viewVisibility, update, get entry() { return entry; } };
 	}
 
-	function chatView(f: ReturnType<typeof fixture>, sessionType?: string, restored: Promise<void> = Promise.resolve()) {
+	function chatView(f: ReturnType<typeof fixture>, sessionType?: string, restored: Promise<void> = Promise.resolve(), configuration?: Record<string, unknown>) {
 		let resource = sessionType === undefined ? undefined : sessionType === 'local' ? LocalChatSessionUri.getNewSessionUri() : URI.from({ scheme: sessionType, path: '/session' });
 		const changed = store.add(new Emitter<IChatWidgetViewModelChangeEvent>());
 		const viewModel = new class extends mock<NonNullable<ChatWidget['viewModel']>>() {
@@ -140,9 +140,12 @@ suite('ChatStatusPromo', () => {
 		}();
 		const select = sinon.stub().returns(true);
 		const request = sinon.stub().resolves(true);
+		const configure = sinon.stub().resolves();
 		const input = new class extends mock<ChatInputPart>() {
 			override switchModelByIdentifier(id: string) { return select(id); }
 			override requestModelByIdentifier(id: string) { return request(id); }
+			override getModelConfiguration() { return configuration; }
+			override setModelConfiguration(id: string, values: Record<string, unknown>) { return configure(id, values); }
 		}();
 		const widget = new class extends mock<ChatWidget>() {
 			override readonly viewContext = { viewId: ChatViewId };
@@ -160,7 +163,7 @@ suite('ChatStatusPromo', () => {
 		f.state.widgets.push(widget);
 		f.widgetAdded.fire(widget);
 		return {
-			select, request, load: sinon.spy(view, 'loadSession'),
+			select, request, configure, load: sinon.spy(view, 'loadSession'),
 			setResource: (next: URI) => { const previousSessionResource = resource; resource = next; changed.fire({ previousSessionResource, currentSessionResource: resource }); },
 		};
 	}
@@ -392,6 +395,60 @@ suite('ChatStatusPromo', () => {
 		const action = f.entry!.tooltip.commands[0];
 		await assert.rejects(async () => CommandsRegistry.getCommand(action.id)!.handler(undefined!, ...action.arguments!), /no longer available/);
 		assert.strictEqual(f.storage.get('chat.dismissedPromoIds', StorageScope.APPLICATION), undefined);
+	});
+
+	suite('Copilot Fusion sale', () => {
+		const day = 24 * 60 * 60 * 1000;
+		const iso = (offset: number) => new Date(Date.now() + offset).toISOString();
+		function fusion(promotion: Partial<IAutoModelTierPromotion> = {}, metadata: Partial<ILanguageModelChatMetadata> = {}): Parameters<typeof fixture>[0] {
+			return {
+				configured: ChatClosedPromoNotification.CopilotIconPopup, hostEnabled: true,
+				metadata: {
+					id: 'auto', name: 'Copilot Fusion', promo: undefined, autoModelFusion: true,
+					vendor: SessionType.AgentHostCopilot, targetChatSessionType: SessionType.AgentHostCopilot,
+					autoModelTierPromotions: [{ id: 'launch', message: 'Get 30% off Fusion High and Max', discountPercent: 30, tierIds: ['hydrafusion', 'hydrafusion-max'], startsAt: iso(-day), ...promotion }],
+					configurationSchema: {
+						properties: {
+							tier: { type: 'string', group: 'navigation', enum: ['balance', 'hydrafusion', 'hydrafusion-max'], default: 'balance' },
+						},
+					},
+					...metadata,
+				},
+			};
+		}
+
+		const cases: Record<string, [Parameters<typeof fixture>[0], string | undefined]> = {
+			'an active sale': [fusion(), 'Get 30% off Fusion High and Max. Open the sale offer.'],
+			'a sale without a message': [fusion({ message: undefined }), 'Save 30% on Copilot Fusion. Open the sale offer.'],
+			'a sale that has not started': [fusion({ startsAt: iso(day) }), undefined],
+			'an expired sale': [fusion({ endsAt: iso(-1) }), undefined],
+			'a message-only sale': [fusion({ discountPercent: 0 }), undefined],
+			'a sale on a tier that is not offered': [fusion({ tierIds: ['hydrafusion-ultra'] }), undefined],
+			'a sale on an unavailable tier': [fusion({ tierIds: ['hydrafusion-max'] }, {
+				configurationSchema: { properties: { tier: { type: 'string', group: 'navigation', enum: ['balance', 'hydrafusion-max'], enumItemDisabled: [false, true], default: 'balance' } } },
+			}), undefined],
+			'Auto that is not Fusion': [fusion({}, { autoModelFusion: undefined }), undefined],
+			'a dismissed sale': [{ ...fusion({ id: 'sale' }), storedKey: 'chat.dismissedPromoIds' }, undefined],
+		};
+		for (const [name, [options, ariaLabel]] of Object.entries(cases)) {
+			test(`${ariaLabel ? 'offers' : 'does not offer'} ${name}`, () => {
+				const f = fixture(options);
+				assert.deepStrictEqual({ pip: f.entry?.showPip, ariaLabel: f.entry?.ariaLabel }, { pip: ariaLabel ? true : undefined, ariaLabel });
+			});
+		}
+
+		for (const [current, selected] of [[undefined, [['copilot:model', { tier: 'hydrafusion' }]]], [{ tier: 'hydrafusion-max' }, []]] as const) {
+			test(`Try selects Fusion ${current ? 'and keeps a discounted effort level' : 'at a discounted effort level'}`, async () => {
+				const f = fixture(fusion());
+				const view = chatView(f, SessionType.AgentHostCopilot, undefined, current);
+				const action = f.entry!.tooltip.commands[0];
+				await CommandsRegistry.getCommand(action.id)!.handler(undefined!, ...action.arguments!);
+				assert.deepStrictEqual({
+					title: action.title, model: view.select.args, configured: view.configure.args,
+					dismissed: f.storage.get('chat.dismissedPromoIds', StorageScope.APPLICATION),
+				}, { title: 'Try Copilot Fusion', model: [['copilot:model']], configured: selected, dismissed: '["launch"]' });
+			});
+		}
 	});
 
 	test('renders plain, wrapping copy and a fresh element for each native hover', async () => {

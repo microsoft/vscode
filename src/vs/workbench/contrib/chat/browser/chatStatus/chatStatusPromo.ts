@@ -27,11 +27,12 @@ import { IViewsService } from '../../../../services/views/common/viewsService.js
 import { IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { CHAT_USER_SELECTED_SESSION_TYPE_STORAGE_KEY } from '../../common/chatSessionTypePreference.js';
 import { ChatClosedPromoNotification, ChatConfiguration, getDefaultNewChatSessionTypeAndReasonFromServices } from '../../common/constants.js';
-import { COPILOT_VENDOR_ID, ILanguageModelChatMetadata, ILanguageModelsService } from '../../common/languageModels.js';
+import { COPILOT_VENDOR_ID, IAutoModelTierPromotion, ILanguageModelChatMetadata, ILanguageModelsService } from '../../common/languageModels.js';
 import { getChatSessionType, getNewChatSessionResource } from '../../common/model/chatUri.js';
 import { ChatViewId, IChatWidgetService, isIChatViewViewContext } from '../chat.js';
 import { DISMISSED_PROMOS_STORAGE_KEY, SEEN_PROMOS_STORAGE_KEY } from '../chatPromoNotification.js';
 import { addDismissedNotificationId, readDismissedNotificationIds } from '../widget/input/chatInputNotificationService.js';
+import { getModelConfigChoices, getModelConfigProperty, IModelConfigProperty, MODEL_CONFIG_GROUP_EFFORT } from '../widget/input/modelPicker/modelPickerModelConfig.js';
 import { getModelProviderIcon } from '../widget/input/modelPicker/modelProviderIcons.js';
 import type { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
 
@@ -41,6 +42,45 @@ const TREATMENT = `config.${ChatConfiguration.ChatClosedPromoNotification}`;
 function isCopilotPromoVendor(metadata: ILanguageModelChatMetadata): boolean {
 	return !metadata.vendor || metadata.vendor === COPILOT_VENDOR_ID
 		|| (metadata.vendor === metadata.targetChatSessionType && isCopilotAgentHostSessionType(metadata.vendor));
+}
+
+/** Copilot Fusion's effort level, read from the model's own schema. */
+function getFusionEffort(identifier: string, metadata: ILanguageModelChatMetadata): IModelConfigProperty | undefined {
+	return metadata.autoModelFusion
+		? getModelConfigProperty({ identifier, metadata }, { getModelConfiguration: () => undefined }, MODEL_CONFIG_GROUP_EFFORT, true)
+		: undefined;
+}
+
+/** The offered effort levels that a Copilot Fusion sale discounts, keyed by the sale. */
+function getFusionPromotions(identifier: string, metadata: ILanguageModelChatMetadata): Map<IAutoModelTierPromotion, string[]> {
+	const promotions = new Map<IAutoModelTierPromotion, string[]>();
+	const effort = getFusionEffort(identifier, metadata);
+	const now = Date.now();
+	for (const choice of effort ? getModelConfigChoices(effort) : []) {
+		const promotion = !choice.unavailable ? ILanguageModelChatMetadata.getAutoTierPromotion(metadata, choice.value, now) : undefined;
+		if (promotion && promotion.discountPercent > 0) {
+			promotions.set(promotion, [...promotions.get(promotion) ?? [], choice.value as string]);
+		}
+	}
+	return promotions;
+}
+
+/** A model sale, whether on the model itself or on Copilot Fusion's effort levels. */
+function getPromotion(identifier: string, metadata: ILanguageModelChatMetadata, isEligible: (promoId: string) => boolean = () => true) {
+	if (ILanguageModelChatMetadata.hasPromoBanner(metadata) && ILanguageModelChatMetadata.hasPromoDiscount(metadata) && isEligible(metadata.promo.id)) {
+		return { id: metadata.promo.id, message: metadata.promo.message, description: ILanguageModelChatMetadata.getPromoEndsAtLabel(metadata.promo.endsAt) };
+	}
+	for (const promotion of getFusionPromotions(identifier, metadata).keys()) {
+		if (isEligible(promotion.id)) {
+			return {
+				id: promotion.id,
+				message: promotion.message || localize('chat.promo.fusionDiscount', "Save {0}% on {1}", promotion.discountPercent, metadata.name),
+				// The service's message already says when the promotion runs.
+				description: promotion.message ? undefined : ILanguageModelChatMetadata.getPromoEndsAtLabel(promotion.endsAt),
+			};
+		}
+	}
+	return undefined;
 }
 
 type PromoTelemetry = { promoId: string };
@@ -156,6 +196,7 @@ export class ChatStatusPromo extends Disposable {
 			if (!modelIdentifier || (!view.widget.input.switchModelByIdentifier(modelIdentifier, true, true) && !await view.widget.input.requestModelByIdentifier(modelIdentifier))) {
 				throw new Error(localize('chat.promo.modelUnavailable', "The promoted model is no longer available."));
 			}
+			await this.selectPromotedFusionEffort(view.widget.input, modelIdentifier, promoId);
 			addDismissedNotificationId(this.storageService, DISMISSED_PROMOS_STORAGE_KEY, promoId);
 			view.focusInput();
 		}));
@@ -226,18 +267,17 @@ export class ChatStatusPromo extends Disposable {
 		const seen = readDismissedNotificationIds(this.storageService, SEEN_PROMOS_STORAGE_KEY);
 		for (const identifier of this.languageModelsService.getLanguageModelIds()) {
 			const metadata = this.languageModelsService.lookupLanguageModel(identifier);
-			if (!metadata || !ILanguageModelChatMetadata.hasPromoBanner(metadata) || !ILanguageModelChatMetadata.hasPromoDiscount(metadata)
-				|| (metadata.targetChatSessionType ?? localChatSessionType) !== sessionType
-				|| !isCopilotPromoVendor(metadata) || dismissed.has(metadata.promo.id)
-				|| (seen.has(metadata.promo.id) && !this.shownPromos.has(metadata.promo.id))) {
+			if (!metadata || (metadata.targetChatSessionType ?? localChatSessionType) !== sessionType || !isCopilotPromoVendor(metadata)) {
+				continue;
+			}
+			const promotion = getPromotion(identifier, metadata, id => !dismissed.has(id) && (!seen.has(id) || this.shownPromos.has(id)));
+			if (!promotion) {
 				continue;
 			}
 			return {
-				id: metadata.promo.id,
+				...promotion,
 				modelId: metadata.id,
 				modelName: metadata.name,
-				message: metadata.promo.message,
-				description: ILanguageModelChatMetadata.getPromoEndsAtLabel(metadata.promo.endsAt),
 				icon: getModelProviderIcon({ identifier, metadata }).id,
 			};
 		}
@@ -255,10 +295,20 @@ export class ChatStatusPromo extends Disposable {
 		return this.languageModelsService.getLanguageModelIds().find(identifier => {
 			const metadata = this.languageModelsService.lookupLanguageModel(identifier);
 			return metadata?.id === modelId && (metadata.targetChatSessionType ?? localChatSessionType) === sessionType
-				&& isCopilotPromoVendor(metadata)
-				&& ILanguageModelChatMetadata.hasPromoBanner(metadata) && ILanguageModelChatMetadata.hasPromoDiscount(metadata)
-				&& metadata.promo.id === promoId;
+				&& isCopilotPromoVendor(metadata) && !!getPromotion(identifier, metadata, id => id === promoId);
 		});
+	}
+
+	/** Moves Copilot Fusion to an effort level its sale discounts, unless one is already selected. */
+	private async selectPromotedFusionEffort(input: ChatViewPane['widget']['input'], identifier: string, promoId: string): Promise<void> {
+		const metadata = this.languageModelsService.lookupLanguageModel(identifier);
+		const tiers = metadata && [...getFusionPromotions(identifier, metadata)].find(([promotion]) => promotion.id === promoId)?.[1];
+		const effort = metadata && getModelConfigProperty({ identifier, metadata }, input, MODEL_CONFIG_GROUP_EFFORT, true);
+		if (!tiers || !effort || tiers.includes(effort.value as string)) {
+			return;
+		}
+		const tier = tiers.includes(effort.schema.default as string) ? effort.schema.default as string : tiers[0];
+		await input.setModelConfiguration(identifier, { [effort.key]: tier });
 	}
 
 	private resolveTreatment(): boolean | undefined {
