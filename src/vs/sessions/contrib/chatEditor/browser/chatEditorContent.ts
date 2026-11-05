@@ -9,14 +9,12 @@ import { autorun, constObservable, derived, IObservable, observableValue } from 
 import { localize } from '../../../../nls.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { ActiveSessionHost, createSessionHostServices, ISessionHost, ISessionHostService, SessionHostKind } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { createSessionHostServices, ISessionHost, ISessionHostService, SessionHost, SessionHostKind } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { IChat } from '../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionChangesStatsCache } from '../../../../workbench/contrib/sessions/common/sessionChangesStatsCache.js';
-import { setActiveSessionContextKeys } from '../../../../workbench/contrib/sessions/common/sessionContextKeys.js';
+import { setHostSessionContextKeys } from '../../../../workbench/contrib/sessions/common/sessionContextKeys.js';
 import { SessionInChatEditorContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
-import { IActiveSession, ISessionPaneContent } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { paneContentOf } from '../../../../workbench/contrib/sessions/browser/visibleSessions.js';
-import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISessionPaneContent } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ChatGroupView, IChatGroupContext } from '../../../../workbench/contrib/sessions/browser/parts/chatGroupView.js';
 import { AbstractChatView, ISessionViewHostOptions } from '../../../../workbench/contrib/sessions/browser/parts/chatView.js';
 import { SessionHeader } from '../../../../workbench/contrib/sessions/browser/parts/sessionHeader.js';
@@ -35,8 +33,9 @@ export class ChatEditorContent extends Disposable {
 	private readonly _headerContainer: HTMLElement;
 	/** The services of its own scope, which what it shows is created with: disposed after it, see {@link dispose}. */
 	private readonly _scopedServices = new DisposableStore();
-	private readonly _session = observableValue<IActiveSession | undefined>(this, undefined);
-	private readonly _chat = derived(this, reader => this._session.read(reader)?.activeChat.read(reader));
+	private readonly _content = observableValue<ISessionPaneContent | undefined>(this, undefined);
+	private readonly _session = derived(this, reader => this._content.read(reader)?.session);
+	private readonly _chat = derived(this, reader => this._content.read(reader)?.chat.read(reader));
 	private readonly _showHeader: boolean;
 	private _lastLayout: { readonly width: number; readonly height: number; readonly top: number; readonly left: number } | undefined;
 	private _visible = true;
@@ -62,22 +61,24 @@ export class ChatEditorContent extends Disposable {
 		@ISessionHost parentHost: ISessionHost,
 		@ISessionHostService sessionHostService: ISessionHostService,
 		@ISessionChangesStatsCache changesStatsCache: ISessionChangesStatsCache,
-		@ISessionsService private readonly _sessionsService: ISessionsService,
 	) {
 		super();
 		this.element.setAttribute('role', 'region');
 		this._register(autorun(reader => {
-			const session = this._session.read(reader);
-			this.element.setAttribute('aria-label', session ? localize('chatEditorContent', "Chat: {0}", session.activeChat.read(reader).title.read(reader)) : localize('chatEditorContentEmpty', "Chat"));
+			const chat = this._chat.read(reader);
+			this.element.setAttribute('aria-label', chat ? localize('chatEditorContent', "Chat: {0}", chat.title.read(reader)) : localize('chatEditorContentEmpty', "Chat"));
 		}));
 
 		const scopedContextKeyService = this._scopedServices.add(contextKeyService.createScoped(this.element));
 		// What acts on the main window's grid, such as pinning the session there, does not show in it.
 		SessionInChatEditorContext.bindTo(scopedContextKeyService).set(true);
-		this.host = new ActiveSessionHost({ kind: SessionHostKind.Pane, parent: parentHost, session: this._session, contextKeyService: scopedContextKeyService });
+		this.host = new SessionHost({ kind: SessionHostKind.Pane, parent: parentHost, session: this._session, chat: this._chat, contextKeyService: scopedContextKeyService });
 		this._register(sessionHostService.registerHost(this.host));
 		const scopedInstantiationService = this._scopedServices.add(instantiationService.createChild(createSessionHostServices(scopedContextKeyService, this.host)));
-		this._register(autorun(reader => setActiveSessionContextKeys(this._session.read(reader), scopedContextKeyService, reader, changesStatsCache)));
+		this._register(autorun(reader => {
+			const content = this._content.read(reader);
+			setHostSessionContextKeys(content?.session, content?.chat.read(reader), content?.state, scopedContextKeyService, reader, changesStatsCache);
+		}));
 
 		this._headerContainer = $('.session-view-centered-content');
 		this.element.appendChild(this._headerContainer);
@@ -103,15 +104,13 @@ export class ChatEditorContent extends Disposable {
 		this.inputOnlyChatViewTop = this._group.chatViewTop;
 	}
 
-	/** Shows `session`, a session scoped to the one chat it shows, its active chat; nothing while undefined. */
-	setSession(session: IActiveSession | undefined): void {
-		if (this._session.get() === session) {
+	/** Shows `content`, the one chat of the provider's session its pane shows; nothing while undefined. */
+	setContent(content: ISessionPaneContent | undefined): void {
+		if (this._content.get() === content) {
 			return;
 		}
-		const chat = session?.activeChat.get();
-		this._session.set(session, undefined);
-		// Closing the pane closes the chat window's chat, through its opener (transitional, until the window shows the provider's session).
-		const content = session && paneContentOf(session, () => this._sessionsService.closeSession(session));
+		const chat = content?.chat.get();
+		this._content.set(content, undefined);
 		this._header.setSession(content);
 		this._group.setContext(content && chat ? this._createContext(content, chat) : undefined);
 		this._layoutChildren();

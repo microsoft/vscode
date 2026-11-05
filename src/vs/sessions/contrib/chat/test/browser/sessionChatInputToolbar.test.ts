@@ -54,6 +54,7 @@ import { externalUriOpenersSettingId } from '../../../../../workbench/contrib/ex
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_PREFIX } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionHost } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionGridPane } from '../../../../../workbench/contrib/sessions/browser/sessionGridPane.js';
 import { ISessionChangesStatsCache } from '../../../../../workbench/contrib/sessions/common/sessionChangesStatsCache.js';
@@ -839,8 +840,10 @@ suite('SessionChatInputToolbar', () => {
 					workspace,
 				});
 				const calls: { action: string; resource?: URI; options?: ISessionChangesEditorOptions }[] = [];
-				// The pane of the grid that shows the session.
-				instantiationService.stub(ISessionsService, 'panes', constObservable([upcastPartial<ISessionGridPane>({ session: constObservable(session) })]));
+				// The toolbar is in the pane of the grid that shows the session.
+				const paneHost = upcastPartial<ISessionHost>({ parent: undefined });
+				instantiationService.stub(ISessionHost, paneHost);
+				instantiationService.stub(ISessionsService, 'getPaneOfHost', (host: ISessionHost) => host === paneHost ? upcastPartial<ISessionGridPane>({ session: constObservable(session) }) : undefined);
 				instantiationService.stub(ISessionsService, 'activatePane', (pane: ISessionGridPane | undefined) => {
 					calls.push({ action: 'activate', resource: pane?.session.get()?.resource });
 				});
@@ -1061,7 +1064,6 @@ suite('SessionChatInputToolbar', () => {
 		const commandService = upcastPartial<ICommandService>({});
 		const clipboardService = upcastPartial<IClipboardService>({});
 		const openerService = upcastPartial<IOpenerService>({});
-		const sessionsService = upcastPartial<ISessionsService>({});
 		const actions: ISessionArtifactActions = { recordOpen() { }, openExternal() { }, openResource() { }, openImages() { }, async downloadImage() { }, copy() { }, openPullRequestChanges() { } };
 		const rowPresentation = (entry: IChatPillEntry) => ({
 			label: entry.label, badge: entry.badge, leading: entry.badgeBeforeLabel,
@@ -1076,8 +1078,8 @@ suite('SessionChatInputToolbar', () => {
 				const uri = URI.parse(`https://github.com/microsoft/vscode/${kind === SessionArtifactKind.PullRequest ? 'pull' : 'issues'}/123`);
 				const ref = { owner: 'microsoft', repo: 'vscode', number: 123, uri, title };
 				const dedicated = kind === SessionArtifactKind.PullRequest
-					? buildSessionPullRequestSections([{ ref, pullRequest: undefined, icon: Codicon.gitPullRequest, status: {} }], undefined, commandService, clipboardService, openerService, sessionsService)[0].entries[0]
-					: buildSessionIssueSections([{ ref, issue: undefined }], undefined, commandService, clipboardService, openerService, sessionsService)[0].entries[0];
+					? buildSessionPullRequestSections([{ ref, pullRequest: undefined, icon: Codicon.gitPullRequest, status: {} }], undefined, commandService, clipboardService, openerService, undefined)[0].entries[0]
+					: buildSessionIssueSections([{ ref, issue: undefined }], undefined, commandService, clipboardService, openerService, undefined)[0].entries[0];
 				const recorded = [true, false].map(isArtifact => buildSessionArtifactSections([{
 					id: 'record', kind, label: title ?? '', isArtifact, isGitHub: true, link: uri,
 				}], actions, { getUriLabel: resource => resource.toString() }, false, new Set())[0].entries[0]);
@@ -1110,7 +1112,6 @@ suite('SessionChatInputToolbar', () => {
 		});
 		const clipboardService = upcastPartial<IClipboardService>({ writeText: async value => { clipboardWrites.push(value); } });
 		const openerService = upcastPartial<IOpenerService>({ open: async () => true });
-		const sessionsService = upcastPartial<ISessionsService>({ setActive: () => { }, panes: constObservable([]) });
 		const pullRequestRef: IGitHubPullRequestRef = {
 			owner: 'microsoft',
 			repo: 'vscode',
@@ -1160,7 +1161,7 @@ suite('SessionChatInputToolbar', () => {
 			commandService,
 			clipboardService,
 			openerService,
-			sessionsService,
+			undefined,
 			{ recordOpen: id => recordedOpenIds.push(id) },
 		).flatMap(section => section.entries)[0];
 		const unresolvedPullRequestEntry = buildSessionPullRequestSections(
@@ -1169,7 +1170,7 @@ suite('SessionChatInputToolbar', () => {
 			commandService,
 			clipboardService,
 			openerService,
-			sessionsService,
+			undefined,
 		).flatMap(section => section.entries)[0];
 		const issueEntry = buildSessionIssueSections(
 			[{ ref: issueRef, issue }],
@@ -1177,7 +1178,7 @@ suite('SessionChatInputToolbar', () => {
 			commandService,
 			clipboardService,
 			openerService,
-			sessionsService,
+			undefined,
 			{ recordOpen: id => recordedOpenIds.push(id) },
 		).flatMap(section => section.entries)[0];
 		const issueHoverCache = store.add(new ChatPillHoverCache());
@@ -1187,7 +1188,7 @@ suite('SessionChatInputToolbar', () => {
 			commandService,
 			clipboardService,
 			openerService,
-			sessionsService,
+			undefined,
 			undefined,
 			issueHoverCache,
 		).flatMap(section => section.entries)[0];
@@ -1197,7 +1198,7 @@ suite('SessionChatInputToolbar', () => {
 			commandService,
 			clipboardService,
 			openerService,
-			sessionsService,
+			undefined,
 			undefined,
 			issueHoverCache,
 		).flatMap(section => section.entries)[0];
@@ -1216,7 +1217,7 @@ suite('SessionChatInputToolbar', () => {
 			commandService,
 			clipboardService,
 			openerService,
-			sessionsService,
+			undefined,
 		).flatMap(section => section.entries)[0];
 		const duplicateIssueEntry = buildSessionIssueSections(
 			[{ ref: issueRef, issue: { ...issue, stateReason: GitHubIssueStateReason.Duplicate } }],
@@ -1224,7 +1225,7 @@ suite('SessionChatInputToolbar', () => {
 			commandService,
 			clipboardService,
 			openerService,
-			sessionsService,
+			undefined,
 		).flatMap(section => section.entries)[0];
 		const notPlannedIssueEntry = buildSessionIssueSections(
 			[{ ref: issueRef, issue: { ...issue, stateReason: GitHubIssueStateReason.NotPlanned } }],
@@ -1232,7 +1233,7 @@ suite('SessionChatInputToolbar', () => {
 			commandService,
 			clipboardService,
 			openerService,
-			sessionsService,
+			undefined,
 		).flatMap(section => section.entries)[0];
 		const unresolvedIssueEntry = buildSessionIssueSections(
 			[{ ref: issueRef, issue: undefined }],
@@ -1240,7 +1241,7 @@ suite('SessionChatInputToolbar', () => {
 			commandService,
 			clipboardService,
 			openerService,
-			sessionsService,
+			undefined,
 		).flatMap(section => section.entries)[0];
 
 		const renderHover = async (entry: IChatPillEntry | undefined) => {
@@ -1505,7 +1506,7 @@ suite('SessionChatInputToolbar', () => {
 			upcastPartial<ICommandService>({ executeCommand: async () => undefined }),
 			upcastPartial<IClipboardService>({ writeText: async () => { } }),
 			upcastPartial<IOpenerService>({ open: async () => true }),
-			upcastPartial<ISessionsService>({ setActive: () => { }, panes: constObservable([]) }), undefined, cache,
+			undefined, undefined, cache,
 		)[0].entries[0].hover!;
 		const first = build(issue);
 		const content = first.content;
@@ -1550,7 +1551,7 @@ suite('SessionChatInputToolbar', () => {
 			upcastPartial<ICommandService>({ executeCommand: async () => undefined }),
 			upcastPartial<IClipboardService>({ writeText: async value => { copied.push(value); } }),
 			upcastPartial<IOpenerService>({ open: async () => true }),
-			upcastPartial<ISessionsService>({ setActive: () => { }, panes: constObservable([]) }),
+			undefined,
 			{ remove: async () => { removed.push(title); } },
 			cache,
 		);
@@ -2193,7 +2194,7 @@ suite('SessionChatInputToolbar', () => {
 			upcastPartial<ICommandService>({}),
 			upcastPartial<IClipboardService>({}),
 			upcastPartial<IOpenerService>({}),
-			upcastPartial<ISessionsService>({}),
+			undefined,
 		).flatMap(section => section.entries);
 
 		const openDraftHover = typeof entries[0].hover?.content === 'function' ? entries[0].hover.content() : undefined;
@@ -2248,16 +2249,15 @@ suite('SessionChatInputToolbar', () => {
 		});
 		const clipboardService = upcastPartial<IClipboardService>({ writeText: async value => { copied.push(value); } });
 		const openerService = upcastPartial<IOpenerService>({});
-		const sessionsService = upcastPartial<ISessionsService>({});
-		const entries = buildSessionPullRequestSections(pullRequests, undefined, commandService, clipboardService, openerService, sessionsService, {
+		const entries = buildSessionPullRequestSections(pullRequests, undefined, commandService, clipboardService, openerService, undefined, {
 			remove: async ids => { removed.push(...ids); },
 			recordOpen: id => recordedOpenIds.push(id),
 		})[0].entries;
-		const issueEntry = buildSessionIssueSections([{ ref: issueRef, issue: undefined }], undefined, commandService, clipboardService, openerService, sessionsService, {
+		const issueEntry = buildSessionIssueSections([{ ref: issueRef, issue: undefined }], undefined, commandService, clipboardService, openerService, undefined, {
 			remove: async ids => { removed.push(...ids); },
 			recordOpen: id => recordedOpenIds.push(id),
 		})[0].entries[0];
-		const unsupported = buildSessionPullRequestSections(pullRequests, undefined, commandService, clipboardService, openerService, sessionsService)[0].entries;
+		const unsupported = buildSessionPullRequestSections(pullRequests, undefined, commandService, clipboardService, openerService, undefined)[0].entries;
 		await entries[0].promotedAction?.run();
 		await entries[1].promotedAction?.run();
 		await issueEntry.promotedAction?.run();
@@ -2330,7 +2330,7 @@ suite('SessionChatInputToolbar', () => {
 			}),
 			upcastPartial<IClipboardService>({ writeText: async value => { copied.push(value); } }),
 			upcastPartial<IOpenerService>({}),
-			upcastPartial<ISessionsService>({}),
+			undefined,
 			{ remove: async ids => { removed.push([...ids]); } },
 		)[0].entries;
 		entries[0].open();

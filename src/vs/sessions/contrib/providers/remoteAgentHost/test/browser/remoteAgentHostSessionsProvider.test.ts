@@ -1092,7 +1092,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			}()));
 			const entries = buildSessionPullRequestSections(presentation.pullRequests.get(), undefined,
 				upcastPartial<ICommandService>({}), upcastPartial<IClipboardService>({}),
-				upcastPartial<IOpenerService>({}), upcastPartial<ISessionsService>({})).flatMap(section => section.entries);
+				upcastPartial<IOpenerService>({}), undefined).flatMap(section => section.entries);
 			assert.deepStrictEqual({
 				owned: getSessionOwnedGitHubPullRequestRefs(info),
 				pills: entries.map(entry => ({ state: entry.pullRequestState, description: entry.ariaDescription })),

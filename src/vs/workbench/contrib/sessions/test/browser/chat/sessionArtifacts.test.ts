@@ -50,6 +50,7 @@ import { hashSessionIdForTelemetry } from '../../../common/sessionsTelemetry.js'
 import { IGitHubService as ISessionsGitHubService } from '../../../browser/github/githubService.js';
 import { OPEN_PULL_REQUEST_CHANGES_ACTION_ID } from '../../../common/github/types.js';
 import { getSessionGitHubReferences } from '../../../common/github/sessionGitHubReferences.js';
+import { ISessionHost } from '../../../browser/sessionHost.js';
 import { ISessionsService } from '../../../browser/sessionsService.js';
 import { ISessionGridPane } from '../../../browser/sessionGridPane.js';
 
@@ -108,6 +109,7 @@ suite('Session Artifacts', () => {
 		const savedImages: { resource: URI; data: string }[] = [];
 		const executedCommands: { id: string; args: unknown[] }[] = [];
 		const activatedSessions: (ISession | undefined)[] = [];
+		const paneHost = upcastPartial<ISessionHost>({ parent: undefined });
 		const resourceDownloads: { resource: URI; name: string; isDirectory: boolean }[][] = [];
 		let cancelDownload = false;
 		let downloadError: Error | undefined;
@@ -229,10 +231,12 @@ suite('Session Artifacts', () => {
 				}
 			}(),
 			upcastPartial<ISessionsService>({
-				// The pane of the grid that shows the session.
-				panes: constObservable([upcastPartial<ISessionGridPane>({ session })]),
+				gridHost: upcastPartial<ISessionHost>({}),
+				// The pane of the grid the artifacts' host is in, which shows the session.
+				getPaneOfHost: host => host === paneHost ? upcastPartial<ISessionGridPane>({ session }) : undefined,
 				activatePane: pane => { activatedSessions.push(pane?.session.get()); },
 			}),
+			paneHost,
 		));
 		return {
 			presentation, session, chat, chatModels, openedImages, openedResources, configurationService, artifacts, loading, workspace, gitHubInfo, gitHubReferences, browserUrls, removed, errors, telemetryEvents, downloadedResources, savedImages, executedCommands, activatedSessions, resourceDownloads,

@@ -51,6 +51,7 @@ import { ChatPillHoverCache, createChatPillHover } from '../../../../browser/cha
 import { IWorkbenchGitHubService } from '../../../../services/github/common/githubService.js';
 import { linkKey } from '../../common/sessionLinks.js';
 import { getChatSessionArtifacts, getSessionArtifactKey, SessionArtifactKind, type IChat, type IGitHubPullRequestRef, type ISessionArtifact, ISession } from '../../common/session.js';
+import { ISessionHost } from '../sessionHost.js';
 import { ISessionsService } from '../sessionsService.js';
 import { ArtifactIntegrationPresentation, IArtifactDetailsHost } from './artifactIntegrationPresentation.js';
 import { collapseArtifactIntegrationAliases, getArtifactIntegrationAliasCandidate, getArtifactIntegrationGroupId } from './artifactIntegrationPillSources.js';
@@ -62,7 +63,7 @@ import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { getActiveWindow } from '../../../../../base/browser/dom.js';
 import { IGitHubService as ISessionsGitHubService } from '../github/githubService.js';
 import { OPEN_PULL_REQUEST_CHANGES_ACTION_ID } from '../../common/github/types.js';
-import { activateSessionPane } from '../sessionActionRunner.js';
+import { activateHostPane } from '../sessionActionRunner.js';
 
 /** Action id of the references pill. */
 export const SESSION_REFERENCES_PILL_ID = 'sessions.chatPills.references';
@@ -663,6 +664,7 @@ export class SessionArtifacts extends Disposable {
 		@ISharedWebContentExtractorService private readonly _webContentExtractorService: ISharedWebContentExtractorService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@ISessionHost private readonly _sessionHost: ISessionHost,
 	) {
 		super();
 
@@ -954,7 +956,7 @@ export class SessionArtifacts extends Disposable {
 			},
 			copy: text => { void this._clipboardService.writeText(text); },
 			openPullRequestChanges: pullRequest => {
-				activateSessionPane(this._sessionsService, session);
+				activateHostPane(this._sessionsService, this._sessionHost, { session, chatResource });
 				void this._commandService.executeCommand(OPEN_PULL_REQUEST_CHANGES_ACTION_ID, { pullRequest });
 			},
 			...(session.capabilities.read(reader).supportsRemoveArtifacts ? {

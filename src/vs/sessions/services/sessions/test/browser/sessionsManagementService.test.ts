@@ -84,7 +84,7 @@ import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/service
 import { ChatHostOpenerService, IChatHostOpenerService } from '../../../../../workbench/contrib/sessions/browser/chatHostOpener.js';
 import { SessionActivatingActionRunner } from '../../../../../workbench/contrib/sessions/browser/sessionActionRunner.js';
 import { SessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHostService.js';
-import { ActiveSessionHost, createMainWindowInstantiationService, getMainWindowHost, ISessionHost, ISessionHostService, SessionHostKind } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ActiveSessionHost, createMainWindowInstantiationService, getMainWindowHost, ISessionHost, ISessionHostService, SessionHost, SessionHostKind } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { getSingletonServiceDescriptors } from '../../../../../platform/instantiation/common/extensions.js';
 import { InstantiationService } from '../../../../../platform/instantiation/common/instantiationService.js';
@@ -626,6 +626,51 @@ suite('SessionsManagementService', () => {
 				slot: { active: false, detached: false, grid: true, pane: 'slot:parent:main' },
 				detached: { active: true, detached: true, grid: true, pane: 'detached:parent:child' },
 				chatWindow: { active: false, detached: false, grid: false, pane: undefined },
+			});
+		});
+
+		test('a pill activates the pane of the grid its host is in, also from a host nested in it; from the main window outside a pane, such as the Inbox, the pane of this grid that shows its chat, else its session\'s slot; a pill in a chat window leaves the grid as it is; the action runs', async () => {
+			const session = created('a');
+			const main = session.mainChat.get();
+			const child = { ...main, resource: main.resource.with({ fragment: 'child' }) };
+			const a = { ...session, chats: constObservable([main, child]) };
+			const [b, c] = ['b', 'c'].map(created);
+			const { view, part } = harness([a, b, c]);
+			await view.openSessionsInGrid([a, b]);
+			await view.moveChatToGrid(a.sessionId, child.resource, view.slotPanes.get()[0].id, 'right');
+			const name = (pane: ISessionGridPane | undefined) => pane && `${pane.kind}:${pane.session.get()?.sessionId}`;
+			const paneB = view.slotPanes.get().find(pane => pane.session.get()?.sessionId === 'b')!;
+			const hostOfA = part.getViewOfSession(view.visibleSessionPanes.get().find(shown => shown?.sessionId === 'a' && !shown.scopedChatResource)!)!.host;
+			const hostIn = (kind: SessionHostKind, parent: ISessionHost | undefined) => new SessionHost({ kind, parent, session: constObservable(a), chat: constObservable(undefined), contextKeyService: upcastPartial<IContextKeyService>({}) });
+			const run = async (host: ISessionHost, target?: { session: ISession; chatResource: URI }) => {
+				view.activatePane(paneB);
+				const ran: string[] = [];
+				await disposables.add(new SessionActivatingActionRunner(host, view, () => ({ session: target?.session, chatResource: target?.chatResource }))).run(toAction({ id: 'pill', label: 'Pill', run: () => { ran.push('pill'); } }));
+				return `${ran.join()} ${name(view.activePane.get())}`;
+			};
+			const ofA = { session: a, chatResource: main.resource };
+			const ofChild = { session: a, chatResource: child.resource };
+
+			assert.deepStrictEqual({
+				pane: await run(hostOfA),
+				composerInPane: await run(hostIn(SessionHostKind.Composer, hostOfA)),
+				inbox: await run(view.gridHost, ofA),
+				inboxOfDetachedChat: await run(view.gridHost, ofChild),
+				nestedInMainWindow: await run(hostIn(SessionHostKind.Composer, view.gridHost), ofA),
+				inboxOfSessionNotInGrid: await run(view.gridHost, { session: c, chatResource: c.mainChat.get().resource }),
+				inboxWithoutTarget: await run(view.gridHost),
+				chatWindow: await run(hostIn(SessionHostKind.ChatWindow, undefined), ofA),
+				chatWindowEditor: await run(hostIn(SessionHostKind.Pane, hostIn(SessionHostKind.ChatWindow, undefined)), ofA),
+			}, {
+				pane: 'pill slot:a',
+				composerInPane: 'pill slot:a',
+				inbox: 'pill slot:a',
+				inboxOfDetachedChat: 'pill detached:a',
+				nestedInMainWindow: 'pill slot:a',
+				inboxOfSessionNotInGrid: 'pill slot:b',
+				inboxWithoutTarget: 'pill slot:b',
+				chatWindow: 'pill slot:b',
+				chatWindowEditor: 'pill slot:b',
 			});
 		});
 
@@ -9049,7 +9094,7 @@ suite('SessionsManagementService', () => {
 			});
 		});
 
-		test('closing a chat that a chat editor shows, or the session of its chat, closes its editor, and leaves the grid alone, which shows the same session', async () => {
+		test('closing a chat that a chat editor shows closes its editor, and leaves the grid alone, which shows the same session', async () => {
 			const sessionB = multiChatSession('B', [chat('mainB'), chat('peerB', SessionStatus.Completed, ChatOriginKind.SideChat)]);
 			const [, peerB] = sessionB.chats.get();
 			const { view } = setup([sessionB]);
@@ -9070,10 +9115,9 @@ suite('SessionsManagementService', () => {
 			const before = grid();
 
 			await view.closeChat(editorSession, peerB);
-			view.closeSession(editorSession);
 			await timeout(0);
 
-			assert.deepStrictEqual({ closes, grid: grid() }, { closes: ['/chat/peerB', '/chat/peerB'], grid: before });
+			assert.deepStrictEqual({ closes, grid: grid() }, { closes: ['/chat/peerB'], grid: before });
 		});
 
 		for (const vetoed of [false, true]) {
@@ -9206,31 +9250,6 @@ suite('SessionsManagementService', () => {
 			await timeout(0);
 
 			assert.deepStrictEqual({ calls, inWindow, inGrid: visibility.gridSessions.get().some(shown => shown?.sessionId === 'B') }, { calls: ['close /chat/mainB', 'restore /chat/mainB'], inWindow: true, inGrid: false });
-		});
-
-		test('activating the session of a chat that a chat editor shows, as its pills do before their actions, leaves the grid, its active session and the canvas as they are; the action runs', async () => {
-			const sessionA = multiChatSession('A', [chat('mainA')]);
-			const sessionB = multiChatSession('B', [chat('mainB'), chat('peerB', SessionStatus.Completed, ChatOriginKind.SideChat)]);
-			const [, peerB] = sessionB.chats.get();
-			const { view, canvasService } = setup([sessionA, sessionB]);
-			await view.openSession(sessionA.resource);
-			disposables.add(chatHostOpeners.get(view)!.register({
-				showsChat: shown => shown.toString() === peerB.resource.toString(),
-				reveal: async () => { },
-				openBeside: async () => { },
-				close: async () => ({ restore: async () => { } }),
-			}));
-			canvasService.activeCanvasOpen.set({ id: 'canvas' } as Parameters<typeof canvasService.activeCanvasOpen.set>[0], undefined);
-			const editorSession = upcastPartial<IActiveSession>({ sessionId: 'B', resource: sessionB.resource, scopedChatResource: peerB.resource, mainChat: sessionB.mainChat, chats: sessionB.chats });
-			const state = () => ({ visible: view.visibleSessions.get().map(session => session?.sessionId), active: view.activeSession.get()?.sessionId, canvas: canvasService.activeCanvasId.get() });
-			const before = state();
-			const ran: string[] = [];
-
-			await disposables.add(new SessionActivatingActionRunner(() => editorSession, view)).run(toAction({ id: 'pill', label: 'Pill', run: () => { ran.push('pill'); } }));
-			// As the pills' pull request, issue and artifact actions do
-			view.setActive(editorSession);
-
-			assert.deepStrictEqual({ state: state(), ran }, { state: before, ran: ['pill'] });
 		});
 
 		test('opening a session whose chat another surface shows, such as a chat window, reveals it there, and leaves the grid and its selection as they are', async () => {

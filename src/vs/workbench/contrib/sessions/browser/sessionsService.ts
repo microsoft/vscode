@@ -2146,11 +2146,6 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	setActive(session: IActiveSession | undefined, preserveFocus?: boolean): void {
-		// The session of a chat another surface shows, such as a chat editor's, is that surface's, not the grid's: activating
-		// it, such as before an action of its chat's pills, leaves the grid, its active session and the canvas as they are.
-		if (session?.scopedChatResource && this.chatHostOpenerService.getOpenerOf(session.scopedChatResource)) {
-			return;
-		}
 		const active = this.activeSession.get();
 		if (this.windowCanvasService.activeCanvasOpen.get() || session?.sessionId !== active?.sessionId) {
 			this._cancelRestore();
@@ -2250,13 +2245,6 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	closeSession(session: ISession | undefined): void {
-		// The session of a chat another surface shows, such as a chat editor's, closes there, not in the grid.
-		const scopedChat = (session as Partial<IActiveSession> | undefined)?.scopedChatResource;
-		const shownBy = scopedChat && this.chatHostOpenerService.getOpenerOf(scopedChat);
-		if (shownBy) {
-			void shownBy.close(scopedChat).catch(onUnexpectedError);
-			return;
-		}
 		this._cancelRestore();
 		this._startOpenSession();
 		if (session instanceof VisibleSession && session.scopedChatResource) {

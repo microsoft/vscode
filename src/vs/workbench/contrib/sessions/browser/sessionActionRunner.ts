@@ -4,46 +4,62 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ActionRunner, IAction } from '../../../../base/common/actions.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ISessionGridPane, SessionGridPaneKind } from './sessionGridPane.js';
+import { ISessionHost } from './sessionHost.js';
 import { ISessionsService } from './sessionsService.js';
 import { ISession } from '../common/session.js';
-import { IActiveSession } from '../common/sessionsManagement.js';
 
-/** Activates the originating session before running a session-scoped action. */
+type IPaneActivator = Pick<ISessionsService, 'gridHost' | 'getPaneOfHost' | 'activatePane' | 'panes'>;
+
+/** The chat an action acts on, with its session. */
+export interface IActionTarget {
+	readonly session: ISession | undefined;
+	readonly chatResource: URI | undefined;
+}
+
+/** Activates the pane of the grid that the originating host is in before running a session-scoped action. */
 export class SessionActivatingActionRunner extends ActionRunner {
 
 	constructor(
-		private readonly _getSession: () => ISession | undefined,
-		private readonly _sessionsService: ISessionsService,
+		private readonly _host: ISessionHost,
+		private readonly _sessionsService: IPaneActivator,
+		private readonly _getTarget?: () => IActionTarget,
 	) {
 		super();
 	}
 
 	protected override async runAction(action: IAction, context?: unknown): Promise<void> {
-		const session = this._getSession();
-		if (session) {
-			activateSessionPane(this._sessionsService, session);
-		}
+		activateHostPane(this._sessionsService, this._host, this._getTarget?.());
 		await super.runAction(action, context);
 	}
 }
 
 /**
- * Makes the pane of the grid that shows `session` the active pane: the pane of the grid's view of it, else the first pane
- * that shows the session. No-op when no pane of the grid shows it, or when another surface, such as a chat window, shows
- * the chat of its pane.
+ * Makes a pane of the grid the active pane before an action of `host` on `target`:
+ * - the pane of `host`, or of the host it is nested in, such as a pane's composer;
+ * - for a host of the main window outside its panes, such as the Inbox's, the pane of the main window's grid that shows
+ *   the target: the detached pane of its chat, else its session's slot, as acting on a session there selects it;
+ * - nothing for a host of another window, such as a chat window's: an action there leaves the grid as it is.
  */
-export function activateSessionPane(sessionsService: ISessionsService, session: ISession): void {
-	// Transitional: the grid's and the chat windows' views of a session, until views take their pane.
-	if (isActiveSession(session)) {
-		sessionsService.setActive(session);
-		return;
+export function activateHostPane(sessionsService: IPaneActivator, host: ISessionHost, target?: IActionTarget): void {
+	let candidate: ISessionHost | undefined = host;
+	for (; candidate && candidate !== sessionsService.gridHost; candidate = candidate.parent) {
+		const pane = sessionsService.getPaneOfHost(candidate);
+		if (pane) {
+			sessionsService.activatePane(pane);
+			return;
+		}
 	}
-	const pane = sessionsService.panes.get().find(candidate => candidate.session.get() === session);
+	const pane = candidate && candidate === sessionsService.gridHost && target?.session ? paneOfTarget(sessionsService.panes.get(), target.session, target.chatResource) : undefined;
 	if (pane) {
 		sessionsService.activatePane(pane);
 	}
 }
 
-function isActiveSession(session: ISession): session is IActiveSession {
-	return 'activeChat' in session;
+function paneOfTarget(panes: readonly ISessionGridPane[], session: ISession, chatResource: URI | undefined): ISessionGridPane | undefined {
+	const ofSession = panes.filter(pane => pane.session.get()?.sessionId === session.sessionId);
+	return ofSession.find(pane => pane.kind === SessionGridPaneKind.Detached && isEqual(pane.chat.get()?.resource, chatResource))
+		?? ofSession.find(pane => pane.kind === SessionGridPaneKind.Slot);
 }
