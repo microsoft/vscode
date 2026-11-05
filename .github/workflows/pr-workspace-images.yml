@@ -7,8 +7,11 @@ name: Code OSS (workspace images)
 # changed since. The test workflows adopt the images one platform at a time in follow-up pull
 # requests, and until then nothing uses them. See .github/workflows/workspace_image/README.md.
 on:
-  # Only when an input of the images changes: the source code doesn't need to be current, as the
-  # checkout of a job fetches and writes only what changed since the commit of its image
+  # Every day, so that there is always a recent image of main: the images are kept for 2 days
+  schedule:
+    - cron: '0 5 * * *'
+  # On pushes, only when an input of the images changes: the source code doesn't need to be current,
+  # as the checkout of a job fetches and writes only what changed since the commit of its image
   push:
     branches:
       - main

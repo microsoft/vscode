@@ -33,7 +33,7 @@ import * as zlib from 'zlib';
 process.env.UV_THREADPOOL_SIZE ??= String(Math.max(16, os.availableParallelism() * 2));
 
 /** The events of the workflow runs that build images: never a pull request */
-const TRUSTED_EVENTS = new Set(['push', 'workflow_dispatch']);
+const TRUSTED_EVENTS = new Set(['push', 'schedule', 'workflow_dispatch']);
 /** At the root of an image: the commit and the path of its workspace */
 const METADATA_FILE = '.workspace-image.json';
 /** The tag at the commit of an image, which the shallow fetch of actions/checkout sends, so that it downloads only what changed */
