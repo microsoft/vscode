@@ -195,16 +195,6 @@ export function createHostMenuOptions(host: ISessionHost): { readonly arg: ISess
 	return { arg: host.commandContext, shouldForwardArgs: true };
 }
 
-/**
- * Whether `host` is backed by an {@link IActiveSession}, as the grid and chat windows show sessions until hosts own their
- * chat. Hosts registered as services are proxies until first used, so this checks the prototype, not the properties.
- *
- * @internal Transitional, removed with {@link ActiveSessionHost}. Only the legacy `ISessionScope` alias uses it.
- */
-export function hasActiveSessionSource(host: ISessionHost): host is ActiveSessionHost {
-	return host instanceof ActiveSessionHost;
-}
-
 let hostIds = 0;
 
 export interface ISessionHostOptions {
@@ -233,7 +223,6 @@ export class ActiveSessionHost implements ISessionHost {
 	readonly parent: ISessionHost | undefined;
 	readonly windowId: IObservable<number | undefined>;
 	/** @internal Transitional: the session with its selected chat, for the legacy aliases and resolvers only. */
-	readonly activeSession: IObservable<IActiveSession | undefined>;
 	readonly content: IObservable<SessionHostContent>;
 	readonly chatResource: IObservable<URI | undefined>;
 	readonly chat: IObservable<IChat | undefined>;
@@ -246,7 +235,6 @@ export class ActiveSessionHost implements ISessionHost {
 		this.kind = options.kind;
 		this.parent = options.parent;
 		this.windowId = options.windowId ?? options.parent?.windowId ?? constObservable(undefined);
-		this.activeSession = options.session;
 		this._contextKeyService = options.contextKeyService;
 		this.commandContext = { sessionHostId: this.id };
 		const loadingChat = options.loadingChat;

@@ -55,7 +55,6 @@ import { Menus } from '../../../browser/menus.js';
 import { activeSessionViewBackground, activeSessionViewForeground, agentsPanelBackground, inactiveSessionViewBackground } from '../../../common/theme.js';
 import { IWorkspaceSelectionSnapshot } from '../../../common/workspaceSelection.js';
 import { ISessionsProvidersService, observeSessionSandboxToggle } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionContext, SessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { ActiveSessionHost, ISessionHost, ISessionHostService, SessionHostKind } from '../../../services/sessions/browser/sessionHost.js';
 import { ISessionInputPickerVisibility, SessionInputPickerVisibility } from '../../../services/sessions/common/sessionPickerVisibility.js';
 import { WorkbenchHoverDelegate } from '../../../../platform/hover/browser/hover.js';
@@ -240,7 +239,6 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		this._scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection(
 			[INewChatModelPickerService, this._newChatModelPickerService],
 			[ISessionHost, host],
-			[ISessionContext, new SessionContext(this.options.session)],
 			[ISessionModelSelection, this._modelSelection],
 			[ISessionInputPickerVisibility, this.pickerVisibility],
 		)));

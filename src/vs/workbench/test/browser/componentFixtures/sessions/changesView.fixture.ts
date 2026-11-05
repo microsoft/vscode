@@ -47,8 +47,6 @@ import { IGitHubService } from '../../../../../sessions/contrib/github/browser/g
 // eslint-disable-next-line local/code-import-patterns
 import { GitHubCheckConclusion, GitHubCheckStatus, GitHubCIOverallStatus, IGitHubCICheck } from '../../../../../sessions/contrib/github/common/types.js';
 // eslint-disable-next-line local/code-import-patterns
-import { ISessionScope } from '../../../../../sessions/services/sessions/browser/sessionScope.js';
-// eslint-disable-next-line local/code-import-patterns
 import { ISessionsService } from '../../../../../sessions/services/sessions/browser/sessionsService.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IActiveSession } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
@@ -433,7 +431,6 @@ function renderChangesView(ctx: ComponentFixtureContext, options: IChangesViewFi
 				override readonly visibleSessions = constObservable([session]);
 				override readonly onDidToggleSessionStickiness = Event.None;
 			}());
-			reg.defineInstance(ISessionScope, { _serviceBrand: undefined, session: constObservable<IActiveSession | undefined>(session) });
 			reg.defineInstance(IDecorationsService, new class extends mock<IDecorationsService>() { override onDidChangeDecorations = Event.None; }());
 			reg.defineInstance(ITextFileService, new class extends mock<ITextFileService>() { override readonly untitled = new class extends mock<ITextFileService['untitled']>() { override readonly onDidChangeLabel = Event.None; }(); }());
 			reg.defineInstance(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { override onDidChangeWorkspaceFolders = Event.None; override getWorkspace(): IWorkspace { return { id: 'fixture', folders: [], configuration: undefined }; } }());

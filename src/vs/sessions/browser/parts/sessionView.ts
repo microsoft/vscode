@@ -23,7 +23,6 @@ import { AbstractChatView, IChatViewOptions, ISelectNoWorkspaceOptions, ISession
 import { ChatGroupsView } from './chatGroupsView.js';
 import { SessionHeader, SessionViewFloatingToolbar } from './sessionHeader.js';
 import { ChatViewSessionActivityBar } from './sessionActivityBar.js';
-import { ISessionContext, SessionContext } from '../../services/sessions/browser/sessionContext.js';
 import { ActiveSessionHost, ISessionHost, ISessionHostService, SessionHostKind } from '../../services/sessions/browser/sessionHost.js';
 import { autorun, derived, disposableObservableValue, IObservable, observableFromEvent, observableValue, runOnChange } from '../../../base/common/observable.js';
 import { SessionIsMaximizedContext } from '../../common/contextkeys.js';
@@ -157,7 +156,6 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 		this._scopedInstantiationService = this._register(instantiationService.createChild(new ServiceCollection(
 			[IContextKeyService, scopedContextKeyService],
 			[ISessionHost, this.host],
-			[ISessionContext, new SessionContext(this._sessionObs)],
 		)));
 
 		// Expose the content cap so aligned chat surfaces do not duplicate it.

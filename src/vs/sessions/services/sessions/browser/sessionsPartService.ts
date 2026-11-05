@@ -106,6 +106,12 @@ export interface ISessionsPartService {
 	getFocusedSessionView(): SessionView | undefined;
 
 	/**
+	 * Moves keyboard focus into the view that shows exactly `session`, such as a pane's session, first revealing it in the
+	 * grid when it is only partially visible. No-op when the grid does not show it.
+	 */
+	focusSessionView(session: ISession): void;
+
+	/**
 	 * The view of the grid's active pane: the pane commands without arguments act on while the main window is the
 	 * focused host.
 	 */

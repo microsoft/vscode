@@ -30,6 +30,25 @@ suite('Sessions - Sessions Part', () => {
 		assert.deepStrictEqual([part.getSessionAtPosition(0), part.getSessionAtPosition(-1)?.sessionId, part.getSessionAtPosition(2)], [null, session.sessionId, undefined]);
 	});
 
+	test('focusing the view of a pane the grid clips reveals it and moves focus into it', () => {
+		const { part, container } = createSessionsPartTestHarness(store);
+		const sessions = ['first', 'second', 'third', 'fourth'].map(id => createTestActiveSession(id));
+		part.updateVisibleSessions(sessions, sessions[0]);
+		part.layout(500, 600, 0, 0);
+		const grid = container.querySelector<HTMLElement>('.session-grid')!;
+		const target = part.getSessionView(sessions[3].sessionId)!;
+		const isFullyVisible = () => {
+			const gridRect = grid.getBoundingClientRect();
+			const viewRect = target.element.getBoundingClientRect();
+			return viewRect.left >= gridRect.left - 1 && viewRect.right <= gridRect.right + 1;
+		};
+		const before = isFullyVisible();
+
+		part.focusSessionView(sessions[3]);
+
+		assert.deepStrictEqual({ before, after: isFullyVisible(), focused: target.element.contains(mainWindow.document.activeElement) }, { before: false, after: true, focused: true });
+	});
+
 	test('session gaps omit separators while compact density preserves themed separators', () => {
 		const colors = { [agentsPanelBorder]: '#ff0000', [agentsCardBorder]: '#00ff00', [contrastBorder]: '#00000000' };
 		const themes = [

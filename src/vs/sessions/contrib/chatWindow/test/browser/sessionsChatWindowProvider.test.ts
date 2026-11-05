@@ -26,7 +26,6 @@ import { IContentPart, IEditorGroup, IEditorGroupsService, IEditorPart } from '.
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
-import { ISessionScope } from '../../../../services/sessions/browser/sessionScope.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ChatHostOpenerService, IChatHostOpenerService } from '../../../../services/sessions/browser/chatHostOpener.js';
@@ -47,6 +46,7 @@ import { EditorInputCapabilities, GroupModelChangeKind } from '../../../../../wo
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { IGroupModelChangeEvent } from '../../../../../workbench/common/editor/editorGroupModel.js';
 import { stubSessionHosts } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
 
 suite('Sessions chat window provider', () => {
 
@@ -202,11 +202,11 @@ suite('Sessions chat window provider', () => {
 		const second = (await content.resolveChat(URI.parse('test:/second')))!;
 		store.add(content.bind!(window, windowInstantiationService));
 		activeChat.set(URI.parse('test:/second'), undefined);
-		const scope = content.services!.get(ISessionScope) as ISessionScope;
+		const host = content.services!.get(ISessionHost) as ISessionHost;
 		const contextKeyService = windowInstantiationService.invokeFunction(accessor => accessor.get(IContextKeyService));
 		const shown = {
 			chats: [ofSession, second].map(chat => ({ chat: chat.chat.get().path, title: chat.title.get(), scopedTo: (chat as unknown as { session: IObservable<IActiveSession | undefined> }).session.get()?.scopedChatResource?.path })),
-			scope: { session: scope.session.get()?.sessionId, chat: scope.session.get()?.scopedChatResource?.path },
+			host: { session: host.session.get()?.sessionId, chat: host.chat.get()?.resource.path },
 			changesetOperations: contextKeyService.getContextKeyValue(SessionChangesetOperationsContext.key),
 			changesFileList: contextKeyService.getContextKeyValue(SessionChangesEditorFileListContext.key),
 		};
@@ -217,7 +217,7 @@ suite('Sessions chat window provider', () => {
 			unknown: undefined,
 			shown: {
 				chats: [{ chat: '/main', title: 'main', scopedTo: '/main' }, { chat: '/second', title: 'second', scopedTo: '/second' }],
-				scope: { session: 'session', chat: '/second' },
+				host: { session: 'session', chat: '/second' },
 				changesetOperations: ['resource:discard'],
 				changesFileList: true,
 			},

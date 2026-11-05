@@ -22,7 +22,8 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { getNewSessionRepositoryConfigGroup, Menus } from '../../../browser/menus.js';
 import { SessionActiveChatResourceContext, SessionIdContext } from '../../../common/contextkeys.js';
-import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
+import { getWindowHost, ISessionHost, SessionHostKind } from '../../../services/sessions/browser/sessionHost.js';
+import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { resolveSessionCommandTarget } from '../../../services/sessions/browser/sessionCommandTarget.js';
@@ -110,19 +111,20 @@ export class SessionSyncChangesActionViewItem extends ActionViewItem {
 	constructor(
 		action: IAction,
 		options: IActionViewItemOptions,
-		@ISessionContext private readonly sessionContext: ISessionContext,
+		@ISessionHost private readonly sessionHost: ISessionHost,
 		@ISessionsPartService private readonly sessionsPartService: ISessionsPartService,
 		@ISessionInputPickerVisibility pickerVisibility: ISessionInputPickerVisibility,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) {
 		super(undefined, action, { ...options, icon: false, label: true });
 		this._register(pickerVisibility.registerPicker('sync', () => this.focus()));
 		this._register(this.keybindingService.onDidUpdateKeybindings(() => this.updateTooltip()));
 
 		this._register(autorun(reader => {
-			const session = sessionContext.session.read(reader);
-			const operation = getSyncChangesOperation(session?.activeChat.read(reader), reader)?.operation;
-			const repository = session?.activeChat.read(reader).workspace.read(reader)?.folders[0]?.gitRepository;
+			const chat = sessionHost.chat.read(reader);
+			const operation = getSyncChangesOperation(chat, reader)?.operation;
+			const repository = chat?.workspace.read(reader)?.folders[0]?.gitRepository;
 
 			const incomingChanges = repository?.incomingChanges ?? 0;
 			const outgoingChanges = repository?.outgoingChanges ?? 0;
@@ -171,10 +173,18 @@ export class SessionSyncChangesActionViewItem extends ActionViewItem {
 	}
 
 	override dispose(): void {
-		const session = this.sessionContext.session.get();
-		const chat = session?.activeChat.get();
+		const session = this.sessionHost.session.get();
+		const chat = this.sessionHost.chat.get();
 		if ((!getSyncChangesOperation(chat) || !shouldShowSyncChanges(session, chat)) && this.element?.contains(getActiveElement())) {
-			this.sessionsPartService.focusSession(this.sessionContext.session.get());
+			// Back to the surface of the host it is in: a pane of the grid, else its own chat's input, such as a chat
+			// editor's, never the grid's pane of the same session in another window.
+			if (this.sessionHost.kind === SessionHostKind.Pane && getWindowHost(this.sessionHost).kind === SessionHostKind.MainWindow) {
+				if (session) {
+					this.sessionsPartService.focusSessionView(session);
+				}
+			} else if (chat) {
+				this.chatWidgetService.getWidgetBySessionResource(chat.resource)?.focusInput();
+			}
 		}
 
 		super.dispose();

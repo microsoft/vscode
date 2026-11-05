@@ -35,7 +35,6 @@ import { ISessionsPartService } from '../../../../services/sessions/browser/sess
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { Menus } from '../../../../browser/menus.js';
 import { IsPhoneLayoutContext, SessionUsesCombinedConfigPickerContext } from '../../../../common/contextkeys.js';
-import { ISessionContext, SessionContext } from '../../../../services/sessions/browser/sessionContext.js';
 import { ModelPicker, ModelPickerActionViewItem } from '../../browser/modelPicker.js';
 import { INewChatModelPickerService, NewChatModelPickerService } from '../../browser/newChatModelPicker.js';
 import { ISessionModelSelection } from '../../browser/sessionModelSelection.js';
@@ -203,7 +202,6 @@ suite('ModelPicker controls', () => {
 		const selectedModels: string[] = [];
 		let opens = 0;
 		let disposed = 0;
-		instantiationService.stub(ISessionContext, new SessionContext(constObservable(undefined)));
 		instantiationService.stub(ISessionModelSelection, {
 			state: constObservable(EMPTY_MODEL_SELECTION_STATE),
 			selectModel: id => { selectedModels.push(id); return true; },

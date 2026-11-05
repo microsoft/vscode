@@ -36,7 +36,6 @@ import { CustomViewVisibleContext } from '../../../common/contextkeys.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../../../common/layoutConstants.js';
 import { SESSION_ACTIVITY_BAR_SETTING } from '../../../common/sessionConfig.js';
 import { SessionsChatSurface } from '../../../services/chatBackground/browser/sessionsChatSurface.js';
-import { ISessionScope } from '../../../services/sessions/browser/sessionScope.js';
 import { ActiveSessionHost, getMainWindowHost, ISessionHost, ISessionHostService, SessionHostKind } from '../../../services/sessions/browser/sessionHost.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IChatHostOpenerService } from '../../../services/sessions/browser/chatHostOpener.js';
@@ -411,8 +410,7 @@ export class SessionsChatWindowContent extends Disposable implements IChatWindow
 			contextKeyService: () => this._windowContextKeyService ?? contextKeyService,
 		});
 		this._register(sessionHostService.registerHost(this.host));
-		const sessionScope: ISessionScope = { _serviceBrand: undefined, session };
-		this.services = new ServiceCollection([ISessionHost, this.host], [ISessionScope, sessionScope]);
+		this.services = new ServiceCollection([ISessionHost, this.host]);
 		this._register(toDisposable(() => this._chats.get().forEach(chat => chat.dispose())));
 	}
 

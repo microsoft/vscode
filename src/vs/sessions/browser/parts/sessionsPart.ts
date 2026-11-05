@@ -370,6 +370,16 @@ export class SessionsPart extends Part {
 		slot.view.focus();
 	}
 
+	/** Moves keyboard focus into the view of exactly `session`, of those the grid shows, first revealing it like {@link focusSession}. */
+	focusSessionView(session: ISession): void {
+		const slot = this._slots.find(candidate => candidate.session === session);
+		if (!slot) {
+			return;
+		}
+		this._revealView(slot.view);
+		slot.view.focus();
+	}
+
 	/**
 	 * Ensures the given view is fully visible within the grid. The grid clips its
 	 * leaves (`overflow: hidden`) and lays them out side by side; when there are

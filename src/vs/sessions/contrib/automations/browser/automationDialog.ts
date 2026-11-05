@@ -84,7 +84,6 @@ import { AutomationCronInput } from './automationCronInput.js';
 import { NewChatModelPickerService, INewChatModelPickerService } from '../../chat/browser/newChatModelPicker.js';
 import { createNewSessionControlToolbar } from '../../chat/browser/newSessionConfigToolbars.js';
 import { ISessionModelSelection, SessionModelSelection } from '../../chat/browser/sessionModelSelection.js';
-import { ISessionContext, SessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { ActiveSessionHost, ISessionHost, ISessionHostService, SessionHostKind } from '../../../services/sessions/browser/sessionHost.js';
 import { VisibleSession } from '../../../services/sessions/browser/visibleSessions.js';
 import { setActiveSessionContextKeys } from '../../../services/sessions/common/sessionContextKeys.js';
@@ -1764,7 +1763,6 @@ export function renderForm(
 	const scopedInstantiationService = disposables.add(instantiationService.createChild(new ServiceCollection(
 		[IContextKeyService, scopedContextKeyService],
 		[ISessionHost, automationHost],
-		[ISessionContext, new SessionContext(activeAutomationSession)],
 		[INewChatModelPickerService, newChatModelPickerService],
 		[ISessionModelSelection, sessionModelSelection],
 	)));
