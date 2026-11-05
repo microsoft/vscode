@@ -392,9 +392,9 @@ export interface ISessionsService extends ISessionGridPanes {
 
 	/**
 	 * Hides `chat` of `session` from the grid while the returned disposable is not disposed, such as while a chat window
-	 * shows it: its tab leaves the session's slot, and the session leaves the grid when that was the only chat it showed
-	 * there. Releasing it does not show the chat in the grid again. Idempotent, and safe whichever ends first, the hold or
-	 * the session.
+	 * shows it: its tab leaves the session's slot, and the session's slot leaves the grid when that was the only chat it
+	 * showed there; its chats in panes of their own stay. Releasing it does not show the chat in the grid again. Idempotent,
+	 * and safe whichever ends first, the hold or the session.
 	 */
 	hideChatFromGrid(session: ISession, chat: URI): IDisposable;
 
@@ -2095,14 +2095,15 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 	hideChatFromGrid(session: ISession, chat: URI): IDisposable {
 		const hold = this._visibility.hideChatFromGrid(session.sessionId, chat);
-		// The session leaves the grid too when that was the only chat it shows there.
+		// The session leaves the grid too when that was the only chat it shows there. Subagent chats it does not show as
+		// tabs do not keep it there: they open on demand. Only its own slot leaves: its chats in panes of their own stay.
 		const gridSessions = this._visibility.gridSessions.get().filter(candidate => candidate?.sessionId === session.sessionId && !candidate.scopedChatResource);
-		const onlyChat = gridSessions.every(candidate => candidate!.openChats.get().every(openChat => this.uriIdentityService.extUri.isEqual(openChat.resource, chat)));
+		const onlyChat = gridSessions.every(candidate => candidate!.visibleChatTabs.get().every(tab => this.uriIdentityService.extUri.isEqual(tab.resource, chat)));
 		if (gridSessions.length && onlyChat) {
 			this._cancelRestore();
 			this._startOpenSession();
 			const wasActive = this._visibility.activeSession.get()?.sessionId === session.sessionId;
-			this._visibility.removeMany([session.sessionId]);
+			this._visibility.removeMany([session.sessionId], true);
 			if (wasActive && this._visibility.activeSession.get() === undefined && !this._visibility.visibleSessions.get().includes(undefined)) {
 				// The grid shows the new-session composer instead, without taking focus from the window.
 				this._visibility.setActive(undefined, true);

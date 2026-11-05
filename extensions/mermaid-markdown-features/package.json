@@ -267,7 +267,8 @@
     "@types/node": "24.x",
     "@types/vscode-notebook-renderer": "^1.72.0",
     "@vscode/codicons": "^0.0.36",
-    "playwright": "^1.61.1"
+    "playwright": "^1.61.1",
+    "zod": "4.4.3"
   },
   "dependencies": {
     "@iconify-json/logos": "^1.2.0",
