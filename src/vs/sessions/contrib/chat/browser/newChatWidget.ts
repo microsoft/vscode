@@ -34,6 +34,7 @@ import { localize } from '../../../../nls.js';
 import { IActiveSession, ICreateNewSessionOptions, ISendRequestOptions, ISessionsManagementService, WorkspaceNotTrustedError } from '../../../services/sessions/common/sessionsManagement.js';
 import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../services/sessions/common/session.js';
 import { IOpenNewSessionResult, ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { getMainWindowHost, ISessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { VisibleSession } from '../../../services/sessions/browser/visibleSessions.js';
 import { ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
@@ -98,6 +99,7 @@ import { IAccessibilityService } from '../../../../platform/accessibility/common
 import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { ISessionsRecentWorkspacesService } from '../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { filterConfigurationToSchema } from '../../../../workbench/contrib/chat/browser/widget/input/chatModelConfigurationLogic.js';
+import { createSessionComparisonHarness } from '../../../services/sessions/browser/sessionComparisonConfiguration.js';
 
 // #region --- New Chat Widget ---
 
@@ -189,6 +191,7 @@ export class NewChatWidget extends Disposable {
 	private readonly _onDidChangeChatPetPlatform = this._register(new Emitter<void>());
 
 	private readonly _session: IObservable<IActiveSession | undefined>;
+	private readonly _paneSession: IObservable<IActiveSession | undefined>;
 
 	/** Whether the active draft is a workspace-less quick chat. */
 	private readonly _isQuickChatComposer: IObservable<boolean>;
@@ -232,6 +235,7 @@ export class NewChatWidget extends Disposable {
 		@ILogService private readonly logService: ILogService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
+		@ISessionHostService private readonly sessionHostService: ISessionHostService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@ISessionsRecentWorkspacesService private readonly recentWorkspacesService: ISessionsRecentWorkspacesService,
 		@IAquariumService private readonly aquariumService: IAquariumService,
@@ -260,18 +264,12 @@ export class NewChatWidget extends Disposable {
 
 		this._restoreSessionOptionsExpanded();
 
-		// TODO: @sandy081 The session/chat should be passed down. There should not be sessionsService.activeSession read in the widget.
+		// The session of the pane that hosts the composer, which shows its draft.
+		this._paneSession = options.session ?? constObservable(undefined);
 		this._session = this._preserveCustomView ? derived(this, reader => {
 			const draft = this.sessionsManagementService.newSession.read(reader);
 			return draft ? reader.store.add(new VisibleSession(draft, draft.mainChat.read(reader))) : undefined;
-		}) : derivedObservableWithCache<IActiveSession | undefined>(this, (reader, prev) => {
-			const activeSession = this.sessionsService.activeSession.read(reader);
-			if (activeSession && activeSession.isCreated.read(reader)) {
-				return prev;
-			}
-
-			return activeSession;
-		});
+		}) : this._paneSession;
 
 		// A quick chat is workspace-less; the composer hides the workspace picker
 		// (nothing to pick) and surfaces the session-type picker in the controls.
@@ -1137,7 +1135,7 @@ export class NewChatWidget extends Disposable {
 				&& !await this._workspacePicker.whenWorkspaceRestored(cancellation.token)) {
 				return;
 			}
-			if (cancellation.token.isCancellationRequested || (this._preserveCustomView ? this._session.get() : this.sessionsService.activeSession.get())
+			if (cancellation.token.isCancellationRequested || (this._preserveCustomView ? this._session.get() : this._paneSession.get())
 				|| this._newSessionCreation.value || this._workspacePicker.selectedFolderUri) {
 				return;
 			}
@@ -1149,7 +1147,8 @@ export class NewChatWidget extends Disposable {
 			const target = environment ? this._workspaceOptOutTarget.get() : undefined;
 			if (environment ? !!target : this.sessionsManagementService.isQuickChatTargetAvailable()) {
 				if (this._workspacePicker.isNoWorkspaceSelected()) {
-					this.selectNoWorkspace(target);
+					// Restoring the previous choice is not a new user choice, so it must not supersede a window-open workspace either.
+					this.selectNoWorkspace(target, { userSelection: false, preserveNavigation: true });
 				} else {
 					// An automatic fallback must not persist a user choice or supersede a window-open workspace.
 					this._createdSessionId = (this._preserveCustomView ? this._openQuickChat(target, true) : this.sessionsService.openQuickChat(target, true))?.sessionId;
@@ -1928,17 +1927,7 @@ export class NewChatWidget extends Disposable {
 						modelConfiguration[key] = value;
 					}
 				}
-				return {
-					providerId: session.providerId,
-					sessionTypeId: resolved.sessionType.id,
-					label: resolved.sessionType.label,
-					modelId: resolved.model.identifier,
-					modelLabel: resolved.model.metadata.name,
-					modelConfiguration: Object.keys(modelConfiguration).length ? modelConfiguration : undefined,
-					permissionId: harnessPermission.id,
-					permissionLabel: harnessPermission.label,
-					modeId: harnessPermission.comparisonModeId,
-				};
+				return createSessionComparisonHarness(session.providerId, resolved.sessionType, resolved.model, modelConfiguration, harnessPermission);
 			};
 			const judgeModelId = this._comparisonSelection.judgeModelId.get();
 			const synthesisModelId = this._comparisonSelection.synthesizerModelId.get();
@@ -1955,7 +1944,7 @@ export class NewChatWidget extends Disposable {
 				if (this._backgroundSend) {
 					if (!this._store.isDisposed && !this._pendingWorkspaceCreation
 						&& this.sessionsManagementService.newSession.get()?.sessionId === session.sessionId
-						&& (this._preserveCustomView || this.sessionsService.activeSession.get()?.sessionId === session.sessionId)
+						&& (this._preserveCustomView || getMainWindowHost(this.sessionHostService).session.get()?.sessionId === session.sessionId)
 						&& (isQuickChat || isEqual(workspace, this._workspacePicker.selectedFolderUri))) {
 						this._comparisonSelection.reset();
 						// Creating the replacement releases the old draft without an empty-composer handoff.
@@ -2400,20 +2389,9 @@ export class NewChatWidget extends Disposable {
 	}
 
 	selectWorkspace(folderUri: URI, options?: ISelectWorkspaceOptions): WorkspaceSelectionResult {
-		if (options?.isDefault) {
-			if (this._newSessionCreation.value) {
-				return 'notReady';
-			}
-			const selection = this._workspacePicker.selectionSnapshot;
-			if (!this._newChatInput.canApplyWorkspaceDefault
-				|| selection.state === 'noWorkspace'
-				|| selection.origin === WorkspaceSelectionOrigin.User
-				|| selection.origin === WorkspaceSelectionOrigin.WindowOpen
-				|| selection.origin === WorkspaceSelectionOrigin.RestoredDraft
-				|| selection.origin === WorkspaceSelectionOrigin.SessionSync
-				|| selection.origin === WorkspaceSelectionOrigin.Programmatic) {
-				return 'preserved';
-			}
+		const blocked = options?.isDefault ? this._getWorkspaceDefaultBlocker() : undefined;
+		if (blocked) {
+			return blocked;
 		}
 		if (options) {
 			this._reconcileWorkspaceEnvironment(options);
@@ -2422,6 +2400,35 @@ export class NewChatWidget extends Disposable {
 		this._workspacePicker.setSelectedWorkspace(folderUri, { providerId: options?.providerId, preferDevContainer: options?.preferDevContainer, origin: options?.selectionOrigin });
 		const selection = this._workspacePicker.selectionSnapshot;
 		return selection.state === 'selected' && this.uriIdentityService.extUri.isEqual(selection.folderUri, folderUri) ? 'applied' : 'notReady';
+	}
+
+	/** Starts without a workspace for the window opening intent, acknowledging application or preservation of an existing choice. */
+	applyNoWorkspace(options?: ISelectNoWorkspaceOptions): WorkspaceSelectionResult {
+		const blocked = options?.isDefault ? this._getWorkspaceDefaultBlocker() : undefined;
+		if (blocked) {
+			return blocked;
+		}
+		// Without a quick chat, for example while the environment has no compatible target yet, the previous draft is still the session.
+		const session = this.selectNoWorkspace(undefined, options);
+		return session && this._workspacePicker.selectionSnapshot.state === 'noWorkspace' ? 'applied' : 'notReady';
+	}
+
+	/** Why an inferred default must not replace the current workspace choice, if it must not. */
+	private _getWorkspaceDefaultBlocker(): WorkspaceSelectionResult | undefined {
+		if (this._newSessionCreation.value) {
+			return 'notReady';
+		}
+		const selection = this._workspacePicker.selectionSnapshot;
+		if (!this._newChatInput.canApplyWorkspaceDefault
+			|| selection.state === 'noWorkspace'
+			|| selection.origin === WorkspaceSelectionOrigin.User
+			|| selection.origin === WorkspaceSelectionOrigin.WindowOpen
+			|| selection.origin === WorkspaceSelectionOrigin.RestoredDraft
+			|| selection.origin === WorkspaceSelectionOrigin.SessionSync
+			|| selection.origin === WorkspaceSelectionOrigin.Programmatic) {
+			return 'preserved';
+		}
+		return undefined;
 	}
 }
 

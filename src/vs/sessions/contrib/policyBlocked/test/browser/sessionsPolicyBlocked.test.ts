@@ -10,7 +10,7 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -31,6 +31,7 @@ import { SessionsPolicyBlockedContribution } from '../../browser/policyBlocked.c
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ITestSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Sessions policy update explanation', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -79,7 +80,7 @@ suite('Sessions policy update explanation', () => {
 			override readonly onDidChangeManagedSettings = managedSettingsChange.event;
 			override getManagedSettingValue(key: string) { return managedSettings[key]; }
 		}());
-		services.stub(ISessionsService, { activeSession });
+		services.stub(ISessionsService, upcastPartial<ITestSessionsService>({ activeSession, focusActiveSession: () => services.get(ISessionsPartService).focusSession(activeSession.get()) }));
 		services.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
 			override focusSession(session: IActiveSession | undefined): void {
 				fallbackFocusCalls.push({ sessionId: session?.sessionId, inert: content.inert });

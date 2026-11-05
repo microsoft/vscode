@@ -49,6 +49,9 @@ import { GitHubCheckConclusion, GitHubCheckStatus } from '../../../github/common
 import '../../../changes/browser/changesActions.js';
 import { SESSIONS_FILES_CONTAINER_ID } from '../../../files/browser/files.contribution.js';
 import { NewChangesTabAction, NewFileTabAction } from '../../../editor/browser/addTabActions.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService, ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
+import { focusedSessionHostServiceOf, sessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 import { addPeerChat, createTestHarness, ICreateOptions, ITestLayoutHarness, makeChange, makeSession, setActiveChat, TestStubEditorInput } from './layoutControllerTestUtils.js';
 import '../../../editor/browser/editor.contribution.js';
 
@@ -68,8 +71,12 @@ suite('DesktopLayoutController', () => {
 		getViewState(sessionResource: URI) {
 			return this._viewStateBySession.get(sessionResource);
 		}
+		shown() {
+			const shown = this._shownByMainWindow();
+			return shown && { session: shown.session.resource.toString(), chat: shown.chat.resource.toString() };
+		}
 		getComposition(session: IActiveSession) {
-			const key = this._ownerKeyFor(session);
+			const key = this._ownerKeyFor({ session, chat: session.activeChat.get() });
 			return key && this._compositionStore?.get(key);
 		}
 	}
@@ -101,6 +108,25 @@ suite('DesktopLayoutController', () => {
 	function makeChangesEditor(sessionResource: URI): TestStubEditorInput {
 		return store.add(new TestStubEditorInput(harness.sessionChangesService.getChangesEditorResource(sessionResource)));
 	}
+
+	test('lays out what the main window host shows, not a focused chat window that shows another session', () => {
+		harness = createTestHarness(store);
+		const sessionA = makeSession(URI.parse('session:main-window'));
+		const sessionB = makeSession(URI.parse('session:chat-window'));
+		// The chat window that shows B has focus: a window-dependent read of the focused host or of the
+		// sessions service's active session would see B.
+		harness.instaService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			readonly activeSession = constObservable(sessionB);
+			override readonly visibleSessions = harness.visibleSessionsObs;
+			readonly windowSessions = constObservable([]);
+		});
+		harness.instaService.stub(ISessionHostService, sessionHostServiceOf(store, { mainWindowActiveSession: harness.activeSessionObs, visibleSessions: constObservable([]), windowSessions: constObservable([sessionB]) }));
+		harness.instaService.stub(IFocusedSessionHostService, focusedSessionHostServiceOf(constObservable(sessionB)));
+		const controller = store.add(harness.instaService.createInstance(TestDesktopController));
+		harness.activeSessionObs.set(sessionA, undefined);
+
+		assert.deepStrictEqual(controller.shown(), { session: 'session:main-window', chat: sessionA.activeChat.get().resource.toString() });
+	});
 
 	function makeWebviewEditor(viewType: string, providerId?: string): WebviewInput {
 		const editor = Object.create(WebviewInput.prototype) as WebviewInput;

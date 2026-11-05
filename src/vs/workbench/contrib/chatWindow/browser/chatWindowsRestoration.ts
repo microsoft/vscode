@@ -21,8 +21,12 @@ import { deserializeChatWindowEditors, isChatWindowChatPart, ISerializedChatWind
 export const OPEN_CHAT_WINDOWS_STORAGE_KEY = 'sessions.chatWindow.openChats';
 
 interface IStoredChatWindow {
-	/** The chat; see {@link OPEN_CHAT_WINDOWS_STORAGE_KEY}. */
+	/** The chat it opened for, the first of its chats; see {@link OPEN_CHAT_WINDOWS_STORAGE_KEY}. */
 	readonly chat?: string;
+	/** Its other chats, in their order, when it showed several. */
+	readonly chats?: readonly string[];
+	/** Its active chat, when it showed several. */
+	readonly activeChat?: string;
 	/** The session, as stored before chat windows were built on parts. */
 	readonly session?: string;
 	readonly editors?: readonly ISerializedChatWindowEditor[];
@@ -38,6 +42,8 @@ function isStoredChatWindow(entry: Partial<IStoredChatWindow> | undefined): entr
 	return (typeof entry?.chat === 'string' || typeof entry?.session === 'string')
 		&& (entry.chat === undefined || typeof entry.chat === 'string')
 		&& (entry.session === undefined || typeof entry.session === 'string')
+		&& (entry.chats === undefined || (Array.isArray(entry.chats) && entry.chats.every(chat => typeof chat === 'string')))
+		&& (entry.activeChat === undefined || typeof entry.activeChat === 'string')
 		&& (entry.editors === undefined || (Array.isArray(entry.editors) && entry.editors.every(isSerializedChatWindowEditor)))
 		&& (entry.terminal === undefined || typeof entry.terminal === 'boolean')
 		&& (entry.created === undefined || (Array.isArray(entry.created) && entry.created.every(editors => Array.isArray(editors) && editors.every(isSerializedChatWindowEditor))));
@@ -58,6 +64,8 @@ export interface IChatWindowsRestorationHost {
 	chatPart(window: IChatWindow): IChatWindowChatPart | undefined;
 	/** The parts `window` created, such as for editors dropped on its edges, so that it shows them again. */
 	createdParts(window: IChatWindow): readonly IContentPart[];
+	/** Makes `chat`, one of `window`'s chats, its active chat without focusing it, as it was when it last closed. */
+	activateChat?(window: IChatWindow, chat: URI): void;
 }
 
 /**
@@ -131,8 +139,22 @@ export class ChatWindowsRestoration extends Disposable {
 		}
 		const removed = new Set(chats.map(chat => chat.toString()));
 		const stored = this._read();
-		const remaining = stored.filter(entry => !removed.has(storedChat(entry)));
-		if (remaining.length !== stored.length) {
+		// The chats that remain of each window, the first of which it opens for; a window with none left goes
+		let changed = false;
+		const remaining = stored.flatMap(entry => {
+			const all = [storedChat(entry), ...(entry.chats ?? [])];
+			const kept = all.filter(chat => !removed.has(chat));
+			if (kept.length === all.length) {
+				return [entry];
+			}
+			changed = true;
+			if (!kept.length) {
+				return [];
+			}
+			const [chat, ...others] = kept;
+			return [{ ...entry, chat, session: undefined, chats: others.length ? others : undefined, activeChat: entry.activeChat && kept.includes(entry.activeChat) ? entry.activeChat : undefined }];
+		});
+		if (changed) {
 			this._write(remaining);
 		}
 	}
@@ -146,13 +168,18 @@ export class ChatWindowsRestoration extends Disposable {
 			return;
 		}
 		this._keepStored = false;
-		this._write(windows.map(window => ({
-			chat: window.chat.get().toString(),
-			editors: window.mainPart.groups.flatMap(group => serializeChatWindowEditors(group)),
-			terminal: this._host.terminalsShown(window) || undefined,
-			chatPart: this._host.chatPart(window),
-			created: this._createdParts(window),
-		})));
+		this._write(windows.map(window => {
+			const [chat, ...chats] = window.chats.get().map(candidate => candidate.toString());
+			return {
+				chat,
+				chats: chats.length ? chats : undefined,
+				activeChat: chats.length ? window.chat.get().toString() : undefined,
+				editors: window.mainPart.groups.flatMap(group => serializeChatWindowEditors(group)),
+				terminal: this._host.terminalsShown(window) || undefined,
+				chatPart: this._host.chatPart(window),
+				created: this._createdParts(window),
+			};
+		}));
 	}
 
 	private _createdParts(window: IChatWindow): ISerializedChatWindowEditor[][] | undefined {
@@ -164,16 +191,31 @@ export class ChatWindowsRestoration extends Disposable {
 
 	private async _restore(provider: IChatWindowProvider, stored: readonly IStoredChatWindow[]): Promise<void> {
 		for (const entry of stored) {
-			const chat = URI.parse(storedChat(entry));
-			if (!await provider.canRestore(chat)) {
-				this._logService.info(`[ChatWindow] Not restoring the chat window of ${chat.toString()}: the chat is gone`);
+			// The chats that can open again: a window opens for the first of them, and with none it does not open
+			const restorable: URI[] = [];
+			for (const stored of [storedChat(entry), ...(entry.chats ?? [])]) {
+				const candidate = URI.parse(stored);
+				if (await provider.canRestore(candidate)) {
+					restorable.push(candidate);
+				} else {
+					this._logService.info(`[ChatWindow] Not restoring ${candidate.toString()} in its chat window: the chat is gone`);
+				}
+			}
+			const [chat, ...chats] = restorable;
+			if (!chat) {
 				continue;
 			}
 			try {
 				const onError = (error: unknown) => this._logService.error('[ChatWindow] Failed to restore an editor of a chat window', error);
 				const editors = deserializeChatWindowEditors(this._instantiationService, entry.editors ?? [], onError);
 				const createdParts = (entry.created ?? []).map(created => deserializeChatWindowEditors(this._instantiationService, created, onError)).filter(created => created.editors.length > 0);
-				await this._host.open(chat, { preserveFocus: true, showTerminals: entry.terminal, editors, chatPart: isChatWindowChatPart(entry.chatPart) ? entry.chatPart : undefined, createdParts: createdParts.length ? createdParts : undefined });
+				// The groups of its chat part only while all its chats restore, which they place
+				const chatPart = isChatWindowChatPart(entry.chatPart) && chats.length === (entry.chats?.length ?? 0) && chat.toString() === storedChat(entry) ? entry.chatPart : undefined;
+				const window = await this._host.open(chat, { preserveFocus: true, chats: chats.length ? chats : undefined, showTerminals: entry.terminal, editors, chatPart, createdParts: createdParts.length ? createdParts : undefined });
+				// Its active chat, any of those it restored, the first too
+				if (window && entry.activeChat && restorable.some(candidate => candidate.toString() === entry.activeChat)) {
+					this._host.activateChat?.(window, URI.parse(entry.activeChat));
+				}
 			} catch (error) {
 				this._logService.error(`[ChatWindow] Failed to restore the chat window of ${chat.toString()}`, error);
 			}

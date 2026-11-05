@@ -342,6 +342,8 @@ export interface IDeleteChatOptions {
  */
 export interface ISessionsProvider {
 	readonly sessionConfig?: ISessionConfigProvider;
+	/** The checked state of the terminal sandbox toggle for this chat, when the provider offers one. */
+	getSandboxToggleChecked?(session: ISession, chat: URI): IObservable<boolean>;
 	/**
 	 * Unique identifier for the provider.
 	 */
@@ -491,10 +493,10 @@ export interface ISessionsProvider {
 	readonly supportsModelConfigurationForCreation?: boolean;
 	/** Whether the provider validates and applies explicit permission choices before creating the backend session. */
 	readonly supportsPermissionsForCreation?: boolean;
-	/** Current draft's provider-owned permission choice, including its policy availability. */
-	getPermissionOptionForSession?(sessionId: string): ISessionPermissionOption | undefined;
-	/** Translates the current draft's permission intent to a comparison participant's session type. */
-	getComparisonPermissionOptionForSession?(sessionId: string, sessionTypeId: string): ISessionPermissionOption | undefined;
+	/** Provider-owned permission choice for a draft or an exact running chat, including policy availability. */
+	getPermissionOptionForSession?(sessionId: string, chatResource?: URI): ISessionPermissionOption | undefined;
+	/** Translates a draft or exact running chat's permission intent to a comparison participant's session type. */
+	getComparisonPermissionOptionForSession?(sessionId: string, sessionTypeId: string, chatResource?: URI): ISessionPermissionOption | undefined;
 	/** Whether Automation configuration can be restored at draft creation and captured through `getAutomationSessionConfiguration`. */
 	readonly supportsAutomationSessionConfiguration?: boolean;
 

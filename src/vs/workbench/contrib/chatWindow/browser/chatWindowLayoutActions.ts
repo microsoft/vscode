@@ -67,10 +67,13 @@ export const TOGGLE_CHAT_WINDOW_CONVERSATION_COMMAND_ID = 'workbench.action.chat
 /**
  * The chat window a command acts on: the window of the editor group its arguments name, such as when it runs from the
  * title of a group of the window, or the window they name, such as when it runs from the Session Activity Bar of the
- * window, else the chat window that has focus.
+ * window. Arguments that name a group or window that is not a chat window's, such as the main window's, resolve to none,
+ * never to the chat window that has focus. Without such arguments, as from a keybinding, the chat window that has focus.
  */
 export function resolveChatWindow(accessor: ServicesAccessor, args: readonly unknown[]): IChatWindow | undefined {
-	return resolveChatWindowOfContext(accessor, args) ?? accessor.get(IChatWindowService).activeWindow;
+	return args.some(arg => isEditorCommandsContext(arg) || isWindowCommandContext(arg))
+		? resolveChatWindowOfContext(accessor, args)
+		: accessor.get(IChatWindowService).activeWindow;
 }
 
 /**

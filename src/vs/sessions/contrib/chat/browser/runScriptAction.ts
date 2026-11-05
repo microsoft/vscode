@@ -29,9 +29,8 @@ import { IWorkbenchContribution } from '../../../../workbench/common/contributio
 import { logSessionsInteraction } from '../../../common/sessionsTelemetry.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ISessionScope } from '../../../services/sessions/browser/sessionScope.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { getFocusedSessionChatSource, getWindowHost, IFocusedSessionHostService, ISessionChatSource, ISessionHost } from '../../../services/sessions/browser/sessionHost.js';
 import { SessionWorkspaceIsVirtualContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { IChat, ISession } from '../../../services/sessions/common/session.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
@@ -133,7 +132,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 
 	constructor(
 		@ISessionsManagementService private readonly _sessionManagementService: ISessionsManagementService,
-		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@IFocusedSessionHostService focusedSessionHostService: IFocusedSessionHostService,
 		@IKeybindingService _keybindingService: IKeybindingService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@ISessionsTasksService private readonly _sessionsConfigService: ISessionsTasksService,
@@ -145,15 +144,15 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 	) {
 		super();
 
-		this._activeRunState = this._createRunState(this._sessionsService.activeSession);
+		this._activeRunState = this._createRunState(getFocusedSessionChatSource(focusedSessionHostService));
 		this._activeRunState.recomputeInitiallyAndOnChange(this._store);
 
 		this._registerActionViewItemProvider();
 		this._registerActions();
 	}
 
-	/** What the Run actions act on for the session `session` shows. */
-	private _createRunState(session: IObservable<IActiveSession | undefined>): IObservable<IRunScriptActionContext | undefined> {
+	/** What the Run actions act on for the session and chat `source` shows. */
+	private _createRunState(source: ISessionChatSource): IObservable<IRunScriptActionContext | undefined> {
 		return derivedOpts<IRunScriptActionContext | undefined>({
 			owner: this,
 			equalsFn: (a, b) => {
@@ -171,12 +170,12 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 						&& t1.task.runOptions?.runOn === t2.task.runOptions?.runOn);
 			}
 		}, reader => {
-			const activeSession = session.read(reader);
+			const activeSession = source.session.read(reader);
 			if (!activeSession) {
 				return undefined;
 			}
 
-			const activeChat = activeSession.activeChat.read(reader);
+			const activeChat = source.chat.read(reader) ?? activeSession.mainChat.read(reader);
 			const tasks = this._sessionsConfigService.getSessionTasks(activeChat).read(reader);
 			const folder = activeChat.workspace.read(reader)?.folders[0];
 			const pinnedTaskLabel = this._sessionsConfigService.getPinnedTaskLabel(folder?.root).read(reader);
@@ -195,13 +194,13 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 				if (!(action instanceof SubmenuItemAction)) {
 					return undefined;
 				}
-				// The session of the title bar it shows in, such as that of a chat window, whether or not it is active.
-				const session = instantiationService.invokeFunction(accessor => accessor.get(ISessionScope)).session;
+				// The session and chat of the window whose title bar it shows in, such as a chat window, whether or not it has focus.
+				const windowHost = instantiationService.invokeFunction(accessor => getWindowHost(accessor.get(ISessionHost)));
 				return instantiationService.createInstance(
 					RunScriptActionViewItem,
 					action,
 					options,
-					that._createRunState(session),
+					that._createRunState(windowHost),
 					state => that._runPrimary(state),
 					(session: ISession, chat: IChat) => that._showConfigureQuickPick(session, chat),
 					(session: ISession, chat: IChat, existingTask: INonSessionTaskEntry, mode?: TaskConfigurationMode) => that._showCustomCommandInput(session, chat, existingTask, mode),

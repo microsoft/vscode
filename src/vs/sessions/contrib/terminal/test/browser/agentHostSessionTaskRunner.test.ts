@@ -207,6 +207,9 @@ suite('AgentHostSessionTaskRunner', () => {
 				shownInChatWindow.push({ sessionId: session.sessionId, instanceId, focus });
 				return true;
 			}
+			override holdsSessionTerminal(session: ISession, instanceId: number) {
+				return session.sessionId === chatWindowSessionId && shownInChatWindow.some(shown => shown.instanceId === instanceId);
+			}
 		});
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IConfigurationResolverService, new class extends mock<IConfigurationResolverService>() {
@@ -336,6 +339,24 @@ suite('AgentHostSessionTaskRunner', () => {
 		handles.forEach(handle => handle?.dispose());
 
 		assert.strictEqual(createdTerminals.length, 2);
+	});
+
+	test('reuses the terminal of a task that a chat window of its session holds while its terminals hide, showing it there again, rather than creating another one', async () => {
+		const session = makeSession({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, cwd: URI.parse('file:///x') });
+		chatWindowSessionId = session.sessionId;
+		commandExecuting = false;
+
+		const handles = [await runner.runTask(shellTask(), session)];
+		// The window's terminals hide: they go to the background of the panel
+		backgroundedTerminals.push(createdTerminals[0].instance);
+		handles.push(await runner.runTask(shellTask(), session));
+		handles.forEach(handle => handle?.dispose());
+
+		const instanceId = createdTerminals[0].instance.instanceId;
+		assert.deepStrictEqual({ created: createdTerminals.length, shownInChatWindow }, {
+			created: 1,
+			shownInChatWindow: [{ sessionId: session.sessionId, instanceId, focus: false }, { sessionId: session.sessionId, instanceId, focus: false }],
+		});
 	});
 
 	test('creates a new terminal once the reused terminal is disposed', async () => {

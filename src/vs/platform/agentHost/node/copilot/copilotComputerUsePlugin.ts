@@ -8,10 +8,11 @@ import * as fs from 'fs';
 import { raceCancellationError } from '../../../../base/common/async.js';
 import { streamToBuffer, type VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { CancellationError } from '../../../../base/common/errors.js';
+import { CancellationError, getErrorMessage, isCancellationError } from '../../../../base/common/errors.js';
 import { basename, dirname, isAbsolute, join } from '../../../../base/common/path.js';
 import { Promises } from '../../../../base/node/pfs.js';
 import { extract } from '../../../../base/node/zip.js';
+import type { IRequestContext } from '../../../../base/parts/request/common/request.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IRequestService } from '../../../request/common/request.js';
@@ -39,17 +40,39 @@ export interface IComputerUsePluginRelease {
  * from other hosts. An older pin is safe. A modified plugin is not.
  */
 export const COMPUTER_USE_PLUGIN_RELEASE: IComputerUsePluginRelease = {
-	version: '0.1.95',
+	version: '0.1.97',
 	sha256: {
-		'darwin-arm64': '91c5ab5f1de9f7d2dcde4e2c29764e031193bccbd127aa03527c331c9cfa6721',
-		'darwin-x64': '2ac6c1432f3b392cea67a71c443fad7349bc4d1a08320df953a0873275ff8042',
-		'win32-arm64': '95ac1dfd28bd4e1d316d8ac4b36efd64025e4927e22168bb2877cd18a80e9b8f',
-		'win32-x64': '669ab37e30ff826b1f23dd1ca90868796c6b3b3b80eab9f0338e9f1efb6993f5',
+		'darwin-arm64': 'b0ef83825147d6d07e63a4167554dff5dbb5c9ebc551fcccc6e68e894513c854',
+		'darwin-x64': 'b960807a58955891e227016929c0d1ae6e0dac77ec429dba0282b8cbbe193457',
+		'win32-arm64': 'e7105b221e2e7769c288736c821327a7bcd0a6bfc06c9503ef0d23a09d86405a',
+		'win32-x64': '6ebfb26420db67f3eaa2a9901240b731933a90060d291ab3197b5533296d0b0c',
 	},
 	urlTemplate: 'https://github.com/github/computer-use-plugin/releases/download/v{version}/computer-use-v{version}-{target}.zip',
 };
 
 const COMPLETE_SENTINEL = '.complete';
+
+/** The plugin build for this machine, such as `darwin-arm64`, which keys a release's archives. */
+export const COMPUTER_USE_PLUGIN_TARGET = `${process.platform}-${process.arch}`;
+
+/** Why downloading or installing the plugin failed, short of a cancellation. */
+export type ComputerUsePluginInstallFailure = 'network' | 'http' | 'checksum' | 'install';
+
+/** A download or install of the plugin that failed for the reason in {@link failure}. */
+export class ComputerUsePluginInstallError extends Error {
+	constructor(readonly failure: ComputerUsePluginInstallFailure, message: string, readonly statusCode?: number) {
+		super(message);
+		this.name = 'ComputerUsePluginInstallError';
+	}
+}
+
+/** Rethrows a cancellation as it is, and any other `error` as a {@link ComputerUsePluginInstallError} for `failure`. */
+function throwInstallError(failure: ComputerUsePluginInstallFailure, error: unknown): never {
+	if (isCancellationError(error)) {
+		throw error;
+	}
+	throw new ComputerUsePluginInstallError(failure, getErrorMessage(error));
+}
 
 /** Name of the Computer Use built-in plugin and of the MCP server it contributes. */
 export const COMPUTER_USE_PLUGIN_NAME = 'computer-use';
@@ -119,7 +142,7 @@ export async function readMacAppIcon(appPath: string, minSize: number): Promise<
  */
 export class CopilotComputerUsePlugin {
 
-	private readonly _target = `${process.platform}-${process.arch}`;
+	private readonly _target = COMPUTER_USE_PLUGIN_TARGET;
 	private _installedPath: string | undefined;
 
 	constructor(
@@ -151,8 +174,9 @@ export class CopilotComputerUsePlugin {
 
 	/**
 	 * Returns the plugin directory, downloading it when needed, or `undefined`
-	 * when no release exists for this platform. Rejects when the download or
-	 * verification fails, or when `token` is cancelled.
+	 * when no release exists for this platform. Rejects with a
+	 * {@link ComputerUsePluginInstallError} when the download or verification
+	 * fails, or with a cancellation error when `token` is cancelled.
 	 */
 	async resolve(token: CancellationToken): Promise<string | undefined> {
 		const expectedSha256 = this._release.sha256[this._target];
@@ -164,26 +188,37 @@ export class CopilotComputerUsePlugin {
 		const pluginDir = this._pluginDir;
 		const url = this._release.urlTemplate.replace(/\{version\}/g, this._release.version).replace(/\{target\}/g, this._target);
 		this._logService.info(`[Copilot] Downloading Computer Use plugin ${this._release.version} from ${url}`);
-		const context = await this._requestService.request({ url, type: 'GET', callSite: 'copilotComputerUsePlugin' }, token);
+		let context: IRequestContext;
+		try {
+			context = await this._requestService.request({ url, type: 'GET', callSite: 'copilotComputerUsePlugin' }, token);
+		} catch (error) {
+			throwInstallError('network', error);
+		}
 		const statusCode = context.res.statusCode ?? 0;
 		if (statusCode < 200 || statusCode >= 300) {
 			context.stream.destroy();
-			throw new Error(`HTTP ${statusCode} fetching ${url}`);
+			throw new ComputerUsePluginInstallError('http', `HTTP ${statusCode} fetching ${url}`, statusCode);
 		}
 		// Cancellation must also abort a response body that stalls after its headers.
 		const cancellation = token.onCancellationRequested(() => context.stream.destroy());
 		let archive: VSBuffer;
 		try {
 			archive = await raceCancellationError(streamToBuffer(context.stream), token);
+		} catch (error) {
+			throwInstallError('network', error);
 		} finally {
 			cancellation.dispose();
 		}
 		const actualSha256 = createHash('sha256').update(archive.buffer).digest('hex');
 		if (actualSha256 !== expectedSha256) {
-			throw new Error(`Computer Use plugin checksum mismatch for ${url}: expected ${expectedSha256}, got ${actualSha256}`);
+			throw new ComputerUsePluginInstallError('checksum', `Computer Use plugin checksum mismatch for ${url}: expected ${expectedSha256}, got ${actualSha256}`);
 		}
 
-		await installComputerUsePluginArchive(archive.buffer, this._target, pluginDir, token);
+		try {
+			await installComputerUsePluginArchive(archive.buffer, this._target, pluginDir, token);
+		} catch (error) {
+			throwInstallError('install', error);
+		}
 		this._logService.info(`[Copilot] Installed Computer Use plugin ${this._release.version} at ${pluginDir}`);
 		this._installedPath = pluginDir;
 		return pluginDir;

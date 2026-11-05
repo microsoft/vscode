@@ -5178,7 +5178,7 @@ suite('ChatService', () => {
 			assert.deepStrictEqual(ref.object.getRequests().map(request => [request.id, request.response?.response.toString()]), [[requestId, 'Refreshed']]);
 		});
 
-		test('times live reasoning but not reasoning replayed from history', async () => {
+		test('does not infer timing for live reasoning or reasoning replayed from history', async () => {
 			const progress = observableValue<IChatProgress[]>('progress', []);
 			const isComplete = observableValue('isComplete', false);
 			const { resource } = setupRemoteProvider({
@@ -5212,7 +5212,7 @@ suite('ChatService', () => {
 				? [{ id: part.id, startedAt: part.reasoningStartedAt, durationMs: part.reasoningDurationMs }]
 				: [])), [
 				[{ id: 'restored', startedAt: undefined, durationMs: undefined }],
-				[{ id: 'live', startedAt: 5000, durationMs: 1500 }],
+				[{ id: 'live', startedAt: undefined, durationMs: undefined }],
 			]);
 		});
 
@@ -5252,7 +5252,7 @@ suite('ChatService', () => {
 			}, {
 				reasoning: [
 					{ id: 'underway', startedAt: undefined, durationMs: undefined },
-					{ id: 'live', startedAt: 5000, durationMs: 1500 },
+					{ id: 'live', startedAt: undefined, durationMs: undefined },
 				],
 				runningToolStartedAt: undefined,
 			});

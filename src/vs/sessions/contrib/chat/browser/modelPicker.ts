@@ -33,8 +33,8 @@ import { IsSessionsWindowContext } from '../../../../workbench/common/contextkey
 import { COMPARE_SESSION_MODELS_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { ModelComparisonAvailableContext, ModelComparisonPickerFocusedContext } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerComparison.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
+import { resolveGridCommandView } from '../../../services/sessions/browser/sessionCommandTarget.js';
+import { ISessionHost } from '../../../services/sessions/browser/sessionHost.js';
 import { createChatPhoneInputSessionContext } from '../../../services/presentation/browser/chatPhoneInputContext.js';
 import { SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionModelSelection } from './sessionModelSelection.js';
@@ -64,7 +64,7 @@ export class ModelPicker extends Disposable {
 		@INewChatModelPickerService private readonly _newChatModelPickerService: INewChatModelPickerService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
-		@ISessionContext private readonly _sessionContext: ISessionContext,
+		@ISessionHost private readonly _sessionHost: ISessionHost,
 		@ISessionModelSelection private readonly _selectionModel: ISessionModelSelection,
 		@IChatPetService private readonly _chatPetService: IChatPetService,
 		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
@@ -88,7 +88,7 @@ export class ModelPicker extends Disposable {
 				anchor.setAttribute('aria-expanded', 'true');
 				void phonePresenter.showCombinedModeAndModelSheet(anchor, {
 					kind: 'session',
-					getSessionContext: () => createChatPhoneInputSessionContext(this._sessionContext.session.get()),
+					getSessionContext: () => createChatPhoneInputSessionContext(this._sessionHost.session.get(), this._sessionHost.chat.get()),
 					modelDelegate: this._delegate,
 					initialSection: configuration ? 'modelConfiguration' : 'model',
 				}).finally(() => {
@@ -122,20 +122,20 @@ export class ModelPicker extends Disposable {
 			getModels: () => [...this._selectionModel.state.get().models],
 			getAgentModelPreferences: () => this._selectionModel.state.get().agentModelPreferences,
 			getComparisonModels: () => [...(this._selectionModel.getComparisonModels?.() ?? this._selectionModel.state.get().models)],
-			getProvider: () => getAgentHostProviderForTelemetry(this._sessionContext.session.get()?.sessionType, this._chatSessionsService),
+			getProvider: () => getAgentHostProviderForTelemetry(this._sessionHost.session.get()?.sessionType, this._chatSessionsService),
 			getSessionType: () => {
 				const state = this._selectionModel.state.get();
 				return (state.currentModel ?? state.models[0])?.metadata.targetChatSessionType;
 			},
 			// On-device models are offered only by the local Agent Host.
 			getLocalModelConnection: () => !this._selectionModel.state.get().agentModelPreferences?.required
-				&& this._sessionContext.session.get()?.providerId === LOCAL_AGENT_HOST_PROVIDER_ID ? this._agentHostService : undefined,
+				&& this._sessionHost.session.get()?.providerId === LOCAL_AGENT_HOST_PROVIDER_ID ? this._agentHostService : undefined,
 			getPresentationOptions: () => ({
 				...this._selectionModel.state.get().options,
 				showModelIcon: true,
 			}),
 			isCacheWarm: () => {
-				const session = this._sessionContext.session.get();
+				const session = this._sessionHost.session.get();
 				// The session's prompt cache is warm once its first request has
 				// been sent (status leaves Untitled), matching the main-window
 				// picker which warms as soon as the first request is added.
@@ -163,7 +163,7 @@ export class ModelPicker extends Disposable {
 			phonePresenter.enabled.read(reader);
 			if (phonePresenter.supportsUnifiedConfiguration) {
 				reader.store.add(phonePresenter.registerSessionModelPicker({
-					getSessionContext: () => createChatPhoneInputSessionContext(this._sessionContext.session.read(undefined)),
+					getSessionContext: () => createChatPhoneInputSessionContext(this._sessionHost.session.read(undefined), this._sessionHost.chat.read(undefined)),
 					modelDelegate: this._delegate,
 					selectModel: identifier => this.switchToModel(identifier),
 				}));
@@ -259,9 +259,8 @@ registerAction2(class extends Action2 {
 		});
 	}
 	override run(accessor: ServicesAccessor): void {
-		const sessions = accessor.get(ISessionsService);
 		const parts = accessor.get(ISessionsPartService);
-		(parts.getFocusedSessionView() ?? parts.getSessionView(sessions.activeSession.get()))?.openModelComparison();
+		(parts.getFocusedSessionView() ?? resolveGridCommandView(accessor))?.openModelComparison();
 	}
 });
 

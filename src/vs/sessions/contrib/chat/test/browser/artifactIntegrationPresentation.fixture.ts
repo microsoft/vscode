@@ -40,7 +40,9 @@ import { IChatWidget, IChatWidgetService } from '../../../../../workbench/contri
 import { IChatRequestViewModel, IChatViewModel } from '../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
 import { IChat, ISession } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IFocusedSessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { focusedSessionHostServiceOf, stubSessionHosts } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 const observedAt = Date.UTC(2026, 0, 12, 9);
 const chat = 'fixture-chat';
@@ -539,8 +541,7 @@ async function render(context: ComponentFixtureContext, data: IArtifactFixtureDa
 				}
 			}());
 			registration.defineInstance(ISessionsService, new class extends mock<ISessionsService>() {
-				override readonly activeSession = constObservable(activeSession);
-				override readonly mainWindowActiveSession = this.activeSession;
+				readonly activeSession = constObservable(activeSession);
 				override async openChat(_session: ISession, _resource: URI): Promise<void> { }
 			}());
 			registration.defineInstance(IChatWidgetService, new class extends mock<IChatWidgetService>() {
@@ -565,6 +566,8 @@ async function render(context: ComponentFixtureContext, data: IArtifactFixtureDa
 			}());
 		},
 	});
+	stubSessionHosts(instantiationService, disposableStore, { session: constObservable(activeSession) });
+	instantiationService.stub(IFocusedSessionHostService, focusedSessionHostServiceOf(constObservable(activeSession)));
 	const input = append(container, $('div'));
 	input.style.cssText = 'position:absolute;bottom:24px;left:16px;right:16px;height:100px;box-sizing:border-box;padding:12px;border:1px solid var(--vscode-input-border);border-radius:var(--vscode-cornerRadius-large);background:var(--vscode-input-background);color:var(--vscode-descriptionForeground);';
 	input.textContent = 'Ask a question or describe what to build';

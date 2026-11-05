@@ -28,7 +28,7 @@ import { SessionsCategories } from '../../../common/categories.js';
 import { CHAT_WINDOW_OPEN_BROWSER_COMMAND_ID, CHAT_WINDOW_OPEN_CHANGES_COMMAND_ID, CHAT_WINDOW_OPEN_FILES_COMMAND_ID, NEW_FILE_TAB_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
 import { SessionChangesEditorInput } from '../../changes/browser/sessionChangesEditorInput.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { getMainWindowHost, ISessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { EmptyFileEditorInput } from './emptyFileEditorInput.js';
 import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
 import { ChatWindowLayoutCommandsContext, resolveChatWindowOfContext } from '../../../../workbench/contrib/chatWindow/browser/chatWindowLayoutActions.js';
@@ -149,9 +149,10 @@ export class NewFileTabAction extends Action2 {
 		const editorService = accessor.get(IEditorService);
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 		const instantiationService = accessor.get(IInstantiationService);
-		const sessionsService = accessor.get(ISessionsService);
 		const group = editorGroupsService.mainPart.activeGroup;
-		const workspace = sessionsService.activeSession.get()?.activeChat.get().workspace.get();
+		// The main part shows the tabs of the session and chat of the main window.
+		const mainWindowHost = getMainWindowHost(accessor.get(ISessionHostService));
+		const workspace = (mainWindowHost.chat.get() ?? mainWindowHost.session.get()?.mainChat.get())?.workspace.get();
 
 		// An existing Files tab is activated in place rather than moved to the end.
 		const index = group.editors.some(editor => editor instanceof EmptyFileEditorInput) ? undefined : group.count;
@@ -319,10 +320,10 @@ export class NewChangesTabAction extends Action2 {
 			return;
 		}
 		const editorGroupsService = accessor.get(IEditorGroupsService);
-		const sessionsService = accessor.get(ISessionsService);
 		const sessionChangesService = accessor.get(ISessionChangesService);
 
-		const session = sessionsService.activeSession.get();
+		// The main part shows the tabs of the session of the main window.
+		const session = getMainWindowHost(accessor.get(ISessionHostService)).session.get();
 		if (session) {
 			const group = editorGroupsService.mainPart.activeGroup;
 			// An existing Changes tab is activated in place rather than moved to the end.

@@ -32,8 +32,9 @@ import { IEditorService } from '../../../../workbench/services/editor/common/edi
 import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
 import { SessionActivityBarLayoutActionsContext, SessionWithWorkspaceContext } from '../../../common/contextkeys.js';
 import { CHAT_WINDOW_OPEN_BROWSER_COMMAND_ID, CHAT_WINDOW_OPEN_CHANGES_COMMAND_ID, CHAT_WINDOW_OPEN_FILES_COMMAND_ID } from '../../../common/sessionCommands.js';
-import { getChatWindowSession } from '../../../services/sessions/browser/sessionScope.js';
-import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionHostService, SessionHostKind } from '../../../services/sessions/browser/sessionHost.js';
+import { IChat } from '../../../services/sessions/common/session.js';
+import { IHostSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { SessionChangesEditorInput } from '../../changes/browser/sessionChangesEditorInput.js';
 import { ISessionChangesService } from '../../changes/common/sessionChangesService.js';
 import { EmptyFileEditorInput } from '../../editor/browser/emptyFileEditorInput.js';
@@ -217,7 +218,8 @@ interface IChatWindowTabEntry {
 	readonly editorId: string;
 	readonly order: number;
 	readonly when?: ContextKeyExpression;
-	open(accessor: ServicesAccessor, session: IActiveSession | undefined, group: IEditorGroup): Promise<void>;
+	/** Opens the tab for the session and chat the window shows, if it shows one. */
+	open(accessor: ServicesAccessor, shown: { readonly session: IHostSession; readonly chat: IChat | undefined } | undefined, group: IEditorGroup): Promise<void>;
 }
 
 export const chatWindowTabEntries: readonly IChatWindowTabEntry[] = [{
@@ -227,8 +229,9 @@ export const chatWindowTabEntries: readonly IChatWindowTabEntry[] = [{
 	editorId: SessionChangesEditorInput.EDITOR_ID,
 	order: 1,
 	when: SessionWithWorkspaceContext,
-	async open(accessor, session, group) {
-		if (session) {
+	async open(accessor, shown, group) {
+		if (shown) {
+			const { session, chat } = shown;
 			const sessionChangesService = accessor.get(ISessionChangesService);
 			// An existing Changes tab of the session is activated in place, such as one that moved in with the chat or was
 			// restored, which may show the changes of the session rather than of the chat.
@@ -238,7 +241,7 @@ export const chatWindowTabEntries: readonly IChatWindowTabEntry[] = [{
 				return;
 			}
 			// Otherwise the window's own Changes editor, of the chat it shows, at the end.
-			await sessionChangesService.openChangesEditor(session.resource, { index: group.count, chatResource: session.scopedChatResource }, group);
+			await sessionChangesService.openChangesEditor(session.resource, { index: group.count, chatResource: chat?.resource }, group);
 		}
 	},
 }, {
@@ -248,8 +251,8 @@ export const chatWindowTabEntries: readonly IChatWindowTabEntry[] = [{
 	editorId: EmptyFileEditorInput.EDITOR_ID,
 	order: 2,
 	when: SessionWithWorkspaceContext,
-	async open(accessor, session, group) {
-		const workspace = session?.activeChat.get().workspace.get();
+	async open(accessor, shown, group) {
+		const workspace = (shown?.chat ?? shown?.session.mainChat.get())?.workspace.get();
 		const index = group.editors.some(editor => editor instanceof EmptyFileEditorInput) ? undefined : group.count;
 		await accessor.get(IEditorService).openEditor(accessor.get(IInstantiationService).createInstance(EmptyFileEditorInput, workspace), { pinned: true, index }, group);
 	},
@@ -259,7 +262,7 @@ export const chatWindowTabEntries: readonly IChatWindowTabEntry[] = [{
 	icon: Codicon.globe,
 	editorId: BrowserEditorInput.EDITOR_ID,
 	order: 3,
-	async open(accessor, _session, group) {
+	async open(accessor, _shown, group) {
 		// Services are read before the first await, after which the accessor is no longer valid.
 		const editorService = accessor.get(IEditorService);
 		const commandService = accessor.get(ICommandService);
@@ -275,9 +278,12 @@ export const chatWindowTabEntries: readonly IChatWindowTabEntry[] = [{
 
 /** Opens `entry` in the main part of `window`, which shows, for the session of the window. */
 async function openTabEntry(accessor: ServicesAccessor, entry: IChatWindowTabEntry, window: IChatWindow): Promise<void> {
-	const session = getChatWindowSession(accessor, window);
+	// Only the window's own host: an unbound chat window falls back to the main window's.
+	const windowHost = accessor.get(ISessionHostService).getHostOfWindow(window.windowId);
+	const host = windowHost?.kind === SessionHostKind.ChatWindow ? windowHost : undefined;
+	const session = host?.session.get();
 	window.showEditor();
-	await entry.open(accessor, session, window.mainPart.activeGroup);
+	await entry.open(accessor, session && { session, chat: host?.chat.get() }, window.mainPart.activeGroup);
 }
 
 for (const entry of chatWindowTabEntries) {
