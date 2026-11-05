@@ -11,6 +11,8 @@ import { localize } from '../../nls.js';
 import { ChatEntitlement, IChatSentiment, IQuotaSnapshot } from '../../workbench/services/chat/common/chatEntitlementService.js';
 import { IDefaultAccountService } from '../../platform/defaultAccount/common/defaultAccount.js';
 import { IAuthenticationService } from '../../workbench/services/authentication/common/authentication.js';
+import { canCompleteCopilotAccountSetup, CopilotAccountContextView } from '../../workbench/services/agentHost/common/copilotAccountContext.js';
+import { copilotEntraClientId } from '../../platform/agentHost/common/copilotEntraAuthentication.js';
 
 export interface IResolvedAccountInfo {
 	readonly accountName: string;
@@ -32,7 +34,11 @@ export interface IResolvedAccountInfo {
 export async function resolveAccountInfo(
 	defaultAccountService: IDefaultAccountService,
 	authenticationService: IAuthenticationService,
+	copilotContext?: CopilotAccountContextView,
 ): Promise<IResolvedAccountInfo | undefined> {
+	if (copilotContext !== undefined) {
+		return resolveMicrosoftCopilotAccountInfo(authenticationService, copilotContext);
+	}
 	const account = await defaultAccountService.getDefaultAccount();
 	if (account) {
 		return {
@@ -60,6 +66,23 @@ export async function resolveAccountInfo(
 	return undefined;
 }
 
+async function resolveMicrosoftCopilotAccountInfo(authenticationService: IAuthenticationService, context: Exclude<CopilotAccountContextView, undefined>): Promise<IResolvedAccountInfo | undefined> {
+	if (context === 'loading' || context instanceof Error || context.kind === 'signedOut') {
+		return undefined;
+	}
+	const sessions = await authenticationService.getSessions('microsoft', undefined, { clientId: copilotEntraClientId, silent: true }, true);
+	const identity = sessions.find(session => session.account.id === context.entraAccountId)?.account;
+	if (context.kind === 'ready') {
+		return {
+			accountName: context.choice.service === 'github' ? context.choice.displayName : identity?.label ?? context.choice.displayName,
+			accountProviderId: 'microsoft',
+			accountProviderLabel: context.choice.service === 'github' ? localize('githubCopilot', "GitHub Copilot") : localize('microsoft365Copilot', "Microsoft 365 Copilot"),
+			accountIcon: identity?.icon,
+		};
+	}
+	return identity ? { accountName: identity.label, accountProviderId: 'microsoft', accountProviderLabel: localize('microsoft', "Microsoft"), accountIcon: identity.icon } : undefined;
+}
+
 /**
  * Looks up the icon (avatar) that the authentication provider supplied for the
  * session backing the default account, if any.
@@ -78,6 +101,7 @@ export type AccountTitleBarStateSource = 'account' | 'copilot';
 export type AccountTitleBarStateKind = 'default' | 'accent' | 'warning' | 'prominent';
 
 export interface IAccountTitleBarStateContext {
+	readonly copilotAccountContext?: CopilotAccountContextView;
 	readonly isAccountLoading: boolean;
 	readonly accountName?: string;
 	readonly accountProviderLabel?: string;
@@ -98,6 +122,27 @@ export interface IAccountTitleBarState {
 	readonly badge?: string;
 	readonly dotBadge?: 'warning' | 'error';
 	readonly revealLabelOnHover?: boolean;
+}
+
+export function getCopilotAccountMenuPresentation(
+	context: Pick<IAccountTitleBarStateContext, 'copilotAccountContext' | 'isAccountLoading' | 'accountName' | 'sentiment'>,
+	gitHubAccountName: string | undefined,
+	gitHubUrl: string | undefined,
+): { readonly icon: ThemeIcon; readonly showIdentity: boolean; readonly showSetup: boolean; readonly showUsage: boolean } {
+	const microsoft = context.copilotAccountContext !== undefined;
+	const visible = !microsoft || !context.sentiment.hidden;
+	return {
+		icon: microsoft ? Codicon.account : Codicon.github,
+		showIdentity: visible && (!!context.accountName || context.isAccountLoading),
+		showSetup: microsoft && visible && !context.isAccountLoading && !canCompleteCopilotAccountSetup(context.copilotAccountContext),
+		showUsage: !microsoft || matchesCopilotGitHubAccount(context.copilotAccountContext, gitHubAccountName, gitHubUrl),
+	};
+}
+
+function matchesCopilotGitHubAccount(context: CopilotAccountContextView, accountName: string | undefined, url: string | undefined): boolean {
+	return !!context && context !== 'loading' && !(context instanceof Error) && context.kind === 'ready'
+		&& context.choice.service === 'github' && accountName === context.choice.accountName
+		&& url === `${context.choice.host.replace(/\/$/, '')}/`;
 }
 
 export function getAccountProfileImageUrl(accountProviderId: string | undefined, accountName: string | undefined, accountIcon?: URI): string | undefined {
@@ -121,6 +166,9 @@ export function getAccountTitleBarBadgeKey(state: IAccountTitleBarState): string
 }
 
 export function getAccountTitleBarState(context: IAccountTitleBarStateContext): IAccountTitleBarState {
+	if (context.copilotAccountContext !== undefined && context.sentiment.hidden) {
+		return { source: 'account', kind: 'default', icon: Codicon.account, label: localize('account', "Account"), ariaLabel: localize('account', "Account") };
+	}
 	if (context.isAccountLoading) {
 		return {
 			source: 'account',
@@ -132,7 +180,9 @@ export function getAccountTitleBarState(context: IAccountTitleBarStateContext): 
 		};
 	}
 
-	const copilotState = getCopilotPresentation(context.entitlement, context.sentiment, context.quotas);
+	const copilotState = context.copilotAccountContext === undefined
+		? getCopilotPresentation(context.entitlement, context.sentiment, context.quotas)
+		: undefined;
 	if (copilotState) {
 		return copilotState;
 	}

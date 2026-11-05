@@ -34,7 +34,7 @@ import { IPathService } from '../../../services/path/common/pathService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { InstallChatEvent, InstallChatClassification, ChatSetupStrategy } from '../../chat/browser/chatSetup/chatSetup.js';
 import { IChatMicrosoftSignInProbeService } from '../../chat/browser/chatSetup/chatSetupMicrosoftProbe.js';
-import { autorun } from '../../../../base/common/observable.js';
+import { autorun, IObservable } from '../../../../base/common/observable.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import {
@@ -49,6 +49,8 @@ import {
 import { IOnboardingService } from '../common/onboardingService.js';
 import { addGitHubEnterpriseUri, getConfiguredGitHubEnterpriseUris, GheParseResultKind, isValidGitHubEnterpriseUri, parseGheInstanceInput } from '../../../services/accounts/common/githubEnterprise.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
+import { observeCopilotAccountContext, resolveCopilotAccountContext } from '../../../services/agentHost/common/copilotAccountContext.js';
 
 type OnboardingStepViewClassification = {
 	owner: 'cwebster-99';
@@ -133,6 +135,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 	private enterpriseSignInUiState: EnterpriseSignInUiState = 'options';
 	private enterpriseInstanceValue = '';
 	private enterpriseSignInWatch: StopWatch | undefined;
+	private readonly microsoftAccountSetup: IObservable<boolean>;
 
 	constructor(
 		@ILayoutService private readonly layoutService: ILayoutService,
@@ -149,8 +152,17 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IChatMicrosoftSignInProbeService private readonly microsoftSignInProbeService: IChatMicrosoftSignInProbeService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IAgentHostService private readonly agentHostService: IAgentHostService,
 	) {
 		super();
+		this.microsoftAccountSetup = observeCopilotAccountContext(agentHostService, this._store)
+			.map(context => !!context && context !== 'loading' && !(context instanceof Error));
+		this._register(autorun(reader => {
+			this.microsoftAccountSetup.read(reader);
+			if (this.overlay && this.currentStepIndex === 0) {
+				this._renderStep();
+			}
+		}));
 
 		// Detect currently active theme
 		const currentTheme = this.themeService.getColorTheme();
@@ -488,7 +500,9 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		title.textContent = localize('onboarding.signIn.heroTitle', "Welcome to VS Code");
 
 		const subtitle = append(contentMain, $('p.onboarding-a-signin-subtitle'));
-		subtitle.textContent = localize('onboarding.signIn.heroSubtitle', "Sign in to use GitHub Copilot.");
+		subtitle.textContent = this.microsoftAccountSetup.get()
+			? localize('onboarding.signIn.copilotSubtitle', "Sign in with Microsoft to set up Copilot.")
+			: localize('onboarding.signIn.heroSubtitle', "Sign in to use GitHub Copilot.");
 
 		const actions = append(contentMain, $('.onboarding-a-signin-actions'));
 
@@ -517,6 +531,11 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 
 		const disclaimerCol = append(footer, $('.onboarding-a-signin-disclaimer-col'));
 
+		if (this.microsoftAccountSetup.get()) {
+			append(disclaimerCol, $('.onboarding-a-signin-disclaimer', undefined, localize('onboarding.microsoftSetup', "Microsoft sign-in discovers your available Copilot services. Setup completes only after a service is ready.")));
+			return;
+		}
+
 		// GitHub Copilot disclaimer
 		const copilotDisclaimer = append(disclaimerCol, $('.onboarding-a-signin-disclaimer'));
 		copilotDisclaimer.append(localize('onboarding.signIn.disclaimer.prefix', "By signing in, you agree to {0}'s ", defaultChat.provider.default.name));
@@ -533,6 +552,11 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 	}
 
 	private _renderDefaultSignInActions(actions: HTMLElement): void {
+		if (this.microsoftAccountSetup.get()) {
+			const button = this._registerStepFocusable(this._createSignInButton(actions, 'microsoft', localize('onboarding.signIn.microsoft', "Continue with Microsoft"), { emphasized: true }));
+			this.stepDisposables.add(addDisposableListener(button, EventType.CLICK, () => this._handleSignIn('microsoft')));
+			return;
+		}
 		const githubBtn = this._registerStepFocusable(this._createSignInButton(actions, 'github', localize('onboarding.signIn.github', "Continue with GitHub"), {
 			emphasized: true,
 			label: localize('onboarding.signIn.github.aria', "Continue with GitHub")
@@ -728,6 +752,18 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		const provider = socialProvider ?? 'github';
 		const watch = StopWatch.create();
 		try {
+			if (await resolveCopilotAccountContext(this.agentHostService, CancellationToken.None)) {
+				const success = await this.commandService.executeCommand<boolean>('workbench.action.chat.triggerSetup', undefined, {
+					disableChatViewReveal: true,
+					setupStrategy: ChatSetupStrategy.SetupWithMicrosoftProvider,
+				});
+				const context = await resolveCopilotAccountContext(this.agentHostService, CancellationToken.None);
+				if (success && context?.kind === 'ready' && this._isShowing) {
+					this._userSignedIn = true;
+					this._nextStep();
+				}
+				return;
+			}
 			const account = await this.defaultAccountService.signIn({
 				extraAuthorizeParameters: { get_started_with: 'copilot-vscode' },
 				provider: socialProvider,
@@ -757,6 +793,9 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 	}
 
 	private async _handleEnterpriseSignIn(): Promise<void> {
+		if (this.microsoftAccountSetup.get()) {
+			return this._handleSignIn('microsoft');
+		}
 		let uris: readonly string[];
 		try {
 			uris = getConfiguredGitHubEnterpriseUris(this.configurationService, this.workspaceTrustManagementService.isWorkspaceTrusted(), defaultChat.providerUriSetting);

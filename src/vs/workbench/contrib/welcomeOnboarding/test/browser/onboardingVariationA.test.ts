@@ -5,9 +5,13 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
+import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
+import { NullAgentHostService } from '../../../../../platform/agentHost/browser/nullAgentHostService.js';
+import { copilotAccountContextKey } from '../../../../../platform/agentHost/common/copilotAccountContext.js';
+import { Event } from '../../../../../base/common/event.js';
 import { $ } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { DeferredPromise } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -30,11 +34,12 @@ suite('OnboardingVariationA', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	teardown(() => sinon.restore());
 
-	function createOnboarding(configuration = new TestConfigurationService(), settingsUrl?: string, trusted = true, microsoftSignIn: IChatMicrosoftSignInProbeService = { _serviceBrand: undefined, offerMicrosoftSignIn: constObservable(false), notifySignInShown() { } }) {
+	function createOnboarding(configuration = new TestConfigurationService(), settingsUrl?: string, trusted = true, microsoftSignIn: IChatMicrosoftSignInProbeService = { _serviceBrand: undefined, offerMicrosoftSignIn: constObservable(false), notifySignInShown() { } }, host: IAgentHostService = new NullAgentHostService()) {
 		const container = mainWindow.document.body.appendChild($('div'));
 		store.add(toDisposable(() => container.remove()));
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(IAgentHostService, host);
 		instantiationService.stub(ILayoutService, { activeContainer: container });
 		instantiationService.stub(IWorkbenchThemeService, { getColorTheme: () => ColorThemeData.createLoadedEmptyTheme('test', '') });
 		instantiationService.stub(IExtensionGalleryService, {});
@@ -59,6 +64,31 @@ suite('OnboardingVariationA', () => {
 		assert.ok(button);
 		button.click();
 	}
+
+	test('Microsoft onboarding awaits service readiness instead of direct GitHub sign-in', async () => {
+		const host = new class extends NullAgentHostService {
+			override readonly authenticationPending = constObservable(true);
+			override get rootState() {
+				const root = { agents: [], config: { schema: { type: 'object' as const, properties: {} }, values: { [copilotAccountContextKey]: { kind: 'incomplete', entraAccountId: 'account-a' } } } };
+				return { value: root, verifiedValue: root, onDidChange: Event.None, onWillApplyAction: Event.None, onDidApplyAction: Event.None };
+			}
+		}();
+		const f = createOnboarding(undefined, undefined, true, undefined, host);
+		f.executeCommand.resolves(true);
+		const microsoft = f.container.querySelector<HTMLButtonElement>('[aria-label="Continue with Microsoft"]');
+		assert.ok(microsoft);
+		microsoft.click();
+		await timeout(0);
+		assert.deepStrictEqual({
+			commands: f.executeCommand.getCalls().map(call => call.args),
+			githubOffered: !!f.container.querySelector('[aria-label="Continue with GitHub"]'),
+			stillOnSignIn: !!f.container.querySelector('.onboarding-a-signin-actions'),
+		}, {
+			commands: [['workbench.action.chat.triggerSetup', undefined, { disableChatViewReveal: true, setupStrategy: ChatSetupStrategy.SetupWithMicrosoftProvider }]],
+			githubOffered: false,
+			stillOnSignIn: true,
+		});
+	});
 
 	for (const settingsUrl of [undefined, 'https://tenant.ghe.com/settings/copilot/features']) {
 		test(`settings disclaimer ${settingsUrl ? 'links to the selected server' : 'has no link or focus stop when the URL is unavailable'}`, () => {

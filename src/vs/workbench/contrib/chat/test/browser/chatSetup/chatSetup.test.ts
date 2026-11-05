@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { NullAgentHostService } from '../../../../../../platform/agentHost/browser/nullAgentHostService.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
@@ -582,6 +584,7 @@ suite('Chat setup strategy', () => {
 			{ isWorkspaceTrusted: () => true } as never,
 			undefined as never,
 			undefined as never,
+			new NullAgentHostService(),
 		);
 
 		const result = await setup.run({ setupStrategy: ChatSetupStrategy.SetupWithMicrosoftProvider, additionalScopes: ['repo'] });
@@ -680,6 +683,7 @@ suite('Chat setup dialog cancellation', () => {
 			{ isWorkspaceTrusted: () => true } as never,
 			undefined as never,
 			undefined as never,
+			new NullAgentHostService(),
 		);
 
 		const result = setup.run({ setupStrategy: ChatSetupStrategy.DefaultSetup, cancellationToken: cancellation.token });
@@ -698,6 +702,7 @@ suite('Chat setup dialog telemetry', () => {
 
 	function createSetup(entitlement = ChatEntitlement.Unknown, accountAvailable = false) {
 		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IAgentHostService, new NullAgentHostService());
 		const impressions: (ITelemetryData | undefined)[] = [];
 		const dialogShown = new DeferredPromise<void>();
 		const dialogResult = new DeferredPromise<ChatSetupStrategy>();

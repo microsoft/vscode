@@ -7,6 +7,8 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
+import { resolveCopilotAccountContext } from '../../../../services/agentHost/common/copilotAccountContext.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, markAsSingleton, MutableDisposable } from '../../../../../base/common/lifecycle.js';
@@ -257,8 +259,10 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				const lifecycleService = accessor.get(ILifecycleService);
 				const configurationService = accessor.get(IConfigurationService);
 
-				await context.update({ hidden: false });
-				configurationService.updateValue(ChatAIDisabledSettingId, false);
+				if (!await resolveCopilotAccountContext(accessor.get(IAgentHostService), options?.cancellationToken ?? CancellationToken.None)) {
+					await context.update({ hidden: false });
+					configurationService.updateValue(ChatAIDisabledSettingId, false);
+				}
 
 				if (mode) {
 					const chatWidget = await widgetService.revealWidget();

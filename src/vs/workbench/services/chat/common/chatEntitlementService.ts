@@ -30,10 +30,12 @@ import { isWeb } from '../../../../base/common/platform.js';
 import { ILifecycleService } from '../../lifecycle/common/lifecycle.js';
 import { Mutable } from '../../../../base/common/types.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { IObservable, observableFromEvent } from '../../../../base/common/observable.js';
+import { IObservable, autorun, observableFromEvent } from '../../../../base/common/observable.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IDefaultAccount, IEntitlementsData } from '../../../../base/common/defaultAccount.js';
 import { isInternalAccount } from '../../../../platform/assignment/common/assignment.js';
+import { IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
+import { canCompleteCopilotAccountSetup, CopilotAccountContextView, observeCopilotAccountContext } from '../../agentHost/common/copilotAccountContext.js';
 
 export namespace ChatEntitlementContextKeys {
 
@@ -45,7 +47,8 @@ export namespace ChatEntitlementContextKeys {
 		untrusted: new RawContextKey<boolean>('chatSetupUntrusted', false, true),  	// True when the chat extension is disabled due to workspace trust.
 		later: new RawContextKey<boolean>('chatSetupLater', false, true),  			// True when the user wants to finish setup later.
 		registered: new RawContextKey<boolean>('chatSetupRegistered', false, true), // True when the user has registered as Free or Pro user.
-		completed: new RawContextKey<boolean>('chatSetupCompleted', false, true)	// True when the user has completed the setup flow, regardless of the outcome.
+		completed: new RawContextKey<boolean>('chatSetupCompleted', false, true),	// True when the user has completed the setup flow, regardless of the outcome.
+		copilotAccountReady: new RawContextKey<boolean | undefined>('chatSetupCopilotAccountReady', undefined, true),
 	};
 
 	export const Entitlement = {
@@ -103,6 +106,8 @@ export enum ChatEntitlement {
 }
 
 export interface IChatSentiment {
+	/** Undefined for the legacy flow; otherwise derived from the host's confirmed account context. */
+	copilotAccountReady?: boolean;
 
 	/**
 	 * Whether the user has completed the setup flow or not, regardless of the outcome
@@ -164,6 +169,7 @@ export interface IChatSentiment {
  * (sign in / sign up / trust / enable) before it can service a request.
  */
 export interface IChatSetupRequirement {
+	readonly copilotAccountReady?: boolean;
 	/** Whether the setup flow has been completed (any outcome). */
 	readonly completed: boolean;
 	/** Whether the chat extension is disabled for a reason other than trust. */
@@ -183,6 +189,9 @@ export interface IChatSetupRequirement {
  * The model picker uses a narrower condition that only surfaces interactive setup.
  */
 export function chatRequiresSetup(context: IChatSetupRequirement): boolean {
+	if (context.copilotAccountReady !== undefined) {
+		return !context.copilotAccountReady || !context.completed || context.disabled || context.untrusted;
+	}
 	return (
 		(!context.completed && !context.hasByokModels) ||			// Setup not completed (unless BYOK models are available)
 		context.disabled ||											// Extension disabled: run setup to enable
@@ -439,6 +448,7 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 			Event.filter(
 				this.contextKeyService.onDidChangeContext, e => e.affectsSome(new Set([
 					ChatEntitlementContextKeys.Setup.completed.key,
+					ChatEntitlementContextKeys.Setup.copilotAccountReady.key,
 					ChatEntitlementContextKeys.Setup.hidden.key,
 					ChatEntitlementContextKeys.Setup.disabled.key,
 					ChatEntitlementContextKeys.Setup.untrusted.key,
@@ -683,6 +693,7 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 
 	get sentiment(): IChatSentiment {
 		return {
+			copilotAccountReady: this.context?.rawValue?.state.copilotAccountReady,
 			completed: this.contextKeyService.getContextKeyValue<boolean>(ChatEntitlementContextKeys.Setup.completed.key) === true,
 			installed: this.contextKeyService.getContextKeyValue<boolean>(ChatEntitlementContextKeys.Setup.installed.key) === true,
 			hidden: this.contextKeyService.getContextKeyValue<boolean>(ChatEntitlementContextKeys.Setup.hidden.key) === true,
@@ -1431,6 +1442,8 @@ export class ChatEntitlementContext extends Disposable {
 	private readonly skuContextKey: IContextKey<string | undefined>;
 
 	private readonly completedContext: IContextKey<boolean>;
+	private readonly copilotAccountReadyContext: IContextKey<boolean | undefined>;
+	private readonly copilotAccountContext: IObservable<CopilotAccountContextView>;
 	private readonly hiddenContext: IContextKey<boolean>;
 	private readonly disabledInWorkspaceContext: IContextKey<boolean>;
 	private readonly laterContext: IContextKey<boolean>;
@@ -1453,10 +1466,13 @@ export class ChatEntitlementContext extends Disposable {
 		@IStorageService private readonly storageService: IStorageService,
 		@ILogService private readonly logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IAgentHostService agentHostService: IAgentHostService,
 	) {
 		super();
 
+		this.copilotAccountContext = observeCopilotAccountContext(agentHostService, this._store);
+		this.copilotAccountReadyContext = ChatEntitlementContextKeys.Setup.copilotAccountReady.bindTo(contextKeyService);
 		this.canSignUpContextKey = ChatEntitlementContextKeys.Entitlement.canSignUp.bindTo(contextKeyService);
 		this.signedOutContextKey = ChatEntitlementContextKeys.Entitlement.signedOut.bindTo(contextKeyService);
 
@@ -1501,6 +1517,10 @@ export class ChatEntitlementContext extends Disposable {
 		this.updateContextSync();
 
 		this.registerListeners();
+		this._register(autorun(reader => {
+			this.copilotAccountContext.read(reader);
+			void this.updateContext();
+		}));
 	}
 
 	private registerListeners(): void {
@@ -1514,6 +1534,11 @@ export class ChatEntitlementContext extends Disposable {
 	private _forceHidden = false;
 
 	private withConfiguration(state: IChatEntitlementContextState): IChatEntitlementContextState {
+		const accountContext = this.copilotAccountContext.get();
+		if (accountContext !== undefined) {
+			const ready = canCompleteCopilotAccountSetup(accountContext);
+			state = { ...state, copilotAccountReady: accountContext === 'loading' || accountContext instanceof Error ? undefined : ready, completed: !!state.completed && ready };
+		}
 		if (this._forceHidden || this.configurationService.getValue(ChatAIDisabledSettingId) === true) {
 			return {
 				...state,
@@ -1619,6 +1644,7 @@ export class ChatEntitlementContext extends Disposable {
 		this.skuContextKey.set(state.sku);
 
 		this.completedContext.set(!!state.completed);
+		this.copilotAccountReadyContext.set(state.copilotAccountReady);
 		this.hiddenContext.set(!!state.hidden);
 		this.disabledInWorkspaceContext.set(!!state.disabledInWorkspace);
 		this.laterContext.set(!!state.later);

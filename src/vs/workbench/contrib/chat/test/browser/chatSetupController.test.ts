@@ -31,6 +31,9 @@ import { ILifecycleService } from '../../../../services/lifecycle/common/lifecyc
 import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ChatSetupController } from '../../browser/chatSetup/chatSetupController.js';
 import { gitHubEnterpriseUrisSetting } from '../../../../services/accounts/common/githubEnterprise.js';
+import { NullAgentHostService } from '../../../../../platform/agentHost/browser/nullAgentHostService.js';
+import { IAgentHostCopilotAccountService } from '../../browser/agentSessions/agentHost/agentHostCopilotAccountService.js';
+import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 
 suite('ChatSetupController', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -60,6 +63,9 @@ suite('ChatSetupController', () => {
 			new class extends mock<IDefaultAccountService>() { }(),
 			new class extends mock<IProductService>() { }(),
 			new class extends mock<IWorkspaceTrustManagementService>() { override isWorkspaceTrusted() { return true; } }(),
+			new NullAgentHostService(),
+			new class extends mock<IAgentHostCopilotAccountService>() { }(),
+			new class extends mock<IAuthenticationService>() { }(),
 		));
 		const setup = sinon.stub(controller, 'setup').resolves(true);
 		return { controller, configuration, write, input, setup };
@@ -204,6 +210,9 @@ suite('ChatSetupController', () => {
 			new class extends mock<IDefaultAccountService>() { }(),
 			new class extends mock<IProductService>() { }(),
 			new class extends mock<IWorkspaceTrustManagementService>() { }(),
+			new NullAgentHostService(),
+			new class extends mock<IAgentHostCopilotAccountService>() { }(),
+			new class extends mock<IAuthenticationService>() { }(),
 		));
 
 		const resultPromise = controller.setup({ forceSignIn: true, cancellationToken: cancellation.token });
