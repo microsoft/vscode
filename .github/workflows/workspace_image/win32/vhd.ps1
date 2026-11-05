@@ -1,5 +1,5 @@
 # Attaches the VHDX of a workspace image and mounts its volume at a folder, or creates one (see
-# README.md).
+# ../README.md).
 #
 #   vhd.ps1 -Path C:\a\_temp\workspace-image.vhdx -MountFolder C:\a\vscode [-WaitFor C:\a\_temp\workspace-image.vhdx.ready] [-CachedIo] [-Trust]
 #   vhd.ps1 -Path C:\a\_temp\workspace-image.vhdx -Create -MountFolder C:\a\vscode [-MaximumSizeGB 200] [-BlockSizeMB 1]

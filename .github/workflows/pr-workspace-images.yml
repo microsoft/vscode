@@ -72,14 +72,15 @@ jobs:
           dir="$RUNNER_TEMP/workspace-image"
           mkdir -p "$dir"
           echo '{ "type": "module" }' > "$dir/package.json"
-          files=(.nvmrc .github/workflows/workspace_image/{image.ts,vhd.ps1,Vhd.cs})
+          # The scripts keep their folders below workspace_image, such as win32/vhd.ps1
+          files=(.nvmrc .github/workflows/workspace_image/{image.ts,win32/vhd.ps1,win32/Vhd.cs})
           args=()
           for file in "${files[@]}"; do
-            args+=(-o "$dir/${file##*/}" "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/contents/$file?ref=$GITHUB_SHA")
+            args+=(-o "$dir/${file#.github/workflows/workspace_image/}" "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/contents/$file?ref=$GITHUB_SHA")
           done
-          curl -fsSL --retry 3 --parallel -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github.raw' "${args[@]}"
+          curl -fsSL --retry 3 --parallel --create-dirs -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github.raw' "${args[@]}"
           for file in "${files[@]}"; do
-            [ -s "$dir/${file##*/}" ]
+            [ -s "$dir/${file#.github/workflows/workspace_image/}" ]
           done
           echo "node-version=$(tr -d '[:space:]' < "$dir/.nvmrc")" >> "$GITHUB_OUTPUT"
 
@@ -311,7 +312,7 @@ jobs:
           if (Get-ChildItem -Force $workspace) { throw "$workspace is not empty" }
           Remove-Item $workspace
           if (Get-ChildItem -Force $root) { throw "$root holds more than the workspace" }
-          & "$env:RUNNER_TEMP\workspace-image\vhd.ps1" -Path "$env:RUNNER_TEMP\workspace-image.vhdx" -Create -MaximumSizeGB 64 -MountFolder $root
+          & "$env:RUNNER_TEMP\workspace-image\win32\vhd.ps1" -Path "$env:RUNNER_TEMP\workspace-image.vhdx" -Create -MaximumSizeGB 64 -MountFolder $root
           New-Item -ItemType Directory -Path $workspace | Out-Null
 
       - *checkout
@@ -369,7 +370,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $root = Split-Path $env:GITHUB_WORKSPACE -Parent
           fsutil volume diskfree $root | Out-Host
-          & "$env:RUNNER_TEMP\workspace-image\vhd.ps1" -Path "$env:RUNNER_TEMP\workspace-image.vhdx" -MountFolder $root -Detach
+          & "$env:RUNNER_TEMP\workspace-image\win32\vhd.ps1" -Path "$env:RUNNER_TEMP\workspace-image.vhdx" -MountFolder $root -Detach
           # The next steps start in the workspace
           New-Item -ItemType Directory -Path $env:GITHUB_WORKSPACE -Force | Out-Null
           Get-Item "$env:RUNNER_TEMP\workspace-image.vhdx" | Format-List Name, Length

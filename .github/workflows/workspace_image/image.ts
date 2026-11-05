@@ -726,7 +726,7 @@ async function mount(source: Source, root: string, connections: number): Promise
 			const ready = `${file}.ready`;
 			fs.rmSync(file, { force: true });
 			fs.rmSync(ready, { force: true });
-			const attach = spawn('pwsh', ['-NoProfile', '-NonInteractive', '-File', path.join(import.meta.dirname, 'vhd.ps1'), '-Path', file, '-WaitFor', ready, '-MountFolder', root, '-CachedIo', '-Trust'], { stdio: 'inherit' });
+			const attach = spawn('pwsh', ['-NoProfile', '-NonInteractive', '-File', path.join(import.meta.dirname, 'win32', 'vhd.ps1'), '-Path', file, '-WaitFor', ready, '-MountFolder', root, '-CachedIo', '-Trust'], { stdio: 'inherit' });
 			const exited = new Promise<number | null>(resolve => {
 				attach.on('error', () => resolve(null));
 				attach.on('exit', code => resolve(code));
