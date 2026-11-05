@@ -241,51 +241,51 @@ packages:
     hasBin: true
 
   '@github/copilot-sdk-darwin-arm64@1.0.29-preview.9':
-    resolution: {integrity: sha512-VDZFzw6ToMQx/LX6Kw0dyqYOS54d9kc9S0uqyeTdWfS21WnQpGtCbx6vEcHSh1b6jLaVFZSMGhmCMOBGv5b9rw==, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@github/copilot-sdk-darwin-arm64/-/copilot-sdk-darwin-arm64-1.0.29-preview.9.tgz}
+    resolution: {integrity: sha512-VDZFzw6ToMQx/LX6Kw0dyqYOS54d9kc9S0uqyeTdWfS21WnQpGtCbx6vEcHSh1b6jLaVFZSMGhmCMOBGv5b9rw==}
     cpu: [arm64]
     os: [darwin]
 
   '@github/copilot-sdk-darwin-x64@1.0.29-preview.9':
-    resolution: {integrity: sha512-wUJXZjcA68/zhrJeeofJLmajbFsocBsrYozQ8No3k3UJpn0100em1XUOufCiDHQnOrstwEAhP9o2gqeRj9Tfqw==, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@github/copilot-sdk-darwin-x64/-/copilot-sdk-darwin-x64-1.0.29-preview.9.tgz}
+    resolution: {integrity: sha512-wUJXZjcA68/zhrJeeofJLmajbFsocBsrYozQ8No3k3UJpn0100em1XUOufCiDHQnOrstwEAhP9o2gqeRj9Tfqw==}
     cpu: [x64]
     os: [darwin]
 
   '@github/copilot-sdk-linux-arm64@1.0.29-preview.9':
-    resolution: {integrity: sha512-GxQV27/LxCYUZFwlGxEEXkNTPZBgNALfKVjaWh1iORMtnNZi7/Pyirk2/yoWLv8t6q5Q1a1hzs+qdqOPhA3tZg==, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@github/copilot-sdk-linux-arm64/-/copilot-sdk-linux-arm64-1.0.29-preview.9.tgz}
+    resolution: {integrity: sha512-GxQV27/LxCYUZFwlGxEEXkNTPZBgNALfKVjaWh1iORMtnNZi7/Pyirk2/yoWLv8t6q5Q1a1hzs+qdqOPhA3tZg==}
     cpu: [arm64]
     os: [linux]
     libc: [glibc]
 
   '@github/copilot-sdk-linux-x64@1.0.29-preview.9':
-    resolution: {integrity: sha512-uqajwOMKQKCnuWe2bREIWJ7J0AUG4YbgZXk3C1lVLtQFCFh1ZInMSnxI9g3XSEECldRXwRM8dTIf+pfl0wwEHg==, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@github/copilot-sdk-linux-x64/-/copilot-sdk-linux-x64-1.0.29-preview.9.tgz}
+    resolution: {integrity: sha512-uqajwOMKQKCnuWe2bREIWJ7J0AUG4YbgZXk3C1lVLtQFCFh1ZInMSnxI9g3XSEECldRXwRM8dTIf+pfl0wwEHg==}
     cpu: [x64]
     os: [linux]
     libc: [glibc]
 
   '@github/copilot-sdk-linuxmusl-arm64@1.0.29-preview.9':
-    resolution: {integrity: sha512-VujHKJU+fs13fmBcZXhFb2w40UrdVEPphTUj1WPmFMtxQnmCfhgnO4oI3rBp9Ec7dfAa/+Dl57Uw+61UepJQBA==, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@github/copilot-sdk-linuxmusl-arm64/-/copilot-sdk-linuxmusl-arm64-1.0.29-preview.9.tgz}
+    resolution: {integrity: sha512-VujHKJU+fs13fmBcZXhFb2w40UrdVEPphTUj1WPmFMtxQnmCfhgnO4oI3rBp9Ec7dfAa/+Dl57Uw+61UepJQBA==}
     cpu: [arm64]
     os: [linux]
     libc: [musl]
 
   '@github/copilot-sdk-linuxmusl-x64@1.0.29-preview.9':
-    resolution: {integrity: sha512-sfFG+hpsqIx/e22yugBOfc1AvOAHoTWTn0hkIW/P78uf9PXAesZ6+ldgofE+JluDnOe9hTCJzpt4C6FLNKFAXg==, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@github/copilot-sdk-linuxmusl-x64/-/copilot-sdk-linuxmusl-x64-1.0.29-preview.9.tgz}
+    resolution: {integrity: sha512-sfFG+hpsqIx/e22yugBOfc1AvOAHoTWTn0hkIW/P78uf9PXAesZ6+ldgofE+JluDnOe9hTCJzpt4C6FLNKFAXg==}
     cpu: [x64]
     os: [linux]
     libc: [musl]
 
   '@github/copilot-sdk-win32-arm64@1.0.29-preview.9':
-    resolution: {integrity: sha512-jKvu8kW2wLaVEPDE/tu/2XeeW6gVrcZyhdNdOOTYBLfXUhLe+2hx9KmegFRAcwv3lGHUfMub6xqfatqpjGTorA==, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@github/copilot-sdk-win32-arm64/-/copilot-sdk-win32-arm64-1.0.29-preview.9.tgz}
+    resolution: {integrity: sha512-jKvu8kW2wLaVEPDE/tu/2XeeW6gVrcZyhdNdOOTYBLfXUhLe+2hx9KmegFRAcwv3lGHUfMub6xqfatqpjGTorA==}
     cpu: [arm64]
     os: [win32]
 
   '@github/copilot-sdk-win32-x64@1.0.29-preview.9':
-    resolution: {integrity: sha512-ODBEAjnT495FX0INhHAolA3zusU3fk13L75OCMK+zb6s/vp/rMPBoOjOSD9X8aJcJb9o/YUanQMsQUAzixzjtA==, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@github/copilot-sdk-win32-x64/-/copilot-sdk-win32-x64-1.0.29-preview.9.tgz}
+    resolution: {integrity: sha512-ODBEAjnT495FX0INhHAolA3zusU3fk13L75OCMK+zb6s/vp/rMPBoOjOSD9X8aJcJb9o/YUanQMsQUAzixzjtA==}
     cpu: [x64]
     os: [win32]
 
   '@github/copilot-sdk@1.0.29-preview.9':
-    resolution: {integrity: sha512-qN7BwcCsd5GzVE1dRAMzlbUfpWf/Mh/n8IUarmThFuUHxp+BBkYX4JIby4DLbeWTyAAt6uUvkd5zj1wn7FHJig==, tarball: https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/@github/copilot-sdk/-/copilot-sdk-1.0.29-preview.9.tgz}
+    resolution: {integrity: sha512-qN7BwcCsd5GzVE1dRAMzlbUfpWf/Mh/n8IUarmThFuUHxp+BBkYX4JIby4DLbeWTyAAt6uUvkd5zj1wn7FHJig==}
     engines: {node: ^20.19.0 || >=22.12.0}
 
   '@hpke/common@1.10.1':
