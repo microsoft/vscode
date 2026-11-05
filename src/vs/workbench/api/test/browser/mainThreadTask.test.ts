@@ -4,18 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { stub } from 'sinon';
+import * as sinon from 'sinon';
 import type * as vscode from 'vscode';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
+import * as Platform from '../../../../base/common/platform.js';
 import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
 import { NullLogService } from '../../../../platform/log/common/log.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
-import { ITaskService } from '../../../contrib/tasks/common/taskService.js';
+import { RunAutomaticTasks } from '../../../contrib/tasks/browser/runAutomaticTasks.js';
+import { ITaskService, IWorkspaceFolderTaskResult } from '../../../contrib/tasks/common/taskService.js';
 import { ContributedTask, ITaskEvent, RunOptions, RuntimeType, TaskEvent, TaskEventKind, TaskScope as InternalTaskScope, TaskSourceKind } from '../../../contrib/tasks/common/tasks.js';
+import { createTaskService, taskSystemInfo } from '../../../contrib/tasks/test/browser/taskTestUtils.js';
 import { IConfigurationResolverService } from '../../../services/configurationResolver/common/configurationResolver.js';
 import { ConfigurationResolverExpression } from '../../../services/configurationResolver/common/configurationResolverExpression.js';
 import { MainThreadTask } from '../../browser/mainThreadTask.js';
@@ -30,6 +34,81 @@ import { CustomExecution, Task, TaskScope } from '../../common/extHostTypes.js';
 import { IExtHostWorkspace } from '../../common/extHostWorkspace.js';
 import { ITaskDefinitionDTO, ITaskDTO } from '../../common/shared/tasks.js';
 import { SingleProxyRPCProtocol, TestRPCProtocol } from '../common/testRPCProtocol.js';
+
+suite('MainThreadTask', function () {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	teardown(() => sinon.restore());
+
+	test('unregisters task systems on dispose', function () {
+		let registrations = 0;
+		let disposals = 0;
+		const taskService = new class extends mock<ITaskService>() {
+			override readonly onDidStateChange = Event.None;
+
+			override registerTaskSystem(): IDisposable {
+				registrations++;
+				return toDisposable(() => disposals++);
+			}
+		};
+		const mainThreadTask = new MainThreadTask(SingleProxyRPCProtocol(null), taskService, undefined!, undefined!);
+
+		mainThreadTask.$registerTaskSystem('file', { scheme: 'file', authority: '', platform: 'linux' });
+		assert.strictEqual(registrations, 1);
+
+		mainThreadTask.dispose();
+		assert.strictEqual(disposals, 1);
+	});
+
+	test('removal before initial remote readiness does not release the readiness promise', async () => {
+		const { taskService, instantiationService } = createTaskService(store, 'test-remote');
+		let ready = false;
+		const readiness = (async () => {
+			await taskService.whenTaskSystemReady;
+			ready = true;
+		})();
+		const local = store.add(instantiationService.createInstance(MainThreadTask, SingleProxyRPCProtocol(null)));
+		local.$registerTaskSystem(Schemas.file, { scheme: Schemas.file, authority: '', platform: 'win32' });
+		local.dispose();
+		await timeout(0);
+		assert.deepStrictEqual({ ready, hasTaskSystemInfo: taskService.hasTaskSystemInfo }, { ready: false, hasTaskSystemInfo: false });
+
+		store.add(taskService.registerTaskSystem(Schemas.vscodeRemote, taskSystemInfo(Platform.Platform.Linux)));
+		await timeout(0);
+		assert.deepStrictEqual({ ready, hasTaskSystemInfo: taskService.hasTaskSystemInfo }, { ready: false, hasTaskSystemInfo: false });
+
+		store.add(taskService.registerTaskSystem(Schemas.file, taskSystemInfo(Platform.Platform.Windows)));
+		await readiness;
+		assert.deepStrictEqual({ ready, hasTaskSystemInfo: taskService.hasTaskSystemInfo }, { ready: true, hasTaskSystemInfo: true });
+	});
+
+	test('automatic tasks ignore removal notifications before initial remote readiness', async () => {
+		const { taskService, instantiationService } = createTaskService(store, 'test-remote');
+		await timeout(0);
+		const workspaceTasks = new DeferredPromise<Map<string, IWorkspaceFolderTaskResult>>();
+		const getWorkspaceTasks = sinon.stub(taskService, 'getWorkspaceTasks').returns(workspaceTasks.p);
+		store.add(instantiationService.createInstance(RunAutomaticTasks));
+		const local = store.add(instantiationService.createInstance(MainThreadTask, SingleProxyRPCProtocol(null)));
+		local.$registerTaskSystem(Schemas.file, { scheme: Schemas.file, authority: '', platform: 'win32' });
+		local.dispose();
+		await timeout(0);
+		assert.strictEqual(getWorkspaceTasks.callCount, 0);
+
+		store.add(taskService.registerTaskSystem(Schemas.vscodeRemote, taskSystemInfo(Platform.Platform.Linux)));
+		await timeout(0);
+		assert.strictEqual(getWorkspaceTasks.callCount, 0);
+
+		const replacement = store.add(taskService.registerTaskSystem(Schemas.file, taskSystemInfo(Platform.Platform.Windows)));
+		replacement.dispose();
+		await timeout(0);
+		assert.strictEqual(getWorkspaceTasks.callCount, 0);
+
+		store.add(taskService.registerTaskSystem(Schemas.file, taskSystemInfo(Platform.Platform.Windows)));
+		await timeout(0);
+		assert.strictEqual(getWorkspaceTasks.callCount, 1);
+	});
+});
 
 class TestExtHostTask extends WorkerExtHostTask {
 	readonly cache = this._providedCustomExecutions2;
@@ -98,7 +177,7 @@ suite('MainThreadTask custom execution startup', () => {
 			},
 			new class extends mock<IWorkspaceContextService>() { },
 			upcastPartial<IConfigurationResolverService>({
-				resolveAsync: stub().callsFake(async (_folder: IWorkspaceFolder | undefined, expression: ConfigurationResolverExpression<ITaskDefinitionDTO>) => {
+				resolveAsync: sinon.stub().callsFake(async (_folder: IWorkspaceFolder | undefined, expression: ConfigurationResolverExpression<ITaskDefinitionDTO>) => {
 					await resolution.p;
 					return expression.toObject();
 				})

@@ -63,8 +63,8 @@ import { TaskDefinitionRegistry } from '../common/taskDefinitionRegistry.js';
 
 import { getActiveElement } from '../../../../base/browser/dom.js';
 import { raceTimeout } from '../../../../base/common/async.js';
-import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { isCancellationError } from '../../../../base/common/errors.js';
+import { cancelOnDispose, CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { toFormattedString } from '../../../../base/common/jsonFormatter.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -223,7 +223,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private _providers: Map<number, ITaskProvider>;
 	private _providerTypes: Map<number, string>;
 	protected _taskSystemInfos: Map<string, ITaskSystemInfo[]>;
+	private readonly _taskSystemPlatforms = new Map<string, Platform.Platform>();
+	private readonly _taskSystemInfoCancellation = cancelOnDispose(this._store);
 
+	private _workspaceTasksVersion = 0;
 	protected _workspaceTasksPromise?: Promise<Map<string, IWorkspaceFolderTaskResult>>;
 	protected readonly _whenTaskSystemReady: Promise<void>;
 
@@ -294,7 +297,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		@ILogService private readonly _logService: ILogService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
+		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IChatService private readonly _chatService: IChatService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
@@ -364,7 +367,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this._tasksAvailableState = TasksAvailableContext.bindTo(_contextKeyService);
 		this._onDidStateChange = this._register(new Emitter());
 		this._registerCommands().then(() => TaskCommandsRegistered.bindTo(this._contextKeyService).set(true));
-		ServerlessWebContext.bindTo(this._contextKeyService).set(Platform.isWeb && !remoteAgentService.getConnection()?.remoteAuthority);
+		ServerlessWebContext.bindTo(this._contextKeyService).set(Platform.isWeb && !this._remoteAgentService.getConnection()?.remoteAuthority);
 		this._configurationResolverService.contributeVariable('defaultBuildTask', async (): Promise<string | undefined> => {
 			// delay provider activation, we might find a single default build task in the tasks.json file
 			let tasks = await this._getTasksForGroup(TaskGroup.Build, true);
@@ -878,8 +881,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return infosCount > 0;
 	}
 
-	public registerTaskSystem(key: string, info: ITaskSystemInfo): void {
-		// Ideally the Web caller of registerRegisterTaskSystem would use the correct key.
+	public registerTaskSystem(key: string, info: ITaskSystemInfo): IDisposable {
+		// Ideally the Web caller of registerTaskSystem would use the correct key.
 		// However, the caller doesn't know about the workspace folders at the time of the call, even though we know about them here.
 		if (info.platform === Platform.Platform.Web) {
 			key = this.workspaceFolders.length ? this.workspaceFolders[0].uri.scheme : key;
@@ -896,9 +899,77 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 		}
 
-		if (this.hasTaskSystemInfo) {
-			this._onDidChangeTaskSystemInfo.fire();
+		this._taskSystemInfoChanged(key);
+
+		return toDisposable(() => {
+			const infos = this._taskSystemInfos.get(key);
+			if (!infos) {
+				return;
+			}
+			const index = infos.indexOf(info);
+			if (index === -1) {
+				return;
+			}
+			const remainingInfos = infos.toSpliced(index, 1);
+			if (remainingInfos.length === 0) {
+				this._taskSystemInfos.delete(key);
+			} else {
+				this._taskSystemInfos.set(key, remainingInfos);
+			}
+			this._taskSystemInfoChanged(key);
+		});
+	}
+
+	private _taskSystemInfoChanged(key: string): void {
+		const platform = this._getTaskSystemInfo(key)?.platform;
+		if (platform !== undefined && this._taskSystemPlatforms.get(key) !== platform) {
+			// Keep only platform metadata when the host goes away, never its callbacks.
+			this._taskSystemPlatforms.set(key, platform);
+			if (key !== Schemas.file && key !== Schemas.vscodeRemote) {
+				this._workspaceTasksPromise = undefined;
+			}
 		}
+		this._onDidChangeTaskSystemInfo.fire();
+	}
+
+	private async _getTaskPlatform(resource: URI): Promise<Platform.Platform> {
+		if (resource.scheme !== Schemas.file && resource.scheme !== Schemas.vscodeRemote) {
+			const platform = this._taskSystemPlatforms.get(resource.scheme);
+			if (platform !== undefined) {
+				return platform;
+			}
+		}
+		// Browser-only tasks have no native platform overrides.
+		if (resource.scheme === Schemas.file && Platform.isWeb) {
+			return Platform.Platform.Web;
+		}
+		const os = resource.scheme === Schemas.vscodeRemote
+			? (await this._remoteAgentService.getRawEnvironment())?.os
+			: await this._pathService.getOperatingSystem(resource);
+		switch (os) {
+			case Platform.OperatingSystem.Windows: return Platform.Platform.Windows;
+			case Platform.OperatingSystem.Macintosh: return Platform.Platform.Mac;
+			case Platform.OperatingSystem.Linux: return Platform.Platform.Linux;
+			default:
+				if (resource.scheme === Schemas.vscodeRemote) {
+					throw new Error(nls.localize('TaskSystem.remotePlatformUnavailable', "Unable to determine the remote operating system for tasks."));
+				}
+				return Platform.platform;
+		}
+	}
+
+	private async _withTaskSystemInfo<T>(key: string, callback: (info: ITaskSystemInfo | undefined) => T | Promise<T>): Promise<T> {
+		// Execution needs a live host; platform-only task discovery does not.
+		while (!this._store.isDisposed) {
+			const info = this._getTaskSystemInfo(key);
+			if (info || (key !== Schemas.vscodeRemote && !this._taskSystemPlatforms.has(key))) {
+				// Start using the registration before another microtask can remove it.
+				return callback(info);
+			}
+			await Event.toPromise(Event.any(this.onDidChangeTaskSystemInfo,
+				listener => this._taskSystemInfoCancellation.onCancellationRequested(listener)));
+		}
+		throw new CancellationError();
 	}
 
 	private _getTaskSystemInfo(key: string): ITaskSystemInfo | undefined {
@@ -2265,19 +2336,12 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			AbstractTaskService.OutputChannelId, this._fileService, this._terminalProfileResolverService,
 			this._pathService, this._viewDescriptorService, this._logService, this._notificationService,
 			this._contextKeyService, this._instantiationService,
-			(workspaceFolder: IWorkspaceFolder | undefined) => {
-				if (workspaceFolder) {
-					return this._getTaskSystemInfo(workspaceFolder.uri.scheme);
-				} else if (this._taskSystemInfos.size > 0) {
-					const infos = Array.from(this._taskSystemInfos.entries());
-					const notFile = infos.filter(info => info[0] !== Schemas.file);
-					if (notFile.length > 0) {
-						return notFile[0][1][0];
-					}
-					return infos[0][1][0];
-				} else {
-					return undefined;
-				}
+			(workspaceFolder, callback) => {
+				const defaultScheme = this._environmentService.remoteAuthority ? Schemas.vscodeRemote : Schemas.file;
+				const scheme = workspaceFolder?.uri.scheme
+					?? Array.from(this._taskSystemInfos.keys()).find(scheme => scheme !== Schemas.file)
+					?? defaultScheme;
+				return this._withTaskSystemInfo(scheme, callback);
 			},
 			async (taskKey: string) => {
 				// Look up task by its map key across all workspace tasks
@@ -2572,8 +2636,33 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private _updateWorkspaceTasks(runSource: TaskRunSource = TaskRunSource.User): Promise<Map<string, IWorkspaceFolderTaskResult>> {
-		this._workspaceTasksPromise = this._computeWorkspaceTasks(runSource);
+		this._workspaceTasksPromise = this._doUpdateWorkspaceTasks(runSource, ++this._workspaceTasksVersion);
 		return this._workspaceTasksPromise;
+	}
+
+	private async _doUpdateWorkspaceTasks(runSource: TaskRunSource, version: number): Promise<Map<string, IWorkspaceFolderTaskResult>> {
+		let result: Map<string, IWorkspaceFolderTaskResult>;
+		try {
+			result = await this._computeWorkspaceTasks(runSource);
+		} catch (error) {
+			if (version === this._workspaceTasksVersion) {
+				this._workspaceTasksPromise = undefined;
+			}
+			throw error;
+		}
+		if (this._store.isDisposed) {
+			throw new CancellationError();
+		}
+		// A workspace or configuration change may have started a newer computation.
+		if (!this._workspaceTasksPromise || version !== this._workspaceTasksVersion) {
+			return this._workspaceTasksPromise ?? this._updateWorkspaceTasks(runSource);
+		}
+		const hasAnyTasks = Array.from(result.values()).some(folderResult =>
+			(folderResult.set?.tasks && folderResult.set.tasks.length > 0) ||
+			(folderResult.configurations?.byIdentifier && Object.keys(folderResult.configurations.byIdentifier).length > 0)
+		);
+		this._tasksAvailableState.set(hasAnyTasks);
+		return result;
 	}
 
 	private async _getAFolder(): Promise<IWorkspaceFolder> {
@@ -2615,13 +2704,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			result.set(USER_TASKS_GROUP_KEY, userTasks);
 		}
 
-		// Update tasks available context key
-		const hasAnyTasks = Array.from(result.values()).some(folderResult =>
-			(folderResult.set?.tasks && folderResult.set.tasks.length > 0) ||
-			(folderResult.configurations?.byIdentifier && Object.keys(folderResult.configurations.byIdentifier).length > 0)
-		);
-		this._tasksAvailableState.set(hasAnyTasks);
-
 		return result;
 	}
 
@@ -2635,10 +2717,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			return Promise.resolve({ workspaceFolder, set: undefined, configurations: undefined, hasErrors: workspaceFolderConfiguration ? workspaceFolderConfiguration.hasErrors : false });
 		}
 		await ProblemMatcherRegistry.onReady();
-		const taskSystemInfo: ITaskSystemInfo | undefined = this._getTaskSystemInfo(workspaceFolder.uri.scheme);
+		const platform = await this._getTaskPlatform(workspaceFolder.uri);
 		const problemReporter = new ProblemReporter(this._outputChannel);
 		const problemReporterListener = problemReporter.onDidError(error => this._showOutput(runSource, undefined, error));
-		const parseResult = TaskConfig.parse(workspaceFolder, undefined, taskSystemInfo ? taskSystemInfo.platform : Platform.platform, workspaceFolderConfiguration.config, problemReporter, TaskConfig.TaskConfigSource.TasksJson, this._contextKeyService);
+		const parseResult = TaskConfig.parse(workspaceFolder, undefined, platform, workspaceFolderConfiguration.config, problemReporter, TaskConfig.TaskConfigSource.TasksJson, this._contextKeyService);
 		problemReporterListener.dispose();
 		let hasErrors = false;
 		if (!parseResult.validationStatus.isOK() && (parseResult.validationStatus.state !== ValidationState.Info)) {
@@ -2742,9 +2824,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this._logService.trace('TaskService.computeTasksForSingleConfig: no workspace folder for worskspace', this._workspace?.id);
 			return false;
 		}
-		const taskSystemInfo: ITaskSystemInfo | undefined = this._getTaskSystemInfo(workspaceFolder.uri.scheme);
+		const platform = await this._getTaskPlatform(workspaceFolder.uri);
 		const problemReporter = new ProblemReporter(this._outputChannel);
-		const parseResult = TaskConfig.parse(workspaceFolder, this._workspace, taskSystemInfo ? taskSystemInfo.platform : Platform.platform, config, problemReporter, source, this._contextKeyService, isRecentTask);
+		const parseResult = TaskConfig.parse(workspaceFolder, this._workspace, platform, config, problemReporter, source, this._contextKeyService, isRecentTask);
 		let hasErrors = false;
 		if (!parseResult.validationStatus.isOK() && (parseResult.validationStatus.state !== ValidationState.Info)) {
 			this._showOutput(runSource);
