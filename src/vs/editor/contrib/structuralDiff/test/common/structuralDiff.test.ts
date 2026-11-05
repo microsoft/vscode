@@ -348,11 +348,14 @@ suite('Structural diff', () => {
 	}
 
 	for (const [name, originalText, modifiedText, originalRange, modifiedRange] of [
-		['an insertion', '\uD83D\uDE00', '\uD83D\uDE01\uD83E\uDE00', new Range(1, 1, 1, 3), new Range(1, 1, 1, 5)],
-		['a deletion', '\uD83D\uDE01\uD83E\uDE00', '\uD83D\uDE00', new Range(1, 1, 1, 5), new Range(1, 1, 1, 3)],
+		// The text diff keeps the high surrogate of the first and the low surrogate of the last character.
+		['an insertion within surrogate pairs', '\uD83D\uDE00', '\uD83D\uDE01\uD83E\uDE00', new Range(1, 1, 1, 3), new Range(1, 1, 1, 5)],
+		['a deletion within surrogate pairs', '\uD83D\uDE01\uD83E\uDE00', '\uD83D\uDE00', new Range(1, 1, 1, 5), new Range(1, 1, 1, 3)],
+		['an insertion after a surrogate pair', '\uD83D\uDE00', '\uD83D\uDE00a', new Range(1, 3, 1, 3), new Range(1, 3, 1, 4)],
+		// Only the original change ends with a high surrogate, which `validateRange` treats as the start of a pair.
+		['a change that ends with a lone high surrogate', 'a\uD83Dx', 'abx', new Range(1, 2, 1, 4), new Range(1, 2, 1, 4)],
 	] as const) {
-		test(`extends both sides of ${name} that splits surrogate pairs`, async () => {
-			// The text diff keeps the high surrogate of the first and the low surrogate of the last character.
+		test(`keeps the ranges of ${name} valid and paired`, async () => {
 			original.setValue(originalText);
 			modified.setValue(modifiedText);
 			let context: StructuralDiffContext | undefined;

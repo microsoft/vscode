@@ -7,7 +7,7 @@ import { raceCancellationError } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError, onUnexpectedExternalError } from '../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { isHighSurrogate, isLowSurrogate } from '../../../../base/common/strings.js';
+import { isHighSurrogate } from '../../../../base/common/strings.js';
 import { Constants } from '../../../../base/common/uint.js';
 import { diffEditorDefaultOptions } from '../../../common/config/diffEditor.js';
 import { clampedInt } from '../../../common/config/editorOptions.js';
@@ -134,26 +134,44 @@ function isEnumValue(enumObject: { readonly [value: number]: string }, value: un
 
 /**
  * Returns the change that a text diff mapping describes. The text diff compares UTF-16 code units, so a change can start
- * or end within a surrogate pair. The text next to a change is the same in both documents, so the change is extended in
- * both to include the pair. Validating each range on its own would move the ranges differently, so that they would no
- * longer describe the same change.
+ * or end within a surrogate pair, where `validateRange` would move it. It would move the two ranges differently, for
+ * example an empty range instead of extending it, so that they would no longer describe the same change. Instead, a start
+ * or end that it would move in either document is extended in both, by the unchanged text next to the change, which is
+ * the same in both documents.
  */
 function toTextChange(mapping: RangeMapping, originalModel: ITextModel, modifiedModel: ITextModel): StructuralDiffTextChange {
-	const { originalRange, modifiedRange } = mapping;
-	const charCodeBefore = getCharCode(originalModel, originalRange.startLineNumber, originalRange.startColumn - 1);
-	const charCodeAfter = getCharCode(originalModel, originalRange.endLineNumber, originalRange.endColumn);
-	const extendStart = isHighSurrogate(charCodeBefore) && charCodeBefore === getCharCode(modifiedModel, modifiedRange.startLineNumber, modifiedRange.startColumn - 1) ? 1 : 0;
-	const extendEnd = isLowSurrogate(charCodeAfter) && charCodeAfter === getCharCode(modifiedModel, modifiedRange.endLineNumber, modifiedRange.endColumn) ? 1 : 0;
-	// The ranges no longer split surrogate pairs, so validation only clamps them, such as the maximal columns of whole-line changes.
-	const extend = (model: ITextModel, range: Range) => model.validateRange(new Range(range.startLineNumber, range.startColumn - extendStart, range.endLineNumber, range.endColumn + extendEnd));
-	return { originalRange: extend(originalModel, originalRange), modifiedRange: extend(modifiedModel, modifiedRange) };
+	const sides = [
+		{ model: originalModel, range: clampRange(originalModel, mapping.originalRange) },
+		{ model: modifiedModel, range: clampRange(modifiedModel, mapping.modifiedRange) },
+	];
+	// Invalid text can contain consecutive high surrogates, so the ranges are extended until `validateRange` would leave them unchanged.
+	// A change is extended by the same text in both documents, so both ranges must stay within their lines.
+	let extendStart = 0;
+	while (sides.every(({ range }) => range.startColumn - extendStart > 1)
+		&& sides.some(({ model, range }) => followsHighSurrogate(model, range.startLineNumber, range.startColumn - extendStart))) {
+		extendStart++;
+	}
+	// Unlike a start, `validateRange` does not move an end at the end of a line.
+	let extendEnd = 0;
+	while (sides.every(({ model, range }) => range.endColumn + extendEnd < model.getLineMaxColumn(range.endLineNumber))
+		&& sides.some(({ model, range }) => followsHighSurrogate(model, range.endLineNumber, range.endColumn + extendEnd))) {
+		extendEnd++;
+	}
+	const [originalRange, modifiedRange] = sides.map(({ range }) => new Range(range.startLineNumber, range.startColumn - extendStart, range.endLineNumber, range.endColumn + extendEnd));
+	return { originalRange, modifiedRange };
 }
 
-/** Returns the UTF-16 code unit at a position, or 0 if the line has none there. */
-function getCharCode(model: ITextModel, lineNumber: number, column: number): number {
-	return lineNumber >= 1 && lineNumber <= model.getLineCount() && column >= 1 && column < model.getLineMaxColumn(lineNumber)
-		? model.getValueInRange(new Range(lineNumber, column, lineNumber, column + 1)).charCodeAt(0)
-		: 0;
+/** Clamps a range to the document, such as the maximal columns of whole-line changes, without moving it out of surrogate pairs. */
+function clampRange(model: ITextModel, range: IRange): Range {
+	return Range.fromPositions(model.getPositionAt(model.getOffsetAt(Range.getStartPosition(range))), model.getPositionAt(model.getOffsetAt(Range.getEndPosition(range))));
+}
+
+/**
+ * Whether the UTF-16 code unit before a position is a high surrogate, so that `validateRange` treats the position as within
+ * a surrogate pair. The line is read directly, because reading the text in a range would validate the range.
+ */
+function followsHighSurrogate(model: ITextModel, lineNumber: number, column: number): boolean {
+	return column > 1 && isHighSurrogate(model.getLineContent(lineNumber).charCodeAt(column - 2));
 }
 
 /**
