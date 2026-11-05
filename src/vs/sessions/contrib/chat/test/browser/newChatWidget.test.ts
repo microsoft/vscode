@@ -453,7 +453,6 @@ interface IClearWorkspaceHarness {
 	readonly _newSessionCreation: MutableDisposable<IDisposable>;
 	_preferredDevContainerFolderUri: URI | undefined;
 	readonly _session: IObservable<ISession | undefined>;
-	readonly _comparisonSelection: { reset(): void };
 	readonly _workspaceOptOutEnabled: IObservable<boolean>;
 	readonly sessionsService: { unsetNewSession(): void };
 	readonly notificationService: { error(message: string): void };
@@ -3829,7 +3828,6 @@ suite('NewChatWidget', () => {
 				_newSessionCreation: creation,
 				_preferredDevContainerFolderUri: undefined,
 				_session: constObservable(undefined),
-				_comparisonSelection: { reset: () => events.push('resetComparison') },
 				_workspaceOptOutEnabled: constObservable(workspaceOptOutEnabled),
 				sessionsService: { unsetNewSession: () => events.push('unsetSession') },
 				notificationService: { error: () => events.push('error') },
@@ -3842,10 +3840,10 @@ suite('NewChatWidget', () => {
 			results.push(events);
 		}
 		assert.deepStrictEqual(results, [
-			['cancelUpgrade', 'resetComparison', 'cancelRestore', 'cancelCreation', 'unsetSession', 'restoreChat'],
-			['cancelUpgrade', 'resetComparison', 'cancelRestore', 'cancelCreation', 'unsetSession'],
-			['cancelUpgrade', 'resetComparison', 'cancelRestore', 'cancelCreation', 'chat:local:copilot:false:true'],
-			['cancelUpgrade', 'resetComparison', 'cancelRestore', 'cancelCreation', 'chat:local:copilot:false:true', 'unsetSession', 'error'],
+			['cancelUpgrade', 'cancelRestore', 'cancelCreation', 'unsetSession', 'restoreChat'],
+			['cancelUpgrade', 'cancelRestore', 'cancelCreation', 'unsetSession'],
+			['cancelUpgrade', 'cancelRestore', 'cancelCreation', 'chat:local:copilot:false:true'],
+			['cancelUpgrade', 'cancelRestore', 'cancelCreation', 'chat:local:copilot:false:true', 'unsetSession', 'error'],
 		]);
 	});
 
@@ -4276,6 +4274,71 @@ suite('NewChatWidget', () => {
 		]);
 	});
 
+	for (const committed of [false, true]) {
+		test(`preserves comparison choices across workspace draft replacement and clearing (committed: ${committed})`, () => {
+			const available = observableValue('available', true);
+			const enabled = observableValue('enabled', true);
+			const resolving = observableValue('resolving', false);
+			const loading = observableValue('loading', false);
+			const models = observableValue('models', ['one', 'two']);
+			const draft = (sessionId: string, isQuickChat = false) => upcastPartial<ISession>({
+				sessionId, providerId: 'provider', sessionType: 'copilotcli', loading,
+				isQuickChat: constObservable(isQuickChat),
+			});
+			const session = observableValue<ISession | undefined>('session', draft('first-workspace'));
+			const selection = disposables.add(new SessionComparisonModelSelection(available, undefined, undefined, undefined, disposables.add(new InMemoryStorageService()), disposables.add(new TestInstantiationService())));
+			const harness = {
+				_session: session,
+				_compareAgentsEnabled: enabled,
+				_comparisonSelection: selection,
+				_newChatInput: { selectedModelState: models },
+				_getComparisonModelIds: () => new Set(models.get()),
+			};
+			const track = Reflect.get(NewChatWidget.prototype, '_trackComparisonSelection') as (this: typeof harness, resolving: IObservable<boolean>) => IDisposable;
+			disposables.add(track.call(harness, resolving));
+			const configure = () => {
+				selection.start();
+				selection.select('one');
+				selection.select('two');
+				selection.addVariant('one', { effort: 'high' }, 'High');
+				if (committed) {
+					selection.finish();
+				}
+			};
+			configure();
+			const snapshot = () => ({
+				enabled: selection.enabled.get(),
+				attempts: selection.attempts.get(),
+				selected: selection.state.get()?.selectedModelIds,
+				variants: selection.getVariants('one'),
+			});
+			const before = snapshot();
+			const snapshots = [];
+			for (const [sessionId, quickChat] of [['second-workspace', false], ['no-workspace', true], ['third-workspace', false]] as const) {
+				available.set(false, undefined);
+				session.set(undefined, undefined);
+				models.set([], undefined);
+				loading.set(true, undefined);
+				session.set(draft(sessionId, quickChat), undefined);
+				loading.set(false, undefined);
+				resolving.set(true, undefined);
+				available.set(true, undefined);
+				models.set(['one', 'two'], undefined);
+				resolving.set(false, undefined);
+				snapshots.push(snapshot());
+			}
+			session.set(upcastPartial<ISession>({ ...draft('other-harness'), sessionType: 'claude' }), undefined);
+			const afterHarnessChange = snapshot();
+			configure();
+			enabled.set(false, undefined);
+			assert.deepStrictEqual({ snapshots, afterHarnessChange, afterDisable: snapshot() }, {
+				snapshots: [before, before, before],
+				afterHarnessChange: { enabled: false, attempts: [], selected: undefined, variants: [] },
+				afterDisable: { enabled: false, attempts: [], selected: undefined, variants: [] },
+			});
+		});
+	}
+
 	for (const { runs, navigationFails, openInGrid, quickChat, backgroundSend, interruption } of [
 		{ runs: 2, navigationFails: false, openInGrid: true, quickChat: false, backgroundSend: false, interruption: 'none' },
 		{ runs: 10, navigationFails: true, openInGrid: true, quickChat: false, backgroundSend: false, interruption: 'none' },
@@ -4293,7 +4356,7 @@ suite('NewChatWidget', () => {
 		test(`launches ${runs} repeated attempts with independent IDs and the draft permissions (quick chat: ${quickChat}, Inbox: ${backgroundSend}, interruption: ${interruption})`, async () => {
 			const resolving = observableValue('resolving', false);
 			const environment = observableValue<ISessionCreationEnvironment | undefined>('environment', undefined);
-			const selection = disposables.add(new SessionComparisonModelSelection(derived(reader => !resolving.read(reader)), resolving, undefined, undefined, undefined, disposables.add(new InMemoryStorageService()), disposables.add(new TestInstantiationService())));
+			const selection = disposables.add(new SessionComparisonModelSelection(derived(reader => !resolving.read(reader)), undefined, undefined, undefined, disposables.add(new InMemoryStorageService()), disposables.add(new TestInstantiationService())));
 			selection.start();
 			selection.select('claude-model');
 			for (let i = 1; i < runs; i++) {
@@ -4782,7 +4845,7 @@ suite('NewChatWidget', () => {
 			environment.read(reader);
 			return shouldShowComparisonAction.call(harness);
 		});
-		const selection = disposables.add(new SessionComparisonModelSelection(available, undefined, undefined, undefined, undefined, disposables.add(new InMemoryStorageService()), disposables.add(new TestInstantiationService())));
+		const selection = disposables.add(new SessionComparisonModelSelection(available, undefined, undefined, undefined, disposables.add(new InMemoryStorageService()), disposables.add(new TestInstantiationService())));
 		selection.start();
 		selection.select('model-a');
 		selection.select('model-b');
@@ -4796,7 +4859,7 @@ suite('NewChatWidget', () => {
 		environment.set(undefined, undefined);
 		containerRequested = true;
 		assert.deepStrictEqual({ states, draftContainer: shouldShowComparisonAction.call(harness) }, {
-			states: [{ available: true, configured: true }, { available: false, configured: false }, { available: true, configured: false }],
+			states: [{ available: true, configured: true }, { available: false, configured: true }, { available: true, configured: true }],
 			draftContainer: false,
 		});
 	});
