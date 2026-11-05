@@ -5,6 +5,7 @@
 
 import * as ts from '@typescript/native/ast';
 import * as vscode from 'vscode';
+import { findFirstIdxMonotonousOrArrLen } from '../../../../util/vs/base/common/arraysFind';
 import { CancellationError } from '../../../../util/vs/base/common/errors';
 import { basename } from '../../../../util/vs/base/common/path';
 import tss from './typescripts';
@@ -13,6 +14,11 @@ interface Span {
 	readonly start: number;
 	readonly end: number;
 }
+
+/**
+ * Spans in document order that do not overlap, so that their ends are in order as well.
+ */
+type SortedSpans = readonly Span[];
 
 interface EntityInfo {
 	readonly name: string;
@@ -30,7 +36,7 @@ interface Entity {
 	readonly span: Span;
 	readonly groupedSpans?: readonly Span[];
 	readonly headerEnd: number;
-	readonly implementation: readonly Span[];
+	readonly implementation: SortedSpans;
 	readonly isTest: boolean;
 	readonly children: Entity[];
 	readonly rename?: { readonly name: Span; readonly declaration: ts.Node };
@@ -39,8 +45,8 @@ interface Entity {
 interface Source {
 	readonly file: ts.SourceFile;
 	readonly root: Entity;
-	readonly dependencies: Span[];
-	readonly tests: Span[];
+	readonly dependencies: SortedSpans;
+	readonly tests: SortedSpans;
 }
 
 interface MutableDiffNode extends vscode.StructuralDiffNode {
@@ -54,6 +60,15 @@ interface DiffTree {
 	readonly modified?: Entity;
 	readonly result: MutableDiffNode;
 	readonly children: DiffTree[];
+	/** The spans of the children on each side, sorted by their start. */
+	readonly childSpans: Readonly<Record<Side, readonly ChildSpan[]>>;
+}
+
+interface ChildSpan {
+	readonly child: DiffTree;
+	readonly span: Span;
+	/** The largest end of this and all preceding spans, which, unlike the ends, cannot decrease if siblings overlap. */
+	readonly reach: number;
 }
 
 type Side = 'original' | 'modified';
@@ -105,7 +120,7 @@ export function computeStructuralDiff(originalFile: ts.SourceFile, modifiedFile:
 				children.push(merge(child, undefined));
 			}
 		}
-		return { original: left, modified: right, result, children };
+		return { original: left, modified: right, result, children, childSpans: { original: getChildSpans(children, 'original'), modified: getChildSpans(children, 'modified') } };
 	};
 	const tree = merge(original.root, modified.root);
 	for (const [textChangeIndex, change] of changes.entries()) {
@@ -136,12 +151,13 @@ function collectSource(file: ts.SourceFile, checkCancellation: () => void): Sour
 		isTest: isTestFile(file.fileName),
 		children: [],
 	};
-	const source: Source = { file, root, dependencies: [], tests: [] };
+	const dependencies: Span[] = [];
+	const tests: Span[] = [];
 	const statementGroups = new Map<Entity, Map<'imports' | 'exports', Span[]>>();
 	const visit = (node: ts.Node, parent: Entity): void => {
 		checkCancellation();
 		if (ts.isImportDeclaration(node) || ts.isImportEqualsDeclaration(node) || (ts.isExportDeclaration(node) && node.moduleSpecifier !== undefined)) {
-			source.dependencies.push(nodeSpan(node, file));
+			dependencies.push(nodeSpan(node, file));
 		}
 		const groupKind = ts.isImportDeclaration(node) || ts.isImportEqualsDeclaration(node) ? 'imports'
 			: ts.isExportDeclaration(node) || ts.isExportAssignment(node) || ts.isNamespaceExportDeclaration(node) ? 'exports' : undefined;
@@ -162,7 +178,7 @@ function collectSource(file: ts.SourceFile, checkCancellation: () => void): Sour
 		if (ts.isCallExpression(node) && isTestCallee(node.expression)) {
 			for (const argument of node.arguments) {
 				if (ts.isArrowFunction(argument) || ts.isFunctionExpression(argument)) {
-					source.tests.push(nodeSpan(argument, file));
+					tests.push(nodeSpan(argument, file));
 				}
 			}
 		}
@@ -223,7 +239,8 @@ function collectSource(file: ts.SourceFile, checkCancellation: () => void): Sour
 		}
 		parent.children.sort((left, right) => left.span.start - right.span.start);
 	}
-	return source;
+	// Test callbacks can be nested, but the classification only asks whether text lies in any of them.
+	return { file, root, dependencies: toSortedSpans(dependencies), tests: toSortedSpans(tests) };
 }
 
 function getEntityInfo(node: ts.Node, file: ts.SourceFile): EntityInfo | undefined {
@@ -414,11 +431,11 @@ function classify(tree: DiffTree, side: Side, source: Source, textChangeIndex: n
 		return;
 	}
 	let cursor = span.start;
-	const children = tree.children.flatMap(child => {
-		const entity = child[side];
-		return entity === undefined ? [] : (entity.groupedSpans ?? [entity.span]).map(span => ({ child, span }));
-	}).sort((left, right) => left.span.start - right.span.start);
-	for (const { child, span: childSpan } of children) {
+	const children = tree.childSpans[side];
+	// A binary search skips the children before the span and the loop stops at the first child after it, so that
+	// bulk edits do not visit every sibling for every change.
+	for (let index = findFirstIdxMonotonousOrArrLen(children, child => child.reach > span.start); index < children.length && children[index].span.start < span.end; index++) {
+		const { child, span: childSpan } = children[index];
 		const start = Math.max(cursor, childSpan.start);
 		const end = Math.min(span.end, childSpan.end);
 		if (start >= end) {
@@ -431,14 +448,30 @@ function classify(tree: DiffTree, side: Side, source: Source, textChangeIndex: n
 	addCoverage(tree, side, source, textChangeIndex, { start: cursor, end: span.end });
 }
 
+function getChildSpans(children: readonly DiffTree[], side: Side): ChildSpan[] {
+	const spans = children.flatMap(child => {
+		const entity = child[side];
+		return entity === undefined ? [] : (entity.groupedSpans ?? [entity.span]).map(span => ({ child, span }));
+	}).sort((left, right) => left.span.start - right.span.start);
+	let reach = 0;
+	return spans.map(({ child, span }) => {
+		reach = Math.max(reach, span.end);
+		return { child, span, reach };
+	});
+}
+
 function addCoverage(tree: DiffTree, side: Side, source: Source, textChangeIndex: number, span: Span, classification?: vscode.StructuralDiffClassification): void {
 	if (span.start >= span.end) {
 		return;
 	}
 	const entity = tree[side]!;
 	const header = { start: entity.span.start, end: entity.headerEnd };
+	// Only regions that overlap the span can split it, so the many gaps between the declarations of a new file stay cheap.
+	const dependencies = getOverlappingSpans(source.dependencies, span);
+	const implementation = getOverlappingSpans(entity.implementation, span);
+	const tests = getOverlappingSpans(source.tests, span);
 	const boundaries = new Set([span.start, span.end]);
-	for (const region of [...source.dependencies, header, ...entity.implementation, ...source.tests]) {
+	for (const region of [...dependencies, header, ...implementation, ...tests]) {
 		if (region.start > span.start && region.start < span.end) {
 			boundaries.add(region.start);
 		}
@@ -447,15 +480,18 @@ function addCoverage(tree: DiffTree, side: Side, source: Source, textChangeIndex
 		}
 	}
 	const offsets = [...boundaries].sort((left, right) => left - right);
+	const inDependency = createContainmentCheck(dependencies);
+	const inImplementation = createContainmentCheck(implementation);
+	const inTest = createContainmentCheck(tests);
 	const changes = side === 'original' ? tree.result.originalChanges : tree.result.modifiedChanges;
 	for (let index = 0; index < offsets.length - 1; index++) {
 		const part = { start: offsets[index], end: offsets[index + 1] };
 		const kind = classification
-			?? (source.dependencies.some(region => contains(region, part)) ? vscode.StructuralDiffClassification.Dependency
+			?? (inDependency(part) ? vscode.StructuralDiffClassification.Dependency
 				: contains(header, part) ? vscode.StructuralDiffClassification.Header
-					: entity.implementation.some(region => contains(region, part)) ? vscode.StructuralDiffClassification.Implementation
+					: inImplementation(part) ? vscode.StructuralDiffClassification.Implementation
 						: vscode.StructuralDiffClassification.Other);
-		const isTest = entity.isTest || source.tests.some(region => contains(region, part));
+		const isTest = entity.isTest || inTest(part);
 		const range = toRange(source.file, part);
 		const previous = changes[changes.length - 1];
 		if (previous?.textChangeIndex === textChangeIndex && previous.classification === kind
@@ -486,6 +522,41 @@ function toRange(file: ts.SourceFile, span: Span): vscode.Range {
 
 function contains(container: Span, contained: Span): boolean {
 	return container.start <= contained.start && container.end >= contained.end;
+}
+
+/**
+ * Returns sorted spans that cover the same offsets as the given spans, merging the ones that overlap.
+ */
+function toSortedSpans(spans: readonly Span[]): SortedSpans {
+	const result: Span[] = [];
+	for (const span of [...spans].sort((left, right) => left.start - right.start)) {
+		const last = result[result.length - 1];
+		if (last !== undefined && span.start <= last.end) {
+			result[result.length - 1] = { start: last.start, end: Math.max(last.end, span.end) };
+		} else {
+			result.push(span);
+		}
+	}
+	return result;
+}
+
+function getOverlappingSpans(spans: SortedSpans, span: Span): SortedSpans {
+	const start = findFirstIdxMonotonousOrArrLen(spans, candidate => candidate.end > span.start);
+	return spans.slice(start, findFirstIdxMonotonousOrArrLen(spans, candidate => candidate.start >= span.end, start));
+}
+
+/**
+ * Returns a check whether a part lies within one of the spans. Parts must be checked in document order, which lets
+ * each check continue where the previous one stopped.
+ */
+function createContainmentCheck(spans: SortedSpans): (part: Span) => boolean {
+	let index = 0;
+	return part => {
+		while (index < spans.length && spans[index].end <= part.start) {
+			index++;
+		}
+		return index < spans.length && contains(spans[index], part);
+	};
 }
 
 function isTestCallee(node: ts.Node): boolean {

@@ -29,7 +29,8 @@ export class TS6StructuralDiffProvider implements vscode.StructuralDiffProvider,
 	private static readonly ExecConfig: ExecConfig = { executionTarget: ExecutionTarget.Semantic, lowPriority: true };
 
 	constructor(
-		private readonly sendRequest: StructuralDiffRequest = (args, token) => vscode.commands.executeCommand<protocol.StructuralDiffResponse | undefined>('typescript.tsserverRequest', '_.copilot.structuralDiff', args, TS6StructuralDiffProvider.ExecConfig, token)
+		private readonly sendRequest: StructuralDiffRequest = (args, token) => vscode.commands.executeCommand<protocol.StructuralDiffResponse | undefined>('typescript.tsserverRequest', '_.copilot.structuralDiff', args, TS6StructuralDiffProvider.ExecConfig, token),
+		private readonly openDocument: (uri: vscode.Uri) => Thenable<unknown> = uri => vscode.workspace.openTextDocument(uri),
 	) { }
 
 	async provideStructuralDiff(originalDocument: vscode.TextDocument, modifiedDocument: vscode.TextDocument, context: vscode.StructuralDiffContext, token: vscode.CancellationToken): Promise<vscode.StructuralDiff | undefined> {
@@ -40,7 +41,7 @@ export class TS6StructuralDiffProvider implements vscode.StructuralDiffProvider,
 		const checkCancellation = StructuralDiffDocuments.createCancellationCheck(originalDocument, modifiedDocument, token);
 		checkCancellation();
 		const toOffsets = (document: vscode.TextDocument, range: vscode.Range): protocol.OffsetRange => ({ start: document.offsetAt(range.start), end: document.offsetAt(range.end) });
-		const response = await this.sendRequest({
+		const response = await this.request({
 			fileName: fileUri.fsPath,
 			originalText: originalDocument.getText(),
 			modifiedText: modifiedDocument.getText(),
@@ -48,7 +49,7 @@ export class TS6StructuralDiffProvider implements vscode.StructuralDiffProvider,
 				original: toOffsets(originalDocument, change.originalRange),
 				modified: toOffsets(modifiedDocument, change.modifiedRange),
 			})),
-		}, token);
+		}, fileUri, checkCancellation, token);
 		checkCancellation();
 		if (protocol.StructuralDiffResponse.isCancelled(response)) {
 			throw new CancellationError();
@@ -57,6 +58,27 @@ export class TS6StructuralDiffProvider implements vscode.StructuralDiffProvider,
 			throw new Error(`TypeScript structural diff failed: ${response.body.message}`);
 		}
 		return protocol.StructuralDiffResponse.isOk(response) ? toStructuralDiff(response.body, originalDocument, modifiedDocument) : undefined;
+	}
+
+	/**
+	 * tsserver loads the plugin, and with it the request handler, only when it creates a project for an open file, and
+	 * it does not open Git snapshots. So a staged diff can be requested before the handler exists. When a request fails,
+	 * the backing file is opened to create its project and the request is sent once more. It still analyzes only the
+	 * supplied texts.
+	 */
+	private async request(args: protocol.StructuralDiffRequestArgs, fileUri: vscode.Uri, checkCancellation: () => void, token: vscode.CancellationToken): Promise<protocol.StructuralDiffResponse | undefined> {
+		try {
+			return await this.sendRequest(args, token);
+		} catch (error) {
+			checkCancellation();
+			try {
+				await this.openDocument(fileUri);
+			} catch {
+				throw error;
+			}
+			checkCancellation();
+			return this.sendRequest(args, token);
+		}
 	}
 
 	dispose(): void {
