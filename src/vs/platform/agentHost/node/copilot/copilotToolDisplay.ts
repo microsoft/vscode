@@ -7,7 +7,6 @@ import type { AssistantMessageToolRequest, McpSkillOrigin, PermissionRequest, Se
 import { assertNever } from '../../../../base/common/assert.js';
 import { hasKey, isObject } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
-import { getCopilotBuiltinSkillUri } from './copilotBuiltinSkills.js';
 import { appendEscapedMarkdownInlineCode, escapeMarkdownLinkLabel, escapeMarkdownSyntaxTokens, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { hash } from '../../../../base/common/hash.js';
 import { escapeIcons } from '../../../../base/common/iconLabels.js';
@@ -1094,9 +1093,8 @@ export function synthesizeSkillToolCall(
 	const name = skill?.name ?? (mcpOrigin && originUri
 		? getMcpSkillName(mcpOrigin.serverName, basename(dirname(originUri)) || originUri.authority)
 		: isMcpSkill ? undefined : data.name);
-	const fileUri = !isMcpSkill && data.path?.trim() ? URI.file(data.path) : undefined;
-	const builtinUri = data.source === 'sdk' ? getCopilotBuiltinSkillUri(data.name) : undefined;
-	const uri = skill?.uri ?? builtinUri?.toString() ?? (fileUri?.path !== '/' ? fileUri?.toString() : undefined);
+	const fileUri = !isMcpSkill && data.source !== 'sdk' && data.path?.trim() ? URI.file(data.path) : undefined;
+	const uri = skill?.uri ?? (fileUri?.path !== '/' ? fileUri?.toString() : undefined);
 	const skillLabel = name ? (uri ? `[${escapeMarkdownLinkLabel(name)}](${uri})` : escapeMarkdownSyntaxTokens(name)) : undefined;
 	const invocationMessage = md(skillLabel ? localize('toolInvoke.skill', "Read skill {0}", skillLabel) : localize('toolInvoke.skillGeneric', "Read skill"));
 	return {

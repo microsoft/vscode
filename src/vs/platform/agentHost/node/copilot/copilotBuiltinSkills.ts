@@ -9,13 +9,13 @@ import { FileAccess } from '../../../../base/common/network.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { COPILOT_BUILTIN_CUSTOMIZATION_SCHEME } from '../../common/agentHostCustomizationUri.js';
+import { AGENT_BUILTIN_CUSTOMIZATION_SCHEME } from '../../common/agentHostCustomizationUri.js';
 import { CustomizationType } from '../../common/state/protocol/state.js';
 import { CustomizationLoadStatus, customizationId, type DirectoryCustomization } from '../../common/state/sessionState.js';
 
 const troubleshootName = 'troubleshoot';
-const skillsDirectory = URI.from({ scheme: COPILOT_BUILTIN_CUSTOMIZATION_SCHEME, path: '/skills' });
-const troubleshootUri = joinPath(skillsDirectory, 'troubleshoot', 'SKILL.md');
+const skillsDirectory = URI.from({ scheme: AGENT_BUILTIN_CUSTOMIZATION_SCHEME, path: '/skills' });
+const troubleshootUri = URI.from({ scheme: AGENT_BUILTIN_CUSTOMIZATION_SCHEME, path: '/skill/troubleshoot' });
 
 function troubleshootDescriptor() {
 	return {
@@ -23,16 +23,6 @@ function troubleshootDescriptor() {
 		description: localize('copilot.builtinTroubleshoot.description', "Investigate unexpected Copilot session behavior, slow requests, tool failures, and customization loading by analyzing session event logs."),
 		userInvocable: true,
 	};
-}
-
-/** Reads the packaged Markdown shared by SDK invocation and the read-only customization resource. */
-export function readCopilotTroubleshootSkillContent(): Promise<string> {
-	return readFile(FileAccess.asFileUri('vs/platform/agentHost/node/copilot/skills/troubleshoot/SKILL.md').fsPath, 'utf8');
-}
-
-/** Resolves SDK-owned skill invocations, which have no filesystem path in their SDK event. */
-export function getCopilotBuiltinSkillUri(name: string): URI | undefined {
-	return name === troubleshootName ? troubleshootUri : undefined;
 }
 
 /** Publishes the host-owned skill without exporting session-specific paths to clients. */
@@ -70,7 +60,7 @@ export function createCopilotSkillProvider(sdkConversationId: string, copilotHom
 				return undefined;
 			}
 			signal.throwIfAborted();
-			const content = await readCopilotTroubleshootSkillContent();
+			const content = await readFile(FileAccess.asFileUri('vs/platform/agentHost/node/copilot/skills/troubleshoot/SKILL.md').fsPath, { encoding: 'utf8', signal });
 			signal.throwIfAborted();
 			const context = [
 				`Current conversation events file (JSON-encoded host path): ${JSON.stringify(eventsFile.fsPath)}`,

@@ -4,18 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { VSBuffer } from '../../../../base/common/buffer.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { FileOperationResult, FileSystemProviderCapabilities, toFileOperationResult } from '../../../files/common/files.js';
-import { FileService } from '../../../files/common/fileService.js';
-import { NullLogService } from '../../../log/common/log.js';
-import { buildCopilotBuiltinSkillsContainer, readCopilotTroubleshootSkillContent, createCopilotSkillProvider } from '../../node/copilot/copilotBuiltinSkills.js';
-import { CopilotBuiltinAgentsStore } from '../../node/copilot/copilotBuiltinAgents.js';
+import { hasReadableCustomizationContent, isAgentBuiltinCustomizationUri } from '../../common/agentHostCustomizationUri.js';
+import { buildCopilotBuiltinSkillsContainer, createCopilotSkillProvider } from '../../node/copilot/copilotBuiltinSkills.js';
 
 suite('Copilot builtin troubleshoot skill', () => {
 
-	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('supplies the exact host home and SDK conversation for concurrent reads', async () => {
 		const home = URI.file('/custom home/"quoted"/$&');
@@ -40,21 +36,15 @@ suite('Copilot builtin troubleshoot skill', () => {
 		await assert.rejects(async () => provider.readSkill('troubleshoot', { signal: controller.signal }), reason);
 	});
 
-	test('published skill is readable but cannot change the shipped or SDK content', async () => {
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(new CopilotBuiltinAgentsStore(fileService));
-		const child = buildCopilotBuiltinSkillsContainer().children![0];
+	test('publishes the skill as a discovery-only built-in without exposing its source', () => {
+		const container = buildCopilotBuiltinSkillsContainer();
+		const child = container.children![0];
 		const uri = URI.parse(child.uri);
-		await assert.rejects(fileService.writeFile(uri, VSBuffer.fromString('modified')),
-			(error: Error) => toFileOperationResult(error) === FileOperationResult.FILE_PERMISSION_DENIED);
-		const provider = createCopilotSkillProvider('sdk-id', URI.file('/copilot-home'));
-		const content = await readCopilotTroubleshootSkillContent();
 		assert.deepStrictEqual({
-			scheme: uri.scheme,
-			readonly: fileService.hasCapability(uri, FileSystemProviderCapabilities.Readonly),
-			content: (await fileService.readFile(uri)).value.toString(),
-			size: (await fileService.stat(uri)).size,
-			sdkContent: (await provider.readSkill('troubleshoot', { signal: new AbortController().signal }))?.startsWith('# Troubleshoot'),
-		}, { scheme: 'copilot-builtin', readonly: true, content, size: VSBuffer.fromString(content).byteLength, sdkContent: true });
+			name: child.name,
+			builtin: isAgentBuiltinCustomizationUri(uri),
+			readable: hasReadableCustomizationContent(uri),
+			writable: container.writable,
+		}, { name: 'troubleshoot', builtin: true, readable: false, writable: false });
 	});
 });

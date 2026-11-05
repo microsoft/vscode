@@ -11,7 +11,6 @@ import { URI } from '../../../base/common/uri.js';
 import { createFileSystemProviderError, FileChangeType, FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileChange, IFileDeleteOptions, IFileOverwriteOptions, IFileSystemProvider, IFileSystemProviderWithFileRealpathCapability, IFileWriteOptions, IStat, IWatchOptions, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { fromAgentHostUri, isAgentHostContentRefUri, toAgentHostUri } from './agentHostUri.js';
 import { MCP_RESOURCE_SCHEME } from './mcpResourceUri.js';
-import { COPILOT_BUILTIN_CUSTOMIZATION_SCHEME } from './agentHostCustomizationUri.js';
 import { ContentEncoding, type CreateResourceWatchParams, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceRequestParams, type ResourceRequestResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWriteParams, type ResourceWriteResult } from './state/protocol/commands.js';
 import { AhpErrorCodes } from './state/protocol/errors.js';
 import { ProtocolError } from './state/sessionProtocol.js';
@@ -463,7 +462,6 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 				mtime: resolved.mtime ? Date.parse(resolved.mtime) : 0,
 				ctime: resolved.ctime ? Date.parse(resolved.ctime) : 0,
 				size: resolved.size ?? 0,
-				...(decoded.scheme === COPILOT_BUILTIN_CUSTOMIZATION_SCHEME ? { permissions: FilePermission.Readonly } : {}),
 			};
 		} catch (err) {
 			throw this._mapError(err, FileSystemProviderErrorCode.FileNotFound);

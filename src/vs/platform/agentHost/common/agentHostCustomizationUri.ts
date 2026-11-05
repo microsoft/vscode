@@ -15,15 +15,11 @@ export const AGENT_BUILTIN_CUSTOMIZATION_SCHEME = 'agent-builtin';
 /** Discovery records whose provider has not reported readable source content. */
 export const AGENT_DISCOVERY_CUSTOMIZATION_SCHEME = 'agent-discovery';
 
-/** Readable, read-only customizations owned by the Copilot provider. */
-export const COPILOT_BUILTIN_CUSTOMIZATION_SCHEME = 'copilot-builtin';
-
 /**
  * Checks raw host URIs and client-wrapped Agent Host URIs for the built-in customization scheme.
  */
 export function isAgentBuiltinCustomizationUri(resource: URI): boolean {
-	const scheme = fromAgentHostUri(resource).scheme;
-	return scheme === AGENT_BUILTIN_CUSTOMIZATION_SCHEME || scheme === COPILOT_BUILTIN_CUSTOMIZATION_SCHEME;
+	return fromAgentHostUri(resource).scheme === AGENT_BUILTIN_CUSTOMIZATION_SCHEME;
 }
 
 export function hasReadableCustomizationContent(resource: URI): boolean {

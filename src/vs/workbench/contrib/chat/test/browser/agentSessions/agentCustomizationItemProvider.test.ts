@@ -33,7 +33,7 @@ import { ChatMode, CustomChatMode } from '../../../common/chatModes.js';
 import { IExtensionPromptPath, IPromptPath, IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
 import { withCustomizationDiscoveryMeta } from '../../../../../../platform/agentHost/common/meta/customizationDiscoveryMeta.js';
-import { COPILOT_BUILTIN_CUSTOMIZATION_SCHEME, hasReadableCustomizationContent } from '../../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
+import { AGENT_BUILTIN_CUSTOMIZATION_SCHEME, hasReadableCustomizationContent } from '../../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
 import { expandHookFileItems, ICustomizationSkillItem } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
 import { buildMcpResourceUri } from '../../../../../../platform/agentHost/common/mcpResourceUri.js';
 import { withMcpServerDisplayNameMeta, withMcpServerSourceMeta } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
@@ -53,9 +53,9 @@ suite('AgentCustomizationItemProvider', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	for (const kind of agentHostConnectionKinds) {
-		test(`projects host-owned troubleshooting as a readable built-in skill (${kind.name})`, async () => {
-			const directory = URI.from({ scheme: COPILOT_BUILTIN_CUSTOMIZATION_SCHEME, path: '/skills' });
-			const resource = URI.joinPath(directory, 'troubleshoot/SKILL.md');
+		test(`projects host-owned troubleshooting as a discovery-only built-in skill (${kind.name})`, async () => {
+			const directory = URI.from({ scheme: AGENT_BUILTIN_CUSTOMIZATION_SCHEME, path: '/skills' });
+			const resource = URI.from({ scheme: AGENT_BUILTIN_CUSTOMIZATION_SCHEME, path: '/skill/troubleshoot' });
 			class TestCustomizationService extends NullAgentHostCustomizationService {
 				override getCustomizations(): readonly Customization[] {
 					return [{
@@ -70,7 +70,7 @@ suite('AgentCustomizationItemProvider', () => {
 			const items = await provider.provideChatSessionCustomizations(URI.parse('agent-host-copilot:/session'), CancellationToken.None);
 			assert.deepStrictEqual(items.filter(item => item.type === PromptsType.skill).map(item => ({
 				name: item.name, source: item.source, readable: hasReadableCustomizationContent(item.uri),
-			})), [{ name: 'troubleshoot', source: AICustomizationSources.builtin, readable: true }]);
+			})), [{ name: 'troubleshoot', source: AICustomizationSources.builtin, readable: false }]);
 		});
 
 		test(`groups MCP skills by user source and parent plugin while preserving enablement and host resource mapping (${kind.name})`, async () => {

@@ -9,7 +9,7 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter, Event, setGlobalLeakWarningThreshold } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { FileChangeType, FileOperationResult, FilePermission, FileSystemProviderErrorCode, FileType, IFileChange, toFileOperationResult, toFileSystemProviderErrorCode } from '../../../files/common/files.js';
+import { FileChangeType, FilePermission, FileSystemProviderErrorCode, FileType, IFileChange, toFileSystemProviderErrorCode } from '../../../files/common/files.js';
 import { AgentHostFileSystemProvider, agentHostRemotePath, agentHostUri, type IRemoteFilesystemConnection, type IRemoteWatchHandle } from '../../common/agentHostFileSystemProvider.js';
 import { remoteAgentHostSessionTypeId } from '../../common/agentHostSessionType.js';
 import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority, createAgentHostResourceUriMapper, createEditorRemoteAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, isAgentHostContentRefUri, toAgentHostContentUri, toAgentHostUri } from '../../common/agentHostUri.js';
@@ -18,9 +18,6 @@ import { AhpErrorCodes } from '../../common/state/protocol/errors.js';
 import { ProtocolError } from '../../common/state/sessionProtocol.js';
 import { buildMcpResourceUri } from '../../common/mcpResourceUri.js';
 import { ROOT_STATE_URI } from '../../common/state/sessionState.js';
-import { COPILOT_BUILTIN_CUSTOMIZATION_SCHEME } from '../../common/agentHostCustomizationUri.js';
-import { FileService } from '../../../files/common/fileService.js';
-import { NullLogService } from '../../../log/common/log.js';
 
 suite('AgentHostFileSystemProvider - URI helpers', () => {
 
@@ -716,23 +713,6 @@ suite('AgentHostFileSystemProvider - synthetic content schemes', () => {
 	// modified file" entirely. The fix is the scheme allowlist in stat().
 
 	for (const authority of ['local', 'remote']) {
-		test(`built-in skill projections are readable and reject client writes (${authority})`, async () => {
-			const provider = disposables.add(new AgentHostFileSystemProvider());
-			const connection = new StubConnection();
-			disposables.add(provider.registerAuthority(authority, connection));
-			const fileService = disposables.add(new FileService(new NullLogService()));
-			disposables.add(fileService.registerProvider(AGENT_HOST_SCHEME, provider));
-			const content = URI.from({ scheme: COPILOT_BUILTIN_CUSTOMIZATION_SCHEME, path: '/skills/troubleshoot/SKILL.md' });
-			const wrapped = toAgentHostUri(content, authority);
-			const result = await fileService.readFile(wrapped);
-			await assert.rejects(fileService.writeFile(wrapped, VSBuffer.fromString('modified')),
-				(error: Error) => toFileOperationResult(error) === FileOperationResult.FILE_PERMISSION_DENIED);
-			assert.deepStrictEqual({
-				content: result.value.toString(), readonly: result.readonly,
-				resources: connection.readCalls.map(uri => uri.toString()),
-			}, { content: 'stub-content', readonly: true, resources: [content.toString()] });
-		});
-
 		test(`opens MCP skill content read-only without filesystem resolution (${authority})`, async () => {
 			const provider = disposables.add(new AgentHostFileSystemProvider());
 			const connection = new StubConnection();
