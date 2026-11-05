@@ -1458,7 +1458,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private readonly _subagentChatSubscriptionHolds = new Map<string, number>();
 	private readonly _subagentObservationsByChat = new Map<string, Set<SubagentChatObservation>>();
 	/** Retains observed timing and credits, not transcripts, across parent-view recreation. */
-	private readonly _subagentPresentation = new LRUCache<string, { readonly modifiedAt: string; readonly startedAt?: number; readonly duration?: number; readonly credits?: number }>(1000);
+	private readonly _subagentPresentation = new LRUCache<string, {
+		readonly modifiedAt: string;
+		readonly turnCount: number;
+		readonly hasMoreHistory: boolean;
+		readonly startedAt?: number;
+		readonly duration?: number;
+		readonly credits?: number;
+	}>(1000);
 	private readonly _subagentPresentationChanged = observableSignal(this);
 
 	/**
@@ -2937,16 +2944,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// Seed from the current state so we don't treat any pre-existing active
 		// turn (e.g. one being handled by _reconnectToActiveTurn) as new.
 		const currentState = this._getSessionState(sessionStr, chatURI);
-		const updateSubagentPresentation = (state: ISessionWithDefaultChat | undefined) => {
-			if (!state || state.activeTurn || !this._isSubagentChat(sessionStr, chatURI)) {
-				return;
-			}
-			const credits = state.turns.reduce((total, turn) => total + (usageInfoToChatUsage(turn.usage)?.copilotCredits ?? 0), 0);
-			if (this._updateSubagentPresentation(chatURI, state, credits)) {
-				this._subagentPresentationChanged.trigger(undefined);
-			}
-		};
-		updateSubagentPresentation(currentState);
 		let lastSeenTurnId: string | undefined = currentState?.activeTurn?.id;
 		let previousQueuedIds: Set<string> | undefined;
 		let previousSteeringIds = new Set(currentState ? getPendingSteeringMessages(currentState).map(message => message.id) : []);
@@ -2961,6 +2958,17 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 		const sessionSub = this._ensureSessionSubscription(sessionStr);
 		const chatSub = this._ensureChatSubscription(sessionStr, chatURI);
+		const updateSubagentPresentation = (state: ISessionWithDefaultChat | undefined) => {
+			const chatState = chatSub.value;
+			if (!state || state.activeTurn || !chatState || chatState instanceof Error || !this._isSubagentChat(sessionStr, chatURI)) {
+				return;
+			}
+			const credits = state.turns.reduce((total, turn) => total + (usageInfoToChatUsage(turn.usage)?.copilotCredits ?? 0), 0);
+			if (this._updateSubagentPresentation(chatURI, state, credits, chatState.turnsNextCursor !== undefined)) {
+				this._subagentPresentationChanged.trigger(undefined);
+			}
+		};
+		updateSubagentPresentation(currentState);
 		disposables.add(chatSub.onWillApplyAction(envelope => {
 			const action = envelope.action;
 			if (!envelope.rejectionReason && action.type === ActionType.ChatTurnStarted && action.queuedMessageId) {
@@ -6287,7 +6295,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	/** Shares known child timing and credits with deferred parent pills without retaining the transcript. */
-	private _updateSubagentPresentation(childChatUri: string, state: ISessionWithDefaultChat, credits: number, timing = getSubagentTiming(state)): boolean {
+	private _updateSubagentPresentation(childChatUri: string, state: ISessionWithDefaultChat, credits: number, hasMoreHistory: boolean, timing = getSubagentTiming(state)): boolean {
 		if (state.activeTurn) {
 			return this._subagentPresentation.delete(childChatUri);
 		}
@@ -6297,12 +6305,17 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return false;
 		}
 		const previous = this._subagentPresentation.get(childChatUri);
-		const previousTiming = previous?.modifiedAt === catalogChat.modifiedAt ? previous : undefined;
+		const sameRevision = previous?.modifiedAt === catalogChat.modifiedAt ? previous : undefined;
+		if (hasMoreHistory && sameRevision && (!sameRevision.hasMoreHistory || sameRevision.turnCount > state.turns.length)) {
+			return false;
+		}
 		const presentation = {
 			modifiedAt: catalogChat.modifiedAt,
-			startedAt: hasTiming ? timing.startedAt : previousTiming?.startedAt,
-			duration: hasTiming ? timing.duration : previousTiming?.duration,
-			credits: credits > 0 ? credits : undefined,
+			turnCount: state.turns.length,
+			hasMoreHistory,
+			startedAt: hasTiming ? timing.startedAt : sameRevision?.startedAt,
+			duration: hasTiming ? timing.duration : sameRevision?.duration,
+			credits: credits > 0 ? credits : sameRevision?.credits,
 		};
 		if (equals(previous, presentation)) {
 			return false;
@@ -6538,7 +6551,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						? Date.now() - parentInvocation.toolSpecificData.startedAt
 						: timing.duration;
 					const credits = perInvocationCreditsAccumulator.read(reader);
-					this._updateSubagentPresentation(childChatUri, state, credits, { startedAt: timing.startedAt, duration: fallbackDuration });
+					const hasMoreHistory = childChatState$.read(reader)?.turnsNextCursor !== undefined;
+					this._updateSubagentPresentation(childChatUri, state, credits, hasMoreHistory, { startedAt: timing.startedAt, duration: fallbackDuration });
 					if (!parentInvocation.toolSpecificData.hasStarted
 						|| parentInvocation.toolSpecificData.isActive !== isActive
 						|| parentInvocation.toolSpecificData.isError !== isError
