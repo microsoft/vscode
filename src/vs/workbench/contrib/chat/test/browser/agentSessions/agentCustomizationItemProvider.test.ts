@@ -352,9 +352,12 @@ suite('AgentCustomizationItemProvider', () => {
 			upcastPartial<IFileService>({}), new NullLogService(), new TestCustomizationService(), makePromptsService(files), labelService,
 		));
 		const result = await provider.provideCustomAgents(URI.parse('other-session:/opaque'), CancellationToken.None);
-		assert.deepStrictEqual(result.map(agent => ({ id: agent.id, name: agent.name, source: agent.source.label })), [
-			{ id: createAgentHostResourceUriMapper('remote').fromAgentHost(URI.parse(agents[0].uri)).toString(), name: 'Reviewer', source: 'Extension: First Extension' },
-			{ id: createAgentHostResourceUriMapper('remote').fromAgentHost(URI.parse(agents[1].uri)).toString(), name: 'Reviewer', source: 'Extension: second' },
+		assert.deepStrictEqual(result.map(agent => {
+			const mode = new CustomChatMode(agent);
+			return { id: mode.id, name: mode.name.get(), source: mode.source?.label, storage: mode.source?.storage };
+		}), [
+			{ id: createAgentHostResourceUriMapper('remote').fromAgentHost(URI.parse(agents[0].uri)).toString(), name: 'Reviewer', source: 'Extension: First Extension', storage: PromptsStorage.extension },
+			{ id: createAgentHostResourceUriMapper('remote').fromAgentHost(URI.parse(agents[1].uri)).toString(), name: 'Reviewer', source: 'Extension: second', storage: PromptsStorage.extension },
 		]);
 	});
 
@@ -368,7 +371,9 @@ suite('AgentCustomizationItemProvider', () => {
 			{ type: CustomizationType.Agent, id: file.uri.toString(), uri: file.uri.toString(), name: 'Reviewer' },
 		]));
 		const result = await provider.provideCustomAgents(URI.parse('agent-host-copilotcli:/draft'), CancellationToken.None);
-		assert.deepStrictEqual(result.map(agent => agent.source.label), ['Extension: Draft Extension']);
+		assert.deepStrictEqual(result.map(agent => ({ label: agent.source.label, storage: agent.source.storage })), [
+			{ label: 'Extension: Draft Extension', storage: PromptsStorage.extension },
+		]);
 	});
 
 	for (const sourceUri of [undefined, 42, 'relative/agent.md', 'other-source:/unmapped/agent.md']) {

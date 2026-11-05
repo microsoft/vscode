@@ -16049,6 +16049,35 @@ suite('AgentHostChatContribution', () => {
 			]);
 		}));
 
+		test('generic web references become model-readable attachments without treating them as files', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const urls = ['https://aka.ms/vscode-agent-skills', 'http://example.com/documentation'];
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				message: 'Follow the attached documentation.',
+				variables: {
+					variables: [
+						...urls.map(url => ({
+							kind: 'generic' as const,
+							id: url,
+							name: 'Documentation',
+							value: URI.parse(url),
+						})),
+						{ kind: 'generic', id: 'file', name: 'File', value: URI.file('/workspace/test.ts') },
+					],
+				},
+			});
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+
+			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
+			assert.deepStrictEqual(turnAction.message.attachments, urls.map(url => ({
+				type: MessageAttachmentKind.Simple,
+				label: 'Documentation',
+				modelRepresentation: url,
+			})));
+		}));
+
 		test('browser view variable becomes a model-readable browser attachment', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 			const browserUri = URI.from({ scheme: 'vscode-browser', path: '/page-1' });

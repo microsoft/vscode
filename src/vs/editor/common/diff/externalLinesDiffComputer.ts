@@ -8,6 +8,7 @@ import { resolveAmdNodeModulePath } from '../../../amdX.js';
 import { LineRange } from '../core/ranges/lineRange.js';
 import { OffsetRange } from '../core/ranges/offsetRange.js';
 import { StringText } from '../core/text/abstractText.js';
+import { PositionOffsetTransformerBase } from '../core/text/positionToOffsetImpl.js';
 import { ensureDependenciesAreSet } from '../core/text/positionToOffset.js';
 import { ILinesDiffComputer, ILinesDiffComputerOptions, LinesDiff, MovedText } from './linesDiffComputer.js';
 import { lineRangeMappingFromRangeMappings, LineRangeMapping, RangeMapping } from './rangeMapping.js';
@@ -81,16 +82,36 @@ class ExternalLinesDiffComputer implements ILinesDiffComputer {
 		const moves: MovedText[] = [];
 		if (options.computeMoves) {
 			for (const move of result.moves) {
-				const originalStartPos = originalTransformer.getPosition(move.range.original.start);
-				const originalEndPos = originalTransformer.getPosition(move.range.original.endExclusive);
-				const modifiedStartPos = modifiedTransformer.getPosition(move.range.modified.start);
-				const modifiedEndPos = modifiedTransformer.getPosition(move.range.modified.endExclusive);
-				const originalLineRange = new LineRange(originalStartPos.lineNumber, originalEndPos.lineNumber);
-				const modifiedLineRange = new LineRange(modifiedStartPos.lineNumber, modifiedEndPos.lineNumber);
-				moves.push(new MovedText(new LineRangeMapping(originalLineRange, modifiedLineRange), []));
+				const original = move.range.original;
+				const modified = move.range.modified;
+
+				// The inner edit is relative to the moved text.
+				const innerMappings: RangeMapping[] = [];
+				let innerDelta = 0;
+				for (const r of move.innerEdit.replacements) {
+					const innerOriginal = new OffsetRange(original.start + r.range.start, original.start + r.range.endExclusive);
+					const innerModified = new OffsetRange(modified.start + r.range.start + innerDelta, modified.start + r.range.start + innerDelta + r.newText.length);
+					innerDelta += r.newText.length - innerOriginal.length;
+					innerMappings.push(new RangeMapping(originalTransformer.getRange(innerOriginal), modifiedTransformer.getRange(innerModified)));
+				}
+
+				moves.push(new MovedText(
+					new LineRangeMapping(toLineRange(originalTransformer, original), toLineRange(modifiedTransformer, modified)),
+					lineRangeMappingFromRangeMappings(innerMappings, originalText, modifiedText, true),
+				));
 			}
 		}
 
 		return new LinesDiff(changes, moves, result.hitTimeout);
 	}
+}
+
+/**
+ * Moves cover whole lines. Their range ends after the line break of the last moved line,
+ * or at the end of the document if that line is the last one.
+ */
+function toLineRange(transformer: PositionOffsetTransformerBase, range: { readonly start: number; readonly endExclusive: number }): LineRange {
+	const start = transformer.getPosition(range.start);
+	const end = transformer.getPosition(range.endExclusive);
+	return new LineRange(start.lineNumber, end.column === 1 ? end.lineNumber : end.lineNumber + 1);
 }
