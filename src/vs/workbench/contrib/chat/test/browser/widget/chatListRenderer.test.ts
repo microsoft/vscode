@@ -4948,9 +4948,11 @@ suite('ChatListRenderer', () => {
 					toolResultDetails: { input: '{}', output: [{ type: 'embed', value: 'Image provider failed', isText: true }], isError: true },
 				} : {
 					content: [], toolSpecificData: { kind: 'generatedImage' },
-					toolResultDetails: { input: '{}', output: [index === 3
-						? { type: 'embed', value: lastImageData, mimeType: 'image/png' }
-						: { type: 'ref', uri: index === 0 ? firstResource : pendingResource, mimeType: 'image/png' }] },
+					toolResultDetails: {
+						input: '{}', output: [index === 3
+							? { type: 'embed', value: lastImageData, mimeType: 'image/png' }
+							: { type: 'ref', uri: index === 0 ? firstResource : pendingResource, mimeType: 'image/png' }]
+					},
 				});
 			}
 			renderer.renderElement(node, 0, template);
