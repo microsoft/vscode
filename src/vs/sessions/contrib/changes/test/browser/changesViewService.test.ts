@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -16,11 +16,12 @@ import { TestStorageService } from '../../../../../workbench/test/common/workben
 import { IChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IActiveSession, IChatDeletedEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { BRANCH_CHANGES_CHANGESET_ID, IChat, ISession, ISessionChangeset, ISessionChangesetOperation, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope, SessionChangesetOperationStatus, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { AgentFeedbackState, IAgentFeedback, IAgentFeedbackService } from '../../../agentFeedback/browser/agentFeedbackService.js';
 import { ICodeReviewService, PRReviewStateKind } from '../../../codeReview/browser/codeReviewService.js';
 import { ChangesetReviewedFilesContext, ChangesViewService } from '../../browser/changesViewService.js';
+import { getChangesOfSession } from '../../common/changesViewService.js';
 import { ChangesViewMode } from '../../common/changes.js';
+import { sessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('ChangesViewService', () => {
 
@@ -125,12 +126,6 @@ suite('ChangesViewService', () => {
 		const onDidDeleteChat = disposables.add(new Emitter<IChatDeletedEvent>());
 		const onDidDiscardNewSession = disposables.add(new Emitter<ISession>());
 		const onDidReplaceNewDraftSession = disposables.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
-		const sessionsService = new class extends mock<ISessionsService>() {
-			override readonly activeSession = activeSession;
-			override readonly mainWindowActiveSession = activeSession;
-			override readonly windowSessions = constObservable(windowSessions);
-			override readonly visibleSessions = constObservable([]);
-		}();
 		const sessionsManagementService = new class extends mock<ISessionsManagementService>() {
 			override readonly onDidReplaceSession = onDidReplaceSession.event;
 			override readonly onDidDeleteSession = onDidDeleteSession.event;
@@ -154,7 +149,7 @@ suite('ChangesViewService', () => {
 			agentFeedbackService,
 			codeReviewService,
 			contextKeyService,
-			sessionsService,
+			sessionHostServiceOf(disposables, { mainWindowActiveSession: activeSession, visibleSessions: constObservable([]), windowSessions: constObservable(windowSessions) }),
 			storageService,
 			sessionsManagementService,
 		));
@@ -324,7 +319,7 @@ suite('ChangesViewService', () => {
 		const { activeSession, service } = createHarness(sessionA);
 		const scopedSession = observableValue<IActiveSession | undefined>('test.scopedSession', sessionB);
 
-		const scoped = service.getSessionChanges(scopedSession);
+		const scoped = service.getSessionChanges(scopedSession, derived(reader => scopedSession.read(reader)?.activeChat.read(reader)));
 		const read = () => ({
 			scopedResource: scoped.resourceObs.get()?.toString(),
 			scopedChangeset: scoped.changesetOperationsObs.get().map(o => o.id).join(),
@@ -355,7 +350,7 @@ suite('ChangesViewService', () => {
 		feedbackByResource.set(sessionB.resource.toString(), [feedbackItem('/b.ts'), feedbackItem('/b.ts')]);
 		const scopedSession = observableValue<IActiveSession | undefined>('test.scopedSession', sessionB);
 
-		const scoped = service.getSessionChanges(scopedSession);
+		const scoped = service.getSessionChanges(scopedSession, derived(reader => scopedSession.read(reader)?.activeChat.read(reader)));
 
 		assert.deepStrictEqual({
 			scoped: [...scoped.agentFeedbackCountByFileObs.get()],
@@ -603,14 +598,45 @@ suite('ChangesViewService', () => {
 		});
 	});
 
+	test('the changes of a known session that no host shows, without view state, are those of its main chat', () => {
+		const changeset = createChangeset([upcastPartial<ISessionChangesetOperation>({ id: 'op-hidden', scopes: [] })]);
+		const { service } = createHarness(createSession('a'));
+		// A session as the management service has it: no active chat, as no host shows it
+		const { activeChat: _activeChat, ...hidden } = createSession('hidden', { changesets: [changeset] });
+
+		const changes = getChangesOfSession(service, { session: undefined, chat: undefined }, upcastPartial<ISession>(hidden));
+
+		assert.deepStrictEqual({ resource: changes.resourceObs.get()?.toString(), operations: changes.changesetOperationsObs.get().map(operation => operation.id) }, {
+			resource: hidden.resource.toString(),
+			operations: ['op-hidden'],
+		});
+	});
+
+	test('an explicit chat of the active session other than the one it shows has its own changes, and its own review state', () => {
+		const reviewed: string[] = [];
+		const changesetOf = (id: string) => ({ ...createChangeset([upcastPartial<ISessionChangesetOperation>({ id: `op-${id}`, scopes: [] })]), id, setReviewState: () => reviewed.push(id) });
+		const chatOf = (id: string) => upcastPartial<IChat>({ resource: URI.from({ scheme: 'test-chat', path: `/${id}` }), changes: constObservable([]), changesets: constObservable([changesetOf(id)]), workspace: constObservable(undefined) });
+		const chatA = chatOf('a');
+		const chatB = chatOf('b');
+		const session = createSession('session', { activeChat: constObservable(chatA), mainChat: constObservable(chatA), chats: constObservable([chatA, chatB]) });
+		const { service } = createHarness(session);
+		const owner = { session, chat: chatA };
+
+		const ofB = getChangesOfSession(service, owner, session, chatB).changesetOperationsObs.get().map(operation => operation.id);
+		const ofA = getChangesOfSession(service, owner, session, chatA).changesetOperationsObs.get().map(operation => operation.id);
+		service.setChangesetFilesReviewState([URI.file('/repo/file.ts')], true, session, chatB);
+
+		assert.deepStrictEqual({ ofA, ofB, reviewed }, { ofA: ['op-a'], ofB: ['op-b'], reviewed: ['b'] });
+	});
+
 	test('selects a changeset of an explicit session without affecting the active session', () => {
 		const branchChangeset = { ...createChangeset([]), id: 'branch' };
 		const turnChangeset = { ...createChangeset([]), id: TURN_CHANGES_CHANGESET_ID, isDefault: constObservable(false) };
 		const { service } = createHarness(createSession('a', { changesets: [branchChangeset, turnChangeset] }));
 		const other = createSession('b', { changesets: [branchChangeset, turnChangeset] });
 
-		service.setChangesetId(TURN_CHANGES_CHANGESET_ID, other);
-		const otherSelection = service.getSessionChanges(constObservable(other)).changesetObs.get()?.id;
+		service.setChangesetId(TURN_CHANGES_CHANGESET_ID, other, other.activeChat.get());
+		const otherSelection = service.getSessionChanges(constObservable(other), other.activeChat).changesetObs.get()?.id;
 		const activeSelection = service.activeSessionChangesetObs.get()?.id;
 
 		assert.deepStrictEqual({ otherSelection, activeSelection }, { otherSelection: TURN_CHANGES_CHANGESET_ID, activeSelection: 'branch' });

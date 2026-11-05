@@ -35,6 +35,7 @@ import { WindowTitle } from '../../../workbench/browser/parts/titlebar/windowTit
 import { Menus } from '../menus.js';
 import { IsNewChatSessionContext } from '../../common/contextkeys.js';
 import { createInstantHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { createMainWindowInstantiationService } from '../../services/sessions/browser/sessionHost.js';
 
 const commandCenterContextKeys = new Set([IsNewChatSessionContext.key]);
 const DEFAULT_SESSIONS_TITLEBAR_HEIGHT = 44;
@@ -676,8 +677,14 @@ export class TitleService extends MultiWindowParts<TitlebarPart> implements ITit
 		this._register(this.registerPart(this.mainPart));
 	}
 
+	private _mainWindowInstantiationService: IInstantiationService | undefined;
+	/** The scope of the main title bar: the main window's, created once and owned with the main part. */
+	protected get mainWindowInstantiationService(): IInstantiationService {
+		return this._mainWindowInstantiationService ??= this._register(createMainWindowInstantiationService(this.instantiationService));
+	}
+
 	protected createMainTitlebarPart(): TitlebarPart {
-		return this.instantiationService.createInstance(MainTitlebarPart);
+		return this.mainWindowInstantiationService.createInstance(MainTitlebarPart);
 	}
 
 	//#region Auxiliary Titlebar Parts

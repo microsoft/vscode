@@ -36,6 +36,7 @@ import { ISessionsProvider } from '../../../../services/sessions/common/sessions
 import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { SessionBrowserNetworkContribution } from '../../browser/sessionBrowserNetwork.js';
+import { ITestSessionsService, stubFocusedSessionHostFromSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('SessionBrowserNetworkContribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -51,7 +52,7 @@ suite('SessionBrowserNetworkContribution', () => {
 
 	function createResolver(services: {
 		readonly sessionsManagement?: Partial<ISessionsManagementService>;
-		readonly sessions?: Partial<ISessionsService>;
+		readonly sessions?: Partial<ITestSessionsService>;
 		readonly providers?: Partial<ISessionsProvidersService>;
 		readonly connections: Partial<IAgentHostConnectionsService>;
 		readonly browserView?: Partial<IBrowserViewWorkbenchService>;
@@ -75,7 +76,8 @@ suite('SessionBrowserNetworkContribution', () => {
 			onDidDiscardNewSession: Event.None,
 			...services.sessionsManagement,
 		}));
-		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({ activeSession: constObservable(undefined), ...services.sessions }));
+		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({ activeSession: constObservable(undefined), ...services.sessions }));
+		stubFocusedSessionHostFromSessionsService(instantiationService);
 		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({ ...services.providers }));
 		instantiationService.stub(IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({ connections: [], onDidChangeConnections: Event.None, ...services.connections }));
 		instantiationService.stub(IEditorService, upcastPartial<IEditorService>({ onWillOpenEditor: Event.None, ...services.editor }));

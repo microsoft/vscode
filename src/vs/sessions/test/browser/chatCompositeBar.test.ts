@@ -1632,11 +1632,15 @@ suite('Sessions - ChatCompositeBar', () => {
 			isSameSessionDrag: isSessionChatDrag(dragStart, session.sessionId),
 			isOtherSessionDrag: isSessionChatDrag(dragStart, 'other-session'),
 			payload: getSessionChatDragData(dragStart),
+			// Like an editor tab's new-window drag, only `vnd.code` types: other apps such as Finder
+			// reject the drop (no text clipping is created), so dropping it there opens a chat window.
+			externalTypes: [...dataTransfer.types].filter(type => !type.startsWith('application/vnd.code.')),
 		}, {
 			isChatDrag: true,
 			isSameSessionDrag: true,
 			isOtherSessionDrag: false,
 			payload: { sessionId: session.sessionId, resource: secondaryChat.resource.toString() },
+			externalTypes: [],
 		});
 	});
 

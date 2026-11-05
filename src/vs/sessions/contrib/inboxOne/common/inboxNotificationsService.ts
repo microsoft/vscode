@@ -229,7 +229,7 @@ export interface IInboxNotificationsService {
 
 	/**
 	 * Map from a completed item's id to its structured, model-generated evidence pack.
-	 * Generation is focus-triggered via {@link requestDetailSummary}; an entry is absent
+	 * Generation is visibility-triggered via {@link requestDetailSummary}; an entry is absent
 	 * until it has been generated.
 	 */
 	readonly detailSummaries: IObservable<ReadonlyMap<string, IInboxDetailSummary>>;
@@ -246,10 +246,10 @@ export interface IInboxNotificationsService {
 	requestPreview(item: IInboxNotificationItem): void;
 
 	/**
-	 * Trigger (once, then cached) generation of the structured evidence pack for a completed
-	 * item. No-op for non-completed items. Results land in {@link detailSummaries}.
+	 * Generate and cache structured evidence for a session notification in {@link detailSummaries}.
+	 * Visibility requests settle empty results until inputs or models change; interaction requests can retry them.
 	 */
-	requestDetailSummary(item: IInboxNotificationItem): void;
+	requestDetailSummary(item: IInboxNotificationItem, source?: 'visibility' | 'interaction'): void;
 
 	/**
 	 * Privacy-safe telemetry identity for the item's session: a hashed session id and a bounded

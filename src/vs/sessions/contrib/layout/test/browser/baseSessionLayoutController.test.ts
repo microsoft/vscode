@@ -22,7 +22,7 @@ import { Menus } from '../../../../browser/menus.js';
 import { SessionEditorWorkingSetService } from '../../common/sessionEditorWorkingSet.js';
 import { SessionStatus } from '../../../../services/sessions/common/session.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { OS } from '../../../../../base/common/platform.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
@@ -881,6 +881,46 @@ suite('BaseLayoutController', () => {
 			whileHydrating: { owner: { session: 'session:2', chat: undefined }, restoring: true, applying: false },
 			settled: { owner: { session: 'session:2', chat: undefined }, restoring: false, applying: false },
 			applies: ['empty'],
+		});
+	});
+
+	test('[R16] a held-back restore settles when its session switches to a chat with another workspace, and a later same-session switch does not restore again', async () => {
+		const otherWorkspace = {
+			uri: URI.file('/other'),
+			label: 'other',
+			icon: Codicon.repo,
+			folders: [{ root: URI.file('/other'), workingDirectory: URI.file('/other'), name: 'other', description: undefined, gitRepository: undefined }],
+			requiresWorkspaceTrust: false,
+			isVirtualWorkspace: false,
+		};
+		createController({ useModal: 'some', workspaceFolders: [{ uri: URI.file('/repo') }] });
+		const session1 = makeSession(URI.parse('session:1'));
+		const session2 = makeSession(URI.parse('session:2'), { workspace: otherWorkspace });
+		const main = session2.activeChat.get();
+		const peer = { ...addPeerChat(session2, URI.parse('session:2#peer')), workspace: constObservable(undefined) };
+		harness.activeSessionObs.set(session1, undefined);
+		await timeout(0);
+		harness.applyWorkingSetCalls = [];
+
+		// Session 2's restore waits for its main chat's workspace, which the folders never get: the user switches to a chat without one.
+		harness.activeSessionObs.set(session2, undefined);
+		await timeout(0);
+		const whileHydrating = describeWorkingSetRestore();
+		setActiveChat(session2, peer);
+		harness.onDidChangeWorkspaceFolders.fire();
+		await timeout(0);
+		const settled = { restore: describeWorkingSetRestore(), applies: harness.applyWorkingSetCalls.length };
+
+		// Back to the main chat, whose workspace now arrives: the session's working set stays, rather than restoring again.
+		harness.workspaceFolders = [...harness.workspaceFolders, { uri: otherWorkspace.uri }];
+		setActiveChat(session2, main);
+		harness.onDidChangeWorkspaceFolders.fire();
+		await timeout(0);
+
+		assert.deepStrictEqual({ whileHydrating, settled, appliesAfterSwitchBack: harness.applyWorkingSetCalls.length }, {
+			whileHydrating: { owner: { session: 'session:2', chat: undefined }, restoring: true, applying: false },
+			settled: { restore: { owner: { session: 'session:2', chat: undefined }, restoring: false, applying: false }, applies: 1 },
+			appliesAfterSwitchBack: 1,
 		});
 	});
 

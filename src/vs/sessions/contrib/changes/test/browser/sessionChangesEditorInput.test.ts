@@ -32,7 +32,7 @@ import { MultiDiffEditorInput } from '../../../../../workbench/contrib/multiDiff
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { TestEditorGroupsService, TestEditorGroupView, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { ISessionScope } from '../../../../services/sessions/browser/sessionScope.js';
+import { stubSessionHosts } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionFileChange } from '../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -468,11 +468,11 @@ suite('SessionChangesEditorInput', () => {
 			// The editor shows the changes of its host's session: here the main window's.
 			const mainWindowSession = constObservable<IActiveSession | undefined>(undefined);
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-				override readonly activeSession = mainWindowSession;
-				override readonly mainWindowActiveSession = mainWindowSession;
-				override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
+				readonly activeSession = mainWindowSession;
+				readonly mainWindowActiveSession = mainWindowSession;
+				readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
 			}());
-			instantiationService.stub(ISessionScope, { session: mainWindowSession });
+			stubSessionHosts(instantiationService, disposables, { session: mainWindowSession });
 			instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
 				override readonly activeSessionHasGitRepositoryObs = constObservable(false);
 				override readonly activeSessionResourceObs = activeSession;

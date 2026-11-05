@@ -637,8 +637,8 @@ export function isCopilotSdkToolOutputFile(filePath: string): boolean {
  * Formats a file path as a markdown link `[](file-uri)` so it renders
  * as a clickable file widget in the chat UI.
  */
-function formatPathAsMarkdownLink(path: string): string {
-	const uri = URI.file(path);
+function formatPathAsMarkdownLink(path: string | URI): string {
+	const uri = typeof path === 'string' ? URI.file(path) : path;
 	return `[${escapeMarkdownLinkLabel(basename(uri))}](${uri})`;
 }
 
@@ -1242,7 +1242,7 @@ export function getSandboxPathGrantConfirmation(grant: ISandboxPathGrant): Pick<
 }
 
 /** Claims an outside-workspace location only when the permission gate or known roots establish it. */
-function readConfirmationTitle(request: PermissionRequest, path: string | undefined, workspaceRoots: readonly URI[], requestSandboxBypass: boolean | undefined): string {
+function readConfirmationTitle(request: PermissionRequest, path: string | undefined, workspaceRoots: readonly URI[], requestSandboxBypass: boolean | undefined, resolvePath: (path: string) => URI): string {
 	if (requestSandboxBypass) {
 		return localize('copilot.permission.read.bypass.title', "Read file outside the sandbox?");
 	}
@@ -1250,7 +1250,7 @@ function readConfirmationTitle(request: PermissionRequest, path: string | undefi
 		|| (path !== undefined
 			&& isAbsolute(path)
 			&& workspaceRoots.length > 0
-			&& !workspaceRoots.some(root => extUriBiasedIgnorePathCase.isEqualOrParent(URI.file(path), root)));
+			&& !workspaceRoots.some(root => extUriBiasedIgnorePathCase.isEqualOrParent(resolvePath(path), root)));
 	return outsideWorkspace
 		? localize('copilot.permission.read.title', "Allow reading file outside of workspace?")
 		: localize('copilot.permission.read.generic.title', "Allow reading file?");
@@ -1300,7 +1300,7 @@ function getShellIntentionConfirmationTitle(intention: string | undefined, reque
  * read under any root is recognized as inside the workspace.
  * Hook requests show the hook's reason and gated tool input while retaining their permission kind.
  */
-export function getPermissionDisplay(request: PermissionRequest, workingDirectory?: URI, isNewFile?: boolean, additionalDirectories?: readonly URI[], shellToolParameters?: Record<string, unknown>): {
+export function getPermissionDisplay(request: PermissionRequest, workingDirectory?: URI, isNewFile?: boolean, additionalDirectories?: readonly URI[], shellToolParameters?: Record<string, unknown>, resolvePath: (path: string) => URI = URI.file): {
 	confirmationTitle: StringOrMarkdown;
 	invocationMessage: StringOrMarkdown;
 	toolInput?: string;
@@ -1402,7 +1402,7 @@ export function getPermissionDisplay(request: PermissionRequest, workingDirector
 				confirmationTitle: isNewFile
 					? localize('copilot.permission.create.title', "Create file?")
 					: localize('copilot.permission.write.title', "Write file?"),
-				invocationMessage: getInvocationMessage(toolName, getToolDisplayName(toolName), path ? { path } : undefined),
+				invocationMessage: getInvocationMessage(toolName, getToolDisplayName(toolName), path ? { path } : undefined, resolvePath),
 				toolInput: tryStringify(path ? { path } : request) ?? undefined,
 				permissionKind: AgentPermissionKind.Write,
 				permissionPath: path,
@@ -1422,8 +1422,8 @@ export function getPermissionDisplay(request: PermissionRequest, workingDirector
 		}
 		case 'read':
 			return {
-				confirmationTitle: readConfirmationTitle(request, path, workingDirectory ? [workingDirectory, ...(additionalDirectories ?? [])] : [], requestSandboxBypass),
-				invocationMessage: getInvocationMessage(CopilotToolName.View, getToolDisplayName(CopilotToolName.View), path ? { path } : undefined),
+				confirmationTitle: readConfirmationTitle(request, path, workingDirectory ? [workingDirectory, ...(additionalDirectories ?? [])] : [], requestSandboxBypass, resolvePath),
+				invocationMessage: getInvocationMessage(CopilotToolName.View, getToolDisplayName(CopilotToolName.View), path ? { path } : undefined, resolvePath),
 				permissionKind: AgentPermissionKind.Read,
 				permissionPath: path,
 			};

@@ -460,11 +460,15 @@ session = await joinSession({
 				90_000,
 			);
 			const openCanvasComplete = getActionEnvelope(openCanvasCompleteNotification).action as ChatToolCallCompleteAction;
-			const canvasNotification = await client.waitForNotification(n =>
-				isActionNotification(n, ActionType.ChatCanvasesChanged)
-				&& getActionEnvelope(n).action.type === ActionType.ChatCanvasesChanged,
-				90_000,
-			);
+			const canvasNotification = await client.waitForNotification(n => {
+				if (!isActionNotification(n, ActionType.ChatCanvasesChanged)) {
+					return false;
+				}
+				const { channel, action } = getActionEnvelope(n);
+				return channel === defaultChatChannel(sessionUri)
+					&& action.type === ActionType.ChatCanvasesChanged
+					&& (action.canvases?.length ?? 0) > 0;
+			}, 90_000);
 			const canvasAction = getActionEnvelope(canvasNotification).action;
 			assert.ok(canvasAction.type === ActionType.ChatCanvasesChanged);
 			const canvasReference = canvasAction.canvases?.[0];

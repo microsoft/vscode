@@ -11,14 +11,14 @@ import { ServicesAccessor } from '../../../../../platform/instantiation/common/i
 import { openAgentHostStateFile } from '../../../../../workbench/contrib/chat/browser/actions/openAgentHostStateFileAction.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { resolveSessionCommandTarget } from '../../../../services/sessions/browser/sessionCommandTarget.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IsAgentHostSession } from '../../../../services/sessions/browser/sessionScopedContextKeys.js';
 
 /**
- * Sessions-app variant of "Open Agent Host State File". Uses the Agents
- * window's `ISessionsService.activeSession` to find the active Agent Host
- * session and chat, then defers to the shared workbench helper.
+ * Sessions-app variant of "Open Agent Host State File". Resolves the Agent
+ * Host session and chat it acts on with `resolveSessionCommandTarget` (the
+ * focused host's, without arguments), then defers to the shared workbench helper.
  *
  * The vscode workbench registers a separate action class
  * (`OpenAgentHostStateFileAction` in
@@ -39,12 +39,16 @@ export class OpenAgentHostStateFileAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const sessionsService = accessor.get(ISessionsService);
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		const sessionsProvidersService = accessor.get(ISessionsProvidersService);
-		const activeSession = sessionsService.activeSession.get();
+		const target = resolveSessionCommandTarget(accessor, args);
+		// Arguments that name a session or chat that is gone: nothing to export or open.
+		if (!target) {
+			return;
+		}
+		const activeSession = target?.session;
 		const provider = activeSession ? sessionsProvidersService.getProvider(activeSession.providerId) : undefined;
-		const activeChat = activeSession?.activeChat.get();
+		const activeChat = target?.chat;
 		const chatTarget = activeChat?.resource.fragment
 			? { backendResource: provider && isAgentHostProvider(provider) ? provider.getBackendChatResource(activeChat.resource) : undefined }
 			: undefined;

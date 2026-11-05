@@ -1144,17 +1144,14 @@ export class ClaudeAgentSession extends Disposable implements IRematerializer {
 		this._onDidCustomizationsChange.fire();
 	}
 
-	/**
-	 * Cancel the in-flight SDK turn. Mirrors the production reference;
-	 * see {@link ClaudeSdkPipeline.abort}. Also denies any parked
-	 * permission / user-input requests so the SDK's `canUseTool`
-	 * callback (and any interactive tool waiting on user input) unwinds
-	 * with a deny / cancel result instead of leaving stale UI behind.
-	 */
-	abort(): void {
-		this._pendingPermissions.denyAll(false);
-		this._pendingUserInputs.denyAll({ response: ChatInputResponseKind.Cancel });
-		this._requirePipeline().abort();
+	/** Cancels the SDK turn before releasing any remaining permission or input requests. */
+	async abort(): Promise<void> {
+		try {
+			await this._requirePipeline().abort();
+		} finally {
+			this._pendingPermissions.denyAll(false);
+			this._pendingUserInputs.denyAll({ response: ChatInputResponseKind.Cancel });
+		}
 	}
 
 	/**

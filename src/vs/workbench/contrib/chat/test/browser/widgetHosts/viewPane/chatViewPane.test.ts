@@ -29,9 +29,44 @@ import { IChatModel } from '../../../../common/model/chatModel.js';
 import { AgentSessionsControl } from '../../../../browser/agentSessions/agentSessionsControl.js';
 import { AgentSessionsFilter } from '../../../../browser/agentSessions/agentSessionsFilter.js';
 import { MenuWorkbenchToolBar } from '../../../../../../../platform/actions/browser/toolbar.js';
+import { ChatConfiguration } from '../../../../common/constants.js';
+import { AgentSessionsViewerOrientation } from '../../../../browser/agentSessions/agentSessions.js';
 
 suite('ChatViewPane sessions refresh', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('sessions visibility combines pane body, settings, sidebar width and stacked chat state', async () => {
+		const visibility: boolean[] = [];
+		const configuration = new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsEnabled]: true });
+		let bodyVisible = false;
+		const host = {
+			sessionsContainer: document.createElement('div'),
+			viewPaneContainer: document.createElement('div'),
+			sessionsControl: { setVisible: (visible: boolean) => visibility.push(visible) },
+			configurationService: configuration,
+			sessionsViewerOrientation: AgentSessionsViewerOrientation.SideBySide,
+			lastDimensions: { width: 1000, height: 600 },
+			sessionsViewerVisibilityContext: { set: () => { } },
+			isBodyVisible: () => bodyVisible,
+			chatEntitlementService: { sentiment: { completed: true } },
+			_widget: { isEmpty: () => false },
+			_sessionsListSuppressionCount: 0,
+		};
+		const update = Reflect.get(ChatViewPane.prototype, 'updateSessionsControlVisibility') as (this: typeof host) => void;
+		update.call(host);
+		bodyVisible = true;
+		update.call(host);
+		host.lastDimensions.width = 100;
+		update.call(host);
+		host.lastDimensions.width = 1000;
+		update.call(host);
+		await configuration.setUserConfiguration(ChatConfiguration.ChatViewSessionsEnabled, false);
+		update.call(host);
+		await configuration.setUserConfiguration(ChatConfiguration.ChatViewSessionsEnabled, true);
+		host.sessionsViewerOrientation = AgentSessionsViewerOrientation.Stacked;
+		update.call(host);
+		assert.deepStrictEqual(visibility, [false, true, false, true, false, false]);
+	});
 
 	test('window focus refreshes automatically while the toolbar retains explicit refresh intent', async () => {
 		const focusChanged = store.add(new Emitter<boolean>());

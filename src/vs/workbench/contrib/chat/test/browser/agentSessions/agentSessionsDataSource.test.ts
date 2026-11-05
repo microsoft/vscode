@@ -1482,7 +1482,6 @@ suite('AgentSessionsPicker', () => {
 		exclude: () => false,
 		getExcludes: () => ({ providers: [], states: [], archived: true, read: false, repositoryGroupCapped: true }),
 		isDefault: () => true,
-		limitResults: () => undefined,
 		notifyResults: () => { },
 		reset: () => { },
 		sortResults: () => undefined,

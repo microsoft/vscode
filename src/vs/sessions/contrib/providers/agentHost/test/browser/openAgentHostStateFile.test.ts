@@ -6,12 +6,13 @@
 import assert from 'assert';
 import { constObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { mock } from '../../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { ContextKeyValue, IContext } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IRemoteAgentHostConnectionInfo, RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { INotificationService, type INotification, type INotificationHandle } from '../../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
@@ -23,12 +24,13 @@ import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common
 import { buildLocalCopilotLogsUri, buildRemoteCopilotLogsUri, getCopilotCliSessionRawId, resolveEventsUri } from '../../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
 import { IAgentHostSessionsProvider } from '../../../../../common/agentHostSessionsProvider.js';
 import { IChat } from '../../../../../services/sessions/common/session.js';
-import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ISessionsManagementService } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IsAgentHostSession } from '../../../../../services/sessions/browser/sessionScopedContextKeys.js';
 import { OpenAgentHostStateFileAction } from '../../browser/openAgentHostStateFileAction.js';
+import { stubMissingSessionHostsFromSessionsService } from '../../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Open Agent Host State File', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -230,9 +232,8 @@ suite('Open Agent Host State File', () => {
 			override readonly activeChat = constObservable(activeChat);
 		}();
 		const sessionsService = new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable(activeSession);
-			override readonly mainWindowActiveSession = this.activeSession;
-			override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
+			readonly activeSession = constObservable(activeSession);
+			readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
 		}();
 		const provider = new class extends mock<IAgentHostSessionsProvider>() {
 			override readonly id = 'local-agent-host';
@@ -252,6 +253,7 @@ suite('Open Agent Host State File', () => {
 		instantiationService.stub(IEditorService, editorService);
 		instantiationService.stub(INotificationService, notificationService);
 		instantiationService.stub(ISessionsService, sessionsService);
+		stubMissingSessionHostsFromSessionsService(instantiationService);
 		instantiationService.stub(ISessionsProvidersService, sessionsProvidersService);
 
 		await new OpenAgentHostStateFileAction().run(instantiationService);
@@ -268,8 +270,22 @@ suite('Open Agent Host State File', () => {
 			values.length = 0;
 		}
 		await new OpenAgentHostStateFileAction().run(instantiationService);
+		const unresolved = {
+			mapped: [...calls.mapped],
+			resolved: [...calls.resolved],
+			requested: [...calls.requested],
+			opened: [...calls.opened],
+			notifications: [...calls.notifications],
+		};
+		for (const values of Object.values(calls)) {
+			values.length = 0;
+		}
+		// A session that is gone: the command does nothing.
+		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({ getSession: () => undefined, getSessionForChatResource: () => undefined }));
+		instantiationService.stub(ILogService, new NullLogService());
+		await new OpenAgentHostStateFileAction().run(instantiationService, URI.parse('agent-host-copilotcli:/gone'));
 
-		assert.deepStrictEqual({ resolved, unresolved: calls }, {
+		assert.deepStrictEqual({ resolved, unresolved, stale: calls }, {
 			resolved: {
 				mapped: ['agent-host-copilotcli:/client-session-id#peer-1'],
 				resolved: ['agent-host-copilotcli:/client-session-id'],
@@ -287,6 +303,7 @@ suite('Open Agent Host State File', () => {
 				opened: [],
 				notifications: ['The active Agent Host chat does not expose a state file.'],
 			},
+			stale: { mapped: [], resolved: [], requested: [], opened: [], notifications: [] },
 		});
 	});
 });
