@@ -566,6 +566,13 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 			this.workspace = workspace;
 		}
 
+		const folderChanges = hasWorkspaceBefore ? this.compareFolders(previousFolders, this.workspace.folders) : undefined;
+		if (folderChanges && (folderChanges.added.length || folderChanges.removed.length || folderChanges.changed.length)) {
+			// Settle participants such as workspace trust before publishing configuration
+			// or workspace changes to extension hosts that are still running.
+			await this.handleWillChangeWorkspaceFolders(folderChanges, false);
+		}
+
 		await this.initializeConfiguration(trigger);
 
 		// Trigger changes after configuration initialization so that configuration is up to date.
@@ -580,9 +587,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 				this._onDidChangeWorkspaceName.fire();
 			}
 
-			const folderChanges = this.compareFolders(previousFolders, this.workspace.folders);
 			if (folderChanges && (folderChanges.added.length || folderChanges.removed.length || folderChanges.changed.length)) {
-				await this.handleWillChangeWorkspaceFolders(folderChanges, false);
 				this._onDidChangeWorkspaceFolders.fire(folderChanges);
 			}
 		}
