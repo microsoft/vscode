@@ -20,7 +20,10 @@ import { IChatEntitlementService } from '../../../../services/chat/common/chatEn
 import { COMPARE_AGENTS_SHOW_SPOTLIGHT_SETTING } from '../../common/chatConstants.js';
 
 export const COMPARE_AGENTS_SPOTLIGHT_ID = 'sessions.compareAgents';
-onboardingScenarioRegistry.registerDescriptor({ id: COMPARE_AGENTS_SPOTLIGHT_ID });
+/** Declares the spotlight scenario to the onboarding registry; called by the Agents window, not on import. */
+export function registerCompareAgentsSpotlightDescriptor(): void {
+	onboardingScenarioRegistry.registerDescriptor({ id: COMPARE_AGENTS_SPOTLIGHT_ID });
+}
 
 /** One-time guidance owned by the comparison toggle's rendered lifetime. */
 export class CompareAgentsSpotlight extends Disposable {

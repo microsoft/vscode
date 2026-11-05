@@ -10,7 +10,10 @@ import { onboardingScenarioRegistry } from '../../../onboarding/common/onboardin
 import { IOnboardingScenario } from '../../../onboarding/common/onboardingScenario.js';
 
 export const SESSION_ARCHIVE_TOUR_ID = 'sessions.archiveNudge';
-onboardingScenarioRegistry.registerDescriptor({ id: SESSION_ARCHIVE_TOUR_ID });
+/** Declares the session archive tour to the onboarding registry; called by the Agents window, not on import. */
+export function registerSessionArchiveTourDescriptor(): void {
+	onboardingScenarioRegistry.registerDescriptor({ id: SESSION_ARCHIVE_TOUR_ID });
+}
 
 export function createSessionArchiveTour(targetId: string, wording: ChatSessionArchiveActionWording, onBeforeShow: () => Promise<void>): IOnboardingScenario<ISpotlightPayload> {
 	const markAsDone = wording === ChatSessionArchiveActionWording.MarkAsDone;

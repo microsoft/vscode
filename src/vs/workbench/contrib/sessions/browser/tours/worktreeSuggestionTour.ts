@@ -9,7 +9,10 @@ import { onboardingScenarioRegistry } from '../../../onboarding/common/onboardin
 import { IOnboardingScenario } from '../../../onboarding/common/onboardingScenario.js';
 import { WORKTREE_SUGGESTION_TOUR_ID } from '../../common/worktreeSuggestion.js';
 
-onboardingScenarioRegistry.registerDescriptor({ id: WORKTREE_SUGGESTION_TOUR_ID });
+/** Declares the worktree suggestion tour to the onboarding registry; called by the Agents window, not on import. */
+export function registerWorktreeSuggestionTourDescriptor(): void {
+	onboardingScenarioRegistry.registerDescriptor({ id: WORKTREE_SUGGESTION_TOUR_ID });
+}
 
 export interface IWorktreeSuggestionTourOptions {
 	/** Explains the uncommitted changes, e.g. "main has 3 uncommitted files." */
