@@ -200,10 +200,10 @@ export class ExtHostTesting extends Disposable implements ExtHostTestingShape {
 			},
 			invalidateTestResults: items => {
 				if (items === undefined) {
-					this.proxy.$markTestRetired(undefined);
+					this.runTracker.markTestRetired(undefined);
 				} else {
 					const itemsArr = items instanceof Array ? items : [items];
-					this.proxy.$markTestRetired(itemsArr.map(i => TestId.fromExtHostTestItem(i!, controllerId).toString()));
+					this.runTracker.markTestRetired(itemsArr.map(i => TestId.fromExtHostTestItem(i!, controllerId).toString()));
 				}
 			},
 			set resolveHandler(fn) {
@@ -897,7 +897,7 @@ class TestRunTracker extends Disposable {
 		}
 	}
 
-	private flushUpdates(): void {
+	public flushUpdates(): void {
 		this.updateScheduler.cancel();
 		if (this.pendingUpdates.length) {
 			const updates = this.pendingUpdates.splice(0);
@@ -936,6 +936,14 @@ export class TestRunCoordinator {
 	public getCoverageDetails(id: string, testId: string | undefined, token: vscode.CancellationToken) {
 		const runId = TestId.root(id);
 		return this.trackedById.get(runId)?.getCoverageDetails(id, testId, token) || [];
+	}
+
+	/** Publishes queued test registrations and states before retiring their results. */
+	public markTestRetired(testIds: string[] | undefined): void {
+		for (const tracker of this.trackedById.values()) {
+			tracker.flushUpdates();
+		}
+		this.proxy.$markTestRetired(testIds);
 	}
 
 	/**

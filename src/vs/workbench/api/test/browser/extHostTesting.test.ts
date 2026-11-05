@@ -25,7 +25,7 @@ import { ExtHostTestItemCollection, TestItemImpl } from '../../common/extHostTes
 import * as convert from '../../common/extHostTypeConverters.js';
 import { FileCoverage, Location, MarkdownString, Position, Range, TestMessage, TestRunProfileKind, TestRunRequest as TestRunRequestImpl, TestTag } from '../../common/extHostTypes.js';
 import { MainThreadTesting } from '../../browser/mainThreadTesting.js';
-import { AnyCallRPCProtocol, TestRPCProtocol } from '../common/testRPCProtocol.js';
+import { SingleProxyRPCProtocol, TestRPCProtocol } from '../common/testRPCProtocol.js';
 import { TestId } from '../../../contrib/testing/common/testId.js';
 import { TestDiffOpType, TestItemExpandState, TestMessageType, TestResultState, TestsDiff, TestsDiffOp } from '../../../contrib/testing/common/testTypes.js';
 import { nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
@@ -1298,6 +1298,7 @@ suite('ExtHost Testing', () => {
 
 	suite('service', () => {
 		let ctrl: TestExtHostTesting;
+		let proxy: MockObject<MainThreadTestingShape>;
 
 		class TestExtHostTesting extends ExtHostTesting {
 			public getProfileInternalId(ctrl: TestController, profile: TestRunProfile) {
@@ -1312,7 +1313,8 @@ suite('ExtHost Testing', () => {
 		}
 
 		setup(() => {
-			const rpcProtocol = AnyCallRPCProtocol();
+			proxy = mockObject<MainThreadTestingShape>()();
+			const rpcProtocol = SingleProxyRPCProtocol(proxy);
 			ctrl = ds.add(new TestExtHostTesting(
 				rpcProtocol,
 				new NullLogService(),
@@ -1324,6 +1326,38 @@ suite('ExtHost Testing', () => {
 				new ExtHostDocumentsAndEditors(rpcProtocol, new NullLogService()),
 			));
 		});
+
+		for (const invalidateAll of [false, true]) {
+			test(`sends pending run updates before retiring ${invalidateAll ? 'all results' : 'specified tests'}`, async () => {
+				const controller = ds.add(ctrl.createTestController(nullExtensionDescription, 'ctrl', 'tests'));
+				const item = controller.createTestItem('test', 'test');
+				controller.items.add(item);
+				const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+				const runs = [controller.createTestRun(new TestRunRequestImpl()), controller.createTestRun(new TestRunRequestImpl())];
+				try {
+					runs[0].started(item);
+					runs[1].passed(item, 1);
+					const calls: string[] = [];
+					proxy.$applyTestRunUpdates.callsFake(() => calls.push('updates'));
+					proxy.$markTestRetired.callsFake(() => calls.push('retire'));
+					controller.invalidateTestResults(invalidateAll ? undefined : [item]);
+					assert.deepStrictEqual({ calls, ids: proxy.$markTestRetired.firstCall.args }, {
+						calls: ['updates', 'updates', 'retire'],
+						ids: [invalidateAll ? undefined : ['ctrl\0test']],
+					});
+					clock.tick(0);
+					assert.deepStrictEqual(calls, ['updates', 'updates', 'retire']);
+				} finally {
+					for (const run of runs) {
+						run.end();
+					}
+					for (const [run] of proxy.$startedExtensionTestRun.args) {
+						await ctrl.$disposeRun(run.id);
+					}
+					clock.restore();
+				}
+			});
+		}
 
 		test('disposing an observer stops its events while another observer remains live', async () => {
 			const retired = ds.add(ctrl.createTestObserver());

@@ -1592,6 +1592,9 @@ export interface IDetachedXtermTerminal extends IXtermTerminal {
 	 */
 	write(data: string | Uint8Array, callback?: () => void): void;
 
+	/** Registers a handler for an OSC sequence, returning a disposable to remove it. */
+	registerOscHandler(ident: number, callback: (data: string) => boolean | Promise<boolean>): IDisposable;
+
 	/**
 	 * Resizes the terminal.
 	 */
