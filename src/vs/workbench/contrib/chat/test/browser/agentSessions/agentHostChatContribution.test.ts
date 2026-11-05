@@ -116,7 +116,7 @@ import { ICopilotHomeService } from '../../../../../../platform/environment/comm
 import { TestCopilotHomeService } from '../../../../../../platform/environment/test/common/testCopilotHomeService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
-import { IWorkspaceContextService, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, WorkbenchState, type IWorkspace } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { AgentHostContribution, AgentHostSessionHandler } from '../../../browser/agentSessions/agentHost/agentHostChatContribution.js';
 import { IAgentHostFirstResponseEvent } from '../../../browser/agentSessions/agentHost/agentHostFirstResponseTelemetry.js';
@@ -6932,6 +6932,60 @@ suite('AgentHostChatContribution', () => {
 				rebindCalls: [{ oldResource: untitledResource, newResource: item.resource }],
 				carriedFolder: folderB.toString(),
 			});
+		}));
+
+		test('newChatSessionItem carries a folder chosen on the user\'s behalf to the new session without making it the window default', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+			const folderA = URI.from({ scheme: 'file', path: '/workspace/a' });
+			const folderB = URI.from({ scheme: 'file', path: '/workspace/b' });
+			const workspace: Partial<IWorkspaceContextService> = {
+				getWorkbenchState: () => WorkbenchState.WORKSPACE,
+				getWorkspace: () => ({
+					id: '', folders: [
+						{ uri: folderA, name: 'a', index: 0, toResource: () => folderA },
+						{ uri: folderB, name: 'b', index: 1, toResource: () => folderB },
+					]
+				}) as unknown as IWorkspace,
+				getWorkspaceFolder: () => null,
+				onDidChangeWorkspaceFolders: Event.None,
+			};
+			instantiationService.stub(IWorkspaceContextService, workspace as IWorkspaceContextService);
+			const folders = disposables.add(new AgentHostNewSessionFolderService({ onDidDisposeSession: Event.None } as Partial<IChatService> as IChatService, workspace as IWorkspaceContextService, { extUri: extUriBiasedIgnorePathCase } as Partial<IUriIdentityService> as IUriIdentityService));
+			instantiationService.stub(IAgentHostNewSessionFolderService, folders);
+			let rebind: 'moved' | 'failed' = 'moved';
+			instantiationService.stub(IAgentHostUntitledProvisionalSessionService, {
+				onDidChange: Event.None,
+				get: () => undefined,
+				waitForPending: async () => undefined,
+				getOrCreate: async () => undefined,
+				// The backend graduates under a different identity, so the folder is carried a second time.
+				tryRebind: async (_old: URI, resource: URI) => {
+					if (rebind === 'failed') {
+						throw new Error('rebind failed');
+					}
+					return resource.with({ path: `${resource.path}-backend` });
+				},
+				getProvisionalWorkingDirectories: () => [folderB],
+				setSessionCreationMetadata: () => { },
+				clearSessionCreationMetadata: () => { },
+				disposeSession: async () => { },
+			} as Partial<IAgentHostUntitledProvisionalSessionService> as IAgentHostUntitledProvisionalSessionService);
+			const listController = createSessionListController(disposables, instantiationService, agentHostService);
+
+			// The user last chose folder A; a moved conversation continues in folder B.
+			folders.setFolder(URI.from({ scheme: 'agent-host-copilot', path: '/untitled-earlier' }), folderA);
+			const moved = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-moved' });
+			folders.setFolder(moved, folderB, { updateDefault: false });
+			const item = await listController.newChatSessionItem({ prompt: '', untitledResource: moved }, CancellationToken.None);
+			rebind = 'failed';
+			const failed = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-failed' });
+			folders.setFolder(failed, folderB, { updateDefault: false });
+			await assert.rejects(listController.newChatSessionItem({ prompt: '', untitledResource: failed }, CancellationToken.None), /rebind failed/);
+
+			assert.deepStrictEqual({
+				carried: item && folders.getFolder(item.resource)?.path,
+				windowDefault: folders.getDefaultFolder()?.path,
+			}, { carried: '/workspace/b', windowDefault: '/workspace/a' });
 		}));
 
 		test('folder picker is visible only in multi-root agent-host editor windows when the provider pins an immutable primary directory', () => {
@@ -14170,6 +14224,206 @@ suite('AgentHostChatContribution', () => {
 					subscriptions: [child], history: ['Earlier review result'], releasedOnClose: true,
 				});
 			});
+
+			for (const activeParent of [false, true]) {
+				test(`updates parent duration and credits when a settled child is opened (active parent: ${activeParent})`, async () => {
+					const scenario = seed(3, SessionStatus.Idle, activeParent);
+					const { children, agentHostService, sessionHandler, resource } = scenario;
+					const child = children[1].resource;
+					const childState = agentHostService.chatStates.get(child);
+					assert.ok(childState);
+					const startedAt = Date.parse(children[1].modifiedAt);
+					childState.turns[0] = {
+						...childState.turns[0],
+						startedAt: new Date(startedAt).toISOString(), duration: 40_000,
+						usage: { inputTokens: 10, outputTokens: 5, _meta: { cost: 0.5 } },
+					};
+					childState.turns.push({
+						...childState.turns[0], id: 'followup',
+						startedAt: new Date(startedAt + 60_000).toISOString(), duration: 23_000,
+						usage: { inputTokens: 20, outputTokens: 10, _meta: { cost: 0.25 } },
+					});
+					const { session, pills } = await scenario.open();
+					const pill = pills.find(part => part.toolCallId === 'launch-1');
+					assert.ok(pill);
+					const presentation = (part: ChatToolInvocation | undefined) => part?.toolSpecificData?.kind === 'subagent' ? {
+						startedAt: part.toolSpecificData.startedAt, duration: part.toolSpecificData.duration,
+						credits: part.toolSpecificData.credits, active: part.toolSpecificData.isActive,
+					} : undefined;
+					let rendered = presentation(pill);
+					disposables.add(autorun(reader => {
+						pill.state.read(reader);
+						rendered = presentation(pill);
+					}));
+					const beforeOpen = rendered;
+					const childResource = getSubagentEditorResource({ chatResource: child, parentSessionResource: resource.toString() });
+					assert.ok(childResource);
+					const childSession = await sessionHandler.provideChatSessionContent(childResource, CancellationToken.None);
+					disposables.add(toDisposable(() => childSession.dispose()));
+					const afterOpen = rendered;
+					agentHostService.fireAction({
+						channel: child,
+						action: {
+							type: ActionType.ChatTurnsLoaded,
+							turns: [{
+								...childState.turns[0], id: 'earlier',
+								startedAt: new Date(startedAt - 10_000).toISOString(), duration: 10_000,
+								usage: { inputTokens: 30, outputTokens: 15, _meta: { cost: 1.25 } },
+							}],
+						},
+						serverSeq: 100, origin: undefined,
+					});
+					const afterHistory = rendered;
+					childSession.dispose();
+					const afterClose = rendered;
+					session.dispose();
+					const reopened = await scenario.open();
+					const expected = { startedAt: startedAt - 10_000, duration: 93_000, credits: 2, active: false };
+					assert.deepStrictEqual({
+						beforeOpen, afterOpen, afterHistory, afterClose,
+						reopened: presentation(reopened.pills.find(part => part.toolCallId === 'launch-1')),
+						subscriptions: scenario.childSubscriptions(),
+						releasedOnClose: !agentHostService.hasLiveSubscription(child),
+					}, {
+						beforeOpen: { startedAt: undefined, duration: undefined, credits: undefined, active: false },
+						afterOpen: { startedAt, duration: 83_000, credits: 0.75, active: false },
+						afterHistory: expected, afterClose: expected, reopened: expected,
+						subscriptions: [child], releasedOnClose: true,
+					});
+				});
+			}
+
+			for (const duration of [undefined, 0]) {
+				test(`restores metadata from a child opened before its parent (duration: ${duration})`, async () => {
+					const scenario = seed(1);
+					const { children, agentHostService, sessionHandler, resource } = scenario;
+					const child = children[0].resource;
+					const childState = agentHostService.chatStates.get(child);
+					assert.ok(childState);
+					childState.turns[0] = {
+						...childState.turns[0],
+						...(duration !== undefined ? { startedAt: children[0].modifiedAt, duration } : {}),
+						usage: { inputTokens: 10, outputTokens: 5, _meta: { cost: 2.5 } },
+					};
+					const childResource = getSubagentEditorResource({ chatResource: child, parentSessionResource: resource.toString() });
+					assert.ok(childResource);
+					const childSession = await sessionHandler.provideChatSessionContent(childResource, CancellationToken.None);
+					childSession.dispose();
+					const { pills } = await scenario.open();
+					const data = pills[0].toolSpecificData;
+					assert.deepStrictEqual({
+						presentation: data?.kind === 'subagent' ? { startedAt: data.startedAt, duration: data.duration, credits: data.credits } : undefined,
+						subscriptions: scenario.childSubscriptions(),
+						releasedOnClose: !agentHostService.hasLiveSubscription(child),
+					}, {
+						presentation: { startedAt: duration !== undefined ? Date.parse(children[0].modifiedAt) : undefined, duration, credits: 2.5 },
+						subscriptions: [child], releasedOnClose: true,
+					});
+				});
+			}
+
+			for (const hasMoreHistory of [false, true]) {
+				test(`preserves the more complete presentation when a child reopens with paginated history (more history: ${hasMoreHistory})`, async () => {
+					const scenario = seed(1);
+					const { agentHostService, children, resource, sessionHandler, fire } = scenario;
+					const child = children[0].resource;
+					const childState = agentHostService.chatStates.get(child);
+					assert.ok(childState);
+					const startedAt = Date.parse(children[0].modifiedAt);
+					const latestTurn: Turn = {
+						...childState.turns[0], startedAt: new Date(startedAt).toISOString(), duration: 20_000,
+						usage: { inputTokens: 10, outputTokens: 5, _meta: { cost: 0.5 } },
+					};
+					const tail = { ...childState, turns: [latestTurn], turnsNextCursor: 'older' };
+					agentHostService.chatStates.set(child, tail);
+					const { pills } = await scenario.open();
+					const presentation = () => {
+						const data = pills[0].toolSpecificData;
+						return data?.kind === 'subagent' ? { startedAt: data.startedAt, duration: data.duration, credits: data.credits } : undefined;
+					};
+					const childResource = getSubagentEditorResource({ chatResource: child, parentSessionResource: resource.toString() });
+					assert.ok(childResource);
+					const childSession = disposables.add(await sessionHandler.provideChatSessionContent(childResource, CancellationToken.None));
+					const initial = presentation();
+					agentHostService.fireAction({
+						channel: child, serverSeq: 100, origin: undefined,
+						action: {
+							type: ActionType.ChatTurnsLoaded,
+							turns: [{
+								...latestTurn, id: 'earlier', startedAt: new Date(startedAt - 60_000).toISOString(), duration: 30_000,
+								usage: { inputTokens: 20, outputTokens: 10, _meta: { cost: 1.5 } },
+							}],
+							turnsNextCursor: hasMoreHistory ? 'oldest' : undefined,
+						},
+					});
+					const afterHistory = presentation();
+					childSession.dispose();
+					agentHostService.chatStates.set(child, tail);
+					const reopened = disposables.add(await sessionHandler.provideChatSessionContent(childResource, CancellationToken.None));
+					const afterReopen = presentation();
+					reopened.dispose();
+					fire({ type: ActionType.SessionChatUpdated, chat: child, changes: { modifiedAt: new Date(startedAt + 120_000).toISOString() } });
+					const changed = disposables.add(await sessionHandler.provideChatSessionContent(childResource, CancellationToken.None));
+					const afterRevisionChange = presentation();
+					changed.dispose();
+					assert.deepStrictEqual({
+						initial, afterHistory, afterReopen, afterRevisionChange,
+						subscriptions: scenario.childSubscriptions(), released: !agentHostService.hasLiveSubscription(child),
+					}, {
+						initial: { startedAt, duration: 20_000, credits: 0.5 },
+						afterHistory: { startedAt: startedAt - 60_000, duration: 80_000, credits: 2 },
+						afterReopen: { startedAt: startedAt - 60_000, duration: 80_000, credits: 2 },
+						afterRevisionChange: { startedAt, duration: 20_000, credits: 0.5 },
+						subscriptions: [child, child, child], released: true,
+					});
+				});
+			}
+
+			for (const restoredCredits of [undefined, 0]) {
+				test(`preserves cached credits when a settled child reopens without positive usage (credits: ${restoredCredits})`, async () => {
+					const scenario = seed(1);
+					const { agentHostService, children, resource, sessionHandler, fire } = scenario;
+					const child = children[0].resource;
+					const childState = agentHostService.chatStates.get(child);
+					assert.ok(childState);
+					childState.turns[0] = {
+						...childState.turns[0], startedAt: children[0].modifiedAt, duration: 40_000,
+						usage: { inputTokens: 10, outputTokens: 5, _meta: { cost: 2.5 } },
+					};
+					const { pills } = await scenario.open();
+					const presentation = () => {
+						const data = pills[0].toolSpecificData;
+						return data?.kind === 'subagent' ? { startedAt: data.startedAt, duration: data.duration, credits: data.credits } : undefined;
+					};
+					const childResource = getSubagentEditorResource({ chatResource: child, parentSessionResource: resource.toString() });
+					assert.ok(childResource);
+					const childSession = disposables.add(await sessionHandler.provideChatSessionContent(childResource, CancellationToken.None));
+					const completed = presentation();
+					childSession.dispose();
+					agentHostService.chatStates.set(child, {
+						...childState,
+						turns: childState.turns.map(turn => ({
+							...turn,
+							usage: restoredCredits === undefined ? undefined : { inputTokens: 10, outputTokens: 5, _meta: { cost: restoredCredits } },
+						})),
+					});
+					const reopened = disposables.add(await sessionHandler.provideChatSessionContent(childResource, CancellationToken.None));
+					const afterReopen = presentation();
+					reopened.dispose();
+					fire({ type: ActionType.SessionChatUpdated, chat: child, changes: { modifiedAt: '2026-10-19T00:02:00.000Z' } });
+					const changed = disposables.add(await sessionHandler.provideChatSessionContent(childResource, CancellationToken.None));
+					const afterRevisionChange = presentation();
+					changed.dispose();
+					const expected = { startedAt: Date.parse(children[0].modifiedAt), duration: 40_000, credits: 2.5 };
+					assert.deepStrictEqual({
+						completed, afterReopen, afterRevisionChange,
+						subscriptions: scenario.childSubscriptions(), released: !agentHostService.hasLiveSubscription(child),
+					}, {
+						completed: expected, afterReopen: expected, afterRevisionChange: { ...expected, credits: undefined },
+						subscriptions: [child, child, child], released: true,
+					});
+				});
+			}
 
 			test('publishes a withheld restored pill when its advertised child is registered already settled', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 				const scenario = seed(1);

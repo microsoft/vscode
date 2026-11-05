@@ -107,6 +107,7 @@ suite('changedFiles', () => {
 				scopes: [
 					getEslintScope(modified('src/vs/base/common/arrays.ts', 'extensions/simple-browser/src/extension.ts'), listFiles),
 					getEslintScope(deleted('src/vscode-dts/vscode.proposed.externalUriOpener.d.ts'), listFiles),
+					getEslintScope(modified('extensions/pnpm-lock.yaml'), listFiles),
 				],
 				listed,
 			}, {
@@ -118,8 +119,12 @@ suite('changedFiles', () => {
 					kind: 'files',
 					files: ['extensions/simple-browser/src/extension.ts', 'extensions/typescript-language-features/src/api.ts'],
 					reason: 'changed files, plus the extensions linted with type information because src/vscode-dts/vscode.proposed.externalUriOpener.d.ts changed',
+				}, {
+					kind: 'files',
+					files: ['extensions/simple-browser/src/extension.ts', 'extensions/typescript-language-features/src/api.ts'],
+					reason: 'changed files, plus the extensions linted with type information because extensions/pnpm-lock.yaml changed',
 				}],
-				listed: [typeAwareLintFolders, typeAwareLintFolders],
+				listed: [typeAwareLintFolders, typeAwareLintFolders, typeAwareLintFolders],
 			});
 		});
 

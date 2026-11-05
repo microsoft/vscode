@@ -423,6 +423,11 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 	private retainedReplyRowId: string | undefined;
 	private readonly newSessionElement = $('div.inbox-notifications-new-session');
 	private readonly newSessionDisposables = this._register(new DisposableStore());
+	/**
+	 * The services of the new-session composer's scope: disposed after it, as it may still use them while it goes away,
+	 * such as when its input clears.
+	 */
+	private readonly newSessionScopedServices = this._register(new DisposableStore());
 	private readonly newSessionHighlight = this._register(new MutableDisposable());
 	private newSessionView: AbstractChatView | undefined;
 	private readonly listPaneElement = $('div.inbox-notifications-list-pane');
@@ -3615,8 +3620,8 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 			return;
 		}
 		if (!this.newSessionView) {
-			const scopedContext = this.newSessionDisposables.add(this.contextKeyService.createScoped(this.newSessionElement));
-			const instantiationService = this.newSessionDisposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContext])));
+			const scopedContext = this.newSessionScopedServices.add(this.contextKeyService.createScoped(this.newSessionElement));
+			const instantiationService = this.newSessionScopedServices.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContext])));
 			this.newSessionView = this.newSessionDisposables.add(this.chatViewFactory.createNewChatView(false, { hostVisible: this.visible, preserveCustomView: true, backgroundSend: true, renderChatPet: false, renderAquarium: false }, instantiationService));
 			this.newSessionElement.appendChild(this.newSessionView.element);
 			this.newSessionView.setPrimary(false, true);

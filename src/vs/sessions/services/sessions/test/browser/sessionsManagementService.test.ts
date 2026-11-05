@@ -1205,6 +1205,35 @@ suite('SessionsManagementService', () => {
 			}, { panes: 2, active: undefined, retained: child.resource.toString(), connected: true, leftNeighbor: childSlot });
 		});
 
+		for (const activePane of ['child', 'parent'] as const) {
+			test(`a session whose last tab moves into a chat window, with a chat in a pane of its own and a subagent chat it does not show, leaves only its own slot: the child keeps its pane, and becomes active without a composer (${activePane} active)`, async () => {
+				const a = created('a');
+				const main = a.mainChat.get();
+				const child: IChat = { ...main, resource: URI.parse('test:///a/child') };
+				const subagent: IChat = { ...main, resource: URI.parse('test:///a/subagent'), origin: { kind: ChatOriginKind.Tool } };
+				const parent = { ...a, chats: constObservable([main, child, subagent]) };
+				const { view, part, container } = harness([parent]);
+				await view.openSession(parent.resource);
+				const visibility = Reflect.get(view, '_visibility') as VisibleSessions;
+				await view.moveChatToGrid(parent.sessionId, child.resource, visibility.getGridSlots()[0].id, 'down');
+				const childSlot = visibility.getRenderedGridSlots().find(slot => visibility.getGridSession(slot.id))!.id;
+				const childPane = visibility.getGridSession(childSlot)!;
+				const childView = part.getViewOfSession(childPane);
+				view.setActive(activePane === 'child' ? childPane : view.visibleSessions.get()[0]);
+
+				disposables.add(view.hideChatFromGrid(parent, main.resource));
+
+				assert.deepStrictEqual({
+					roots: view.visibleSessions.get().length,
+					slots: visibility.getRenderedGridSlots().map(slot => slot.id),
+					child: visibility.getGridSession(childSlot) === childPane && childPane.scopedChatResource?.toString(),
+					view: part.getViewOfSession(childPane) === childView && childView?.element.isConnected,
+					panes: container.querySelectorAll('.session-view').length,
+					active: view.activeSession.get() === childPane,
+				}, { roots: 0, slots: [childSlot], child: child.resource.toString(), view: true, panes: 1, active: true });
+			});
+		}
+
 		for (const operation of ['remove', 'collapse'] as const) {
 			test(`${operation} handles owners that have only standalone child panes without reopening their parents`, async () => {
 				const sessions = ['a', 'b'].map(id => {
@@ -8689,6 +8718,29 @@ suite('SessionsManagementService', () => {
 				moved: { active: 'A', tabsOfB: ['mainB', 'peerB', 'subagentB'], activeChatOfB: 'peerB' },
 				again: ['mainB', 'peerB', 'subagentB'],
 				mainB: 'mainB',
+			});
+		});
+
+		test('a session whose only visible chat moves into a chat window leaves the grid, though it has a subagent chat it does not show; that subagent chat still opens in the grid afterwards', async () => {
+			const sessionA = multiChatSession('A', [chat('mainA'), chat('subagentA', SessionStatus.Completed, ChatOriginKind.Tool)]);
+			const [mainA, subagentA] = sessionA.chats.get();
+			const { view } = setup([sessionA]);
+			await view.openSession(sessionA.resource);
+			disposables.add(chatHostOpeners.get(view)!.register({
+				showsChat: shown => shown.toString() === mainA.resource.toString(),
+				reveal: async () => { },
+				openBeside: async () => { },
+				close: async () => ({ restore: async () => { } }),
+			}));
+			const grid = () => ({ visible: view.visibleSessions.get().map(session => session?.sessionId), active: view.activeSession.get()?.sessionId, tabs: view.activeSession.get()?.visibleChatTabs.get().map(chat => chat.title.get()) });
+
+			disposables.add(view.hideChatFromGrid(sessionA, mainA.resource));
+			const moved = grid();
+			await view.openChat(sessionA, subagentA.resource);
+
+			assert.deepStrictEqual({ moved, opened: grid() }, {
+				moved: { visible: [undefined], active: undefined, tabs: undefined },
+				opened: { visible: ['A'], active: 'A', tabs: ['subagentA'] },
 			});
 		});
 

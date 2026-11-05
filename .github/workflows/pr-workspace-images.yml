@@ -4,10 +4,10 @@ name: Code OSS (workspace images)
 # pr-darwin-test.yml and pr-win32-test.yml): a disk image of a workspace of main, with its
 # dependencies, Electron and the Playwright browsers installed, at the path of the workspaces of the
 # jobs, and with a .git that their checkouts reuse. A job that mounts an image installs only what
-# changed since. The Windows test jobs use the images, and the Linux and macOS test jobs adopt them
-# in follow-up pull requests. See .github/workflows/workspace_image/README.md.
+# changed since. The Windows and Linux test jobs use the images, and the macOS test jobs adopt them
+# in a follow-up pull request. See .github/workflows/workspace_image/README.md.
 # The daily and manual runs also prepare the WSL distribution of the Windows smoke tests (the
-# wsl-distro job).
+# wsl-distro job), and cache the apt packages of the Linux test jobs (the linux-packages job).
 on:
   # Every day, so that there is always a recent image of main: the images are kept for 2 days
   schedule:
@@ -386,6 +386,30 @@ jobs:
           archive: false
           retention-days: 2
           if-no-files-found: error
+
+  # The .deb files of the apt packages of the Linux test jobs (see .github/actions/install-linux-packages), so that
+  # they install them without apt-get, whose mirrors are at times slow. The packages that a runner lacks depend on its
+  # image, which changes every week or so: the key holds the image, and the jobs on a runner with an image that has no
+  # entry yet use apt-get. The files only need to be recent, so they are downloaded with the daily images and on manual
+  # runs, but not on pushes.
+  linux-packages:
+    name: Linux (apt packages)
+    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+    runs-on: vscode-large-runners-ubuntu-8-core
+    timeout-minutes: 15
+    steps:
+      - name: Checkout microsoft/vscode
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            .github/actions/install-linux-packages
+            build/azure-pipelines/linux
+
+      - name: Cache the apt packages
+        uses: ./.github/actions/install-linux-packages
+        with:
+          save-cache: 'true'
 
   # The WSL distribution that the Windows smoke test shard with the WSL suite imports instead of building it (see
   # test/smoke/wslDevContainer.ps1 and electron-smoke-1 in pr-win32-test.yml). It only needs to be recent, so it is

@@ -14,6 +14,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { EditorActivation, IEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -406,6 +407,32 @@ suite('WindowCanvasService', () => {
 		h.workingSetState.set({ owner: undefined, restoring: false, applying: false }, undefined);
 		await Promise.resolve();
 		assert.strictEqual(h.opened.length, 1);
+	});
+
+	test('closing a canvas disposes its content, which may still create with the services of its scope as it goes away, before those services', async () => {
+		const events: string[] = [];
+		class ScopedCanvas extends TestCanvas {
+			constructor(@IInstantiationService instantiationService: IInstantiationService) {
+				super();
+				const disposeServices = instantiationService.dispose;
+				instantiationService.dispose = () => {
+					events.push('dispose services');
+					disposeServices.apply(instantiationService);
+				};
+			}
+			override dispose(): void {
+				events.push('dispose canvas');
+				super.dispose();
+			}
+		}
+		const h = createHarness();
+		store.add(h.service.registerCanvas({ ...descriptor, ctor: new SyncDescriptor(ScopedCanvas) }));
+		await h.service.openCanvas(descriptor.id);
+		h.service.getPresentation(h.opened[0].input);
+
+		h.close(h.opened[0].input);
+
+		assert.deepStrictEqual(events, ['dispose canvas', 'dispose services']);
 	});
 
 	test('restores window-level open canvases only after their definition is registered', async () => {

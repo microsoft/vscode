@@ -210,10 +210,17 @@ export interface IChatWindow {
 	/** Whether `editor` shows one of its chats. */
 	isChatEditor(editor: EditorInput): boolean;
 	/**
-	 * Whether the chat leads the window: it shows in the chat part, with no part before it, to its left or above it. The
-	 * chat can move into another part of the window, and parts can move, such as when dragged.
+	 * Whether its title row merges into the title of its active chat's editor, which then shows the header of the chat;
+	 * otherwise its title row spans the top of the window and shows it. See {@link isChatWindowTitleMerged}.
 	 */
-	readonly chatLeads: IObservable<boolean>;
+	readonly titleMerged: IObservable<boolean>;
+	/**
+	 * Whether the merged title spans only a column of the window, not to its right edge, such as the chat's beside the main
+	 * part: the window controls then float at the top right of the window, beside it, and its tab row below keeps their room.
+	 * Not where the title spans to the right edge, as in chat only or with the chat above the main part: the controls are
+	 * in it, at its right, as in the title row.
+	 */
+	readonly titleInChatColumn: IObservable<boolean>;
 	/**
 	 * The part that holds its terminals, once created (see {@link getOrCreateTerminalsPart}), until the window closes. It is
 	 * a part like the others: what it shows is what the feature that shows terminals opens in it.
