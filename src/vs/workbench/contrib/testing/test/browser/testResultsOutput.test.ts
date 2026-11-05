@@ -29,6 +29,7 @@ import { TestRunProfileBitset } from '../../common/testTypes.js';
 
 suite('Testing output terminal', () => {
 	teardown(async () => {
+		sinon.restore();
 		// Drain queued layout work before the fixture disposal hook runs.
 		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
 	});

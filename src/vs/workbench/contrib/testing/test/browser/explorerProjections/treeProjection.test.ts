@@ -27,6 +27,7 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 	let harness: TestTreeTestHarness<TestHierarchicalByLocationProjection>;
 	let onTestChanged: Emitter<TestResultItemChange>;
 	let resultsService: ITestResultService;
+	teardown(() => sinon.restore());
 	const ds = ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(() => {
