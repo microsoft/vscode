@@ -3174,7 +3174,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	async listSessionCanvases(session: URI, chat: URI, operationContext: AgentChatOperationContext): Promise<AgentCanvasDefinitionSnapshot> {
 		const context = this._resolveSessionCanvasChatContext(session, chat, operationContext);
 		// The chat is not running, so keep its previous inventory instead of starting the runtime just to populate the canvas menu.
-		if (!context.target && context.credentials) {
+		// Released continuity must wait for the returning client's current customizations before providers are resumed.
+		if (!context.target && (context.credentials || this._releasedCanvasContinuity(context))) {
 			return undefined;
 		}
 		const liveSession = await this._resolveSessionCanvasChat(session, chat, operationContext, 'listSessionCanvases');
@@ -8404,7 +8405,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (this._provisionalSessions.get(context.provisionalKey)?.sdkSessionId === context.sdkSessionId) {
 			return [];
 		}
-		if (!context.target && context.credentials && context.sdkSessionId) {
+		// Session hydration can request history before the returning client republishes its customizations.
+		// Keep released canvas continuity cold until that publication can resume the runtime with its providers.
+		const releasedCanvasContinuity = !context.target && context.sdkSessionId ? this._releasedCanvasContinuity(context) : undefined;
+		if (!context.target && context.sdkSessionId && (context.credentials || releasedCanvasContinuity)) {
 			return (await this._readPersistedChatHistory(context, context.sdkSessionId)).turns;
 		}
 		const entry = await this._queueChat(context.lifetimeId, context.sequencerKey, 'getChatMessages', async () => {

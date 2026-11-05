@@ -9367,6 +9367,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			return;
 		}
 		const store = new DisposableStore();
+		// Releasing this subscription removes the client on the host, so the next activation must republish.
+		store.add(toDisposable(() => this._lastPublishedActiveClients.delete(sessionUri.toString())));
 		store.add(ref);
 		store.add(ref.object.onDidChange(state => {
 			this._sessionStateErrorRetries.delete(sessionId);

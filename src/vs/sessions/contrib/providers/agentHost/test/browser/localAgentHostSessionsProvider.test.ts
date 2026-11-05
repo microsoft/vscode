@@ -10152,6 +10152,52 @@ suite('LocalAgentHostSessionsProvider', () => {
 		}]);
 	});
 
+	test('republishes the active client after its idle session-state subscription is released', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+		const visibleSessions = observableValue<readonly (IActiveSession | undefined)[]>('visibleSessions', []);
+		const activeClient = {
+			tools: [],
+			customizations: [{
+				type: CustomizationType.Plugin,
+				id: 'file:///customizations/test',
+				uri: 'file:///customizations/test',
+				name: 'Test Customization',
+			}],
+		} satisfies Omit<SessionActiveClient, 'clientId'>;
+		agentHost.addSession(createSession('active-client-idle-release'));
+		const provider = createProvider(disposables, agentHost, undefined, { activeSession, visibleSessions, activeClient });
+		provider.getSessions();
+		await timeout(0);
+		agentHost.dispatchedActions.length = 0;
+		const resource = URI.from({ scheme: 'agent-host-copilotcli', path: '/active-client-idle-release' });
+		const selectedSession = {
+			providerId: provider.id,
+			sessionId: `${provider.id}:${resource.toString()}`,
+			resource,
+		} as IActiveSession;
+		const sessionUri = AgentSession.uri('copilotcli', 'active-client-idle-release').toString();
+
+		visibleSessions.set([selectedSession], undefined);
+		activeSession.set(selectedSession, undefined);
+		await timeout(0);
+		activeSession.set(undefined, undefined);
+		visibleSessions.set([], undefined);
+		await timeout(31_000);
+		visibleSessions.set([selectedSession], undefined);
+		activeSession.set(selectedSession, undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			activeClientPublications: agentHost.dispatchedActions.filter(dispatch => dispatch.action.type === ActionType.SessionActiveClientSet).length,
+			sessionSubscribes: agentHost.sessionSubscribeCounts.get(sessionUri),
+			sessionUnsubscribes: agentHost.sessionUnsubscribeCounts.get(sessionUri),
+		}, {
+			activeClientPublications: 2,
+			sessionSubscribes: 2,
+			sessionUnsubscribes: 1,
+		});
+	}));
+
 	test('session refresh preserves scope, session and MCP app tools with first-name precedence', async () => {
 		const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
 		const resource = URI.from({ scheme: 'agent-host-copilotcli', path: '/active-client-tools' });

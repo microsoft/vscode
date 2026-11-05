@@ -8269,6 +8269,11 @@ suite('CopilotAgent', () => {
 			// Observing alone waits until a window republishes its customizations; the restore then uses them.
 			const releaseAndObserve = async () => {
 				await agent.chats.releaseChat(chat, context, { reason: () => 'idle', canContinue: () => true });
+				const resumesBeforeHistory = resumedRuntimes.length;
+				await agent.chats.getMessages(chat, exactChatContext(session, chat, session));
+				const resumedForHistory = resumedRuntimes.length !== resumesBeforeHistory;
+				const canvasesBeforeClient = await agent.listSessionCanvases(session, chat, exactChatContext(session, chat, session));
+				const resumedForInventory = resumedRuntimes.length !== resumesBeforeHistory;
 				const watch = agent.watchChatCanvases(chat, {
 					published: () => [],
 					resolveContext: async () => context,
@@ -8280,7 +8285,7 @@ suite('CopilotAgent', () => {
 				await restoration;
 				watch.dispose();
 				agent.removeActiveClient(chat, context, 'canvas-window');
-				return restoredBeforeClient;
+				return { canvasesBeforeClient, restoredBeforeClient, resumedForHistory, resumedForInventory };
 			};
 			try {
 				await provisionSession(agent, { session, credentials, workingDirectories: [directory] });
@@ -8318,7 +8323,10 @@ suite('CopilotAgent', () => {
 						unexpected: urls.filter(url => url !== undefined && url !== initialCanvas.url && url !== restoredCanvas.url),
 					},
 				}, {
-					restoredBeforeClient: [false, false],
+					restoredBeforeClient: [
+						{ canvasesBeforeClient: undefined, restoredBeforeClient: false, resumedForHistory: false, resumedForInventory: false },
+						{ canvasesBeforeClient: undefined, restoredBeforeClient: false, resumedForHistory: false, resumedForInventory: false },
+					],
 					launches: [{ kind: 'create', sends: 1 }],
 					resumes: [0, 0],
 					resumeCanvasSeeds: [undefined, undefined],
