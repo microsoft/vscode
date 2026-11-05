@@ -1744,7 +1744,8 @@ function isConfigurableRemoteChoice(choice: McpTransportChoice): choice is Extra
 
 /**
  * A local package choice VS Code can configure itself: non-secret environment
- * and argument values only. Secrets would have to be written into the
+ * and argument values only. Arguments may be repeated, since the host writes
+ * one argument per value. Secrets would have to be written into the
  * configuration in plain text, so they wait for runtime-owned package installs.
  */
 function isConfigurablePackageChoice(choice: McpTransportChoice): choice is Extract<McpTransportChoice, { readonly installMethod: 'package' }> {
@@ -1752,7 +1753,7 @@ function isConfigurablePackageChoice(choice: McpTransportChoice): choice is Extr
 		&& choice.secretPlaceholders.length === 0
 		&& choice.requiredValues.length > 0
 		&& choice.requiredValues.length <= maxConfiguredEntries
-		&& choice.requiredValues.every(value => (value.category === 'environment-variable' || value.category === 'runtime-argument' || value.category === 'package-argument') && !value.isRepeated)
+		&& choice.requiredValues.every(value => value.category === 'environment-variable' ? !value.isRepeated : value.category === 'runtime-argument' || value.category === 'package-argument')
 		&& new Set(choice.requiredValues.map(value => `${value.category}\0${value.key}`)).size === choice.requiredValues.length;
 }
 
@@ -1841,8 +1842,24 @@ function createMcpValueResolver(declared: readonly McpTransportChoice['requiredV
 		if (!value) {
 			return undefined;
 		}
+		if (value.isRepeated) {
+			throw unsupported();
+		}
 		pending.delete(`${category}\0${key}`);
 		return { value: inputs.find(input => input.category === category && input.key === key)?.value ?? value.defaultValue };
+	};
+	/** Every submitted value of a declared repeated value, or its default when none was submitted. */
+	const takeAll = (category: string, key: string): readonly string[] | undefined => {
+		const value = pending.get(`${category}\0${key}`);
+		if (!value) {
+			return undefined;
+		}
+		if (!value.isRepeated) {
+			throw unsupported();
+		}
+		pending.delete(`${category}\0${key}`);
+		const submitted = inputs.filter(input => input.category === category && input.key === key).map(input => input.value);
+		return submitted.length ? submitted : value.defaultValue !== undefined ? [value.defaultValue] : [];
 	};
 	/** Resolves an entry's nested variables or its own value. */
 	const resolve = <T extends IMcpServerVariableInput>(entry: T, category: string, key: string): { readonly kind: 'keep'; readonly entry: T } | { readonly kind: 'set'; readonly value: string } | { readonly kind: 'omit' } => {
@@ -1870,7 +1887,7 @@ function createMcpValueResolver(declared: readonly McpTransportChoice['requiredV
 			throw unsupported();
 		}
 	};
-	return { take, resolve, assertAllPlaced };
+	return { take, takeAll, resolve, assertAllPlaced };
 }
 
 /** The command a package runs, with unresolved values as `${input:…}` placeholders, or `undefined` if it cannot be described. */
@@ -1894,20 +1911,32 @@ function describeMcpPackageCommand(serverPackage: IMcpServerPackage): string | u
  */
 function withMcpPackageValues(serverPackage: IMcpServerPackage, declared: readonly McpTransportChoice['requiredValues'][number][], inputs: IAgentCustomizationInstallationAnswers['inputs']): IMcpServerPackage {
 	const unsupported = () => new CustomizationInstallationFailure('invalid-request', localize('copilot.customizationInstallation.mcpPackageInputsRequired', "This MCP package requires additional configuration that Browse cannot collect yet."));
-	const { resolve, assertAllPlaced } = createMcpValueResolver(declared, inputs, unsupported);
+	const { resolve, takeAll, assertAllPlaced } = createMcpValueResolver(declared, inputs, unsupported);
 	const environmentVariables = serverPackage.environmentVariables?.flatMap(entry => {
 		const resolved = resolve(entry, 'environment-variable', entry.name);
 		return resolved.kind === 'omit' ? [] : resolved.kind === 'set' ? [{ ...entry, value: resolved.value }] : [resolved.entry];
 	});
+	const withValue = (entry: IMcpServerArgument, value: string): IMcpServerArgument[] => {
+		if (entry.type === 'named' && value === 'false') {
+			return [];
+		}
+		return entry.type === 'named' && value === 'true' ? [{ type: 'named', name: entry.name }] : [{ ...entry, value }];
+	};
 	const args = (entries: readonly IMcpServerArgument[] | undefined, category: string) => entries?.flatMap((entry, index): IMcpServerArgument[] => {
-		const resolved = resolve(entry, category, entry.type === 'named' ? entry.name : entry.valueHint ?? `argument-${index}`);
+		const key = entry.type === 'named' ? entry.name : entry.valueHint ?? `argument-${index}`;
+		if (entry.isRepeated) {
+			// A repeated argument is written once per submitted value; nested templates can't be repeated.
+			if (entry.variables && Object.keys(entry.variables).length) {
+				throw unsupported();
+			}
+			const values = entry.value ? undefined : takeAll(category, key);
+			return values ? values.flatMap(value => withValue(entry, value)) : [entry];
+		}
+		const resolved = resolve(entry, category, key);
 		if (resolved.kind === 'keep') {
 			return [resolved.entry];
 		}
-		if (resolved.kind === 'omit' || (entry.type === 'named' && resolved.value === 'false')) {
-			return [];
-		}
-		return entry.type === 'named' && resolved.value === 'true' ? [{ type: 'named', name: entry.name }] : [{ ...entry, value: resolved.value }];
+		return resolved.kind === 'omit' ? [] : withValue(entry, resolved.value);
 	});
 	const resolved: IMcpServerPackage = {
 		...serverPackage,
@@ -1929,7 +1958,8 @@ function validateAnswers(choice: McpTransportChoice, answers: IAgentCustomizatio
 	for (const input of answers.inputs) {
 		const identity = `${input.category}\0${input.key}`;
 		const declared = choice.requiredValues.find(value => value.category === input.category && value.key === input.key);
-		if (!declared || seen.has(identity)) {
+		// Only repeated values may appear more than once; owned (runtime) choices never declare them.
+		if (!declared || (seen.has(identity) && !declared.isRepeated)) {
 			throw invalid(input.key);
 		}
 		seen.add(identity);

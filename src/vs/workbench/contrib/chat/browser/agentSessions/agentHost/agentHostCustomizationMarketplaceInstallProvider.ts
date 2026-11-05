@@ -639,7 +639,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 		const choosesTransport = request.choices.length > 1;
 		const firstStep = choosesTransport ? -1 : 0;
 		let choice: IAgentCustomizationInstallationChoice | undefined = choosesTransport ? undefined : request.choices[0];
-		let values = new Map<number, string | undefined>();
+		let values = new Map<number, string | string[] | undefined>();
 		let secrets = new Map<number, string>();
 		let index = firstStep;
 		while (true) {
@@ -655,9 +655,6 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 				choice = picked.value;
 				index = 0;
 			}
-			if (choice.values.some(value => value.isRepeated)) {
-				throw new Error(localize('agentHost.customizationInstall.repeatedUnsupported', "This MCP server requires configuration that cannot be collected yet."));
-			}
 			if (index >= choice.values.length + choice.secrets.length) {
 				break;
 			}
@@ -670,12 +667,21 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 				canGoBack: index > firstStep,
 				description: formatChoicePreview(choice, value),
 			};
-			let result: ConfigurationStepResult<string | undefined>;
-			if (value) {
-				result = await this.collectValue(step, value, values.has(index) ? { value: values.get(index) } : undefined, token);
-				if (result.kind === 'value') {
-					values.set(index, result.value);
+			let result: ConfigurationStepResult<unknown>;
+			if (value?.isRepeated) {
+				const previous = values.get(index);
+				const repeated = await this.collectRepeatedValues(step, value, Array.isArray(previous) ? previous : [], token);
+				if (repeated.kind === 'value') {
+					values.set(index, repeated.value);
 				}
+				result = repeated;
+			} else if (value) {
+				const previous = values.get(index);
+				const single = await this.collectValue(step, value, values.has(index) && !Array.isArray(previous) ? { value: previous } : undefined, token);
+				if (single.kind === 'value') {
+					values.set(index, single.value);
+				}
+				result = single;
 			} else {
 				const secret = choice.secrets[index - choice.values.length];
 				const secretResult = await this.showInputStep(step, {
@@ -699,7 +705,8 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 			choice: selected,
 			inputs: selected.values.flatMap((value, i) => {
 				const answer = values.get(i);
-				return answer !== undefined ? [{ key: value.key, category: value.category, value: answer }] : [];
+				const answers = Array.isArray(answer) ? answer : answer !== undefined ? [answer] : [];
+				return answers.map(entry => ({ key: value.key, category: value.category, value: entry }));
 			}),
 			secrets: selected.secrets.map((secret, i) => ({ placeholder: secret.placeholder, value: secrets.get(selected.values.length + i)! })),
 		};
@@ -774,6 +781,63 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 			validate: input => validateConfiguredValue(value, input, omittable),
 		}, token);
 		return entered.kind === 'value' ? { kind: 'value', value: entered.value === '' ? undefined : entered.value } : entered;
+	}
+
+	/**
+	 * Asks for a value that may be given several times, one entry at a time in
+	 * the same step. An empty entry finishes the list; Back removes the last
+	 * entry, or leaves the step when none remain. Returning to the step keeps
+	 * {@link previous} and continues adding.
+	 */
+	private async collectRepeatedValues(step: IConfigurationStep, value: IAgentCustomizationInstallationValuePrompt, previous: readonly string[], token: CancellationToken): Promise<ConfigurationStepResult<string[]>> {
+		const kind = describeConfiguredValue(value);
+		const label = value.title !== undefined
+			? localize('agentHost.customizationInstall.titledValue', "{0} ({1})", toPlainLabel(value.title), kind)
+			: kind;
+		const allowed = value.valueType === 'enum' ? value.enumValues ?? [] : value.valueType === 'boolean' ? ['true', 'false'] : undefined;
+		const entries = [...previous];
+		while (true) {
+			const required = entries.length === 0 && value.required && value.defaultValue === undefined;
+			const added = entries.length
+				? localize('agentHost.customizationInstall.repeatedAdded', "Added: {0}.", entries.map(toPlainLabel).join(', '))
+				: '';
+			const prompt = entries.length === 0
+				? required
+					? localize('agentHost.customizationInstall.repeatedFirst', "{0}. Can be given more than once; enter the first value.", label)
+					: value.defaultValue !== undefined
+						? localize('agentHost.customizationInstall.repeatedFirstDefault', "{0}. Can be given more than once; leave empty to use the default.", label)
+						: localize('agentHost.customizationInstall.repeatedFirstOptional', "{0}. Can be given more than once; leave empty to skip.", label)
+				: localize('agentHost.customizationInstall.repeatedNext', "{0}. {1} Enter another value, or leave empty to finish.", label, added);
+			const entered = await this.showInputStep({ ...step, canGoBack: step.canGoBack || entries.length > 0 }, {
+				prompt,
+				placeholder: allowed ? localize('agentHost.customizationInstall.repeatedAllowed', "One of: {0}", allowed.map(toPlainLabel).join(', ')) : undefined,
+				value: '',
+				password: false,
+				validate: input => {
+					if (!input) {
+						return required ? localize('agentHost.customizationInstall.valueRequired', "A value is required.") : undefined;
+					}
+					if (allowed && !allowed.includes(input)) {
+						return localize('agentHost.customizationInstall.repeatedNotAllowed', "Enter one of: {0}", allowed.map(toPlainLabel).join(', '));
+					}
+					return validateConfiguredValue(value, input, false);
+				},
+			}, token);
+			if (entered.kind === 'cancel') {
+				return entered;
+			}
+			if (entered.kind === 'back') {
+				if (!entries.length) {
+					return entered;
+				}
+				entries.pop();
+				continue;
+			}
+			if (!entered.value) {
+				return { kind: 'value', value: entries };
+			}
+			entries.push(entered.value);
+		}
 	}
 
 	private applyStep(input: IQuickInput, step: IConfigurationStep): void {
@@ -944,7 +1008,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 	private getConfiguredDetail(request: IAgentCustomizationInstallationConfigurationRequest, answers: ICustomizationInstallationAnswers): string {
 		const choice = answers.choice;
 		const none = localize('agentHost.customizationInstall.none', "None");
-		const values = answers.inputs.map(input => `${toPlainLabel(input.key)} (${input.category})`).join(', ') || none;
+		const values = [...new Set(answers.inputs.map(input => `${toPlainLabel(input.key)} (${input.category})`))].join(', ') || none;
 		const secrets = choice.secrets.map(secret => toPlainLabel(secret.key)).join(', ') || none;
 		if (choice.command !== undefined) {
 			return localize('agentHost.customizationInstall.mcpConfiguredLocalInstallDetail', "MCP servers can run tools and access local files. Only install resources from sources you trust.\n\nServer: {0}\nDestination: {1}\nCommand (your values replace the placeholders): {2}\nConfigured values: {3}\nConfiguration fields: {4}", toPlainLabel(request.serverName), toPlainLabel(request.target), toPlainLabel(choice.command), values, choice.configurationFields.map(toPlainLabel).join(', ') || none);

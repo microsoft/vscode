@@ -587,7 +587,7 @@ export type IAgentCustomizationInstallationPreparation = IAgentCustomizationInst
 /** The user's answers to a configuration request. The only DTO that carries submitted values or secrets. */
 export interface IAgentCustomizationInstallationAnswers {
 	readonly choiceId: string;
-	/** At most one entry per `(category, key)`. */
+	/** One entry per `(category, key)`, except values declared `isRepeated`, which may have several, in order. */
 	readonly inputs: readonly { readonly key: string; readonly category: AgentCustomizationInstallationValueCategory; readonly value: string }[];
 	/** One entry per exact plan placeholder. */
 	readonly secrets: readonly { readonly placeholder: string; readonly value: string }[];

@@ -2173,7 +2173,7 @@ suite('CopilotCustomizationInstallations', () => {
 			{ kind: 'scalar', key: 'X-Debug', category: 'header', valueType: 'boolean', required: false, defaultValue: 'false', isRepeated: false },
 		];
 
-		function createPackageFixture(options: { readonly requiredValues?: McpInstallPlan['transportChoices'][number]['requiredValues']; readonly secret?: boolean; readonly remote?: boolean } = {}) {
+		function createPackageFixture(options: { readonly requiredValues?: McpInstallPlan['transportChoices'][number]['requiredValues']; readonly secret?: boolean; readonly remote?: boolean; readonly packageArguments?: readonly object[] } = {}) {
 			const expiresAt = new Date(Date.now() + 60_000).toISOString();
 			const observedAt = new Date().toISOString();
 			const secretHeader = { name: 'Authorization', value: 'Bearer {api_key}', isRequired: true, variables: { api_key: { isRequired: true, isSecret: true } } };
@@ -2196,13 +2196,13 @@ suite('CopilotCustomizationInstallations', () => {
 							identifier: '@example/local',
 							version: '1.2.3',
 							transport: { type: 'stdio' },
-							packageArguments: options.requiredValues ? [
+							packageArguments: options.packageArguments ?? (options.requiredValues ? [
 								{ type: 'positional', valueHint: 'directory', description: 'Root directory' },
 								{ type: 'named', name: '--port', description: 'Port', default: '3000' },
 								{ type: 'named', name: '--headless', description: 'Run headless' },
 								{ type: 'named', name: '--verbose', description: 'Verbose logging' },
-							] : [{ type: 'named', name: '--headless' }],
-							environmentVariables: options.requiredValues ? [
+							] : [{ type: 'named', name: '--headless' }]),
+							environmentVariables: options.packageArguments ? [] : options.requiredValues ? [
 								{ name: 'LOG_LEVEL', description: 'Log level', choices: ['info', 'debug'] },
 								{ name: 'OPTIONAL_TAG', description: 'Optional tag' },
 							] : [{ name: 'MODE', value: 'stdio' }],
@@ -2333,6 +2333,25 @@ suite('CopilotCustomizationInstallations', () => {
 			assert.strictEqual(configuration.kind, 'configuration');
 			await service.apply({ hostGeneration: configuration.hostGeneration, ownershipToken: configuration.ownershipToken, operationId: configuration.operationId, answers: { choiceId: 'package:0', inputs: submitted, secrets: [] } });
 			assert.deepStrictEqual(added.map(entry => entry.config), [{ type: 'stdio', command: 'npx', args: ['@example/local@1.2.3', 'C:\\work', '--port', '3000', '--headless'], env: { LOG_LEVEL: 'debug' }, tools: ['*'] }]);
+		});
+
+		test('writes a repeated package argument once per submitted value', async () => {
+			const { service, request, added } = createPackageFixture({
+				requiredValues: [
+					{ kind: 'scalar', key: '--include', category: 'package-argument', valueType: 'string', required: true, isRepeated: true },
+					{ kind: 'scalar', key: 'path', category: 'package-argument', valueType: 'path', required: false, defaultValue: '.', isRepeated: true },
+				],
+				packageArguments: [
+					{ type: 'named', name: '--include', isRepeated: true, isRequired: true, description: 'Folder to include' },
+					{ type: 'positional', valueHint: 'path', isRepeated: true, default: '.', description: 'Path' },
+				],
+			});
+			const configuration = await service.prepare(request);
+			assert.strictEqual(configuration.kind, 'configuration');
+			const handle = { hostGeneration: configuration.hostGeneration, ownershipToken: configuration.ownershipToken, operationId: configuration.operationId };
+			const include = (value: string) => ({ category: 'package-argument' as const, key: '--include', value });
+			await service.apply({ ...handle, answers: { choiceId: 'package:0', inputs: [include('src'), include('test')], secrets: [] } });
+			assert.deepStrictEqual(added.map(entry => entry.config), [{ type: 'stdio', command: 'npx', args: ['@example/local@1.2.3', '--include', 'src', '--include', 'test', '.'], tools: ['*'] }]);
 		});
 
 		test('fails closed for package secrets, variable references and values the card cannot place', async () => {

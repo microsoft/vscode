@@ -1562,7 +1562,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			readonly value: string | undefined;
 		}
 
-		function createFlow(options: { readonly trusted?: boolean; readonly grantTrust?: boolean; readonly confirm?: boolean; readonly cancelAt?: string; readonly backAt?: readonly number[]; readonly configuration?: IAgentCustomizationInstallationConfigurationRequest } = {}) {
+		function createFlow(options: { readonly trusted?: boolean; readonly grantTrust?: boolean; readonly confirm?: boolean; readonly cancelAt?: string; readonly backAt?: readonly number[]; readonly configuration?: IAgentCustomizationInstallationConfigurationRequest; readonly entries?: string[] } = {}) {
 			const calls: unknown[] = [];
 			const details: string[] = [];
 			const validation: (string | undefined)[] = [];
@@ -1668,6 +1668,11 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 								}
 								this.enter(sentinels.secret);
 								secretValidation.push(this.validationMessage);
+								accept.fire();
+								return;
+							}
+							if (options.entries) {
+								this.enter(options.entries.shift() ?? '');
 								accept.fire();
 								return;
 							}
@@ -1806,6 +1811,34 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 					'Configured values: LOG_LEVEL (environment-variable)',
 					'Configuration fields: args, command, env',
 				],
+			});
+		});
+
+		test('collects a repeated value one entry at a time and sends each entry', async () => {
+			const { provider, calls, shown, details } = createFlow({
+				entries: ['src', 'test', ''],
+				configuration: {
+					...configuration,
+					recommendedChoiceId: undefined,
+					choices: [{
+						choiceId: 'package:0', transport: 'stdio', command: 'npx @example/local@1.2.3 --include ${input:include}', configurationFields: ['args', 'command'],
+						values: [{ key: '--include', category: 'package-argument', valueType: 'string', required: true, isRepeated: true }],
+						secrets: [],
+					}],
+				},
+			});
+			await provider.install(URI.parse('agent-host-copilotcli:/frontend'), resource, CancellationToken.None);
+			assert.deepStrictEqual({ prompts: shown.map(step => [step.step, step.prompt]), apply: calls.find(call => Array.isArray(call) && call[0] === 'apply'), values: details[0].split('\n').find(line => line.startsWith('Configured values')) }, {
+				prompts: [
+					['1/1', `Value for command-line option '--include'. Can be given more than once; enter the first value.`],
+					['1/1', `Value for command-line option '--include'. Added: src. Enter another value, or leave empty to finish.`],
+					['1/1', `Value for command-line option '--include'. Added: src, test. Enter another value, or leave empty to finish.`],
+				],
+				apply: ['apply', {
+					hostGeneration: 'generation', ownershipToken: 'token', operationId: 'preparation',
+					answers: { choiceId: 'package:0', inputs: [{ key: '--include', category: 'package-argument', value: 'src' }, { key: '--include', category: 'package-argument', value: 'test' }], secrets: [] },
+				}],
+				values: 'Configured values: --include (package-argument)',
 			});
 		});
 
