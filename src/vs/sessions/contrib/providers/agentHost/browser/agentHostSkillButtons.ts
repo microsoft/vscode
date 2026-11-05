@@ -51,7 +51,7 @@ export class IsAgentHostSessionContextContribution extends Disposable implements
 			if (!activeSession) {
 				return false;
 			}
-			const provider = sessionsProvidersService.getProvider(activeSession.providerId);
+			const provider = sessionsProvidersService.getProvider(activeSession.providerId, activeSession.sessionId);
 			return provider instanceof BaseAgentHostSessionsProvider;
 		}));
 	}

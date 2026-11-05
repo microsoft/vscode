@@ -353,6 +353,9 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 		super();
 
 		this.load();
+		if (this.migratePreviousIdentities(this.sessionsManagementService.getSessions())) {
+			this.save();
+		}
 		const archivedMembershipChanged = new Set<string>();
 		const archivedStateChanged = this.removeArchivedMembership(this.sessionsManagementService.getSessions(), archivedMembershipChanged);
 		this.updateDefaultPlacement(this.sessionsManagementService.getSessions(), archivedMembershipChanged);
@@ -366,6 +369,8 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 		// membership here would turn that transient gap into a permanent,
 		// unrecoverable loss of the user's grouping.
 		this._register(this.sessionsManagementService.onDidChangeSessions(e => {
+			const identityChanges = new Set<string>();
+			const identitiesChanged = this.migratePreviousIdentities([...e.added, ...e.changed], identityChanges);
 			const transientMembershipChanged = new Set<string>();
 			const inFlightSessionIds = new Set(this.sessionsManagementService.getInFlightNewSessionRequests().map(session => session.sessionId));
 			for (const session of e.added) {
@@ -385,18 +390,19 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 					transientMembershipChanged.add(sessionId);
 				}
 			}
-			const changed = new Set<string>();
+			const changed = new Set(identityChanges);
 			const archivedStateChanged = this.removeArchivedMembership([...e.added, ...e.changed], changed);
 			this.updateDefaultPlacement(this.sessionsManagementService.getSessions(), changed);
-			if (archivedStateChanged || changed.size > 0) {
+			if (identitiesChanged || archivedStateChanged || changed.size > 0) {
 				this.save();
 			}
 			for (const sessionId of transientMembershipChanged) {
 				changed.add(sessionId);
 			}
-			if (changed.size > 0) {
+			if (identitiesChanged || changed.size > 0) {
 				this._onDidChange.fire({ groupsChanged: false, membershipChanged: changed });
 			}
+
 		}));
 
 		this._register(this.sessionsManagementService.onDidDeleteSession(session => {
@@ -510,6 +516,34 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 				}
 			}
 		} while (placed);
+	}
+
+	private migratePreviousIdentities(sessions: readonly ISession[], changedSessions?: Set<string>): boolean {
+		let changed = false;
+		for (const session of sessions) {
+			for (const previous of session.previousIdentities ?? []) {
+				if (previous.sessionId === session.sessionId) {
+					continue;
+				}
+				const group = this._membership.get(previous.sessionId);
+				if (group !== undefined) {
+					if (!this._membership.has(session.sessionId) && !this._explicitlyUngroupedSessionIds.has(session.sessionId)) {
+						this._membership.set(session.sessionId, group);
+					}
+					this._membership.delete(previous.sessionId);
+					changedSessions?.add(session.sessionId);
+					changed = true;
+				}
+				if (this._explicitlyUngroupedSessionIds.delete(previous.sessionId)) {
+					changedSessions?.add(session.sessionId);
+					if (!this._membership.has(session.sessionId)) {
+						this._explicitlyUngroupedSessionIds.add(session.sessionId);
+					}
+					changed = true;
+				}
+			}
+		}
+		return changed;
 	}
 
 	getGroups(): ISessionGroup[] {

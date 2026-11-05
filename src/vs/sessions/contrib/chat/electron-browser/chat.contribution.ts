@@ -288,7 +288,7 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 			return;
 		}
 
-		const provider = this.sessionsProvidersService.getProvider(session.providerId);
+		const provider = this.sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 		if (provider && isAgentHostProvider(provider) && provider.connect && !this.agentHostConnectionsService.resolveSessionResource(session.resource)) {
 			try {
 				await provider.connect();

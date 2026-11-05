@@ -317,7 +317,7 @@ export class ChatCompositeBar extends Disposable {
 	 * harnesses (a restored session can render before its host advertises them).
 	 */
 	private _presentChatHarness(session: IActiveSession, chat: IChat, reader: IReader | undefined): IHarnessPresentation {
-		return getHarnessPresentationOrDefault(this._sessionsProvidersService.getProvider(session.providerId), getChatHarness(session, chat), reader);
+		return getHarnessPresentationOrDefault(this._sessionsProvidersService.getProvider(session.providerId, session.sessionId), getChatHarness(session, chat), reader);
 	}
 
 	private _rebuildTabs(chats: readonly IChat[], mainChatId: string): void {
@@ -693,7 +693,7 @@ export class ChatCompositeBar extends Disposable {
 				getAnchor: () => event,
 				getActions: () => {
 					const capabilities = getChatCapabilities(chat, session, undefined);
-					const provider = session && this._sessionsProvidersService.getProvider(session.providerId);
+					const provider = session && this._sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 					const canRename = isMainChat ? !!session?.capabilities.get().supportsRename : capabilities.canRename;
 					const canSetReadState = !!session && !chat.isArchived.get() && (isMainChat || session.capabilities.get().supportsIndependentChatReadState === true);
 					return Separator.join(

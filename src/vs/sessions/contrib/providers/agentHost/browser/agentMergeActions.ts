@@ -191,7 +191,7 @@ abstract class AgentMergeActionBase extends Action2 {
 			throw new Error(localize('agentMerge.artifactIntegrationsEnabled', "Agent Merge is unavailable while artifact integrations are enabled."));
 		}
 		const session = accessor.get(ISessionsService).activeSession.get();
-		const provider = session && accessor.get(ISessionsProvidersService).getProvider(session.providerId);
+		const provider = session && accessor.get(ISessionsProvidersService).getProvider(session.providerId, session.sessionId);
 		return session && provider && isAgentHostProvider(provider) ? { session, provider, chat: session.activeChat.get().resource } : undefined;
 	}
 

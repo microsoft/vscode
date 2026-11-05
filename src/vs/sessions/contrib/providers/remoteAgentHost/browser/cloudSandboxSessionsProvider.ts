@@ -5,6 +5,7 @@
 
 import { Sequencer } from '../../../../../base/common/async.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { constObservable, derived, IObservable } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
@@ -50,8 +51,12 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 		if (!repository) {
 			return undefined;
 		}
+		return CloudSandboxSessionsProvider.creationTarget(repository, this.isWebPlatform);
+	}
+
+	static creationTarget(repository: string, web: boolean): ISessionCreationTarget {
 		return {
-			providerId: this.isWebPlatform ? CLOUD_SANDBOX_CREATION_PROVIDER_ID : COPILOT_PROVIDER_ID,
+			providerId: web ? CLOUD_SANDBOX_CREATION_PROVIDER_ID : COPILOT_PROVIDER_ID,
 			folderUri: URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${repository}/HEAD` }),
 		};
 	}
@@ -88,6 +93,8 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 	 * placeholder row for them. They stay reachable by resource, so opening one still works.
 	 */
 	private readonly _withheldSessions = new Set<string>();
+	private readonly _onDidPublishSessionSilently = this._register(new Emitter<ISession>());
+	readonly onDidPublishSessionSilently = this._onDidPublishSessionSilently.event;
 
 	/**
 	 * Backend session key → deadline after which eviction resumes, or `undefined` while the clock has not
@@ -354,9 +361,18 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 			return;
 		}
 		const session = this.getCachedSession(rawId);
-		if (session && options?.announce !== false) {
-			this._onDidChangeSessions.fire({ added: [session], removed: [], changed: [] });
+		if (session) {
+			if (options?.announce === false) {
+				this._onDidPublishSessionSilently.fire(session);
+			} else {
+				this._onDidChangeSessions.fire({ added: [session], removed: [], changed: [] });
+			}
 		}
+	}
+
+	isSessionWithheld(resource: URI): boolean {
+		const key = this._sessionKeyFromChatId(resource.toString());
+		return key !== undefined && this._withheldSessions.has(key);
 	}
 
 	/**
@@ -367,8 +383,16 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 		return this._sessionCache.get(AgentSession.uri(CLOUD_SANDBOX_SESSION_SCHEME, rawId).toString());
 	}
 
+	reconcileTaskResource(rawId: string): void {
+		this.rebindSessionResource(AgentSession.uri(CLOUD_SANDBOX_SESSION_SCHEME, rawId));
+	}
+
 	getSessionModifiedTime(rawId: string): number | undefined {
 		return this.getCachedSession(rawId)?.updatedAt.get().getTime();
+	}
+
+	hasProvisionalSession(resource: URI): boolean {
+		return this._provisionalSessions.has(resource.toString());
 	}
 
 	removeDeletedSession(rawId: string): void {

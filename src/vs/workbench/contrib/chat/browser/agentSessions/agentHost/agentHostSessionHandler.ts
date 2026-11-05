@@ -6854,7 +6854,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 		const forkedChat = URI.parse(newAgentHostChatUri(sessionUri, rawSessionState.defaultChat, this._config.connection.initializeResult.get()));
 		const forkedChatId = getAgentHostChatId(forkedChat.toString());
-		const forkedResource = URI.from({ scheme: this._config.sessionType, path: sessionResource.path, fragment: forkedChatId });
+		const forkedResource = getAgentHostSessionResource(sessionResource).with({ fragment: forkedChatId });
 		const initialMessage = capturedInitialMessage
 			? await this._prepareForkInitialMessage(sessionResource, backendSession, capturedInitialMessage, token)
 			: undefined;

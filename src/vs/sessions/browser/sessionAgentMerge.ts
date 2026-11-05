@@ -57,7 +57,7 @@ export function getSessionAgentMergeStateObservable(session: ISession, sessionsP
 	if (cached) {
 		return cached;
 	}
-	const provider = sessionsProvidersService.getProvider(session.providerId);
+	const provider = sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 	if (!provider || !isAgentHostProvider(provider)) {
 		return constObservable(undefined);
 	}
@@ -72,7 +72,7 @@ export function getSessionAgentMergeConfigurationObservable(session: ISession, s
 	if (cached) {
 		return cached;
 	}
-	const provider = sessionsProvidersService.getProvider(session.providerId);
+	const provider = sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 	if (!provider || !isAgentHostProvider(provider)) {
 		return noAgentMergeConfiguration;
 	}

@@ -948,6 +948,8 @@ export interface ISession {
 	readonly sessionId: string;
 	/** Resource URI identifying this session. */
 	readonly resource: URI;
+	/** Earlier provider identities whose persisted presentation state belongs to this session. */
+	readonly previousIdentities?: readonly { readonly sessionId: string; readonly resource: URI }[];
 	/** ID of the provider that owns this session. */
 	readonly providerId: string;
 	/** Session type ID (e.g., 'copilot-cli', 'copilot-cloud', 'local'). */

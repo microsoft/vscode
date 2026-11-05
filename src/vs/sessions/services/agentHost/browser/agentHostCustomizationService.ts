@@ -57,7 +57,7 @@ export class AgentHostCustomizationService extends AbstractAgentHostCustomizatio
 	}
 
 	private _getAHSProvider(session: ISession): IAgentHostSessionsProvider | undefined {
-		const provider = this._sessionsProvidersService.getProvider(session.providerId);
+		const provider = this._sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 		if (provider && isAgentHostProvider(provider)) {
 			this._ensureProviderListener(provider);
 			return provider;

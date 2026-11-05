@@ -94,6 +94,10 @@ Provider-neutral interfaces live in `services/sessions/common/session.ts`.
 
 An `ISession` has a provider-owned resource URI, provider identifier, session type, and globally unique session identifier. An `IChat` has its own provider-owned resource URI. Consumers compare resource identity and do not parse provider URI formats.
 
+Catalog identity is independent of execution identity. A provider can publish a stable session facade before it knows the backend session or host. Its optional `getSessionProvider` returns an already acquired execution provider for session-scoped operations; lookup must not acquire one. Consumers pass the session identifier to `ISessionsProvidersService.getProvider` when resolving session-scoped behavior.
+
+Providers may declare `previousIdentities` for a facade whose public identity changed. Management accepts those resources during lookup and the list-model and group services migrate their own persisted state idempotently; later user placement choices take precedence.
+
 Providers also supply independent harness and environment identifiers, plus observable creating-application metadata. These are presentation identities, not routing identities. Application metadata can arrive after discovery, but adopting or opening a session does not change its creating application. Agent hosts persist the initiating client's identity, including the Editor/Agents Window distinction; providers may combine those clients into one application filter.
 
 ### Observable state

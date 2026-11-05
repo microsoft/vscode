@@ -214,7 +214,7 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 	}
 
 	private _getAddress(session: ISession): string | undefined {
-		const provider = this._sessionsProvidersService.getProvider(session.providerId);
+		const provider = this._sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 		if (!provider || !isAgentHostProvider(provider)) {
 			return undefined;
 		}

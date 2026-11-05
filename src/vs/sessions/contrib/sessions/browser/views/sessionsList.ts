@@ -8579,7 +8579,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (session.environment === 'local' || !getSessionRepository(session)) {
 			return undefined;
 		}
-		return this._sessionsProvidersService.getProvider(session.providerId)?.environment.label;
+		return this._sessionsProvidersService.getProvider(session.providerId, session.sessionId)?.environment.label;
 	}
 
 	/**
@@ -8737,7 +8737,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			add('pullRequest', pullRequest);
 		}
 		if (session.environment !== 'local' && session.environment !== 'cloud') {
-			add('host', this._sessionsProvidersService.getProvider(session.providerId)?.environment.label);
+			add('host', this._sessionsProvidersService.getProvider(session.providerId, session.sessionId)?.environment.label);
 		}
 		return {
 			title: this.renderedComparisonAttemptLabels.get(session.sessionId) ?? session.title.get(),
@@ -9651,7 +9651,7 @@ export function getNewSessionSources(sessions: readonly ISession[], sessionsProv
 		if (!canStartNewSessionLike(session)) {
 			continue;
 		}
-		const environment = sessionsProvidersService.getProvider(session.providerId)?.environment;
+		const environment = sessionsProvidersService.getProvider(session.providerId, session.sessionId)?.environment;
 		if (!environment || environment.isConnected?.get() === false) {
 			continue;
 		}

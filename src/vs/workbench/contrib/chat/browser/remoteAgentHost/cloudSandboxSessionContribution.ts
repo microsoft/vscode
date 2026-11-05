@@ -10,6 +10,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../../base/common/observable.js';
 import { equalsIgnoreCase } from '../../../../../base/common/strings.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { isObject } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
@@ -37,6 +38,8 @@ import {
 	type ICloudSandboxDiscoveryResult,
 	type ICloudSandboxDiscoveryOptions,
 	type ICloudSandboxDiscoveredSession,
+	type ICloudSandboxTask,
+	CLOUD_SANDBOX_TASK_SCHEME,
 } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
@@ -60,6 +63,7 @@ import { withSessionInitiator } from '../../../../../platform/agentHost/common/m
 import { readCloudSandboxProjects } from '../../../../../platform/agentHost/common/meta/cloudSandboxProjectMeta.js';
 import { getGitHubRepositoryFromRemoteUrl } from '../../../git/common/utils.js';
 import { withSessionWorkspaceless } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { getAgentHostSessionResource } from '../../../../../platform/agentHost/common/agentHostSessionIdentity.js';
 import { getCloudSandboxTaskCreationPath } from './cloudSandboxTelemetry.js';
 import { CloudSandboxSessionFeed, type CloudSandboxSessionFeedRefresh } from './cloudSandboxSessionFeed.js';
 import { CloudSandboxStartupError } from './cloudSandboxStartupError.js';
@@ -93,11 +97,11 @@ export interface ICloudSandboxSessionEnvironment {
 	readonly isArchived?: boolean;
 }
 
-function isDiscoveredSandboxSession(value: unknown): value is ICloudSandboxDiscoveredSession {
-	const candidate = value as Partial<ICloudSandboxDiscoveredSession> | undefined;
+function isDiscoveredSandboxSession(value: unknown): value is ICloudSandboxTask {
+	const candidate = value as Partial<ICloudSandboxTask> | undefined;
 	return isObject(candidate)
-		&& typeof candidate.environmentId === 'string' && candidate.environmentId.length > 0
-		&& typeof candidate.sessionId === 'string' && candidate.sessionId.length > 0
+		&& (candidate.environmentId === undefined || typeof candidate.environmentId === 'string' && candidate.environmentId.length > 0)
+		&& (candidate.sessionId === undefined || typeof candidate.sessionId === 'string' && candidate.sessionId.length > 0)
 		&& typeof candidate.taskId === 'string' && candidate.taskId.length > 0
 		&& typeof candidate.name === 'string'
 		&& (candidate.eventType === undefined || typeof candidate.eventType === 'string')
@@ -130,6 +134,8 @@ export interface ICloudSandboxSessionList extends IDisposable {
 	seedSessions(sessions: readonly IAgentSessionMetadata[], options?: { readonly updateExisting?: boolean; readonly workspaceless?: boolean }): void;
 	/** Timestamp of a listed or provisional session, or undefined when it is absent. */
 	getSessionModifiedTime(sessionId: string): number | undefined;
+	/** Whether creation is still publishing this exact session. */
+	hasProvisionalSession?(session: URI): boolean;
 	setLabel?(label: string): void;
 	setConnection(connection: IAgentConnection, defaultDirectory: string | undefined): void;
 	setConnectionStatus(status: RemoteAgentHostConnectionStatus): void;
@@ -166,6 +172,8 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 
 	/** Provider instances keyed by connection address (`cloudsandbox:<envId>`). */
 	protected readonly _providerInstances = new Map<string, T>();
+	protected readonly _tasks = new Map<string, ICloudSandboxTask>();
+	private readonly _taskIdsByEnvironment = new Map<string, Map<string, string>>();
 	private readonly _providerStores = this._register(new DisposableMap<string, IDisposable & { readonly token: CancellationToken }>());
 	private _persistedInventory = new Map<string, string>();
 	/** Environment metadata keyed by connection address, for on-demand reconnect. */
@@ -200,6 +208,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 	private _lastFullDiscovery: number | undefined;
 	private _discoveryRetryInterval = DISCOVERY_POLL_INTERVAL_MS;
 	private _accountKey: string | undefined;
+	protected get accountKey(): string | undefined { return this._accountKey; }
 	private readonly _deletedTaskIds = new Set<string>();
 	private readonly _sessionFeed = this._register(new MutableDisposable<CloudSandboxSessionFeed>());
 	private readonly _discoveryPoll = this._register(new RunOnceScheduler(() => {
@@ -236,10 +245,11 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 				return {
 					...customization,
 					registerChatSessionContentProvider: (sessionType, provider) => this._registerLiveSessionProvider(sessionType, provider),
-					resolveInitialSessionConfig: sessionResource => this._providerInstances.get(address)?.getProvisionalSessionConfig?.(sessionResource),
+					resolveInitialSessionConfig: sessionResource => this._providerInstances.get(address)?.getProvisionalSessionConfig?.(
+						sessionResource.scheme === CLOUD_SANDBOX_TASK_SCHEME ? this._taskRuntimeResource(sessionResource) ?? sessionResource : sessionResource),
 					// Sessions drafted under the creation type carry its model identifiers into the environment.
 					modelIdentifierAliases: [SessionType.CloudSandbox],
-					isSessionTitlePlaceholder: isCloudSandboxPlaceholderTitle,
+					isSessionTitlePlaceholder: (title, resource) => isCloudSandboxPlaceholderTitle(title, resource.scheme === CLOUD_SANDBOX_TASK_SCHEME ? this._taskRuntimeResource(resource) ?? resource : resource),
 					useSessionTitleForDefaultChat: true,
 				};
 			},
@@ -298,7 +308,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			matchSessionType: sessionType => this._findAddressForSessionType(sessionType) !== undefined,
 			getActivationToken: sessionType => {
 				const address = this._findAddressForSessionType(sessionType);
-				return (address ? this._providerStores.get(address)?.token : undefined) ?? CancellationToken.Cancelled;
+				return address ? this._providerStores.get(address)?.token ?? this._enabledCts.token : CancellationToken.Cancelled;
 			},
 			waitForActivation: (_accessor, sessionType) => this._waitForActivation(sessionType),
 		}));
@@ -321,7 +331,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 
 	/** An account without any known sandbox only needs the periodic full reconciliation. */
 	private _pollInterval(): number {
-		return this._environments.size === 0 && this._lastFullDiscovery !== undefined
+		return this._tasks.size === 0 && this._lastFullDiscovery !== undefined
 			? Math.max(this._discoveryRetryInterval, FULL_DISCOVERY_INTERVAL_MS)
 			: this._discoveryRetryInterval;
 	}
@@ -494,10 +504,47 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			this._lastFullDiscovery = Date.now();
 		}
 
+		const hadTasks = this._tasks.size > 0;
+		const previousTasks = new Set(this._tasks.keys());
+		const removedTaskIds = new Set(result.kind === 'complete' ? [] : result.removedTaskIds);
+		for (const task of result.sessions) {
+			previousTasks.delete(task.taskId);
+			if (!this._deletedTaskIds.has(task.taskId)) {
+				const known = this._tasks.get(task.taskId);
+				this._storeTask({
+					...known, ...task,
+					environmentId: task.environmentId ?? known?.environmentId,
+					sessionId: task.sessionId ?? known?.sessionId,
+				});
+			}
+		}
+		if (result.kind === 'complete') {
+			for (const taskId of previousTasks) {
+				removedTaskIds.add(taskId);
+			}
+		}
+		for (const taskId of removedTaskIds) {
+			const task = this._tasks.get(taskId);
+			const address = task?.environmentId && cloudSandboxAddress(task.environmentId);
+			if (address && (this._provisioning.has(address) || task?.sessionId && this._providerInstances.get(address)?.hasProvisionalSession?.(AgentSession.uri(CLOUD_SANDBOX_SESSION_SCHEME, task.sessionId)))) {
+				removedTaskIds.delete(taskId);
+			} else {
+				this._forgetTask(taskId);
+			}
+		}
+		this._onTasksChanged(result.sessions.flatMap(task => {
+			const current = this._tasks.get(task.taskId);
+			return current ? [current] : [];
+		}), [...removedTaskIds]);
+		if (!hadTasks && this._tasks.size) {
+			this._rearmDiscoveryPoll();
+		}
+
 		const present = new Set<string>();
 		const presentSessions = new Set<string>();
 		const updatedTasks = new Set<string>();
-		for (const session of result.sessions) {
+		for (const task of result.sessions) {
+			const session = this._tasks.get(task.taskId) ?? task;
 			if (!session.environmentId || !session.sessionId || this._deletedTaskIds.has(session.taskId)) {
 				continue;
 			}
@@ -505,7 +552,9 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			present.add(address);
 			presentSessions.add(JSON.stringify([address, session.sessionId]));
 			updatedTasks.add(session.taskId);
-			this._seedDiscoveredSession({ ...session, isArchived: session.isArchived === true });
+			if (this._providerInstances.has(address)) {
+				this._seedDiscoveredSession({ ...session, environmentId: session.environmentId, sessionId: session.sessionId, isArchived: session.isArchived === true });
+			}
 		}
 
 		const removedTasks = new Set(result.kind === 'complete' ? [] : result.removedTaskIds);
@@ -576,6 +625,152 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		}
 	}
 
+	protected abstract _onTasksChanged(tasks: readonly ICloudSandboxTask[], removedTaskIds: readonly string[]): void;
+	protected abstract _resetTaskCatalog(): void;
+
+	protected async _resolveTask(taskId: string, token: CancellationToken): Promise<T> {
+		const task = this._tasks.get(taskId);
+		if (!task || !this._isEnabled()) {
+			throw new Error(localize('cloudSandbox.taskNotFound', "The cloud task is no longer available."));
+		}
+		const generation = this._enabledCts.token;
+		const binding = task.environmentId && task.sessionId
+			? { ...task, environmentId: task.environmentId, sessionId: task.sessionId }
+			: await this._apiService.resolveSession(taskId, token);
+		if (token.isCancellationRequested || generation.isCancellationRequested || !this._tasks.has(taskId)) {
+			throw new CancellationError();
+		}
+		const session: ICloudSandboxDiscoveredSession = {
+			...this._tasks.get(taskId)!,
+			environmentId: binding.environmentId,
+			sessionId: binding.sessionId,
+		};
+		this._storeTask(session);
+		this._seedDiscoveredSession(session);
+		this._persistInventory();
+		const provider = this._providerInstances.get(cloudSandboxAddress(session.environmentId));
+		if (!provider) {
+			throw new Error('Cloud session backend was not created.');
+		}
+		return provider;
+	}
+
+	protected async _taskSessionType(taskId: string, token: CancellationToken, connect = false): Promise<string> {
+		await this._resolveTask(taskId, token);
+		const task = this._tasks.get(taskId);
+		if (!task?.environmentId) {
+			throw new CancellationError();
+		}
+		const sessionType = remoteAgentHostSessionTypeId(agentHostAuthority(cloudSandboxAddress(task.environmentId)), CLOUD_SANDBOX_AGENT_PROVIDER);
+		if (connect) {
+			await raceCancellationError(this._connectEnvironment(task.environmentId), token);
+			const handler = this._historyHandlers.get(sessionType)?.handler;
+			if (!handler) {
+				throw new Error(localize('cloudSandbox.liveUnavailable', "The live cloud conversation is unavailable."));
+			}
+			await handler.whenLiveProviderReady(token);
+		}
+		return sessionType;
+	}
+
+	protected async _openTask(resource: URI, token: CancellationToken) {
+		const sessionType = await this._taskSessionType(resource.path.slice(1), token);
+		await this._waitForActivation(sessionType);
+		const handler = this._historyHandlers.get(sessionType)?.handler;
+		if (!handler) {
+			throw new Error(localize('cloudSandbox.historyUnavailable', "The cloud conversation is unavailable."));
+		}
+		return handler.provideChatSessionContent(resource, token);
+	}
+
+	protected async _prepareTaskRequest(resource: URI, token: CancellationToken) {
+		const sessionType = await this._taskSessionType(resource.path.slice(1), token, true);
+		const handler = this._historyHandlers.get(sessionType)?.handler;
+		if (!handler) {
+			throw new CancellationError();
+		}
+		return { sessionType, reference: await handler.acquireLiveChat(resource, token) };
+	}
+
+	protected _taskHandler(resource: URI): CloudSandboxSessionHandler | undefined {
+		const task = this._tasks.get(resource.path.slice(1));
+		const sessionType = task?.environmentId && remoteAgentHostSessionTypeId(agentHostAuthority(cloudSandboxAddress(task.environmentId)), CLOUD_SANDBOX_AGENT_PROVIDER);
+		return sessionType ? this._historyHandlers.get(sessionType)?.handler : undefined;
+	}
+
+	protected _taskRuntimeResource(resource: URI): URI | undefined {
+		const task = this._tasks.get(resource.path.slice(1));
+		return task?.environmentId && task.sessionId
+			? resource.with({
+				scheme: remoteAgentHostSessionTypeId(agentHostAuthority(cloudSandboxAddress(task.environmentId)), CLOUD_SANDBOX_AGENT_PROVIDER),
+				path: `/${task.sessionId}`,
+			})
+			: undefined;
+	}
+
+	protected async _renameTask(taskId: string, title: string): Promise<void> {
+		if (!this._tasks.has(taskId) || !this._isEnabled()) {
+			throw new CancellationError();
+		}
+		const token = this._enabledCts.token;
+		await this._apiService.renameTask(taskId, title, token);
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		const task = this._tasks.get(taskId);
+		if (task) {
+			const updated = { ...task, name: title };
+			this._storeTask(updated);
+			this._onTasksChanged([updated], []);
+			this._persistInventory();
+		}
+	}
+
+	protected async _archiveTask(taskId: string, archived: boolean): Promise<void> {
+		if (!this._tasks.has(taskId) || !this._isEnabled()) {
+			throw new CancellationError();
+		}
+		const token = this._enabledCts.token;
+		await this._apiService.setTaskArchived(taskId, archived, token);
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		const task = this._tasks.get(taskId);
+		if (task) {
+			const updated = { ...task, isArchived: archived };
+			this._storeTask(updated);
+			this._onTasksChanged([updated], []);
+			this._persistInventory();
+		}
+	}
+
+	protected async _deleteTask(taskId: string): Promise<void> {
+		if (!this._tasks.has(taskId) || !this._isEnabled()) {
+			throw new CancellationError();
+		}
+		const token = this._enabledCts.token;
+		await this._apiService.deleteTask(taskId, token);
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		this._deletedTaskIds.add(taskId);
+		this._forgetTask(taskId);
+		for (const [address, sessions] of this._sessionEnvironments) {
+			for (const [rawId, session] of sessions) {
+				if (session.taskId === taskId) {
+					sessions.delete(rawId);
+					this._providerInstances.get(address)?.removeDeletedSession?.(rawId);
+				}
+			}
+			if (!sessions.size) {
+				this._teardownEnvironment(address);
+			}
+		}
+		this._onTasksChanged([], [taskId]);
+		this._apiService.clearSessionHistory(taskId);
+		this._persistInventory();
+	}
+
 	protected _restoreAccount(accountKey: string | undefined): boolean {
 		if (accountKey === this._accountKey) {
 			return false;
@@ -585,22 +780,26 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		if (accountKey) {
 			const storageKey = INVENTORY_STORAGE_PREFIX + accountKey;
 			const keys = this._storageService.keys(StorageScope.PROFILE, StorageTarget.MACHINE).filter(key => key.startsWith(`${storageKey}.`));
+			const tasks: ICloudSandboxTask[] = [];
 			let restored = 0;
 			for (const key of keys) {
 				const sessions = this._readInventory(key);
 				this._persistedInventory.set(key, JSON.stringify({ version: 1, sessions }));
 				for (const session of sessions) {
-					this._seedDiscoveredSession(session);
+					this._storeTask(session);
+					tasks.push(session);
 					restored++;
 				}
 			}
 			if (keys.length === 0 && this._storageService.get(storageKey, StorageScope.PROFILE) !== undefined) {
 				for (const session of this._readInventory(storageKey)) {
-					this._seedDiscoveredSession(session);
+					this._storeTask(session);
+					tasks.push(session);
 					restored++;
 				}
 				this._persistInventory();
 			}
+			this._onTasksChanged(tasks, []);
 			if (restored) {
 				this._logService.info(`${LOG_PREFIX} Restored ${restored} cached sandbox environment(s).`);
 			}
@@ -608,7 +807,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		return true;
 	}
 
-	private _readInventory(storageKey: string): readonly ICloudSandboxDiscoveredSession[] {
+	private _readInventory(storageKey: string): readonly ICloudSandboxTask[] {
 		let cached: { readonly version?: number; readonly sessions?: unknown } | undefined;
 		try {
 			cached = this._storageService.getObject(storageKey, StorageScope.PROFILE);
@@ -632,26 +831,13 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		const storageKey = INVENTORY_STORAGE_PREFIX + this._accountKey;
 		const inventory = new Map<string, string>();
 		const entries: IStorageEntry[] = [];
-		for (const environment of [...this._sessionEnvironments.values()].flatMap(sessions => [...sessions.values()])) {
-			if (environment.sessionId && environment.taskId) {
-				const session: ICloudSandboxDiscoveredSession = {
-					environmentId: environment.environmentId,
-					sessionId: environment.sessionId,
-					taskId: environment.taskId,
-					eventType: environment.eventType,
-					application: environment.application,
-					name: environment.name,
-					repoName: environment.repoName,
-					hasRepository: environment.hasRepository,
-					updatedAt: environment.updatedAt,
-					...(environment.isArchived !== undefined ? { isArchived: environment.isArchived } : {}),
-				};
-				const key = `${storageKey}.${JSON.stringify([session.environmentId, session.sessionId])}`;
-				const value = JSON.stringify({ version: 1, sessions: [session] });
-				inventory.set(key, value);
-				if (this._persistedInventory.get(key) !== value) {
-					entries.push({ key, value, scope: StorageScope.PROFILE, target: StorageTarget.MACHINE });
-				}
+		for (const session of this._tasks.values()) {
+			const key = `${storageKey}.${JSON.stringify(['task', session.taskId])}`;
+			const { status: _status, ...cached } = session;
+			const value = JSON.stringify({ version: 1, sessions: [cached] });
+			inventory.set(key, value);
+			if (this._persistedInventory.get(key) !== value) {
+				entries.push({ key, value, scope: StorageScope.PROFILE, target: StorageTarget.MACHINE });
 			}
 		}
 		// Only remove this window's known entries, never a concurrent window's newly stored sessions.
@@ -668,16 +854,76 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 	}
 
 	protected _ownsSandboxSession(address: string, rawId: string): boolean {
-		return !!this._sessionEnvironments.get(address)?.get(rawId)?.taskId;
+		return this._getTaskId(address, AgentSession.uri(CLOUD_SANDBOX_SESSION_SCHEME, rawId)) !== undefined;
 	}
 
-	private _getTaskId(address: string, resource: URI): string | undefined {
-		const sessions = this._sessionEnvironments.get(address);
-		return sessions?.get(AgentSession.id(resource))?.taskId
-			?? (sessions?.size === 1 ? sessions.values().next().value?.taskId : undefined);
+	protected _environmentTasks(environmentId: string): readonly ICloudSandboxDiscoveredSession[] {
+		const tasks: ICloudSandboxDiscoveredSession[] = [];
+		for (const [sessionId, taskId] of this._taskIdsByEnvironment.get(cloudSandboxAddress(environmentId)) ?? []) {
+			const task = this._tasks.get(taskId);
+			if (task) {
+				tasks.push({ ...task, environmentId, sessionId });
+			}
+		}
+		return tasks;
+	}
+
+	private _storeTask(task: ICloudSandboxTask): void {
+		this._removeTaskBinding(task.taskId);
+		this._tasks.set(task.taskId, task);
+		if (task.environmentId && task.sessionId) {
+			const address = cloudSandboxAddress(task.environmentId);
+			let bindings = this._taskIdsByEnvironment.get(address);
+			if (!bindings) {
+				bindings = new Map();
+				this._taskIdsByEnvironment.set(address, bindings);
+			}
+			bindings.set(task.sessionId, task.taskId);
+		}
+	}
+
+	private _forgetTask(taskId: string): void {
+		this._removeTaskBinding(taskId);
+		this._tasks.delete(taskId);
+	}
+
+	private _removeTaskBinding(taskId: string): void {
+		const task = this._tasks.get(taskId);
+		if (task?.environmentId && task.sessionId) {
+			const address = cloudSandboxAddress(task.environmentId);
+			const bindings = this._taskIdsByEnvironment.get(address);
+			if (bindings?.get(task.sessionId) === taskId) {
+				bindings.delete(task.sessionId);
+				if (!bindings.size) {
+					this._taskIdsByEnvironment.delete(address);
+				}
+			}
+		}
+	}
+
+	protected _getTaskId(address: string, resource: URI): string | undefined {
+		if (resource.scheme === CLOUD_SANDBOX_TASK_SCHEME) {
+			const taskId = resource.path.slice(1);
+			const task = this._tasks.get(taskId);
+			return task?.environmentId && cloudSandboxAddress(task.environmentId) === address ? taskId : undefined;
+		}
+		if (resource.scheme !== CLOUD_SANDBOX_SESSION_SCHEME && resource.scheme !== remoteAgentHostSessionTypeId(agentHostAuthority(address), CLOUD_SANDBOX_AGENT_PROVIDER)) {
+			return undefined;
+		}
+		const rawId = AgentSession.id(resource);
+		const backend = (resource.scheme === CLOUD_SANDBOX_SESSION_SCHEME ? resource : getAgentHostSessionResource(resource)).with({ scheme: CLOUD_SANDBOX_SESSION_SCHEME });
+		return isEqual(backend, AgentSession.uri(CLOUD_SANDBOX_SESSION_SCHEME, rawId)) ? this._taskIdsByEnvironment.get(address)?.get(rawId) : undefined;
 	}
 
 	private _updateSandboxSession(address: string, session: ICloudSandboxSessionEnvironment): void {
+		if (session.taskId) {
+			const current = this._tasks.get(session.taskId);
+			if (current) {
+				const task = { ...current, ...session };
+				this._storeTask(task);
+				this._onTasksChanged([task], []);
+			}
+		}
 		if (session.sessionId) {
 			this._sessionEnvironments.get(address)?.set(session.sessionId, session);
 			if (this._environments.get(address)?.sessionId === session.sessionId) {
@@ -762,6 +1008,8 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 					throw new CancellationError();
 				}
 				this._deletedTaskIds.add(target.taskId);
+				this._forgetTask(target.taskId);
+				this._onTasksChanged([], [target.taskId]);
 				this._apiService.clearSessionHistory(target.taskId);
 				sessions?.delete(target.sessionId);
 				removeSession(target.sessionId);
@@ -823,6 +1071,9 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 
 	/** Tear down every known sandbox environment (feature disabled). */
 	private _teardownAll(): void {
+		this._resetTaskCatalog();
+		this._tasks.clear();
+		this._taskIdsByEnvironment.clear();
 		this._sessionFeed.clear();
 		this._discoveryPoll.cancel();
 		this._pendingTaskIds.clear();
@@ -848,6 +1099,12 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		for (const address of this._environments.keys()) {
 			byAuthority.set(agentHostAuthority(address), address);
 		}
+		for (const task of this._tasks.values()) {
+			if (task.environmentId) {
+				const address = cloudSandboxAddress(task.environmentId);
+				byAuthority.set(agentHostAuthority(address), address);
+			}
+		}
 		return byAuthority;
 	}
 
@@ -864,6 +1121,14 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 	/** Makes recorded history available independently of the surface's connection-on-open policy. */
 	protected async _waitForActivation(sessionType: string): Promise<boolean> {
 		const address = this._findAddressForSessionType(sessionType);
+		if (address && !this._providerInstances.has(address)) {
+			for (const task of this._tasks.values()) {
+				if (task.environmentId && task.sessionId && cloudSandboxAddress(task.environmentId) === address) {
+					await this._resolveTask(task.taskId, this._enabledCts.token);
+					break;
+				}
+			}
+		}
 		const env = address ? this._environments.get(address) : undefined;
 		const provider = address ? this._providerInstances.get(address) : undefined;
 		if (!address || !env || !provider) {
@@ -977,6 +1242,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		const handler = store.add(this._instantiationService.createInstance(CloudSandboxSessionHandler, {
 			taskId: env.taskId,
 			getTaskId: (resource: URI) => this._getTaskId(address, resource),
+			getSessionId: (resource: URI) => resource.scheme === CLOUD_SANDBOX_TASK_SCHEME ? this._tasks.get(resource.path.slice(1))?.sessionId : AgentSession.id(resource),
 			// The live handler registers `agentId === sessionType`; matching it keeps replayed
 			// history attributed to the same participant.
 			agentId: sessionType,
@@ -995,10 +1261,9 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			return undefined;
 		}
 		entry.handler.setLiveProvider(provider);
-		// Later connection replacement retains the normal provider teardown/reload lifecycle.
 		return toDisposable(() => {
 			if (this._historyHandlers.get(sessionType) === entry) {
-				this._historyHandlers.deleteAndDispose(sessionType);
+				entry.handler.clearLiveProvider();
 			}
 		});
 	}
@@ -1028,6 +1293,10 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		}
 		const address = cloudSandboxAddress(options.environmentId);
 		this._ensureProvider({ environmentId: options.environmentId, sessionId: options.sessionId, name: options.name });
+		const environment = this._environments.get(address);
+		if (environment?.taskId) {
+			this._activateHistory(remoteAgentHostSessionTypeId(agentHostAuthority(address), CLOUD_SANDBOX_AGENT_PROVIDER), address, environment);
+		}
 
 		const pending = this._pendingConnects.get(address);
 		if (pending) {
@@ -1139,7 +1408,9 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		let connectionAttempt: Promise<string> | undefined;
 		try {
 			const now = Date.now();
-			this._ensureProvider({ ...created, name, repoName: request.repoNwo, hasRepository: request.repoNwo !== undefined, updatedAt: new Date(now).toISOString() });
+			const task = { ...created, name: title, repoName: request.repoNwo, hasRepository: request.repoNwo !== undefined, updatedAt: new Date(now).toISOString() };
+			this._storeTask(task);
+			this._ensureProvider(task);
 			const provider = this._providerInstances.get(address);
 			if (!provider) {
 				throw new Error(`No sessions provider was registered for sandbox environment ${created.environmentId}`);
@@ -1316,6 +1587,9 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 
 	/** Create the sessions provider for an environment if it doesn't exist yet. */
 	protected _ensureProvider(env: ICloudSandboxSessionEnvironment): void {
+		if (env.taskId) {
+			this._storeTask({ ...this._tasks.get(env.taskId), ...env, taskId: env.taskId });
+		}
 		const address = cloudSandboxAddress(env.environmentId);
 		const hadEnvironments = this._environments.size > 0;
 		// `connect()` reaches here with only the fields its caller had, so preserve anything
@@ -1347,6 +1621,14 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		}
 		if (this._providerStores.has(address)) {
 			return;
+		}
+		let sessions = this._sessionEnvironments.get(address);
+		if (!sessions) {
+			sessions = new Map();
+			this._sessionEnvironments.set(address, sessions);
+		}
+		for (const task of this._environmentTasks(env.environmentId)) {
+			sessions.set(task.sessionId, task);
 		}
 		const store = new DisposableStore();
 		const token = cancelOnDispose(store);

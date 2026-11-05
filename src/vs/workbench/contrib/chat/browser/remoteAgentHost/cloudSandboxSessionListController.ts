@@ -9,7 +9,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { autorun, derived, IObservable, observableSignalFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
@@ -19,7 +19,8 @@ import { localize } from '../../../../../nls.js';
 import { AgentSession, IAgentConnection, IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
 import { agentHostAuthority, createAgentHostResourceUriMapper, fromAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
-import { CLOUD_SANDBOX_AGENT_PROVIDER, CLOUD_SANDBOX_SESSION_SCHEME, isCloudSandboxPlaceholderTitle } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CLOUD_SANDBOX_AGENT_PROVIDER, CLOUD_SANDBOX_SESSION_SCHEME, CLOUD_SANDBOX_TASK_SCHEME, cloudSandboxTaskResource, isCloudSandboxPlaceholderTitle } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { INotification } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -49,6 +50,8 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 	private readonly _items: IObservable<readonly IChatSessionItem[]>;
 	private readonly _archivedStates = observableValue<ReadonlyMap<string, boolean>>(this, new Map());
 	private readonly _archiveSequencer = new Sequencer();
+	private readonly _taskAliases = this._register(new DisposableMap<string>());
+	private readonly _connectionAuthority: string;
 	/** Repository requested for sessions this window provisioned, keyed by raw session id. */
 	private readonly _provisionalRepositories = new Map<string, string | undefined>();
 	/** Configuration chosen on the draft of a session this window provisioned, keyed by raw session id. */
@@ -63,9 +66,11 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IRemoteAgentHostAuthenticationService authenticationService: IRemoteAgentHostAuthenticationService,
 		@INotificationService private readonly _notificationService: INotificationService,
+		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
 	) {
 		super();
 		const authority = agentHostAuthority(address);
+		this._connectionAuthority = authority;
 		this._authenticationPending = this._register(authenticationService.acquire(address)).object;
 		this.sessionType = remoteAgentHostSessionTypeId(authority, CLOUD_SANDBOX_AGENT_PROVIDER);
 		this._sessionListStore = this._register(instantiationService.createInstance(AgentHostSessionListStore, {
@@ -131,6 +136,15 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 		return this._items.get();
 	}
 
+	setTaskResource(rawId: string, taskId: string): void {
+		if (this._taskAliases.has(rawId)) {
+			return;
+		}
+		const backend = AgentSession.uri(CLOUD_SANDBOX_SESSION_SCHEME, rawId);
+		this._connectionsService.registerSessionResource(backend, this._connectionAuthority, CLOUD_SANDBOX_AGENT_PROVIDER);
+		this._taskAliases.set(rawId, this._connectionsService.registerSessionResourceAlias(cloudSandboxTaskResource(taskId), backend, this._connectionAuthority, CLOUD_SANDBOX_AGENT_PROVIDER));
+	}
+
 	get terminalCommandPrefix(): string | undefined {
 		return this._connection.get()?.initializeResult.get()?.terminalCommandPrefix;
 	}
@@ -138,6 +152,10 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 	getSessionModifiedTime(rawId: string): number | undefined {
 		const entry = this._sessionListStore.getSession(CLOUD_SANDBOX_AGENT_PROVIDER, AgentSession.uri(CLOUD_SANDBOX_SESSION_SCHEME, rawId));
 		return entry ? Date.parse(entry.summary.modifiedAt) : undefined;
+	}
+
+	hasProvisionalSession(resource: URI): boolean {
+		return this._provisionalRepositories.has(AgentSession.id(resource));
 	}
 
 	seedSessions(sessions: readonly IAgentSessionMetadata[]): void {
@@ -179,14 +197,16 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 	}
 
 	getProvisionalSessionConfig(resource: URI): Record<string, unknown> | undefined {
+		resource = this._controllerResource(resource);
 		return this.isNewSession(resource) ? this._provisionalSessionConfigs.get(AgentSession.id(resource)) : undefined;
 	}
 
 	isNewSession(resource: URI): boolean {
-		return this._controller.isNewSession(resource);
+		return this._controller.isNewSession(this._controllerResource(resource));
 	}
 
 	notifySessionMaterialized(resource: URI): void {
+		resource = this._controllerResource(resource);
 		const rawId = AgentSession.id(resource);
 		this._provisionalRepositories.delete(rawId);
 		this._provisionalSessionConfigs.delete(rawId);
@@ -261,6 +281,7 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 	}
 
 	resolveWorkingDirectory(resource: URI): RequestedWorkingDirectory {
+		resource = this._controllerResource(resource);
 		const rawId = AgentSession.id(resource);
 		if (this.isNewSession(resource) && this._provisionalRepositories.has(rawId)) {
 			// Session preparation clones the requested repository and yields its host directory.
@@ -271,7 +292,10 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 		}
 		const entries = this._sessionListStore.getSessions(CLOUD_SANDBOX_AGENT_PROVIDER);
 		const findEntry = (parent: URI) => entries.find(entry => isEqual(this._sessionListStore.getSessionResource(URI.parse(entry.summary.resource)), parent));
-		const entry = findEntry(resource.with({ fragment: '' })) ?? findEntry(getAgentHostSessionResource(resource));
+		const identity = this._connectionsService.resolveSessionResourceIdentity(resource);
+		const entry = identity
+			? entries.find(entry => isEqual(URI.parse(entry.summary.resource), identity.backendSession))
+			: findEntry(resource.with({ fragment: '' })) ?? findEntry(getAgentHostSessionResource(resource));
 		const directory = entry?.summary.workingDirectories?.[0];
 		const connection = this._connection.get();
 		return directory && connection
@@ -288,6 +312,7 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 	}
 
 	async deleteChatSessionItem(resource: URI, token: CancellationToken): Promise<void> {
+		resource = this._controllerResource(resource);
 		if (resource.scheme !== this.sessionType) {
 			throw new Error(localize('cloudSandbox.deleteInvalidSession', "The session does not belong to this sandbox."));
 		}
@@ -298,6 +323,7 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 
 	removeDeletedSession(rawId: string): void {
 		this._sessionListStore.removeSession(CLOUD_SANDBOX_AGENT_PROVIDER, AgentSession.uri(CLOUD_SANDBOX_SESSION_SCHEME, rawId));
+		this._taskAliases.deleteAndDispose(rawId);
 	}
 
 	setSessionArchived(rawId: string, archived: boolean): void {
@@ -310,6 +336,7 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 	}
 
 	setChatSessionItemArchived(resource: URI, archived: boolean): void {
+		resource = this._controllerResource(resource);
 		void this._archiveSequencer.queue(async () => {
 			if (this._store.isDisposed) {
 				throw new CancellationError();
@@ -345,6 +372,18 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 
 	private _isInventoryResource(resource: URI): boolean {
 		return isEqual(resource, URI.from({ scheme: this.sessionType, path: resource.path }));
+	}
+
+	private _controllerResource(resource: URI): URI {
+		if (resource.scheme !== CLOUD_SANDBOX_TASK_SCHEME) {
+			return resource;
+		}
+		const identity = this._connectionsService.resolveSessionResourceIdentity(resource);
+		if (!identity || identity.connectionAuthority !== this._connectionAuthority) {
+			throw new Error(localize('cloudSandbox.invalidTaskExecution', "The cloud conversation does not belong to this environment."));
+		}
+		return this._connectionsService.registerSessionResource(identity.backendSession, this._connectionAuthority, CLOUD_SANDBOX_AGENT_PROVIDER)
+			.with({ fragment: resource.fragment, query: resource.query });
 	}
 
 	private _requireConnection(): IAgentConnection {

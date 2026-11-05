@@ -190,6 +190,21 @@ suite('AgentHostConnectionsService', () => {
 		], ['agent-host-codex:/external', 'remote-remote-codex:/external']);
 	});
 
+	test('resolves a catalog alias to an exact execution and releases only the alias', () => {
+		const { service } = createService([], new Map());
+		const backend = URI.parse('host-session://owner/session?revision=one');
+		const canonical = service.registerSessionResource(backend, 'remote', 'copilot');
+		const resource = URI.parse('cloud-sandbox-task:/task');
+		const registration = store.add(service.registerSessionResourceAlias(resource, backend, 'remote', 'copilot'));
+		const resolved = service.resolveSessionResourceIdentity(resource.with({ fragment: 'peer' }));
+		registration.dispose();
+		assert.deepStrictEqual({
+			resolved: [resolved?.connectionAuthority, resolved?.backendSession.toString()],
+			after: service.resolveSessionResourceIdentity(resource),
+			canonical: service.findSessionResource(backend, 'remote')?.toString(),
+		}, { resolved: ['remote', backend.toString()], after: undefined, canonical: canonical.toString() });
+	});
+
 	test('resolves mixed legacy and standard identities by provider on the owning connection', () => {
 		const { service } = createService([], new Map());
 		const resources = [

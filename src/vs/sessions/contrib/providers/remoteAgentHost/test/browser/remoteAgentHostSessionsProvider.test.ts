@@ -31,7 +31,7 @@ import { IAgentHostService, type IAgentConnection } from '../../../../../../plat
 import type { IAgentHostTcpConnection } from '../../../../../../platform/agentHost/common/agentHostTcpConnection.js';
 import { BrowserRemoteProxyEnabledSettingId } from '../../../../../../workbench/contrib/browserView/common/browserView.js';
 import { IRemoteAgentHostService, NullRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { CloudSandboxAutoConnectOnOpenSettingId, CloudSandboxRequestError } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { cloudSandboxTaskResource, CloudSandboxAutoConnectOnOpenSettingId, CloudSandboxRequestError, ICloudSandboxTask } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { readRemoteSessionOrigin, withRemoteSessionOrigin } from '../../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { AgentHostTransportFailureReason } from '../../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { AhpErrorCodes, JsonRpcErrorCodes, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
@@ -74,6 +74,7 @@ import { getRemoteAgentHostPickerKey, RemoteAgentHostPickerVisibility } from '..
 import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING } from '../../../../chat/common/constants.js';
 import { getSessionCreationEnvironments } from '../../../../chat/browser/sessionEnvironmentPicker.js';
 import { CloudSandboxSessionsProvider } from '../../browser/cloudSandboxSessionsProvider.js';
+import { CloudSandboxTaskSessionsProvider, CLOUD_SANDBOX_TASK_PROVIDER_ID } from '../../browser/cloudSandboxTaskSessionsProvider.js';
 import { CLOUD_SANDBOX_CREATION_PROVIDER_ID, COPILOT_PROVIDER_ID } from '../../../copilotChatSessions/common/copilotChatSessions.js';
 import { ProviderAutomationService } from '../../../../automations/browser/providerAutomationService.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
@@ -92,7 +93,7 @@ import { ISessionsService } from '../../../../../services/sessions/browser/sessi
 import { ISessionsRecentWorkspacesService } from '../../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { MockLabelService } from '../../../../../../workbench/services/label/test/common/mockLabelService.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { extUri } from '../../../../../../base/common/resources.js';
+import { extUri, isEqual } from '../../../../../../base/common/resources.js';
 import { INewSessionComposerService, NewSessionComposerService } from '../../../../chat/browser/newSessionComposerService.js';
 
 // ---- Mock connection --------------------------------------------------------
@@ -369,6 +370,8 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 		openSession: async () => overrides?.openSession ? new class extends mock<IChatWidget>() { }() : undefined,
 	});
 	instantiationService.stub(ILanguageModelsService, {
+		onDidChangeLanguageModels: Event.None,
+		onDidChangeModelVisibility: Event.None,
 		getLanguageModelIds: () => [],
 		lookupLanguageModel: () => undefined,
 	});
@@ -388,6 +391,17 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 				sessionResourcesChanged.fire();
 			}
 			return resource;
+		},
+		registerSessionResourceAlias: (resource, backend) => {
+			const previous = sessionResources.get(backend);
+			sessionResources.set(backend, resource);
+			return toDisposable(() => {
+				if (previous) {
+					sessionResources.set(backend, previous);
+				} else {
+					sessionResources.delete(backend);
+				}
+			});
 		},
 		getSessionResource: backend => sessionResources.get(backend),
 		registerSessionResolutionPolicy: (authority, policy) => {
@@ -536,6 +550,156 @@ suite('RemoteAgentHostSessionsProvider', () => {
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('rebinds a host-discovered session after its task binding is learned, preserving state and model targets', async () => {
+		const tasks = new Map<string, URI>();
+		const first = cloudSandboxTaskResource('first-task');
+		const second = cloudSandboxTaskResource('second-task');
+		tasks.set('first-session', first);
+		const runtime = createProvider(disposables, connection, { noConnection: true, ctor: CloudSandboxSessionsProvider }, {
+			providerId: CLOUD_SANDBOX_TASK_PROVIDER_ID,
+			mapSessionResource: session => tasks.get(AgentSession.id(session)),
+		});
+		assert.ok(runtime instanceof CloudSandboxSessionsProvider);
+		runtime.seedSessions([
+			createSession('first-session', { provider: 'copilot', session: AgentSession.uri('ahp-session', 'first-session') }),
+			createSession('second-session', { provider: 'copilot', session: AgentSession.uri('ahp-session', 'second-session'), summary: 'Host title', status: ProtocolSessionStatus.InputNeeded | ProtocolSessionStatus.IsRead }),
+		]);
+		const previous = runtime.getCachedSession('second-session')!;
+		const replacements: string[][] = [];
+		disposables.add(runtime.onDidReplaceSession(event => replacements.push([event.from.resource.toString(), event.to.resource.toString()])));
+		tasks.set('second-session', second);
+		runtime.reconcileTaskResource('second-session');
+		const rebound = runtime.getCachedSession('second-session')!;
+		const scheme = 'remote-localhost__4321-copilot';
+		assert.deepStrictEqual({
+			resources: runtime.getSessions().map(session => session.resource.toString()),
+			replacements,
+			state: [rebound.title.get(), rebound.status.get(), rebound.isRead.get()],
+			backend: runtime.getBackendSessionResource(rebound.sessionId)?.toString(),
+			modelTarget: runtime.getModelsSnapshot(rebound.sessionId).modelTarget,
+			subscribed: [...connection.sessionSubscribeCounts],
+		}, {
+			resources: [first.toString(), second.toString()],
+			replacements: [[previous.resource.toString(), second.toString()]],
+			state: ['Host title', SessionStatus.NeedsInput, true],
+			backend: 'ahp-session:/second-session',
+			modelTarget: scheme,
+			subscribed: [],
+		});
+	});
+
+	test('the real catalog forwards exact runtime membership changes without hydrating other tasks or refreshing every row', async () => {
+		class Runtime extends CloudSandboxSessionsProvider {
+			createCatalog(): CloudSandboxTaskSessionsProvider {
+				return this._instantiationService.createInstance(CloudSandboxTaskSessionsProvider);
+			}
+		}
+		const task = (id: string): ICloudSandboxTask => ({ taskId: id, sessionId: `session-${id}`, environmentId: 'environment', name: id });
+		const tasks = Array.from({ length: 1750 }, (_, index) => task(`task-${index}`));
+		const runtime = createProvider(disposables, connection, { noConnection: true, ctor: Runtime }, {
+			providerId: CLOUD_SANDBOX_TASK_PROVIDER_ID,
+			mapSessionResource: session => {
+				const id = AgentSession.id(session);
+				return id.startsWith('session-task-') ? cloudSandboxTaskResource(id.slice('session-'.length)) : undefined;
+			},
+		});
+		assert.ok(runtime instanceof Runtime);
+		const catalog = disposables.add(runtime.createCatalog());
+		catalog.initialize({
+			accountKey: () => 'account', resolve: async () => runtime,
+			rename: async () => { }, archive: async () => { }, delete: async () => { },
+		});
+		catalog.setTasks(tasks);
+		catalog.attach(tasks[0].taskId, runtime, tasks[0]);
+		const events: { added: string[]; removed: string[]; changed: string[] }[] = [];
+		disposables.add(catalog.onDidChangeSessions(event => events.push({
+			added: event.added.map(session => session.resource.toString()),
+			removed: event.removed.map(session => session.resource.toString()),
+			changed: event.changed.map(session => session.resource.toString()),
+		})));
+		runtime.seedSessions([
+			createSession('session-task-0', { provider: 'copilot', session: AgentSession.uri('ahp-session', 'session-task-0'), summary: 'First task' }),
+			createSession('session-task-1', { provider: 'copilot', session: AgentSession.uri('ahp-session', 'session-task-1'), summary: 'Second task' }),
+			createSession('live-only', { provider: 'copilot', session: AgentSession.uri('ahp-session', 'live-only') }),
+		], { updateExisting: true });
+		for (const task of tasks.slice(0, 2)) {
+			catalog.attach(task.taskId, runtime, task);
+		}
+		runtime.seedSessions([createSession('session-task-0', { provider: 'copilot', session: AgentSession.uri('ahp-session', 'session-task-0'), summary: 'Changed', modifiedTime: Date.now() + 1 })], { updateExisting: true });
+		runtime.removeDeletedSession('live-only');
+		assert.deepStrictEqual({
+			events,
+			count: catalog.getSessions().length,
+			title: catalog.getSessions()[0].title.get(),
+			subscriptions: [...connection.sessionSubscribeCounts],
+		}, {
+			events: [
+				{ added: ['remote-localhost__4321-copilot:/live-only'], removed: [], changed: ['cloud-sandbox-task:/task-0', 'cloud-sandbox-task:/task-1'] },
+				{ added: [], removed: [], changed: ['cloud-sandbox-task:/task-0'] },
+				{ added: [], removed: ['remote-localhost__4321-copilot:/live-only'], changed: [] },
+			],
+			count: 1750, title: 'Changed', subscriptions: [],
+		});
+	});
+
+	for (const announce of [true, false]) {
+		test(`keeps a provisioning task withheld across feed discovery and host metadata until publication (announce=${announce})`, async () => {
+			class Runtime extends CloudSandboxSessionsProvider {
+				createCatalog(): CloudSandboxTaskSessionsProvider {
+					return this._instantiationService.createInstance(CloudSandboxTaskSessionsProvider);
+				}
+			}
+			const task: ICloudSandboxTask = { taskId: 'new-task', sessionId: 'new-session', environmentId: 'environment', name: 'Preparing' };
+			const resource = cloudSandboxTaskResource(task.taskId);
+			const metadata = createSession(task.sessionId!, { session: AgentSession.uri('ahp-session', task.sessionId!), provider: 'copilot', summary: task.name });
+			const runtime = createProvider(disposables, connection, { noConnection: true, ctor: Runtime }, {
+				providerId: CLOUD_SANDBOX_TASK_PROVIDER_ID,
+				mapSessionResource: session => isEqual(session, metadata.session) ? resource : undefined,
+			});
+			assert.ok(runtime instanceof Runtime);
+			const catalog = disposables.add(runtime.createCatalog());
+			catalog.initialize({
+				accountKey: () => 'account', resolve: async () => runtime,
+				rename: async () => { }, archive: async () => { }, delete: async () => { },
+			});
+			catalog.attach(task.taskId, runtime, task);
+			const events: { added: number; changed: number; removed: number }[] = [];
+			disposables.add(catalog.onDidChangeSessions(event => events.push({ added: event.added.length, changed: event.changed.length, removed: event.removed.length })));
+			runtime.seedProvisionalSession(metadata);
+			catalog.setTasks([{ ...task, name: 'Feed title' }]);
+			const afterFeed = catalog.getSessions().length;
+			connection.addSession(metadata);
+			runtime.setConnection(connection);
+			await timeout(0);
+			const afterHost = catalog.getSessions().length;
+			runtime.publishWithheldSession(task.sessionId!, { announce });
+			assert.deepStrictEqual({
+				afterFeed, afterHost, events,
+				resources: catalog.getSessions().map(session => session.resource.toString()),
+			}, { afterFeed: 0, afterHost: 0, events: announce ? [{ added: 1, changed: 0, removed: 0 }] : [], resources: [resource.toString()] });
+		});
+	}
+
+	test('keeps task-facing identity separate from the backend session used by operations', () => {
+		const backend = URI.parse('ahp-session:/execution');
+		const resource = URI.parse('cloud-sandbox-task:/work-item');
+		const provider = createProvider(disposables, connection, { noConnection: true, ctor: CloudSandboxSessionsProvider }, {
+			providerId: 'agenthost-cloud-tasks',
+			mapSessionResource: session => isEqual(session, backend) ? resource : undefined,
+		});
+		provider.seedSessions([createSession('execution', { session: backend, provider: 'copilot' })]);
+		const session = provider.getSessions()[0];
+		assert.deepStrictEqual({
+			resource: session.resource.toString(),
+			provider: session.providerId,
+			backend: provider.getBackendSessionResource(session.sessionId)?.toString(),
+			lookup: provider.getSessionByResource(resource)?.sessionId,
+		}, {
+			resource: resource.toString(), provider: 'agenthost-cloud-tasks', backend: backend.toString(),
+			lookup: session.sessionId,
+		});
+	});
 
 	test('clones a repository through the selected host and returns its ready directory', async () => {
 		const root = disposables.add(new RootStateSubscription('test', () => { }));

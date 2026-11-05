@@ -379,6 +379,9 @@ export interface ISessionsProvider {
 	 */
 	getSessions(): ISession[];
 
+	/** Returns an already acquired execution provider without doing work during catalog reads. */
+	getSessionProvider?(sessionId: string): ISessionsProvider | undefined;
+
 	/**
 	 * Returns an opaque target that the provider's session-context tool accepts
 	 * for the given chat, or `undefined` when transcript access is unavailable.

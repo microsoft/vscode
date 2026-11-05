@@ -439,7 +439,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		}
 
 		const session = this.sessionsService.activeSession.get();
-		const provider = session ? this.sessionsProvidersService.getProvider(session.providerId) : undefined;
+		const provider = session ? this.sessionsProvidersService.getProvider(session.providerId, session.sessionId) : undefined;
 		return provider && isAgentHostProvider(provider) && provider.remoteAddress
 			? localize('noWorkspaceOnRemoteHost', "No workspace [{0}]", provider.label)
 			: localize('noWorkspace', "No workspace");

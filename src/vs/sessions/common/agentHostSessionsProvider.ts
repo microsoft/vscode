@@ -96,6 +96,8 @@ export interface IAgentHostGroup {
 	readonly connectable?: boolean;
 	/** Provider that creates new environments for this group, without requiring an existing connection. */
 	readonly sessionCreationProviderId?: string;
+	/** Catalog providers whose rows belong to the group without representing a connected host. */
+	readonly sessionProviderIds?: readonly string[];
 }
 
 /** A tool reported by an agent-host MCP server's `tools/list`. */

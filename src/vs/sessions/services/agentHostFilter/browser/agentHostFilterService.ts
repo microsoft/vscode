@@ -288,7 +288,10 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 					// identity of that rollup, so an empty group reads as such.
 					entry = {
 						id: group.id,
-						providerIds: group.sessionCreationProviderId && this._sessionsProvidersService.getProvider(group.sessionCreationProviderId) ? [group.sessionCreationProviderId] : [],
+						providerIds: [
+							...(group.sessionCreationProviderId && this._sessionsProvidersService.getProvider(group.sessionCreationProviderId) ? [group.sessionCreationProviderId] : []),
+							...(group.sessionProviderIds ?? []).filter(id => this._sessionsProvidersService.getProvider(id) !== undefined),
+						],
 						label: group.label,
 						grouped: true,
 						address: undefined,

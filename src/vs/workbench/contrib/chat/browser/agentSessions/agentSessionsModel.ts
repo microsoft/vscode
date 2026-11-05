@@ -911,12 +911,12 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			});
 			return this.sessionStates.get(session.resource);
 		}
-		const legacy = session.legacyResource;
+		const previous = this.chatSessionsService.getPreviousChatSessionResource?.(session.resource);
+		const legacy = previous ?? session.legacyResource;
 		if (!legacy) {
 			return undefined;
 		}
-		// Cross-scheme and self-referential mappings are rejected defensively.
-		if (legacy.scheme !== session.resource.scheme || legacy.toString() === session.resource.toString()) {
+		if ((!previous && legacy.scheme !== session.resource.scheme) || legacy.toString() === session.resource.toString()) {
 			return undefined;
 		}
 		const prev = this.sessionStates.get(legacy);

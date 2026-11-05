@@ -241,7 +241,7 @@ export class AgentHostAgentPickerContribution extends Disposable implements IWor
 			openPicker: anchor => openActiveAgentPicker?.(anchor),
 		}, configurationService, telemetryService)));
 		const modePickerModels = this._register(new ScopedModePickerModelCache(session => {
-			const provider = sessionsProvidersService.getProvider(session.providerId);
+			const provider = sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 			return !!provider && isAgentHostProvider(provider);
 		}));
 
@@ -316,7 +316,7 @@ export class AgentHostAgentPickerContribution extends Disposable implements IWor
 		if (!session) {
 			return undefined;
 		}
-		const provider = sessionsProvidersService.getProvider(session.providerId);
+		const provider = sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 		return provider && isAgentHostProvider(provider) ? provider : undefined;
 	}
 
@@ -423,7 +423,7 @@ export class AgentHostAgentPickerContribution extends Disposable implements IWor
 		if (!session) {
 			return;
 		}
-		const provider = sessionsProvidersService.getProvider(session.providerId);
+		const provider = sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 		if (!provider || !isAgentHostProvider(provider)) {
 			return;
 		}

@@ -126,7 +126,7 @@ export class NewChatInSessionsWindowAction extends Action2 {
 		}
 		const activeFolderUri = isQuickChat ? undefined : activeSession?.workspace.get()?.uri;
 		const activeProvider = activeFolderUri && activeSession
-			? accessor.get(ISessionsProvidersService).getProvider(activeSession.providerId)
+			? accessor.get(ISessionsProvidersService).getProvider(activeSession.providerId, activeSession.sessionId)
 			: undefined;
 		const devContainerSource = resolveDevContainerSourceWorkspace(activeProvider);
 		const folderUri = devContainerSource?.folderUri ?? activeFolderUri;

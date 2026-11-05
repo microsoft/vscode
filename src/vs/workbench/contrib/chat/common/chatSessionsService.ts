@@ -12,7 +12,7 @@ import { IObservable } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IPosition } from '../../../../editor/common/core/position.js';
-import { isCopilotAgentHostSessionType, isRemoteAgentHostSessionType } from '../../../../platform/agentHost/common/agentHostSessionType.js';
+import { CLOUD_SANDBOX_TASK_SCHEME, isCopilotAgentHostSessionType, isRemoteAgentHostSessionType } from '../../../../platform/agentHost/common/agentHostSessionType.js';
 import type { IAgentModelConfigurationReport } from '../../../../platform/agentHost/common/agentModelConfiguration.js';
 import { createDecorator, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -292,7 +292,7 @@ export interface IChatSessionItem {
 	 * Resource identifier the item was previously known by. When set, host-stored
 	 * per-resource state (archive, pin, read) recorded under that URI is adopted
 	 * forward onto {@link resource} on first state read, and the legacy entry is
-	 * removed. Scheme must match {@link resource}'s scheme; otherwise ignored.
+	 * removed. Cross-scheme migration requires the controller's explicit previous-resource mapping.
 	 */
 	readonly legacyResource?: URI;
 }
@@ -462,7 +462,7 @@ export function isRemoteAgentHostTarget(target: string): boolean {
  * Matches the local agent host (`agent-host-*`) and remote agent hosts (`remote-*`).
  */
 export function isAgentHostTarget(target: string): boolean {
-	return isLocalAgentHostTarget(target) || isRemoteAgentHostTarget(target);
+	return target === CLOUD_SANDBOX_TASK_SCHEME || isLocalAgentHostTarget(target) || isRemoteAgentHostTarget(target);
 }
 
 export function isAgentHostSessionResource(resource: URI): boolean {
@@ -475,7 +475,7 @@ export function isAgentHostSessionResource(resource: URI): boolean {
  * either a remote agent host session type, or the Copilot harness of a remote editor window.
  */
 export function getAddModelsUnavailableReason(sessionType: string | undefined, remoteAuthority: string | undefined): string | undefined {
-	if (sessionType && isCopilotAgentHostSessionType(sessionType) && (isRemoteAgentHostSessionType(sessionType) || !!remoteAuthority)) {
+	if (sessionType && isCopilotAgentHostSessionType(sessionType) && (sessionType === CLOUD_SANDBOX_TASK_SCHEME || isRemoteAgentHostSessionType(sessionType) || !!remoteAuthority)) {
 		return localize('chat.addModels.remoteCopilotUnsupported', "BYOK models aren't supported in remote Copilot sessions");
 	}
 	return undefined;
@@ -870,6 +870,8 @@ export interface IChatSessionItemController {
 	get items(): readonly IChatSessionItem[];
 
 	refresh(token: CancellationToken): Promise<void>;
+	/** Returns a previously owned identity without resolving or connecting its execution. */
+	getPreviousSessionResource?(resource: URI): URI | undefined;
 
 	newChatSessionItem?(request: IChatNewSessionRequest, token: CancellationToken): Promise<IChatSessionItem | undefined>;
 
@@ -1048,6 +1050,8 @@ export interface IChatSessionsService {
 	 * Returns the resolved item, or undefined if no resolve handler is available.
 	 */
 	resolveChatSessionItem(chatSessionType: string, resource: URI, token: CancellationToken): Promise<IChatSessionItem | undefined>;
+	/** Explicit controller-owned identity migration, independent of untrusted item metadata. */
+	getPreviousChatSessionResource?(resource: URI): URI | undefined;
 
 	/**
 	 * Whether the registered item controller owns archived state for the session.

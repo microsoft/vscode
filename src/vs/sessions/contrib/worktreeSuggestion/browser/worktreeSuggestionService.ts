@@ -272,7 +272,7 @@ export class WorktreeSuggestionService extends Disposable implements IWorktreeSu
 			return undefined;
 		}
 		// Only providers that report the isolation pick of a draft can show and change it.
-		const provider = this._sessionsProvidersService.getProvider(session.providerId);
+		const provider = this._sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 		if (!session.worktreePending || session.worktreePending.read(reader) || !provider?.setIsolationMode) {
 			return undefined;
 		}
@@ -325,7 +325,7 @@ export class WorktreeSuggestionService extends Disposable implements IWorktreeSu
 
 	async useWorktree(variant: WorktreeSuggestionVariant, suggestion: IWorktreeSuggestion): Promise<boolean> {
 		try {
-			const provider = this._sessionsProvidersService.getProvider(suggestion.session.providerId);
+			const provider = this._sessionsProvidersService.getProvider(suggestion.session.providerId, suggestion.session.sessionId);
 			if (!provider?.setIsolationMode) {
 				throw new Error(`Provider '${suggestion.session.providerId}' cannot change the isolation of a new session.`);
 			}

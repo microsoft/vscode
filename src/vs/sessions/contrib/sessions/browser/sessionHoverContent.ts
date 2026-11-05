@@ -300,14 +300,14 @@ function getApplication(session: ISession, openerService: IOpenerService): ISess
  */
 export function getDistinctChatHarnessLabel(session: ISession, chat: IChat, sessionsProvidersService: ISessionsProvidersService, reader: IReader | undefined): string | undefined {
 	const harness = getChatHarness(session, chat);
-	return harness === session.harness ? undefined : getHarnessPresentationOrDefault(sessionsProvidersService.getProvider(session.providerId), harness, reader).label;
+	return harness === session.harness ? undefined : getHarnessPresentationOrDefault(sessionsProvidersService.getProvider(session.providerId, session.sessionId), harness, reader).label;
 }
 
 function getProviderDetails(
 	session: ISession,
 	sessionsProvidersService: ISessionsProvidersService,
 ): Pick<ISessionSummaryHoverData, 'providerLabel' | 'remoteName'> {
-	const provider = sessionsProvidersService.getProvider(session.providerId);
+	const provider = sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 	if (!provider) {
 		return {};
 	}

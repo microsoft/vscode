@@ -79,6 +79,28 @@ suite('SessionsListModelService', () => {
 		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
 	});
 
+	test('migrates pin and manual order from a previous identity without reapplying later', () => {
+		const previous = createSession('previous');
+		service.pinSession(previous);
+		service.applySortChanges('updated', new Map([[previous.sessionId, 42]]), []);
+		const current: ISession = {
+			...createSession('task'),
+			previousIdentities: [{ sessionId: previous.sessionId, resource: previous.resource }],
+		};
+		sessions = [current];
+		sessionsChangedEmitter.fire({ added: [current], removed: [], changed: [] });
+		const migrated = { pinned: service.isSessionPinned(current), order: service.getSortKey(current, 'updated') };
+		service.unpinSession(current);
+		sessionsChangedEmitter.fire({ added: [], removed: [], changed: [current] });
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+		assert.deepStrictEqual({
+			migrated,
+			restored: { pinned: service.isSessionPinned(current), order: service.getSortKey(current, 'updated') },
+			oldOrder: service.hasSortOverride(previous.sessionId, 'updated'),
+		}, { migrated: { pinned: true, order: 42 }, restored: { pinned: false, order: 42 }, oldOrder: false });
+	});
+
 	test('untitled sessions ignore the completed-state icon', () => {
 		const completedStateIcon = Codicon.gitPullRequest;
 		const readIcon = service.getStatusIcon(SessionStatus.Untitled, true, false, completedStateIcon);

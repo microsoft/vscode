@@ -468,6 +468,10 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return typeof this._getChatSessionItemController(sessionResource)?.controller.setChatSessionItemArchived === 'function';
 	}
 
+	getPreviousChatSessionResource(resource: URI): URI | undefined {
+		return this._getChatSessionItemController(resource)?.controller.getPreviousSessionResource?.(resource);
+	}
+
 	setChatSessionItemArchived(sessionResource: URI, archived: boolean): void {
 		const controller = this._getChatSessionItemController(sessionResource)?.controller;
 		if (!controller?.setChatSessionItemArchived) {

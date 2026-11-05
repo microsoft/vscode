@@ -677,7 +677,7 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 		if (!session || !isAgentHostProviderId(session.providerId)) {
 			return undefined;
 		}
-		const provider = this._sessionsProvidersService.getProvider<IAgentHostSessionsProvider>(session.providerId);
+		const provider = this._sessionsProvidersService.getProvider<IAgentHostSessionsProvider>(session.providerId, session.sessionId);
 		if (!provider?.getFeedbackAnnotationsChannel) {
 			return undefined;
 		}

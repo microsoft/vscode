@@ -186,7 +186,12 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		this._legacyReadSessionIds = legacyRead.size > 0 ? legacyRead : undefined;
 		this._migratedReadSessionIds = this.loadSet(SessionsListModelService.READ_MIGRATION_DONE_KEY);
 
-		this._register(this.sessionsManagementService.onDidChangeSessions(() => this.updateDefaultPlacement(this.sessionsManagementService.getSessions())));
+		this.migratePreviousIdentities(this.sessionsManagementService.getSessions());
+		this._register(this.sessionsManagementService.onDidChangeSessions(() => {
+			const sessions = this.sessionsManagementService.getSessions();
+			this.migratePreviousIdentities(sessions);
+			this.updateDefaultPlacement(sessions);
+		}));
 		this.updateDefaultPlacement(this.sessionsManagementService.getSessions());
 
 		// Only a definitive deletion discards pin, sort, and automation listing
@@ -200,6 +205,50 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 	}
 
 	// -- Legacy read-state migration --
+
+	private migratePreviousIdentities(sessions: readonly ISession[]): void {
+		let changed = false;
+		const shown = new Set(this._shownAutomationSessionIds.get());
+		const hidden = new Set(this._hiddenAutomationSessionIds.get());
+		const sets = [this._pinnedSessionIds, this._migratedReadSessionIds, shown, hidden, ...(this._legacyReadSessionIds ? [this._legacyReadSessionIds] : [])];
+		const move = <T>(map: Map<string, T>, from: string, to: string) => {
+			if (map.has(from)) {
+				if (!map.has(to)) {
+					map.set(to, map.get(from)!);
+				}
+				map.delete(from);
+				changed = true;
+			}
+		};
+		for (const session of sessions) {
+			for (const previous of session.previousIdentities ?? []) {
+				if (previous.sessionId === session.sessionId) {
+					continue;
+				}
+				for (const set of sets) {
+					if (set.delete(previous.sessionId)) {
+						set.add(session.sessionId);
+						changed = true;
+					}
+				}
+				move(this._sortOverrides.created, previous.sessionId, session.sessionId);
+				move(this._sortOverrides.updated, previous.sessionId, session.sessionId);
+				move(this._updatedDefaultPlacements, previous.sessionId, session.sessionId);
+			}
+		}
+		if (changed) {
+			transaction(tx => {
+				this._shownAutomationSessionIds.set(shown, tx);
+				this._hiddenAutomationSessionIds.set(hidden, tx);
+			});
+			this.saveSet(SessionsListModelService.PINNED_SESSIONS_KEY, this._pinnedSessionIds);
+			this.saveSet(SessionsListModelService.READ_MIGRATION_DONE_KEY, this._migratedReadSessionIds);
+			this.saveSet(SessionsListModelService.SHOWN_AUTOMATION_SESSIONS_KEY, shown);
+			this.saveSet(SessionsListModelService.HIDDEN_AUTOMATION_SESSIONS_KEY, hidden);
+			this.saveSortOverrides();
+			this.saveUpdatedDefaultPlacements();
+		}
+	}
 
 	// TODO@sandy081 Remove after 2026-10-14. Additive only: never marks unread
 	// (the provider already defaults to unread); the one-shot guard stops a later

@@ -125,7 +125,7 @@ export class OpenSubagentChatActionViewItemContribution extends Disposable imple
 	) {
 		super();
 		const backendChatOf: BackendChatResolver = (session, chat) => {
-			const provider = sessionsProvidersService.getProvider(session.providerId);
+			const provider = sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 			return provider && isAgentHostProvider(provider) ? provider.getBackendChatResource(chat.resource) : undefined;
 		};
 		const findSubagentChat = derived(this, reader => createSubagentChatLookup(sessionsService, backendChatOf, reader));

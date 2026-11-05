@@ -157,7 +157,7 @@ export function getChatRespondent(session: ISession, chatResource: URI, sessions
 	if (!chat || !harness || harness === session.harness) {
 		return undefined;
 	}
-	const provider = sessionsProvidersService.getProvider(session.providerId);
+	const provider = sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 	if (provider) {
 		readProviderModelsChanged(provider, reader);
 	}
@@ -833,7 +833,7 @@ export class ChatView extends AbstractChatView {
 	}
 
 	private _showPreparationInput(input: Pick<ISendRequestOptions, 'query' | 'attachedContext'>, session: ISession): void {
-		const snapshot = this.sessionsProvidersService.getProvider(session.providerId)?.getModelsSnapshot(session.sessionId, session.modelId.get());
+		const snapshot = this.sessionsProvidersService.getProvider(session.providerId, session.sessionId)?.getModelsSnapshot(session.sessionId, session.modelId.get());
 		// Keep this view-owned model in the draft's pool without registering it or reusing the backend resource.
 		const model = this.instantiationService.createInstance(ChatModel, undefined, {
 			initialLocation: ChatAgentLocation.Chat,

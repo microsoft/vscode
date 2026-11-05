@@ -330,6 +330,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 		return this._getMergedSessions().find(s =>
 			this.uriIdentityService.extUri.isEqual(s.resource, resource)
+			|| s.previousIdentities?.some(previous => this.uriIdentityService.extUri.isEqual(previous.resource, resource))
 		);
 	}
 
@@ -343,6 +344,12 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			const mainChat = session.mainChat.get();
 			if (this.uriIdentityService.extUri.isEqual(mainChat.resource, resource)) {
 				return { session, chat: mainChat };
+			}
+			if (session.previousIdentities?.some(previous => this.uriIdentityService.extUri.isEqual(previous.resource, resource.with({ fragment: '' })))) {
+				const chat = resource.fragment ? session.chats.get().find(chat => chat.resource.fragment === resource.fragment) : mainChat;
+				if (chat) {
+					return { session, chat };
+				}
 			}
 		}
 		return undefined;
@@ -1292,7 +1299,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	// -- Session Actions --
 
 	private _getProvider(session: ISession): ISessionsProvider | undefined {
-		return this.sessionsProvidersService.getProvider(session.providerId);
+		return this.sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 	}
 
 	async cancelCurrentRequest(session: ISession): Promise<void> {

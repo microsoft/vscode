@@ -152,7 +152,7 @@ export class NewChatInSessionWidget extends Disposable {
 			}
 			session.workspace.read(reader);
 			session.capabilities.read(reader);
-			return this.sessionsProvidersService.getProvider(session.providerId)?.getNestedChatWorkspaceSupport(session.sessionId, getNewChatResource(session, reader, this._chat.read(reader)), reader);
+			return this.sessionsProvidersService.getProvider(session.providerId, session.sessionId)?.getNestedChatWorkspaceSupport(session.sessionId, getNewChatResource(session, reader, this._chat.read(reader)), reader);
 		});
 		this._workspaceControls = this._register(this.instantiationService.createInstance(NestedChatWorkspaceControls, {
 			support: this._workspaceSupport,
@@ -167,11 +167,11 @@ export class NewChatInSessionWidget extends Disposable {
 			getFolderSources: () => this._getFolderSources(),
 			describeNoWorkspace: () => {
 				const session = this._session.get();
-				return getNoWorkspaceChoicePresentation(session && this.sessionsProvidersService.getProvider(session.providerId));
+				return getNoWorkspaceChoicePresentation(session && this.sessionsProvidersService.getProvider(session.providerId, session.sessionId));
 			},
 			describeFolder: folder => {
 				const session = this._session.get();
-				const workspace = session && this.sessionsProvidersService.getProvider(session.providerId)?.resolveWorkspace(folder);
+				const workspace = session && this.sessionsProvidersService.getProvider(session.providerId, session.sessionId)?.resolveWorkspace(folder);
 				return workspace && { label: workspace.label, description: workspace.description };
 			},
 			folderExists: (folder, token) => this._folderExists(folder, token),
@@ -450,7 +450,7 @@ export class NewChatInSessionWidget extends Disposable {
 	/** Recent folders of the session's provider, and a local folder dialog when it runs on this computer. */
 	private _getFolderSources(): INestedChatFolderSources {
 		const session = this._session.get();
-		const provider = session && this.sessionsProvidersService.getProvider(session.providerId);
+		const provider = session && this.sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 		if (!session || !provider) {
 			return { recentFolders: [], canOpenLocalFolder: false };
 		}
@@ -476,7 +476,7 @@ export class NewChatInSessionWidget extends Disposable {
 	}
 
 	private _requireProvider() {
-		const provider = this.sessionsProvidersService.getProvider(this._requireSession().providerId);
+		const provider = this.sessionsProvidersService.getProvider(this._requireSession().providerId, this._requireSession().sessionId);
 		if (!provider) {
 			throw new NestedChatWorkspaceError('notSupported', localize('nestedChat.noProvider', "The agent of this session is not available."));
 		}

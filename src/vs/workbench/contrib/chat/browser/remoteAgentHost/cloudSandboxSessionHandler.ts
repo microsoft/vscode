@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DeferredPromise, disposableTimeout, raceCancellationError, timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, disposableTimeout, raceCancellationError, raceTimeout, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource, cancelOnDispose } from '../../../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableResourceMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { equals } from '../../../../../base/common/objects.js';
-import { autorun, constObservable, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, IObservable, observableValue, transaction, waitForState } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -88,6 +88,10 @@ class PromotableCloudSandboxChatSession extends Disposable implements IChatSessi
 
 	promote(source: IChatSession, live: boolean): void {
 		this._bindSource(source, true, live);
+	}
+
+	suspendLive(): void {
+		this._bindSource(new ReadOnlyChatSession(this.sessionResource, [...this.history], this.title, constObservable(true)), false, false);
 	}
 
 	private _bindSource(source: IChatSession, promote: boolean, live: boolean): void {
@@ -241,7 +245,7 @@ interface ISandboxChatEntry extends IDisposable {
 export class CloudSandboxSessionHandler extends Disposable implements IChatSessionContentProvider {
 	private readonly _sessions = this._register(new DisposableResourceMap<ISandboxChatEntry>());
 	private readonly _readOnlyHandler: CloudSandboxReadOnlySessionHandler;
-	private readonly _liveReady = new DeferredPromise<IChatSessionContentProvider | undefined>();
+	private _liveReady = new DeferredPromise<IChatSessionContentProvider | undefined>();
 	private _liveProvider: IChatSessionContentProvider | undefined;
 
 	constructor(
@@ -264,6 +268,46 @@ export class CloudSandboxSessionHandler extends Disposable implements IChatSessi
 			entry.trace.record('liveProviderReady');
 		}
 		this.retryLiveSessions();
+	}
+
+	async whenLiveProviderReady(token: CancellationToken): Promise<void> {
+		if (!await raceCancellationError(this._liveReady.p, token)) {
+			throw new CancellationError();
+		}
+	}
+
+	clearLiveProvider(): void {
+		this._liveProvider = undefined;
+		if (this._liveReady.isSettled) {
+			this._liveReady = new DeferredPromise();
+		}
+		for (const entry of this._sessions.values()) {
+			entry.liveStore.clear();
+			entry.liveRequested = false;
+			entry.live = false;
+			entry.liveFailed = false;
+			entry.session?.suspendLive();
+			this._updateHistoryStatus(entry);
+		}
+	}
+
+	async acquireLiveChat(resource: URI, token: CancellationToken): Promise<IChatSession> {
+		const store = new DisposableStore();
+		const source = store.add(new CancellationTokenSource(token));
+		try {
+			const reference = store.add(await this.provideChatSessionContent(resource, source.token));
+			if (reference.isInputBlocked) {
+				const ready = await raceTimeout(waitForState(reference.isInputBlocked, blocked => !blocked, undefined, source.token).then(() => true), LIVE_CONTENT_TIMEOUT_MS);
+				if (!ready) {
+					throw new Error(localize('cloudSandbox.liveContentTimeout', "The live cloud conversation did not become ready in time. Retry the connection to continue."));
+				}
+			}
+			store.deleteAndLeak(reference);
+			return reference;
+		} finally {
+			source.cancel();
+			store.dispose();
+		}
 	}
 
 	retryLiveSessions(): void {
@@ -542,9 +586,11 @@ export class CloudSandboxSessionHandler extends Disposable implements IChatSessi
 				this._logService.error('[CloudSandbox] Failed to load live conversation; retaining recorded history', timedOut ? new Error('Loading the live conversation timed out.') : error);
 			}
 		} finally {
-			entry.liveRequested = false;
-			entry.liveStore.clear();
-			this._updateHistoryStatus(entry);
+			if (entry.liveStore.value === store) {
+				entry.liveRequested = false;
+				entry.liveStore.clear();
+				this._updateHistoryStatus(entry);
+			}
 		}
 	}
 

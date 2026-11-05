@@ -499,7 +499,7 @@ export class SessionChatInputToolbar extends Disposable {
 		this._canvases = this._register(instantiationService.createInstance(SessionCanvasesControl, this._session, this._chat, derived(this, reader => this._debugData.read(reader) === undefined)));
 		const autoAssociatePullRequests = derived(this, reader => {
 			const session = this._session.read(reader);
-			const provider = session ? sessionsProvidersService.getProvider(session.providerId) : undefined;
+			const provider = session ? sessionsProvidersService.getProvider(session.providerId, session.sessionId) : undefined;
 			return provider && isAgentHostProvider(provider)
 				? observableFromEvent(this, provider.onDidChangeRootConfig, () => {
 					const config = provider.getRootConfig();

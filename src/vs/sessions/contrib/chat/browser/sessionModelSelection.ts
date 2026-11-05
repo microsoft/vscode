@@ -189,7 +189,7 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 
 	selectModel(modelIdentifier: string, isUserAction = true): boolean {
 		const session = this._session.get();
-		const provider = session ? this._sessionsProvidersService.getProvider(session.providerId) : undefined;
+		const provider = session ? this._sessionsProvidersService.getProvider(session.providerId, session.sessionId) : undefined;
 		if (!session || !provider) {
 			this._diagnostics.report('selection-rejected', {
 				requestedModel: modelIdentifier,
@@ -341,7 +341,7 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 	}
 
 	private _refresh(trigger: ModelSelectionRefreshTrigger, session = this._session.get()): void {
-		const provider = session ? this._sessionsProvidersService.getProvider(session.providerId) : undefined;
+		const provider = session ? this._sessionsProvidersService.getProvider(session.providerId, session.sessionId) : undefined;
 		this._setProvider(provider);
 		this._activeSession = session;
 		this._activeProvider = provider;

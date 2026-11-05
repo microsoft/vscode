@@ -21,7 +21,7 @@ import { localize } from '../../../../../nls.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { ChangesetKind } from '../../../../../platform/agentHost/common/changesetUri.js';
-import { CLOUD_SANDBOX_AGENT_PROVIDER, CLOUD_SANDBOX_SESSION_SCHEME, cloudSandboxAddress, ICloudSandboxAgentHostService, ICloudSandboxApiService, ICloudSandboxDraftPreparationService, isRetryableCloudSandboxError } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CLOUD_SANDBOX_AGENT_PROVIDER, CLOUD_SANDBOX_SESSION_SCHEME, CLOUD_SANDBOX_TASK_SCHEME, cloudSandboxAddress, cloudSandboxTaskResource, ICloudSandboxAgentHostService, ICloudSandboxApiService, ICloudSandboxDraftPreparationService, ICloudSandboxTask, isRetryableCloudSandboxError } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
@@ -61,6 +61,8 @@ import { CloudSandboxSessionContribution, ICloudSandboxSessionEnvironment } from
 import { CloudSandboxSessionListController } from './cloudSandboxSessionListController.js';
 import { IRemoteAgentHostConnectionCustomizationService } from './remoteAgentHostConnectionCustomization.js';
 import { CloudSandboxStartupError } from './cloudSandboxStartupError.js';
+import { CloudSandboxTaskListController } from './cloudSandboxTaskListController.js';
+import { CloudSandboxTaskSessionRegistration } from './cloudSandboxTaskSessionRegistration.js';
 
 /** Session type offered in the session type picker; creating a session provisions a new sandbox. */
 export const CLOUD_SANDBOX_SESSION_TYPE = SessionType.CloudSandbox;
@@ -104,6 +106,7 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 	private readonly _repositoryPicker = this._register(new MutableDisposable<CloudSandboxRepositoryPicker>());
 	/** Whether each open draft may send, keyed by draft resource; blocked while its first turn provisions. */
 	private readonly _draftInputBlocked = new ResourceMap<ISettableObservable<boolean>>();
+	private _taskList: CloudSandboxTaskListController | undefined;
 
 	constructor(
 		@ICloudSandboxAgentHostService cloudSandboxService: ICloudSandboxAgentHostService,
@@ -310,9 +313,45 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 	protected override _updateRegistration(): void {
 		if (!this._isEnabled()) {
 			this._discoveryRegistration.clear();
+			this._taskList = undefined;
 		} else if (!this._discoveryRegistration.value) {
 			const store = new DisposableStore();
 			this._discoveryRegistration.value = store;
+			store.add(this._instantiationService.createInstance(CloudSandboxTaskSessionRegistration, {
+				open: (resource, token) => this._openTask(resource, token),
+				prepareRequest: (resource, token) => this._prepareTaskRequest(resource, token),
+				handler: resource => this._taskHandler(resource),
+				runtimeResource: resource => this._taskRuntimeResource(resource),
+			}));
+			const taskList = this._taskList = store.add(this._instantiationService.createInstance(CloudSandboxTaskListController, this._workspaceRepositories, {
+				refresh: token => this.refresh(token),
+				delete: taskId => this._deleteTask(taskId),
+				archive: (taskId, archived) => this._archiveTask(taskId, archived),
+				archiveChat: (resource, archived) => {
+					const task = this._tasks.get(resource.path.slice(1));
+					const runtimeResource = this._taskRuntimeResource(resource);
+					if (task?.environmentId && runtimeResource) {
+						this._providerInstances.get(cloudSandboxAddress(task.environmentId))?.setChatSessionItemArchived(runtimeResource, archived);
+					}
+				},
+				deleteChat: async (resource, token) => {
+					const task = this._tasks.get(resource.path.slice(1));
+					const runtimeResource = this._taskRuntimeResource(resource);
+					const provider = task?.environmentId && this._providerInstances.get(cloudSandboxAddress(task.environmentId));
+					if (!provider || !runtimeResource) {
+						throw new Error(localize('cloudSandbox.chatUnavailable', "The cloud conversation is unavailable."));
+					}
+					await provider.deleteChatSessionItem(runtimeResource, token);
+				},
+				materialized: resource => {
+					const task = this._tasks.get(resource.path.slice(1));
+					const runtimeResource = this._taskRuntimeResource(resource);
+					if (task?.environmentId && runtimeResource) {
+						this._providerInstances.get(cloudSandboxAddress(task.environmentId))?.notifySessionMaterialized(runtimeResource);
+					}
+				},
+			}));
+			store.add(this._editorChatSessionsService.registerChatSessionItemController(CLOUD_SANDBOX_TASK_SCHEME, taskList));
 			store.add(this._editorChatSessionsService.registerChatSessionContribution({
 				type: CLOUD_SANDBOX_SESSION_TYPE,
 				name: localize('cloudSandbox.sessionName', "Cloud"),
@@ -383,6 +422,21 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 		}
 	}
 
+	protected override _onTasksChanged(tasks: readonly ICloudSandboxTask[], removedTaskIds: readonly string[]): void {
+		this._taskList?.update(tasks, removedTaskIds);
+	}
+
+	protected override _resetTaskCatalog(): void {
+		this._taskList?.clear();
+	}
+
+	protected override _ensureProvider(env: ICloudSandboxSessionEnvironment): void {
+		super._ensureProvider(env);
+		if (env.taskId && env.sessionId) {
+			this._providerInstances.get(cloudSandboxAddress(env.environmentId))?.setTaskResource(env.sessionId, env.taskId);
+		}
+	}
+
 	/** Records the picked repository on the draft that invoked the picker. */
 	private async _selectRepository(notificationService: INotificationService, sessionResource: URI | undefined): Promise<void> {
 		try {
@@ -426,6 +480,7 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 			sessionSchemeAlias: { ui: CLOUD_SANDBOX_AGENT_PROVIDER, backend: CLOUD_SANDBOX_SESSION_SCHEME },
 			defaultChangesetKind: ChangesetKind.Session,
 		}));
+		this._taskList?.attach(provider, resource => this._getTaskId(address, resource));
 		store.add(this._workingDirectoryResolver.registerResolver(provider.sessionType, resource => provider.resolveWorkingDirectory(resource), resource => provider.isNewSession(resource)));
 		store.add(this._editorChatSessionsService.registerChatSessionContribution({
 			type: provider.sessionType,
@@ -450,7 +505,18 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 				get terminalCommandPrefix() { return provider.terminalCommandPrefix; },
 			},
 		}));
-		store.add(this._editorChatSessionsService.registerChatSessionItemController(provider.sessionType, provider));
+		const isTaskItem = (resource: URI) => resource.scheme === CLOUD_SANDBOX_TASK_SCHEME || this._getTaskId(address, resource) !== undefined;
+		const listed = () => provider.items.filter(item => !isTaskItem(item.resource));
+		store.add(this._editorChatSessionsService.registerChatSessionItemController(provider.sessionType, {
+			get items() { return listed(); },
+			onDidChangeChatSessionItems: Event.map(provider.onDidChangeChatSessionItems, delta => ({
+				...delta,
+				addedOrUpdated: delta.addedOrUpdated?.filter(item => !isTaskItem(item.resource)),
+			})),
+			refresh: token => provider.refresh(token),
+			deleteChatSessionItem: (resource, token) => provider.deleteChatSessionItem(resource, token),
+			setChatSessionItemArchived: (resource, archived) => provider.setChatSessionItemArchived(resource, archived),
+		}));
 		return provider;
 	}
 
@@ -553,7 +619,11 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 				}
 				this._editorLogService.warn('[CloudSandbox] Failed to name the task after the first prompt; continuing with the first turn', error);
 			}
-			return { sessionResource: URI.from({ scheme: provider.sessionType, path: `/${sessionId}` }), sessionType: provider.sessionType };
+			const task = this._tasks.get(provisioned.taskId);
+			if (task) {
+				this._onTasksChanged([task], []);
+			}
+			return { sessionResource: cloudSandboxTaskResource(provisioned.taskId), sessionType: provider.sessionType };
 		} finally {
 			// Stops progress before the transcript it reports to is replaced.
 			store.dispose();

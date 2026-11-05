@@ -5,7 +5,7 @@
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { isEqual } from '../../../../../base/common/resources.js';
@@ -13,7 +13,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { AgentSession } from '../../../../../platform/agentHost/common/agent.js';
 import { ChangesetKind } from '../../../../../platform/agentHost/common/changesetUri.js';
-import { CLOUD_SANDBOX_AGENT_PROVIDER, CLOUD_SANDBOX_SESSION_SCHEME, cloudSandboxAddress, ICloudSandboxAgentHostService, ICloudSandboxApiService, ICloudSandboxCreatedSession, ICloudSandboxCreateSessionRequest, ICloudSandboxDraftPreparationService } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CLOUD_SANDBOX_AGENT_PROVIDER, CLOUD_SANDBOX_SESSION_SCHEME, cloudSandboxAddress, cloudSandboxTaskResource, ICloudSandboxAgentHostService, ICloudSandboxApiService, ICloudSandboxCreatedSession, ICloudSandboxCreateSessionRequest, ICloudSandboxDraftPreparationService, ICloudSandboxTask } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -33,6 +33,8 @@ import { ISession } from '../../../../services/sessions/common/session.js';
 import { CLOUD_SANDBOX_CREATION_PROVIDER_ID, COPILOT_PROVIDER_ID } from '../../copilotChatSessions/common/copilotChatSessions.js';
 import { CloudSandboxSessionsProvider } from './cloudSandboxSessionsProvider.js';
 import { IRemoteAgentHostSessionsProviderConfig } from './remoteAgentHostSessionsProvider.js';
+import { CloudSandboxTaskSessionsProvider, CLOUD_SANDBOX_TASK_PROVIDER_ID } from './cloudSandboxTaskSessionsProvider.js';
+import { CloudSandboxTaskSessionRegistration } from '../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxTaskSessionRegistration.js';
 
 const CLOUD_SANDBOX_HOST_GROUP: IAgentHostGroup = {
 	id: 'githubsandbox',
@@ -41,6 +43,7 @@ const CLOUD_SANDBOX_HOST_GROUP: IAgentHostGroup = {
 	order: 1,
 	connectable: false,
 	sessionCreationProviderId: isWeb ? CLOUD_SANDBOX_CREATION_PROVIDER_ID : undefined,
+	sessionProviderIds: [CLOUD_SANDBOX_TASK_PROVIDER_ID],
 };
 
 const CLOUD_SANDBOX_CONNECTION_LABELS: IAgentHostConnectionLabels = {
@@ -65,6 +68,8 @@ export class CloudSandboxAgentHostContribution extends CloudSandboxSessionContri
 	protected override get supportsBackgroundConnection(): boolean { return true; }
 
 	private readonly _hostGroupRegistration = this._register(new MutableDisposable());
+	private readonly _catalogRegistration = this._register(new MutableDisposable<DisposableStore>());
+	private _catalog: CloudSandboxTaskSessionsProvider | undefined;
 
 	constructor(
 		@ICloudSandboxAgentHostService cloudSandboxService: ICloudSandboxAgentHostService,
@@ -114,7 +119,27 @@ export class CloudSandboxAgentHostContribution extends CloudSandboxSessionContri
 	protected override _updateRegistration(): void {
 		if (!this._isEnabled()) {
 			this._hostGroupRegistration.clear();
+			this._catalogRegistration.clear();
+			this._catalog = undefined;
 		} else {
+			if (!this._catalogRegistration.value) {
+				const store = new DisposableStore();
+				this._catalogRegistration.value = store;
+				const catalog = this._catalog = store.add(this._instantiateCatalog());
+				catalog.initialize({
+					accountKey: () => this.accountKey,
+					resolve: async (taskId, token) => {
+						const provider = await this._resolveTask(taskId, token);
+						catalog.attach(taskId, provider, this._tasks.get(taskId));
+						return provider;
+					},
+					rename: (taskId, title) => this._renameTask(taskId, title),
+					archive: (taskId, archived) => this._archiveTask(taskId, archived),
+					delete: taskId => this._deleteTask(taskId),
+				});
+				store.add(this._sessionsProvidersService.registerSessionBackend(isWeb ? CLOUD_SANDBOX_CREATION_PROVIDER_ID : COPILOT_PROVIDER_ID, catalog));
+				this._registerTaskRouting(store);
+			}
 			if (!this._hostGroupRegistration.value) {
 				this._hostGroupRegistration.value = this._agentHostFilterService.registerHostGroup(CLOUD_SANDBOX_HOST_GROUP);
 			}
@@ -122,8 +147,39 @@ export class CloudSandboxAgentHostContribution extends CloudSandboxSessionContri
 		}
 	}
 
+	protected _instantiateCatalog(): CloudSandboxTaskSessionsProvider {
+		return this._instantiationService.createInstance(CloudSandboxTaskSessionsProvider);
+	}
+
+	protected _registerTaskRouting(store: DisposableStore): void {
+		store.add(this._instantiationService.createInstance(CloudSandboxTaskSessionRegistration, {
+			open: (resource, token) => this._openTask(resource, token),
+			prepareRequest: (resource, token) => this._prepareTaskRequest(resource, token),
+			handler: resource => this._taskHandler(resource),
+			runtimeResource: resource => this._taskRuntimeResource(resource),
+		}));
+	}
+
+	protected override _onTasksChanged(tasks: readonly ICloudSandboxTask[], removedTaskIds: readonly string[]): void {
+		this._catalog?.removeTasks(removedTaskIds);
+		this._catalog?.setTasks(tasks);
+	}
+
+	protected override _resetTaskCatalog(): void {
+		this._catalog?.clear();
+	}
+
 	protected override _ensureProvider(env: ICloudSandboxSessionEnvironment): void {
 		super._ensureProvider(env);
+		if (env.taskId && env.sessionId) {
+			this._providerInstances.get(cloudSandboxAddress(env.environmentId))?.reconcileTaskResource(env.sessionId);
+		}
+		if (env.taskId) {
+			const provider = this._providerInstances.get(cloudSandboxAddress(env.environmentId));
+			if (provider) {
+				this._catalog?.attach(env.taskId, provider, this._tasks.get(env.taskId));
+			}
+		}
 		if (env.sessionId && env.taskId) {
 			const rawId = env.sessionId;
 			const address = cloudSandboxAddress(env.environmentId);
@@ -133,8 +189,14 @@ export class CloudSandboxAgentHostContribution extends CloudSandboxSessionContri
 	}
 
 	protected override _createProvider(env: ICloudSandboxSessionEnvironment, store: DisposableStore): CloudSandboxSessionsProvider {
+		const address = cloudSandboxAddress(env.environmentId);
 		const provider = store.add(this._instantiateProvider({
-			address: cloudSandboxAddress(env.environmentId),
+			address,
+			providerId: CLOUD_SANDBOX_TASK_PROVIDER_ID,
+			mapSessionResource: resource => {
+				const taskId = this._getTaskId(address, resource);
+				return taskId ? cloudSandboxTaskResource(taskId) : undefined;
+			},
 			name: env.name,
 			connectOnDemand: async () => { await this._connectEnvironment(env.environmentId); },
 			disconnectOnDemand: () => this._disconnectEnvironment(cloudSandboxAddress(env.environmentId)),
@@ -150,7 +212,14 @@ export class CloudSandboxAgentHostContribution extends CloudSandboxSessionContri
 			connectionLabels: CLOUD_SANDBOX_CONNECTION_LABELS,
 			hostGroup: CLOUD_SANDBOX_HOST_GROUP,
 		}));
-		store.add(this._sessionsProvidersService.registerSessionBackend(isWeb ? CLOUD_SANDBOX_CREATION_PROVIDER_ID : COPILOT_PROVIDER_ID, provider));
+		for (const task of this._environmentTasks(env.environmentId)) {
+			provider.setTaskRenameHandler(task.sessionId, title => this._renameSandboxSession(address, task.sessionId, title));
+			provider.setTaskArchiveHandler(task.sessionId, archived => this._setSandboxSessionArchived(address, task.sessionId, archived));
+		}
+		store.add(toDisposable(() => this._catalog?.detach(provider)));
+		if (env.taskId) {
+			this._catalog?.attach(env.taskId, provider, this._tasks.get(env.taskId));
+		}
 		return provider;
 	}
 
@@ -164,6 +233,7 @@ export class CloudSandboxAgentHostContribution extends CloudSandboxSessionContri
 		if (!session) {
 			throw new Error(`Provisioned sandbox session ${created.sessionId} did not surface on its provider`);
 		}
+		this._catalog?.attach(created.taskId, provider, this._tasks.get(created.taskId));
 		return { ...created, provider, session };
 	}
 }

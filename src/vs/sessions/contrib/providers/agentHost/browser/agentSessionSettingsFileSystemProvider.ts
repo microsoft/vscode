@@ -196,7 +196,7 @@ export class AgentSessionSettingsSchemaRegistrar extends AbstractMultiProviderAg
 	}
 
 	protected _getConfig(session: ISession): IAgentHostConfigLike | undefined {
-		const provider = this._sessionsProvidersService.getProvider<IAgentHostSessionsProvider>(session.providerId);
+		const provider = this._sessionsProvidersService.getProvider<IAgentHostSessionsProvider>(session.providerId, session.sessionId);
 		return provider?.getSessionOwnConfig(session.sessionId);
 	}
 

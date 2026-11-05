@@ -1817,6 +1817,26 @@ suite('AgentSessions', () => {
 			});
 		});
 
+		test('migrates cross-scheme state only through an explicit controller-owned identity', async () => {
+			return runWithFakedTimers({}, async () => {
+				const { newUri } = uris();
+				const previous = URI.parse('previous-provider:/conversation');
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, new StaticChatSessionItemController([makeItem(previous)]));
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+				await viewModel.resolve(undefined);
+				viewModel.sessions[0].setPinned(true);
+				viewModel.sessions[0].setRead(false);
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, new class extends StaticChatSessionItemController {
+					getPreviousSessionResource(): URI { return previous; }
+				}([makeItem(newUri)]));
+				await viewModel.resolve(undefined);
+				const session = viewModel.sessions[0];
+				assert.deepStrictEqual({ resource: session.resource.toString(), pinned: session.isPinned(), read: session.isRead() }, {
+					resource: newUri.toString(), pinned: true, read: false,
+				});
+			});
+		});
+
 		test('ignores legacyResource with a different scheme', async () => {
 			return runWithFakedTimers({}, async () => {
 				const { newUri } = uris();

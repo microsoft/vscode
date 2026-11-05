@@ -348,7 +348,7 @@ export class SessionTypePicker extends Disposable {
 		if (!session || !chat) {
 			return undefined;
 		}
-		const provider = this.sessionsProvidersService.getProvider(session.providerId);
+		const provider = this.sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 		const types: IProviderSessionType[] = [];
 		for (const harness of session.capabilities.get().supportsChatHarnesses ?? []) {
 			const sessionType = provider?.getHarnessSessionType?.(harness);
@@ -885,7 +885,7 @@ export class SessionTypePicker extends Disposable {
 		const session = this._session.get();
 		if (session && session.status.get() !== SessionStatus.Untitled
 			&& session.providerId === pick?.providerId && session.sessionType === pick.sessionTypeId) {
-			return this.sessionsProvidersService.getProvider(session.providerId)?.sessionTypes.find(type => type.id === session.sessionType);
+			return this.sessionsProvidersService.getProvider(session.providerId, session.sessionId)?.sessionTypes.find(type => type.id === session.sessionType);
 		}
 		return undefined;
 	}

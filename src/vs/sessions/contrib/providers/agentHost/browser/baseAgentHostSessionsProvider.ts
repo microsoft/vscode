@@ -868,6 +868,7 @@ function sessionKind(isQuickChat: boolean): IAgentHostSessionKind {
  * the adapter itself stays a single concrete class.
  */
 export interface IAgentHostAdapterOptions {
+	readonly resource?: URI;
 	readonly icon: ThemeIcon;
 	readonly environment: string;
 	/** Loading observable wired to the provider's authentication-pending state. */
@@ -1531,7 +1532,6 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	private readonly _chatCatalogCapabilitiesObserver = this._register(new MutableDisposable());
 	private readonly _supportsChatArchive: IObservable<boolean>;
 	private readonly _supportsChatReadState: IObservable<boolean>;
-	private readonly _rawId: string;
 	private readonly _resourceScheme: string;
 
 	readonly agentProvider: string;
@@ -1632,8 +1632,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		}
 		this.agentProvider = agentProvider;
 		this.backendUri = metadata.session;
-		this.resource = metadata.session.with({ scheme: resourceScheme });
-		this._rawId = rawId;
+		this.resource = _options.resource ?? metadata.session.with({ scheme: resourceScheme });
 		this._resourceScheme = resourceScheme;
 		this.sessionId = toSessionId(providerId, this.resource);
 		this.providerId = providerId;
@@ -2318,7 +2317,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		if (parentUri === this._defaultChatBackendUri.get()?.toString()) {
 			return this.resource;
 		}
-		return URI.from({ scheme: this._resourceScheme, path: `/${this._rawId}`, fragment: getAgentHostChatId(parentUri) });
+		return this.resource.with({ fragment: getAgentHostChatId(parentUri) });
 	}
 
 	/** The agent provider backing a chat of this session: its own when the host reported one, else the session's. */
@@ -4526,7 +4525,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	protected readonly _onDidReplaceSession = this._register(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
 	readonly onDidReplaceSession: Event<{ readonly from: ISession; readonly to: ISession }> = this._onDidReplaceSession.event;
 
-	private readonly _onDidInvokeChangesetOperation = this._register(new Emitter<ISessionChangesetOperationInvokedEvent>());
+	protected readonly _onDidInvokeChangesetOperation = this._register(new Emitter<ISessionChangesetOperationInvokedEvent>());
 	readonly onDidInvokeChangesetOperation: Event<ISessionChangesetOperationInvokedEvent> = this._onDidInvokeChangesetOperation.event;
 
 	protected readonly _onDidChangeSessionConfig = this._register(new Emitter<string>());
@@ -4541,6 +4540,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	protected readonly _onDidChangeCustomizations = this._register(new Emitter<void>());
 	readonly onDidChangeCustomizations = this._onDidChangeCustomizations.event;
 	readonly onDidChangeModels: Event<void>;
+	protected readonly _onDidChangeProviderModels = this._register(new Emitter<void>());
 	/** Last-known root config state (schema + values), seeded from `RootState.config`. */
 	protected _rootConfig: RootConfigState | undefined;
 
@@ -4896,6 +4896,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this.onDidChangeModels = Event.defer(Event.any(
 			this._languageModelsService.onDidChangeLanguageModels,
 			this._languageModelsService.onDidChangeModelVisibility,
+			this._onDidChangeProviderModels.event,
 		), false, this._store);
 		this._downloadProgress = this._register(this._instantiationService.createInstance(AgentHostDownloadProgress));
 		this._register(toDisposable(() => {
@@ -5039,7 +5040,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			?? cached?.defaultChatBackendUri.read(reader)?.toString();
 	}
 
-	private _mapBackendSessionResource(resource: URI): URI {
+	protected _mapBackendSessionResource(resource: URI): URI {
 		const known = this._sessionCache.get(resource.toString());
 		if (known) {
 			return known.resource;
@@ -5049,6 +5050,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			throw new Error(`Cannot project session without its advertised provider: ${resource.toString()}`);
 		}
 		return resource.with({ scheme: this.resourceSchemeForProvider(sessionType) });
+	}
+
+	protected sessionResource(backendSession: URI, scheme: string): URI {
+		return backendSession.with({ scheme });
 	}
 
 	/** Build an adapter for the given metadata. */
@@ -5061,6 +5066,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const resourceScheme = this.resourceSchemeForProvider(provider);
 
 		const options = {
+			resource: this.sessionResource(meta.session, resourceScheme),
 			icon: this.iconForAgentProvider(provider) ?? this.icon,
 			environment: this.environment.id,
 			loading: this.authenticationPending,
@@ -7262,7 +7268,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		const rawId = this._sessionKeyFromChatId(sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
-		return cached && chat ? cached.getChatModelScheme(chat) : cached?.resource.scheme;
+		return cached?.getChatModelScheme(chat ?? cached.resource);
 	}
 
 	setModel(sessionId: string, chatResource: URI, modelId: string, source: ChatModelSource): void {
@@ -8368,7 +8374,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const chatUri = URI.parse(newAgentHostChatUri(sessionUri.toString(), this._backendDefaultChat(sessionUri, undefined), this.connection?.initializeResult.get()));
 		const newChatId = getAgentHostChatId(chatUri.toString());
 		// A chat backed by another agent starts with that agent's defaults rather than the session's selections.
-		const selectedModelId = chatProvider ? undefined : cached.modelId.get() ?? (cached.modelSelection ? `${cached.resource.scheme}:${cached.modelSelection.id}` : undefined);
+		const selectedModelId = chatProvider ? undefined : cached.modelId.get() ?? (cached.modelSelection ? `${cached.getChatModelScheme(cached.resource)}:${cached.modelSelection.id}` : undefined);
 		const selectedAgentUri = chatProvider ? undefined : cached.mode.get()?.id;
 
 		// Show as `Untitled` until the first request; the host commits it below.
@@ -9386,7 +9392,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				const model = chatState && !(chatState instanceof Error) ? chatState.draft?.model : undefined;
 				if (model) {
 					if (model.config !== undefined) {
-						const modelId = `${cached.resource.scheme}:${model.id}`;
+						const modelId = `${cached.getChatModelScheme(cached.resource)}:${model.id}`;
 						this._runningModelConfigurations.set(cached.sessionId, new AutomationModelConfiguration(this._languageModelsService, {
 							modelId,
 							modelConfiguration: model.config,
@@ -9719,6 +9725,20 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return this._adoptSessionMeta(meta);
 	}
 
+	static readCachedSessionReadState(storageService: IStorageService, storageKey: string, resource: URI): boolean | undefined {
+		const entries = storageService.getObject<readonly ISerializedSessionMetadata[]>(storageKey, StorageScope.APPLICATION);
+		if (!Array.isArray(entries)) {
+			return undefined;
+		}
+		for (const entry of entries) {
+			const metadata = deserializeMetadata(entry);
+			if (metadata && isEqual(metadata.session, resource)) {
+				return metadata.status === undefined ? undefined : (metadata.status & ProtocolSessionStatus.IsRead) !== 0;
+			}
+		}
+		return undefined;
+	}
+
 	/** Load persisted session summaries into {@link _sessionCache}. */
 	private _loadCachedSessions(): void {
 		if (!this._sessionCacheStorageKey) {
@@ -9761,6 +9781,50 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * Mutable fields are read from each adapter's observables and overlaid on
 	 * top of the original metadata snapshot captured in {@link _metadataBySession}.
 	 */
+	protected rebindSessionResource(backendSession: URI): void {
+		const rawId = backendSession.toString();
+		const previous = this._sessionCache.get(rawId);
+		const base = this._metadataBySession.get(rawId);
+		if (!previous || !base || isEqual(previous.resource, this.sessionResource(backendSession, this.resourceSchemeForProvider(previous.agentProvider)))) {
+			return;
+		}
+		const metadata = this._currentSessionMetadata(base, previous);
+		const state = this._lastSessionStates.get(previous.sessionId);
+		const model = previous.modelSelection;
+		this._removeCachedSession(rawId);
+		const replacement = this.createAdapter(metadata);
+		replacement.discoveryMetadata = previous.discoveryMetadata;
+		replacement.modelSelection = model;
+		if (previous.titleIsExplicit) {
+			replacement.setTitleFromUser(previous.title.get());
+		}
+		this._sessionCache.set(rawId, replacement);
+		if (state) {
+			this._applySessionStateUpdate(replacement.sessionId, state);
+		}
+		this._onDidReplaceSession.fire({ from: previous, to: replacement });
+		this._onDidChangeSessions.fire({ added: [replacement], removed: [previous], changed: [] });
+		previous.dispose();
+	}
+
+	private _currentSessionMetadata(base: IAgentSessionMetadata, adapter: AgentHostSessionAdapter): IAgentSessionMetadata {
+		return {
+			...base,
+			origin: adapter.origin,
+			summary: adapter.title.get() || base.summary,
+			modifiedTime: adapter.updatedAt.get().getTime(),
+			changes: adapter.changesSummary.get(),
+			project: adapter.project,
+			chats: adapter.getCurrentChatMetadata(base.chats),
+			workingDirectories: adapter.workingDirectories,
+			status: withSessionStatusFlag(
+				withSessionStatusFlag(base.status ?? ProtocolSessionStatus.Idle, ProtocolSessionStatus.IsRead, adapter.isRead.get()),
+				ProtocolSessionStatus.IsArchived,
+				adapter.isArchived.get()),
+			_meta: adapter.sessionMeta,
+		};
+	}
+
 	private _persistCache(): void {
 		if (!this._sessionCacheStorageKey) {
 			return;
@@ -9774,23 +9838,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			if (!base) {
 				continue;
 			}
-			entries.push(serializeMetadata({
-				...base,
-				origin: adapter.origin,
-				summary: adapter.title.get() || base.summary,
-				modifiedTime: adapter.updatedAt.get().getTime(),
-				changes: adapter.changesSummary.get(),
-				project: adapter.project,
-				chats: adapter.getCurrentChatMetadata(base.chats),
-				// Session-state and summary updates can relocate an existing session.
-				workingDirectories: adapter.workingDirectories,
-				status: withSessionStatusFlag(
-					withSessionStatusFlag(base.status ?? ProtocolSessionStatus.Idle, ProtocolSessionStatus.IsRead, adapter.isRead.get()),
-					ProtocolSessionStatus.IsArchived,
-					adapter.isArchived.get()),
-				// Keep discovery-derived workspace-less state out of host metadata.
-				_meta: adapter.sessionMeta,
-			}, adapter.discoveryMetadata, adapter.titleIsExplicit));
+			entries.push(serializeMetadata(this._currentSessionMetadata(base, adapter), adapter.discoveryMetadata, adapter.titleIsExplicit));
 		}
 		if (entries.length === 0) {
 			this._storageService.remove(this._sessionCacheStorageKey, StorageScope.APPLICATION);

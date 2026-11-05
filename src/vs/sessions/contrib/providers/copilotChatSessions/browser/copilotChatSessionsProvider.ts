@@ -17,7 +17,6 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { AgentSession } from '../../../../../platform/agentHost/common/agent.js';
 import { getGitHubRepositoryId, parseGitHubIssueUrl } from '../../../../../platform/github/common/githubUrls.js';
 import { getAgentSessionPullRequestUri, IAgentSession } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { getRepositoryName } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsViewer.js';
@@ -2128,7 +2127,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 	/** Reveal the sandbox session that {@link CloudSandboxAgentHostContribution.provisionSession} withheld from listings. */
 	private _publishSandboxSession(provisioned: ICloudSandboxProvisionedSession, options?: { announce?: boolean }): void {
-		provisioned.provider.publishWithheldSession(AgentSession.id(provisioned.session.resource), options);
+		provisioned.provider.publishWithheldSession(provisioned.sessionId, options);
 	}
 	/** Carries the raw model ID and its preferences across the draft and connected host's identifier spaces. */
 	private _selectedCloudModel(session: RemoteNewSession): { readonly rawModelId: string; readonly label: string; readonly config?: IAutomationSessionTemplate['modelConfiguration']; readonly fromCloudCatalog?: boolean } | undefined {

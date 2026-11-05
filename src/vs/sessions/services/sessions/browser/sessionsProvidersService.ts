@@ -31,7 +31,7 @@ export interface ISessionsProvidersService {
 	 */
 	getProviders(options?: { readonly includeSessionBackends?: boolean }): ISessionsProvider[];
 	/** Resolves both logical provider IDs and existing sessions' backend routing IDs. */
-	getProvider<T extends ISessionsProvider>(providerId: string): T | undefined;
+	getProvider<T extends ISessionsProvider>(providerId: string, sessionId?: string): T | undefined;
 }
 
 export class SessionsProvidersService extends Disposable implements ISessionsProvidersService {
@@ -115,10 +115,11 @@ export class SessionsProvidersService extends Disposable implements ISessionsPro
 		return providers.sort((a, b) => a.order - b.order);
 	}
 
-	getProvider<T extends ISessionsProvider>(providerId: string): T | undefined {
+	getProvider<T extends ISessionsProvider>(providerId: string, sessionId?: string): T | undefined {
 		const entry = this._sessionBackends.get(providerId);
-		return (this._providers.get(providerId)
-			?? (entry && this._providers.has(entry.ownerProviderId) ? entry.backend : undefined)) as T | undefined;
+		const provider = this._providers.get(providerId)
+			?? (entry && this._providers.has(entry.ownerProviderId) ? entry.backend : undefined);
+		return (sessionId ? provider?.getSessionProvider?.(sessionId) ?? provider : provider) as T | undefined;
 	}
 }
 
