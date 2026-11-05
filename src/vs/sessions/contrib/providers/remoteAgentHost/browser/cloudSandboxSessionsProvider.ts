@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Sequencer } from '../../../../../base/common/async.js';
+import { disposableTimeout, Sequencer } from '../../../../../base/common/async.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, derived, IObservable } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -13,10 +13,13 @@ import { localize } from '../../../../../nls.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
 import { CLOUD_SANDBOX_AGENT_PROVIDER, CLOUD_SANDBOX_SESSION_SCHEME, CloudSandboxAutoConnectOnOpenSettingId, CloudSandboxRequestError, isRetryableCloudSandboxError } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import type { ISession } from '../../../../services/sessions/common/session.js';
+import { getGitHubRepositoryId } from '../../../../../platform/github/common/githubUrls.js';
+import { GITHUB_REMOTE_FILE_SCHEME, type ISession } from '../../../../services/sessions/common/session.js';
+import type { ISessionCreationTarget } from '../../../../services/sessions/common/sessionsProvider.js';
 import type { AgentHostSessionAdapter } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
+import { CLOUD_SANDBOX_CREATION_PROVIDER_ID, COPILOT_PROVIDER_ID } from '../../copilotChatSessions/common/copilotChatSessions.js';
 import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
-import { resolveCloudSandboxSessionConfig } from '../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxSessionConfig.js';
+import { resolveCloudSandboxSessionConfig, validateCloudSandboxModelConfig } from '../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxSessionConfig.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { readSessionWorkspaceless } from '../../../../../platform/agentHost/common/state/sessionState.js';
@@ -37,8 +40,37 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 
 	readonly supportsWorkspaceSelection = false;
 
+	getNewSessionTarget(sessionResource: URI): ISessionCreationTarget | undefined {
+		const folder = this.getSessionByResource(sessionResource)?.workspace.get()?.folders[0];
+		if (!folder) {
+			return undefined;
+		}
+		const gitHubInfo = folder.gitRepository?.gitHubInfo.get();
+		const repository = gitHubInfo ? `${gitHubInfo.owner}/${gitHubInfo.repo}` : getGitHubRepositoryId(folder.root.toString());
+		if (!repository) {
+			return undefined;
+		}
+		return {
+			providerId: this.isWebPlatform ? CLOUD_SANDBOX_CREATION_PROVIDER_ID : COPILOT_PROVIDER_ID,
+			folderUri: URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${repository}/HEAD` }),
+		};
+	}
+
 	/** Sandboxes are per-session environments, not persistent Automation hosts. */
 	override get automations(): undefined { return undefined; }
+
+	/** Cloud sandbox storage is managed by the sandbox lifecycle, not worktree cleanup. */
+	override async getSessionWorktreeDiskUsage(_sessionId: string, _token = CancellationToken.None): Promise<number | undefined> {
+		return undefined;
+	}
+
+	override async sessionWorktreeExists(_sessionId: string, _token = CancellationToken.None): Promise<boolean | undefined> {
+		return undefined;
+	}
+
+	protected override _validateBeforeCreate(): void {
+		throw new Error(localize('cloudSandbox.creationUnavailable', "Start new cloud sessions from the Cloud environment."));
+	}
 
 	protected override _adoptCachedSessionMeta(meta: IAgentSessionMetadata): IAgentSessionMetadata | undefined {
 		const adopted = super._adoptCachedSessionMeta(meta);
@@ -63,6 +95,8 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 	 * waking a sandbox can take minutes.
 	 */
 	private readonly _provisionalSessions = new Map<string, number | undefined>();
+	/** Lists the host again once the earliest provisional grace period ends, so an unlisted session is evicted. */
+	private readonly _provisionalGraceRefresh = this._register(new MutableDisposable());
 	private readonly _pendingSessionTitles = new Map<string, string>();
 
 	/** How long a provisional session resists eviction after the host first omits it. */
@@ -78,9 +112,16 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 		return resolveCloudSandboxSessionConfig(connection, values, token);
 	}
 
-	protected override _adapterOptions() {
+	async validateInitialModelConfig(modelId: string, values: Readonly<Record<string, unknown>>, token: CancellationToken): Promise<void> {
+		if (!this.connection) {
+			throw new Error(localize('cloudSandbox.configUnavailable', "The sandbox connection is unavailable. Your prompt was not sent."));
+		}
+		await validateCloudSandboxModelConfig(this.connection, modelId, values, token);
+	}
+
+	protected override _adapterOptions(agentProvider: string) {
 		return {
-			...super._adapterOptions(),
+			...super._adapterOptions(agentProvider),
 			preserveStatusWhenDisconnected: true,
 			useSessionTitleForDefaultChat: true,
 			isSessionTitlePlaceholder: (title: string, session: URI) => session.scheme === CLOUD_SANDBOX_SESSION_SCHEME && title === AgentSession.id(session),
@@ -253,7 +294,7 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 	}
 
 	override async setChatReadState(sessionId: string, chatResource: URI, isRead: boolean): Promise<boolean> {
-		if (this.connection) {
+		if (this.connection && this.getBackendChatResource(chatResource)) {
 			return super.setChatReadState(sessionId, chatResource, isRead);
 		}
 		const sessionKey = this._sessionKeyFromChatId(sessionId);
@@ -266,7 +307,7 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 			return true;
 		}
 		session.setChatRead(chatResource, isRead);
-		// Recorded conversations remain readable even when their compute can no longer reconnect.
+		// A connected environment may no longer host this recorded conversation.
 		this._onDidChangeSessions.fire({ added: [], removed: [], changed: [session] });
 		return true;
 	}
@@ -372,16 +413,25 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 
 	protected override _onHostListedSessions(rawIds: ReadonlySet<string>): void {
 		if (this._provisionalSessions.size === 0) {
+			this._provisionalGraceRefresh.clear();
 			return;
 		}
+		let earliestDeadline: number | undefined;
 		for (const [rawId, deadline] of [...this._provisionalSessions]) {
 			if (rawIds.has(rawId)) {
 				// The host knows it, so it reconciles like any other session from here on.
 				this._provisionalSessions.delete(rawId);
-			} else if (deadline === undefined) {
-				// Start the grace period now, so a slow wake does not consume it beforehand.
-				this._provisionalSessions.set(rawId, Date.now() + CloudSandboxSessionsProvider.PROVISIONAL_GRACE_MS);
+				continue;
+			}
+			// Start the grace period now, so a slow wake does not consume it beforehand.
+			const effectiveDeadline = deadline ?? Date.now() + CloudSandboxSessionsProvider.PROVISIONAL_GRACE_MS;
+			this._provisionalSessions.set(rawId, effectiveDeadline);
+			if (effectiveDeadline > Date.now()) {
+				earliestDeadline = Math.min(earliestDeadline ?? effectiveDeadline, effectiveDeadline);
 			}
 		}
+		this._provisionalGraceRefresh.value = earliestDeadline === undefined
+			? undefined
+			: disposableTimeout(() => this._refreshSessions(), earliestDeadline - Date.now());
 	}
 }

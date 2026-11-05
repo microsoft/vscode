@@ -7,8 +7,10 @@ import * as dom from '../../../../../../base/browser/dom.js';
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
+import { escapeMarkdownSyntaxTokens } from '../../../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { escape } from '../../../../../../base/common/strings.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -79,7 +81,16 @@ interface ISlashCommandWidgetArgs {
 
 export interface IDecorationWidgetArgs {
 	title?: string;
+	/** The index of the request part whose attachment is shown as a pill in place of the decoration. */
+	inlineAttachment?: number;
 }
+
+/**
+ * Renders the attachment of a request part as a pill inline with the request's
+ * text, see {@link ChatMarkdownDecorationsRenderer.convertParsedRequestToMarkdown}.
+ * Returns `undefined` when the part has no pill, so it shows as a decoration.
+ */
+export type ChatInlineAttachmentRenderer = (partIndex: number, store: DisposableStore) => HTMLElement | undefined;
 
 export class ChatMarkdownDecorationsRenderer extends Disposable {
 	private readonly richLinkDecorator: Lazy<ChatRichLinkDecorator>;
@@ -104,22 +115,26 @@ export class ChatMarkdownDecorationsRenderer extends Disposable {
 		this.richLinkDecorator = new Lazy(() => this._register(new ChatRichLinkDecorator(linkPresentationService, hoverService, sessionSummaryHoverService)));
 	}
 
-	convertParsedRequestToMarkdown(sessionResource: URI, parsedRequest: IParsedChatRequest): string {
+	/**
+	 * @param inlineAttachmentParts The indices of the parts whose attachments are
+	 * shown as pills inline with the text, by a {@link ChatInlineAttachmentRenderer}.
+	 */
+	convertParsedRequestToMarkdown(sessionResource: URI, parsedRequest: IParsedChatRequest, inlineAttachmentParts?: ReadonlySet<number>): string {
 		let result = '';
-		for (const part of parsedRequest.parts) {
+		parsedRequest.parts.forEach((part, index) => {
 			if (part instanceof ChatRequestTextPart) {
 				result += part.text;
 			} else if (part instanceof ChatRequestAgentPart) {
 				result += this.instantiationService.invokeFunction(accessor => agentToMarkdown(part.agent, sessionResource, false, accessor));
 			} else {
-				result += this.genericDecorationToMarkdown(part);
+				result += this.genericDecorationToMarkdown(part, inlineAttachmentParts?.has(index) ? index : undefined);
 			}
-		}
+		});
 
 		return result;
 	}
 
-	private genericDecorationToMarkdown(part: IParsedChatRequestPart): string {
+	private genericDecorationToMarkdown(part: IParsedChatRequestPart, inlineAttachment: number | undefined): string {
 		const uri = part instanceof ChatRequestDynamicVariablePart && part.data instanceof URI ?
 			part.data :
 			undefined;
@@ -130,12 +145,17 @@ export class ChatMarkdownDecorationsRenderer extends Disposable {
 						part instanceof ChatRequestToolPart ? (this.toolsService.getTool(part.toolId)?.userDescription) :
 							'';
 
-		const args: IDecorationWidgetArgs = { title };
-		const text = part.text;
-		return `[${text}](${decorationRefUrl}?${encodeURIComponent(JSON.stringify(args))})`;
+		const args: IDecorationWidgetArgs = inlineAttachment === undefined ? { title } : { title, inlineAttachment };
+		const text = escapeMarkdownSyntaxTokens(escape(part.text));
+		const encodedArgs = encodeURIComponent(JSON.stringify(args)).replace(/\(/g, '%28').replace(/\)/g, '%29');
+		return `[${text}](${decorationRefUrl}?${encodedArgs})`;
 	}
 
-	walkTreeAndAnnotateReferenceLinks(content: IChatMarkdownContent, element: HTMLElement): IDisposable {
+	/**
+	 * @param renderInlineAttachment Renders the pills of decorations that stand
+	 * for an attachment shown inline with a request's text.
+	 */
+	walkTreeAndAnnotateReferenceLinks(content: IChatMarkdownContent, element: HTMLElement, renderInlineAttachment?: ChatInlineAttachmentRenderer): IDisposable {
 		const store = new DisposableStore();
 		const fileWidgetOptions = { linkTypes: ['markdown-preview'] };
 		const richLinksEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.RichLinks);
@@ -174,7 +194,8 @@ export class ChatMarkdownDecorationsRenderer extends Disposable {
 						args = JSON.parse(decodeURIComponent(href.slice(decorationRefUrl.length + 1)));
 					} catch (e) { }
 
-					a.replaceWith(this.renderResourceWidget(a.textContent!, args, store));
+					const pill = typeof args?.inlineAttachment === 'number' ? renderInlineAttachment?.(args.inlineAttachment, store) : undefined;
+					a.replaceWith(pill ?? this.renderResourceWidget(a.textContent!, args, store));
 				} else if (href.startsWith(contentRefUrl)) {
 					this.renderFileWidget(content, href, a, store);
 				} else if (href.startsWith('command:')) {

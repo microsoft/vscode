@@ -27,7 +27,7 @@ import { GitHubRequestError } from '../../../../../platform/github/common/github
 import { ApiRequestOptions } from '../../../../../platform/github/common/client/request.js';
 import { IGitHubRecentUserWork } from '../../../github/browser/fetchers/githubRecentUserWorkFetcher.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
-import { NewSessionViewV3PromptRunner, selectNewSessionViewV3GitHubCandidate } from '../../browser/newSessionViewV3Prompt.js';
+import { INewSessionPromptRunnerOptions, NewSessionViewV3PromptRunner, selectNewSessionViewV3GitHubCandidate } from '../../browser/newSessionViewV3Prompt.js';
 import { NEW_SESSION_VIEW_V3_TOUR_ID } from '../../browser/tours/newSessionViewV3Tour.js';
 
 class TestAssignmentService extends NullWorkbenchAssignmentService {
@@ -191,6 +191,24 @@ suite('NewSessionViewV3Prompt', () => {
 					timedOutStage: 'none',
 				},
 			}],
+		});
+	});
+
+	test('lets another tour show prompt options under its own scenario id', async () => {
+		const result = await runPrompt({ 'onb.newSessionViewV3.variation': 'prompt' }, {}, undefined, {
+			runnerOptions: { scenarioId: 'test.otherTour', variation: 'options' },
+			promptOptionInteractions: [0],
+		});
+
+		assert.deepStrictEqual({
+			animation: result.animation,
+			events: result.telemetry.map(event => ({ name: event.name, scenarioId: event.data?.scenarioId, configuredVariation: event.data?.configuredVariation })),
+		}, {
+			animation: undefined,
+			events: [
+				{ name: 'onboarding.promptStrategy', scenarioId: 'test.otherTour', configuredVariation: 'options' },
+				{ name: 'onboarding.promptOptionInteraction', scenarioId: 'test.otherTour', configuredVariation: undefined },
+			],
 		});
 	});
 
@@ -872,9 +890,7 @@ suite('NewSessionViewV3Prompt', () => {
 		const runner = new NewSessionViewV3PromptRunner(
 			new TestAssignmentService({ 'onb.newSessionViewV3.variation': 'githubPrompt' }),
 			new TestConfigurationService(),
-			new class extends mock<ISessionsService>() {
-				override readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
-			}(),
+			constObservable<IActiveSession | undefined>(activeSession),
 			new class extends mock<INewSessionComposerService>() {
 				override readonly activeComposer = constObservable({
 					animatePrompt: async (text: string) => {
@@ -929,9 +945,7 @@ suite('NewSessionViewV3Prompt', () => {
 		const runner = new NewSessionViewV3PromptRunner(
 			new TestAssignmentService({ 'onb.newSessionViewV3.variation': 'githubPrompt' }),
 			new TestConfigurationService(),
-			new class extends mock<ISessionsService>() {
-				override readonly activeSession = activeSession;
-			}(),
+			activeSession,
 			new class extends mock<INewSessionComposerService>() {
 				override readonly activeComposer = constObservable({
 					animatePrompt: async (text: string) => {
@@ -994,6 +1008,7 @@ async function runPrompt(
 		readonly suppressPromptOptionUpdatesAfter?: number;
 		readonly refreshPromptOptionsAgain?: boolean;
 		readonly promptOptionInteractions?: readonly (number | 'close')[];
+		readonly runnerOptions?: INewSessionPromptRunnerOptions;
 	} = {},
 ): Promise<{
 	readonly animation: { readonly prompt: string; readonly durationMs: number; readonly placeholder: string } | undefined;
@@ -1014,7 +1029,7 @@ async function runPrompt(
 	const workspace = createWorkspace(workspaceUri, 'r', options.includeGitHubInfo !== false);
 	const activeSession = createSession(workspace);
 	const sessionsService = new class extends mock<ISessionsService>() {
-		override readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
+		readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
 	}();
 	const composerService = new class extends mock<INewSessionComposerService>() {
 		override readonly activeComposer = constObservable({
@@ -1114,7 +1129,7 @@ async function runPrompt(
 	const runner = new NewSessionViewV3PromptRunner(
 		new TestAssignmentService(treatments) as IWorkbenchAssignmentService,
 		new TestConfigurationService(configuration),
-		sessionsService,
+		sessionsService.activeSession,
 		composerService,
 		gitService,
 		new MissingFileService(),
@@ -1122,6 +1137,7 @@ async function runPrompt(
 		telemetryService,
 		new NullLogService(),
 		{ totalMs: options.totalMs ?? 100, summaryMs: options.summaryMs ?? 20, linkageMs: 20, reviewMs: 20 },
+		options.runnerOptions,
 	);
 
 	await runner.run(CancellationToken.None);

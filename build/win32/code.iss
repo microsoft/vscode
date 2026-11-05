@@ -1727,8 +1727,8 @@ begin
 
   Command :=
     '-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -Command "' +
-    'Get-CimInstance Win32_Process -Filter ""Name = ''dllhost.exe''"" | ' +
-    'Where-Object { $_.CommandLine -like ''*/Processid:{#FileExplorerContextMenuCLSID}*'' } | ' +
+    'Get-CimInstance Win32_Process -Filter \"Name = ''dllhost.exe''\" | ' +
+    'Where-Object { $_.CommandLine -like ''*{#FileExplorerContextMenuCLSID}*'' } | ' +
     'ForEach-Object { try { Stop-Process -Id $_.ProcessId -Force -ErrorAction Stop } catch {} }"';
 
   if not ShellExec('', 'powershell.exe', Command, '', SW_HIDE, ewWaitUntilTerminated, KillErrorCode) then

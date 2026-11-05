@@ -18,6 +18,7 @@ export class ChecksClient implements IChecksClient {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages(
 			{
+				domain: 'checks',
 				method: 'GET',
 				path: withQuery(`${repositoryPath(repository)}/commits/${pathSegment(commitRef)}/check-runs`, { ...query }),
 				authentication: 'optional',
@@ -35,6 +36,7 @@ export class ChecksClient implements IChecksClient {
 
 	async getRun(repository: RepositoryRef, checkRunId: number, signal: AbortSignal, options?: ApiRequestOptions): Promise<CheckRun> {
 		return this._client.request({
+			domain: 'checks',
 			method: 'GET',
 			path: `${repositoryPath(repository)}/check-runs/${numberSegment(checkRunId)}`,
 			authentication: 'optional',
@@ -47,6 +49,7 @@ export class ChecksClient implements IChecksClient {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages(
 			{
+				domain: 'checks',
 				method: 'GET',
 				path: withQuery(`${repositoryPath(repository)}/check-suites/${numberSegment(suiteId)}/check-runs`, { ...query }),
 				authentication: 'optional',
@@ -66,6 +69,7 @@ export class ChecksClient implements IChecksClient {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages(
 			{
+				domain: 'checks',
 				method: 'GET',
 				path: withQuery(`${repositoryPath(repository)}/commits/${pathSegment(commitRef)}/check-suites`, { ...query }),
 				authentication: 'optional',
@@ -83,6 +87,7 @@ export class ChecksClient implements IChecksClient {
 
 	async getSuite(repository: RepositoryRef, suiteId: number, signal: AbortSignal, options?: ApiRequestOptions): Promise<CheckSuite> {
 		return this._client.request({
+			domain: 'checks',
 			method: 'GET',
 			path: `${repositoryPath(repository)}/check-suites/${numberSegment(suiteId)}`,
 			authentication: 'optional',
@@ -94,6 +99,7 @@ export class ChecksClient implements IChecksClient {
 	async listAnnotations(repository: RepositoryRef, checkRunId: number, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<readonly CheckAnnotation[]> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages({
+			domain: 'checks',
 			method: 'GET',
 			path: withQuery(`${repositoryPath(repository)}/check-runs/${numberSegment(checkRunId)}/annotations`, { ...query }),
 			authentication: 'optional',
@@ -105,6 +111,7 @@ export class ChecksClient implements IChecksClient {
 	async getCombinedStatus(repository: RepositoryRef, commitRef: string, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<CombinedStatus> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages({
+			domain: 'checks',
 			method: 'GET',
 			path: withQuery(`${repositoryPath(repository)}/commits/${pathSegment(commitRef)}/status`, { ...query }),
 			authentication: 'optional',
@@ -116,6 +123,7 @@ export class ChecksClient implements IChecksClient {
 	async listStatuses(repository: RepositoryRef, commitRef: string, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<readonly CommitStatus[]> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages({
+			domain: 'checks',
 			method: 'GET',
 			path: withQuery(`${repositoryPath(repository)}/commits/${pathSegment(commitRef)}/statuses`, { ...query }),
 			authentication: 'optional',

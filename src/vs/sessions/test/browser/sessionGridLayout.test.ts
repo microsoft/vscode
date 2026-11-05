@@ -4,16 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { addDisposableListener } from '../../../base/browser/dom.js';
+import { $, addDisposableListener, append } from '../../../base/browser/dom.js';
 import { Direction, ISerializedGrid, IView } from '../../../base/browser/ui/grid/grid.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { Event } from '../../../base/common/event.js';
 import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
-import { GRID_GAP_SASH_CLASS } from '../../browser/parts/gridGap.js';
+import { GRID_GAP_SASH_CLASS } from '../../../workbench/browser/parts/partGrid/partGridGap.js';
 import { ISessionGridEntry, ISessionGridView, SessionGridLayout } from '../../browser/parts/sessionGridLayout.js';
 import { getSessionDropDirection } from '../../browser/parts/sessionDropTarget.js';
 import { ISessionGridState, isSessionGridState, projectSessionGrid } from '../../services/sessions/browser/sessionGridState.js';
+import '../../../workbench/browser/media/style.css';
 import '../../browser/media/workbench.css';
 import '../../browser/parts/media/chatCompositeBar.css';
 import '../../browser/parts/media/sessionsPart.css';
@@ -184,6 +185,48 @@ suite('Sessions - Grid Layout', () => {
 				wrapperWidths: [82, 82],
 			},
 			restored: { disabled: false, gripper: '""' },
+		});
+	});
+
+	test('idle grippers recede across session, side-pane and panel sashes without disabling resizing', () => {
+		const { grid } = harness();
+		const workbench = append(document.body, $('.monaco-workbench.agent-sessions-workbench'));
+		append(append(workbench, $('.part.sessionspart')), grid.element);
+		append(workbench, $('.monaco-sash.vertical.sessions-side-pane-divider'));
+		const splitView = append(workbench, $('.monaco-split-view2.vertical'));
+		append(append(splitView, $('.sash-container')), $('.monaco-sash.horizontal'));
+		append(append(append(append(splitView, $('.monaco-scrollable-element')), $('.split-view-container')), $('.split-view-view')), $('.part.panel'));
+		store.add(toDisposable(() => workbench.remove()));
+		grid.layout(400, 600, 0, 0, false, 4);
+		const sashes = Array.from(workbench.querySelectorAll<HTMLElement>('.monaco-sash'));
+		const snapshot = () => sashes.map(sash => ({
+			opacity: mainWindow.getComputedStyle(sash, '::after').opacity,
+			pointerEvents: mainWindow.getComputedStyle(sash).pointerEvents
+		}));
+		const visible = snapshot();
+		workbench.setAttribute('data-sash-grippers-hidden', '');
+		const hidden = snapshot();
+		workbench.removeAttribute('data-sash-grippers-hidden');
+		const restored = snapshot();
+		const transitions = () => sashes.map(sash => {
+			const style = mainWindow.getComputedStyle(sash, '::after');
+			return { property: style.transitionProperty, duration: style.transitionDuration };
+		});
+		workbench.classList.add('monaco-enable-motion');
+		const motionEnabled = transitions();
+		workbench.setAttribute('data-sash-grippers-hidden', '');
+		const fadeOut = transitions();
+		workbench.removeAttribute('data-sash-grippers-hidden');
+		const fadeIn = transitions();
+		workbench.classList.replace('monaco-enable-motion', 'monaco-reduce-motion');
+		assert.deepStrictEqual({ visible, hidden, restored, motionEnabled, fadeOut, fadeIn, reducedMotion: transitions() }, {
+			visible: Array.from({ length: 3 }, () => ({ opacity: '1', pointerEvents: 'auto' })),
+			hidden: Array.from({ length: 3 }, () => ({ opacity: '0', pointerEvents: 'auto' })),
+			restored: Array.from({ length: 3 }, () => ({ opacity: '1', pointerEvents: 'auto' })),
+			motionEnabled: Array.from({ length: 3 }, () => ({ property: 'opacity', duration: '0.15s' })),
+			fadeOut: Array.from({ length: 3 }, () => ({ property: 'opacity', duration: '0.3s' })),
+			fadeIn: Array.from({ length: 3 }, () => ({ property: 'opacity', duration: '0.15s' })),
+			reducedMotion: Array.from({ length: 3 }, () => ({ property: 'all', duration: '0s' }))
 		});
 	});
 
@@ -369,7 +412,7 @@ suite('Sessions - Grid Layout', () => {
 		root.className = 'monaco-workbench agent-sessions-workbench mac modern-ui-tabs modern-ui-connected-editor-tabs nopanel noeditorpane nosidebar';
 		root.style.cssText = '--vscode-cornerRadius-large: 8px; --vscode-agents-layout-floatingPanelGap: 4px; --vscode-strokeThickness: 1px; --window-corner-radius: 16px; --modern-ui-connected-tab-border: #445566;';
 		const card = document.createElement('div');
-		card.className = 'part sessionspart agents-part-card';
+		card.className = 'part sessionspart sessions-chat-surface agents-part-card agents-card-surface';
 		root.appendChild(card);
 		document.body.appendChild(root);
 		store.add(toDisposable(() => root.remove()));

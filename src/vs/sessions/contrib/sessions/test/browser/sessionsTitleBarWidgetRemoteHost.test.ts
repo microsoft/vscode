@@ -7,7 +7,7 @@ import assert from 'assert';
 import { $ } from '../../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, derived, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mockObject, upcastDeepPartial, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -23,12 +23,13 @@ import { IWorkbenchLayoutService } from '../../../../../workbench/services/layou
 import { Menus } from '../../../../browser/menus.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IChat, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { BlockedSessionsIndicatorModel } from '../../browser/blockedSessionsIndicatorModel.js';
 import { SessionActionFeedback } from '../../browser/sessionActionFeedback.js';
 import { SessionsTitleBarWidget } from '../../browser/sessionsTitleBarWidget.js';
+import { ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
+import { ITestSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('SessionsTitleBarWidget - Remote Host', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -63,6 +64,7 @@ suite('SessionsTitleBarWidget - Remote Host', () => {
 		providersService.getProvider.callsFake((id: string) => providers.get(id));
 		const hoverService = mockObject<IHoverService>()({ _serviceBrand: undefined });
 		hoverService.setupDelayedHover.returns(Disposable.None);
+		hoverService.setupManagedHover.returns({ ...Disposable.None, show: () => { }, hide: () => { }, update: () => { } });
 		const feedback = store.add(new SessionActionFeedback());
 		const action = new SubmenuItemAction({
 			submenu: Menus.TitleBarSessionTitle,
@@ -81,7 +83,8 @@ suite('SessionsTitleBarWidget - Remote Host', () => {
 				onDidChangeSessions: Event.None,
 				onDidChangeSessionTypes: onDidChangeSessionTypes.event,
 			}),
-			upcastPartial<ISessionsService>({ activeSession }),
+			upcastPartial<ITestSessionsService>({ activeSession }),
+			upcastPartial<ISessionHost>({ session: activeSession, chat: derived(reader => activeSession.read(reader)?.activeChat.read(reader)) }),
 			providersService,
 			upcastPartial<ICommandService>({}),
 			upcastPartial<IContextViewService>({}),
@@ -103,8 +106,8 @@ suite('SessionsTitleBarWidget - Remote Host', () => {
 			presentation: () => ({
 				text: container.textContent,
 				ariaLabel: container.getAttribute('aria-label'),
-				hover: container.contains(hoverService.setupDelayedHover.lastCall?.args[0])
-					? hoverService.setupDelayedHover.lastCall?.args[1].content
+				hover: container.contains(hoverService.setupManagedHover.lastCall?.args[1])
+					? hoverService.setupManagedHover.lastCall?.args[2]
 					: undefined,
 			}),
 		};

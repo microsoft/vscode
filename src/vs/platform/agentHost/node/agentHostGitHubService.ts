@@ -13,6 +13,7 @@ import { authenticationAccountId } from '../common/meta/agentAuthenticationAccou
 import { refineServiceDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { IAgentHostAuthTokenRequest } from '../common/agent.js';
 import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { captureCredentialSource, isScopedCredentialUsable, type IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
@@ -70,7 +71,10 @@ export class AgentHostGitHubService extends GitHubService implements IAgentHostG
 			}
 			return repositoryAccountId;
 		};
+		const onDidAuthenticate: Event<IAgentHostAuthTokenRequest> = _authenticationService.onDidAuthenticate ?? _authenticationService.onDidChangeAuthToken;
 		const credentialProvider: IGitHubCredentialProvider = {
+			onDidChangeToken: Event.map(onDidAuthenticate,
+				event => ({ providerId: 'agent-host', sessionIds: [event.resource] })),
 			onDidChange: Event.any(
 				Event.map(Event.filter(_authenticationService.onDidChangeAuthToken, event => event.token === undefined), event => ({ providerId: 'agent-host', sessionIds: [event.resource] })),
 				Event.map(_endpointService.onDidChange, () => ({ providerId: 'agent-host' })),

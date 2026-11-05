@@ -9,7 +9,7 @@ import { BrowserView } from './browserView.js';
 import { ICDPTarget, CDPBrowserVersion, CDPWindowBounds, CDPTargetInfo, ICDPConnection, ICDPBrowserTarget, CDPRequest, CDPResponse, CDPEvent } from '../common/cdp/types.js';
 import { CDPBrowserProxy } from '../common/cdp/proxy.js';
 import { IBrowserViewGroup, IBrowserViewGroupFilter, matchesBrowserViewGroupFilter, matchesBrowserViewSandboxSession } from '../common/browserViewGroup.js';
-import { BrowserViewStorageScope, IBrowserViewCreationContext } from '../common/browserView.js';
+import { BrowserViewStorageScope, getBrowserViewSessionNetwork, IBrowserViewCreationContext } from '../common/browserView.js';
 import { IBrowserViewMainService } from './browserViewMainService.js';
 import { IProductService } from '../../product/common/productService.js';
 import { BrowserSession } from './browserSession.js';
@@ -340,12 +340,15 @@ export class BrowserViewGroup extends Disposable implements ICDPBrowserTarget, I
 		this._validateAgentGroupStorageScope();
 		const contextId = generateUuid();
 		const sessionSelector = this.targetContext.session;
+		const parentSession = typeof sessionSelector === 'string' ? BrowserSession.get(sessionSelector) : undefined;
 		const usesAgentStorage = typeof sessionSelector === 'string'
-			? BrowserSession.get(sessionSelector)?.storageScope === BrowserViewStorageScope.Agent
+			? parentSession?.storageScope === BrowserViewStorageScope.Agent
 			: sessionSelector.scope === BrowserViewStorageScope.Agent;
+		// New contexts keep the group's network; they never fall back to the local network.
+		const network = typeof sessionSelector === 'string' ? parentSession?.network : getBrowserViewSessionNetwork(sessionSelector);
 		const browserSession = usesAgentStorage
-			? BrowserSession.getOrCreateAgent(this.instantiationService, undefined, contextId)
-			: BrowserSession.getOrCreateEphemeral(this.instantiationService, contextId, 'cdp-created');
+			? BrowserSession.getOrCreateAgent(this.instantiationService, undefined, contextId, undefined, network)
+			: BrowserSession.getOrCreateEphemeral(this.instantiationService, contextId, 'cdp-created', network);
 		this.knownContextIds.add(browserSession.id);
 		this.ownedContextIds.add(browserSession.id);
 		return browserSession.id;

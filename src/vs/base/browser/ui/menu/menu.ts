@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isFirefox } from '../../browser.js';
+import { getVisibleWCOTitlebarAreaRect, isFirefox } from '../../browser.js';
 import { EventType as TouchEventType, Gesture } from '../../touch.js';
 import { $, addDisposableListener, append, clearNode, Dimension, EventHelper, EventLike, EventType, getActiveElement, getWindow, IDomNodePagePosition, isAncestor, isInShadowDOM, ModifierKeyEmitter } from '../../dom.js';
 import { createStyleSheet } from '../../domStylesheets.js';
@@ -11,6 +11,7 @@ import { StandardKeyboardEvent } from '../../keyboardEvent.js';
 import { StandardMouseEvent } from '../../mouseEvent.js';
 import { ActionBar, ActionsOrientation, IActionViewItemProvider } from '../actionbar/actionbar.js';
 import { ActionViewItem, BaseActionViewItem, IActionViewItemOptions } from '../actionbar/actionViewItems.js';
+import { avoidWindowControlsOverlay } from '../contextview/windowControlsOverlay.js';
 import { DomScrollableElement } from '../scrollbar/scrollableElement.js';
 import { EmptySubmenuAction, getActionForAltMode, IAction, IActionRunner, Separator, SubmenuAction } from '../../../common/actions.js';
 import { RunOnceScheduler } from '../../../common/async.js';
@@ -26,7 +27,7 @@ import { isLinux, isMacintosh } from '../../../common/platform.js';
 import { ScrollbarVisibility, ScrollEvent } from '../../../common/scrollable.js';
 import * as strings from '../../../common/strings.js';
 import { AnchorAlignment, layout, LayoutAnchorPosition } from '../../../common/layout.js';
-import { CONTEXT_VIEW_CLOSE_ANIMATION_DURATION_VARIABLE, CONTEXT_VIEW_MENU_MOTION_BACKDROP_OPACITY_VARIABLE, CONTEXT_VIEW_MENU_MOTION_CLOSE_START_TRANSFORM_VARIABLE, CONTEXT_VIEW_MENU_MOTION_CLOSING_CLASS, CONTEXT_VIEW_MENU_MOTION_EASING, CONTEXT_VIEW_MENU_MOTION_OPEN_DURATION_MS, CONTEXT_VIEW_MENU_MOTION_SHADOW_VARIABLE } from '../contextview/contextview.js';
+import { CONTEXT_VIEW_CLOSE_ANIMATION_DURATION_VARIABLE, CONTEXT_VIEW_MENU_MOTION_BACKDROP_OPACITY_VARIABLE, CONTEXT_VIEW_MENU_MOTION_CLOSE_START_OPACITY_VARIABLE, CONTEXT_VIEW_MENU_MOTION_CLOSE_START_TRANSFORM_VARIABLE, CONTEXT_VIEW_MENU_MOTION_CLOSING_CLASS, CONTEXT_VIEW_MENU_MOTION_EASING, CONTEXT_VIEW_MENU_MOTION_OPEN_DURATION_MS, CONTEXT_VIEW_MENU_MOTION_SHADOW_VARIABLE } from '../contextview/contextview.js';
 
 export const MENU_MNEMONIC_REGEX = /\(&([^\s&])\)|(^|[^&])&([^\s&])/;
 export const MENU_ESCAPED_MNEMONIC_REGEX = /(&amp;)?(&amp;)([^\s&])/g;
@@ -54,6 +55,11 @@ export interface IMenuOptions {
 	actionViewItemProvider?: IActionViewItemProvider;
 	actionRunner?: IActionRunner;
 	getKeyBinding?: (action: IAction) => ResolvedKeybinding | undefined;
+	/**
+	 * Returns the title of the group an action belongs to. The menu shows the title of a group's
+	 * first action as a header above the group, unless a separator with a label introduces it.
+	 */
+	getGroupTitle?: (action: IAction) => string | undefined;
 	ariaLabel?: string;
 	enableMnemonics?: boolean;
 	anchorAlignment?: AnchorAlignment;
@@ -282,28 +288,7 @@ export class Menu extends ActionBar {
 		const window = getWindow(container);
 		menuElement.style.maxHeight = `${Math.max(10, window.innerHeight - container.getBoundingClientRect().top - 35)}px`;
 
-		actions = actions.filter((a, idx) => {
-			if (options.submenuIds?.has(a.id)) {
-				console.warn(`Found submenu cycle: ${a.id}`);
-				return false;
-			}
-
-			// Filter out consecutive or useless separators
-			if (a instanceof Separator) {
-				if (idx === actions.length - 1 || idx === 0) {
-					return false;
-				}
-
-				const prevAction = actions[idx - 1];
-				if (prevAction instanceof Separator) {
-					return false;
-				}
-			}
-
-			return true;
-		});
-
-		this.push(actions, { icon: true, label: true, isMenu: true });
+		this.push(cleanMenuActions(actions, options.submenuIds, options.getGroupTitle), { icon: true, label: true, isMenu: true });
 
 		container.appendChild(this.scrollableElement.getDomNode());
 		this.scrollableElement.scanDomNode();
@@ -311,6 +296,16 @@ export class Menu extends ActionBar {
 		this.viewItems.filter(item => !(item instanceof MenuSeparatorActionViewItem)).forEach((item, index, array) => {
 			(item as BaseMenuActionViewItem).updatePositionInSet(index + 1, array.length);
 		});
+
+		// Describe the items of a group by the group's header
+		let headerId: string | undefined;
+		for (const item of this.viewItems) {
+			if (item instanceof MenuSeparatorActionViewItem) {
+				headerId = item.headerId;
+			} else if (headerId && item instanceof BaseMenuActionViewItem) {
+				item.setDescribedBy(headerId);
+			}
+		}
 
 		this._register(ModifierKeyEmitter.getInstance().event(() => {
 			this.mnemonics.clear();
@@ -375,6 +370,15 @@ export class Menu extends ActionBar {
 				return;
 			}
 		}
+	}
+
+	/**
+	 * Returns the index of the item that shows the given action, or -1. It can differ from the action's
+	 * index in the actions the menu was created with, since the menu adds group headers and removes
+	 * redundant separators.
+	 */
+	indexOfAction(action: IAction): number {
+		return this.viewItems.findIndex(item => (item instanceof BaseActionViewItem ? item._action : item.action) === action);
 	}
 
 	private focusItemByElement(element: HTMLElement) {
@@ -618,6 +622,10 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 			this.item.setAttribute('aria-posinset', `${pos}`);
 			this.item.setAttribute('aria-setsize', `${setSize}`);
 		}
+	}
+
+	setDescribedBy(id: string): void {
+		this.item?.setAttribute('aria-describedby', id);
 	}
 
 	protected override updateLabel(): void {
@@ -1013,7 +1021,13 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 			width: entryBox.width
 		};
 		const viewBox = this.submenuContainer.getBoundingClientRect();
-		const { top, left } = this.calculateSubmenuMenuLayout(new Dimension(window.innerWidth, window.innerHeight), Dimension.lift(viewBox), entryBoxUpdated, this.expandDirection);
+		const layoutResult = this.calculateSubmenuMenuLayout(new Dimension(window.innerWidth, window.innerHeight), Dimension.lift(viewBox), entryBoxUpdated, this.expandDirection);
+		const { top, left } = avoidWindowControlsOverlay(
+			getVisibleWCOTitlebarAreaRect(window),
+			{ top: 0, left: 0, width: window.innerWidth, height: window.innerHeight },
+			{ width: viewBox.width, height: viewBox.height },
+			layoutResult
+		);
 		this.submenuContainer.style.left = `${left - viewBox.left}px`;
 		this.submenuContainer.style.top = `${top - viewBox.top}px`;
 	}
@@ -1052,8 +1066,15 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 }
 
 class MenuSeparatorActionViewItem extends ActionViewItem {
+
+	private static headerIdPool = 0;
+
+	/** The id of the element that labels the group after a separator with a label. */
+	readonly headerId: string | undefined;
+
 	constructor(context: unknown, action: IAction, options: IActionViewItemOptions, private readonly menuStyles: IMenuStyles) {
 		super(context, action, options);
+		this.headerId = action.label ? `monaco-menu-header-${MenuSeparatorActionViewItem.headerIdPool++}` : undefined;
 	}
 
 	override render(container: HTMLElement): void {
@@ -1061,7 +1082,48 @@ class MenuSeparatorActionViewItem extends ActionViewItem {
 		if (this.label) {
 			this.label.style.borderBottomColor = this.menuStyles.separatorColor ? `${this.menuStyles.separatorColor}` : '';
 		}
+		if (this.headerId && this.element) {
+			// Items of the group reference the header with `aria-describedby`
+			this.element.classList.add('menu-header');
+			append(this.element, $('div.menu-header-title', undefined, $('span', { id: this.headerId }, this.action.label)));
+		}
 	}
+
+	protected override updateAriaLabel(): void {
+		// A separator and its header are presentational
+	}
+}
+
+/**
+ * Removes submenu cycles and leading, trailing, and consecutive separators, and introduces each
+ * group with a separator labeled with its title: the label of the separator before the group, or
+ * else the group title of its first action. A separator with a label is kept at the start, and of
+ * consecutive separators where one has a label, the last is kept since it introduces the actions
+ * that follow.
+ */
+function cleanMenuActions(actions: ReadonlyArray<IAction>, submenuIds: ReadonlySet<string> | undefined, getGroupTitle: IMenuOptions['getGroupTitle']): IAction[] {
+	const result: IAction[] = [];
+	let separator: Separator | undefined;
+	for (const action of actions) {
+		if (submenuIds?.has(action.id)) {
+			console.warn(`Found submenu cycle: ${action.id}`);
+		} else if (action instanceof Separator) {
+			if (!separator || separator.label || action.label) {
+				separator = action;
+			}
+		} else {
+			const isGroupStart = !!separator || result.length === 0;
+			const title = separator?.label || (isGroupStart ? getGroupTitle?.(action) : undefined);
+			if (title) {
+				result.push(separator?.label ? separator : new Separator(title));
+			} else if (separator && result.length > 0) {
+				result.push(separator);
+			}
+			separator = undefined;
+			result.push(action);
+		}
+	}
+	return result;
 }
 
 export function cleanMnemonic(label: string): string {
@@ -1378,9 +1440,11 @@ ${formatRule(Codicon.menuSubmenu)}
 
 		@keyframes frosted-glass-menu-motion-close {
 			from {
+				opacity: var(${CONTEXT_VIEW_MENU_MOTION_CLOSE_START_OPACITY_VARIABLE}, 1);
 				transform: var(${CONTEXT_VIEW_MENU_MOTION_CLOSE_START_TRANSFORM_VARIABLE}, scale(1));
 			}
 			to {
+				opacity: 0;
 				transform: scale(0.99);
 			}
 		}
@@ -1473,6 +1537,30 @@ ${formatRule(Codicon.menuSubmenu)}
 :host-context(.linux) .monaco-menu .monaco-action-bar.vertical .action-label.separator {
 	margin-left: 0;
 	margin-right: 0;
+}
+
+/* Group headers: a separator with a label. The title aligns with the labels of the menu items. */
+.monaco-menu .monaco-action-bar.vertical .action-item.menu-header {
+	flex-direction: column;
+	align-items: stretch;
+}
+
+.monaco-menu .monaco-action-bar.vertical .action-item.menu-header:first-child > .action-label.separator {
+	display: none;
+}
+
+.monaco-menu .monaco-action-bar.vertical .menu-header-title {
+	display: flex;
+	align-items: center;
+	height: 20px;
+	margin: 0 4px;
+	padding: 0 2em;
+	color: var(--vscode-descriptionForeground);
+}
+
+.monaco-menu .monaco-action-bar.vertical .menu-header-title > span {
+	font-size: var(--vscode-fontSize-label2);
+	font-weight: var(--vscode-fontWeight-regular);
 }
 
 .monaco-menu .monaco-action-bar.vertical .submenu-indicator {

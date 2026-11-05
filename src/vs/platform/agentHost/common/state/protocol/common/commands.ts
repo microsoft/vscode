@@ -300,7 +300,23 @@ export interface InitializeResult {
 	 * @see {@link /specification/tcp-channel | TCP Channel}
 	 */
 	tcpConnections?: TcpConnectionsCapability;
+	/**
+	 * Present when chats in one session may be backed by different agents
+	 * (see {@link CreateChatParams.provider} and {@link ChatState.provider}).
+	 * Clients MUST NOT send `CreateChatParams.provider` without it.
+	 * @stability 1.0
+	 * @see {@link /specification/chat-channel#chat-providers | Chat Channel: Chat providers}
+	 */
+	multipleChatProviders?: MultipleChatProvidersCapability;
 }
+
+/**
+ * Presence capability for {@link InitializeResult.multipleChatProviders}.
+ *
+ * @category Commands
+ * @stability 1.0
+ */
+export interface MultipleChatProvidersCapability { }
 
 /**
  * Automation features supported by this host authority.
@@ -1253,6 +1269,41 @@ export interface ResourceMkdirResult {
 // ─── authenticate ────────────────────────────────────────────────────────────
 
 /**
+ * Identifies the consumer of an authentication token.
+ *
+ * @category Commands
+ * @nonexhaustive
+ */
+export const enum AuthenticateTargetKind {
+	McpServer = 'mcpServer',
+}
+
+/**
+ * An MCP server identified by host-published session and customization state.
+ *
+ * @category Commands
+ */
+export interface McpServerAuthenticateTarget {
+	kind: AuthenticateTargetKind.McpServer;
+	/** Session URI whose `SessionState.customizations` contains the MCP server. */
+	session: URI;
+	/**
+	 * The server's session-unique `McpServerCustomization.id`, echoed from the
+	 * customization carrying `McpServerAuthRequiredState` or from
+	 * `ToolCallAuthRequiredState.contributor.customizationId`.
+	 */
+	customizationId: string;
+}
+
+/**
+ * Consumer of an authentication token, discriminated by `kind`.
+ * Extensible to support additional consumers, such as host-owned authentication.
+ *
+ * @category Commands
+ */
+export type AuthenticateTarget = McpServerAuthenticateTarget;
+
+/**
  * Pushes a Bearer token for a protected resource. The `resource` field MUST
  * match a protected-resource identifier the client has discovered from the
  * server — whether declared statically in `AgentInfo.protectedResources`,
@@ -1324,6 +1375,23 @@ export interface AuthenticateParams extends BaseParams {
 	 * token.
 	 */
 	scopes?: string[];
+	/**
+	 * Optional consumer of the token. Clients SHOULD include this when answering
+	 * a specific MCP server's `McpServerAuthRequiredState` or
+	 * `ToolCallAuthRequiredState` challenge, and omit it for provider-level
+	 * resources (`AgentInfo.protectedResources` or `AuthRequired` -32007 data).
+	 *
+	 * When present, the host MUST apply the token only to that MCP server in
+	 * that session, never to sibling servers, other sessions, or agent-level
+	 * resources, even if they share the resource and scopes. `resource` MUST
+	 * still equal that server's advertised `McpAuthRequirement.resource.resource`.
+	 * The host MUST reject an unknown session or customization, or a
+	 * customization that is not an MCP server, with `InvalidParams` (-32602).
+	 *
+	 * Without a target, resource/scope matching is unchanged; the token may
+	 * satisfy every matching pending challenge. Older hosts ignore this field.
+	 */
+	target?: AuthenticateTarget;
 }
 
 /**

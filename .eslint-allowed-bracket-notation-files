@@ -229,7 +229,6 @@ src/vs/workbench/contrib/chat/test/common/tools/builtinTools/runSubagentTool.tes
 src/vs/workbench/contrib/inlineChat/browser/inlineChatWidget.ts
 src/vs/workbench/contrib/mcp/common/mcpSandboxService.ts
 src/vs/workbench/contrib/mcp/common/mcpServer.ts
-src/vs/workbench/contrib/welcomeAgentSessions/browser/agentSessionsWelcomeInput.ts
 src/vs/workbench/services/agentHost/test/common/agentHostResourceService.test.ts
 src/vs/workbench/services/chat/common/chatEntitlementService.ts
 

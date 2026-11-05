@@ -3,11 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { onUnexpectedError } from '../../base/common/errors.js';
+import { IDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { URI } from '../../base/common/uri.js';
 import { stringHash } from '../../base/common/hash.js';
 import { CodeDataTransfers, DraggedChatReferenceIdentifier, fillInChatReferenceDragData, LocalSelectionTransfer } from '../../platform/dnd/browser/dnd.js';
 import { isHTMLElement } from '../../base/browser/dom.js';
-import { getInputDropTargets, isInputDropTarget } from '../../workbench/browser/dnd.js';
+import { getInputDropTargetClipPath, isInputDropTarget } from '../../workbench/browser/dnd.js';
+import { ISession } from '../services/sessions/common/session.js';
 
 /**
  * Code data transfer mime types specific to the Agents window.
@@ -32,18 +35,7 @@ export function getChatReferenceDropClipPath(container: HTMLElement, event: Drag
 	if (!event.dataTransfer?.types.includes(CodeDataTransfers.CHAT_REFERENCE)) {
 		return '';
 	}
-	const bounds = container.getBoundingClientRect();
-	const holes = getInputDropTargets(container).flatMap(input => {
-		const rect = input.getBoundingClientRect();
-		const left = Math.max(0, rect.left - bounds.left);
-		const top = Math.max(0, rect.top - bounds.top);
-		const right = Math.min(bounds.width, rect.right - bounds.left);
-		const bottom = Math.min(bounds.height, rect.bottom - bounds.top);
-		return right > left && bottom > top
-			? [`${left}px ${top}px, ${right}px ${top}px, ${right}px ${bottom}px, ${left}px ${bottom}px, ${left}px ${top}px, 0 0`]
-			: [];
-	});
-	return holes.length ? `polygon(evenodd, 0 0, 100% 0, 100% 100%, 0 100%, 0 0, ${holes.join(', ')})` : '';
+	return getInputDropTargetClipPath(container);
 }
 
 /** Keep a small drag-free buffer beside the pane's resize boundaries. */
@@ -69,9 +61,18 @@ export function isSessionDragFromPaneEdge(element: HTMLElement, event: MouseEven
 export class DraggedSessionIdentifier {
 
 	constructor(
-		readonly sessionId: string,
-		readonly resource: URI,
+		readonly sessionId: string | undefined,
+		readonly resource: URI | undefined,
 	) { }
+}
+
+/** Attach a session placement payload; an absent session represents the empty composer. */
+export function fillSessionDragData(event: DragEvent, session: ISession | undefined): void {
+	LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>().setData(
+		[new DraggedSessionIdentifier(session?.sessionId, session?.resource)],
+		DraggedSessionIdentifier.prototype,
+	);
+	event.dataTransfer?.setData(SessionsDataTransfers.SESSION, JSON.stringify({ sessionId: session?.sessionId, resource: session?.resource.toString() }));
 }
 
 /**
@@ -184,4 +185,28 @@ export function fillChatReferenceDragData(e: DragEvent, chatResource: URI, clien
  */
 export function clearChatReferenceDragData(): void {
 	chatReferenceTransfer.clearData(DraggedChatReferenceIdentifier.prototype);
+}
+
+/**
+ * Handles the end of a chat's drag, such as by opening the chat in a window of its own where a drag out of the window
+ * ended. Without a chat, the drag is of the session, which stands for the chat it shows. Returns whether it handled it.
+ */
+export type SessionChatDragEndHandler = (e: DragEvent, offsetElement: HTMLElement, session: ISession, chat: URI | undefined, name: string) => Promise<boolean>;
+
+let sessionChatDragEndHandler: SessionChatDragEndHandler | undefined;
+
+/** Registers what handles the end of a chat's drag; there is one at a time. */
+export function registerSessionChatDragEndHandler(handler: SessionChatDragEndHandler): IDisposable {
+	sessionChatDragEndHandler = handler;
+
+	return toDisposable(() => {
+		if (sessionChatDragEndHandler === handler) {
+			sessionChatDragEndHandler = undefined;
+		}
+	});
+}
+
+/** Called where a drag of a chat (or of a session, without `chat`), such as of its tab or its row in the sessions list, ends. */
+export function onDidEndSessionChatDrag(e: DragEvent, offsetElement: HTMLElement, session: ISession, chat: URI | undefined, name: string): void {
+	sessionChatDragEndHandler?.(e, offsetElement, session, chat, name).catch(onUnexpectedError);
 }

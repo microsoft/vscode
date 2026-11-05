@@ -10,6 +10,7 @@
 
 .search-editor .search-results {
 	flex: 1;
+	min-height: 0;
 }
 
 .search-editor .query-container {

@@ -1,6 +1,13 @@
 {
   "name": "code-oss-dev-build",
   "version": "1.0.0",
+  "packageManager": "pnpm@12.16.0",
+  "nativeBuild": {
+    "runtime": "node",
+    "disturl": "https://nodejs.org/dist",
+    "buildFromSource": true,
+    "forceProcessConfig": true
+  },
   "license": "MIT",
   "devDependencies": {
     "@azure/core-auth": "^1.9.0",
@@ -10,12 +17,10 @@
     "@azure/storage-blob": "^12.25.0",
     "@electron/get": "^2.0.0",
     "@electron/osx-sign": "^2.0.0",
-    "@types/ansi-colors": "^3.2.0",
-    "@types/byline": "^4.2.32",
+    "@malept/cross-spawn-promise": "^2.0.0",
     "@types/debounce": "^1.0.0",
     "@types/debug": "^4.1.5",
     "@types/fancy-log": "^1.3.0",
-    "@types/fs-extra": "^9.0.12",
     "@types/glob": "^7.1.1",
     "@types/gulp": "^4.0.17",
     "@types/gulp-filter": "^3.0.32",
@@ -39,15 +44,16 @@
     "@types/through": "^0.0.29",
     "@types/through2": "^2.0.36",
     "@types/vinyl": "^2.0.12",
+    "@types/vinyl-fs": "^2.4.9",
     "@types/xml2js": "0.0.33",
     "@vscode/iconv-lite-umd": "0.7.1",
     "@vscode/ripgrep-universal": "^1.18.0",
     "@vscode/vsce": "3.6.1",
     "ansi-colors": "^3.2.3",
-    "byline": "^5.0.0",
     "debug": "^4.3.2",
     "esbuild": "0.27.2",
     "extract-zip": "^2.0.1",
+    "glob": "^7.2.3",
     "gulp-merge-json": "^2.1.1",
     "gulp-sort": "^2.0.0",
     "jsonc-parser": "^2.3.0",
@@ -56,8 +62,10 @@
     "source-map": "0.6.1",
     "svgo": "2.8.4",
     "ternary-stream": "^3.0.0",
+    "through": "^2.3.8",
     "through2": "^4.0.2",
-    "tree-sitter": "^0.22.4",
+    "tree-sitter": "^0.25.1",
+    "vinyl": "^2.2.1",
     "vscode-universal-bundler": "^0.1.3",
     "yauzl": "^3.3.1",
     "zx": "^8.8.5"
@@ -65,28 +73,13 @@
   "type": "module",
   "scripts": {
     "copy-policy-dto": "node lib/policies/copyPolicyDto.ts",
-    "pretypecheck": "npm run copy-policy-dto",
-    "typecheck": "cd .. && npx tsc --project build/tsconfig.json",
-    "watch": "npm run typecheck -- --watch",
-    "test": "node --test '{lib,next,agent-sdk,codex}/**/*.test.ts' '../.eslint-plugin-local/tests/*.test.ts'"
+    "pretypecheck": "pnpm run copy-policy-dto",
+    "typecheck": "cd .. && pnpm exec tsc --project build/tsconfig.json",
+    "watch": "pnpm run typecheck --watch",
+    "test": "node --test '{lib,next,agent-sdk,codex,npm}/**/*.test.ts' '../.eslint-plugin-local/tests/*.test.ts'"
   },
   "optionalDependencies": {
     "tree-sitter-typescript": "^0.23.2",
     "vscode-gulp-watch": "^5.0.3"
-  },
-  "overrides": {
-    "path-scurry": {
-      "lru-cache": "11.2.1"
-    },
-    "yauzl": "^3.3.1"
-  },
-  "allowScripts": {
-    "@vscode/vsce-sign@2.1.0": true,
-    "esbuild@0.27.2": true,
-    "fsevents@2.3.3": true,
-    "keytar@7.9.0": true,
-    "tree-sitter@0.22.4": true,
-    "tree-sitter-javascript@0.23.1": true,
-    "tree-sitter-typescript@0.23.2": true
   }
 }

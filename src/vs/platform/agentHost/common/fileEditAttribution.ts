@@ -55,6 +55,8 @@ export type AttributedToolResultFileEditContent = ToolResultFileEditContent & {
 
 export interface IAgentEditAttribution {
 	readonly provider?: string;
+	/** Account identity captured for the edit, retained only in host telemetry state and never in protocol markers. */
+	readonly copilotTrackingId?: string;
 	readonly sessionUri: string;
 	/** The session that owns the edit's chat. */
 	readonly ownerSessionUri: string;
@@ -66,6 +68,7 @@ export interface IAgentEditAttribution {
 	readonly beforeText: string;
 	readonly afterText: string;
 	readonly changes: readonly IOffsetEdit[];
+	readonly diffHitTimeout?: boolean;
 	readonly modelId: string | undefined;
 	readonly autoTier?: string;
 	/** The HydraFusion model (`hydrafusion` or `hydrafusion-max`) that routed the edit, when known. */
@@ -113,6 +116,8 @@ export interface IPrepareEditAttributionFlushParams {
 export interface IPreparedEditAttributionFlush {
 	readonly flushToken: string;
 	readonly agentModifiedCount: number;
+	/** Omitted by older hosts; counts coarse diff applications across the prepared reporting scope. */
+	readonly coarseDiffCount?: number;
 	readonly lastSequence?: number;
 	readonly coverageGapThroughSequence?: number;
 	readonly standaloneCoverageGapAcknowledgements?: readonly IEditAttributionCoverageGapAcknowledgement[];
@@ -139,6 +144,7 @@ export type EditAttributionFlushOutcome = 'committed' | 'cancelled' | 'missing';
 export interface IEditAttributionFlushResult {
 	readonly outcome: EditAttributionFlushOutcome;
 	readonly agentModifiedCount: number;
+	readonly coarseDiffCount?: number;
 	readonly lastSequence?: number;
 	readonly coverageGapThroughSequence?: number;
 	readonly standaloneCoverageGapAcknowledgements?: readonly IEditAttributionCoverageGapAcknowledgement[];

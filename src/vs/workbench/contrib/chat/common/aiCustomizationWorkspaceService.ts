@@ -45,8 +45,10 @@ export const AICustomizationManagementSection = {
 	Automations: 'automations',
 	McpServers: 'mcpServers',
 	Plugins: 'plugins',
+	Canvases: 'canvases',
 	Models: 'models',
 	Tools: 'tools',
+	Extensions: 'extensions',
 	HarnessSettings: 'harnessSettings',
 } as const;
 
@@ -57,11 +59,17 @@ export interface IAICustomizationMarketplaceOpenTarget {
 	readonly sourceId?: string;
 	readonly searchQuery?: string;
 	readonly connectorName?: string;
+	readonly connectorDisplayName?: string;
+	readonly preserveFocus?: boolean;
+	/** Exact registry identity for legacy MCP detail links, not a display-name search. */
+	readonly mcpServer?: { readonly name: string; readonly registryUrl?: string };
 }
 
 /** Command IDs for the AI Customizations Management Editor. */
 export const AICustomizationManagementCommands = {
 	OpenEditor: 'aiCustomization.openManagementEditor',
+	ShowPlugin: 'aiCustomizationManagement.showPlugin',
+	CreateCanvas: 'aiCustomizationManagement.createCanvas',
 	OpenMarketplace: 'aiCustomization.openMarketplace',
 	CreateNewAgent: 'aiCustomization.createNewAgent',
 	CreateNewSkill: 'aiCustomization.createNewSkill',
@@ -123,8 +131,12 @@ export interface IAICustomizationWorkspaceService {
 
 	/**
 	 * Commits files in the active project.
+	 *
+	 * @returns `false` when a commit failed (the failure has already been reported to
+	 * the user) so callers can keep the change pending, otherwise `true`, including
+	 * when there was nothing to commit.
 	 */
-	commitFiles(projectRoot: URI, fileUris: URI[]): Promise<void>;
+	commitFiles(projectRoot: URI, fileUris: URI[]): Promise<boolean>;
 
 	/**
 	 * Commits the deletion of resources that have already been removed from disk.
@@ -132,8 +144,11 @@ export interface IAICustomizationWorkspaceService {
 	 * deleting a skill, the entire customization folder is removed). Implementations
 	 * should ensure that directory deletions are handled recursively as needed.
 	 * In sessions this stages and commits the removal in the relevant repositories.
+	 *
+	 * @returns `false` when a commit failed (the failure has already been reported to
+	 * the user), otherwise `true`, including when there was nothing to commit.
 	 */
-	deleteFiles(projectRoot: URI, fileUris: URI[]): Promise<void>;
+	deleteFiles(projectRoot: URI, fileUris: URI[]): Promise<boolean>;
 
 	/**
 	 * Launches the AI-guided creation flow for the given customization type,

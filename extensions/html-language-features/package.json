@@ -26,9 +26,9 @@
     }
   },
   "scripts": {
-    "compile": "npx gulp compile-extension:html-language-features-client compile-extension:html-language-features-server",
-    "watch": "npx gulp watch-extension:html-language-features-client watch-extension:html-language-features-server",
-    "install-client-next": "npm install vscode-languageclient@next"
+    "compile": "pnpm exec gulp compile-extension:html-language-features-client compile-extension:html-language-features-server",
+    "watch": "pnpm exec gulp watch-extension:html-language-features-client watch-extension:html-language-features-server",
+    "install-client-next": "pnpm add vscode-languageclient@next"
   },
   "categories": [
     "Programming Languages"

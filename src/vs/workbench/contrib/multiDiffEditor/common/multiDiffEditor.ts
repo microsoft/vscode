@@ -3,16 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { compareFileNames, comparePaths } from '../../../../base/common/comparers.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { derived, IObservable, observableFromEvent } from '../../../../base/common/observable.js';
+import { IResourceNode, ResourceTree } from '../../../../base/common/resourceTree.js';
+import { URI } from '../../../../base/common/uri.js';
 import type { MultiDiffEditorVariant } from '../../../../editor/common/multiDiffEditor.js';
 import { localize } from '../../../../nls.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ConfigurationScope, Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
-import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ActiveEditorContext } from '../../../common/contextkeys.js';
+
+/** The editor pane identifier of the multi diff editor. */
+export const MULTI_DIFF_EDITOR_ID = 'multiDiffEditor';
+/** Shows or hides the changed files list of the multi diff editors. */
+export const TOGGLE_MULTI_DIFF_EDITOR_FILE_LIST_COMMAND_ID = 'multiDiffEditor.toggleFileList';
 
 export const multiDiffEditorExperimentalVariantSetting = 'multiDiffEditor.experimental.variant';
 export const defaultMultiDiffEditorExperimentalVariant = 'noCards';
@@ -43,18 +53,36 @@ export const MultiDiffEditorFileListEnabledContext = new RawContextKey<boolean>(
 export const MultiDiffEditorFileListVisibleContext = new RawContextKey<boolean>('multiDiffEditorFileListVisible', false, localize('multiDiffEditorFileListVisible', "Whether the multi diff editor shows the list of changed files"));
 export const MultiDiffEditorFileListFocusedContext = new RawContextKey<boolean>('multiDiffEditorFileListFocus', true, localize('multiDiffEditorFileListFocus', "Whether focus is in the multi diff editor changed files list"));
 
+/** Whether the active editor is a multi diff editor that supports the changed files list. */
+export const ActiveMultiDiffEditorHasFileListContext = ContextKeyExpr.and(
+	ActiveEditorContext.isEqualTo(MULTI_DIFF_EDITOR_ID),
+	ContextKeyExpr.has(`config.${multiDiffEditorExperimentalFileListSetting}`),
+	MultiDiffEditorFileListAvailableContext,
+)!;
+
+/** The submenu that switches the changed files list between a list and a tree, and moves it to either side of the diffs. */
+export const MultiDiffEditorFilesViewAndPositionMenu = new MenuId('MultiDiffEditorFilesViewAndPosition');
+
 /**
  * Observes whether the file list should be shown. All multi diff editors share
  * the state, so toggling the list in one editor updates the others.
  */
 export function observableMultiDiffEditorFileListVisible(owner: object, configurationService: IConfigurationService, storageService: IStorageService, store: DisposableStore): IObservable<boolean> {
 	const enabled = observableConfigValue<boolean>(multiDiffEditorExperimentalFileListSetting, false, configurationService);
-	const hidden = observableFromEvent(
+	const hidden = observableMultiDiffEditorFileListHidden(owner, storageService, store);
+	return derived(owner, reader => enabled.read(reader) && !hidden.read(reader));
+}
+
+/**
+ * Observes whether the user has hidden the file list, which all multi diff editors share, also those that show the list
+ * regardless of {@link multiDiffEditorExperimentalFileListSetting}.
+ */
+export function observableMultiDiffEditorFileListHidden(owner: object, storageService: IStorageService, store: DisposableStore): IObservable<boolean> {
+	return observableFromEvent(
 		owner,
 		storageService.onDidChangeValue(StorageScope.PROFILE, multiDiffEditorFileListHiddenStorageKey, store),
 		() => storageService.getBoolean(multiDiffEditorFileListHiddenStorageKey, StorageScope.PROFILE, false),
 	);
-	return derived(owner, reader => enabled.read(reader) && !hidden.read(reader));
 }
 
 /** Shows the file list if the user has hidden it, and hides it otherwise. */
@@ -87,6 +115,52 @@ export function setMultiDiffEditorFileListViewMode(storageService: IStorageServi
 	} else {
 		storageService.remove(multiDiffEditorFileListViewModeStorageKey, StorageScope.PROFILE);
 	}
+}
+
+/** Sorts like the Source Control view's tree: folders first, then by name. */
+function compareFileListTreeNodes<T>(a: IResourceNode<T, null>, b: IResourceNode<T, null>): number {
+	const aIsFolder = a.childrenCount > 0;
+	const bIsFolder = b.childrenCount > 0;
+	if (aIsFolder !== bIsFolder) {
+		return aIsFolder ? -1 : 1;
+	}
+	return compareFileNames(a.name, b.name);
+}
+
+/**
+ * Sorts items in the order in which the file list shows them, like the Source
+ * Control view: by path in the flat list, and folders first in the tree.
+ */
+export function sortMultiDiffEditorFileListItems<T>(items: readonly T[], getUri: (item: T) => URI, viewMode: MultiDiffEditorFileListViewMode): T[] {
+	if (viewMode === 'list') {
+		return items.toSorted((a, b) => comparePaths(getUri(a).fsPath, getUri(b).fsPath));
+	}
+
+	// Group by path only: the sides of a diff can use different schemes (e.g. `git:` for a deleted file).
+	const rootUri = URI.from({ scheme: 'multiDiffEditorFileList', path: '/' });
+
+	// Several items can share a path: a deleted file `config` and
+	// an added `config/settings.json`, or two diffs of the same file.
+	const resourceTree = new ResourceTree<T[], null>(null, rootUri);
+	for (const item of items) {
+		const uri = rootUri.with({ path: getUri(item).path });
+		const node = resourceTree.getNode(uri);
+		if (node?.element) {
+			node.element.push(item);
+		} else {
+			resourceTree.add(uri, [item]);
+		}
+	}
+
+	const result: T[] = [];
+	const collect = (folder: IResourceNode<T[], null>) => {
+		for (const child of [...folder.children].sort(compareFileListTreeNodes)) {
+			result.push(...child.element ?? []);
+			collect(child);
+		}
+	};
+	collect(resourceTree.root);
+	return result;
 }
 
 export type MultiDiffEditorFileListPosition = 'left' | 'right';
@@ -126,6 +200,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			],
 			default: defaultMultiDiffEditorExperimentalVariant,
 			description: localize('multiDiffEditor.experimental.variant', "Controls the experimental variant of the multi diff editor."),
+			agentsWindow: { default: 'cards' },
 			scope: ConfigurationScope.WINDOW,
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
@@ -134,8 +209,23 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			type: 'boolean',
 			default: false,
 			description: localize('multiDiffEditor.experimental.fileList', "Controls whether newly created multi diff editors support a list of the changed files alongside the diffs. Reload the window to apply this change to existing editors."),
+			agentsWindow: { default: true },
 			scope: ConfigurationScope.WINDOW,
 			tags: ['experimental'],
 		},
 	},
 });
+
+/**
+ * An editor pane that hosts the changed files list of a multi diff editor, such as the workbench's multi diff editor.
+ */
+export interface IMultiDiffEditorFileListHost {
+	/** Moves focus into the changed files list. */
+	focusFileList(): void;
+	/** Whether the host offers Toggle Files in the header row above its diffs, which its help then describes instead of the workbench's own actions. */
+	readonly togglesFileListFromEditorHeader?: boolean;
+}
+
+export function isMultiDiffEditorFileListHost(editor: object | undefined): editor is IMultiDiffEditorFileListHost {
+	return !!editor && typeof (editor as Partial<IMultiDiffEditorFileListHost>).focusFileList === 'function';
+}

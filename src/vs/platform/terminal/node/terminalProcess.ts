@@ -6,6 +6,7 @@
 import * as fs from 'fs';
 import { exec } from 'child_process';
 import { timeout } from '../../../base/common/async.js';
+import { encodeHex, VSBuffer } from '../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
 import * as path from '../../../base/common/path.js';
@@ -104,6 +105,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	private _exitMessage: string | undefined;
 	private _closeTimeout: Timeout | undefined;
 	private _ptyProcess: IPty | undefined;
+	private _parentWindow: VSBuffer | undefined;
 	private _currentTitle: string = '';
 	private _processStartupComplete: Promise<void> | undefined;
 	private _windowsShellHelper: WindowsShellHelper | undefined;
@@ -319,6 +321,10 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this._logService.trace('node-pty.IPty#spawn', shellLaunchConfig.executable, args, sanitizedOptions);
 		const ptyProcess = spawn(shellLaunchConfig.executable!, args, options);
 		this._ptyProcess = ptyProcess;
+		// node-pty only launches the shell after spawn() returns, so this is sent before it starts
+		if (this._parentWindow !== undefined) {
+			this._sendParentWindow(ptyProcess, this._parentWindow);
+		}
 		this._childProcessMonitor = this._register(new ChildProcessMonitor(ptyProcess.pid, this._logService));
 		this._register(this._childProcessMonitor.onDidChangeHasChildProcesses(value => this._onDidChangeProperty.fire({ type: ProcessPropertyType.HasChildProcesses, value })));
 		this._processStartupComplete = new Promise<void>(c => {
@@ -578,6 +584,28 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	clearBuffer(): void {
 		this._ptyProcess?.clear();
+	}
+
+	setParentWindow(handle: VSBuffer): void {
+		if (!hasConptyOption(this._ptyOptions) || !this._ptyOptions.useConptyDll) {
+			return;
+		}
+		// Also sent right after spawn when the pty hasn't started yet
+		this._parentWindow = handle;
+		if (this._ptyProcess) {
+			this._sendParentWindow(this._ptyProcess, handle);
+		}
+	}
+
+	private _sendParentWindow(ptyProcess: IPty, handle: VSBuffer): void {
+		try {
+			// The HWND bytes as Electron's getNativeWindowHandle() returned them, which node-pty takes as is
+			const sent = ptyProcess.setParentWindow?.(Buffer.from(handle.buffer));
+			this._logService.trace('node-pty.IPty#setParentWindow', encodeHex(handle), sent);
+		} catch (e) {
+			// This also runs right after spawn, so never let it fail the launch
+			this._logService.warn('node-pty.IPty#setParentWindow failed', encodeHex(handle), e);
+		}
 	}
 
 	acknowledgeDataEvent(charCount: number): void {

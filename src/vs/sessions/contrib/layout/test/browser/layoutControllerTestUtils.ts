@@ -6,10 +6,11 @@
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IDimension } from '../../../../../base/browser/dom.js';
-import { constObservable, derived, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { mock } from '../../../../../base/test/common/mock.js';
+import { IChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -22,6 +23,9 @@ import { IWorkspace, IWorkspaceContextService } from '../../../../../platform/wo
 import { IViewContainerModel, IViewDescriptorService, ViewContainer, ViewContainerLocation } from '../../../../../workbench/common/views.js';
 import { ICloseEditorOptions, IEditorGroup, IEditorGroupContextKeyProvider, IEditorGroupsService, IEditorReplacement, IEditorWorkingSet } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorsChangeEvent, IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
+import { IResolvedUntitledTextEditorModel, IUntitledTextEditorModel } from '../../../../../workbench/services/untitled/common/untitledTextEditorModel.js';
+import { IUntitledTextEditorService } from '../../../../../workbench/services/untitled/common/untitledTextEditorService.js';
+import { ITextModel } from '../../../../../editor/common/model.js';
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IPaneCompositePartService } from '../../../../../workbench/services/panecomposite/browser/panecomposite.js';
 import { IPaneComposite } from '../../../../../workbench/common/panecomposite.js';
@@ -30,6 +34,7 @@ import { IDecorationsService } from '../../../../../workbench/services/decoratio
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { GroupModelChangeKind, IEditorWillOpenEvent, IUntypedEditorInput, isResourceEditorInput } from '../../../../../workbench/common/editor.js';
 import { IActiveSession, IChatDeletedEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { focusedSessionHostServiceOf, sessionHostServiceOf, stubSessionHostsFromSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { SESSIONS_LAYOUT_SCOPE_SETTING, ChatLayoutMode, ChatLayoutPresentation } from '../../../../common/chatLayout.js';
@@ -43,6 +48,9 @@ import { TestStorageService } from '../../../../../workbench/test/common/workben
 import { ILifecycleService } from '../../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { IChangesViewService } from '../../../changes/common/changesViewService.js';
 import { ISessionEditorWorkingSetService, SessionEditorWorkingSetService } from '../../common/sessionEditorWorkingSet.js';
+import { IGitHubService } from '../../../github/browser/githubService.js';
+import { GitHubPullRequestCIModel } from '../../../github/browser/models/githubPullRequestCIModel.js';
+import { IGitHubCICheck } from '../../../github/common/types.js';
 
 type SidePaneComposition = { readonly editor: boolean; readonly auxiliaryBar: boolean };
 
@@ -147,7 +155,7 @@ export function makeSession(resource: URI, opts?: {
 	};
 }
 
-export function addPeerChat(session: IActiveSession, resource: URI, opts?: { readonly title?: string }): IChat {
+export function addPeerChat(session: IActiveSession, resource: URI, opts?: { readonly title?: string; readonly status?: IObservable<SessionStatus> }): IChat {
 	const mainChat = session.mainChat.get();
 	const chat: IChat = {
 		resource,
@@ -155,7 +163,7 @@ export function addPeerChat(session: IActiveSession, resource: URI, opts?: { rea
 		workspace: mainChat.workspace,
 		title: observableValue('title', opts?.title ?? 'Peer'),
 		updatedAt: observableValue('updatedAt', new Date()),
-		status: observableValue('status', SessionStatus.Completed),
+		status: opts?.status ?? observableValue('status', SessionStatus.Completed),
 		checkpoints: observableValue('checkpoints', undefined),
 		changes: observableValue('changes', []),
 		changesets: constObservable([]),
@@ -212,6 +220,9 @@ export interface ITestLayoutHarness {
 	readonly layoutService: IAgentWorkbenchLayoutService;
 	storageService: TestStorageService;
 	activeSessionObs: ISettableObservable<IActiveSession | undefined>;
+	selectedChangesObs: ISettableObservable<readonly ISessionFileChange[] | undefined>;
+	changesetLoadingObs: ISettableObservable<boolean>;
+	ciChecksObs: ISettableObservable<readonly IGitHubCICheck[]>;
 	visibleSessionsObs: ISettableObservable<readonly (IActiveSession | undefined)[]>;
 	additionalShownChatsObs: ISettableObservable<number>;
 	onDidChangeSessions: Emitter<ISessionsChangeEvent>;
@@ -276,6 +287,9 @@ export interface ITestLayoutHarness {
 	/** Records every `applyWorkingSet` call made by the controller. */
 	applyWorkingSetCalls: (IEditorWorkingSet | 'empty')[];
 	saveWorkingSetCalls: string[];
+	/** Untitled editors bound to a file path and their text; reverting one removes it from the active group. */
+	untitledWithPath: { readonly resource: URI; readonly content: string }[];
+	revertedUntitledResources: URI[];
 	deleteWorkingSetCalls: string[];
 	workspaceFolders: { readonly uri: URI }[];
 	onDidChangeWorkspaceFolders: Emitter<void>;
@@ -339,6 +353,9 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		get layoutService() { return layoutService; },
 		storageService,
 		activeSessionObs: observableValue<IActiveSession | undefined>('activeSession', undefined),
+		selectedChangesObs: observableValue<readonly ISessionFileChange[] | undefined>('selectedChanges', undefined),
+		changesetLoadingObs: observableValue('changesetLoading', false),
+		ciChecksObs: observableValue<readonly IGitHubCICheck[]>('ciChecks', []),
 		visibleSessionsObs: observableValue<readonly (IActiveSession | undefined)[]>('visibleSessions', []),
 		additionalShownChatsObs: observableValue('additionalShownChats', 0),
 		onDidChangeSessions: store.add(new Emitter<ISessionsChangeEvent>()),
@@ -398,6 +415,8 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		editorGroupsHaveContent: true,
 		applyWorkingSetCalls: [],
 		saveWorkingSetCalls: [],
+		untitledWithPath: [],
+		revertedUntitledResources: [],
 		deleteWorkingSetCalls: [],
 		workspaceFolders: options.workspaceFolders ? [...options.workspaceFolders] : [],
 		onDidChangeWorkspaceFolders: store.add(new Emitter<void>()),
@@ -408,9 +427,12 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 			override readonly activeSessionResourceObs = constObservable<URI | undefined>(undefined);
 			override readonly activeSessionChangesetObs = constObservable<ISessionChangeset | undefined>(undefined);
 			override readonly activeSessionChangesObs = constObservable<readonly ISessionFileChange[]>([]);
+		}, sessionHostServiceOf(store, { mainWindowActiveSession: constObservable(undefined), visibleSessions: constObservable([]), windowSessions: constObservable([]) }), focusedSessionHostServiceOf(constObservable(undefined)), new class extends mock<ISessionsService>() {
+			override isActivePane() { return false; }
+			override isDetachedPane() { return false; }
 		}, new class extends mock<IDecorationsService>() {
 			override registerDecorationsProvider() { return toDisposable(() => { }); }
-		})),
+		}, new NullLogService())),
 		contextKeyService,
 		editorWorkingSetService,
 	};
@@ -465,9 +487,12 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		override getSessions() { return []; }
 	});
 	instaService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-		override readonly activeSession = harness.activeSessionObs;
+		readonly activeSession = harness.activeSessionObs;
+		readonly mainWindowActiveSession = harness.activeSessionObs;
 		override readonly visibleSessions = harness.visibleSessionsObs;
+		readonly windowSessions = constObservable([]);
 	});
+	stubSessionHostsFromSessionsService(instaService);
 	instaService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
 		override readonly shownChatCount = derived(reader =>
 			harness.visibleSessionsObs.read(reader).length + harness.additionalShownChatsObs.read(reader));
@@ -502,7 +527,15 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		}
 	});
 	instaService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
+		override readonly activeSessionChangesetLoadingObs = harness.changesetLoadingObs;
+		override readonly activeSessionChangesObs = derived(reader => harness.selectedChangesObs.read(reader)
+			?? harness.activeSessionObs.read(reader)?.activeChat.read(reader).changes.read(reader) ?? []);
 		override setChangesetId(): void { }
+	});
+	instaService.stub(IGitHubService, new class extends mock<IGitHubService>() {
+		override activeSessionPullRequestCIObs = constObservable(new class extends mock<GitHubPullRequestCIModel>() {
+			override readonly checks = harness.ciChecksObs;
+		}());
 	});
 	instaService.stub(ILifecycleService, new class extends mock<ILifecycleService>() {
 		// Resolves only when a test opts in via `activateAux`, so the desktop
@@ -825,9 +858,32 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		}
 	});
 
+	instaService.stub(IUntitledTextEditorService, new class extends mock<IUntitledTextEditorService>() {
+		override isUntitledWithAssociatedResource(resource: URI) {
+			return harness.untitledWithPath.some(untitled => isEqual(untitled.resource, resource));
+		}
+		override get(resource: URI) {
+			const content = harness.untitledWithPath.find(untitled => isEqual(untitled.resource, resource))?.content ?? '';
+			return new class extends mock<IUntitledTextEditorModel>() {
+				override isResolved(): this is IResolvedUntitledTextEditorModel { return true; }
+				override get textEditorModel() { return new class extends mock<ITextModel>() { override getValueLength() { return content.length; } }(); }
+				override async revert() {
+					harness.revertedUntitledResources.push(resource);
+					harness.activeGroupEditors = harness.activeGroupEditors.filter(editor => !isEqual(editor.resource, resource));
+					harness.onDidEditorsChange.fire();
+				}
+			}();
+		}
+	});
+
 	instaService.stub(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() {
 		override get onDidChangeWorkspaceFolders() { return Event.map(harness.onDidChangeWorkspaceFolders.event, () => ({ added: [], removed: [], changed: [] })); }
 		override getWorkspace(): IWorkspace { return { id: 'test', folders: harness.workspaceFolders as IWorkspace['folders'] }; }
+	});
+
+	// The main window has focus: no chat window does.
+	instaService.stub(IChatWindowService, new class extends mock<IChatWindowService>() {
+		override readonly activeWindow = undefined;
 	});
 
 	return harness;

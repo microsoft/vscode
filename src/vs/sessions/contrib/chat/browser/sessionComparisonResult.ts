@@ -9,6 +9,7 @@ import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js
 import { IRenderedMarkdown, renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Button, ButtonWithDropdown, IButton } from '../../../../base/browser/ui/button/button.js';
+import { HoverStyle } from '../../../../base/browser/ui/hover/hover.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { Action, toAction } from '../../../../base/common/actions.js';
@@ -22,6 +23,7 @@ import { autorun, IObservable } from '../../../../base/common/observable.js';
 import { language } from '../../../../base/common/platform.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -36,6 +38,7 @@ import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/a
 import { AccessibilityCommandId } from '../../../../workbench/contrib/accessibility/common/accessibilityCommands.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISession } from '../../../services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { getSessionComparisonAttemptLabel, getSessionComparisonHarnessConfigurationLabel, ISessionComparison, ISessionComparisonAttemptVerdict, ISessionComparisonParticipant, ISessionComparisonRationale, ISessionComparisonService, ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, SESSION_COMPARISON_SYNTHESIS_INSTRUCTIONS_MAX_LENGTH, SessionComparisonParticipantRole, SessionComparisonValidationEvidence, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../../services/sessions/common/sessionComparison.js';
 
 export const SessionComparisonResultFocused = new RawContextKey<boolean>('sessionComparisonResultFocused', false);
@@ -72,6 +75,7 @@ export class SessionComparisonResult extends Disposable {
 
 	readonly domNode = dom.$('.session-comparison-result');
 	private readonly renderStore = this._register(new DisposableStore());
+	private readonly hoverLifecycleOptions = { groupId: generateUuid() };
 	private readonly titleId = `session-comparison-result-title-${generateUuid()}`;
 	private announcedComparisonId: string | undefined;
 	private renderedComparisonId: string | undefined;
@@ -84,9 +88,11 @@ export class SessionComparisonResult extends Disposable {
 		currentSession: IObservable<ISession | undefined>,
 		private readonly onDidChangeLayout: () => void,
 		private readonly markdownRenderer: IMarkdownRenderer,
+		currentChat: IObservable<URI | undefined> | undefined,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@ISessionComparisonService private readonly comparisonService: ISessionComparisonService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
+		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
@@ -112,7 +118,7 @@ export class SessionComparisonResult extends Disposable {
 		this._register(autorun(reader => {
 			const session = currentSession.read(reader);
 			const comparison = session
-				? this.comparisonService.comparisons.read(reader).find(candidate => isJudgeSession(candidate, session))
+				? this.comparisonService.comparisons.read(reader).find(candidate => isJudgeSession(candidate, session, currentChat?.read(reader)))
 				: undefined;
 			if (comparison?.id === this.renderedComparisonId
 				&& comparison?.verdict === this.renderedVerdict
@@ -389,7 +395,7 @@ export class SessionComparisonResult extends Disposable {
 			open.type = 'button';
 			open.setAttribute('aria-label', openLabel);
 			open.append(renderIcon(Codicon.arrowRight));
-			this.renderStore.add(this.hoverService.setupDelayedHover(open, { content: openLabel }));
+			this.renderStore.add(this.hoverService.setupDelayedHover(open, { content: openLabel, style: HoverStyle.Pointer }, this.hoverLifecycleOptions));
 			this.renderStore.add(dom.addDisposableListener(open, dom.EventType.CLICK, () => this.focusAttempt(comparison, attempt)));
 		}
 
@@ -466,7 +472,7 @@ export class SessionComparisonResult extends Disposable {
 			item.append(renderValidationGlyph(evidence));
 			dom.append(item, dom.$('span.session-comparison-scorecard-check-item-label')).textContent = describeCheckOutcome(check.label, evidence);
 			const description = describeValidation(check.label, evidence, getValidationCheckPurpose(check.key));
-			this.renderStore.add(this.hoverService.setupDelayedHover(item, { content: description }, { setupKeyboardEvents: true }));
+			this.renderStore.add(this.hoverService.setupDelayedHover(item, { content: description, style: HoverStyle.Pointer }, { ...this.hoverLifecycleOptions, setupKeyboardEvents: true }));
 		}
 	}
 
@@ -589,7 +595,15 @@ export class SessionComparisonResult extends Disposable {
 		}
 		try {
 			this.comparisonService.selectAttempt(comparison.id, attempt.id);
-			await this.sessionsService.openSession(attempt.sessionResource, { source: 'chat' });
+			if (attempt.chatResource) {
+				const session = this.sessionsManagementService.getSession(attempt.sessionResource);
+				if (!session) {
+					throw new Error(localize('sessionComparisonResult.sessionUnavailable', "Session unavailable"));
+				}
+				await this.sessionsService.openChat(session, attempt.chatResource, { source: 'chat' });
+			} else {
+				await this.sessionsService.openSession(attempt.sessionResource, { source: 'chat' });
+			}
 		} catch (error) {
 			this.notificationService.error(error);
 		} finally {
@@ -891,10 +905,11 @@ function normalizeSynthesisInstructions(value: string): string | undefined {
 	return trimmed.length > 0 ? trimmed : undefined;
 }
 
-export function isJudgeSession(comparison: ISessionComparison, session: ISession): boolean {
+export function isJudgeSession(comparison: ISessionComparison, session: ISession, chatResource?: URI): boolean {
 	return comparison.participants.some(participant =>
 		participant.role === SessionComparisonParticipantRole.Judge
 		&& !!participant.sessionResource
-		&& isEqual(participant.sessionResource, session.resource),
+		&& isEqual(participant.sessionResource, session.resource)
+		&& (!participant.chatResource || isEqual(participant.chatResource, chatResource)),
 	);
 }

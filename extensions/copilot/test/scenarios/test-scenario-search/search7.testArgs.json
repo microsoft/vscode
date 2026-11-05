@@ -1,9 +1,0 @@
-{
-	"question": "find all image tags in html files",
-	"isRegex": true,
-	"exampleIncludeGlobs": ["*.html"],
-	"queryShouldFind": [
-		["bar.html", [
-		"img"]]
-	]
-}

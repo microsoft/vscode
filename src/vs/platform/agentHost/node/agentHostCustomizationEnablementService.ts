@@ -12,6 +12,7 @@ import { AgentSession } from '../common/agentService.js';
 import { IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../common/agentHostSessionStateStore.js';
 import { DEFAULT_CUSTOMIZATION_ENABLED, isCustomizationEnabled, sortCustomizationEnablement, withCustomizationEnablement } from '../common/customizationEnablement.js';
 import { isAhpChatChannel, readSessionWorkspaceless } from '../common/state/sessionState.js';
+import { isChatWorkspaceless } from './agentChatContext.js';
 import { CustomizationEnablementKind, CustomizationType, type CustomizationEnablement } from '../common/state/protocol/channels-session/state.js';
 import { IAgentHostStorageService } from './agentHostStorageService.js';
 import { getEffectiveWorkingDirectories } from './agentConfigurationService.js';
@@ -58,6 +59,7 @@ interface IPendingReplacement {
 
 export interface ICustomizationEnablementTarget {
 	readonly id: string;
+	/** Skill targets are MCP-served and support only in-memory Session decisions. */
 	readonly type: CustomizationType;
 	readonly name: string;
 	readonly source: URI;
@@ -66,6 +68,8 @@ export interface ICustomizationEnablementTarget {
 	 * Whether the client supplied this customization and therefore owns its global decision.
 	 */
 	readonly isClientBundled?: boolean;
+	/** Provider-discovered enablement inherited when no host or client decision exists. */
+	readonly defaultEnabled?: boolean;
 }
 
 /**
@@ -98,6 +102,7 @@ export interface IAgentHostCustomizationEnablementService {
 	initializeSession(session: string): Promise<void>;
 	getWorkingDirectoryState(session: string): WorkingDirectoryState;
 	resolve(session: string, target: ICustomizationEnablementTarget): CustomizationEnablementResolution;
+	adoptMcpServerOwnership(session: string, target: ICustomizationEnablementTarget, owningPluginSource: URI): void;
 	applyClientGlobalEnablement(session: string, target: ICustomizationEnablementTarget, enablement: readonly CustomizationEnablement[]): CustomizationEnablementResolution;
 	replaceEnablement(session: string, target: ICustomizationEnablementTarget, enablement: readonly CustomizationEnablement[]): CustomizationEnablementResolution;
 	setEnablement(session: string, target: ICustomizationEnablementTarget, kind: CustomizationEnablementKind, enabled: boolean): CustomizationEnablementResolution;
@@ -138,7 +143,7 @@ export function targetForUnownedMcpServer(name: string): ICustomizationEnablemen
 /**
  * Owns host global, workspace, and session decisions, resolving them over a client global base.
  *
- * Global and workspace decisions use host JSON storage; session decisions remain in that session's database across restarts.
+ * Global and workspace decisions use host JSON storage; session decisions remain in that session's database across restarts, except MCP skills, which remain in memory only.
  */
 export class AgentHostCustomizationEnablementService extends Disposable implements IAgentHostCustomizationEnablementService {
 	declare readonly _serviceBrand: undefined;
@@ -154,6 +159,7 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 	 * An async read here could mistake an unavailable result for an absent decision.
 	 */
 	private readonly _sessionEnablement = new Map<string, Map<string, boolean>>();
+	private readonly _mcpSkillEnablement = new Map<string, Map<string, boolean>>();
 	private readonly _sessionLoads = new Map<string, Promise<void>>();
 	private readonly _sessionsById = new Map<string, string>();
 	private readonly _pendingSessionWrites = new Set<Promise<void>>();
@@ -163,6 +169,7 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 	 * Replayed after either session load or a working-directory event, while resolution reports `pending` rather than no decision.
 	 */
 	private readonly _pendingReplacements = new Map<string, IPendingReplacement>();
+	private readonly _pendingMcpOwnership = new Map<string, { target: ICustomizationEnablementTarget; owningPluginSource: URI }>();
 	private readonly _worktree: IAgentHostWorktreePendingState;
 
 	constructor(
@@ -178,6 +185,7 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 		this._persistent = this._readPersistentEnablement();
 		this._lru = this._readLru();
 		this._reconcileLru();
+		this._register(this._sessionState.onDidRemoveSession(session => this._mcpSkillEnablement.delete(session)));
 		this._register(this._sessionState.onDidEmitEnvelope(envelope => {
 			const session = isAhpChatChannel(envelope.channel)
 				? this._chatOwnership.getChatOwner(envelope.channel)
@@ -208,7 +216,7 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 				// reads the current pending state, and any later clear is observed.
 				return;
 			}
-			this._notifyDecisionChanged([session]);
+			this._notifyWorkingDirectoryChanged(session);
 		}));
 	}
 
@@ -232,7 +240,11 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 
 	getWorkingDirectoryState(session: string): WorkingDirectoryState {
 		const summary = this._sessionState.getSessionSummary(session);
-		if (readSessionWorkspaceless(summary?._meta)) {
+		// The session's customizations follow its default chat, so the default chat's own decision applies.
+		const defaultChat = this._chatOwnership.getDefaultChat(session);
+		if (defaultChat !== undefined
+			? isChatWorkspaceless(this._sessionState, defaultChat, this._sessionStateStore.peek(URI.parse(session)), readSessionWorkspaceless(summary?._meta))
+			: readSessionWorkspaceless(summary?._meta)) {
 			return { kind: 'workspaceless' };
 		}
 		if (this._worktree.isWorkingDirectoryPending(AgentSession.id(session))) {
@@ -246,6 +258,16 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 	}
 
 	resolve(session: string, target: ICustomizationEnablementTarget): CustomizationEnablementResolution {
+		if (target.type === CustomizationType.Skill) {
+			const enabled = this._mcpSkillEnablement.get(session)?.get(this._sessionKey(target));
+			return {
+				kind: 'resolved',
+				enablement: enabled === undefined ? [] : [{ kind: CustomizationEnablementKind.Session, enabled }],
+				enabled: enabled ?? target.defaultEnabled ?? DEFAULT_CUSTOMIZATION_ENABLED,
+				// MCP skills have no workspace inheritance, even while the working directory is pending.
+				workingDirectory: { kind: 'workspaceless' },
+			};
+		}
 		const sessionEnablement = this._sessionEnablement.get(session);
 		if (sessionEnablement === undefined) {
 			return { kind: 'pending', reason: 'session' };
@@ -275,6 +297,8 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 			const clientGlobalDecision = this._clientGlobalEnablement.get(session)?.get(persistentKey);
 			if (clientGlobalDecision !== undefined) {
 				decisions.push({ kind: CustomizationEnablementKind.Global, enabled: clientGlobalDecision });
+			} else if (target.defaultEnabled !== undefined) {
+				decisions.push({ kind: CustomizationEnablementKind.Global, enabled: target.defaultEnabled });
 			}
 		}
 
@@ -288,6 +312,9 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 	}
 
 	applyClientGlobalEnablement(session: string, target: ICustomizationEnablementTarget, enablement: readonly CustomizationEnablement[]): CustomizationEnablementResolution {
+		if (target.type === CustomizationType.Skill) {
+			throw new Error('MCP skills only support session enablement');
+		}
 		const global = enablement.find(entry => entry.kind === CustomizationEnablementKind.Global);
 		if (global === undefined) {
 			throw new Error(`Client customization ${target.source.toString()} is missing its required global enablement entry`);
@@ -300,7 +327,93 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 		return this.resolve(session, target);
 	}
 
+	/** Moves unowned host decisions to a confirmed plugin identity without overwriting existing plugin decisions. */
+	adoptMcpServerOwnership(session: string, target: ICustomizationEnablementTarget, owningPluginSource: URI): void {
+		if (target.type !== CustomizationType.McpServer || target.owningPluginSource || target.isClientBundled) {
+			throw new Error('Only an unowned host MCP server can adopt plugin ownership');
+		}
+		const key = `${session}\u0000${this._persistentKey(target)}`;
+		const resolution = this.resolve(session, target);
+		if (resolution.kind === 'pending') {
+			this._pendingMcpOwnership.set(key, { target, owningPluginSource });
+			return;
+		}
+		this._pendingMcpOwnership.delete(key);
+		const affectedSessions = this._adoptMcpServerOwnership(session, target, owningPluginSource, resolution.workingDirectory);
+		for (const affectedSession of this._applyPendingReplacements(session)) {
+			affectedSessions.add(affectedSession);
+		}
+		this._notifyDecisionChanged(affectedSessions);
+	}
+
+	private _adoptMcpServerOwnership(session: string, target: ICustomizationEnablementTarget, owningPluginSource: URI, workingDirectory: Exclude<WorkingDirectoryState, { kind: 'pending' }>): Set<string> {
+		const ownedTarget = { ...target, owningPluginSource };
+		const from = this._persistentKey(target);
+		const to = this._persistentKey(ownedTarget);
+		const before = this._captureDecisionSnapshot(session, ownedTarget);
+		const beforeUnowned = this._captureDecisionSnapshot(session, target);
+		let changed = false;
+		const move = (decisions: Record<string, boolean> | undefined, scope: ILruEntry['scope'], workingDirectory?: string) => {
+			if (decisions?.[from] === undefined) {
+				return;
+			}
+			if (decisions[to] === undefined) {
+				decisions[to] = decisions[from];
+				this._touchLru({ scope, key: to, workingDirectory });
+			}
+			delete decisions[from];
+			this._removeLru(scope, from, workingDirectory);
+			changed = true;
+		};
+		move(this._persistent.global, 'global');
+		if (workingDirectory.kind === 'directory') {
+			const directory = workingDirectory.uri.toString();
+			move(this._persistent.workingDirectories?.[directory], 'workspace', directory);
+		}
+		const pendingKey = `${session}\u0000${from}`;
+		const pending = this._pendingReplacements.get(pendingKey);
+		if (pending) {
+			const ownedKey = `${session}\u0000${to}`;
+			const destination = this._pendingReplacements.get(ownedKey);
+			const resolution = this.resolve(session, ownedTarget);
+			if (resolution.kind !== 'resolved') {
+				throw new Error('MCP ownership adoption requires resolved enablement');
+			}
+			let enablement = destination?.enablement ?? resolution.enablement;
+			for (const scope of [CustomizationEnablementKind.Global, CustomizationEnablementKind.Workspace, CustomizationEnablementKind.Session]) {
+				const persistedDestination = scope === CustomizationEnablementKind.Global ? before.global
+					: scope === CustomizationEnablementKind.Workspace && workingDirectory.kind === 'directory' ? before.workspace.get(workingDirectory.uri.toString())
+						: undefined;
+				// Session storage already uses the retained ID, so its pending writes remain newer than the shared stored decision.
+				if (persistedDestination !== undefined || destination?.enablement !== undefined || destination?.scopedReplacements.some(entry => entry.scope === scope)) {
+					continue;
+				}
+				const scoped = pending.scopedReplacements.find(entry => entry.scope === scope);
+				if (scoped) {
+					enablement = this._replacementEnablement(enablement, workingDirectory, scoped);
+				} else if (pending.enablement !== undefined) {
+					enablement = withCustomizationEnablement(enablement, scope, pending.enablement.find(entry => entry.kind === scope));
+				}
+			}
+			this._pendingReplacements.set(ownedKey, { target: destination?.target ?? ownedTarget, enablement, scopedReplacements: destination?.scopedReplacements ?? [] });
+			this._pendingReplacements.delete(pendingKey);
+		}
+		if (changed) {
+			this._persist();
+		}
+		return new Set([
+			...this._getAffectedSessions(session, ownedTarget, before),
+			...this._getAffectedSessions(session, target, beforeUnowned),
+		]);
+	}
+
 	setEnablement(session: string, target: ICustomizationEnablementTarget, kind: CustomizationEnablementKind, enabled: boolean): CustomizationEnablementResolution {
+		if (target.type === CustomizationType.Skill) {
+			if (kind !== CustomizationEnablementKind.Session) {
+				throw new Error('MCP skills only support session enablement');
+			}
+			return this.replaceEnablement(session, target, [{ kind, enabled }]);
+		}
 		const before = this._captureDecisionSnapshot(session, target);
 		const resolution = this._replaceEnablement(session, target, { replacementKind: 'scoped', scope: kind, enabled });
 		this._notifyDecisionChanged(this._getAffectedSessions(session, target, before));
@@ -308,6 +421,28 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 	}
 
 	replaceEnablement(session: string, target: ICustomizationEnablementTarget, enablement: readonly CustomizationEnablement[]): CustomizationEnablementResolution {
+		if (target.type === CustomizationType.Skill) {
+			if (enablement.some(entry => entry.kind !== CustomizationEnablementKind.Session)) {
+				throw new Error('MCP skills only support session enablement');
+			}
+			let decisions = this._mcpSkillEnablement.get(session);
+			if (!decisions) {
+				decisions = new Map();
+				this._mcpSkillEnablement.set(session, decisions);
+			}
+			const key = this._sessionKey(target);
+			const before = decisions.get(key);
+			const enabled = enablement[0]?.enabled;
+			if (enabled === undefined) {
+				decisions.delete(key);
+			} else {
+				decisions.set(key, enabled);
+			}
+			if (before !== enabled) {
+				this._notifyDecisionChanged([session]);
+			}
+			return this.resolve(session, target);
+		}
 		const before = this._captureDecisionSnapshot(session, target);
 		const resolution = this._replaceEnablement(session, target, { replacementKind: 'full', enablement });
 		this._notifyDecisionChanged(this._getAffectedSessions(session, target, before));
@@ -338,6 +473,20 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 
 	private _applyPendingReplacements(session: string): Set<string> {
 		const affectedSessions = new Set<string>();
+		// Adopt before replay: otherwise a queued unowned write can consume the wrong workspace or overwrite an owned decision.
+		for (const [key, adoption] of this._pendingMcpOwnership) {
+			if (!key.startsWith(`${session}\u0000`)) {
+				continue;
+			}
+			const resolution = this.resolve(session, adoption.target);
+			if (resolution.kind === 'pending') {
+				continue;
+			}
+			this._pendingMcpOwnership.delete(key);
+			for (const affectedSession of this._adoptMcpServerOwnership(session, adoption.target, adoption.owningPluginSource, resolution.workingDirectory)) {
+				affectedSessions.add(affectedSession);
+			}
+		}
 		for (const [key, replacement] of this._pendingReplacements) {
 			if (!key.startsWith(`${session}\u0000`)) {
 				continue;
@@ -466,7 +615,7 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 	private _setGlobalEnablement(session: string, target: ICustomizationEnablementTarget, enabled: boolean | undefined, removeRedundantWorkspaceDecisions: boolean): void {
 		const key = this._persistentKey(target);
 		const global = this._persistent.global ?? {};
-		this._setPersistentDecision('global', global, key, enabled, this._clientGlobalEnablement.get(session)?.get(key) ?? DEFAULT_CUSTOMIZATION_ENABLED);
+		this._setPersistentDecision('global', global, key, enabled, this._clientGlobalEnablement.get(session)?.get(key) ?? target.defaultEnabled ?? DEFAULT_CUSTOMIZATION_ENABLED);
 		this._persistent = { ...this._persistent, global };
 		if (removeRedundantWorkspaceDecisions && global[key] !== undefined) {
 			this._removeRedundantWorkspaceDecisions(key);
@@ -502,7 +651,7 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 
 	private _globalEnablement(session: string, target: ICustomizationEnablementTarget): boolean {
 		const key = this._persistentKey(target);
-		return this._persistent.global?.[key] ?? this._clientGlobalEnablement.get(session)?.get(key) ?? DEFAULT_CUSTOMIZATION_ENABLED;
+		return this._persistent.global?.[key] ?? this._clientGlobalEnablement.get(session)?.get(key) ?? target.defaultEnabled ?? DEFAULT_CUSTOMIZATION_ENABLED;
 	}
 
 	private _setWorkspace(session: string, target: ICustomizationEnablementTarget, workingDirectory: URI, enabled: boolean | undefined): void {

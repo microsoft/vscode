@@ -179,7 +179,9 @@ export class GitHubServer implements IGitHubServer {
 			const message = userCancelled
 				? vscode.l10n.t('Having trouble logging in? Would you like to try a different way? ({0})', mode)
 				: vscode.l10n.t('You have not yet finished authorizing this extension to use GitHub. Would you like to try a different way? ({0})', mode);
-			const result = await vscode.window.showWarningMessage(message, yes, no);
+			const result = await vscode.window.showWarningMessage(message, {
+				notificationId: userCancelled ? 'githubAuthentication.signIn.retryAfterCancel' : 'githubAuthentication.signIn.retryAfterFailure'
+			}, yes, no);
 			if (result !== yes) {
 				throw new Error(CANCELLATION_ERROR);
 			}

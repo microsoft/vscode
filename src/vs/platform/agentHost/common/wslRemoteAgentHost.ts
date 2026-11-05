@@ -13,7 +13,7 @@ import type { IRelayMessage } from './relayTransport.js';
  */
 export const WSL_REMOTE_AGENT_HOST_CHANNEL = 'wslRemoteAgentHost';
 
-export const WSL_INSTALL_DOCS_URL = 'https://aka.ms/vscode-remote/wsl/install-wsl';
+export const WSL_INSTALL_DOCS_URL = 'https://aka.ms/vscode-agent-wsl';
 
 /**
  * Prefix for WSL display addresses (`wsl:<distro>`). This is NOT a `ws://`
@@ -108,6 +108,8 @@ export interface IWSLRemoteAgentHostService {
 	 * themselves live in-memory, mirroring how tunnels are handled.
 	 */
 	getCachedDistros(): readonly IWSLCachedDistro[];
+	/** Register a distro for the location picker without explicitly connecting. */
+	cacheDistro(distro: IWSLCachedDistro): void;
 }
 
 export const IWSLRemoteAgentHostMainService = createDecorator<IWSLRemoteAgentHostMainService>('wslRemoteAgentHostMainService');

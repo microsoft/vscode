@@ -6,7 +6,7 @@
 import { localize } from '../../../../nls.js';
 import { Event } from '../../../../base/common/event.js';
 import { isLinux } from '../../../../base/common/platform.js';
-import { FileSystemProviderCapabilities, IFileDeleteOptions, IStat, FileType, IFileReadStreamOptions, IFileWriteOptions, IFileOpenOptions, IFileOverwriteOptions, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileAtomicReadCapability, IFileAtomicReadOptions, IFileSystemProviderWithFileCloneCapability, IFileChange } from '../../../../platform/files/common/files.js';
+import { FileSystemProviderCapabilities, IFileDeleteOptions, IStat, FileType, IFileReadStreamOptions, IFileWriteOptions, IFileOpenOptions, IFileOverwriteOptions, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileAtomicReadCapability, IFileAtomicReadOptions, IFileSystemProviderWithFileCloneCapability, IFileChange, IFileSystemProviderWithFileAtomicRenameCapability } from '../../../../platform/files/common/files.js';
 import { AbstractDiskFileSystemProvider } from '../../../../platform/files/common/diskFileSystemProvider.js';
 import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -30,6 +30,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 	IFileSystemProviderWithFileReadStreamCapability,
 	IFileSystemProviderWithFileFolderCopyCapability,
 	IFileSystemProviderWithFileAtomicReadCapability,
+	IFileSystemProviderWithFileAtomicRenameCapability,
 	IFileSystemProviderWithFileCloneCapability {
 
 	private readonly provider: DiskFileSystemProviderClient;
@@ -122,6 +123,10 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 	rename(from: URI, to: URI, opts: IFileOverwriteOptions): Promise<void> {
 		return this.provider.rename(from, to, opts);
+	}
+
+	renameFileAtomic(from: URI, to: URI, opts: IFileOverwriteOptions): Promise<void> {
+		return this.provider.renameFileAtomic(from, to, opts);
 	}
 
 	copy(from: URI, to: URI, opts: IFileOverwriteOptions): Promise<void> {
