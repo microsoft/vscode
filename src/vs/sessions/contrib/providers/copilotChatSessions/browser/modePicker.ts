@@ -14,7 +14,7 @@ import { IActionWidgetService } from '../../../../../platform/actionWidget/brows
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { ChatMode, IChatMode, IChatModes, IChatModeService } from '../../../../../workbench/contrib/chat/common/chatModes.js';
+import { ChatMode, getChatModeSourceLabel, IChatMode, IChatModes, IChatModeService } from '../../../../../workbench/contrib/chat/common/chatModes.js';
 import { reportChatModeChange } from '../../../../../workbench/contrib/chat/common/chatModeTelemetry.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { getAgentHostProviderForTelemetry, IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
@@ -25,10 +25,16 @@ import { Target } from '../../../../../workbench/contrib/chat/common/promptSynta
 import { AICustomizationManagementCommands } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
 import { AICustomizationManagementSection } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import type { ISession } from '../../../../services/sessions/common/session.js';
-import type { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import type { IHostSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import type { ISessionChatSource } from '../../../../services/sessions/browser/sessionHost.js';
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
 import { CopilotCLISessionType } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
+import { PromptsStorage } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { hasReadableCustomizationContent } from '../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
 
 interface IModePickerItem {
 	readonly kind: 'mode';
@@ -159,13 +165,13 @@ interface IModePickerModelEntry {
 
 /** Retains each surface's model across synchronous toolbar rebuilds. */
 export class ScopedModePickerModelCache extends Disposable {
-	private readonly entries = new Map<IObservable<IActiveSession | undefined>, IModePickerModelEntry>();
+	private readonly entries = new Map<IObservable<IHostSession | undefined>, IModePickerModelEntry>();
 
 	constructor(private readonly acceptsSession: (session: ISession) => boolean) {
 		super();
 	}
 
-	acquire(session: IObservable<IActiveSession | undefined>, instantiationService: IInstantiationService): IDisposable & { readonly model: ModePickerModel } {
+	acquire(session: IObservable<IHostSession | undefined>, instantiationService: IInstantiationService): IDisposable & { readonly model: ModePickerModel } {
 		let entry = this.entries.get(session);
 		if (!entry) {
 			const store = new DisposableStore();
@@ -193,7 +199,7 @@ export class ScopedModePickerModelCache extends Disposable {
 		};
 	}
 
-	private release(session: IObservable<IActiveSession | undefined>, entry: IModePickerModelEntry): void {
+	private release(session: IObservable<IHostSession | undefined>, entry: IModePickerModelEntry): void {
 		entry.references--;
 		const disposalGeneration = ++entry.disposalGeneration;
 		queueMicrotask(() => {
@@ -229,12 +235,14 @@ export class ModePicker extends Disposable {
 
 	constructor(
 		modePickerModel: ModePickerModel,
-		private readonly session: IObservable<IActiveSession | undefined>,
+		private readonly source: ISessionChatSource,
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 		@ICommandService private readonly commandService: ICommandService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IChatService private readonly chatService: IChatService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IFileService private readonly fileService: IFileService,
 	) {
 		super();
 
@@ -304,7 +312,7 @@ export class ModePicker extends Disposable {
 			onSelect: (item) => {
 				this.actionWidgetService.hide();
 				if (item.kind === 'mode') {
-					const activeChat = this.session.get()?.activeChat.get();
+					const activeChat = this.source.chat.get();
 					const previousModeId = activeChat?.mode.get()?.id;
 					const previousMode = modes.find(mode => mode.id === previousModeId) ?? ChatMode.Agent;
 					reportNewChatPickerClosed(this.telemetryService, {
@@ -316,7 +324,7 @@ export class ModePicker extends Disposable {
 						isPII: true,
 					});
 					const requestCount = activeChat ? this.chatService.getSession(activeChat.resource)?.getRequests().length ?? 0 : 0;
-					reportChatModeChange(this.telemetryService, previousMode, item.mode, requestCount, getAgentHostProviderForTelemetry(this.session.get()?.sessionType, this.chatSessionsService));
+					reportChatModeChange(this.telemetryService, previousMode, item.mode, requestCount, getAgentHostProviderForTelemetry(this.source.session.get()?.sessionType, this.chatSessionsService));
 					this._selectMode(item.mode);
 				} else {
 					this.commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, AICustomizationManagementSection.Agents);
@@ -339,9 +347,12 @@ export class ModePicker extends Disposable {
 			undefined,
 			[],
 			{
-				getAriaLabel: (item) => item.label ?? '',
+				getAriaLabel: item => item.ariaDescription
+					? localize('modePicker.sourceAriaLabel', "{0}, {1}", item.label ?? '', item.ariaDescription)
+					: item.label ?? '',
 				getWidgetAriaLabel: () => localize('modePicker.ariaLabel', "Mode Picker"),
 			},
+			{ tabThroughItemActions: true },
 		);
 	}
 
@@ -364,11 +375,30 @@ export class ModePicker extends Disposable {
 		if (customModes.length > 0) {
 			items.push({ kind: ActionListItemKind.Separator, label: '' });
 			for (const mode of customModes) {
+				const source = getChatModeSourceLabel(mode, modes);
+				const resource = mode.uri?.get();
+				const isExtension = mode.source?.storage === PromptsStorage.extension;
+				const openLabel = isExtension
+					? localize('viewModeConfiguration', "View {0} agent", mode.label.get())
+					: localize('editModeConfiguration', "Edit {0} agent", mode.label.get());
 				items.push({
 					kind: ActionListItemKind.Action,
 					label: mode.label.get(),
+					description: source,
+					ariaDescription: source,
 					group: { title: '', icon: selectedModeId === mode.id ? Codicon.check : Codicon.blank },
 					item: { kind: 'mode', mode },
+					toolbarActions: resource && hasReadableCustomizationContent(resource) && this.fileService.hasProvider(resource) ? [{
+						id: `${isExtension ? 'viewAgent' : 'editAgent'}:${mode.id}`,
+						label: openLabel,
+						tooltip: openLabel,
+						class: ThemeIcon.asClassName(isExtension ? Codicon.file : Codicon.edit),
+						enabled: true,
+						run: async () => {
+							this.actionWidgetService.hide();
+							await this.editorService.openEditor({ resource });
+						},
+					}] : undefined,
 				});
 			}
 		}

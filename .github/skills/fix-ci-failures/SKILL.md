@@ -190,7 +190,7 @@ Before fixing, determine if the failure is caused by the PR changes or is a pre-
 2. **Check the test name** — does it relate to the feature area you modified?
 3. **Look at the failure output** — does it reference code paths your PR touches?
 4. **Check if the same tests fail on main** — if identical failures exist on recent main commits, it's a pre-existing issue
-5. **Look for infrastructure failures** — network timeouts, npm registry errors, and machine-level issues are not caused by code changes
+5. **Look for infrastructure failures** — network timeouts, npm registry errors (pnpm fetches from it as well), and machine-level issues are not caused by code changes
 
 ```bash
 # Check recent runs on main for the same workflow
@@ -202,7 +202,7 @@ gh run list --branch main --workflow pr-linux-test.yml --limit 5 --json database
 Not all CI failures are caused by code changes. Common infrastructure failures:
 
 **Network / Registry issues**:
-- `npm ERR! network`, `ETIMEDOUT`, `ECONNRESET`, `EAI_AGAIN` — npm registry unreachable
+- `ERR_PNPM_META_FETCH_FAIL`, `ERR_PNPM_FETCH_*`, `npm ERR! network`, `ETIMEDOUT`, `ECONNRESET`, `EAI_AGAIN` — npm registry unreachable
 - `error: RPC failed; curl 56`, `fetch-pack: unexpected disconnect` — git network failure
 - `Error: unable to get local issuer certificate` — TLS/certificate issues
 - `rate limit exceeded` — GitHub API rate limiting
@@ -237,7 +237,7 @@ Not all CI failures are caused by code changes. Common infrastructure failures:
 ## Step 7: Fix and Iterate
 
 1. Make the fix locally
-2. Verify compilation: check the `VS Code - Build` task or run `npm run typecheck-client`
+2. Verify compilation: check the `VS Code - Build` task or run `pnpm run typecheck-client`
 3. Run relevant unit tests locally: `./scripts/test.sh --grep "<pattern>"`
 4. Commit and push:
    ```bash

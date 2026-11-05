@@ -39,6 +39,7 @@ import {
 	AgentHostOTelServiceNameSettingId,
 	AgentHostSystemProxyEnabledSettingId,
 	AgentHostWorkspaceSnapshotEnabledSettingId,
+	AgentHostMcpSkillsEnabledSettingId,
 } from './agentService.js';
 import {
 	AgentHostAhpJsonlLoggingEnabledConfigKey,
@@ -56,6 +57,7 @@ import {
 	AgentHostPrewarmSessionsConfigKey,
 	AgentHostSystemProxyEnabledConfigKey,
 	AgentHostWorkspaceSnapshotEnabledConfigKey,
+	AgentHostMcpSkillsEnabledConfigKey,
 } from './agentHostSchema.js';
 import { AgentMergeConfigKey, AgentMergeSettingId, AGENT_MERGE_SETTING_TAG } from './agentMerge.js';
 import { ChatProvidersConfigKey, ChatProvidersSettingId } from './agentHostChatProviders.js';
@@ -231,7 +233,7 @@ configurationRegistry.registerConfiguration({
 		...artifactToolsConfigurationProperties,
 		[CanvasesEnabledSettingId]: {
 			type: 'boolean',
-			description: nls.localize('chat.canvases.enabled', "Controls whether local Agent Host Copilot sessions can open Canvases with interactive content in the Agents Window and the Editor Window. Newly created sessions pick up changes to this setting."),
+			markdownDescription: nls.localize('chat.canvases.enabled', "Controls whether Agent Host Copilot sessions can open Canvases with interactive content in the Agents Window and the Editor Window. Sessions on remote agent hosts also require `#{0}#`, so canvas pages load through the agent host's network. Newly created sessions pick up changes to this setting.", 'workbench.browser.enableRemoteProxy'),
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['preview'],
@@ -285,6 +287,15 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental', 'advanced'],
 			experiment: { mode: 'auto' },
 			agentHost: { key: AgentHostPrewarmSessionsConfigKey },
+		},
+		[AgentHostMcpSkillsEnabledSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentHost.mcpSkills.enabled', "When enabled, Copilot agent sessions discover and use skills served by MCP servers. Changes apply to new sessions."),
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+			agentHost: { key: AgentHostMcpSkillsEnabledConfigKey },
 		},
 		[AgentHostWorkspaceSnapshotEnabledSettingId]: {
 			type: 'boolean',
@@ -373,8 +384,7 @@ configurationRegistry.registerConfiguration({
 		[AgentHostCodexAgentEnabledSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.codexAgent.enabled', "When enabled, the agent host registers the Codex provider (subject to the Codex SDK being reachable). Enabling takes effect without restarting the agent host."),
-			default: product.quality !== 'stable',
-			tags: ['experimental'],
+			default: true,
 			// Allow the default to be overridden by an experiment. Uses `startup`
 			// to match the sibling agent-host provider settings.
 			experiment: { mode: 'startup' },

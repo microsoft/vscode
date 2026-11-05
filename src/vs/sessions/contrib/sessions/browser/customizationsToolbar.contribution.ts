@@ -6,14 +6,18 @@
 import '../../../browser/media/sidebarActionButton.css';
 import './media/customizationsToolbar.css';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { localize } from '../../../../nls.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { ILocalizedString } from '../../../../platform/action/common/action.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { ContextKeyExpr, ContextKeyExpression, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys.js';
+import { ExtensionsLocalizedLabel } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { AICustomizationManagementEditor } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { AICustomizationManagementEditorInput } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
@@ -36,7 +40,7 @@ import { AICustomizationManagementSection } from '../../../../workbench/contrib/
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { ISession } from '../../../services/sessions/common/session.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { SessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { CanvasesEnabledSettingId } from '../../../../platform/agentHost/common/agentService.js';
 import { IAICustomizationMcpServerCountService } from './customizationMcpServerCount.js';
@@ -58,6 +62,12 @@ export interface ICustomizationItemConfig {
 	readonly showsExtensionSuggestions?: boolean;
 	/** Additional `when` clause beyond the standard harness-visibility gate. */
 	readonly when?: ContextKeyExpression;
+	/** If set, the Command Palette also offers the item, with this title and category, and its default keybinding, if any. */
+	readonly command?: {
+		readonly title: ILocalizedString;
+		readonly category: ILocalizedString;
+		readonly keybinding?: number;
+	};
 }
 
 /**
@@ -188,6 +198,12 @@ export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		section: AICustomizationManagementSection.Extensions,
 		showsExtensionSuggestions: true,
 		when: ContextKeyExpr.equals(`config.${EXTENSIONS_AGENTS_WINDOW_MANAGEMENT}`, true),
+		command: {
+			title: localize2('manageExtensions', "Manage Extensions..."),
+			category: ExtensionsLocalizedLabel,
+			// Like the Extensions view in editor windows.
+			keybinding: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyX,
+		},
 	},
 	{
 		id: 'sessions.customization.harnessSettings',
@@ -197,8 +213,8 @@ export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 	},
 ];
 
-async function openCustomizationOverviewPage(editorService: IEditorService, harnessService: ICustomizationHarnessService, sessionsService: ISessionsService, options?: IOpenAICustomizationsCommandOptions): Promise<void> {
-	const session = sessionsService.activeSession.get();
+async function openCustomizationOverviewPage(editorService: IEditorService, harnessService: ICustomizationHarnessService, focusedSessionHostService: IFocusedSessionHostService, options?: IOpenAICustomizationsCommandOptions): Promise<void> {
+	const session = focusedSessionHostService.focusedHost.get().session.get();
 	if (session) {
 		harnessService.setActiveSession(session.resource);
 	}
@@ -215,8 +231,8 @@ async function openCustomizationOverviewPage(editorService: IEditorService, harn
 	}
 }
 
-async function openCustomizationSectionPage(editorService: IEditorService, harnessService: ICustomizationHarnessService, sessionsService: ISessionsService, section: typeof AICustomizationManagementSection[keyof typeof AICustomizationManagementSection]): Promise<void> {
-	const session = sessionsService.activeSession.get();
+async function openCustomizationSectionPage(editorService: IEditorService, harnessService: ICustomizationHarnessService, focusedSessionHostService: IFocusedSessionHostService, section: typeof AICustomizationManagementSection[keyof typeof AICustomizationManagementSection]): Promise<void> {
+	const session = focusedSessionHostService.focusedHost.get().session.get();
 	if (session) {
 		harnessService.setActiveSession(session.resource);
 	}
@@ -418,7 +434,7 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 				await openCustomizationOverviewPage(
 					accessor.get(IEditorService),
 					accessor.get(ICustomizationHarnessService),
-					accessor.get(ISessionsService),
+					accessor.get(IFocusedSessionHostService),
 					options,
 				);
 			}
@@ -442,22 +458,31 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 			// Register the action with menu item
 			this._register(registerAction2(class extends Action2 {
 				constructor() {
-					super({
+					const menu = {
+						id: Menus.SidebarCustomizations,
+						group: 'navigation',
+						order: index + 1,
+						when: combinedWhen,
+					};
+					super(config.command ? {
+						id: config.id,
+						title: config.command.title,
+						category: config.command.category,
+						f1: true,
+						// Offers the command, and its keybinding, where the sidebar offers the item.
+						precondition: combinedWhen,
+						keybinding: config.command.keybinding ? { primary: config.command.keybinding, weight: KeybindingWeight.WorkbenchContrib } : undefined,
+						menu,
+					} : {
 						id: config.id,
 						title: config.label,
-						menu: {
-							id: Menus.SidebarCustomizations,
-							group: 'navigation',
-							order: index + 1,
-							when: combinedWhen,
-						}
+						menu,
 					});
 				}
 				async run(accessor: ServicesAccessor): Promise<void> {
 					const editorService = accessor.get(IEditorService);
 					const harnessService = accessor.get(ICustomizationHarnessService);
-					const sessionsService = accessor.get(ISessionsService);
-					await openCustomizationSectionPage(editorService, harnessService, sessionsService, section);
+					await openCustomizationSectionPage(editorService, harnessService, accessor.get(IFocusedSessionHostService), section);
 				}
 			}));
 		}
@@ -508,13 +533,13 @@ export class ActiveSessionHarnessSyncContribution extends Disposable implements 
 	static readonly ID = 'workbench.contrib.sessionsActiveHarnessSync';
 
 	constructor(
-		@ISessionsService sessionsService: ISessionsService,
+		@IFocusedSessionHostService focusedSessionHostService: IFocusedSessionHostService,
 		@ICustomizationHarnessService harnessService: ICustomizationHarnessService,
 	) {
 		super();
 
 		this._register(autorun(reader => {
-			const session = sessionsService.activeSession.read(reader);
+			const session = focusedSessionHostService.focusedHost.read(reader).session.read(reader);
 			if (!session) {
 				return;
 			}

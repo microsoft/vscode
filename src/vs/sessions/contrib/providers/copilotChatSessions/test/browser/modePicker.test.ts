@@ -8,34 +8,31 @@ import { Event } from '../../../../../../base/common/event.js';
 import { hash } from '../../../../../../base/common/hash.js';
 import { IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
+import { hasKey } from '../../../../../../base/common/types.js';
+import { Schemas } from '../../../../../../base/common/network.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IActionListDelegate, IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { TestTelemetryService } from '../../../../../../platform/telemetry/test/common/testTelemetryService.js';
 import { IChatModeService, IChatModes, ChatMode, CustomChatMode } from '../../../../../../workbench/contrib/chat/common/chatModes.js';
 import { IChatService } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { MockChatSessionsService } from '../../../../../../workbench/contrib/chat/test/common/mockChatSessionsService.js';
 import { IChatModel, IChatRequestModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
-import { PromptsStorage } from '../../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
+import { IAgentSource, PromptsStorage } from '../../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { Target } from '../../../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { IChat, ISession } from '../../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { ModePicker, ModePickerModel, ScopedModePickerModelCache } from '../../browser/modePicker.js';
-
-class TestTelemetryService extends NullTelemetryServiceShape {
-	readonly events: { readonly name: string; readonly data: unknown }[] = [];
-
-	override publicLog2(eventName?: string, data?: unknown): void {
-		if (eventName) {
-			this.events.push({ name: eventName, data });
-		}
-	}
-}
+import { sessionChatSourceOf } from '../../../../../services/sessions/browser/sessionHost.js';
+import { IEditorService } from '../../../../../../workbench/services/editor/common/editorService.js';
 
 suite('ScopedModePickerModelCache', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -170,6 +167,131 @@ suite('ScopedModePickerModelCache', () => {
 suite('ModePicker', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	const fileCases: { source: IAgentSource; resource: URI; actionLabel?: string }[] = [
+		{ source: { storage: PromptsStorage.local }, resource: URI.file('/workspace/reviewer.agent.md'), actionLabel: 'Edit Reviewer agent' },
+		{ source: { storage: PromptsStorage.extension, extensionId: new ExtensionIdentifier('test.agents') }, resource: URI.file('/extensions/reviewer.agent.md'), actionLabel: 'View Reviewer agent' },
+		{ source: { storage: PromptsStorage.local }, resource: URI.parse('vscode-agent-host://remote/workspace/reviewer.agent.md'), actionLabel: 'Edit Reviewer agent' },
+		{ source: { storage: PromptsStorage.local }, resource: URI.file('/cache/reviewer.agent.md'), actionLabel: 'Edit Reviewer agent' },
+		{ source: { storage: PromptsStorage.local }, resource: URI.parse('claude-internal:/agent/Explore') },
+		{ source: { storage: PromptsStorage.local }, resource: toAgentHostUri(URI.parse('claude-internal:/agent/Explore'), 'remote') },
+		{ source: { storage: PromptsStorage.local }, resource: URI.parse('unregistered:/agent') },
+	];
+	const fileService = upcastPartial<IFileService>({ hasProvider: resource => resource.scheme === Schemas.file || resource.scheme === AGENT_HOST_SCHEME });
+	for (const { source, resource, actionLabel } of fileCases) {
+		test(`offers file actions only for openable ${source.storage} agents (${resource.toString()})`, async () => {
+			const customAgent = new CustomChatMode({
+				id: 'reviewer', uri: resource, name: 'Reviewer',
+				source,
+				agentInstructions: { content: '', toolReferences: [] }, target: Target.Undefined,
+				visibility: { userInvocable: true, agentInvocable: true }, enabled: true,
+			});
+			const model = upcastPartial<ModePickerModel>({
+				onDidChange: Event.None,
+				selectedMode: ChatMode.Agent,
+				getAvailableModes: () => [ChatMode.Agent, customAgent, ChatMode.Ask],
+			});
+			let items: readonly Pick<IActionListItem<never>, 'label' | 'toolbarActions'>[] = [];
+			let keyboardActions = false;
+			const calls: string[] = [];
+			const picker = store.add(new ModePicker(
+				model, sessionChatSourceOf(observableValue<IActiveSession | undefined>('session', undefined)),
+				upcastPartial<IActionWidgetService>({
+					isVisible: false,
+					hide: () => calls.push('hide'),
+					show: (_id, _preview, rows, _delegate, _anchor, _container, _actions, _accessibility, options) => {
+						items = rows;
+						keyboardActions = options?.tabThroughItemActions === true;
+					},
+				}),
+				upcastPartial<ICommandService>({}), new TestTelemetryService(),
+				upcastPartial<IChatService>({}), new MockChatSessionsService(),
+				upcastPartial<IEditorService>({
+					openEditor: async editor => {
+						assert.ok(hasKey(editor, { resource: true }));
+						calls.push(`open:${editor.resource?.toString()}`);
+						return undefined;
+					},
+				}),
+				fileService,
+			));
+			store.add(picker.onDidSelect(mode => calls.push(`select:${mode.id}`)));
+			picker.showPicker(document.createElement('button'));
+			const agentAction = items.find(item => item.label === 'Reviewer')?.toolbarActions?.[0];
+			await agentAction?.run();
+
+			assert.deepStrictEqual({
+				actionLabel: agentAction?.label,
+				rowsWithActions: items.filter(item => item.toolbarActions?.length).map(item => item.label),
+				keyboardActions,
+				calls,
+				selected: model.selectedMode.id,
+			}, {
+				actionLabel,
+				rowsWithActions: actionLabel ? ['Reviewer'] : [],
+				keyboardActions: true,
+				calls: actionLabel ? ['hide', `open:${resource.toString()}`] : [],
+				selected: ChatMode.Agent.id,
+			});
+		});
+	}
+
+	test('distinguishes duplicate labels visibly and accessibly without changing selection IDs', () => {
+		const custom = ['VS Code', 'Plugin: review-tools', 'VS Code'].map((source, index) => new CustomChatMode({
+			id: `client-agent:/${index}`, uri: URI.parse(`client-agent:/${index}`),
+			name: index === 2 ? 'Other' : 'Reviewer',
+			source: { storage: PromptsStorage.local, label: source },
+			agentInstructions: { content: '', toolReferences: [] }, target: Target.Undefined,
+			visibility: { userInvocable: true, agentInvocable: true }, enabled: true,
+		}));
+		const modes = upcastPartial<IChatModes & IDisposable>({
+			onDidChange: Event.None, builtin: [ChatMode.Agent], custom,
+			findModeById: id => custom.find(mode => mode.id === id),
+			waitForPendingUpdates: async () => { }, dispose: () => { },
+		});
+		const model = store.add(new ModePickerModel(
+			upcastPartial<IChatSessionsService>({ getCustomAgentTargetForSessionType: () => Target.Undefined }),
+			upcastPartial<IChatModeService>({ createModes: () => modes }),
+		));
+		model.setSession(upcastPartial<ISession>({ resource: URI.parse('agent-host-copilotcli:/session') }), custom[0].id);
+		let rows: { label: string | undefined; source: string | undefined; aria: string | null | undefined }[] = [];
+		const picker = store.add(new ModePicker(
+			model, sessionChatSourceOf(observableValue<IActiveSession | undefined>('session', undefined)),
+			upcastPartial<IActionWidgetService>({
+				isVisible: false, hide: () => { },
+				show: (_id, _preview, items, delegate, _anchor, _container, _actions, accessibilityProvider) => {
+					rows = items.filter(item => item.label === 'Reviewer' || item.label === 'Other').map(item => {
+						const aria = accessibilityProvider?.getAriaLabel?.(item);
+						return {
+							label: item.label,
+							source: typeof item.description === 'string' ? item.description : undefined,
+							aria: typeof aria === 'string' || aria === null || aria === undefined ? aria : aria.get(),
+						};
+					});
+					const selected = items.find(item => item.description === 'Plugin: review-tools');
+					assert.ok(selected?.item);
+					delegate.onSelect(selected.item);
+				},
+			}),
+			upcastPartial<ICommandService>({}), new TestTelemetryService(),
+			upcastPartial<IChatService>({}), new MockChatSessionsService(),
+			upcastPartial<IEditorService>({}),
+			fileService,
+		));
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+		picker.render(container);
+		picker.showPicker();
+		assert.deepStrictEqual({ rows, selected: model.selectedMode.id }, {
+			rows: [
+				{ label: 'Reviewer', source: 'VS Code', aria: 'Reviewer, VS Code' },
+				{ label: 'Reviewer', source: 'Plugin: review-tools', aria: 'Reviewer, Plugin: review-tools' },
+				{ label: 'Other', source: undefined, aria: 'Other' },
+			],
+			selected: custom[1].id,
+		});
+	});
+
 	test('reports chat.modeChange for the scoped active chat', () => {
 		const telemetryService = new TestTelemetryService();
 		const sessionResource = URI.parse('agent-host-copilotcli:/session-1');
@@ -225,7 +347,7 @@ suite('ModePicker', () => {
 		chatSessionsService.setContributions([{ type: 'agent-host-claude', agentHostProviderId: 'claude', name: 'Claude', displayName: 'Claude', description: '' }]);
 		const picker = store.add(new ModePicker(
 			model,
-			scopedSession,
+			sessionChatSourceOf(scopedSession),
 			new class extends mock<IActionWidgetService>() {
 				override readonly isVisible = false;
 				override show<T>(_user: string, _supportsPreview: boolean, items: readonly IActionListItem<T>[], delegate: IActionListDelegate<T>): void {
@@ -260,6 +382,8 @@ suite('ModePicker', () => {
 				}
 			}(),
 			chatSessionsService,
+			upcastPartial<IEditorService>({}),
+			fileService,
 		));
 		const container = document.createElement('div');
 		document.body.appendChild(container);

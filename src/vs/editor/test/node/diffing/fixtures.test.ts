@@ -188,6 +188,39 @@ suite('diffing fixtures', () => {
 		]);
 	});
 
+	// The TypeScript backend of @vscode/diff is a port of the built-in algorithm. Both must agree, so `advanced` can switch to it.
+	test('@vscode/diff (TS) agrees with the built-in algorithm on all fixtures', async () => {
+		const builtin = new DefaultLinesDiffComputer();
+		const external = await loadExternalComputer(false);
+		const format = (diff: LinesDiff) => [
+			...formatChanges(diff),
+			...diff.moves.map(m => `move ${m.lineRangeMapping.original}->${m.lineRangeMapping.modified} ${formatChanges({ changes: m.changes })}`),
+		];
+		const differences: string[] = [];
+		for (const folder of folders) {
+			const { firstContentLines, secondContentLines } = readFixture(folder);
+			for (const ignoreTrimWhitespace of [false, true]) {
+				const options = { ignoreTrimWhitespace, maxComputationTimeMs: 0, computeMoves: true };
+				const expected = builtin.computeDiff(firstContentLines, secondContentLines, options);
+				const actual = external.computeDiff(firstContentLines, secondContentLines, options);
+				if (!ignoreTrimWhitespace) {
+					if (JSON.stringify(format(actual)) !== JSON.stringify(format(expected))) {
+						differences.push(`${folder}: differs`);
+					}
+				} else if (JSON.stringify(expected.changes.map(c => `${c}`)) !== JSON.stringify(actual.changes.map(c => `${c}`))) {
+					// With trim whitespace ignored, the built-in algorithm ignores it while aligning lines; the package hides it afterwards.
+					differences.push(`${folder} ignoreTrimWhitespace: changed lines differ`);
+				}
+			}
+		}
+		assert.deepStrictEqual(differences, [
+			// The original is empty. The built-in algorithm replaces the empty line, the package reports a pure insertion.
+			'invalid-ranges: differs',
+			'invalid-ranges ignoreTrimWhitespace: changed lines differ',
+			'noisy-move1 ignoreTrimWhitespace: changed lines differ',
+		]);
+	});
+
 	test('@vscode/diff: ignoreTrimWhitespace hides only leading/trailing whitespace changes', async () => {
 		const external = await loadExternalComputer(false);
 		const original = ['if (a) {', '\tfoo();  ', '}', 'bar(x, y);', '  ', 'let a = 1;'];
@@ -200,7 +233,7 @@ suite('diffing fixtures', () => {
 	});
 });
 
-function formatChanges(diff: LinesDiff): string[] {
+function formatChanges(diff: Pick<LinesDiff, 'changes'>): string[] {
 	return diff.changes.map(c => `${c.original}->${c.modified} ${c.innerChanges?.map(i => i.toString()).join(' ')}`);
 }
 

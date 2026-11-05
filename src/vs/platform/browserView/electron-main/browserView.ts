@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { screen, WebContentsView, webContents } from 'electron';
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { IBrowserViewAudience, IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex, IBrowserViewOwner, IBrowserViewEditorOpenOptions, IBrowserViewPermissionRequestEvent, equalsBrowserViewAudience, isBrowserViewAssociatedResourceNavigation, matchesBrowserViewAudience, IBrowserViewHost, BrowserViewPresentation, getBrowserViewPopupAction } from '../common/browserView.js';
@@ -22,6 +22,7 @@ import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryW
 import { SCAN_CODE_STR_TO_EVENT_KEY_CODE } from '../../../base/common/keyCodes.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { logBrowserOpen } from '../common/browserViewTelemetry.js';
+import { BrowserViewReportedFocus } from '../common/browserViewFocus.js';
 import { URI } from '../../../base/common/uri.js';
 
 enum NewPageLocation {
@@ -60,6 +61,9 @@ export class BrowserView extends Disposable {
 	private _ownerWindow: ICodeWindow;
 	private _owner: IBrowserViewOwner;
 	private _currentWindow: ICodeWindow | IAuxiliaryWindow | undefined;
+	/** Its page's focus, while its window has focus: see {@link BrowserViewReportedFocus}. */
+	private readonly _reportedFocus: BrowserViewReportedFocus;
+	private readonly _hostWindowFocusListeners = this._register(new MutableDisposable<DisposableStore>());
 	private _isDisposed = false;
 	private _audiences: readonly IBrowserViewAudience[] = [];
 
@@ -162,6 +166,9 @@ export class BrowserView extends Disposable {
 			// Passing an `undefined` webContents triggers an error in Electron.
 			...(options?.webContents ? { webContents: options.webContents } : {})
 		});
+		if (this.session.network) {
+			this._view.webContents.setWebRTCIPHandlingPolicy('disable_non_proxied_udp');
+		}
 
 		// Use a default size of 1024x768.
 		// Important: The bounds here must be on-screen, otherwise some OSes (like macOS) may not actually start rendering.
@@ -186,7 +193,7 @@ export class BrowserView extends Disposable {
 		this._ownerWindow.win?.contentView.addChildView(this._view);
 
 		this._view.webContents.setWindowOpenHandler((details) => {
-			const { action, consumeUserGesture } = getBrowserViewPopupAction(this.presentation, details.url, this.hasRecentUserGesture());
+			const { action, consumeUserGesture } = getBrowserViewPopupAction(this.presentation, details.url, this.hasRecentUserGesture(), this.session.network !== undefined);
 			if (action !== 'integrated') {
 				if (consumeUserGesture) {
 					this._lastUserGestureTimestamp = -Infinity;
@@ -275,7 +282,29 @@ export class BrowserView extends Disposable {
 			this._onDidChangePermissions.fire(this.session.permissions.serialize());
 		}));
 
+		this._reportedFocus = new BrowserViewReportedFocus(this._view.webContents.isFocused(), !!this._hostWindow?.isFocused(), focused => this._onDidChangeFocus.fire({ focused }));
+		this._trackHostWindowFocus();
 		this.setupEventListeners();
+	}
+
+	/** Follows whether the window that hosts the view has focus, which the view's page does not tell when another window is activated. */
+	private _trackHostWindowFocus(): void {
+		const win = this._hostWindow;
+		if (!win) {
+			this._hostWindowFocusListeners.clear();
+			return;
+		}
+		const store = new DisposableStore();
+		const onFocus = () => this._reportedFocus.setWindowFocused(true);
+		const onBlur = () => this._reportedFocus.setWindowFocused(false);
+		win.on('focus', onFocus);
+		win.on('blur', onBlur);
+		store.add(toDisposable(() => {
+			win.off('focus', onFocus);
+			win.off('blur', onBlur);
+		}));
+		this._hostWindowFocusListeners.value = store;
+		this._reportedFocus.setWindowFocused(win.isFocused());
 	}
 
 	private setupEventListeners(): void {
@@ -463,11 +492,11 @@ export class BrowserView extends Disposable {
 
 		// Focus events
 		webContents.on('focus', () => {
-			this._onDidChangeFocus.fire({ focused: true });
+			this._reportedFocus.setViewFocused(true);
 		});
 
 		webContents.on('blur', () => {
-			this._onDidChangeFocus.fire({ focused: false });
+			this._reportedFocus.setViewFocused(false);
 		});
 
 		const onCommandKeydown = (_event: unknown, keyEvent: IBrowserViewKeyDownEvent) => {
@@ -637,7 +666,7 @@ export class BrowserView extends Disposable {
 			canGoBack: webContents.navigationHistory.canGoBack(),
 			canGoForward: webContents.navigationHistory.canGoForward(),
 			loading: webContents.isLoading(),
-			focused: webContents.isFocused(),
+			focused: this._reportedFocus.focused,
 			visible: this._view.getVisible(),
 			isDevToolsOpen: webContents.isDevToolsOpened(),
 			lastScreenshot: this._lastScreenshot,
@@ -701,6 +730,7 @@ export class BrowserView extends Disposable {
 				this._currentWindow?.win?.contentView.removeChildView(this._view);
 				this._currentWindow = newWindow;
 				newWindow.win?.contentView.addChildView(this._view);
+				this._trackHostWindowFocus();
 			}
 		}
 

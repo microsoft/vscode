@@ -12,7 +12,7 @@ import { basename, dirname, isEqualOrParent, joinPath, relativePath } from '../.
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { type AgentHostUriMapper, LOCAL_AGENT_HOST_AUTHORITY, toAgentHostContentUri, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { type AgentHostUriMapper, LOCAL_AGENT_HOST_AUTHORITY, toAgentHostContentUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { affectsAgentHostProviderPreference, getPolicyUnavailableLocalAgentHostProviders, isLocalAgentHostProviderDisabledByPolicy, IAgentConnection, IAgentHostService, shouldSurfaceLocalAgentHostProvider } from '../../../../../platform/agentHost/common/agentService.js';
@@ -44,7 +44,7 @@ import { ICopilotHomeService } from '../../../../../workbench/services/environme
 import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../../common/agentHostSessionWorkspace.js';
 import { areDevContainerSamplesEnabled, IDevContainerAgentHostService } from '../../../../common/devContainerAgentHostService.js';
 import { IGitHubInfo, ISession, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../../services/sessions/common/session.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService, ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
@@ -112,6 +112,10 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 	 * sessions on this machine, so a remote host must never claim or probe them.
 	 */
 	async resolveSessionResource(resource: URI, reason?: SessionResourceResolveReason): Promise<URI | undefined> {
+		// An un-adopted row of this list opens as itself: the host adopts it when the open subscribes, with no probe.
+		if (this._reportAdoptableRowOpen(resource, reason, this._telemetryService)) {
+			return undefined;
+		}
 		// Frozen at startup: enabling the setting only takes effect after a restart,
 		// so a live toggle never probes a host whose gate is still off.
 		if (!isLegacyMigrationEnabledAtStartup(this._configurationService)) {
@@ -185,7 +189,8 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 		@ILogService logService: ILogService,
 		@IGitHubService gitHubService: IGitHubService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@ISessionsService sessionsService: ISessionsService,
+		@ISessionHostService sessionHostService: ISessionHostService,
+		@IFocusedSessionHostService focusedSessionHostService: IFocusedSessionHostService,
 		@IAgentHostActiveClientService activeClientService: IAgentHostActiveClientService,
 		@IAgentHostMcpAppToolsService mcpAppToolsService: IAgentHostMcpAppToolsService,
 		@IStorageService storageService: IStorageService,
@@ -201,7 +206,7 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
 	) {
-		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsService, activeClientService, mcpAppToolsService, storageService, dialogService, workspaceTrustManagementService, recentWorkspacesService, uriIdentityService);
+		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionHostService, focusedSessionHostService, activeClientService, mcpAppToolsService, storageService, dialogService, workspaceTrustManagementService, recentWorkspacesService, uriIdentityService);
 		this.initializeDevContainerSupport(devContainerAgentHostService, sessionsProvidersService, workspaceTrustRequestService);
 		const automations = this._register(instantiationService.createInstance(ReconnectableAgentHostAutomationStore, this.id, {
 			toHost: resource => resource,
@@ -279,12 +284,13 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 			bindConnection();
 			// Reconcile missed notifications and open the restarted host's first-listing discovery barrier.
 			if (!this._agentHostService.authenticationPending.get()) {
-				void this._refreshSessions();
+				void this._joinSessionRefresh();
 			}
 		}));
 		this._register(this._agentHostService.onAgentHostExit(() => {
 			connectionListeners.clear();
 			automations.clearConnection();
+			this._abandonSessionRefresh();
 		}));
 
 		// Eagerly populate the session cache once authentication has settled.
@@ -294,13 +300,21 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 		// settle because the underlying agent (e.g. CopilotAgent) throws
 		// `AHP_AUTH_REQUIRED` from `listSessions()` until its auth token is
 		// resolved. The `authenticationPending` observable is sticky (once
-		// it goes false it stays false), so this autorun fires
-		// `_refreshSessions()` at most once for the eager-load case.
+		// it goes false it stays false), so this autorun lists at most once
+		// for the eager-load case. A listing requested while authentication
+		// was pending may fail, so once it settles, list again instead of
+		// sharing that listing.
+		let waitedForAuthentication = false;
 		this._register(autorun(reader => {
 			if (this._agentHostService.authenticationPending.read(reader)) {
+				waitedForAuthentication = true;
 				return;
 			}
-			this._refreshSessions();
+			if (waitedForAuthentication) {
+				this._refreshSessions();
+			} else {
+				this._joinSessionRefresh();
+			}
 			this._resumeNewSessionAfterAuthenticationSettles();
 		}));
 
@@ -392,7 +406,7 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 	protected override _diffUriMapper(): AgentHostUriMapper {
 		return (uri, options) => options?.contentRef
 			? toAgentHostContentUri(uri, LOCAL_AGENT_HOST_AUTHORITY, options.fileUri)
-			: toAgentHostUri(uri, LOCAL_AGENT_HOST_AUTHORITY);
+			: this.mapWorkingDirectoryUri(uri);
 	}
 
 	// -- Workspaces ----------------------------------------------------------

@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 /*
- * Runs the unit tests in several worker processes at once (`--workers <count>`).
+ * Runs the unit tests in several worker processes at once (`--workers <count>`): all test files,
+ * or the listed ones (`--runList`).
  *
- * Every worker loads all test files, but a test file only runs in the worker that claims it
+ * Every worker loads all test files of the run, but a test file only runs in the worker that claims it
  * first. Claims are atomic directory creations in a directory shared by all workers, so every
  * file runs exactly once. The browser runner's page claims files through the test server of its
  * worker process. Workers claim files lazily whenever they run out of suites to run, so
@@ -14,6 +15,10 @@
  * claimed in load order, so every worker runs its files in the same relative order as a single
  * process would. This way, tests that leak global state cannot affect tests that ran before
  * them in a single process.
+ *
+ * A worker also starts a process, and a window or browser, and loads all test files of the run, so a
+ * run of listed files starts fewer workers for fewer files, but at least 2 for 2 or more files, so
+ * that a slow test file does not hold up all the others (see getWorkerCountForFiles).
  *
  * Only the first attempt runs in workers. Every worker reports its failures to the process that
  * started it, which reruns them in a single process or browser (see `--rerun-failed-files`).
@@ -90,6 +95,29 @@ function getWorkerCount(value: string | undefined): number {
 		console.log(`Using ${capped} instead of ${count} worker processes: ${cpuLimit} CPUs and ${Math.round(os.totalmem() / 1024 ** 3)} GB of memory available`);
 	}
 	return capped;
+}
+
+/**
+ * The test files per worker of a run of listed files (`--runList`) beyond its first 2 workers. Every
+ * worker starts a process, and a window or browser, and loads all listed test files before it runs its
+ * share, so more workers only pay off for longer lists.
+ */
+const FILES_PER_WORKER = 75;
+
+/**
+ * @param count the number of workers from {@link getWorkerCount}
+ * @param fileCount how many of the listed test files the runner runs
+ * @returns the number of workers to start for a run of listed test files (`--runList`): one per
+ * {@link FILES_PER_WORKER} test files, but at least 2, and at most `count` and one per test file. The
+ * number of files does not tell how long they take: in a single process, one slow test file would hold
+ * up all the others, while a second worker costs about a second.
+ */
+function getWorkerCountForFiles(count: number, fileCount: number): number {
+	const forFiles = Math.max(1, Math.min(count, fileCount, Math.max(2, Math.floor(fileCount / FILES_PER_WORKER))));
+	if (forFiles < count) {
+		console.log(`Using ${forFiles} instead of ${count} worker processes for ${fileCount} test files: one per ${FILES_PER_WORKER} test files, but at least 2 and at most one per test file`);
+	}
+	return forFiles;
 }
 
 /**
@@ -406,4 +434,4 @@ function formatDuration(ms: number): string {
 	return seconds >= 60 ? `${Math.floor(seconds / 60)}m ${seconds % 60}s` : `${seconds}s`;
 }
 
-module.exports = { getWorkerCount, removeArgument, runInWorkers, writeWorkerReport, trackTestFiles, distributeTestFiles, createTestFileClaims, distributeClaimedTestFiles };
+module.exports = { getWorkerCount, getWorkerCountForFiles, removeArgument, runInWorkers, writeWorkerReport, trackTestFiles, distributeTestFiles, createTestFileClaims, distributeClaimedTestFiles };

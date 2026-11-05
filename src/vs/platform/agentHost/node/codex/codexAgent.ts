@@ -35,7 +35,6 @@ import { ContextSizeConfigKey, createContextSizeConfigSchemaProperty, createCont
 import { CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID, createAgentModelGroupMeta, createAgentModelSourceMeta } from '../../common/agentModelSource.js';
 import { withCodexSessionModel } from '../../common/meta/codexSessionModel.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
-import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../../common/agentHostCustomizationConfig.js';
 import { AgentSdkSetupChannel } from '../agentSdkSetupChannel.js';
 import { CODEX_ACCOUNT_META_KEY, CODEX_ACCOUNT_REFRESH_REQUEST_KEY, CODEX_ACCOUNT_SIGN_IN_REQUEST_KEY, CODEX_ACCOUNT_SIGN_OUT_REQUEST_KEY, type ICodexAccountInfo } from '../../common/codexAccount.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
@@ -91,7 +90,7 @@ import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { CodexAppServerClient, JsonRpcError, JsonRpcErrorCode, JsonRpcResponseError, transportFromChildProcess, type ICodexAppServerClient, type ServerRequestHandlerResult } from './codexAppServerClient.js';
 import { decodeCodexChat, encodeCodexChat, type ICodexPersistedChat } from './codexChatBacking.js';
-import { CodexSdkPackage, codexPackageSuffix, codexBinaryTriple, resolveCodexDevSdkRoot } from './codexSdk.js';
+import { CodexSdkPackage, codexPackageSuffix, codexBinaryTriple, resolveCodexBinaryPath, resolveCodexDevSdkRoot } from './codexSdk.js';
 import { CODEX_PORTABLE_HISTORY_HEADER, ICodexProxyService, type ICodexProxyHandle } from './codexProxyService.js';
 import { GITHUB_MCP_SERVER_NAME, resolveGitHubMcpServerConfiguration } from '../shared/githubMcpServer.js';
 import { isAgentHostTelemetryService } from '../agentHostTelemetryService.js';
@@ -2332,8 +2331,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * not start the app-server.
 	 */
 	private _startModelRefreshWhenSdkIsLocal(): void {
-		const allowSignedOutWhenUsable = this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.AllowSignedOutWhenUsable) === true;
-		if (this._isShuttingDown || this._store.isDisposed || !this._activated || !allowSignedOutWhenUsable || this._codexModels.length > 0) {
+		if (this._isShuttingDown || this._store.isDisposed || !this._activated || this._codexModels.length > 0) {
 			return;
 		}
 		queueMicrotask(async () => {
@@ -2660,8 +2658,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (!triple) {
 			throw new Error(`Codex: no binary triple known for sdkTarget '${codexTarget}'`);
 		}
-		const binaryName = process.platform === 'win32' ? 'codex.exe' : 'codex';
-		const binaryPath = join(root, 'node_modules', `@openai/codex-${codexTarget}`, 'vendor', triple, 'bin', binaryName);
+		const binaryPath = await resolveCodexBinaryPath(root, codexTarget, triple);
 		try {
 			await fs.promises.access(binaryPath, fs.constants.X_OK);
 		} catch (err) {
@@ -7324,8 +7321,9 @@ export class CodexAgent extends Disposable implements IAgent {
 				return;
 			}
 			try {
+				const storedSizes = await database.object.getTerminalOutputSizes(commands.map(({ toolCall }) => toolCall.toolCallId));
 				for (const { toolCall, output, exitCode } of commands) {
-					if (await database.object.getTerminalOutputSize(toolCall.toolCallId) !== undefined) {
+					if (storedSizes.has(toolCall.toolCallId)) {
 						let previewOutput = output;
 						if (!shouldRetainCodexCommandOutput(output)) {
 							const storedOutput = await database.object.readTerminalOutput(toolCall.toolCallId);
@@ -8744,6 +8742,8 @@ export class CodexAgent extends Disposable implements IAgent {
 					server: serverName,
 					tool,
 					arguments: (params ? params['arguments'] : undefined) as JsonValue,
+					// eslint-disable-next-line local/code-no-untyped-meta-access -- Forward opaque MCP request metadata without interpreting it.
+					_meta: params?.['_meta'] as JsonValue | undefined,
 				});
 			}
 			case 'resources/read': {

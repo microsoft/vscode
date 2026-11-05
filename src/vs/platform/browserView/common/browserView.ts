@@ -277,9 +277,12 @@ export const enum BrowserViewPresentation {
 	Unlisted = 'unlisted',
 }
 
-export function getBrowserViewPopupAction(presentation: BrowserViewPresentation, url: string, hasRecentUserGesture: boolean): { action: 'integrated' | 'external' | 'deny'; consumeUserGesture: boolean } {
+export function getBrowserViewPopupAction(presentation: BrowserViewPresentation, url: string, hasRecentUserGesture: boolean, remoteNetwork = false): { action: 'integrated' | 'external' | 'deny'; consumeUserGesture: boolean } {
 	if (presentation === BrowserViewPresentation.Listed) {
 		return { action: 'integrated', consumeUserGesture: false };
+	}
+	if (remoteNetwork) {
+		return { action: 'deny', consumeUserGesture: hasRecentUserGesture };
 	}
 	if (hasRecentUserGesture && matchesSomeScheme(url, Schemas.http, Schemas.https)) {
 		return { action: 'external', consumeUserGesture: true };

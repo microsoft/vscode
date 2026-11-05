@@ -35,7 +35,7 @@ import { IsPhoneLayoutContext } from '../../../common/contextkeys.js';
 import { isDevContainerWorktreeEnabled } from '../../../common/devContainerAgentHostService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionFileChange, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
-import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
+import { IHostSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
 import { CHANGES_VIEW_ID } from '../../changes/common/changes.js';
 import { ISessionChangesService } from '../../changes/common/sessionChangesService.js';
@@ -45,7 +45,7 @@ import { formatChangeStats, getChangedFileAriaDescription, getChangedFileLabel, 
 
 /** A new session that would start in a folder with uncommitted changes. */
 export interface IWorktreeSuggestion {
-	readonly session: IActiveSession;
+	readonly session: IHostSession;
 	/** Number of files with uncommitted changes in the session's folder. */
 	readonly uncommittedChanges: number;
 	/** The folder's checked-out branch, when known. */
@@ -78,13 +78,16 @@ export interface IWorktreeSuggestionService {
 	/** The presentation selected by {@link WORKTREE_SUGGESTION_SETTING}, or by a developer preview. */
 	readonly variant: IObservable<WorktreeSuggestionVariant>;
 
+	/** Whether a developer preview of a presentation is active in this window. */
+	readonly isPreviewing: IObservable<boolean>;
+
 	/**
 	 * The suggestion every arm would make for `session`: a new session with Branch isolation in a folder
 	 * with uncommitted changes, for someone who already started a few sessions, where New Worktree is
 	 * available. It ignores state that only the treatments write, such as a closed hint or a spotlight
 	 * that was already shown, so it can decide the experiment trigger.
 	 */
-	getSuggestion(session: IActiveSession | undefined, reader: IReader | undefined): IWorktreeSuggestion | undefined;
+	getSuggestion(session: IHostSession | undefined, reader: IReader | undefined): IWorktreeSuggestion | undefined;
 
 	/** Logs the experiment trigger once a suggestion would appear in any arm. */
 	reportWouldShow(): void;
@@ -145,7 +148,8 @@ export interface IWorktreeSuggestionService {
 
 	/**
 	 * Previews `variant` in this window regardless of usage and earlier responses, which the preview neither
-	 * reads nor changes. `undefined` ends the preview.
+	 * reads nor changes. The inline hint shows in a preview even before the user started enough sessions for
+	 * the banners below the input. `undefined` ends the preview.
 	 */
 	setPreview(variant: WorktreeSuggestionVariant | undefined): void;
 
@@ -184,6 +188,7 @@ export class WorktreeSuggestionService extends Disposable implements IWorktreeSu
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _preview = observableValue<WorktreeSuggestionVariant | undefined>(this, undefined);
+	readonly isPreviewing = derived(this, reader => this._preview.read(reader) !== undefined);
 	readonly variant: IObservable<WorktreeSuggestionVariant>;
 
 	private readonly _experienced: IObservable<boolean>;
@@ -251,7 +256,7 @@ export class WorktreeSuggestionService extends Disposable implements IWorktreeSu
 		watchProviders(_sessionsProvidersService.getProviders({ includeSessionBackends: true }));
 	}
 
-	getSuggestion(session: IActiveSession | undefined, reader: IReader | undefined): IWorktreeSuggestion | undefined {
+	getSuggestion(session: IHostSession | undefined, reader: IReader | undefined): IWorktreeSuggestion | undefined {
 		if (!session || this._chatEntitlementService.sentimentObs.read(reader).hidden) {
 			return undefined;
 		}
@@ -336,7 +341,8 @@ export class WorktreeSuggestionService extends Disposable implements IWorktreeSu
 	}
 
 	getUncommittedChanges(suggestion: IWorktreeSuggestion, reader: IReader | undefined): readonly ISessionFileChange[] | undefined {
-		const changeset = suggestion.session.activeChat.read(reader).changesets.read(reader)
+		// A suggestion is for a new session, whose only chat is its main chat.
+		const changeset = suggestion.session.mainChat.read(reader).changesets.read(reader)
 			?.find(candidate => candidate.id === UNCOMMITTED_CHANGES_CHANGESET_ID && candidate.isEnabled.read(reader));
 		if (!changeset || changeset.isLoadingChanges.read(reader)) {
 			return undefined;

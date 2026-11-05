@@ -6,6 +6,7 @@
 import * as cp from 'child_process';
 import * as fsPromises from 'fs/promises';
 import { cp as copyFile } from '@vscode/fs-copyfile';
+import { Schemas } from '../../../base/common/network.js';
 import * as path from '../../../base/common/path.js';
 import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
@@ -43,8 +44,14 @@ const SHOW_BLOB_TIMEOUT_MS = 15_000;
  */
 const GET_REFS_TIMEOUT_MS = 30_000;
 
+/** Budget for a git command that doesn't set its own, so that an unresponsive remote can't hang a caller. */
+const GIT_COMMAND_TIMEOUT_MS = 30_000;
+
 export class AgentHostGitService implements IAgentHostGitService {
 	declare readonly _serviceBrand: undefined;
+
+	/** The timeout of the git commands that don't set their own; tests shorten it to observe it quickly. */
+	protected readonly _defaultTimeoutMs: number = GIT_COMMAND_TIMEOUT_MS;
 
 	/**
 	 * A cache of repository roots and confirmed non-repositories.
@@ -223,6 +230,10 @@ export class AgentHostGitService implements IAgentHostGitService {
 	}
 
 	async getRepositoryRoot(workingDirectory: URI, options?: { readonly refreshIfNone?: boolean }): Promise<URI | undefined> {
+		if (workingDirectory.scheme !== Schemas.file) {
+			return undefined;
+		}
+
 		const workingDirectoryKey = extUriBiasedIgnorePathCase.getComparisonKey(workingDirectory);
 
 		return this._repositoryRootSequencer.queue(workingDirectoryKey, async () => {
@@ -421,8 +432,11 @@ export class AgentHostGitService implements IAgentHostGitService {
 	 * a residual directory; and verify the worktree is truly de-registered before
 	 * returning, so a silent `prune` no-op cannot mask a leaked entry.
 	 */
-	async removeWorktree(repositoryRoot: URI, worktree: URI, options?: { readonly force?: boolean }): Promise<void> {
-		if (options?.force && await this._pathExists(worktree.fsPath) && await this.isWorktreeRegistered(repositoryRoot, worktree)) {
+	async removeWorktree(repositoryRoot: URI, worktree: URI, options?: { readonly force?: boolean; readonly discardChanges?: boolean }): Promise<void> {
+		if (options?.discardChanges && !options.force) {
+			throw new Error('Discarding worktree changes requires forced removal.');
+		}
+		if (options?.force && !options.discardChanges && await this._pathExists(worktree.fsPath) && await this.isWorktreeRegistered(repositoryRoot, worktree)) {
 			if (!await this._pathExists(path.join(worktree.fsPath, '.git'))) {
 				throw new Error(`Cannot preserve registered worktree '${worktree.fsPath}': its .git file is missing`);
 			}
@@ -1419,7 +1433,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 
 		return new Promise((resolve, reject) => {
 			const env = options?.env ? { ...process.env, ...options.env } : undefined;
-			const timeoutMs = options?.timeout ?? 30_000;
+			const timeoutMs = options?.timeout ?? this._defaultTimeoutMs;
 			// Use our own timer rather than execFile's `timeout` option so
 			// we can definitively flag the timeout case in the error
 			// message — execFile only surfaces signal/killed, which can

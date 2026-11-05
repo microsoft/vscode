@@ -551,6 +551,7 @@ function convertState(state: vscode.ChatArtifactIntegrationState, actions: Reado
 	const view = {
 		availability: state.availability ?? { kind: 'available' as const },
 		main: state.main ? part(state.main) : undefined,
+		...(state.groupId !== undefined ? { groupId: state.groupId } : {}),
 		...(state.group ? { group: { icon: convertIcon(state.group.icon), priority: state.group.priority } } : {}),
 		sections: (state.sections ?? []).map(section => ({ ...part(section), id: section.id })),
 		lists: state.lists?.map(list => ({

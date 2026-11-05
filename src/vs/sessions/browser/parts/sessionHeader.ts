@@ -11,6 +11,7 @@ import { IContextKey, IContextKeyService } from '../../../platform/contextkey/co
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { SessionHeaderTargetsChatContext, SessionToolbarShowsSessionContext } from '../../common/contextkeys.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
 import { SessionHeaderBar } from './sessionHeaderBar.js';
 
 /**
@@ -24,6 +25,7 @@ export class SessionHeader extends Disposable {
 	private readonly _toolbarShowsSessionKey: IContextKey<boolean>;
 
 	get element(): HTMLElement { return this._bar.element; }
+	get titleElement(): HTMLElement { return this._bar.titleElement; }
 	get visible(): boolean { return this._bar.visible; }
 	get height(): number { return this._bar.height; }
 	get onDidChangeVisibility(): Event<boolean> { return this._bar.onDidChangeVisibility; }
@@ -32,6 +34,7 @@ export class SessionHeader extends Disposable {
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@ISessionsService private readonly _sessionsService: ISessionsService,
 	) {
 		super();
 		this._headerTargetsChatKey = SessionHeaderTargetsChatContext.bindTo(contextKeyService);
@@ -47,6 +50,7 @@ export class SessionHeader extends Disposable {
 			this._bar.setContext(undefined);
 			return;
 		}
+		const closeSession = () => this._sessionsService.closeSession(session);
 		this._sessionDisposables.add(autorun(reader => {
 			const activeChat = session.activeChat.read(reader);
 			const targetsChat = !!activeChat && !isEqual(activeChat.resource, session.mainChat.read(reader).resource);
@@ -56,8 +60,19 @@ export class SessionHeader extends Disposable {
 				session,
 				chat: session.activeChat,
 				actionsTargetChat: targetsChat,
+				closeSession,
 			});
 		}));
+	}
+
+	/** See {@link SessionHeaderBar.setWindowChrome}. */
+	setWindowChrome(shown: boolean): void {
+		this._bar.setWindowChrome(shown);
+	}
+
+	/** See {@link SessionHeaderBar.setActionsHost}. */
+	setActionsHost(host: HTMLElement | undefined): void {
+		this._bar.setActionsHost(host);
 	}
 
 	setVisible(visible: boolean): void {

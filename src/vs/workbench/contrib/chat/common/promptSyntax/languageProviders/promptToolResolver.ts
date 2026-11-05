@@ -8,7 +8,7 @@ import { getErrorMessage } from '../../../../../../base/common/errors.js';
 import type { ILogService } from '../../../../../../platform/log/common/log.js';
 import { ICustomizationHarnessService, type AgentFileToolAvailability } from '../../customizationHarnessService.js';
 import { Target } from '../promptTypes.js';
-import { knownGithubCopilotTools } from './promptFileAttributes.js';
+import { knownGithubCopilotToolNamespaces, knownGithubCopilotTools } from './promptFileAttributes.js';
 import { resolveMatchingAgentFileHarnesses } from './promptModelResolver.js';
 
 export interface IAgentFileTool {
@@ -45,6 +45,11 @@ export async function resolveAgentFileTools(target: Target, harnessService: ICus
 		...tool,
 		harnessId: descriptors[index].id,
 	})) ?? []));
+	for (const namespace of knownGithubCopilotToolNamespaces) {
+		if (!tools.some(tool => tool.name === namespace.name)) {
+			tools.push({ ...namespace, availability: 'available', harnessId: 'github-copilot' });
+		}
+	}
 	return {
 		tools,
 		isResolved: descriptors.length > 0 && inventories.every(inventory => inventory !== undefined),

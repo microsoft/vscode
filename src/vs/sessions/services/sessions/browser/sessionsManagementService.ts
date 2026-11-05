@@ -13,11 +13,13 @@ import { ResourceMap } from '../../../../base/common/map.js';
 import { IArtifactModel } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
+import { hasKey } from '../../../../base/common/types.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { agentHostAuthority } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { IRemoteAgentHostService } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IChatWidgetHistoryService } from '../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { buildHostLocalEventsPath, dedupeMigratedCopilotCliSessions, getCopilotCliSessionRawId } from '../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
@@ -25,10 +27,10 @@ import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/co
 import { ICopilotHomeService } from '../../../../workbench/services/environment/common/copilotHomeService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { getSessionReferenceResource } from './sessionReference.js';
-import { IChatDeletedEvent, ISessionChatMoveTarget, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IDeferredNewSessionRequestOptions, IManagedSessionWorktree, IMarkSessionReadOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, NewSessionRequestOptions, WorkspaceNotTrustedError } from '../common/sessionsManagement.js';
+import { IChatDeletedEvent, ISessionCanvasClosedEvent, ISessionChatMoveTarget, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IDeferredNewSessionRequestOptions, IManagedSessionWorktree, IMarkSessionReadOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, NewSessionRequestOptions, WorkspaceNotTrustedError } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
 import { IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, type INestedChatWorkspace, IPreparedNewSession, NestedChatWorkspaceError, SessionMoveRefusedError, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISessionCreationTarget, ISessionsProvider, type ISessionsProviderCreateSessionOptions, type SessionResourceResolveReason } from '../common/sessionsProvider.js';
-import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionWorkspace, ISideChatSelection, isActiveSessionStatus, SessionStatus, ISessionType, type SessionCanvasDefinitionSnapshot, getChatHarness } from '../common/session.js';
+import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionWorkspace, ISideChatSelection, isActiveSessionStatus, SESSION_WORKSPACE_GROUP_REMOTE, SessionStatus, ISessionType, type SessionCanvasDefinitionSnapshot, getChatHarness } from '../common/session.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
@@ -40,6 +42,12 @@ const LAST_USED_QUICK_CHAT_SESSION_TYPE_STORAGE_KEY = 'sessions.quickChat.lastUs
 export class SessionsManagementService extends Disposable implements ISessionsManagementService {
 
 	declare readonly _serviceBrand: undefined;
+
+	get archivedSessionItems() { return this.chatSessionsService.archivedSessionItems; }
+
+	acquireArchivedSessionItems(): IDisposable {
+		return this.chatSessionsService.acquireArchivedSessionItems();
+	}
 
 	private readonly _onDidChangeSessions = this._register(new Emitter<ISessionsChangeEvent>());
 	readonly onDidChangeSessions: Event<ISessionsChangeEvent> = this._onDidChangeSessions.event;
@@ -59,6 +67,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	readonly onDidDeleteSession: Event<ISession> = this._onDidDeleteSession.event;
 	private readonly _onDidDeleteChat = this._register(new Emitter<IChatDeletedEvent>());
 	readonly onDidDeleteChat = this._onDidDeleteChat.event;
+	private readonly _onDidCloseCanvas = this._register(new Emitter<ISessionCanvasClosedEvent>());
+	readonly onDidCloseCanvas = this._onDidCloseCanvas.event;
 	private readonly _onDidRenameChat = this._register(new Emitter<ISession>());
 	readonly onDidRenameChat: Event<ISession> = this._onDidRenameChat.event;
 	private readonly _onDidRenameSession = this._register(new Emitter<ISession>());
@@ -114,6 +124,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		@IRemoteAgentHostService private readonly remoteAgentHostService: IRemoteAgentHostService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
 		super();
 
@@ -426,6 +437,13 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return undefined;
 	}
 
+	getRemoteHostLabel(workspace: ISessionWorkspace, providerId: string): string | undefined {
+		if (workspace.group !== SESSION_WORKSPACE_GROUP_REMOTE) {
+			return undefined;
+		}
+		return this.sessionsProvidersService.getProvider(providerId)?.label ?? localize('sessionsManagement.remoteAgentEnvironment', "Remote Agent Environment");
+	}
+
 	private _collectSessionTypes(): ISessionType[] {
 		const types: ISessionType[] = [];
 		const seen = new Set<string>();
@@ -642,7 +660,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 		const previousNewSession = this._newSession.get();
 		const session = provider.createQuickChat(sessionTypeId, this._providerCreateSessionOptions(provider, sessionTypeId, options));
-		this._newSession.set(session, undefined);
 		this.storageService.store(LAST_USED_QUICK_CHAT_SESSION_TYPE_STORAGE_KEY, sessionTypeId, StorageScope.PROFILE, StorageTarget.USER);
 
 		// Mirror `createNewSession`: dispose the previous new session this
@@ -650,7 +667,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		// create so a throw above leaves the previous one intact.
 		if (previousNewSession && previousNewSession.sessionId !== session.sessionId) {
 			this._getProvider(previousNewSession)?.deleteNewSession(previousNewSession.sessionId);
+			this._onDidReplaceNewDraftSession.fire({ from: previousNewSession, to: session });
 		}
+		this._newSession.set(session, undefined);
 		return session;
 	}
 
@@ -1214,9 +1233,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	async sendRequest(session: ISession, chat: IChat, options: ISendRequestOptions): Promise<void> {
-		// Sending into an existing session abandons any in-progress new session,
-		// so dispose it to release its eager backend session.
-		this.discardNewSession();
+		if (!options.background) {
+			this.discardNewSession();
+		}
 
 		const provider = this._getProvider(session);
 		if (!provider) {
@@ -1253,6 +1272,14 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 
 		this._onDidSendRequest.fire({ session: updatedSession, chat, isNewSession: false, isNewChat: true, options });
+	}
+
+	async sendRequestInBackground(session: ISession, chat: IChat, options: ISendRequestOptions): Promise<void> {
+		const provider = this._getProvider(session);
+		if (!provider) {
+			throw new Error(`Sessions provider '${session.providerId}' not found`);
+		}
+		await this._sendRequestInBackground(provider, session, chat, { ...options, background: true });
 	}
 
 	/**
@@ -1322,12 +1349,17 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return this._getProvider(session)?.sessionWorktreeExists?.(session.sessionId, token) ?? Promise.resolve(undefined);
 	}
 
-	async sessionWorktreeCleanup(session: ISession, retry: boolean) {
+	canForceWorktreeCleanup(owner: ISession | IManagedSessionWorktree): boolean {
+		const provider = hasKey(owner, { sessionId: true }) ? this._getProvider(owner) : this.sessionsProvidersService.getProvider(owner.providerId);
+		return provider?.supportsForceWorktreeCleanup === true;
+	}
+
+	async sessionWorktreeCleanup(session: ISession, retry: boolean, force?: boolean) {
 		const provider = this._getProvider(session);
 		if (retry && !provider?.sessionWorktreeCleanup) {
 			throw new Error(localize('sessions.worktreeCleanupUnavailable', "Retrying worktree cleanup is unavailable for this session."));
 		}
-		return provider?.sessionWorktreeCleanup?.(session.sessionId, retry);
+		return provider?.sessionWorktreeCleanup?.(session.sessionId, retry, force);
 	}
 
 	async listManagedWorktrees(knownWorktrees: readonly IManagedSessionWorktree[] = []): Promise<IManagedSessionWorktree[]> {
@@ -1346,12 +1378,12 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return this.sessionsProvidersService.getProvider(worktree.providerId)?.managedWorktreeExists?.(worktree);
 	}
 
-	async cleanupManagedWorktree(worktree: IManagedSessionWorktree): Promise<void> {
+	async cleanupManagedWorktree(worktree: IManagedSessionWorktree, force?: boolean): Promise<void> {
 		const provider = this.sessionsProvidersService.getProvider(worktree.providerId);
 		if (!provider?.cleanupManagedWorktree) {
 			throw new Error(localize('sessions.managedWorktreeCleanupUnavailable', "Connect to this worktree's host to clean it up."));
 		}
-		await provider.cleanupManagedWorktree(worktree);
+		await provider.cleanupManagedWorktree(worktree, force);
 	}
 
 	async unarchiveSession(session: ISession): Promise<void> {
@@ -1472,7 +1504,25 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	async markAllRead(sessions: readonly ISession[]): Promise<void> {
-		await Promise.all(sessions.map(session => this.setSessionReadState(session, true)));
+		// Hand each provider its sessions in one call so it can publish a single
+		// change instead of one per session, which listeners answer with a full refresh.
+		const byProvider = new Map<ISessionsProvider, string[]>();
+		for (const session of sessions) {
+			this._explicitlyMarkedUnreadChats.delete(session.resource);
+			const provider = this._getProvider(session);
+			if (!provider) {
+				continue;
+			}
+			const sessionIds = byProvider.get(provider);
+			if (sessionIds) {
+				sessionIds.push(session.sessionId);
+			} else {
+				byProvider.set(provider, [session.sessionId]);
+			}
+		}
+		await Promise.all(Array.from(byProvider, ([provider, sessionIds]) => provider.setSessionsReadState
+			? provider.setSessionsReadState(sessionIds, true)
+			: Promise.all(sessionIds.map(sessionId => provider.setSessionReadState(sessionId, true)))));
 	}
 
 	async deleteSession(session: ISession): Promise<void> {
@@ -1593,6 +1643,23 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			throw new Error(localize('sessions.closeCanvas.unsupported', "Closing canvases is not supported for this session."));
 		}
 		await provider.closeCanvas(session.sessionId, chat.resource, canvas);
+		this._onDidCloseCanvas.fire({ session, chatResource: chat.resource, canvasResource: canvas.resource });
+	}
+
+	observeCanvas(session: ISession, chatResource: URI, canvasResource: URI): IReference<IObservable<ISessionCanvas | undefined>> | undefined {
+		const provider = this._getProvider(session);
+		if (!session.capabilities.get().supportsCanvases || !provider?.observeCanvas) {
+			return undefined;
+		}
+		return provider.observeCanvas(session.sessionId, chatResource, canvasResource);
+	}
+
+	observeChatCanvases(session: ISession, chatResource: URI): IReference<IObservable<readonly ISessionCanvas[] | undefined>> | undefined {
+		const provider = this._getProvider(session);
+		if (!session.capabilities.get().supportsCanvases || !provider?.observeChatCanvases) {
+			return undefined;
+		}
+		return provider.observeChatCanvases(session.sessionId, chatResource);
 	}
 
 	async removeSessionArtifact(session: ISession, artifactId: string): Promise<void> {

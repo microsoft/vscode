@@ -4,10 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 import path from 'path';
 import * as fs from 'fs';
-import * as child_process from 'child_process';
 import * as os from 'os';
-import { isUpToDate, forceInstallMessage } from './installStateHash.ts';
 import { isCloudSandbox } from './cloudSandbox.ts';
+import { checkPackageManager, getPinnedPnpmVersion } from '../lib/pnpm.ts';
+import { getNodeGypHeadersDirectory, installNodeGypHeaders } from './nodeGypHeaders.ts';
+import { readNativeBuildConfig } from './pnpm/nativeBuildEnv.ts';
+
+if (!process.env.npm_config_node_gyp) {
+	// pnpm passes the node-gyp that it builds native modules with to the scripts it runs.
+	console.error('\x1b[1;31m*** Run this script with `pnpm run preinstall`: it installs the headers with the node-gyp that pnpm passes in npm_config_node_gyp ***\x1b[0;0m');
+	throw new Error();
+}
 
 if (!process.env['VSCODE_SKIP_NODE_VERSION_CHECK']) {
 	// Get the running Node.js version
@@ -38,26 +45,10 @@ if (!process.env['VSCODE_SKIP_NODE_VERSION_CHECK']) {
 	}
 }
 
-if (process.env.npm_execpath?.includes('yarn')) {
-	console.error('\x1b[1;31m*** Seems like you are using `yarn` which is not supported in this repo any more, please use `npm i` instead. ***\x1b[0;0m');
+const packageManagerError = checkPackageManager(process.env.npm_config_user_agent, getPinnedPnpmVersion(path.join(import.meta.dirname, '..', '..')));
+if (packageManagerError) {
+	console.error(`\x1b[1;31m*** ${packageManagerError} ***\x1b[0;0m`);
 	throw new Error();
-}
-
-const npmUserAgent = process.env.npm_config_user_agent;
-const npmVersionMatch = npmUserAgent?.match(/npm\/(\d+)\.(\d+)\.(\d+)/);
-if (npmVersionMatch) {
-	const npmMajor = parseInt(npmVersionMatch[1]);
-	if (npmMajor >= 13) {
-		console.error(`\x1b[1;31m*** Please use npm version < 13.0.0. Currently using v${npmUserAgent}.\x1b[0;0m`);
-		throw new Error();
-	}
-}
-
-// Fast path: if nothing changed since last successful install, skip everything.
-// This makes `npm i` near-instant when dependencies haven't changed.
-if (!process.env['VSCODE_FORCE_INSTALL'] && isUpToDate()) {
-	console.log(`\x1b[32mAll dependencies up to date.\x1b[0m ${forceInstallMessage}`);
-	process.exit(0);
 }
 
 if (process.platform === 'win32') {
@@ -69,7 +60,7 @@ if (process.platform === 'win32') {
 	}
 }
 
-installHeaders();
+await installHeaders();
 
 if (process.arch !== os.arch()) {
 	console.error(`\x1b[1;31m*** ARCHITECTURE MISMATCH: The node.js process is ${process.arch}, but your OS architecture is ${os.arch()}. ***\x1b[0;0m`);
@@ -120,44 +111,34 @@ function hasSupportedVisualStudioVersion() {
 	return availableVersions.length;
 }
 
-function installHeaders() {
-	const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-	child_process.execSync(`${npm} ${process.env.npm_command || 'ci'}`, {
-		env: process.env,
-		cwd: path.join(import.meta.dirname, 'gyp'),
-		stdio: 'inherit'
-	});
+async function installHeaders() {
+	// The headers are installed by the node-gyp that pnpm builds native modules with: the one
+	// bundled with pnpm, unless npm_config_node_gyp was already set when pnpm started.
+	const nodeGypScript = process.env.npm_config_node_gyp!;
 
-	// The node gyp package got installed using the above npm command using the gyp/package.json
-	// file checked into our repository. So from that point it is safe to construct the path
-	// to that executable
-	const node_gyp = process.platform === 'win32'
-		? path.join(import.meta.dirname, 'gyp', 'node_modules', '.bin', 'node-gyp.cmd')
-		: path.join(import.meta.dirname, 'gyp', 'node_modules', '.bin', 'node-gyp');
-
-	const local = getHeaderInfo(path.join(import.meta.dirname, '..', '..', '.npmrc'));
-	const remote = getHeaderInfo(path.join(import.meta.dirname, '..', '..', 'remote', '.npmrc'));
+	const local = getHeaderInfo(path.join(import.meta.dirname, '..', '..'));
+	const remote = getHeaderInfo(path.join(import.meta.dirname, '..', '..', 'remote'));
 
 	if (local !== undefined) {
 		// Both disturl and target come from a file checked into our repository
-		child_process.execFileSync(node_gyp, ['install', '--dist-url', local.disturl, local.target], { shell: true });
+		await installNodeGypHeaders(nodeGypScript, local.disturl, local.target);
 	}
 
 	if (remote !== undefined) {
 		// Both disturl and target come from a file checked into our repository
-		child_process.execFileSync(node_gyp, ['install', '--dist-url', remote.disturl, remote.target], { shell: true });
+		await installNodeGypHeaders(nodeGypScript, remote.disturl, remote.target);
 	}
 
-	// Overlay any custom headers shipped in build/npm/gyp/custom-headers on top of
+	// Overlay the custom headers in build/npm/headers on top of
 	// the downloaded Electron headers. This is used to work around upstream issues:
 	//   - v8-source-location.h: remove dependency on std::source_location (GCC 11+ requirement)
 	//     Refs https://chromium-review.googlesource.com/c/v8/v8/+/6879784
 	//   - v8config.h: use compatible deprecation attribute syntax with GCC < 13
 	//     Refs https://gcc.gnu.org/bugzilla/show_bug.cgi?id=69585
 	if (local !== undefined) {
-		const localHeaderPath = getLocalHeaderPath(local.target);
+		const localHeaderPath = getNodeGypHeadersDirectory(local.target);
 		if (localHeaderPath && fs.existsSync(localHeaderPath)) {
-			copyCustomHeaders(path.join(import.meta.dirname, 'gyp', 'custom-headers'), localHeaderPath);
+			copyCustomHeaders(path.join(import.meta.dirname, 'headers'), localHeaderPath);
 		}
 	}
 }
@@ -176,40 +157,17 @@ function copyCustomHeaders(sourceDir: string, targetDir: string): void {
 	}
 }
 
-function getLocalHeaderPath(target: string): string | undefined {
-	if (process.platform === 'win32') {
-		const localAppData = process.env.LOCALAPPDATA;
-		if (!localAppData) {
-			return undefined;
-		}
-		return path.join(localAppData, 'node-gyp', 'Cache', target, 'include', 'node');
+/**
+ * Returns where to download the headers of the runtime that the install root `rootDir` builds
+ * native modules for, from the `nativeBuild` field of its `package.json`.
+ */
+function getHeaderInfo(rootDir: string): { disturl: string; target: string } | undefined {
+	const config = readNativeBuildConfig(rootDir);
+	if (config?.target === undefined) {
+		return undefined;
 	}
-	if (process.platform === 'darwin') {
-		return path.join(os.homedir(), 'Library', 'Caches', 'node-gyp', target, 'include', 'node');
-	}
-	const homedir = os.homedir();
-	const cachePath = process.env.XDG_CACHE_HOME || path.join(homedir, '.cache');
-	return path.join(cachePath, 'node-gyp', target, 'include', 'node');
-}
-
-function getHeaderInfo(rcFile: string): { disturl: string; target: string } | undefined {
-	const lines = fs.readFileSync(rcFile, 'utf8').split(/\r\n|\n/g);
-	let disturl: string | undefined;
-	let target: string | undefined;
-	for (const line of lines) {
-		let match = line.match(/\s*disturl=*\"(.*)\"\s*$/);
-		if (match !== null && match.length >= 1) {
-			disturl = match[1];
-			if (isCloudSandbox() && disturl === 'https://electronjs.org/headers') {
-				disturl = 'https://artifacts.electronjs.org/headers/dist';
-			}
-		}
-		match = line.match(/\s*target=*\"(.*)\"\s*$/);
-		if (match !== null && match.length >= 1) {
-			target = match[1];
-		}
-	}
-	return disturl !== undefined && target !== undefined
-		? { disturl, target }
-		: undefined;
+	const disturl = isCloudSandbox() && config.disturl === 'https://electronjs.org/headers'
+		? 'https://artifacts.electronjs.org/headers/dist'
+		: config.disturl;
+	return { disturl, target: config.target };
 }

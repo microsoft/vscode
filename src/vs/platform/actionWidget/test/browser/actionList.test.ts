@@ -283,6 +283,50 @@ suite('ActionListWidget', () => {
 		}, { before: 'Registered as GitHub environment \'', link: 'GitHub' });
 	});
 
+	test('the header name is reached with Shift+Tab from the list and describes the list', () => {
+		let renames = 0;
+		const widget = createActionListWidget(disposables, {
+			listOptions: {
+				showFilter: false,
+				headerText: 'Will be shared as: Workstation',
+				headerAction: toAction({ id: 'rename', label: 'Workstation', tooltip: 'Rename Remote Environment', run: () => renames++ }),
+				footerText: 'Policy footer',
+			},
+		});
+		widget.focus();
+		const list = widget.domNode.querySelector<HTMLElement>('.monaco-list')!;
+		const link = widget.headerContainer!.querySelector<HTMLElement>('.monaco-link')!;
+		const forwardFromList = dispatchKeyDown(list, { key: 'Tab' });
+		const reverseFromList = dispatchKeyDown(list, { key: 'Tab', shiftKey: true });
+		const reverseFocusedLink = isActiveElement(link);
+		const reverseFromLink = dispatchKeyDown(link, { key: 'Tab', shiftKey: true });
+		const forwardFromLink = dispatchKeyDown(link, { key: 'Tab' });
+		const forwardFocusedList = isActiveElement(list);
+		link.click();
+		const headerText = widget.headerContainer!.querySelector('.action-list-header-text')!;
+		assert.deepStrictEqual({
+			forwardFromList: forwardFromList.defaultPrevented,
+			reverseFromList: reverseFromList.defaultPrevented,
+			reverseFocusedLink,
+			reverseFromLink: reverseFromLink.defaultPrevented,
+			forwardFromLink: forwardFromLink.defaultPrevented,
+			forwardFocusedList,
+			renames,
+			text: headerText.textContent,
+			describedBy: list.getAttribute('aria-describedby'),
+		}, {
+			forwardFromList: false,
+			reverseFromList: true,
+			reverseFocusedLink: true,
+			reverseFromLink: false,
+			forwardFromLink: true,
+			forwardFocusedList: true,
+			renames: 1,
+			text: 'Will be shared as: Workstation',
+			describedBy: `${headerText.id} ${widget.footerContainer!.id}`,
+		});
+	});
+
 	test('label icons are decorative, preserve the selection icon, and reset when a row is reused', () => {
 		const widget = createActionListWidget(disposables, {
 			items: [{ ...action('GitHub Environments'), labelIcon: Codicon.github, group: { title: '', icon: Codicon.check } }],
@@ -3126,6 +3170,68 @@ suite('ActionListWidget', () => {
 			{ afterSameCount, afterGrowing: layouts, rows: getVisibleRowText(widget) },
 			{ afterSameCount: 0, afterGrowing: ['one,two-renamed,three'], rows: ['one', 'two-renamed', 'three'] },
 		);
+	});
+
+	test('expanding search results preserves filter focus through layout', () => {
+		const list = createActionList(disposables, [action('Recent')], {
+			listOptions: {
+				focusFilterOnOpen: true,
+				onDidChangeFilter: () => list.updateItems([action('Recent'), action('Older')]),
+			},
+		});
+		list.layout(200);
+		list.focus();
+		const input = list.filterInput!;
+		let blurs = 0;
+		disposables.add(addDisposableListener(input, 'blur', () => blurs++));
+		input.value = 'o';
+		input.dispatchEvent(new Event('input'));
+
+		assert.deepStrictEqual({
+			focused: isActiveElement(input),
+			blurs,
+			query: input.value,
+			rows: Array.from(list.domNode.querySelectorAll('.monaco-list-row')).map(row => row.textContent),
+		}, { focused: true, blurs: 0, query: 'o', rows: ['Older'] });
+	});
+
+	test('clearing a filter refreshes dynamically supplied items', () => {
+		const queries: string[] = [];
+		const list = createActionList(disposables, [action('Recent')], {
+			listOptions: {
+				focusFilterOnOpen: true,
+				onDidChangeFilter: value => {
+					queries.push(value);
+					list.updateItems([action(value ? 'Older' : 'Recent')]);
+				},
+			},
+		});
+		list.layout(200);
+		list.focus();
+		const input = list.filterInput!;
+		input.value = 'Older';
+		input.dispatchEvent(new Event('input'));
+
+		const cleared = list.clearFilter();
+		const clearedAgain = list.clearFilter();
+
+		assert.deepStrictEqual({
+			cleared,
+			clearedAgain,
+			queries,
+			query: input.value,
+			focused: isActiveElement(input),
+			rows: Array.from(list.domNode.querySelectorAll('.monaco-list-row')).map(row => row.textContent),
+		}, { cleared: true, clearedAgain: false, queries: ['Older', ''], query: '', focused: true, rows: ['Recent'] });
+	});
+
+	test('layout moves a misplaced filter above the list', () => {
+		const list = createActionList(disposables, [action('Recent')]);
+		list.domNode.parentElement!.appendChild(list.filterContainer!);
+
+		list.layout(200);
+
+		assert.strictEqual(list.filterContainer?.nextSibling, list.domNode);
 	});
 
 	test('rebuilding the items in place leaves focus alone when the list does not have it', () => {

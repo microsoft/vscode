@@ -17,7 +17,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { basename, isAbsolute, dirname as nodeDirname } from '../../../../base/common/path.js';
 import { FileChangesEvent, FileChangeType, FileOperationResult, IFileService, IFileStat, toFileOperationResult } from '../../../files/common/files.js';
 import { ILogService } from '../../../log/common/log.js';
-import { detectPluginFormat, hasPluginManifest, parsePlugin, parseSkillFile, readPluginManifest, toSkillInvocationFlags } from '../../../agentPlugins/common/pluginParsers.js';
+import { detectPluginFormat, hasPluginManifest, parseAgentFile, parsePlugin, parseSkillFile, readPluginManifest, toSkillInvocationFlags } from '../../../agentPlugins/common/pluginParsers.js';
 import { AgentCustomization, ChildCustomization, CustomizationLoadStatus, CustomizationType, DirectoryCustomization, McpServerCustomization, PluginCustomization, RuleCustomization, SkillCustomization, customizationId } from '../../common/state/sessionState.js';
 import { ChildCustomizationType, McpServerStatus } from '../../common/state/protocol/state.js';
 import { toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
@@ -606,7 +606,19 @@ export class SessionCustomizationDiscovery extends Disposable {
 				if (agent.source === 'builtin') {
 					continue;
 				}
-				agents.push({ type: CustomizationType.Agent, uri: uri.toString(), id: agent.id, name: agent.name, description: agent.description, _meta: toAgentCustomizationMeta({ userInvocable: agent.userInvocable }) });
+				// Older runtimes omit effort from discovery even though session creation reads it.
+				const parsed = await parseAgentFile(uri, this._fileService);
+				const reasoningEffort = agent.reasoningEffort ?? parsed.reasoningEffort;
+				agents.push({
+					type: CustomizationType.Agent, uri: uri.toString(), id: agent.id, name: agent.name, description: agent.description,
+					...(agent.model ? { model: agent.model } : {}),
+					_meta: toAgentCustomizationMeta({
+						userInvocable: agent.userInvocable,
+						'vscode.models': agent.models,
+						'vscode.reasoningEffort': reasoningEffort,
+						'vscode.modelPolicy': parsed.modelPolicy,
+					}),
+				});
 			}
 		}
 		return agents;

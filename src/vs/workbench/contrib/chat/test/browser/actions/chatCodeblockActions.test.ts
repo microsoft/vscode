@@ -7,6 +7,7 @@ import assert from 'assert';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
+import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IActiveCodeEditor } from '../../../../../../editor/browser/editorBrowser.js';
 import { IBulkEditService } from '../../../../../../editor/browser/services/bulkEditService.js';
@@ -51,7 +52,9 @@ suite('Chat code-block action telemetry', () => {
 	let context: ICodeBlockActionContext;
 	let editor: IActiveCodeEditor;
 
-	suiteSetup(() => registerChatCodeBlockActions());
+	let codeBlockActions: IDisposable;
+	suiteSetup(() => codeBlockActions = registerChatCodeBlockActions());
+	suiteTeardown(() => codeBlockActions.dispose());
 
 	setup(() => {
 		instantiationService = store.add(new TestInstantiationService());

@@ -18,7 +18,6 @@ import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../../platform
 import { IActionViewItemFactory, IActionViewItemService } from '../../../../../../../platform/actions/browser/actionViewItemService.js';
 import { toAction } from '../../../../../../../base/common/actions.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
-import { ISessionContext } from '../../../../../../services/sessions/browser/sessionContext.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID } from '../../../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
@@ -68,6 +67,7 @@ import { NullWorktreeSuggestionService, TestWorktreeSuggestionService } from '..
 import { WorktreeSuggestionVariant } from '../../../../../worktreeSuggestion/common/worktreeSuggestion.js';
 import { IChatSessionFileChange2 } from '../../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import '../../../../../chat/browser/media/chatWidget.css';
+import { InSessionHostScopeContext, ISessionHost, sessionChatSourceOf } from '../../../../../../services/sessions/browser/sessionHost.js';
 
 const SESSION_ID = 'local-agent-host:s1';
 const SESSION_RESOURCE = URI.parse('agent-session:/s1');
@@ -413,7 +413,7 @@ function setupServices(
 
 /** Create and render a fresh picker instance, as the toolbar does on a rebuild. */
 function renderPicker(store: Pick<ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, 'add'>, services: ReturnType<typeof setupServices>) {
-	const picker = store.add(services.instantiationService.createInstance(AgentHostSessionConfigPicker, services.sessionObs, undefined));
+	const picker = store.add(services.instantiationService.createInstance(AgentHostSessionConfigPicker, sessionChatSourceOf(services.sessionObs), undefined));
 	const container = document.createElement('div');
 	picker.render(container);
 	return { picker, container };
@@ -421,7 +421,7 @@ function renderPicker(store: Pick<ReturnType<typeof ensureNoDisposablesAreLeaked
 
 /** Renders a picker attached to the document, so its controls are laid out. */
 function renderAttachedPicker(store: Pick<ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, 'add'>, services: ReturnType<typeof setupServices>) {
-	const picker = store.add(services.instantiationService.createInstance(AgentHostSessionConfigPicker, services.sessionObs, undefined));
+	const picker = store.add(services.instantiationService.createInstance(AgentHostSessionConfigPicker, sessionChatSourceOf(services.sessionObs), undefined));
 	const container = mainWindow.document.body.appendChild(document.createElement('div'));
 	store.add(toDisposable(() => container.remove()));
 	picker.render(container);
@@ -477,10 +477,10 @@ suite('Agent Host Session Config Picker', () => {
 		assert.deepStrictEqual({ properties, targetItems, targetIcon, writes: services.provider.setSessionConfigValueArguments, checkouts: services.checkoutInvocations }, {
 			properties: ['target', 'baseBranch', 'branch'],
 			targetItems: [
-				{ value: 'workspace', icon: Codicon.folder.id },
+				{ value: 'workspace', icon: Codicon.gitBranchCheckout.id },
 				{ value: 'worktree', icon: Codicon.worktree.id },
 			],
-			targetIcon: 'codicon codicon-folder',
+			targetIcon: 'codicon codicon-git-branch-checkout',
 			writes: [
 				{ sessionId: SESSION_ID, property: 'target', value: 'workspace' },
 				{ sessionId: SESSION_ID, property: 'baseBranch', value: 'main' },
@@ -567,6 +567,7 @@ suite('Agent Host Session Config Picker', () => {
 		const services = setupServices(store);
 		const { container } = renderPicker(store, services);
 		const snapshots = [];
+		const triggerIcons = [];
 		for (const value of ['folder', 'worktree']) {
 			isolationSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
 			await new Promise(resolve => setTimeout(resolve));
@@ -579,17 +580,20 @@ suite('Agent Host Session Config Picker', () => {
 			})));
 			await services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.value === value)!.item!);
 			await new Promise(resolve => setTimeout(resolve));
+			triggerIcons.push(isolationSlot(container)?.querySelector('.codicon')?.className);
 		}
 		assert.deepStrictEqual({
 			snapshots,
+			triggerIcons,
 			selections: services.provider.setSessionConfigValueArguments,
 			finalLabel: isolationSlot(container)?.textContent,
 			checkbox: container.querySelector('.monaco-checkbox'),
 		}, {
 			snapshots: [true, false].map(worktreeSelected => [
-				{ label: 'Branch', value: 'folder', checked: !worktreeSelected, detail: 'Works in the repository already on this computer', icon: Codicon.folder.id },
+				{ label: 'Branch', value: 'folder', checked: !worktreeSelected, detail: 'Works in the repository already on this computer', icon: Codicon.gitBranchCheckout.id },
 				{ label: 'New Worktree', value: 'worktree', checked: worktreeSelected, detail: 'Creates a separate copy for this session', icon: Codicon.worktree.id },
 			]),
+			triggerIcons: ['codicon codicon-git-branch-checkout', 'codicon codicon-worktree'],
 			selections: ['folder', 'worktree'].map(value => ({ sessionId: SESSION_ID, property: SessionConfigKey.Isolation, value })),
 			finalLabel: 'New Worktree',
 			checkbox: null,
@@ -644,8 +648,8 @@ suite('Agent Host Session Config Picker', () => {
 
 	test('renders one repository control per toolbar action view item', () => {
 		const services = setupServices(store);
-		const isolationPicker = store.add(services.instantiationService.createInstance(AgentHostSessionConfigPicker, services.sessionObs, SessionConfigKey.Isolation));
-		const branchPicker = store.add(services.instantiationService.createInstance(AgentHostSessionConfigPicker, services.sessionObs, SessionConfigKey.Branch));
+		const isolationPicker = store.add(services.instantiationService.createInstance(AgentHostSessionConfigPicker, sessionChatSourceOf(services.sessionObs), SessionConfigKey.Isolation));
+		const branchPicker = store.add(services.instantiationService.createInstance(AgentHostSessionConfigPicker, sessionChatSourceOf(services.sessionObs), SessionConfigKey.Branch));
 		const isolationContainer = document.createElement('div');
 		const branchContainer = document.createElement('div');
 		isolationPicker.render(isolationContainer);
@@ -723,9 +727,7 @@ suite('Agent Host Session Config Picker', () => {
 		services.instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			override readonly visibleSessions = constObservable([services.activeSession]);
 		}());
-		services.instantiationService.stub(ISessionContext, new class extends mock<ISessionContext>() {
-			override readonly session = constObservable(services.activeSession);
-		}());
+		services.instantiationService.stub(ISessionHost, upcastPartial<ISessionHost>(sessionChatSourceOf(constObservable(services.activeSession))));
 		store.add(services.instantiationService.createInstance(AgentHostSessionConfigPickerContribution));
 
 		const actionIds = Array.from(providers, ([commandId, provider]) => {
@@ -897,6 +899,8 @@ suite('Agent Host Session Config Picker', () => {
 		];
 		const context = new Context(1, null);
 		context.setValue(ChatContextKeys.chatIsAgentHostSession.key, true);
+		// The chat input of a session host's scope.
+		context.setValue(InSessionHostScopeContext.key, true);
 		const visible = (menu: MenuId) => MenuRegistry.getMenuItems(menu)
 			.filter(isIMenuItem)
 			.filter(item => runningSessionIds.includes(item.command.id))
@@ -1049,7 +1053,7 @@ suite('Agent Host Session Config Picker', () => {
 
 	test('generic auto-approve chips retain their contextual accessible name', () => {
 		const services = setupServices(store);
-		const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs, undefined));
+		const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, sessionChatSourceOf(services.sessionObs), undefined));
 		const trigger = document.createElement('span');
 		picker.renderTriggerForTest(trigger, SessionConfigKey.AutoApprove, {
 			title: 'Approval Mode',
@@ -1084,7 +1088,7 @@ suite('Agent Host Session Config Picker', () => {
 			},
 			values: { autoApprove: 'default' },
 		};
-		const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs, SessionConfigKey.AutoApprove));
+		const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, sessionChatSourceOf(services.sessionObs), SessionConfigKey.AutoApprove));
 		const container = document.createElement('div');
 		picker.render(container);
 		container.querySelector<HTMLElement>('.action-label')!.click();
@@ -1101,10 +1105,10 @@ suite('Agent Host Session Config Picker', () => {
 		}, {
 			choices: [
 				{ label: 'Manual permissions', badge: undefined },
-				{ label: 'Assisted permissions, New', badge: 'New' },
+				{ label: 'Assisted permissions, Recommended', badge: 'Recommended' },
 				{ label: 'Custom permissions', badge: undefined },
 			],
-			withDescription: 'Assisted permissions, New, Evaluates risk before running tools',
+			withDescription: 'Assisted permissions, Recommended, Evaluates risk before running tools',
 			descriptionOnly: 'Assisted permissions, Evaluates risk before running tools',
 		});
 	});
@@ -1653,7 +1657,7 @@ suite('Agent Host Session Config Picker', () => {
 
 	test('keeps the default remote branch out of the branch source shared with the mobile sheet', async () => {
 		const services = setupServices(store);
-		const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs, undefined));
+		const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, sessionChatSourceOf(services.sessionObs), undefined));
 		services.provider.config = makeDynamicBranchConfig('feature', 'worktree');
 		services.provider.completions = ['feature', 'main', 'dev'].map(value => ({ value, label: value }));
 		services.workspaceObs.set(makeWorkspace(undefined, 'feature', 'origin/feature', undefined, { name: 'main', remoteName: 'origin/main' }), undefined);
@@ -1670,7 +1674,7 @@ suite('Agent Host Session Config Picker', () => {
 
 	test('caps only the mobile branch source', async () => {
 		const services = setupServices(store);
-		const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs, undefined));
+		const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, sessionChatSourceOf(services.sessionObs), undefined));
 		services.provider.config = makeDynamicBranchConfig('main');
 		services.provider.completions = ['main', ...Array.from({ length: 35 }, (_, index) => `feature/${index}`)].map(value => ({ value, label: value }));
 		const schema = services.provider.config.schema.properties[SessionConfigKey.Branch]!;
@@ -1989,7 +1993,7 @@ suite('Agent Host Session Config Picker', () => {
 				}
 			});
 			services.provider.config = makeDynamicBranchConfig('main', 'folder');
-			const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs, undefined));
+			const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, sessionChatSourceOf(services.sessionObs), undefined));
 
 			await picker.setSessionConfigValueForTest(services.provider, SessionConfigKey.Branch, 'dev');
 			outcomes.push({
@@ -2053,7 +2057,7 @@ suite('Agent Host Session Config Picker', () => {
 			}
 		});
 		services.provider.config = makeDynamicBranchConfig('main', 'folder');
-		const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs, undefined));
+		const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, sessionChatSourceOf(services.sessionObs), undefined));
 		const container = document.createElement('div');
 		picker.render(container);
 
@@ -2158,8 +2162,8 @@ suite('Agent Host Session Config Picker', () => {
 	test('serializes interleaved branch and isolation selections before deciding checkout', async () => {
 		const services = setupServices(store);
 		services.provider.config = makeDynamicBranchConfig('main', 'worktree');
-		const branchPicker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs, SessionConfigKey.Branch));
-		const isolationPicker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs, SessionConfigKey.Isolation));
+		const branchPicker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, sessionChatSourceOf(services.sessionObs), SessionConfigKey.Branch));
+		const isolationPicker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, sessionChatSourceOf(services.sessionObs), SessionConfigKey.Isolation));
 
 		await Promise.all([
 			branchPicker.setSessionConfigValueForTest(services.provider, SessionConfigKey.Branch, 'featureA'),
@@ -2518,7 +2522,7 @@ suite('Agent Host Session Config Picker', () => {
 	test('does not render configuration controls when the workspace has no Git repository', () => {
 		const services = setupServices(store);
 		services.provider.config = makeNoGitConfig();
-		const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs, undefined));
+		const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, sessionChatSourceOf(services.sessionObs), undefined));
 		const container = document.createElement('div');
 		picker.render(container);
 
@@ -2538,7 +2542,7 @@ suite('Agent Host Session Config Picker', () => {
 			},
 			values: { [SessionConfigKey.SandboxEnabled]: 'off' },
 		};
-		const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs, undefined));
+		const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, sessionChatSourceOf(services.sessionObs), undefined));
 		const container = document.createElement('div');
 		picker.render(container);
 

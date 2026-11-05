@@ -315,8 +315,11 @@ suite('GitHub pull request artifact integration', () => {
 		states.closedDraft = group();
 		f.snapshot.set({ ...base, core: { status: 'loading', complete: false } }, undefined);
 		states.loading = group();
-		assert.deepStrictEqual({ groupLabel: f.model.snapshot.get().contributions[0].groupLabel, states }, {
+		const contribution = f.model.snapshot.get().contributions[0];
+		assert.deepStrictEqual({ groupLabel: contribution.groupLabel, groupId: contribution.view.groupId, states }, {
 			groupLabel: 'Pull Requests',
+			// Pull requests keep a pill of their own, grouped with each other.
+			groupId: 'github.pullRequest',
 			states: {
 				open: '4:git-pull-request:charts.green main=git-pull-request',
 				failing: '6:git-pull-request-error:charts.orange main=git-pull-request',
@@ -678,11 +681,16 @@ suite('GitHub pull request artifact integration', () => {
 
 	for (const state of ['closed', 'merged'] as const) {
 		test(`skips checkout verification for ${state} pull requests and rechecks reopened pull requests`, () => run(async store => {
-			const open = createPullRequestArtifactSnapshot();
+			const open = itemActionSnapshot();
 			const terminal = { ...open, core: { ...open.core, value: { ...open.core.value!, state } } };
-			const f = await fixture(store, terminal);
-			const availability = () => f.model.snapshot.get().contributions[0].view.automationAvailability.find(option => option.id === 'fixCI')?.available;
-			const result = () => ({ checkouts: f.checkoutRequests.length, available: availability() });
+			const f = await fixture(store, open);
+			// Only merging unchanged pull requests needs the recording chat's checkout.
+			await f.model.configure(gitHubPullRequestArtifactIntegrationId, 0, { merge: 'ifUnchanged' });
+			f.snapshot.set(terminal, undefined);
+			await timeout(100);
+			const initial = f.checkoutRequests.length;
+			const availability = () => f.model.snapshot.get().contributions[0].view.automationAvailability.find(option => option.id === 'merge')?.available;
+			const result = () => ({ checkouts: f.checkoutRequests.length - initial, available: availability() });
 			const states = [result()];
 			f.setCheckout({ branch: 'feature' });
 			f.snapshot.set({ ...terminal }, undefined);
@@ -715,9 +723,13 @@ suite('GitHub pull request artifact integration', () => {
 	}
 
 	test('does not publish an in-flight checkout after the pull request closes', () => run(async store => {
-		const open = createPullRequestArtifactSnapshot();
+		const open = itemActionSnapshot();
 		const closed = { ...open, core: { ...open.core, value: { ...open.core.value!, state: 'closed' as const } } };
-		const f = await fixture(store, closed);
+		const f = await fixture(store, open);
+		await f.model.configure(gitHubPullRequestArtifactIntegrationId, 0, { merge: 'ifUnchanged' });
+		f.snapshot.set(closed, undefined);
+		await timeout(100);
+		const initial = f.checkoutRequests.length;
 		const entered = new DeferredPromise<void>();
 		const resume = new DeferredPromise<void>();
 		f.onCheckout(async () => {
@@ -731,10 +743,10 @@ suite('GitHub pull request artifact integration', () => {
 		await timeout(0);
 		f.onCheckout(undefined);
 		f.snapshot.set(open, undefined);
-		const availability = () => f.model.snapshot.get().contributions[0].view.automationAvailability.find(option => option.id === 'fixCI')?.available;
+		const availability = () => f.model.snapshot.get().contributions[0].view.automationAvailability.find(option => option.id === 'merge')?.available;
 		const beforeRefresh = availability();
 		await timeout(100);
-		assert.deepStrictEqual({ beforeRefresh, afterRefresh: availability(), checkouts: f.checkoutRequests.length }, {
+		assert.deepStrictEqual({ beforeRefresh, afterRefresh: availability(), checkouts: f.checkoutRequests.length - initial }, {
 			beforeRefresh: false, afterRefresh: true, checkouts: 2,
 		});
 	}));
@@ -1173,15 +1185,20 @@ suite('GitHub pull request artifact integration', () => {
 		await f.finishPrompt();
 	}));
 
-	test('blocks repairs on a different branch or GitHub repository without sending a prompt', () => run(async store => {
+	test('repairs without a matching checkout ask the agent to find or create one', () => run(async store => {
 		const base = createPullRequestArtifactSnapshot();
 		const f = await fixture(store, { ...base, mergeability: { ...base.mergeability, value: { ...base.mergeability.value!, mergeable: 'CONFLICTING' } } });
 		f.setCheckout({ branch: 'different' });
 		const branch = await f.invoke('resolveConflicts');
+		await f.finishPrompt();
 		f.setCheckout({ branch: 'feature', remote: 'git@github.com:someone/else.git' });
 		const repository = await f.invoke('resolveConflicts');
-		assert.deepStrictEqual({ states: [branch.state, repository.state], reasons: [branch.reason, repository.reason].map(reason => reason.includes('must already have')), prompts: f.prompts.length },
-			{ states: ['failed', 'failed'], reasons: [true, true], prompts: 0 });
+		await f.finishPrompt();
+		const target = `> ${JSON.stringify({ repository: 'octo/repo', branch: 'feature' })}`;
+		assert.deepStrictEqual({
+			states: [branch.state, repository.state],
+			prompts: f.prompts.map(prompt => [prompt.chat, prompt.prompt.text.includes('None of this chat\'s folders has the following repository and branch checked out'), prompt.prompt.text.includes(target), prompt.prompt.text.includes('"directory"')]),
+		}, { states: ['running', 'running'], prompts: [[f.chat, true, true, false], [f.chat, true, true, false]] });
 	}));
 
 	test('review prompts bound and quote previews while retaining the eligibility rule for further feedback', () => run(async store => {
@@ -1375,7 +1392,7 @@ suite('GitHub pull request artifact integration', () => {
 		});
 	}));
 
-	test('manual repairs follow the invoking checkout while automation stays with the original chat', () => run(async store => {
+	test('manual repairs follow the invoking chat while automation stays with the original chat', () => run(async store => {
 		const base = createPullRequestArtifactSnapshot();
 		const f = await fixture(store, base);
 		await f.model.configure(gitHubPullRequestArtifactIntegrationId, 0, { fixCI: true });
@@ -1394,16 +1411,18 @@ suite('GitHub pull request artifact integration', () => {
 				}
 			}
 		}, undefined);
-		const action = f.model.snapshot.get().contributions[0].view.stateActions.find(action => action.id === 'fixCI')!;
-		const original = getArtifactActionAvailability(action, f.chat);
-		await assert.rejects(f.invoke('fixCI'), /must already have/);
-		await timeout(200);
-		const beforeManual = f.prompts.length;
+		const view = f.model.snapshot.get().contributions[0].view;
+		const action = view.stateActions.find(action => action.id === 'fixCI')!;
+		// The recording chat has no checkout of the branch, which no longer keeps automation from repairing in it.
+		await waitForState(f.service.ledger.state, state => state.runs.some(run => run.state === 'running'));
+		await f.finishPrompt();
 		await f.invoke('fixCI', peer);
+		const peerCheckout = JSON.stringify({ directory: URI.parse(peerDirectory).fsPath, repository: 'octo/repo', branch: 'feature' });
 		assert.deepStrictEqual({
-			originalEnabled: original.enabled, explanation: original.disabledReason?.includes('Branches will not be switched'),
-			peerEnabled: getArtifactActionAvailability(action, peer).enabled, beforeManual, destinations: f.prompts.map(prompt => prompt.chat),
-		}, { originalEnabled: false, explanation: true, peerEnabled: true, beforeManual: 0, destinations: [peer] });
+			enabled: [f.chat, peer].map(chat => getArtifactActionAvailability(action, chat).enabled),
+			automation: view.automationAvailability.find(option => option.id === 'fixCI')?.available,
+			prompts: f.prompts.map(prompt => [prompt.chat, prompt.prompt.text.includes(peerCheckout)]),
+		}, { enabled: [true, true], automation: true, prompts: [[f.chat, false], [peer, true]] });
 		await f.finishPrompt();
 	}));
 
@@ -1439,20 +1458,106 @@ suite('GitHub pull request artifact integration', () => {
 		}));
 	}
 
-	test('restored repair chats still require the matching branch and session owner', () => run(async store => {
+	test('repair chats must still belong to the artifact session', () => run(async store => {
 		const f = await fixture(store, itemActionSnapshot());
 		const peer = buildChatUri(f.session, 'restored');
 		f.stateManager.registerRestoredChatSummary(f.session, peer, { storageResource: peer });
 		f.setCheckout({ branch: 'different' });
 		await timeout(100);
-		await assert.rejects(f.invoke('fixCI', peer), /must already have/);
+		const withoutCheckout = await f.invoke('fixCI', peer);
+		await f.finishPrompt();
 		const other = 'copilot:/other-artifact-session';
 		f.stateManager.createSession({ resource: other, defaultChat: buildDefaultChatUri(other), provider: 'copilot', title: 'Other', status: SessionStatus.Idle, createdAt: '2026-01-01', modifiedAt: '2026-01-01' });
 		f.stateManager.reassignChatOwner(peer, other);
 		f.setCheckout({ branch: 'feature' });
 		await timeout(100);
-		await assert.rejects(f.invoke('fixCI', peer), /no longer belongs/);
-		await assert.rejects(f.invoke('fixCI', buildChatUri(f.session, 'missing')), /not available in the invoking chat/);
+		const moved = await f.invoke('fixCI', peer);
+		const missing = await f.invoke('fixCI', buildChatUri(f.session, 'missing'));
+		assert.deepStrictEqual({
+			states: [withoutCheckout, moved, missing].map(run => run.state),
+			rejected: [moved, missing].map(run => /no longer belongs/.test(run.reason)),
+			destinations: f.prompts.map(prompt => prompt.chat),
+		}, { states: ['running', 'failed', 'failed'], rejected: [true, true], destinations: [peer] });
+	}));
+
+	test('unchanged-only merging turns off when a repair without a checkout moves the pull request head', () => run(async store => {
+		const base = itemActionSnapshot();
+		const f = await fixture(store, base);
+		await f.model.configure(gitHubPullRequestArtifactIntegrationId, 0, { merge: 'ifUnchanged' });
+		const peer = buildChatUri(f.session, 'peer');
+		f.stateManager.addChat(f.session, peer, peer, { workingDirectories: [URI.file('/peer').toString()] });
+		f.setCheckout({ directory: URI.file('/peer').toString(), branch: 'different' });
+		await f.invoke('fixCI', peer);
+		await f.finishPrompt();
+		const afterRepair = f.model.snapshot.get().contributions[0].configuration.values.merge;
+		f.snapshot.set({ ...base, core: { ...base.core, value: { ...base.core.value!, headSha: 'pushed' } } }, undefined);
+		await waitForState(f.model.snapshot, snapshot => snapshot.contributions[0].configuration.values.merge === 'never');
+		assert.deepStrictEqual({ afterRepair, prompts: f.prompts.map(prompt => prompt.chat), mutations: f.mutations }, { afterRepair: 'ifUnchanged', prompts: [peer], mutations: [] });
+	}));
+
+	test('a repair after restoring a checkpoint without a head records the head it starts from', () => run(async store => {
+		const firstStore = store.add(new DisposableStore());
+		const first = await fixture(firstStore, itemActionSnapshot());
+		await first.model.configure(gitHubPullRequestArtifactIntegrationId, 0, { merge: 'ifUnchanged' });
+		const generation = first.model.snapshot.get().contributions[0].configuration.generations.merge;
+		// Written by a build whose repairs always ran in a verified checkout, so it records that checkout but not the head.
+		const legacyRepair = { runId: 'legacy', chat: first.chat, directory: first.directory, commit: 'head' };
+		await first.service.ledger.transact(state => {
+			state.bindings[0] = {
+				...state.bindings[0], checkpoint: {
+					revision: state.bindings[0].checkpoint.revision + 1,
+					value: { version: 1, generation, repair: legacyRepair, mutation: null },
+				},
+			};
+		});
+		firstStore.dispose();
+		const f = await fixture(store, itemActionSnapshot(), { storage: first.storage });
+		const peer = buildChatUri(f.session, 'peer');
+		const peerDirectory = URI.file('/peer').toString();
+		f.stateManager.addChat(f.session, peer, peer, { workingDirectories: [peerDirectory] });
+		f.setCheckout({ directory: peerDirectory, branch: 'different' });
+		await f.invoke('fixCI', peer);
+		await f.finishPrompt();
+		const checkpoint = f.service.ledger.state.get().bindings[0].checkpoint.value;
+		// The repair pushed a passing head from another worktree; the recording chat's checkout stays clean at its old commit.
+		const pushed = createPullRequestArtifactSnapshot();
+		f.snapshot.set({
+			...pushed,
+			core: { ...pushed.core, value: { ...pushed.core.value!, headSha: 'pushed' } },
+			checks: { ...pushed.checks, headSha: 'pushed', value: { ...pushed.checks.value!, headSha: 'pushed' } },
+			reviewThreads: { ...pushed.reviewThreads, headSha: 'pushed' },
+			mergeability: { ...pushed.mergeability, headSha: 'pushed', value: { ...pushed.mergeability.value!, headSha: 'pushed' } },
+		}, undefined);
+		await timeout(300);
+		await f.service.whenIdle();
+		const configuration = f.model.snapshot.get().contributions[0].configuration;
+		assert.deepStrictEqual({ checkpoint, merge: configuration.values.merge, disabled: !!configuration.disablements.merge, mutations: f.mutations }, {
+			checkpoint: { version: 1, generation, repair: { ...legacyRepair, headSha: 'head' }, mutation: null },
+			merge: 'never', disabled: true, mutations: [],
+		});
+	}));
+
+	test('a later repair keeps the head an earlier repair of the same merge generation started from', () => run(async store => {
+		const f = await fixture(store, itemActionSnapshot());
+		await f.model.configure(gitHubPullRequestArtifactIntegrationId, 0, { merge: 'ifUnchanged' });
+		await f.service.whenIdle();
+		const generation = f.model.snapshot.get().contributions[0].configuration.generations.merge;
+		// An earlier repair without a checkout started from another head; the pull request changed since.
+		const earlier = { version: 1, generation, repair: { runId: 'earlier', chat: f.chat, directory: '', commit: '', headSha: 'original' }, mutation: null };
+		await f.service.ledger.transact(state => {
+			state.bindings[0] = { ...state.bindings[0], checkpoint: { revision: state.bindings[0].checkpoint.revision + 1, value: earlier } };
+		});
+		await f.invoke('fixCI');
+		await f.finishPrompt();
+		const checkpoint = f.service.ledger.state.get().bindings[0].checkpoint.value;
+		// The recording chat's checkout is clean at the current head, which is now mergeable.
+		f.snapshot.set(createPullRequestArtifactSnapshot(), undefined);
+		await timeout(300);
+		await f.service.whenIdle();
+		const configuration = f.model.snapshot.get().contributions[0].configuration;
+		assert.deepStrictEqual({ checkpoint, merge: configuration.values.merge, disabled: !!configuration.disablements.merge, mutations: f.mutations }, {
+			checkpoint: earlier, merge: 'never', disabled: true, mutations: [],
+		});
 	}));
 
 	test('workspace exclusions affect automatic Mark Ready but never automatic merging', () => run(async store => {

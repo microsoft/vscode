@@ -23,7 +23,7 @@ import { IEditorGroupsService } from '../../../../workbench/services/editor/comm
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { resolveBrowserOwnerSession } from './sessionBrowserView.js';
@@ -68,7 +68,7 @@ export class SessionBrowserNetworkContribution extends Disposable implements IWo
 
 	constructor(
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
-		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@IFocusedSessionHostService private readonly _focusedSessionHostService: IFocusedSessionHostService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@IAgentHostConnectionsService private readonly _agentHostConnectionsService: IAgentHostConnectionsService,
 		@IBrowserViewWorkbenchService private readonly _browserViewService: IBrowserViewWorkbenchService,
@@ -90,7 +90,11 @@ export class SessionBrowserNetworkContribution extends Disposable implements IWo
 		this._register(runOnChange(statuses, () => onDidChangeNetworkStatus.fire()));
 
 		this._register(this._browserViewService.registerNetworkResolver({
-			resolveNetwork: owner => this._getNetwork(this._resolveHost(owner)?.authority),
+			resolveNetwork: owner => {
+				const host = this._resolveHost(owner);
+				// An agent owner whose session and host are unknown (e.g. removed) has no network to fall back to.
+				return owner.type === 'agent' && !host ? null : this._getNetwork(host?.authority);
+			},
 			resolveStorageAffinity: owner => this._getStorageAffinity(this._resolveHost(owner)),
 			getNetworkStatus: network => this._getNetworkStatus(network.authority, undefined),
 			onDidChangeNetworkStatus: onDidChangeNetworkStatus.event,
@@ -131,21 +135,24 @@ export class SessionBrowserNetworkContribution extends Disposable implements IWo
 
 	/** Whether the new-session composer is shown: no session is active, or the active one is still the draft. */
 	private _isComposerShown(): boolean {
-		const active = this._sessionsService.activeSession.get();
+		const active = this._focusedSessionHostService.focusedHost.get().session.get();
 		return !active || active.sessionId === this._sessionsManagementService.newSession.get()?.sessionId;
 	}
 
+	/** `undefined` when an agent owner's session and host are both unknown, or a user owner has no session. */
 	private _resolveHost(owner: IBrowserViewOwner): ISessionHost | undefined {
 		if (owner.type === 'agent') {
 			const owning = resolveBrowserOwnerSession(this._sessionsManagementService, owner.sessionId);
 			if (!owning) {
 				return undefined;
 			}
-			return owning.session
-				? { authority: this._getSessionAuthority(owning.session), session: owning.session }
-				: { authority: this._agentHostConnectionsService.resolveSessionResourceIdentity(owning.resource)?.connectionAuthority, session: undefined };
+			if (owning.session) {
+				return { authority: this._getSessionAuthority(owning.session), session: owning.session };
+			}
+			const authority = this._agentHostConnectionsService.resolveSessionResourceIdentity(owning.resource)?.connectionAuthority;
+			return authority !== undefined ? { authority, session: undefined } : undefined;
 		}
-		const session = this._sessionsService.activeSession.get() ?? this._sessionsManagementService.newSession.get();
+		const session = this._focusedSessionHostService.focusedHost.get().session.get() ?? this._sessionsManagementService.newSession.get();
 		return session && { authority: this._getSessionAuthority(session), session };
 	}
 

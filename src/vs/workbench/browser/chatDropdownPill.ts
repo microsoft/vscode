@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $ } from '../../base/browser/dom.js';
+import { $, getWindow } from '../../base/browser/dom.js';
 import { IActionViewItemOptions } from '../../base/browser/ui/actionbar/actionViewItems.js';
 import type { IManagedHoverContent, IManagedHoverOptions } from '../../base/browser/ui/hover/hover.js';
 import { IAction } from '../../base/common/actions.js';
@@ -21,8 +21,9 @@ import { ILanguageService } from '../../editor/common/languages/language.js';
 import { IModelService } from '../../editor/common/services/model.js';
 import { FileKind, IFileService } from '../../platform/files/common/files.js';
 import { IHoverService } from '../../platform/hover/browser/hover.js';
-import { ChatPillActionViewItem, createChatPillMediaPreview, getChatPillEntries, getChatPillEntryHoverContents, getChatPillEntryHoverOptions, getChatPillEntryToolbarActions, hasChatPillMediaPreview, type IChatPill, type IChatPillEntry, type IChatPillSection } from './chatPills.js';
+import { ChatPillActionViewItem, createChatPillMediaPreview, getChatPillEntries, getChatPillEntryHoverContents, getChatPillEntryHoverOptions, getChatPillEntryToolbarActions, hasChatPillMediaPreview, type IChatInlinePillViewItemOptions, type IChatPill, type IChatPillEntry, type IChatPillSection } from './chatPills.js';
 import { IAccessibilityService } from '../../platform/accessibility/common/accessibility.js';
+import { ILayoutService } from '../../platform/layout/browser/layoutService.js';
 import { ChatResourcePillActionViewItem } from './chatResourcePill.js';
 import type { ResourceLabels } from './labels.js';
 import type { IInstantiationService } from '../../platform/instantiation/common/instantiation.js';
@@ -75,13 +76,17 @@ export interface IChatDropdownPillOptions {
  * The entry a pill shows in place of its summary, or `undefined` when it
  * summarizes. The single place {@link IChatDropdownPillOptions.singleEntry} is
  * interpreted, shared by the factory that picks the rendering and the view item
- * that picks the label.
+ * that picks the label. A lone entry with its own {@link IChatPillEntry.inlinePill}
+ * always renders inline.
  */
 export function getChatPillInlineEntry(entries: readonly IChatPillEntry[], options: IChatDropdownPillOptions): IChatPillEntry | undefined {
 	if (entries.length !== 1) {
 		return undefined;
 	}
 	const entry = entries[0];
+	if (entry.inlinePill) {
+		return entry;
+	}
 	switch (options.singleEntry ?? ChatPillSingleEntry.Inline) {
 		case ChatPillSingleEntry.Inline: return entry;
 		case ChatPillSingleEntry.InlineResource: return entry.resource ? entry : undefined;
@@ -110,6 +115,7 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 		@IFileService private readonly _fileService: IFileService,
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
+		@ILayoutService private readonly _layoutService: ILayoutService,
 	) {
 		super(undefined, action, options);
 	}
@@ -343,7 +349,8 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 			items,
 			delegate,
 			trigger,
-			undefined,
+			// In the window of the pill, such as a chat window, rather than in the window that has focus.
+			this._layoutService.getContainer(getWindow(trigger)),
 			[],
 			{
 				getAriaLabel: item => {
@@ -566,11 +573,32 @@ export function createChatSectionPill(
 		action,
 		createActionViewItem: viewItemOptions => instantiationService.createInstance(ChatDropdownPillActionViewItem, action, viewItemOptions, sections, options),
 	};
+	// A lone entry's own pill shows its promoted action, such as Unpin, as the other renderings do.
+	const promotedAction = derived(reader => options.promotedActionIcon ? getChatPillEntries(sections.read(reader)).at(0)?.promotedAction : undefined);
+	const inlinePills = new WeakMap<IChatPill, IChatPill>();
+	const getInlinePill = (pill: IChatPill): IChatPill => {
+		const createActionViewItem = pill.createActionViewItem;
+		if (!options.promotedActionIcon || !createActionViewItem) {
+			return pill;
+		}
+		let result = inlinePills.get(pill);
+		if (!result) {
+			result = {
+				action: pill.action,
+				createActionViewItem: viewItemOptions => {
+					const inlineOptions: IChatInlinePillViewItemOptions = { ...viewItemOptions, promotedAction, promotedActionIcon: options.promotedActionIcon };
+					return createActionViewItem(inlineOptions);
+				},
+			};
+			inlinePills.set(pill, result);
+		}
+		return result;
+	};
 
 	return derived<IChatPill>(reader => {
-		const entries = getChatPillEntries(sections.read(reader));
-		if (entries.length === 1 && entries[0].inlinePill) {
-			return entries[0].inlinePill;
+		const inlinePill = getChatPillInlineEntry(getChatPillEntries(sections.read(reader)), options)?.inlinePill;
+		if (inlinePill) {
+			return getInlinePill(inlinePill);
 		}
 		return isResource.read(reader) ? resourcePill : dropdownPill;
 	});

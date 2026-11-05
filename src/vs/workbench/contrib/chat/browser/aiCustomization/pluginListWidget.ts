@@ -19,6 +19,8 @@ import { Button, ButtonWithDropdown } from '../../../../../base/browser/ui/butto
 import { defaultButtonStyles, defaultInputBoxStyles, getButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { autorun, derived, IObservable } from '../../../../../base/common/observable.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { getManagedSupportUrl, IManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
+import { appendContactAdministratorLink } from '../../../../services/policies/browser/organizationSupportLink.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { InputBox, MessageType } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -32,14 +34,15 @@ import { isWeb } from '../../../../../base/common/platform.js';
 import { IAgentPlugin, IAgentPluginService, setAgentPluginEnablement } from '../../common/plugins/agentPluginService.js';
 import { ContributionEnablementState, IEnablementModel, isContributionEnabled } from '../../common/enablement.js';
 import { ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
-import { getInstalledPluginContextMenuActions, getPluginPolicyEnablement, removePluginWithMarketplaceOwnership } from '../agentPluginActions.js';
+import { customizationSearchMatchesAny } from '../../common/aiCustomizationSearch.js';
+import { getInstalledPluginContextMenuActions, getPluginManagedByOrganizationMessage, getPluginPolicyEnablement, removePluginWithMarketplaceOwnership } from '../agentPluginActions.js';
 import { IMarketplacePlugin, IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
 import { AgentPluginItemKind, IAgentPluginItem, IInstalledPluginItem, IMarketplacePluginItem } from '../agentPluginEditor/agentPluginItems.js';
 import { formatDisplayName, truncateToFirstLine } from './aiCustomizationListWidget.js';
 import { MiddleEllipsisPathLabel } from './aiCustomizationListWidgetUtils.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { CustomizationGroupHeaderRenderer, ICustomizationGroupHeaderEntry, CUSTOMIZATION_GROUP_HEADER_HEIGHT, CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR } from './customizationGroupHeaderRenderer.js';
+import { CustomizationGroupHeaderRenderer, getCustomizationGroupAriaLabel, ICustomizationGroupHeaderEntry, CUSTOMIZATION_GROUP_HEADER_HEIGHT, CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR } from './customizationGroupHeaderRenderer.js';
 import { getCustomizationDisabledLabel, ICustomizationHarnessService, isPluginCustomizationItem, isSyncedFromClientCustomizationItem, type ICustomizationItem, type ICustomizationItemAction } from '../../common/customizationHarnessService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
@@ -53,7 +56,7 @@ import { getErrorMessage } from '../../../../../base/common/errors.js';
 import { AICustomizationScope, AICustomizationScopes, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { getPluginInclusionLabel } from './aiCustomizationPresentation.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
-import { createCustomizationCardPrimaryAction, CustomizationCardListController, getVirtualizedSectionMinimumHeight, layoutVirtualizedSectionList, layoutVirtualizedSections, setVirtualizedRowActionsTabbable, trackCustomizationCardPrimaryActionFocus } from './customizationCardList.js';
+import { createCustomizationCardPrimaryAction, CustomizationCardListController, focusFirstCustomizationTreeItem, getVirtualizedSectionMinimumHeight, layoutVirtualizedSectionList, layoutVirtualizedSections, setVirtualizedRowActionsTabbable, stopListRowActionKeyDownPropagation, trackCustomizationCardPrimaryActionFocus } from './customizationCardList.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { asTreeRenderer, customizationTreeStyles, getCustomizationTreeContentHeight, ICustomizationTreeGroup } from './customizationTree.js';
@@ -288,6 +291,8 @@ class PluginInstalledItemRenderer implements IListRenderer<IPluginInstalledItemE
 		const location = templateDisposables.add(new MiddleEllipsisPathLabel(DOM.append(details, $('.plugin-list-item-location'))));
 		const metadata = DOM.append(details, $('.plugin-list-item-metadata'));
 		const actions = DOM.append(container, $('.plugin-list-item-action'));
+		templateDisposables.add(stopListRowActionKeyDownPropagation(syncToggleContainer));
+		templateDisposables.add(stopListRowActionKeyDownPropagation(actions));
 
 		const template = { container, syncToggleContainer, name, location, metadata, actions, templateDisposables, disposables: new DisposableStore(), currentItemId: undefined };
 		this._templates.add(template);
@@ -362,6 +367,7 @@ interface IPluginRemoteItemTemplateData {
 	readonly metadata: HTMLElement;
 	readonly status: HTMLElement;
 	readonly actions: HTMLElement;
+	readonly templateDisposables: DisposableStore;
 	readonly disposables: DisposableStore;
 	currentItemId: string | undefined;
 }
@@ -388,8 +394,10 @@ class PluginRemoteItemRenderer implements IListRenderer<IPluginRemoteItemEntry, 
 		const metadata = DOM.append(details, $('.plugin-list-item-metadata'));
 		const status = DOM.append(container, $('.plugin-list-item-status'));
 		const actions = DOM.append(container, $('.plugin-list-item-action'));
+		const templateDisposables = new DisposableStore();
+		templateDisposables.add(stopListRowActionKeyDownPropagation(actions));
 
-		const template = { container, name, badge, tag, description, metadata, status, actions, disposables: new DisposableStore(), currentItemId: undefined };
+		const template = { container, name, badge, tag, description, metadata, status, actions, templateDisposables, disposables: new DisposableStore(), currentItemId: undefined };
 		this._templates.add(template);
 		return template;
 	}
@@ -466,6 +474,7 @@ class PluginRemoteItemRenderer implements IListRenderer<IPluginRemoteItemEntry, 
 	disposeTemplate(templateData: IPluginRemoteItemTemplateData): void {
 		this._templates.delete(templateData);
 		templateData.disposables.dispose();
+		templateData.templateDisposables.dispose();
 	}
 }
 
@@ -525,6 +534,7 @@ class PluginMarketplaceItemRenderer implements IListRenderer<IPluginMarketplaceI
 		const templateDisposables = new DisposableStore();
 		templateDisposables.add(installButton);
 		templateDisposables.add(DOM.addDisposableGenericMouseDownListener(installButton.element, event => DOM.EventHelper.stop(event, true)));
+		templateDisposables.add(stopListRowActionKeyDownPropagation(actionContainer));
 
 		const template = { container, name, recommendedBadge, publisher, description, metadata, installButton, elementDisposables: new DisposableStore(), templateDisposables, currentItemId: undefined };
 		this._templates.add(template);
@@ -631,10 +641,10 @@ export function installedPluginToItem(plugin: IAgentPlugin, labelService: ILabel
 }
 
 /**
- * Returns whether an installed plugin's name, description, or location matches a lowercase query.
+ * Returns whether an installed plugin's name, description, or location matches a query.
  */
 export function installedPluginMatchesQuery(item: IInstalledPluginItem, query: string): boolean {
-	return [item.name, item.description, item.location].some(value => value?.toLowerCase().includes(query));
+	return customizationSearchMatchesAny(query, [item.name, item.description, item.location]);
 }
 
 function marketplacePluginToItem(plugin: IMarketplacePlugin): IMarketplacePluginItem {
@@ -790,6 +800,8 @@ export class PluginListWidget extends Disposable {
 	private disabledIcon!: HTMLElement;
 	private disabledMessage!: HTMLElement;
 	private readonly disabledLinkListener = this._register(new MutableDisposable());
+	/** Identifies the message in `disabledMessage`, so unchanged state doesn't rebuild it and drop focus. */
+	private renderedDisabledMessage: string | undefined;
 	private backButtonContainer!: HTMLElement;
 	private backButton!: Button;
 	private installedCreateButton: Button | undefined;
@@ -841,6 +853,7 @@ export class PluginListWidget extends Disposable {
 		@ICustomizationMarketplaceInstallService private readonly marketplaceInstallService: ICustomizationMarketplaceInstallService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IManagedSettingsService private readonly managedSettingsService: IManagedSettingsService,
 	) {
 		super();
 		this.element = $('.mcp-list-widget.plugin-list-widget'); // reuse MCP shell, add plugin-specific row styling
@@ -852,6 +865,7 @@ export class PluginListWidget extends Disposable {
 		));
 		this._register(resizeObserver.observe(this.element));
 		this.updateAccessState();
+		this._register(this.managedSettingsService.onDidChangeManagedSettings(() => this.updateAccessState()));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ChatConfiguration.PluginsEnabled)) {
 				this.updateAccessState();
@@ -982,7 +996,8 @@ export class PluginListWidget extends Disposable {
 		// Search container
 		const searchContainer = DOM.append(this.searchAndButtonContainer, $('.list-search-container'));
 		this.searchInput = this._register(new InputBox(searchContainer, this.contextViewService, {
-			placeholder: localize('searchPluginsPlaceholder', "Type to search..."),
+			placeholder: localize('searchPluginsPlaceholder', "Search plugins..."),
+			ariaLabel: localize('searchPluginsAriaLabel', "Search plugins..."),
 			inputBoxStyles: defaultInputBoxStyles,
 		}));
 
@@ -1106,6 +1121,9 @@ export class PluginListWidget extends Disposable {
 			remoteRenderer.setFocusedItemId(entry?.type === 'remote-item' ? getRemotePluginEntryId(entry) : undefined);
 			marketplaceRenderer.setFocusedItemId(entry?.type === 'marketplace-item' ? getMarketplacePluginEntryId(entry) : undefined);
 		}));
+		this._register(this.list.onDidFocus(() => {
+			focusFirstCustomizationTreeItem<IPluginListEntry>(this.list, this.getVisiblePluginEntries(), entry => entry.type !== 'group-header');
+		}));
 
 		// Handle context menu
 		this._register(this.list.onContextMenu(e => this.onContextMenu(e)));
@@ -1183,21 +1201,39 @@ export class PluginListWidget extends Disposable {
 			this.disabledIcon.className = 'empty-icon';
 			this.disabledIcon.classList.add(...ThemeIcon.asClassNameArray(policyLocked ? Codicon.shield : Codicon.plug));
 
-			DOM.clearNode(this.disabledMessage);
-			this.disabledLinkListener.clear();
-			if (policyLocked) {
-				this.disabledMessage.textContent = localize('pluginsDisabledByPolicy', "Plugin integration in chat is disabled by your organization. Contact your administrator for more information.");
-			} else {
-				this.disabledMessage.appendChild(document.createTextNode(localize('pluginsDisabledBySettingPrefix', "Plugins are disabled in settings. ")));
-				const link = DOM.append(this.disabledMessage, $('a.mcp-disabled-settings-link')) as HTMLAnchorElement;
-				link.textContent = localize('pluginsDisabledSettingLink', "Configure in settings.");
-				link.href = '#';
-				link.setAttribute('role', 'button');
-				this.disabledLinkListener.value = DOM.addDisposableListener(link, 'click', (e) => {
-					e.preventDefault();
-					this.commandService.executeCommand('workbench.action.openSettings', `@id:${ChatConfiguration.PluginsEnabled}`);
-				});
+			const supportUrl = policyLocked ? getManagedSupportUrl(this.managedSettingsService) : undefined;
+			const messageKey = `${policyLocked}:${supportUrl ?? ''}`;
+			if (this.renderedDisabledMessage !== messageKey) {
+				this.renderedDisabledMessage = messageKey;
+				const hadFocus = DOM.isAncestorOfActiveElement(this.disabledMessage);
+				DOM.clearNode(this.disabledMessage);
+				this.disabledLinkListener.clear();
+				let link: HTMLElement | undefined;
+				if (supportUrl) {
+					this.disabledMessage.appendChild(document.createTextNode(localize('pluginsDisabledByPolicyPrefix', "Plugin integration in chat is disabled by your organization. ")));
+					const supportLink = appendContactAdministratorLink(this.disabledMessage, 'mcp-disabled-settings-link', supportUrl, this.openerService, this.hoverService);
+					this.disabledLinkListener.value = supportLink;
+					link = supportLink.element;
+				} else if (policyLocked) {
+					this.disabledMessage.textContent = localize('pluginsDisabledByPolicy', "Plugin integration in chat is disabled by your organization. Contact your administrator for more information.");
+				} else {
+					this.disabledMessage.appendChild(document.createTextNode(localize('pluginsDisabledBySettingPrefix', "Plugins are disabled in settings. ")));
+					const settingsLink = DOM.append(this.disabledMessage, $('a.mcp-disabled-settings-link')) as HTMLAnchorElement;
+					settingsLink.textContent = localize('pluginsDisabledSettingLink', "Configure in settings.");
+					settingsLink.href = '#';
+					settingsLink.setAttribute('role', 'button');
+					this.disabledLinkListener.value = DOM.addDisposableListener(settingsLink, 'click', (e) => {
+						e.preventDefault();
+						this.commandService.executeCommand('workbench.action.openSettings', `@id:${ChatConfiguration.PluginsEnabled}`);
+					});
+					link = settingsLink;
+				}
+				if (hadFocus) {
+					link?.focus();
+				}
 			}
+		} else {
+			this.renderedDisabledMessage = undefined;
 		}
 	}
 
@@ -1304,7 +1340,7 @@ export class PluginListWidget extends Disposable {
 
 	private getPluginEntryAriaLabel(element: IPluginListEntry): string | IObservable<string> {
 		if (element.type === 'group-header') {
-			return localize('pluginGroupAriaLabel2', "{0}, {1} items", element.label, element.count);
+			return getCustomizationGroupAriaLabel(element.label, element.count, element.description);
 		}
 		if (element.type === 'search-header') {
 			return element.label;
@@ -1361,7 +1397,7 @@ export class PluginListWidget extends Disposable {
 			toggle.checked = checked;
 			toggle.setAriaLabel(
 				managed ? localize('pluginManagedByOrganizationAria', "{0} is managed by your organization", item.name) : toggleLabel,
-				managed ? localize('pluginPolicyBlockedSwitch', "This plugin is managed by your organization.") : toggleLabel,
+				managed ? getPluginManagedByOrganizationMessage() : toggleLabel,
 			);
 			row.classList.toggle('disabled', !checked);
 		};
@@ -1622,11 +1658,12 @@ export class PluginListWidget extends Disposable {
 				title: actionLabel,
 				ariaLabel: actionLabel,
 			}));
-			button.element.classList.add('plugin-installed-action');
+			button.element.classList.add('plugin-installed-action', 'plugin-card-split-button');
 			button.primaryButton.element.classList.add('plugin-card-ghost-button');
 			button.dropdownButton.element.classList.add('plugin-card-ghost-button');
 			button.primaryButton.element.classList.add('plugin-card-icon-button');
 			button.dropdownButton.element.classList.add('plugin-card-icon-button');
+			button.dropdownButton.icon = Codicon.chevronDownCompact;
 			button.icon = Codicon.add;
 			button.enabled = primary.enabled !== false;
 			disposables.add(button.onDidClick(() => this.runPluginAction(primary)));
@@ -1800,7 +1837,7 @@ export class PluginListWidget extends Disposable {
 			const accessibleLabel = managed ? localize('pluginManagedByOrganizationAria', "{0} is managed by your organization", item.name) : toggleLabel;
 			toggle.disabled = managed;
 			toggle.checked = checked;
-			toggle.setAriaLabel(accessibleLabel, managed ? localize('pluginPolicyBlockedSwitch', "This plugin is managed by your organization.") : toggleLabel);
+			toggle.setAriaLabel(accessibleLabel, managed ? getPluginManagedByOrganizationMessage() : toggleLabel);
 			row.classList.toggle('disabled', !checked);
 			primaryAction.setAttribute('aria-label', localize('installedPluginRowAriaLabel', "{0}. {1}", item.name, getPluginInclusionLabel(item.plugin)));
 		};
@@ -2024,10 +2061,11 @@ export class PluginListWidget extends Disposable {
 
 		this.updateToolbarActions();
 
-		this.searchInput.setPlaceHolder(browse
+		const searchLabel = browse
 			? localize('searchMarketplacePlaceholder', "Search plugin marketplace...")
-			: localize('searchPluginsPlaceholder', "Type to search...")
-		);
+			: localize('searchPluginsPlaceholder', "Search plugins...");
+		this.searchInput.setPlaceHolder(searchLabel);
+		this.searchInput.setAriaLabel(searchLabel);
 
 		if (browse) {
 			void this.queryMarketplace();
@@ -2077,7 +2115,7 @@ export class PluginListWidget extends Disposable {
 				this.remoteItems = remoteItems;
 			}
 			const filtered = query
-				? plugins.filter(p => p.name.toLowerCase().includes(query) || p.description.toLowerCase().includes(query) || p.marketplace.toLowerCase().includes(query))
+				? plugins.filter(p => customizationSearchMatchesAny(query, [p.name, p.description, p.marketplace]))
 				: plugins;
 
 			// Filter out already-installed plugins
@@ -2131,7 +2169,7 @@ export class PluginListWidget extends Disposable {
 				return;
 			}
 			const filtered = query
-				? plugins.filter(p => p.name.toLowerCase().includes(query) || p.description.toLowerCase().includes(query) || p.marketplace.toLowerCase().includes(query))
+				? plugins.filter(p => customizationSearchMatchesAny(query, [p.name, p.description, p.marketplace]))
 				: plugins;
 			const installedUris = new Set(this.agentPluginService.plugins.get().map(p => p.uri.toString()));
 			const marketplaceItems = filtered
@@ -2193,10 +2231,7 @@ export class PluginListWidget extends Disposable {
 			const provided = await this.itemsModel.getActiveItemSource().fetchProviderItems();
 			return provided.filter(item =>
 				isPluginCustomizationItem(item)
-				&& (!query
-					|| item.name.toLowerCase().includes(query)
-					|| item.description?.toLowerCase().includes(query)
-					|| item.badge?.toLowerCase().includes(query))
+				&& customizationSearchMatchesAny(query, [item.name, item.description, item.badge])
 			);
 		} catch {
 			return [];

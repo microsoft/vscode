@@ -120,6 +120,28 @@ suite('ChatQuestionCarouselPart', () => {
 			assert.ok(title?.querySelector('.rendered-markdown'), 'markdown content should be rendered');
 		});
 
+		for (const { name, question, expectedDetail } of [
+			{ name: 'duplicate title', question: { title: 'Accent color', detailedMessage: 'Accent color' }, expectedDetail: undefined },
+			{ name: 'duplicate message', question: { title: 'Layout', message: 'Layout choice', detailedMessage: 'Layout choice' }, expectedDetail: undefined },
+			{ name: 'duplicate markdown with surrounding whitespace', question: { title: 'Layout', message: new MarkdownString('Layout choice'), detailedMessage: new MarkdownString('  Layout choice\n') }, expectedDetail: undefined },
+			{ name: 'duplicate required heading', question: { title: 'Accent color', required: true, detailedMessage: 'Accent color' }, expectedDetail: undefined },
+			{ name: 'different explanation', question: { title: 'Accent color', detailedMessage: 'Choose the accent used by buttons.' }, expectedDetail: 'Choose the accent used by buttons.' },
+			{ name: 'title different from displayed message', question: { title: 'Accent color', message: 'Choose a color', detailedMessage: 'Accent color' }, expectedDetail: 'Accent color' },
+			{ name: 'distinct links with identical labels', question: { title: 'Docs', message: new MarkdownString('[Docs](https://example.com/question)'), detailedMessage: new MarkdownString('[Docs](https://example.com/details)') }, expectedDetail: 'Docs' },
+		]) {
+			for (const hideDuplicateDetailedMessage of [undefined, false, true]) {
+				test(`question details with hideDuplicateDetailedMessage=${hideDuplicateDetailedMessage}: ${name}`, () => {
+					createWidget(createMockCarousel([{ id: 'q1', type: 'text', ...question }]), undefined, mainWindow.document.body, undefined, { hideDuplicateDetailedMessage });
+					const originalDetail = expectedDetail ?? (typeof question.detailedMessage === 'string' ? question.detailedMessage : question.detailedMessage.value).trim();
+					assert.deepStrictEqual({
+						headings: widget.domNode.querySelectorAll('.chat-question-title').length,
+						detail: widget.domNode.querySelector('.chat-question-detailed-message')?.textContent?.trim(),
+						inputs: widget.domNode.querySelectorAll('.chat-question-input-container input').length,
+					}, { headings: 1, detail: hideDuplicateDetailedMessage ? expectedDetail : originalDetail, inputs: 1 });
+				});
+			}
+		}
+
 		test('uses workbench hovers for markdown links', () => {
 			const carousel = createMockCarousel([{
 				id: 'q1',
@@ -179,7 +201,7 @@ suite('ChatQuestionCarouselPart', () => {
 						type: 'text',
 						title: 'Question',
 						message: markdown,
-						detailedMessage: markdown,
+						detailedMessage: new MarkdownString(`Additional details\n\n${markdown.value}`),
 					}]);
 					carousel.message = markdown;
 					createWidget(carousel, undefined, container);

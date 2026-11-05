@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { createAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
@@ -22,6 +23,7 @@ import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { FileOperationError, FileOperationResult, IFileService, type IFileContent, type IFileStat, type IFileStatWithMetadata } from '../../../../../../platform/files/common/files.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { AICustomizationSources, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
@@ -33,6 +35,10 @@ import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { IAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { AgentCustomizationItemProvider } from '../../../browser/agentSessions/agentHost/agentCustomizationItemProvider.js';
+
+const labelService = new class extends mock<ILabelService>() {
+	override getUriLabel(resource: URI): string { return resource.toString(); }
+}();
 
 class MockPromptsService extends BaseMockPromptsService {
 	override getDisabledPromptFiles(): ResourceSet {
@@ -193,6 +199,7 @@ function createTestCustomAgentsService(connection: MockAgentConnection, rootCust
 		getClientWorkingDirectoryUris(_sessionResource: URI): readonly URI[] {
 			return [];
 		},
+		getClientPluginUri: () => undefined,
 		getMcpServers(_sessionResource: URI) {
 			return [];
 		},
@@ -265,13 +272,13 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		};
 
 		const provider = disposables.add(new AgentCustomizationItemProvider(
-			'test-authority',
+			{ clientId: 'test-client', resourceUris: createAgentHostResourceUriMapper('test-authority') },
 			() => { },
 			undefined,
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, [pluginA, pluginB]),
-			new MockPromptsService(),
+			new MockPromptsService(), labelService,
 		));
 
 		const items = await provider.provideChatSessionCustomizations(testSessionResource, CancellationToken.None);
@@ -283,13 +290,13 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		const connection = disposables.add(new MockAgentConnection());
 		const fileService = new class extends mock<IFileService>() { };
 		const provider = disposables.add(new AgentCustomizationItemProvider(
-			'test-authority',
+			{ clientId: 'test-client', resourceUris: createAgentHostResourceUriMapper('test-authority') },
 			undefined,
 			undefined,
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, []),
-			new MockPromptsService(),
+			new MockPromptsService(), labelService,
 		));
 		provider.setDraftCustomAgents(observableValue<readonly AgentCustomization[]>('draftAgents', [{
 			type: CustomizationType.Agent,
@@ -324,13 +331,13 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		};
 
 		const provider = disposables.add(new AgentCustomizationItemProvider(
-			'test-authority',
+			{ clientId: 'test-client', resourceUris: createAgentHostResourceUriMapper('test-authority') },
 			() => { },
 			undefined,
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, [hostScoped]),
-			new MockPromptsService(),
+			new MockPromptsService(), labelService,
 		));
 
 		connection.fireAction({
@@ -366,13 +373,13 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		};
 
 		const provider = disposables.add(new AgentCustomizationItemProvider(
-			'test-authority',
+			{ clientId: 'test-client', resourceUris: createAgentHostResourceUriMapper('test-authority') },
 			() => { },
 			undefined,
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, [hostPlugin]),
-			new MockPromptsService(),
+			new MockPromptsService(), labelService,
 		));
 
 		connection.fireAction({
@@ -452,13 +459,13 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		};
 
 		const provider = disposables.add(new AgentCustomizationItemProvider(
-			'test-authority',
+			{ clientId: 'test-client', resourceUris: createAgentHostResourceUriMapper('test-authority') },
 			() => { },
 			undefined,
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, []),
-			new MockPromptsService(),
+			new MockPromptsService(), labelService,
 		));
 
 		connection.fireAction({
@@ -497,13 +504,13 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		};
 
 		const provider = disposables.add(new AgentCustomizationItemProvider(
-			'test-authority',
+			{ clientId: 'test-client', resourceUris: createAgentHostResourceUriMapper('test-authority') },
 			() => { },
 			undefined,
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, []),
-			new MockPromptsService(),
+			new MockPromptsService(), labelService,
 		));
 
 		connection.fireAction({
@@ -543,13 +550,13 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		};
 
 		const provider = disposables.add(new AgentCustomizationItemProvider(
-			'test-authority',
+			{ clientId: 'test-client', resourceUris: createAgentHostResourceUriMapper('test-authority') },
 			() => { },
 			undefined,
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, [pluginRef]),
-			new MockPromptsService(),
+			new MockPromptsService(), labelService,
 		));
 
 		connection.fireAction({
@@ -581,13 +588,13 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		};
 
 		const provider = disposables.add(new AgentCustomizationItemProvider(
-			'test-authority',
+			{ clientId: 'test-client', resourceUris: createAgentHostResourceUriMapper('test-authority') },
 			() => { },
 			undefined,
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, [pluginRef]),
-			new MockPromptsService(),
+			new MockPromptsService(), labelService,
 		));
 
 		let changeCount = 0;
@@ -663,13 +670,13 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		};
 
 		const provider = disposables.add(new AgentCustomizationItemProvider(
-			'test-authority',
+			{ clientId: 'test-client', resourceUris: createAgentHostResourceUriMapper('test-authority') },
 			() => { },
 			undefined,
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, []),
-			new MockPromptsService(),
+			new MockPromptsService(), labelService,
 		));
 
 		connection.fireAction({
@@ -717,13 +724,13 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		connection.setRootState({ agents: [createAgentInfo([container])] });
 
 		const provider = disposables.add(new AgentCustomizationItemProvider(
-			'test-authority',
+			{ clientId: 'test-client', resourceUris: createAgentHostResourceUriMapper('test-authority') },
 			() => { },
 			undefined,
 			new class extends mock<IFileService>() { }(),
 			new NullLogService(),
 			createTestCustomAgentsService(connection, [container]),
-			new MockPromptsService(),
+			new MockPromptsService(), labelService,
 		));
 
 		const items = await provider.provideChatSessionCustomizations(testSessionResource, CancellationToken.None);
@@ -773,13 +780,13 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		};
 
 		const provider = disposables.add(new AgentCustomizationItemProvider(
-			'test-authority',
+			{ clientId: 'test-client', resourceUris: createAgentHostResourceUriMapper('test-authority') },
 			() => { },
 			undefined,
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, [plugin]),
-			new MockPromptsService(),
+			new MockPromptsService(), labelService,
 		));
 
 		const items = await provider.provideChatSessionCustomizations(testSessionResource, CancellationToken.None);
@@ -831,7 +838,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 
 		const originUri = URI.parse('file:///home/user/.config/rules/my-rule.md');
 		const provider = disposables.add(new AgentCustomizationItemProvider(
-			'test-authority',
+			{ clientId: 'test-client', resourceUris: createAgentHostResourceUriMapper('test-authority') },
 			() => { },
 			syncedUri => syncedUri.toString() === ruleResource.toString()
 				? { uri: originUri, source: 'extension', extensionId: 'pub.ext', pluginUri: undefined }
@@ -839,7 +846,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, []),
-			new MockPromptsService(),
+			new MockPromptsService(), labelService,
 		));
 
 		connection.fireAction({
@@ -883,7 +890,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		};
 		const originUri = URI.parse('file:///home/user/.copilot/instructions/user-rule.instructions.md');
 		const provider = disposables.add(new AgentCustomizationItemProvider(
-			'test-authority',
+			{ clientId: 'test-client', resourceUris: createAgentHostResourceUriMapper('test-authority') },
 			() => { },
 			syncedUri => syncedUri.toString() === ruleResource.toString()
 				? { uri: originUri, source: 'user', extensionId: undefined, pluginUri: undefined }
@@ -891,7 +898,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, []),
-			new MockPromptsService(),
+			new MockPromptsService(), labelService,
 		));
 		connection.fireAction({
 			channel: agentHostSessionId,
@@ -946,13 +953,13 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 
 		// No resolver wired: children keep their synced URI and default source.
 		const provider = disposables.add(new AgentCustomizationItemProvider(
-			'test-authority',
+			{ clientId: 'test-client', resourceUris: createAgentHostResourceUriMapper('test-authority') },
 			() => { },
 			undefined,
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, []),
-			new MockPromptsService(),
+			new MockPromptsService(), labelService,
 		));
 
 		connection.fireAction({
@@ -1000,13 +1007,13 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		};
 
 		const provider = disposables.add(new AgentCustomizationItemProvider(
-			'test-authority',
+			{ clientId: 'test-client', resourceUris: createAgentHostResourceUriMapper('test-authority') },
 			() => { },
 			undefined,
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, [plugin]),
-			new MockPromptsService(),
+			new MockPromptsService(), labelService,
 		));
 
 		const harnessId = 'remote-agent-host-test';

@@ -6,15 +6,19 @@
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
+import { localize } from '../../../nls.js';
+import { readMcpServerDisplayName } from '../common/meta/mcpCustomizationMeta.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../common/agentHostFileSystemService.js';
 import type { IAgent, IAgentChatContext } from '../common/agent.js';
-import { isCustomizationEnabled, isSkillEligibleForUserInvocation } from '../common/customizationEnablement.js';
+import { getSkillCustomizations, isCustomizationEnabled, isSkillEligibleForUserInvocation } from '../common/customizationEnablement.js';
+import { ISessionDataService } from '../common/sessionDataService.js';
 import { CompletionItem, CompletionItemKind, CompletionsParams } from '../common/state/protocol/commands.js';
 import { MessageAttachmentKind } from '../common/state/protocol/state.js';
 import { toSkillCompletionAttachmentMeta } from '../common/meta/agentCompletionAttachmentMeta.js';
 import { readSkillArgumentHint } from '../common/meta/skillCustomizationMeta.js';
-import { CustomizationType, DirectoryCustomization, PluginCustomization, SkillCustomization, type Customization } from '../common/state/sessionState.js';
+import { CustomizationType, PluginCustomization, SkillCustomization, type Customization } from '../common/state/sessionState.js';
 import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider, type IAgentHostCompletionContext } from './agentHostCompletions.js';
+import { readMcpSkillCache } from './shared/mcpSkillCache.js';
 import { extractWhitespaceDelimitedSlashToken, matchesSlashCompletion } from './agentHostSlashCompletion.js';
 
 
@@ -39,6 +43,7 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 		 * snapshot for the session yet.
 		 */
 		private readonly _getHostCustomizations: (session: URI | string) => readonly Customization[] | undefined = () => undefined,
+		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 	) {
 		super();
 	}
@@ -97,30 +102,47 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 		}
 		const customizations = await agent.getChatCustomizations(defaultChat.chat, defaultChat.context, this._getHostCustomizations(session));
 		const result: SlashCommmandCandidate[] = [];
-		for (const c of customizations) {
-			if (c.type === CustomizationType.McpServer || (c.type === CustomizationType.Plugin ? !isCustomizationEnabled(c) : !c.enabled) || !c.children) {
-				continue;
+		for (const { skill, container, containerEnabled } of getSkillCustomizations(customizations)) {
+			if (containerEnabled && isSkillEligibleForUserInvocation(skill)) {
+				result.push(this._toSlashCommandCandidate(container, skill, readSkillArgumentHint(skill)));
 			}
-			for (const child of c.children) {
-				if (child.type === CustomizationType.Skill && isSkillEligibleForUserInvocation(child)) {
-					result.push(this._toSlashCommandCandidate(c, child));
+		}
+		const undiscoveredServers = customizations.flatMap(customization => {
+			const containerEnabled = customization.type === CustomizationType.Directory ? customization.enabled : isCustomizationEnabled(customization);
+			if (!containerEnabled) {
+				return [];
+			}
+			const servers = customization.type === CustomizationType.McpServer ? [customization]
+				: (customization.children ?? []).filter(child => child.type === CustomizationType.McpServer);
+			return servers.filter(server => server.children === undefined && isCustomizationEnabled(server));
+		});
+		if (undiscoveredServers.length) {
+			const cached = await readMcpSkillCache(defaultChat.context.resource, this._sessionDataService);
+			for (const server of undiscoveredServers) {
+				for (const skill of cached.get(server.name) ?? []) {
+					if (skill.enabled && skill.userInvocable) {
+						result.push(this._toSlashCommandCandidate(server, skill));
+					}
 				}
 			}
 		}
 		return result;
 	}
 
-	private _toSlashCommandCandidate(container: PluginCustomization | DirectoryCustomization, skill: SkillCustomization): SlashCommmandCandidate {
+	private _toSlashCommandCandidate(container: Customization, skill: Pick<SkillCustomization, 'name' | 'description' | 'uri'>, argumentHint?: string): SlashCommmandCandidate {
 		// see getCanonicalPluginCommandId
 		let slashCommandName = skill.name;
 		if (container.type === CustomizationType.Plugin && !isSyncedCustomization(container) && skill.name !== container.name) {
 			slashCommandName = `${container.name}:${skill.name}`;
 		}
+		const isMcpSkill = container.type === CustomizationType.McpServer;
 		return {
 			slashCommandName: slashCommandName,
 			name: skill.name,
-			description: skill.description,
-			argumentHint: readSkillArgumentHint(skill),
+			description: isMcpSkill
+				? localize('mcpSkillDescription', "{0} (MCP: {1})", skill.description ?? skill.name, readMcpServerDisplayName(container) ?? container.name)
+				: skill.description,
+			argumentHint,
 			uri: skill.uri,
 		};
 	}

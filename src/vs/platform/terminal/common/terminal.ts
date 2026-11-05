@@ -400,8 +400,8 @@ export interface IPtyService {
 
 	// #region Pty service contribution RPC calls
 
-	installAutoReply(match: string, reply: string): Promise<void>;
-	uninstallAllAutoReplies(): Promise<void>;
+	installAutoReply(match: string, reply: string, ownerId: string): Promise<void>;
+	uninstallAllAutoReplies(ownerId: string): Promise<void>;
 
 	// #endregion
 }
@@ -515,6 +515,12 @@ export interface IShellLaunchConfig {
 	 * A string to follow the name of the terminal with, indicating the type of terminal
 	 */
 	type?: 'Task' | 'Local';
+
+	/**
+	 * The name of the machine the terminal runs on, when it differs from the window's.
+	 * Shown through the `${host}` variable in terminal titles and descriptions.
+	 */
+	hostLabel?: string;
 
 	/**
 	 * The shell executable (bash, cmd, etc.).
@@ -1219,8 +1225,8 @@ export interface ITerminalBackend extends ITerminalBackendPtyServiceContribution
 }
 
 export interface ITerminalBackendPtyServiceContributions {
-	installAutoReply(match: string, reply: string): Promise<void>;
-	uninstallAllAutoReplies(): Promise<void>;
+	installAutoReply(match: string, reply: string, ownerId: string): Promise<void>;
+	uninstallAllAutoReplies(ownerId: string): Promise<void>;
 }
 
 export const TerminalExtensions = {

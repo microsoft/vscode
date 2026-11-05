@@ -694,19 +694,26 @@ function isEqualOrAncestorItem(item: ExplorerItem, candidate: ExplorerItem): boo
 
 function doesFileEventAffect(item: ExplorerItem, view: IExplorerView, events: FileChangesEvent[], types: FileChangeType[]): boolean {
 	for (const [_name, child] of item.children) {
-		if (view.isItemVisible(child)) {
-			if (events.some(e => e.contains(child.resource, ...types))) {
-				return true;
-			}
-			if (child.isDirectory && child.isDirectoryResolved) {
-				if (doesFileEventAffect(child, view, events, types)) {
-					return true;
-				}
-			}
+		// Look up the events before checking visibility, which runs the expensive explorer filter for every child
+		const isAffected = events.some(e => e.contains(child.resource, ...types));
+		if (!isAffected && !(child.isDirectory && child.isDirectoryResolved && events.some(e => e.affects(withoutQueryAndFragment(child.resource), ...types)))) {
+			continue;
+		}
+
+		if (view.isItemVisible(child) && (isAffected || doesFileEventAffect(child, view, events, types))) {
+			return true;
 		}
 	}
 
 	return false;
+}
+
+/**
+ * File change events key a query and fragment after the path segments, so a folder only
+ * matches the changes beneath it without them.
+ */
+function withoutQueryAndFragment(resource: URI): URI {
+	return resource.query || resource.fragment ? resource.with({ query: '', fragment: '' }) : resource;
 }
 
 function getRevealExcludes(configuration: IFilesConfiguration): IExpression {

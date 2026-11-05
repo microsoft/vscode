@@ -12,7 +12,7 @@ import { IDropdownMenuActionViewItemOptions } from '../../../../../../base/brows
 import { Orientation, Sash } from '../../../../../../base/browser/ui/sash/sash.js';
 import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { IAction } from '../../../../../../base/common/actions.js';
-import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { cancelOnDispose, CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { MutableDisposable, toDisposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -57,11 +57,11 @@ import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { IChatModel, IChatModelInputState } from '../../../common/model/chatModel.js';
 import { CHAT_PROVIDER_ID } from '../../../common/participants/chatParticipantContribTypes.js';
 import { IChatModelReference, IChatService } from '../../../common/chatService/chatService.js';
-import { IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
+import { IChatSessionsService, localChatSessionType, ResolvedChatSessionsExtensionPoint } from '../../../common/chatSessionsService.js';
 import { AICustomizationManagementCommands, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
 import { IChatOpen, IChatOpenDiagnosticsService } from '../../../common/chatOpenDiagnosticsService.js';
 import { LocalChatSessionUri, getChatSessionType, getNewChatSessionResource, isUntitledChatSession } from '../../../common/model/chatUri.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, getDefaultNewChatSessionType, getDefaultNewChatSessionTypeAndReasonFromServices, getLocalFallbackSessionTypeSelectionReason, managedPolicyRequiresAgentHostMessage, SessionTypeSelectionReason } from '../../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, getDefaultNewChatSessionType, getDefaultNewChatSessionTypeAndReasonFromServices, getLocalFallbackSessionTypeSelectionReason, isLocalAgentHostSessionTypeDisabledByPolicy, managedPolicyRequiresAgentHostMessage, SessionTypeSelectionReason } from '../../../common/constants.js';
 import { AgentSessionsControl } from '../../agentSessions/agentSessionsControl.js';
 import { ACTION_ID_NEW_CHAT } from '../../actions/chatActions.js';
 import { ChatWidget, layoutChatWidgetForInputHeight } from '../../widget/chatWidget.js';
@@ -72,13 +72,14 @@ import { AgentSessionsViewerOrientation, AgentSessionsViewerPosition } from '../
 import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
 import { CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT, ChatViewId, IChatWidgetService, IChatWidgetViewState, setModelPreservingInputTypedWhileLoading } from '../../chat.js';
 import { IActivityService, ProgressBadge } from '../../../../../services/activity/common/activity.js';
-import { disposableTimeout } from '../../../../../../base/common/async.js';
+import { disposableTimeout, raceCancellation } from '../../../../../../base/common/async.js';
 import { AgentSessionsFilter, AgentSessionsGrouping } from '../../agentSessions/agentSessionsFilter.js';
 import { IAgentSessionsService } from '../../agentSessions/agentSessionsService.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { requiresCopilotAgentHost, IManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { IAccountPolicyGateService, whenAccountPolicySettled } from '../../../../../services/policies/common/accountPolicyService.js';
 import { AgentHostSessionInputPills } from '../../agentSessions/agentHost/agentHostSessionInputPills.js';
+import { IAgentHostUntitledProvisionalSessionService } from '../../agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { HoverPosition } from '../../../../../../base/browser/ui/hover/hoverWidget.js';
 import { IAgentSession } from '../../agentSessions/agentSessionsModel.js';
 import { ChatEntitlementContextKeys, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
@@ -191,6 +192,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		@IManagedSettingsService private readonly managedSettingsService: IManagedSettingsService,
 		@IAccountPolicyGateService private readonly accountPolicyGateService: IAccountPolicyGateService,
 		@IChatOpenDiagnosticsService private readonly chatOpenDiagnosticsService: IChatOpenDiagnosticsService,
+		@IAgentHostUntitledProvisionalSessionService private readonly provisionalSessionService: IAgentHostUntitledProvisionalSessionService,
 	) {
 		super(options, keybindingService2, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		this.element.classList.add('chat-viewpane-container');
@@ -333,9 +335,12 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private onDidChangeAgents(): void {
 		if (this.chatAgentService.getDefaultAgent(ChatAgentLocation.Chat)) {
 			if (!this._widget?.viewModel && !this.restoringSession) {
+				this._applyModelCts.value?.cancel();
+				const cts = this._applyModelCts.value = new CancellationTokenSource();
 				this.restoringSession =
-					this.acquireTransferredOrPersistedSession(CancellationToken.None, 'ChatViewPane#onDidChangeAgents').then(async session => {
-						if (!this._widget) {
+					this.acquireTransferredOrPersistedSession(cts.token, 'ChatViewPane#onDidChangeAgents').then(async session => {
+						if (!this._widget || cts.token.isCancellationRequested) {
+							session.modelRef?.dispose();
 							return; // renderBody has not been called yet
 						}
 
@@ -346,13 +351,22 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 						try {
 							this._widget.setVisible(false);
 
-							await this.showModel(CancellationToken.None, session.modelRef, true, !session.modelRef, undefined, session.localFallbackSelectionReason);
+							await this.showModel(cts.token, session.modelRef, true, !session.modelRef, undefined, session.localFallbackSelectionReason);
 						} finally {
 							this._widget.setVisible(wasVisible);
 						}
+					}).catch(error => {
+						if (!isCancellationError(error)) {
+							this.logService.error('ChatViewPane#onDidChangeAgents failed', error);
+						}
 					});
 
-				this.restoringSession.finally(() => this.restoringSession = undefined);
+				const restoringSession = this.restoringSession;
+				restoringSession.finally(() => {
+					if (this.restoringSession === restoringSession) {
+						this.restoringSession = undefined;
+					}
+				});
 			}
 		}
 
@@ -883,6 +897,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// Sessions Control
 		this.sessionsControlContainer = append(sessionsContainer, $('.agent-sessions-control-container'));
 		const sessionsControl = this.sessionsControl = this._register(this.instantiationService.createInstance(AgentSessionsControl, this.sessionsControlContainer, {
+			initiallyVisible: false,
 			source: 'chatViewPane',
 			filter: sessionsFilter,
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
@@ -898,14 +913,14 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				return openEvent;
 			},
 		}));
-		this._register(this.onDidChangeBodyVisibility(visible => sessionsControl.setVisible(visible)));
+		this._register(this.onDidChangeBodyVisibility(() => sessionsControl.setVisible(this.isBodyVisible() && this.sessionsViewerVisible)));
 
 		sessionsToolbar.context = sessionsControl;
 
 		// Refresh sessions when window gets focus to compensate for missing events
 		this._register(this.hostService.onDidChangeFocus(hasFocus => {
 			if (hasFocus) {
-				sessionsControl.refresh();
+				sessionsControl.refresh('automatic');
 			}
 		}));
 
@@ -984,6 +999,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		const sessionsContainerVisible = this.sessionsContainer.style.display !== 'none';
 		setVisibility(newSessionsContainerVisible, this.sessionsContainer);
 		this.sessionsViewerVisible = newSessionsContainerVisible;
+		this.sessionsControl?.setVisible(this.isBodyVisible() && newSessionsContainerVisible);
 		this.sessionsViewerVisibilityContext.set(newSessionsContainerVisible);
 
 		return {
@@ -1269,7 +1285,12 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				this.logService.error('ChatViewPane#applyModel failed', err);
 			}
 		});
-		this.restoringSession.finally(() => this.restoringSession = undefined);
+		const restoringSession = this.restoringSession;
+		restoringSession.finally(() => {
+			if (this.restoringSession === restoringSession) {
+				this.restoringSession = undefined;
+			}
+		});
 	}
 
 	private async _applyModel(token: CancellationToken): Promise<void> {
@@ -1352,7 +1373,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			};
 		}
 
-		if (this.shouldSkipRestoredLocalSession(sessionResource, modelRef.object)) {
+		if (this.shouldSkipRestoredSession(sessionResource, modelRef.object)) {
 			modelRef.dispose();
 			return { modelRef: undefined };
 		}
@@ -1360,24 +1381,30 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		return { modelRef };
 	}
 
-	private shouldSkipRestoredLocalSession(sessionResource: URI, model: IChatModel): boolean {
+	private shouldSkipRestoredSession(sessionResource: URI, model: IChatModel): boolean {
+		if (model.hasRequests) {
+			return false;
+		}
+		const sessionType = getChatSessionType(sessionResource);
+		// An empty draft of a harness that policy disables can only show the read-only banner.
+		if (isUntitledChatSession(sessionResource) && isLocalAgentHostSessionTypeDisabledByPolicy(sessionType, this.configurationService)) {
+			return true;
+		}
 		const workspace = this.workspaceContextService.getWorkspace();
 		const defaultType = getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService, this.storageService, workspace, this.agentHostEnablementService.enabled.get(), undefined, this.agentHostEnablementService.managedSandboxEnforced.get(), requiresCopilotAgentHost(this.managedSettingsService, this.configurationService));
 		return defaultType !== localChatSessionType
-			&& getChatSessionType(sessionResource) === localChatSessionType
-			&& !model.hasRequests;
+			&& sessionType === localChatSessionType;
 	}
 
 	private async showModel(token: CancellationToken, modelRef?: IChatModelReference | undefined, startNewSession = true, ignoreTransferredSession = false, inputBeforeLoad?: string, localFallbackSelectionReason?: SessionTypeSelectionReason): Promise<IChatModel | undefined> {
+		if (token.isCancellationRequested || this._store.isDisposed) {
+			modelRef?.dispose();
+			return undefined;
+		}
 		const oldModelResource = this._widget.viewModel?.sessionResource;
 		if (oldModelResource) {
 			this.widgetViewStates.set(getComparisonKey(oldModelResource), this._widget.getViewState());
 		}
-		this.modelRef.value = undefined;
-		// Clear the bound-resource attribute while the rebind is in flight so
-		// test automation can wait for the next session before acting on the view.
-		this.setBoundChatResource(undefined);
-
 		// Baseline draft for preserving text typed during loading. `loadSession`
 		// opens its load window before calling us, so it passes its own baseline;
 		// otherwise this call's own await is the load window. See #325323.
@@ -1399,34 +1426,51 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			}
 		}
 
-		if (token.isCancellationRequested) {
+		if (token.isCancellationRequested || this._store.isDisposed) {
 			ref?.dispose();
 			return undefined;
 		}
 
-		this.modelRef.value = ref;
 		const model = ref?.object;
+		const transition = this._store.add(new DisposableStore());
+		const pendingRef = transition.add(new MutableDisposable<IChatModelReference>());
+		pendingRef.value = ref;
+		const transitionToken = cancelOnDispose(transition);
+		transition.add(token.onCancellationRequested(() => this._store.delete(transition)));
+		try {
+			const contribution = model ? await raceCancellation(this.resolveChatSessionContribution(getChatSessionType(model.sessionResource)), transitionToken) : undefined;
+			if (model && isUntitledChatSession(model.sessionResource) && !transitionToken.isCancellationRequested) {
+				await raceCancellation(this.provisionalSessionService.prepareSessionConfig(model.sessionResource, transitionToken), transitionToken);
+			}
 
-		if (model) {
-			await this.updateWidgetLockState(getChatSessionType(model.sessionResource)); // Update widget lock state based on session type
-
-			if (token.isCancellationRequested) {
-				this.modelRef.value = undefined;
+			if (transitionToken.isCancellationRequested) {
 				return undefined;
 			}
 
-			// remember as model to restore in view state
-			this.viewState.sessionResource = model.sessionResource;
-		}
-
-		if (model) {
-			setModelPreservingInputTypedWhileLoading(this._widget, baselineInput, () => this._widget.setModel(model));
-			const widgetViewState = this.widgetViewStates.get(getComparisonKey(model.sessionResource));
-			if (widgetViewState) {
-				this._widget.restoreViewState(widgetViewState);
+			// Rebind before releasing the old model, whose disposal otherwise clears the widget.
+			const previousRef = this.modelRef.clearAndLeak();
+			this.modelRef.value = pendingRef.clearAndLeak();
+			try {
+				if (model) {
+					if (contribution) {
+						this._widget.lockToCodingAgent(contribution.name, contribution.displayName, getChatSessionType(model.sessionResource), contribution.agentHostProviderId);
+					} else {
+						this._widget.unlockFromCodingAgent();
+					}
+					this.viewState.sessionResource = model.sessionResource;
+					setModelPreservingInputTypedWhileLoading(this._widget, baselineInput, () => this._widget.setModel(model));
+					const widgetViewState = this.widgetViewStates.get(getComparisonKey(model.sessionResource));
+					if (widgetViewState) {
+						this._widget.restoreViewState(widgetViewState);
+					}
+				} else {
+					this._widget.setModel(model);
+				}
+			} finally {
+				previousRef?.dispose();
 			}
-		} else {
-			this._widget.setModel(model);
+		} finally {
+			this._store.delete(transition);
 		}
 		this.setBoundChatResource(model?.sessionResource);
 
@@ -1470,10 +1514,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}
 	}
 
-	private async updateWidgetLockState(sessionType: string): Promise<void> {
+	private async resolveChatSessionContribution(sessionType: string): Promise<ResolvedChatSessionsExtensionPoint | undefined> {
 		if (sessionType === localChatSessionType) {
-			this._widget.unlockFromCodingAgent();
-			return;
+			return undefined;
 		}
 
 		let canResolve = false;
@@ -1483,17 +1526,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			this.logService.warn(`Failed to resolve chat session type '${sessionType}' for locking`, error);
 		}
 
-		if (!canResolve) {
-			this._widget.unlockFromCodingAgent();
-			return;
-		}
-
-		const contribution = this.chatSessionsService.getChatSessionContribution(sessionType);
-		if (contribution) {
-			this._widget.lockToCodingAgent(contribution.name, contribution.displayName, sessionType, contribution.agentHostProviderId);
-		} else {
-			this._widget.unlockFromCodingAgent();
-		}
+		return canResolve ? this.chatSessionsService.getChatSessionContribution(sessionType) : undefined;
 	}
 
 	private async clear(): Promise<void> {
@@ -1527,11 +1560,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			// baselined here to be preserved rather than erased. See #325323.
 			const inputBeforeLoad = this._widget?.getInput() ?? '';
 
-			// Wait for any in-progress session restore (e.g. from onDidChangeAgents)
-			// to finish first, so our showModel call is guaranteed to be the last one.
-			if (this.restoringSession) {
-				await this.restoringSession;
-			}
+			// An explicit selection supersedes restoration, including optional picker preparation.
+			this._applyModelCts.value?.cancel();
 
 			if (token.isCancellationRequested) {
 				this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()} cancelled=true phase=preAcquire`);
@@ -1544,8 +1574,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				let queue: Promise<void> = Promise.resolve();
 				let didAcquireSession = false;
 
-				// A delay here to avoid blinking because only Cloud sessions are slow, most others are fast
-				const clearWidget = disposableTimeout(() => {
+				// New chats swap directly to their empty state instead of exposing an unbound widget.
+				const clearWidget = isUntitledChatSession(sessionResource) ? undefined : disposableTimeout(() => {
 					// Only clear the current model if this loadSession call is still the active one
 					// and has not been cancelled. This preserves the "last call wins" behavior.
 					if (token.isCancellationRequested || this.loadSessionCts.value !== cts) {
@@ -1554,12 +1584,12 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					// clear current model without starting a new one
 					queue = this.showModel(token, undefined, false).then(() => { });
 				}, 100);
-				const clearWidgetCancellationListener = token.onCancellationRequested(() => clearWidget.dispose());
+				const clearWidgetCancellationListener = token.onCancellationRequested(() => clearWidget?.dispose());
 
 				try {
 					const newModelRef = await this.chatService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, token, 'ChatViewPane#loadSession', sessionTypeSelectionReason);
 					didAcquireSession = !!newModelRef;
-					clearWidget.dispose();
+					clearWidget?.dispose();
 					await queue;
 
 					if (token.isCancellationRequested) {
@@ -1573,7 +1603,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()}`);
 					return result;
 				} catch (err) {
-					clearWidget.dispose();
+					clearWidget?.dispose();
 					await queue;
 
 					if (token.isCancellationRequested) {

@@ -102,11 +102,11 @@ export abstract class AbstractMultiProviderAgentHostConfigSchemaRegistrar<TTarge
 			this._onProviderAdded(provider);
 		}
 		this._register(this._sessionsProvidersService.onDidChangeProviders(e => {
-			for (const provider of e.added) {
-				this._onProviderAdded(provider);
-			}
 			for (const provider of e.removed) {
 				this._providerSubscriptions.deleteAndDispose(provider.id);
+			}
+			for (const provider of e.added) {
+				this._onProviderAdded(provider);
 			}
 		}));
 	}

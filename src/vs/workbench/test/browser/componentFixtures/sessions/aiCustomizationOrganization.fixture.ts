@@ -12,6 +12,7 @@ import { joinPath } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
+import { createAgentHostResourceUriMapper } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { CustomizationLoadStatus, CustomizationType, type ChildCustomization, type Customization, type DirectoryCustomization, type PluginCustomization } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
@@ -19,6 +20,7 @@ import { ExtensionIdentifier, IExtensionDescription } from '../../../../../platf
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
@@ -330,13 +332,14 @@ async function createAgentHostItemProvider(ctx: ComponentFixtureContext, prompts
 		await fileService.writeFile(file.uri, VSBuffer.fromString(file.content));
 	}
 	return ctx.disposableStore.add(new AgentCustomizationItemProvider(
-		'local',
+		{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('local') },
 		undefined,
 		undefined,
 		fileService,
 		logService,
 		new FixtureAgentHostCustomizationService(),
 		promptsService,
+		new class extends mock<ILabelService>() { },
 	));
 }
 

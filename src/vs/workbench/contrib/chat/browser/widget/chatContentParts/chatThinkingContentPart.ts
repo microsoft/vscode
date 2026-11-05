@@ -48,6 +48,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { getToolGroupSummary } from './chatToolGroupSummary.js';
 import { ChatActivityLabelTransition } from './chatActivityLabelTransition.js';
+import { formatElapsedTime } from '../../../common/chatProgressFormatting.js';
 
 
 // Context key id mirrored from `vs/sessions/common/contextkeys` (`IsPhoneLayoutContext`).
@@ -357,8 +358,24 @@ export function buildPhrasePool(defaults: string[], configurationService: IConfi
 	return [...defaults];
 }
 
-function getFinishedThinkingTitle(): string {
-	return localize('chat.thinking.finishedThinking', "Finished thinking");
+function getFinishedThinkingTitle(parts: readonly IChatThinkingPart[]): string {
+	const runs = parts.filter(part => extractTextFromPart(part).trim());
+	const duration = runs.length === 1 ? runs[0].reasoningDurationMs : undefined;
+	return duration !== undefined && Number.isFinite(duration) && duration >= 0
+		? getReasoningDurationLabel(duration)
+		: localize('chat.thinking.finishedThinking', "Finished thinking");
+}
+
+/**
+ * Formats recorded reasoning time, rounding up so short reasoning never displays as zero.
+ */
+function formatReasoningDuration(duration: number): string {
+	const seconds = Math.max(1, Math.ceil(duration / 1000));
+	return formatElapsedTime(seconds * 1000);
+}
+
+function getReasoningDurationLabel(duration: number): string {
+	return localize('chat.thinking.thoughtFor', "Thought for {0}", formatReasoningDuration(duration));
 }
 
 export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implements IChatContentPart {
@@ -400,6 +417,7 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 	private textContainer!: HTMLElement;
 	private readonly _markdownResult = this._register(new MutableDisposable<IRenderedMarkdown>());
 	private readonly renderedThinkingHeaders = new Map<HTMLElement, { title: string; element: HTMLElement }>();
+	private readonly reasoningDurationSnapshots = new Map<string | IChatThinkingPart, number>();
 	private summaryRowItems: HTMLElement[] = [];
 	private summaryRowResults: (IRenderedMarkdown | undefined)[] = [];
 	private summaryRowTexts: string[] = [];
@@ -505,7 +523,7 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 		const extractedTitle = extractTitleFromThinkingContent(initialText)
 			?? localize('chat.thinking.header.initial', 'Thinking');
 		const initialTitle = streamingCompleted && !context.isToolChain
-			? getFinishedThinkingTitle()
+			? getFinishedThinkingTitle([content])
 			: context.suppressProgressShimmer && !context.isToolChain
 				? localize('chat.thinking.header.initial', 'Thinking')
 				: extractedTitle;
@@ -1326,7 +1344,10 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 		}
 		this.interruptConversationTitle();
 
-		const displayTitle = title;
+		const duration = this.getGeneratedTitleDuration();
+		const displayTitle = duration === undefined
+			? title
+			: localize('chat.thinking.titleWithDuration', "{0} - {1}", title, formatReasoningDuration(duration));
 		this.clearTitleDetail();
 		const labelElement = this._collapseButton.labelElement;
 		labelElement.textContent = '';
@@ -1411,6 +1432,14 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 
 	public hasReasoningContent(): boolean {
 		return this.containsReasoning;
+	}
+
+	public hasReasoningTiming(): boolean {
+		return this.allThinkingParts.some(part => part.reasoningStartedAt !== undefined || part.reasoningDurationMs !== undefined);
+	}
+
+	public hasActiveReasoningTiming(): boolean {
+		return this.content.reasoningStartedAt !== undefined && this.content.reasoningDurationMs === undefined;
 	}
 
 	public hasGroupedItems(): boolean {
@@ -1607,6 +1636,34 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 		this.setExpanded(true);
 	}
 
+	public updateReasoningTiming(content: IChatThinkingPart): void {
+		const duration = content.reasoningDurationMs;
+		const key = content.id ?? content;
+		if (duration === undefined || Object.is(this.reasoningDurationSnapshots.get(key), duration)) {
+			return;
+		}
+		let matched = false;
+		for (const part of this.allThinkingParts) {
+			const source = this.thinkingPartSources?.get(part) ?? part;
+			if (source !== content && (content.id === undefined || source.id !== content.id)) {
+				continue;
+			}
+			matched = true;
+			part.reasoningDurationMs = source.reasoningDurationMs = duration;
+			if (content.reasoningStartedAt !== undefined) {
+				part.reasoningStartedAt = source.reasoningStartedAt = content.reasoningStartedAt;
+			}
+		}
+		if (matched) {
+			this.reasoningDurationSnapshots.set(key, duration);
+			this.updateDropdownClickability();
+			if (this.streamingCompleted && this.fallbackTitle === undefined) {
+				this.showFinalizedTitle(this.currentTitle);
+			}
+			this._onDidChangeHeight.fire();
+		}
+	}
+
 	public updateThinking(content: IChatThinkingPart): void {
 		// If disposed, ignore late updates coming from renderer diffing
 		if (this._store.isDisposed) {
@@ -1646,6 +1703,7 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 		this.thinkingHeadersByPart.delete(content);
 		const needsInitialRender = this.textContainer ? !this.textContainer.hasChildNodes() : this.isPersistentReasoning || this.isConversation;
 		if (next === this.currentThinkingValue && !needsInitialRender) {
+			this.updateDropdownClickability();
 			return;
 		}
 		const previousValue = this.currentThinkingValue;
@@ -1942,7 +2000,7 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 
 	private getFallbackTitle(): string {
 		if (!this.isToolChain) {
-			return getFinishedThinkingTitle();
+			return getFinishedThinkingTitle([...new Set(this.allThinkingParts.map(part => this.thinkingPartSources?.get(part) ?? part))]);
 		}
 
 		const visibleItemCount = this.appendedItemCount - this.hiddenToolCallIds.size;
@@ -1958,6 +2016,27 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 				? localize('chat.thinking.finished.withStepsSingular', 'Finished with 1 step')
 				: localize('chat.thinking.finished.withStepsPlural', 'Finished with {0} steps', visibleItemCount)
 			: localize('chat.thinking.finished', 'Finished Working');
+	}
+
+	/** Counts each provider-recorded reasoning run once, excluding tool time and incomplete timing. */
+	private getGeneratedTitleDuration(): number | undefined {
+		if (!this.streamingCompleted || this.fallbackTitle !== undefined) {
+			return undefined;
+		}
+		let totalDuration: number | undefined;
+		const sources = new Set(this.allThinkingParts.map(part => this.thinkingPartSources?.get(part) ?? part));
+		for (const source of sources) {
+			if (!extractTextFromPart(source)) {
+				continue;
+			}
+			const duration = source.reasoningDurationMs;
+			if (source.generatedTitle !== this.currentTitle || source.reasoningTimingSource !== 'provider'
+				|| duration === undefined || !Number.isFinite(duration) || duration < 0) {
+				return undefined;
+			}
+			totalDuration = (totalDuration ?? 0) + duration;
+		}
+		return totalDuration !== undefined && Number.isFinite(totalDuration) ? totalDuration : undefined;
 	}
 
 	private setFallbackTitle(): void {
@@ -2415,8 +2494,8 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 				toolStore.add(autorunDisposable);
 			}
 		} else if (toolInvocationOrMarkdown?.kind === 'markdownContent') {
-			const codeblockInfo = extractCodeblockUrisFromText(toolInvocationOrMarkdown.content.value);
-			const resources = extractEditCodeblockUrisFromText(toolInvocationOrMarkdown.content.value);
+			const codeblockInfo = toolInvocationOrMarkdown.codeblockUri ?? extractCodeblockUrisFromText(toolInvocationOrMarkdown.content.value);
+			const resources = toolInvocationOrMarkdown.codeblockUri?.isEdit ? [toolInvocationOrMarkdown.codeblockUri.uri] : extractEditCodeblockUrisFromText(toolInvocationOrMarkdown.content.value);
 			if (resources.length > 0) {
 				this.editResourcesByPartId.set(toolInvocationId, resources);
 			}
@@ -2832,6 +2911,10 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 	}
 
 	hasSameContent(other: IChatRendererContent, _followingContent: IChatRendererContent[], _element: ChatTreeItem): boolean {
+		if (other.kind === 'thinking' && other.id === this.content.id && this.hasReasoningTiming()
+			&& (extractTextFromPart(other) !== this.currentThinkingValue || (this.fallbackTitle !== undefined && this.getFallbackTitle() !== this.fallbackTitle))) {
+			return false;
+		}
 		// Persistent tool chains and reasoning are separate sections, but a conversation section holds both.
 		if (this.context.suppressProgressShimmer && (other.kind === 'working' || (!this.isConversation && this.isToolChain !== (other.kind !== 'thinking')))) {
 			return false;
@@ -2859,6 +2942,7 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 	}
 
 	override dispose(): void {
+		this.reasoningDurationSnapshots.clear();
 		this.isActive = false;
 		this.thinkingPartSources = undefined;
 		if (this.workingSpinnerElement) {

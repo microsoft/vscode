@@ -111,6 +111,7 @@ export interface IAICustomizationMarketplaceOpenTarget {
 export const AICustomizationManagementCommands = {
 	OpenEditor: 'aiCustomization.openManagementEditor',
 	ShowPlugin: 'aiCustomizationManagement.showPlugin',
+	CreateCanvas: 'aiCustomizationManagement.createCanvas',
 	OpenMarketplace: 'aiCustomization.openMarketplace',
 	CreateNewAgent: 'aiCustomization.createNewAgent',
 	CreateNewSkill: 'aiCustomization.createNewSkill',

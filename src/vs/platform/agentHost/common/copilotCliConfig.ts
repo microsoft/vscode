@@ -13,15 +13,12 @@ export const COPILOT_HYDRA_FUSION_MODEL_ID = 'hydrafusion';
 /** The runtime's HydraFusion Max model, which it only offers with HydraFusion v2 (`HYDRAFUSION_PLAN_V2`). */
 export const COPILOT_HYDRA_FUSION_MAX_MODEL_ID = 'hydrafusion-max';
 
-/** The runtime's HydraFusion routing models and their display names, HydraFusion before HydraFusion Max. */
-export const COPILOT_HYDRA_FUSION_MODEL_NAMES: ReadonlyMap<string, string> = new Map([
-	[COPILOT_HYDRA_FUSION_MODEL_ID, 'HydraFusion'],
-	[COPILOT_HYDRA_FUSION_MAX_MODEL_ID, 'HydraFusion Max'],
-]);
+/** The runtime's HydraFusion routing models, which users see as Copilot Fusion's High and Max effort levels, in that order. */
+export const COPILOT_HYDRA_FUSION_MODEL_IDS: readonly string[] = [COPILOT_HYDRA_FUSION_MODEL_ID, COPILOT_HYDRA_FUSION_MAX_MODEL_ID];
 
 /** Whether the model id names one of the runtime's HydraFusion routing models. */
 export function isCopilotHydraFusionModelId(modelId: string | undefined): boolean {
-	return modelId !== undefined && COPILOT_HYDRA_FUSION_MODEL_NAMES.has(modelId);
+	return modelId !== undefined && COPILOT_HYDRA_FUSION_MODEL_IDS.includes(modelId);
 }
 
 /**
@@ -42,6 +39,8 @@ export const enum CopilotCliConfigKey {
 	CopilotSdkLogLevel = 'copilotSdkLogLevel',
 	/** Explicit local Copilot runtime executable path. Empty uses the bundled runtime. */
 	RuntimePath = 'runtimePath',
+	/** Copilot runtime policy helper executable. An empty path disables it. */
+	PolicyHelper = 'policyHelper',
 	/** Enable the rubber duck critic subagent. */
 	RubberDuck = 'rubberDuck',
 	/** Enable the provider-native Claude Advisor tool. Off by default. */
@@ -66,21 +65,15 @@ export const enum CopilotCliConfigKey {
 	Opus48Prompt = 'opus48Prompt',
 	/** Send the system prompt in the runtime's stability-ordered prompt-cache layout. Off by default. */
 	StabilityOrderedPrompt = 'stabilityOrderedPrompt',
+	/** Ask GPT and Auto sessions for brief user-visible progress updates before and between tool calls. Off by default. */
+	ProgressUpdatesPrompt = 'progressUpdatesPrompt',
+	/** Whether the workbench progress-update prompt value is controlled by its configuration default. */
+	ProgressUpdatesPromptDefaultControlled = 'progressUpdatesPromptDefaultControlled',
 	/** Enable runtime tool search (deferred-tool loading) for Copilot SDK sessions. On by default. */
 	ToolSearchEnabled = 'toolSearchEnabled',
 	/** Minimum tool count before MCP/external tools are deferred behind tool search. 0 = always defer. */
 	ToolSearchDeferThreshold = 'toolSearchDeferThreshold',
-	/** Enable the experimental HydraFusion synthetic model. Off by default. */
-	HydraFusion = 'hydraFusion',
-	/** Use HydraFusion v2. Off by default; requires {@link HydraFusion}. */
-	HydraFusionV2 = 'hydraFusionV2',
-	/** Ask CAPI to keep a conversation's HydraFusion root model across turns. Set by the `'multiRoot'` HydraFusion setting value; requires {@link HydraFusionV2}. */
-	HydraFusionMultiRoot = 'hydraFusionMultiRoot',
-	/** Launch the runtime with `DYNAMIC_AUTO_TIERS`, so Auto's tiers (including HydraFusion ones) come from the service. Startup key; off by default. */
-	DynamicAutoTiers = 'dynamicAutoTiers',
-	/** Enable Copilot Memory for Copilot SDK sessions. Off by default. */
-	Memory = 'memory',
-	/** Store Copilot Memory in the repository instead of GitHub's cloud memory service. Off by default; requires {@link Memory}. */
+	/** Store Copilot Memory in the repository instead of GitHub's cloud memory service. Off by default. */
 	LocalMemory = 'localMemory',
 	/** Character budget for skill descriptions included in the Copilot SDK system message. */
 	SkillCharBudget = 'skillCharBudget',
@@ -113,6 +106,22 @@ export const AgentHostCopilotSdkLogLevelSettingId = 'chat.agentHost.copilotSdk.l
 
 export const AgentHostCopilotRuntimePathSettingId = 'chat.agentHost.copilot.runtimePath';
 
+export const AgentHostCopilotPolicyHelperSettingId = 'chat.agentHost.copilot.policyHelper';
+
+/** Policy helper executable for the Copilot runtime, subject to device and server policy precedence. */
+export interface ICopilotPolicyHelperConfig {
+	readonly path: string;
+	readonly args?: readonly string[];
+}
+
+/** Normalizes policy helper arguments and treats invalid or empty paths as unset. */
+export function normalizeCopilotPolicyHelperConfig(value: unknown): ICopilotPolicyHelperConfig | undefined {
+	if (!copilotCliConfigSchema.validate(CopilotCliConfigKey.PolicyHelper, value) || !value.path.trim()) {
+		return undefined;
+	}
+	return { path: value.path, args: value.args ?? [] };
+}
+
 export const CopilotClaudeAdvisorEnabledSettingId = 'chat.copilot.claudeAdvisor.enabled';
 
 export const CopilotSearchSubagentEnabledSettingId = 'chat.copilot.searchSubagent.enabled';
@@ -138,20 +147,17 @@ export const AgentHostOpus48PromptEnabledSettingId = 'chat.agentHost.opus48Promp
 
 export const CopilotStabilityOrderedPromptEnabledSettingId = 'chat.copilot.stabilityOrderedPrompt.enabled';
 
+export const AgentHostCopilotProgressUpdatesPromptSettingId = 'chat.agentHost.copilot.progressUpdatesPrompt.enabled';
+
 export const AgentHostToolSearchEnabledSettingId = 'chat.agentHost.copilot.toolSearch.enabled';
 
 export const AgentHostToolSearchDeferThresholdSettingId = 'chat.agentHost.copilot.toolSearch.deferThreshold';
 
-export const AgentHostHydraFusionEnabledSettingId = 'chat.copilot.hydraFusion.enabled';
-
 /**
- * `true` enables HydraFusion (v1), `'v2'` enables HydraFusion v2, and `'multiRoot'` enables v2 plus the
- * sticky-root hint that lets CAPI keep a conversation's root model across turns. Experiments assign any value.
+ * Root config key that hosts before Auto's tiers always came from the Copilot service read to launch the runtime
+ * with `DYNAMIC_AUTO_TIERS`. Current hosts always do; clients keep sending `true` so older hosts present Auto the same way.
  */
-export type AgentHostHydraFusionSettingValue = boolean | 'v2' | 'multiRoot';
-export const AgentHostDynamicAutoTiersEnabledSettingId = 'chat.copilot.dynamicAutoTiers.enabled';
-
-export const AgentHostCopilotMemoryEnabledSettingId = 'chat.copilot.memory.enabled';
+export const LegacyDynamicAutoTiersConfigKey = 'dynamicAutoTiers';
 
 export const AgentHostCopilotLocalMemoryEnabledSettingId = 'chat.copilot.memory.local.enabled';
 
@@ -272,6 +278,25 @@ export const copilotCliConfigSchema = createSchema({
 		description: localize('agentHost.config.copilotRuntimePath.description', "Absolute path to a local Copilot runtime executable. Empty uses the bundled runtime."),
 		default: '',
 	}),
+	[CopilotCliConfigKey.PolicyHelper]: schemaProperty<ICopilotPolicyHelperConfig>({
+		type: 'object',
+		title: localize('agentHost.config.copilotPolicyHelper.title', "Copilot Policy Helper"),
+		description: localize('agentHost.config.copilotPolicyHelper.description', "Policy helper executable for the Copilot runtime. Device and server policies take precedence. An empty path disables it. Changes restart the runtime after active turns and subagents finish."),
+		properties: {
+			path: {
+				type: 'string',
+				title: localize('agentHost.config.copilotPolicyHelper.path.title', "Path"),
+				description: localize('agentHost.config.copilotPolicyHelper.path.description', "Absolute path to the policy helper executable."),
+			},
+			args: {
+				type: 'array',
+				items: { type: 'string', title: localize('agentHost.config.copilotPolicyHelper.args.item.title', "Argument") },
+				title: localize('agentHost.config.copilotPolicyHelper.args.title', "Arguments"),
+				description: localize('agentHost.config.copilotPolicyHelper.args.description', "Arguments passed to the policy helper executable."),
+			},
+		},
+		required: ['path'],
+	}),
 	[CopilotCliConfigKey.RubberDuck]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.rubberDuck.title', "Rubber Duck Agent"),
@@ -344,6 +369,18 @@ export const copilotCliConfigSchema = createSchema({
 		description: localize('agentHost.config.stabilityOrderedPrompt.description', "When enabled, Copilot SDK sessions order the system prompt by how often each section changes, so sessions with the same tools and workspace can reuse each other's prompt cache. This moves per-session sections, such as the environment and session folder, to the end of the system prompt."),
 		default: false,
 	}),
+	[CopilotCliConfigKey.ProgressUpdatesPrompt]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.progressUpdatesPrompt.title', "Progress Updates Prompt"),
+		description: localize('agentHost.config.progressUpdatesPrompt.description', "When enabled, Copilot SDK sessions running a GPT model or Auto are asked to send brief user-visible progress updates before and between tool calls."),
+		default: false,
+	}),
+	[CopilotCliConfigKey.ProgressUpdatesPromptDefaultControlled]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.progressUpdatesPromptDefaultControlled.title', "Progress Updates Prompt Default Control"),
+		description: localize('agentHost.config.progressUpdatesPromptDefaultControlled.description', "Whether the workbench progress updates prompt setting has no explicit override. Used only to gate setting experiment telemetry."),
+		default: false,
+	}),
 	[CopilotCliConfigKey.ToolSearchEnabled]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.toolSearchEnabled.title', "Agent Host Tool Search"),
@@ -356,40 +393,10 @@ export const copilotCliConfigSchema = createSchema({
 		description: localize('agentHost.config.toolSearchDeferThreshold.description', "Minimum number of tools before MCP and external tools are deferred behind tool search. Set to 0 to always defer external tools. Only effective when tool search is enabled."),
 		default: 1,
 	}),
-	[CopilotCliConfigKey.HydraFusion]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.hydraFusion.title', "HydraFusion"),
-		description: localize('agentHost.config.hydraFusion.description', "When enabled, Copilot SDK sessions can use the experimental HydraFusion model."),
-		default: false,
-	}),
-	[CopilotCliConfigKey.HydraFusionV2]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.hydraFusionV2.title', "HydraFusion V2"),
-		description: localize('agentHost.config.hydraFusionV2.description', "When enabled together with HydraFusion, Copilot SDK sessions use HydraFusion v2."),
-		default: false,
-	}),
-	[CopilotCliConfigKey.HydraFusionMultiRoot]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.hydraFusionMultiRoot.title', "HydraFusion Multi-Root"),
-		description: localize('agentHost.config.hydraFusionMultiRoot.description', "When enabled together with HydraFusion v2, Copilot SDK sessions ask the service to keep reusing the previous turn's root model when it fits the next turn's workflow."),
-		default: false,
-	}),
-	[CopilotCliConfigKey.DynamicAutoTiers]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.dynamicAutoTiers.title', "Dynamic Auto Tiers"),
-		description: localize('agentHost.config.dynamicAutoTiers.description', "When enabled, Auto's \"Optimize for\" tiers come from the Copilot service instead of the built-in list. Takes effect when the Copilot runtime restarts."),
-		default: false,
-	}),
-	[CopilotCliConfigKey.Memory]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.memory.title', "Copilot Memory"),
-		description: localize('agentHost.config.memory.description', "When enabled, Copilot SDK sessions can store and recall Copilot Memory. GitHub Copilot Memory settings and policies still apply."),
-		default: false,
-	}),
 	[CopilotCliConfigKey.LocalMemory]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.localMemory.title', "Local Copilot Memory"),
-		description: localize('agentHost.config.localMemory.description', "When enabled together with Copilot Memory, Copilot SDK sessions store memories in the repository's .github/copilot-memories.jsonl file instead of GitHub's cloud memory service. Requires a GitHub-hosted repository; GitHub Copilot Memory settings and policies don't apply."),
+		description: localize('agentHost.config.localMemory.description', "When enabled, Copilot SDK sessions store memories in the repository's .github/copilot-memories.jsonl file instead of GitHub's cloud memory service. Requires a GitHub-hosted repository; GitHub Copilot Memory settings and policies don't apply."),
 		default: false,
 	}),
 	[CopilotCliConfigKey.SkillCharBudget]: schemaProperty<number>({

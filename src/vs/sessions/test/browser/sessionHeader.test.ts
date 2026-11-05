@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, EventType } from '../../../base/browser/dom.js';
+import { $, addDisposableListener, EventType } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { Event } from '../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
-import { mock } from '../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
@@ -19,6 +19,8 @@ import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../platform/a
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { LocalSelectionTransfer } from '../../../platform/dnd/browser/dnd.js';
 import { DraggedSessionIdentifier, getSessionChatDragData, SessionsDataTransfers } from '../../browser/dnd.js';
+import { DraggedEditorIdentifier } from '../../../workbench/browser/dnd.js';
+import { IEditorIdentifier } from '../../../workbench/common/editor.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { MenuWorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
 import { ToggleMenuAction } from '../../../base/browser/ui/toolbar/toolbar.js';
@@ -29,12 +31,13 @@ import { CLOSE_CHAT_COMMAND_ID } from '../../common/sessionCommands.js';
 import { SessionHeaderTargetsChatContext, SessionToolbarShowsSessionContext } from '../../common/contextkeys.js';
 import { ISessionsListModelService } from '../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
-import { ChatOriginKind, IChat, ISessionCapabilities, SessionStatus } from '../../services/sessions/common/session.js';
+import { ChatOriginKind, IChat, ISession, ISessionCapabilities, SessionStatus } from '../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
 
 function createHarness(disposables: Pick<DisposableStore, 'add'>, capabilities: ISessionCapabilities = { supportsMultipleChats: false }, mainChatStatus = SessionStatus.Completed) {
 	const store = disposables.add(new DisposableStore());
 	const instantiationService = workbenchInstantiationService(undefined, store);
+	const closedSessions: string[] = [];
 
 	instantiationService.stub(IAccessibilityService, new class extends mock<IAccessibilityService>() {
 		override readonly onDidChangeScreenReaderOptimized = Event.None;
@@ -54,7 +57,13 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, capabilities: 
 	instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 		override readonly onDidChangeSessions = Event.None;
 	}());
-	instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+	instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+		override closeSession(session: ISession | undefined): void {
+			if (session) {
+				closedSessions.push(session.sessionId);
+			}
+		}
+	}());
 
 	const mainChat = new class extends mock<IChat>() {
 		override readonly resource = URI.parse('test-chat://main');
@@ -96,7 +105,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, capabilities: 
 	const container = mainWindow.document.createElement('div');
 	container.appendChild(header.element);
 
-	return { store, instantiationService, header, session, activeChat, mainChat, secondChat, statusIconReads };
+	return { store, instantiationService, header, session, activeChat, mainChat, secondChat, statusIconReads, closedSessions };
 }
 
 suite('Sessions - Headers', () => {
@@ -171,6 +180,35 @@ suite('Sessions - Headers', () => {
 		return dragEvent;
 	}
 
+	test('a drag from the title of a header in the title bar of its window, the chat editor\'s drag handle, stays the editor\'s drag, and also carries the session and its chat, so that it drops as an editor and as a chat', () => {
+		const { header, session, mainChat } = createHarness(disposables);
+		header.setWindowChrome(true);
+		const title = header.titleElement;
+		title.draggable = true;
+		// As the editor's drag handle does, before the drag reaches the header
+		const editorTransfer = LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>();
+		disposables.add(toDisposable(() => editorTransfer.clearData(DraggedEditorIdentifier.prototype)));
+		disposables.add(addDisposableListener(title, EventType.DRAG_START, () => editorTransfer.setData([new DraggedEditorIdentifier(upcastPartial<IEditorIdentifier>({ groupId: 1 }))], DraggedEditorIdentifier.prototype)));
+
+		title.dispatchEvent(new MouseEvent(EventType.MOUSE_DOWN, { bubbles: true, cancelable: true }));
+		const dragEvent = new DragEvent(EventType.DRAG_START, { bubbles: true, cancelable: true, dataTransfer: new DataTransfer() });
+		title.dispatchEvent(dragEvent);
+		const editorDrag = editorTransfer.hasData(DraggedEditorIdentifier.prototype);
+		header.element.dispatchEvent(new DragEvent(EventType.DRAG_END));
+
+		assert.deepStrictEqual({
+			prevented: dragEvent.defaultPrevented,
+			editorDrag,
+			session: JSON.parse(dragEvent.dataTransfer!.getData(SessionsDataTransfers.SESSION) || '{}').sessionId,
+			chat: getSessionChatDragData(dragEvent),
+		}, {
+			prevented: false,
+			editorDrag: true,
+			session: session.sessionId,
+			chat: { sessionId: session.sessionId, resource: mainChat.resource.toString() },
+		});
+	});
+
 	test('a small pointer move over the title actions toolbar does not start a session drag', () => {
 		const { header } = createHarness(disposables);
 
@@ -182,12 +220,13 @@ suite('Sessions - Headers', () => {
 		assert.strictEqual(dragEvent.defaultPrevented, true);
 	});
 
-	test('a drag starting elsewhere in the header still initiates a session drag', () => {
-		const { header } = createHarness(disposables);
+	test('a drag starting elsewhere in the header, of a pane of the grid, still initiates a session drag, on the shared transfer as before', () => {
+		const { header, session } = createHarness(disposables);
 
 		const dragEvent = simulateDragFrom(header, header.element);
+		const dragged = LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>().getData(DraggedSessionIdentifier.prototype);
 
-		assert.strictEqual(dragEvent.defaultPrevented, false);
+		assert.deepStrictEqual({ prevented: dragEvent.defaultPrevented, dragged: dragged?.map(identifier => identifier.sessionId) }, { prevented: false, dragged: [session.sessionId] });
 	});
 
 	for (const paneClass of ['session-view', 'chat-group-view']) {
@@ -249,14 +288,21 @@ suite('Sessions - Headers', () => {
 		const chatDrag = simulateDragFrom(chatHeader, chatHeader.element);
 		const sessionDrag = simulateDragFrom(header, header.element);
 		header.element.dispatchEvent(new DragEvent(EventType.DRAG_END));
+		// Like an editor tab's new-window drag, only `vnd.code` types: other apps such as Finder
+		// reject the drop (no text clipping is created), so dropping it there opens a chat window.
+		const externalTypes = (e: DragEvent) => [...e.dataTransfer!.types].filter(type => !type.startsWith('application/vnd.code.'));
 		assert.deepStrictEqual({
 			chat: getSessionChatDragData(chatDrag),
 			session: JSON.parse(sessionDrag.dataTransfer!.getData(SessionsDataTransfers.SESSION)),
 			cleaned: !LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>().hasData(DraggedSessionIdentifier.prototype),
+			chatExternalTypes: externalTypes(chatDrag),
+			sessionExternalTypes: externalTypes(sessionDrag),
 		}, {
 			chat: { sessionId: session.sessionId, resource: mainChat.resource.toString() },
 			session: { sessionId: session.sessionId, resource: session.resource.toString() },
 			cleaned: true,
+			chatExternalTypes: [],
+			sessionExternalTypes: [],
 		});
 	});
 
@@ -274,22 +320,19 @@ suite('Sessions - Headers', () => {
 		const { header } = createHarness(disposables);
 		const container = header.element.parentElement!;
 		mainWindow.document.body.appendChild(container);
-		try {
-			const title = header.element.querySelector<HTMLElement>('.chat-composite-bar-session-title-text')!;
-			const before = title.getBoundingClientRect().left;
-			header.element.classList.add('hovered');
-			assert.deepStrictEqual({
-				hasDragHandle: header.element.querySelector('.session-header-drag-handle') !== null,
-				cursor: mainWindow.getComputedStyle(header.element).cursor,
-				titleMoved: title.getBoundingClientRect().left !== before,
-			}, {
-				hasDragHandle: false,
-				cursor: 'grab',
-				titleMoved: false,
-			});
-		} finally {
-			container.remove();
-		}
+		disposables.add(toDisposable(() => container.remove()));
+		const title = header.element.querySelector<HTMLElement>('.chat-composite-bar-session-title-text')!;
+		const before = title.getBoundingClientRect().left;
+		header.element.classList.add('hovered');
+		assert.deepStrictEqual({
+			hasDragHandle: header.element.querySelector('.session-header-drag-handle') !== null,
+			cursor: mainWindow.getComputedStyle(header.element).cursor,
+			titleMoved: title.getBoundingClientRect().left !== before,
+		}, {
+			hasDragHandle: false,
+			cursor: 'grab',
+			titleMoved: false,
+		});
 	});
 
 	test('standalone header descriptions follow ancestry and parent renames and clear for the main chat', () => {
@@ -384,6 +427,56 @@ suite('Sessions - Headers', () => {
 			?.dispatchEvent(new MouseEvent(EventType.MOUSE_DOWN, { bubbles: true, cancelable: true }));
 
 		assert.strictEqual(activationCalls, 1);
+	});
+
+	test('middle-clicking a session title closes only the session header', () => {
+		const { store, instantiationService, header, session, activeChat, closedSessions } = createHarness(disposables);
+		const chatHeader = store.add(instantiationService.createInstance(ChatHeader));
+		chatHeader.setChat({ session, chat: activeChat, activate: () => { } });
+		const sessionMiddleClick = new MouseEvent(EventType.AUXCLICK, { bubbles: true, button: 1, cancelable: true });
+		const sessionRightClick = new MouseEvent(EventType.AUXCLICK, { bubbles: true, button: 2, cancelable: true });
+		const chatMiddleClick = new MouseEvent(EventType.AUXCLICK, { bubbles: true, button: 1, cancelable: true });
+
+		const sessionDispatchResult = header.element.querySelector<HTMLElement>('.chat-composite-bar-session-title')!.dispatchEvent(sessionMiddleClick);
+		header.element.querySelector<HTMLElement>('.chat-composite-bar-session-title')!.dispatchEvent(sessionRightClick);
+		const chatDispatchResult = chatHeader.element.querySelector<HTMLElement>('.chat-composite-bar-session-title')!.dispatchEvent(chatMiddleClick);
+
+		assert.deepStrictEqual({
+			closedSessions,
+			sessionMiddleClickDefaultPrevented: sessionMiddleClick.defaultPrevented,
+			sessionDispatchResult,
+			sessionRightClickDefaultPrevented: sessionRightClick.defaultPrevented,
+			chatMiddleClickDefaultPrevented: chatMiddleClick.defaultPrevented,
+			chatDispatchResult,
+		}, {
+			closedSessions: ['session'],
+			sessionMiddleClickDefaultPrevented: true,
+			sessionDispatchResult: false,
+			sessionRightClickDefaultPrevented: false,
+			chatMiddleClickDefaultPrevented: false,
+			chatDispatchResult: true,
+		});
+	});
+
+	test('middle-clicking a session title input preserves the rename and session', () => {
+		const { header, closedSessions } = createHarness(disposables, { supportsMultipleChats: false, supportsRename: true });
+		header.startTitleEditing();
+		const input = header.element.querySelector<HTMLInputElement>('.chat-composite-bar-session-title-input')!;
+		const middleClick = new MouseEvent(EventType.AUXCLICK, { bubbles: true, button: 1, cancelable: true });
+
+		const dispatchResult = input.dispatchEvent(middleClick);
+
+		assert.deepStrictEqual({
+			closedSessions,
+			defaultPrevented: middleClick.defaultPrevented,
+			dispatchResult,
+			renameInputStillVisible: header.element.querySelector('.chat-composite-bar-session-title-input') === input,
+		}, {
+			closedSessions: [],
+			defaultPrevented: false,
+			dispatchResult: true,
+			renameInputStillVisible: true,
+		});
 	});
 
 	test('targets session actions at the session and chat actions at the represented chat', () => {
@@ -648,36 +741,33 @@ suite('Sessions - Headers', () => {
 		root.appendChild(bar.element);
 		mainWindow.document.body.appendChild(root);
 
-		try {
-			const actionIds = Array.from({ length: toolbar.getItemsLength() }, (_, index) => toolbar.getItemAction(index)?.id);
-			const labels = Array.from(toolbar.getElement().querySelectorAll<HTMLElement>('.action-label')).map(label => label.getAttribute('aria-label'));
-			const closeLabel = toolbar.getElement().querySelector<HTMLElement>('.action-label.codicon-close-small');
-			const closeStyle = closeLabel ? mainWindow.getComputedStyle(closeLabel) : undefined;
+		disposables.add(toDisposable(() => root.remove()));
+		const actionIds = Array.from({ length: toolbar.getItemsLength() }, (_, index) => toolbar.getItemAction(index)?.id);
+		const labels = Array.from(toolbar.getElement().querySelectorAll<HTMLElement>('.action-label')).map(label => label.getAttribute('aria-label'));
+		const closeLabel = toolbar.getElement().querySelector<HTMLElement>('.action-label.codicon-close-small');
+		const closeStyle = closeLabel ? mainWindow.getComputedStyle(closeLabel) : undefined;
 
-			assert.deepStrictEqual({
-				actionIds,
-				labels,
-				closeControl: closeStyle ? {
-					width: closeStyle.width,
-					height: closeStyle.height,
-					paddingInline: closeStyle.paddingInline,
-					alignItems: closeStyle.alignItems,
-					justifyContent: closeStyle.justifyContent,
-				} : undefined,
-			}, {
-				actionIds: ['sessions.pin', ToggleMenuAction.ID, CLOSE_CHAT_COMMAND_ID],
-				labels: ['Pin', 'More Actions...', 'Close'],
-				closeControl: {
-					width: '20px',
-					height: '20px',
-					paddingInline: '0px',
-					alignItems: 'center',
-					justifyContent: 'center',
-				},
-			});
-		} finally {
-			root.remove();
-		}
+		assert.deepStrictEqual({
+			actionIds,
+			labels,
+			closeControl: closeStyle ? {
+				width: closeStyle.width,
+				height: closeStyle.height,
+				paddingInline: closeStyle.paddingInline,
+				alignItems: closeStyle.alignItems,
+				justifyContent: closeStyle.justifyContent,
+			} : undefined,
+		}, {
+			actionIds: ['sessions.pin', ToggleMenuAction.ID, CLOSE_CHAT_COMMAND_ID],
+			labels: ['Pin', 'More Actions...', 'Close'],
+			closeControl: {
+				width: '20px',
+				height: '20px',
+				paddingInline: '0px',
+				alignItems: 'center',
+				justifyContent: 'center',
+			},
+		});
 	});
 
 	test('uses a full-width backing surface with evenly inset titles and controls and no separator', () => {
@@ -691,85 +781,82 @@ suite('Sessions - Headers', () => {
 		container.style.width = '1200px';
 		mainWindow.document.body.appendChild(container);
 
-		try {
-			const headerRow = header.element.querySelector<HTMLElement>('.chat-composite-bar-header')!;
-			const getGeometry = () => {
-				const barBounds = header.element.getBoundingClientRect();
-				const headerBounds = headerRow.getBoundingClientRect();
-				return {
-					barWidth: barBounds.width,
-					headerWidth: headerBounds.width,
-					barHeight: mainWindow.getComputedStyle(header.element).height,
-					headerHeight: mainWindow.getComputedStyle(headerRow).height,
-					headerInset: headerBounds.left - barBounds.left,
-					barPaddingInline: mainWindow.getComputedStyle(header.element).paddingInline,
-					headerPaddingLeft: mainWindow.getComputedStyle(headerRow).paddingLeft,
-					headerPaddingRight: mainWindow.getComputedStyle(headerRow).paddingRight,
-					hasCompactClass: container.classList.contains('editor-tabs-compact-height'),
-				};
+		disposables.add(toDisposable(() => container.remove()));
+		const headerRow = header.element.querySelector<HTMLElement>('.chat-composite-bar-header')!;
+		const getGeometry = () => {
+			const barBounds = header.element.getBoundingClientRect();
+			const headerBounds = headerRow.getBoundingClientRect();
+			return {
+				barWidth: barBounds.width,
+				headerWidth: headerBounds.width,
+				barHeight: mainWindow.getComputedStyle(header.element).height,
+				headerHeight: mainWindow.getComputedStyle(headerRow).height,
+				headerInset: headerBounds.left - barBounds.left,
+				barPaddingInline: mainWindow.getComputedStyle(header.element).paddingInline,
+				headerPaddingLeft: mainWindow.getComputedStyle(headerRow).paddingLeft,
+				headerPaddingRight: mainWindow.getComputedStyle(headerRow).paddingRight,
+				hasCompactClass: container.classList.contains('editor-tabs-compact-height'),
 			};
+		};
 
-			const defaultGeometry = getGeometry();
-			container.classList.add('editor-tabs-compact-height');
-			const compactGeometry = getGeometry();
-			container.classList.remove('editor-tabs-compact-height');
-			const restoredGeometry = getGeometry();
-			container.classList.add('grid-layout');
-			const gridGeometry = getGeometry();
-			container.classList.remove('grid-layout');
-			container.classList.add('hc-black');
-			const highContrastSeparatorStyle = mainWindow.getComputedStyle(headerRow).borderBottomStyle;
+		const defaultGeometry = getGeometry();
+		container.classList.add('editor-tabs-compact-height');
+		const compactGeometry = getGeometry();
+		container.classList.remove('editor-tabs-compact-height');
+		const restoredGeometry = getGeometry();
+		container.classList.add('grid-layout');
+		const gridGeometry = getGeometry();
+		container.classList.remove('grid-layout');
+		container.classList.add('hc-black');
+		const highContrastSeparatorStyle = mainWindow.getComputedStyle(headerRow).borderBottomStyle;
 
-			assert.deepStrictEqual({ defaultGeometry, compactGeometry, restoredGeometry, gridGeometry, highContrastSeparatorStyle }, {
-				defaultGeometry: {
-					barWidth: 1200,
-					headerWidth: 950,
-					barHeight: '32px',
-					headerHeight: '32px',
-					headerInset: 125,
-					barPaddingInline: '0px',
-					headerPaddingLeft: '6px',
-					headerPaddingRight: '6px',
-					hasCompactClass: false,
-				},
-				compactGeometry: {
-					barWidth: 1200,
-					headerWidth: 950,
-					barHeight: '28px',
-					headerHeight: '28px',
-					headerInset: 125,
-					barPaddingInline: '0px',
-					headerPaddingLeft: '6px',
-					headerPaddingRight: '6px',
-					hasCompactClass: true,
-				},
-				restoredGeometry: {
-					barWidth: 1200,
-					headerWidth: 950,
-					barHeight: '32px',
-					headerHeight: '32px',
-					headerInset: 125,
-					barPaddingInline: '0px',
-					headerPaddingLeft: '6px',
-					headerPaddingRight: '6px',
-					hasCompactClass: false,
-				},
-				gridGeometry: {
-					barWidth: 1200,
-					headerWidth: 1200,
-					barHeight: '32px',
-					headerHeight: '32px',
-					headerInset: 0,
-					barPaddingInline: '0px',
-					headerPaddingLeft: '6px',
-					headerPaddingRight: '6px',
-					hasCompactClass: false,
-				},
-				highContrastSeparatorStyle: 'none',
-			});
-		} finally {
-			container.remove();
-		}
+		assert.deepStrictEqual({ defaultGeometry, compactGeometry, restoredGeometry, gridGeometry, highContrastSeparatorStyle }, {
+			defaultGeometry: {
+				barWidth: 1200,
+				headerWidth: 950,
+				barHeight: '32px',
+				headerHeight: '32px',
+				headerInset: 125,
+				barPaddingInline: '0px',
+				headerPaddingLeft: '6px',
+				headerPaddingRight: '6px',
+				hasCompactClass: false,
+			},
+			compactGeometry: {
+				barWidth: 1200,
+				headerWidth: 950,
+				barHeight: '28px',
+				headerHeight: '28px',
+				headerInset: 125,
+				barPaddingInline: '0px',
+				headerPaddingLeft: '6px',
+				headerPaddingRight: '6px',
+				hasCompactClass: true,
+			},
+			restoredGeometry: {
+				barWidth: 1200,
+				headerWidth: 950,
+				barHeight: '32px',
+				headerHeight: '32px',
+				headerInset: 125,
+				barPaddingInline: '0px',
+				headerPaddingLeft: '6px',
+				headerPaddingRight: '6px',
+				hasCompactClass: false,
+			},
+			gridGeometry: {
+				barWidth: 1200,
+				headerWidth: 1200,
+				barHeight: '32px',
+				headerHeight: '32px',
+				headerInset: 0,
+				barPaddingInline: '0px',
+				headerPaddingLeft: '6px',
+				headerPaddingRight: '6px',
+				hasCompactClass: false,
+			},
+			highContrastSeparatorStyle: 'none',
+		});
 	});
 
 	test('lets configured chat backgrounds show through without fading the header content', () => {
@@ -778,35 +865,32 @@ suite('Sessions - Headers', () => {
 		workbench.classList.add('monaco-workbench', 'agent-sessions-workbench');
 		workbench.style.setProperty('--session-view-background', '#202020');
 		const part = mainWindow.document.createElement('div');
-		part.classList.add('part', 'sessionspart', 'has-chat-background');
+		part.classList.add('part', 'sessionspart', 'sessions-chat-surface', 'has-chat-background');
 		part.appendChild(header.element.parentElement!);
 		workbench.appendChild(part);
 		mainWindow.document.body.appendChild(workbench);
 
-		try {
-			const backgroundStyle = mainWindow.getComputedStyle(header.element);
-			const backgroundColor = backgroundStyle.backgroundColor;
-			const opacity = backgroundStyle.opacity;
-			part.classList.remove('has-chat-background');
-			const plainBackgroundColor = mainWindow.getComputedStyle(header.element).backgroundColor;
-			part.classList.add('has-chat-background');
-			workbench.classList.add('hc-black');
-			const highContrastBackgroundColor = mainWindow.getComputedStyle(header.element).backgroundColor;
+		disposables.add(toDisposable(() => workbench.remove()));
+		const backgroundStyle = mainWindow.getComputedStyle(header.element);
+		const backgroundColor = backgroundStyle.backgroundColor;
+		const opacity = backgroundStyle.opacity;
+		part.classList.remove('has-chat-background');
+		const plainBackgroundColor = mainWindow.getComputedStyle(header.element).backgroundColor;
+		part.classList.add('has-chat-background');
+		workbench.classList.add('hc-black');
+		const highContrastBackgroundColor = mainWindow.getComputedStyle(header.element).backgroundColor;
 
-			assert.deepStrictEqual({
-				backgroundColor,
-				opacity,
-				plainBackgroundColor,
-				highContrastBackgroundColor,
-			}, {
-				backgroundColor: 'color(srgb 0.12549 0.12549 0.12549 / 0.85)',
-				opacity: '1',
-				plainBackgroundColor: 'rgb(32, 32, 32)',
-				highContrastBackgroundColor: 'rgb(32, 32, 32)',
-			});
-		} finally {
-			workbench.remove();
-		}
+		assert.deepStrictEqual({
+			backgroundColor,
+			opacity,
+			plainBackgroundColor,
+			highContrastBackgroundColor,
+		}, {
+			backgroundColor: 'color(srgb 0.12549 0.12549 0.12549 / 0.85)',
+			opacity: '1',
+			plainBackgroundColor: 'rgb(32, 32, 32)',
+			highContrastBackgroundColor: 'rgb(32, 32, 32)',
+		});
 	});
 
 	test('reports whether the inline rename could be started', () => {
@@ -836,6 +920,26 @@ suite('Sessions - Headers', () => {
 			hasInputWhenNotRenameable: false,
 			startedWhenUntitled: false,
 			hasInputWhenUntitled: false,
+		});
+	});
+
+	test('inline rename lets clipboard and editing shortcuts reach the workbench keybinding dispatcher', () => {
+		const { header } = createHarness(disposables, { supportsMultipleChats: false, supportsRename: true });
+		const bubbled: string[] = [];
+		header.element.parentElement!.addEventListener(EventType.KEY_DOWN, e => bubbled.push(e.code));
+		header.startTitleEditing();
+		const input = header.element.querySelector<HTMLInputElement>('.chat-composite-bar-session-title-input')!;
+
+		for (const code of ['KeyV', 'KeyC', 'KeyX', 'KeyA', 'KeyZ']) {
+			input.dispatchEvent(new KeyboardEvent(EventType.KEY_DOWN, { code, key: code.slice(-1).toLowerCase(), ctrlKey: true, metaKey: true, bubbles: true }));
+		}
+
+		assert.deepStrictEqual({
+			bubbled,
+			stillEditing: header.element.querySelector('.chat-composite-bar-session-title-input') === input,
+		}, {
+			bubbled: ['KeyV', 'KeyC', 'KeyX', 'KeyA', 'KeyZ'],
+			stillEditing: true,
 		});
 	});
 });

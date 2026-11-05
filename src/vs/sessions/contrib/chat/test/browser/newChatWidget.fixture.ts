@@ -101,6 +101,7 @@ import { computeIssueIcon, computePullRequestIcon, GitHubIssueState, GitHubPullR
 import { NewChatView } from '../../browser/chatView.js';
 import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_ENABLED_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_MESSAGES_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING } from '../../common/constants.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../../common/newChatContextIds.js';
+import { NEW_SESSION_BANNERS_MIN_CREATED_SESSIONS } from '../../common/newSessionBanners.js';
 import { INewSessionComposerService, INewSessionPromptOption, NewSessionComposerService, NewSessionPromptOptionsState } from '../../browser/newSessionComposerService.js';
 import { INewChatVoiceTargetService, NewChatVoiceTargetService } from '../../browser/newChatVoice.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
@@ -119,6 +120,7 @@ import { ChatSubmitAction } from '../../../../../workbench/contrib/chat/browser/
 import { ChatVoiceInputModeAction } from '../../../../../workbench/contrib/chat/browser/voiceInputMode/voiceInputModeActionViewItem.js';
 import { ModelPickerToolbarsContribution } from '../../browser/modelPicker.js';
 import { COMPOSER_SESSION_CONTROLS_ACTION_ID, SharedChatInputComposerContribution } from '../../browser/sharedChatInputComposer.contribution.js';
+import { focusedSessionHostServiceOf, stubSessionHosts } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 const DEFAULT_WIDTH = 800;
 const DEFAULT_HEIGHT = 560;
@@ -342,7 +344,7 @@ const loudChatBackground: ISessionsChatBackground = {
 
 /** Wraps the composer in the Agents Window host and paints its resolved background. */
 function createChatBackgroundPart(container: HTMLElement, disposableStore: DisposableStore, background: ISessionsChatBackground | undefined): HTMLElement {
-	const part = dom.append(container, dom.$('.part.sessionspart'));
+	const part = dom.append(container, dom.$('.part.sessionspart.sessions-chat-surface'));
 	part.style.position = 'relative';
 	part.style.width = '100%';
 	part.style.height = '100%';
@@ -431,7 +433,8 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		connectorId = 'linear',
 		connectorIds = [connectorId],
 		tipsEnabled = true,
-		expectConnectorRecommendation = connectorPrompt !== undefined && connectorRecommendationsSetting && tipsEnabled,
+		// The migration notice outranks tips below the input, connector recommendations included.
+		expectConnectorRecommendation = connectorPrompt !== undefined && connectorRecommendationsSetting && tipsEnabled && (migrationCount === 0 || ignoreMigrations),
 		dismissConnector = false,
 		focusConnectorRecommendations = false,
 	} = options;
@@ -458,7 +461,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	const composerService = disposableStore.add(new NewSessionComposerService());
 	const sessionsService = new class extends mock<ISessionsService>() {
 		override readonly initialRestoreComplete = constObservable(true);
-		override readonly activeSession = activeSessionObservable;
+		readonly activeSession = activeSessionObservable;
 	}();
 	const configurationService = new TestConfigurationService({
 		// Editor settings the composer's chat widget reads.
@@ -490,8 +493,9 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			),
 		]));
 	}
-	if (showTip || connectorRecommendations) {
-		storageService.store(AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY, 2, StorageScope.APPLICATION, StorageTarget.MACHINE);
+	// The banners below the input, tips and migration notices included, show only once the user started enough sessions.
+	if (showTip || connectorRecommendations || migrationCount > 0) {
+		storageService.store(AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY, NEW_SESSION_BANNERS_MIN_CREATED_SESSIONS, StorageScope.APPLICATION, StorageTarget.MACHINE);
 	}
 
 	const actionViewItems = new FixtureActionViewItemService();
@@ -618,6 +622,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 				override readonly onDidChangeRecentWorkspaces = Event.None;
 				override readonly historyLoadState = constObservable('loaded' as const);
 				override getRecentWorkspaces(): IRecentWorkspace[] { return activeSession ? [{ workspace, providerId: provider.id, checked: true, source: 'agents' }] : []; }
+				override getWorkspaceCatalog(): IRecentWorkspace[] { return this.getRecentWorkspaces(); }
 				override addRecentWorkspace(): void { }
 				override removeRecentWorkspace(): void { }
 				override clearCheckedWorkspace(): void { }
@@ -721,7 +726,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 				override async getSlashCommands() { return []; }
 			}());
 			reg.defineInstance(INewChatVoiceTargetService, disposableStore.add(new NewChatVoiceTargetService(
-				sessionsService,
+				focusedSessionHostServiceOf(sessionsService.activeSession),
 				new class extends mock<IChatWidgetService>() {
 					override readonly onDidChangeFocusedSession = Event.None;
 				}(),
@@ -762,6 +767,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			reg.define(ISessionsChatBackgroundService, SessionsChatBackgroundService);
 		},
 	});
+	stubSessionHosts(instantiationService, disposableStore, { session: sessionsService.activeSession });
 	if (showTip || connectorRecommendations) {
 		ChatContextKeys.foregroundSessionCount.bindTo(instantiationService.get(IContextKeyService)).set(1);
 	}
@@ -881,6 +887,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	}
 	const view = disposableStore.add(instantiationService.createInstance(NewChatView, false, {
 		initialAttachments: withAttachedContext ? createFixtureAttachments() : undefined,
+		session: activeSessionObservable,
 	}));
 	sessionViewContent.appendChild(view.element);
 	view.layout(width, height, 0, 0);
@@ -1145,18 +1152,13 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		}
 	}
 	if (showTip) {
+		// The banners below the input show one at a time, and the migration notice outranks the tip.
+		const migrationNoticeShows = migrationCount > 0 && !ignoreMigrations;
 		const tip = view.element.querySelector<HTMLElement>('.chat-tip-widget');
-		assert(!!tip && targetWindow.getComputedStyle(tip).display !== 'none' && tip.getBoundingClientRect().height > 0, 'The getting-started tip must be visible.');
-	}
-	if (connectorRecommendations && showTip && migrationCount > 0) {
-		const tip = view.element.querySelector<HTMLElement>('.chat-tip-widget');
-		const migration = view.element.querySelector<HTMLElement>('.new-chat-migration-notice');
-		assert(!!tip && !!migration && tip.getBoundingClientRect().top < migration.getBoundingClientRect().top,
-			'The contextual connector tip must replace the catalog tip and appear before the migration notice.');
-		if (!phoneLayout) {
-			assert(Math.abs(tip.getBoundingClientRect().height - migration.getBoundingClientRect().height) <= 1,
-				'The getting-started tip and migration notice must have matching heights.');
-		}
+		const tipShows = !!tip && targetWindow.getComputedStyle(tip).display !== 'none' && tip.getBoundingClientRect().height > 0;
+		assert(tipShows === !migrationNoticeShows, migrationNoticeShows
+			? 'The getting-started tip must wait while the migration notice shows.'
+			: 'The getting-started tip must be visible.');
 	}
 	if (phoneLayout) {
 		const input = view.element.querySelector<HTMLElement>('.new-chat-input-container');
@@ -1487,12 +1489,12 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 		labels: { kind: 'screenshot', blocksCi: true },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		deferPaint: true,
-		expectedVisualDescriptions: ['The contextual connector suggestion replaces the ordinary getting-started tip, followed by the migration notice in a consistently spaced stack below the composer.'],
+		expectedVisualDescriptions: ['With a contextual connector suggestion and a migration notice available, only the migration notice shows below the composer: the banners below the input show one at a time, and the notice outranks tips.'],
 		render: context => renderNewChatWidget(context, { height: 820, withWorkspace: true, migrationCount: 4, showTip: true, connectorRecommendations: true, connectorPrompt: 'Compare linear.app/a with notion.so/b and microsoft365.com/c' }),
 	}),
 	ConnectorRecommendationsShort: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['In a short desktop pane, the connector tip and migration notice retain their order while the composer remains visible.'],
+		expectedVisualDescriptions: ['In a short desktop pane, the migration notice shows below the composer instead of the connector tip, while the composer remains visible.'],
 		render: context => renderNewChatWidget(context, {
 			height: 400,
 			withWorkspace: true,
@@ -1515,7 +1517,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 	ConnectorRecommendationsPhoneWithNotices: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
 		deferPaint: true,
-		expectedVisualDescriptions: ['On a phone-sized Agents window, the contextual connector tip replaces the getting-started tip and forms a compact stack with the migration notice immediately above the bottom-pinned composer.'],
+		expectedVisualDescriptions: ['On a phone-sized Agents window, only the migration notice shows immediately above the bottom-pinned composer; the contextual connector tip waits while it shows.'],
 		render: context => renderNewChatWidget(context, { width: 390, height: 760, withWorkspace: true, withControlPickers: true, migrationCount: 4, showTip: true, connectorRecommendations: true, connectorPrompt: 'Compare linear.app/a with notion.so/b and microsoft365.com/c', welcomePhrases: true, phoneLayout: true }),
 	}),
 	NewSessionDefault: defineComponentFixture({
@@ -2006,6 +2008,7 @@ function createFixtureActiveSession(workspace: ISessionWorkspace, sessionType: I
 		override readonly status = constObservable(SessionStatus.Untitled);
 		override readonly modelId = constObservable<string | undefined>(undefined);
 		override readonly modelSource = constObservable<ChatModelSource | undefined>(undefined);
+		override readonly mode = constObservable(undefined);
 		override readonly changesets = constObservable(undefined);
 	}();
 	return new class extends mock<IActiveSession>() {

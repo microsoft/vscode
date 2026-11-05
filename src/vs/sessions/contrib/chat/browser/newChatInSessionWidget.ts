@@ -139,10 +139,8 @@ export class NewChatInSessionWidget extends Disposable {
 		);
 		this._sessionOptionsExpanded = observableValue(this, this._getInitialSessionOptionsExpanded());
 
-		this._session = derived(reader => {
-			const activeSession = this.sessionsService.activeSession.read(reader);
-			return activeSession;
-		});
+		// The session of the pane that hosts the composer.
+		this._session = _options.session ?? constObservable(undefined);
 
 		// Read per session, folder or host capability change, never per keystroke.
 		this._workspaceSupport = derived(reader => {
@@ -208,6 +206,7 @@ export class NewChatInSessionWidget extends Disposable {
 		});
 
 		this._newChatInput = this._register(this.instantiationService.createInstance(SharedChatInputComposer, {
+			inputEditorOptions: _options.inputEditorOptions,
 			session: this._session,
 			chat: this._chat,
 			sendRequest: async ({ query, attachments, background, userInteraction }) => this._send(query, attachments, background, userInteraction),
@@ -217,6 +216,7 @@ export class NewChatInSessionWidget extends Disposable {
 			loading: constObservable(false),
 			placeholder: localize('newChatInSessionPlaceholder', 'Ask a follow-up question or start a new topic within this session...'),
 			petHostPreferred: _options.petHostPreferred,
+			renderChatPet: _options.renderChatPet,
 			getChatPetPlatformElements: () => this._workspaceControls.getChatPetPlatformElements(),
 			onDidChangeChatPetPlatform: this._workspaceControls.onDidChangeChatPetPlatform,
 			renderRepositoryControls: (container, hoverDelegate) => this._workspaceControls.renderRepositoryControls(container, hoverDelegate),

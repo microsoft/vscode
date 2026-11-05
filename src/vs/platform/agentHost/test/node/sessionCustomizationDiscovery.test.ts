@@ -9,13 +9,12 @@ import { DeferredPromise, raceTimeout, timeout } from '../../../../base/common/a
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { IFileService } from '../../../files/common/files.js';
-import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { CustomizationLoadStatus, CustomizationType, type SkillCustomization } from '../../common/state/sessionState.js';
@@ -29,16 +28,14 @@ type AgentsDiscoverRequest = Parameters<CopilotClient['rpc']['agents']['discover
 
 suite('SessionCustomizationDiscovery', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let fileService: FileService;
 	let instantiationService: TestInstantiationService;
 	let workspace: URI;
 	let userHome: URI;
 
 	setup(() => {
-		fileService = disposables.add(new FileService(new NullLogService()));
-		const memFs = disposables.add(new InMemoryFileSystemProvider());
-		disposables.add(fileService.registerProvider(Schemas.inMemory, memFs));
+		fileService = createInMemoryFileService(disposables, Schemas.inMemory);
 
 		instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IFileService, fileService);
@@ -48,10 +45,6 @@ suite('SessionCustomizationDiscovery', () => {
 		userHome = URI.from({ scheme: Schemas.inMemory, path: '/home' });
 	});
 
-	teardown(() => {
-		disposables.clear();
-	});
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	async function seed(path: string, content = ''): Promise<URI> {
 		const uri = URI.from({ scheme: Schemas.inMemory, path });
@@ -77,6 +70,8 @@ suite('SessionCustomizationDiscovery', () => {
 	}
 
 	test('groups discovered customizations by parent folder', async () => {
+		await seed('/workspace/.github/agents/one.agent.md', '---\nmodel-policy: required\n---\n');
+		await seed('/workspace/.github/agents/two.agent.md', '---\nreasoning-effort: medium\n---\n');
 		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
 		const client = {
 			rpc: {
@@ -85,7 +80,7 @@ suite('SessionCustomizationDiscovery', () => {
 				agents: {
 					discover: async () => ({
 						agents: [
-							{ id: 'one', name: 'One', description: '', path: '/workspace/.github/agents/one.agent.md', userInvocable: false },
+							{ id: 'one', name: 'One', description: '', path: '/workspace/.github/agents/one.agent.md', userInvocable: false, model: 'missing', models: ['missing', 'sonnet'], reasoningEffort: 'low' },
 							{ id: 'two', name: 'Two', description: '', path: '/workspace/.github/agents/two.agent.md', userInvocable: true },
 							{ id: 'three', name: 'Three', description: '', path: '/workspace/.github/other/three.agent.md', userInvocable: false },
 						],
@@ -112,6 +107,13 @@ suite('SessionCustomizationDiscovery', () => {
 			'/workspace/.github/agents/one.agent.md',
 			'/workspace/.github/agents/two.agent.md',
 		]);
+		const agent = agentsInAgentsDir.children?.find(child => child.name === 'One');
+		assert.deepStrictEqual(agent?.type === CustomizationType.Agent ? { model: agent.model, meta: agent._meta } : undefined, {
+			model: 'missing', meta: { userInvocable: false, 'vscode.models': ['missing', 'sonnet'], 'vscode.reasoningEffort': 'low', 'vscode.modelPolicy': 'required' },
+		});
+		assert.deepStrictEqual(agentsInAgentsDir.children?.find(child => child.name === 'Two')?._meta, {
+			userInvocable: true, 'vscode.reasoningEffort': 'medium',
+		});
 	});
 
 	test('projects SDK-native GitHub marketplace plugin customizations as a plugin container', async () => {

@@ -27,12 +27,10 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 	readonly automations: IObservable<readonly IAutomationDescriptor[]>;
 	readonly runs: IObservable<readonly IAutomationRun[]>;
 	readonly isRefreshing = derived(this, reader => {
-		this.providersChanged.read(reader);
 		return this.getStores(reader).some(store => store.isRefreshing?.read(reader)
 			|| store.catalogueState.read(reader) === 'loading');
 	});
 	readonly historyState = derived(this, reader => {
-		this.providersChanged.read(reader);
 		return combineAutomationCatalogueStates(this.getStores(reader).map(store => store.historyState?.read(reader) ?? 'ready'));
 	});
 	/** Aggregate completeness, with errors taking precedence over loading, unavailability, and readiness. */
@@ -49,7 +47,6 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 		super();
 		this.providersChanged = observableSignalFromEvent(this, sessionsProvidersService.onDidChangeProviders);
 		this.catalogueState = derived(this, reader => {
-			this.providersChanged.read(reader);
 			const states = this.getStores(reader).map(store => store.catalogueState.read(reader));
 			if (!initialProvidersSettled.read(reader)) {
 				states.push('loading');
@@ -57,7 +54,6 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 			return states.length > 0 ? combineAutomationCatalogueStates(states) : 'unavailable';
 		});
 		this.unavailableProviders = derived(this, reader => {
-			this.providersChanged.read(reader);
 			return this.getAvailableProviders(reader)
 				.filter(provider => provider.automations?.enabled?.read(reader) !== false && provider.automations?.catalogueState.read(reader) === 'unavailable')
 				.map(provider => {
@@ -74,19 +70,16 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 				});
 		});
 		this.availableProviders = derived(this, reader => {
-			this.providersChanged.read(reader);
 			return this.getAvailableProviders(reader)
 				.filter(provider => !isAgentHostProvider(provider) || provider.isVisibleInEnvironmentPicker?.read(reader) !== false)
 				.filter(provider => provider.automations?.enabled?.read(reader) !== false && provider.automations?.canCreateAutomation.read(reader))
 				.map(provider => ({ id: provider.id, label: provider.label }));
 		});
 		this.automations = derived(this, reader => {
-			this.providersChanged.read(reader);
 			return this.getStores(reader).flatMap(store => [...store.automations.read(reader)])
 				.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 		});
 		this.runs = derived(this, reader => {
-			this.providersChanged.read(reader);
 			return this.getStores(reader).flatMap(store => [...store.runs.read(reader)])
 				.sort((a, b) => b.startedAt.localeCompare(a.startedAt));
 		});
@@ -224,7 +217,9 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 		await store.stopRun(run);
 	}
 
+	/** Tracks provider registration as part of catalogue selection for reactive callers. */
 	private getAvailableProviders(reader?: IReader): ISessionsProvider[] {
+		this.providersChanged.read(reader);
 		return this.sessionsProvidersService.getProviders().filter(provider => provider.supportsWorkspaceSelection !== false
 			&& (!isAgentHostProvider(provider) || isAgentHostEnvironmentAvailable(provider, reader)));
 	}

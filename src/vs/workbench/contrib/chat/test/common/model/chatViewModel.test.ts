@@ -98,9 +98,50 @@ suite('ChatViewModel', () => {
 			instantiationService.stub(IChatAgentNameService, upcastPartial<IChatAgentNameService>({}));
 		});
 
-		function add(model: ChatModel, id: string, hidden = false) {
-			return model.addRequest({ text: id, parts: [] }, { variables: [] }, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, id, undefined, undefined, undefined, undefined, undefined, hidden);
+		function add(model: ChatModel, id: string, hidden = false, requestHidden = false) {
+			return model.addRequest({ text: id, parts: [] }, { variables: [] }, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, id, undefined, undefined, undefined, undefined, undefined, hidden, undefined, requestHidden);
 		}
+
+		test('latest request preview includes queued and steering requests without older or hidden turns', () => {
+			const model = store.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			const viewModel = store.add(instantiationService.createInstance(ChatViewModel, model, { latestRequestOnly: true }));
+			const snapshot = () => viewModel.getItems().map(item => isRequestVM(item) ? `request:${item.id}` : isResponseVM(item) ? `response:${item.requestId}` : item.id);
+			const empty = snapshot();
+			add(model, 'older');
+			add(model, 'latest');
+			add(model, 'hidden', true);
+			const queued = new ChatRequestModel({ session: model, message: { text: 'queued', parts: [] }, variableData: { variables: [] }, restoredId: 'queued' });
+			const steering = new ChatRequestModel({ session: model, message: { text: 'steering', parts: [] }, variableData: { variables: [] }, restoredId: 'steering' });
+			model.addPendingRequest(queued, ChatRequestQueueKind.Queued, {});
+			model.addPendingRequest(steering, ChatRequestQueueKind.Steering, {});
+			model.setPendingRequestHandoffs([steering]);
+			const latest = snapshot();
+			model.removePendingRequest(steering.id);
+			const duringHandoff = snapshot();
+			add(model, 'new');
+			const afterNewRequest = snapshot();
+			model.setPendingRequestHandoffs([]);
+			model.removePendingRequest(queued.id);
+			assert.deepStrictEqual({ empty, latest, duringHandoff, afterNewRequest, afterQueue: snapshot() }, {
+				empty: [],
+				latest: ['request:latest', 'response:latest', 'pending-divider-steering', 'request:steering', 'pending-divider-queued', 'request:queued'],
+				duringHandoff: ['request:latest', 'response:latest', 'pending-divider-steering', 'request:steering', 'pending-divider-queued', 'request:queued'],
+				afterNewRequest: ['request:new', 'response:new', 'pending-divider-steering', 'request:steering', 'pending-divider-queued', 'request:queued'],
+				afterQueue: ['request:new', 'response:new'],
+			});
+		});
+
+		test('latest request preview does not fill a hidden request row with an older response', () => {
+			const model = store.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			const older = add(model, 'older');
+			model.acceptResponseProgress(older, { kind: 'markdownContent', content: new MarkdownString('Older response') });
+			const latest = add(model, 'latest', false, true);
+			const viewModel = store.add(instantiationService.createInstance(ChatViewModel, model, { latestRequestOnly: true }));
+			model.acceptResponseProgress(latest, { kind: 'markdownContent', content: new MarkdownString('Current response') });
+			assert.deepStrictEqual(viewModel.getItems().map(item => isResponseVM(item) ? { requestId: item.requestId, response: item.response.toString() } : { requestId: item.id }), [
+				{ requestId: 'latest', response: 'Current response' },
+			]);
+		});
 
 		test('handoff rows remain visible outside the send queue and cannot be edited', () => {
 			const model = store.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));

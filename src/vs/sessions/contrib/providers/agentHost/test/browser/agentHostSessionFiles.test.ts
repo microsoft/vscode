@@ -11,7 +11,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { fromAgentHostUri, toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { fromAgentHostUri, identityAgentHostResourceUriMapper, toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import {
 	buildChatUri,
@@ -324,6 +324,8 @@ suite('agentHostSessionFiles - per-chat subscriptions', () => {
 		const acquired: string[] = [];
 		const open = new Set<string>();
 		const connection = new class extends mock<IAgentConnection>() {
+			override readonly clientId = 'vscode';
+			override readonly resourceUris = identityAgentHostResourceUriMapper;
 			override getSubscription<T>(_kind: StateComponents, resource: URI, _owner: string): IReference<IAgentSubscription<T>> {
 				const key = resource.toString();
 				acquired.push(key);
@@ -404,6 +406,8 @@ suite('agentHostSessionFiles - per-chat subscriptions', () => {
 			override readonly onDidChange = onDidChange.event;
 		}();
 		const connection = new class extends mock<IAgentConnection>() {
+			override readonly clientId = 'vscode';
+			override readonly resourceUris = identityAgentHostResourceUriMapper;
 			override getSubscription<T>(): IReference<IAgentSubscription<T>> {
 				return { object: subscription as IAgentSubscription<T>, dispose: () => { } };
 			}
@@ -477,6 +481,8 @@ suite('agentHostSessionFiles - per-chat subscriptions', () => {
 			})],
 		});
 		const connection = new class extends mock<IAgentConnection>() {
+			override readonly clientId = 'vscode';
+			override readonly resourceUris = identityAgentHostResourceUriMapper;
 			override getSubscription<T>(component: StateComponents): IReference<IAgentSubscription<T>> {
 				const subscription = component === StateComponents.Session
 					? new class extends mock<IAgentSubscription<SessionState>>() {

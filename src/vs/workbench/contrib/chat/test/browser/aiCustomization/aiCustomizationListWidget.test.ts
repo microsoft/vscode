@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import '../../../../../browser/actions/listCommands.js';
 import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
@@ -12,7 +13,7 @@ import { derived, observableValue } from '../../../../../../base/common/observab
 import { setARIAContainer } from '../../../../../../base/browser/ui/aria/aria.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceService } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { IListService, ListService } from '../../../../../../platform/list/browser/listService.js';
 import { ColorScheme } from '../../../../../../platform/theme/common/theme.js';
@@ -21,8 +22,8 @@ import { ILabelService } from '../../../../../../platform/label/common/label.js'
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { AICustomizationListWidget, getAlwaysVisibleCustomizationGroupKeys, getCollapsedCustomizationGroupKey, getCustomizationItemAriaLabel, getMultiRootWorkspaceRelativeFilename, getTargetedCreateActionLabel, matchesCustomizationSearchQuery, usesCustomizationTreePresentation } from '../../../browser/aiCustomization/aiCustomizationListWidget.js';
-import { AICustomizationItemNormalizer, IAICustomizationListItem } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
+import { AICustomizationListWidget, getAlwaysVisibleCustomizationGroupKeys, getCollapsedCustomizationGroupKey, getCustomizationItemAriaLabel, getCustomizationSearchAriaLabel, getMultiRootWorkspaceRelativeFilename, getTargetedCreateActionLabel, usesCustomizationTreePresentation } from '../../../browser/aiCustomization/aiCustomizationListWidget.js';
+import { AICustomizationItemNormalizer, IAICustomizationListItem, ICustomizationSkillItem } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel } from '../../../browser/aiCustomization/aiCustomizationItemsModel.js';
 import { extractExtensionIdFromPath, getCustomizationSecondaryText, splitPathLabel, truncateToFirstLine } from '../../../browser/aiCustomization/aiCustomizationListWidgetUtils.js';
 import { AICustomizationManagementSection, AICustomizationScopes, AICustomizationSources, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
@@ -34,12 +35,13 @@ import { IPromptsService, PromptsStorage } from '../../../common/promptSyntax/se
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
-import { createCustomizationCardPrimaryAction, CustomizationCardListController, getVirtualizedSectionMinimumHeight, layoutVirtualizedSectionList, layoutVirtualizedSections, renderVirtualizedSectionLoadingPlaceholder, setVirtualizedRowActionsTabbable, setupCollapsibleSection } from '../../../browser/aiCustomization/customizationCardList.js';
+import { createCustomizationCardPrimaryAction, CustomizationCardListController, focusFirstCustomizationTreeItem, getVirtualizedSectionMinimumHeight, layoutVirtualizedSectionList, layoutVirtualizedSections, renderVirtualizedSectionLoadingPlaceholder, setVirtualizedRowActionsTabbable, setupCollapsibleSection, stopListRowActionKeyDownPropagation } from '../../../browser/aiCustomization/customizationCardList.js';
 import { getAICustomizationWorkspaceGroupForResource, getAICustomizationWorkspaceGroups } from '../../../browser/aiCustomization/aiCustomizationWorkspaceGroups.js';
+import { getCustomizationGroupAriaLabel } from '../../../browser/aiCustomization/customizationGroupHeaderRenderer.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 
 suite('aiCustomizationListWidget', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('uses tree presentations for the redesigned customization sections', () => {
 		assert.deepStrictEqual({
@@ -55,6 +57,52 @@ suite('aiCustomizationListWidget', () => {
 			hooks: true,
 			prompts: true,
 		});
+	});
+
+	test('provides section-specific search labels', () => {
+		assert.deepStrictEqual([
+			getCustomizationSearchAriaLabel(AICustomizationManagementSection.Agents),
+			getCustomizationSearchAriaLabel(AICustomizationManagementSection.Skills),
+			getCustomizationSearchAriaLabel(AICustomizationManagementSection.Instructions),
+			getCustomizationSearchAriaLabel(AICustomizationManagementSection.Hooks),
+			getCustomizationSearchAriaLabel(AICustomizationManagementSection.Prompts),
+		], [
+			'Search agents...',
+			'Search skills...',
+			'Search instructions...',
+			'Search hooks...',
+			'Search prompts...',
+		]);
+	});
+
+	test('group labels include their descriptions', () => {
+		assert.strictEqual(
+			getCustomizationGroupAriaLabel('User', 2, 'Customizations available across workspaces.'),
+			'User, 2 items. Customizations available across workspaces.',
+		);
+	});
+
+	test('focuses the first item when a customization tree receives focus', () => {
+		type Entry = { type: 'group-header' } | { type: 'item'; id: string };
+		const group: Entry = { type: 'group-header' };
+		const firstItem: Entry = { type: 'item', id: 'first' };
+		const secondItem: Entry = { type: 'item', id: 'second' };
+		let focus: Entry[] = [];
+		const focusChanges: Entry[][] = [];
+		const list = {
+			getFocus: () => focus,
+			setFocus: (entries: Entry[]) => {
+				focus = entries;
+				focusChanges.push(entries);
+			},
+		};
+
+		focusFirstCustomizationTreeItem(list, [group, firstItem, secondItem], entry => entry.type === 'item');
+		focusFirstCustomizationTreeItem(list, [group, firstItem, secondItem], entry => entry.type === 'item');
+		focus = [];
+		focusFirstCustomizationTreeItem(list, [group], entry => entry.type === 'item');
+
+		assert.deepStrictEqual(focusChanges, [[firstItem], [group]]);
 	});
 
 	test('keeps editable source sections visible until search filtering starts', () => {
@@ -76,17 +124,31 @@ suite('aiCustomizationListWidget', () => {
 
 	});
 
-	test('matches customization search word separators while preserving substring matching', () => {
+	test('search filter matches dashed and spaced queries with highlights', () => {
+		const items = [
+			{ id: '1', uri: URI.file('/skills/typescript-setup/SKILL.md'), name: 'typescript-setup', filename: 'SKILL.md', description: 'Set up TypeScript', promptType: PromptsType.skill, storage: PromptsStorage.local },
+			{ id: '2', uri: URI.file('/skills/other/SKILL.md'), name: 'other', filename: 'SKILL.md', description: 'Unrelated', promptType: PromptsType.skill, storage: PromptsStorage.local },
+			{
+				id: '3', uri: URI.parse('mcp-resource:/skills/review'), name: 'review', filename: 'SKILL.md', promptType: PromptsType.skill, storage: PromptsStorage.user,
+				skillBundle: { id: 'server', name: 'TypeScript Setup', description: 'MCP Server', namePrefix: 'server:' }
+			},
+		] as unknown as IAICustomizationListItem[];
+		const filter = (searchQuery: string) => (AICustomizationListWidget.prototype as unknown as {
+			applySearchFilter(this: { searchQuery: string }, items: readonly IAICustomizationListItem[]): IAICustomizationListItem[];
+		}).applySearchFilter.call({ searchQuery }, items).map(item => [item.name, item.nameMatches]);
+
 		assert.deepStrictEqual({
-			spaceSeparated: matchesCustomizationSearchQuery('session timeline', 'session-timeline'),
-			hyphenated: matchesCustomizationSearchQuery('session-timeline', 'session-timeline'),
-			substring: matchesCustomizationSearchQuery('timeline', 'session-timeline'),
-			reordered: matchesCustomizationSearchQuery('timeline session', 'session-timeline'),
+			spaced: filter('typescript setup'),
+			dashed: filter('typescript-setup'),
+			underscored: filter('TypeScript_Setup'),
+			mcpSpaced: filter('mcp server'),
+			mcpDashed: filter('mcp-server'),
 		}, {
-			spaceSeparated: [{ start: 0, end: 7 }, { start: 8, end: 16 }],
-			hyphenated: [{ start: 0, end: 16 }],
-			substring: [{ start: 8, end: 16 }],
-			reordered: null,
+			spaced: [['typescript-setup', [{ start: 0, end: 10 }, { start: 11, end: 16 }]], ['review', undefined]],
+			dashed: [['typescript-setup', [{ start: 0, end: 16 }]], ['review', undefined]],
+			underscored: [['typescript-setup', [{ start: 0, end: 16 }]], ['review', undefined]],
+			mcpSpaced: [['review', undefined]],
+			mcpDashed: [['review', undefined]],
 		});
 	});
 
@@ -170,7 +232,7 @@ suite('aiCustomizationListWidget', () => {
 	});
 
 	test('collapsible sections are expanded by default and only the disclosure toggles them', () => {
-		const disposables = new DisposableStore();
+		const disposables = store.add(new DisposableStore());
 		const heading = document.createElement('div');
 		const content = document.createElement('div');
 		const headerAction = document.createElement('button');
@@ -178,65 +240,61 @@ suite('aiCustomizationListWidget', () => {
 		const changes: boolean[] = [];
 		const toggle = setupCollapsibleSection(heading, content, 'Workspace', disposables, false, collapsed => changes.push(collapsed));
 
-		try {
-			headerAction.click();
-			const initiallyExpanded = {
-				expanded: toggle.getAttribute('aria-expanded'),
-				controlsContent: toggle.getAttribute('aria-controls') === content.id,
-				hidden: content.hidden,
-				display: content.style.display,
-				changes: [...changes],
-			};
-			toggle.click();
-			const collapsed = {
+		headerAction.click();
+		const initiallyExpanded = {
+			expanded: toggle.getAttribute('aria-expanded'),
+			controlsContent: toggle.getAttribute('aria-controls') === content.id,
+			hidden: content.hidden,
+			display: content.style.display,
+			changes: [...changes],
+		};
+		toggle.click();
+		const collapsed = {
+			expanded: toggle.getAttribute('aria-expanded'),
+			label: toggle.getAttribute('aria-label'),
+			hidden: content.hidden,
+			display: content.style.display,
+			changes: [...changes],
+		};
+		toggle.click();
+
+		assert.deepStrictEqual({
+			initiallyExpanded,
+			collapsed,
+			expandedAgain: {
 				expanded: toggle.getAttribute('aria-expanded'),
 				label: toggle.getAttribute('aria-label'),
 				hidden: content.hidden,
 				display: content.style.display,
-				changes: [...changes],
-			};
-			toggle.click();
-
-			assert.deepStrictEqual({
-				initiallyExpanded,
-				collapsed,
-				expandedAgain: {
-					expanded: toggle.getAttribute('aria-expanded'),
-					label: toggle.getAttribute('aria-label'),
-					hidden: content.hidden,
-					display: content.style.display,
-					changes,
-				},
-			}, {
-				initiallyExpanded: {
-					expanded: 'true',
-					controlsContent: true,
-					hidden: false,
-					display: '',
-					changes: [],
-				},
-				collapsed: {
-					expanded: 'false',
-					label: 'Expand Workspace',
-					hidden: true,
-					display: 'none',
-					changes: [true],
-				},
-				expandedAgain: {
-					expanded: 'true',
-					label: 'Collapse Workspace',
-					hidden: false,
-					display: '',
-					changes: [true, false],
-				},
-			});
-		} finally {
-			disposables.dispose();
-		}
+				changes,
+			},
+		}, {
+			initiallyExpanded: {
+				expanded: 'true',
+				controlsContent: true,
+				hidden: false,
+				display: '',
+				changes: [],
+			},
+			collapsed: {
+				expanded: 'false',
+				label: 'Expand Workspace',
+				hidden: true,
+				display: 'none',
+				changes: [true],
+			},
+			expandedAgain: {
+				expanded: 'true',
+				label: 'Collapse Workspace',
+				hidden: false,
+				display: '',
+				changes: [true, false],
+			},
+		});
 	});
 
 	test('collapsible sections create disclosures outside auxiliary document realms', () => {
-		const disposables = new DisposableStore();
+		const disposables = store.add(new DisposableStore());
 		const auxiliaryDocument = document.implementation.createHTMLDocument();
 		const heading = auxiliaryDocument.createElement('div');
 		const content = auxiliaryDocument.createElement('div');
@@ -247,20 +305,16 @@ suite('aiCustomizationListWidget', () => {
 			},
 		});
 
-		try {
-			const toggle = setupCollapsibleSection(heading, content, 'Workspace', disposables, false, () => { });
-			assert.deepStrictEqual({
-				ownerDocument: toggle.ownerDocument === auxiliaryDocument,
-				parent: toggle.parentElement === heading,
-				expanded: toggle.getAttribute('aria-expanded'),
-			}, {
-				ownerDocument: true,
-				parent: true,
-				expanded: 'true',
-			});
-		} finally {
-			disposables.dispose();
-		}
+		const toggle = setupCollapsibleSection(heading, content, 'Workspace', disposables, false, () => { });
+		assert.deepStrictEqual({
+			ownerDocument: toggle.ownerDocument === auxiliaryDocument,
+			parent: toggle.parentElement === heading,
+			expanded: toggle.getAttribute('aria-expanded'),
+		}, {
+			ownerDocument: true,
+			parent: true,
+			expanded: 'true',
+		});
 	});
 
 	test('collapsed groups are scoped to their customization page', () => {
@@ -331,6 +385,27 @@ suite('aiCustomizationListWidget', () => {
 			focused: [0, 0, -1],
 			unfocused: [-1, -1, -1],
 		});
+	});
+
+	test('virtualized row actions isolate keyboard activation from the list', () => {
+		const row = document.createElement('div');
+		const actions = document.createElement('div');
+		const action = document.createElement('button');
+		actions.appendChild(action);
+		row.appendChild(actions);
+		const disposable = stopListRowActionKeyDownPropagation(actions);
+		const bubbledKeys: string[] = [];
+		row.addEventListener('keydown', event => bubbledKeys.push(event.key));
+		const enterEvent = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+		const escapeEvent = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+
+		store.add(toDisposable(() => disposable.dispose()));
+		action.dispatchEvent(enterEvent);
+		action.dispatchEvent(escapeEvent);
+		assert.deepStrictEqual(
+			{ bubbledKeys, enterDefaultPrevented: enterEvent.defaultPrevented, escapeDefaultPrevented: escapeEvent.defaultPrevented },
+			{ bubbledKeys: ['Escape'], enterDefaultPrevented: false, escapeDefaultPrevented: false },
+		);
 	});
 
 	test('virtualized section height is redistributed when a sibling collapses', () => {
@@ -476,7 +551,7 @@ suite('aiCustomizationListWidget', () => {
 	});
 
 	test('card lists use roving focus and expose focused-row actions', async () => {
-		const disposables = new DisposableStore();
+		const disposables = store.add(new DisposableStore());
 		const list = document.createElement('div');
 		document.body.appendChild(list);
 		const controller = disposables.add(new CustomizationCardListController(list, 'Customizations'));
@@ -506,47 +581,43 @@ suite('aiCustomizationListWidget', () => {
 		controller.addItem({ row: remoteRow, primaryAction: remoteRow, label: 'Remote', actions: [remoteAction], contextMenuAction: remoteAction });
 		controller.finalize();
 
-		try {
-			alpha.primaryAction.focus();
-			alpha.primaryAction.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
-			beta.primaryAction.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
-			beta.action.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true }));
-			const spaceKeyEvent = new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true });
-			beta.primaryAction.dispatchEvent(spaceKeyEvent);
-			disabledActionPrimary.focus();
-			disabledActionPrimary.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }));
-			const disabledActionTabTarget = document.activeElement;
-			beta.primaryAction.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', bubbles: true }));
-			enabledAction.tabIndex = 0;
-			await new Promise(resolve => setTimeout(resolve, 0));
+		store.add(toDisposable(() => list.remove()));
+		alpha.primaryAction.focus();
+		alpha.primaryAction.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+		beta.primaryAction.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+		beta.action.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true }));
+		const spaceKeyEvent = new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true });
+		beta.primaryAction.dispatchEvent(spaceKeyEvent);
+		disabledActionPrimary.focus();
+		disabledActionPrimary.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }));
+		const disabledActionTabTarget = document.activeElement;
+		beta.primaryAction.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', bubbles: true }));
+		enabledAction.tabIndex = 0;
+		await new Promise(resolve => setTimeout(resolve, 0));
 
-			assert.deepStrictEqual({
-				listRole: list.getAttribute('role'),
-				rowRoles: [alpha.row.getAttribute('role'), beta.row.getAttribute('role'), disabledActionRow.getAttribute('role'), remoteRow.getAttribute('role')],
-				positions: [alpha.row.getAttribute('aria-posinset'), beta.row.getAttribute('aria-posinset')],
-				remotePosition: remoteRow.getAttribute('aria-posinset'),
-				setSizes: [alpha.row.getAttribute('aria-setsize'), beta.row.getAttribute('aria-setsize'), disabledActionRow.getAttribute('aria-setsize'), remoteRow.getAttribute('aria-setsize')],
-				tabIndexes: [alpha.primaryAction.tabIndex, beta.primaryAction.tabIndex, remoteRow.tabIndex, alpha.action.tabIndex, beta.action.tabIndex, remoteAction.tabIndex],
-				spaceDefaultPrevented: spaceKeyEvent.defaultPrevented,
-				disabledActionTabIndexes: [disabledAction.tabIndex, enabledAction.tabIndex],
-				disabledActionTabTarget,
-				activeElement: document.activeElement,
-			}, {
-				listRole: 'list',
-				rowRoles: ['listitem', 'listitem', 'listitem', 'listitem'],
-				positions: ['1', '2'],
-				remotePosition: '4',
-				setSizes: ['4', '4', '4', '4'],
-				tabIndexes: [0, -1, -1, -1, -1, -1],
-				spaceDefaultPrevented: false,
-				disabledActionTabIndexes: [-1, -1],
-				disabledActionTabTarget: enabledAction,
-				activeElement: alpha.primaryAction,
-			});
-		} finally {
-			disposables.dispose();
-			list.remove();
-		}
+		assert.deepStrictEqual({
+			listRole: list.getAttribute('role'),
+			rowRoles: [alpha.row.getAttribute('role'), beta.row.getAttribute('role'), disabledActionRow.getAttribute('role'), remoteRow.getAttribute('role')],
+			positions: [alpha.row.getAttribute('aria-posinset'), beta.row.getAttribute('aria-posinset')],
+			remotePosition: remoteRow.getAttribute('aria-posinset'),
+			setSizes: [alpha.row.getAttribute('aria-setsize'), beta.row.getAttribute('aria-setsize'), disabledActionRow.getAttribute('aria-setsize'), remoteRow.getAttribute('aria-setsize')],
+			tabIndexes: [alpha.primaryAction.tabIndex, beta.primaryAction.tabIndex, remoteRow.tabIndex, alpha.action.tabIndex, beta.action.tabIndex, remoteAction.tabIndex],
+			spaceDefaultPrevented: spaceKeyEvent.defaultPrevented,
+			disabledActionTabIndexes: [disabledAction.tabIndex, enabledAction.tabIndex],
+			disabledActionTabTarget,
+			activeElement: document.activeElement,
+		}, {
+			listRole: 'list',
+			rowRoles: ['listitem', 'listitem', 'listitem', 'listitem'],
+			positions: ['1', '2'],
+			remotePosition: '4',
+			setSizes: ['4', '4', '4', '4'],
+			tabIndexes: [0, -1, -1, -1, -1, -1],
+			spaceDefaultPrevented: false,
+			disabledActionTabIndexes: [-1, -1],
+			disabledActionTabTarget: enabledAction,
+			activeElement: alpha.primaryAction,
+		});
 	});
 
 	suite('truncateToFirstLine', () => {
@@ -619,6 +690,22 @@ suite('aiCustomizationListWidget', () => {
 				'prompt.md'
 			);
 		});
+	});
+
+	test('keeps MCP skill invocation names while shortening bundle child labels', () => {
+		const normalizer = new AICustomizationItemNormalizer(new class extends mock<ILabelService>() { }(), new class extends mock<IProductService>() { }());
+		const skillBundle = { id: 'opaque-server-id', name: 'Skills from Demo', description: 'MCP Server', namePrefix: 'demo:' };
+		const items: ICustomizationSkillItem[] = ['demo:review-changes', 'demo:review:changes', 'unprefixed'].map(name => ({
+			uri: URI.parse(`mcp-resource:/skills/${name}`), type: PromptsType.skill, name, source: PromptsStorage.plugin, groupKey: PromptsStorage.user,
+			extensionId: undefined, pluginUri: undefined, skillBundle,
+		}));
+		assert.deepStrictEqual(items.map(item => normalizer.normalizeItem(item, PromptsType.skill)).map(item => ({
+			name: item.name, displayName: item.displayName, bundle: item.skillBundle,
+		})), [
+			{ name: 'demo:review-changes', displayName: 'review-changes', bundle: skillBundle },
+			{ name: 'demo:review:changes', displayName: 'review:changes', bundle: skillBundle },
+			{ name: 'unprefixed', displayName: 'unprefixed', bundle: skillBundle },
+		]);
 	});
 
 	test('normalizes remote workspace customization locations through the label service', () => {
@@ -1099,6 +1186,126 @@ suite('aiCustomizationListWidget', () => {
 					{ name: 'Plain Skill', image: undefined, fallbackDisplay: '', visibleChildren: 1 },
 				],
 				withoutMarketplaceIcon: false,
+			});
+		});
+
+		test('expands MCP skill bundles in their source group and keeps children openable', async () => {
+			const listService = disposables.add(new ListService());
+			instaService.stub(IListService, listService);
+			const normalizer = new AICustomizationItemNormalizer(new class extends mock<ILabelService>() { }(), new class extends mock<IProductService>() { }());
+			const skillBundle = { id: 'opaque-server-id', name: 'Skills from Demo', description: 'MCP Server', namePrefix: 'demo:' };
+			const skills: ICustomizationSkillItem[] = ['review-changes', 'disabled'].map(name => ({
+				uri: URI.parse(`mcp-resource:/skills/${name}/SKILL.md`), type: PromptsType.skill, name: `demo:${name}`, source: PromptsStorage.plugin, groupKey: PromptsStorage.user,
+				enabled: name !== 'disabled', extensionId: undefined, pluginUri: undefined, skillBundle,
+			}));
+			const items = observableValue<readonly IAICustomizationListItem[]>('skills', normalizer.normalizeItems(skills, PromptsType.skill));
+			instaService.stub(IAICustomizationItemsModel, {
+				getItems: () => items,
+				getCount: () => observableValue('test', 1),
+				getPluginCount: () => observableValue('test', 0),
+				whenSectionLoaded: async () => { },
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => skills, fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+			});
+			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+			document.body.appendChild(widget.element);
+			disposables.add(toDisposable(() => widget.element.remove()));
+			const selections: string[] = [];
+			disposables.add(widget.onDidSelectItem(item => selections.push(`${item.name} ${item.uri.toString()}`)));
+			setLayoutHeights(widget, 500);
+			await widget.setSection(AICustomizationManagementSection.Skills);
+			widget.layout(800, 500);
+			widget.focusList();
+			const labels = () => [...widget.element.querySelectorAll('.item-name')].map(element => element.textContent);
+			const bundleRow = () => widget.element.querySelector('.item-name')!.closest<HTMLElement>('.monaco-list-row')!;
+			const collapsed = {
+				labels: labels(),
+				group: bundleRow().previousElementSibling?.querySelector('.group-label')?.textContent,
+				description: bundleRow().querySelector('.item-description')?.textContent,
+				expanded: bundleRow().getAttribute('aria-expanded'),
+				level: bundleRow().getAttribute('aria-level'),
+			};
+			bundleRow().querySelector('.item-name')!.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+			const expanded = {
+				labels: labels(),
+				expanded: bundleRow().getAttribute('aria-expanded'),
+				disabled: [...widget.element.querySelectorAll('.ai-customization-list-item.disabled .item-name')].map(element => element.textContent),
+			};
+			widget.element.querySelectorAll('.item-name')[2].dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+			widget.refresh();
+			const afterRefresh = labels();
+			bundleRow().querySelector('.item-name')!.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+			const list = widget.element.querySelector<HTMLElement>('.monaco-list')!;
+			list.focus();
+			list.dispatchEvent(new FocusEvent('focus'));
+			const activeDescendant = list.getAttribute('aria-activedescendant');
+			const focusedRow = activeDescendant ? document.getElementById(activeDescendant) : undefined;
+			const keyboardFocus = focusedRow?.querySelector('.item-name')?.textContent;
+			// Workbench trees route ArrowRight through keybindings, not their built-in DOM keyboard controller.
+			await instaService.invokeFunction(CommandsRegistry.getCommand('list.expand')!.handler);
+			assert.deepStrictEqual({ collapsed, expanded, selections, afterRefresh, keyboardFocus, afterKeyboardExpand: labels() }, {
+				collapsed: { labels: ['Skills from Demo'], group: 'User', description: 'MCP Server', expanded: 'false', level: '2' },
+				expanded: { labels: ['Skills from Demo', 'disabled', 'review-changes'], expanded: 'true', disabled: ['disabled'] },
+				selections: ['demo:review-changes mcp-resource:/skills/review-changes/SKILL.md'],
+				afterRefresh: ['Skills from Demo', 'disabled', 'review-changes'],
+				keyboardFocus: 'Skills from Demo',
+				afterKeyboardExpand: ['Skills from Demo', 'disabled', 'review-changes'],
+			});
+		});
+
+		test('filters MCP skills by bundle identity, expands its source group and clears through search', async () => {
+			const listService = disposables.add(new ListService());
+			instaService.stub(IListService, listService);
+			const normalizer = new AICustomizationItemNormalizer(new class extends mock<ILabelService>() { }(), new class extends mock<IProductService>() { }());
+			const skills: ICustomizationSkillItem[] = ['target', 'same-name'].map(id => ({
+				uri: URI.parse(`mcp-resource:/skills/${id}/SKILL.md`), type: PromptsType.skill, name: `${id}:review-changes`, source: PromptsStorage.plugin, groupKey: PromptsStorage.user,
+				enabled: true, extensionId: undefined, pluginUri: undefined,
+				skillBundle: { id, name: 'Skills from test-skills', description: 'MCP Server', namePrefix: `${id}:` },
+			}));
+			const items = observableValue<readonly IAICustomizationListItem[]>('skills', normalizer.normalizeItems(skills, PromptsType.skill));
+			instaService.stub(IAICustomizationItemsModel, {
+				getItems: () => items,
+				getCount: () => observableValue('test', 2),
+				getPluginCount: () => observableValue('test', 0),
+				whenSectionLoaded: async () => { },
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => skills, fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+			});
+			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+			document.body.appendChild(widget.element);
+			disposables.add(toDisposable(() => widget.element.remove()));
+			setLayoutHeights(widget, 500);
+			await widget.setSection(AICustomizationManagementSection.Skills);
+			widget.layout(800, 500);
+			const labels = () => [...widget.element.querySelectorAll('.item-name')].map(element => element.textContent);
+			const list = widget.element.querySelector<HTMLElement>('.monaco-list')!;
+			widget.focusList();
+			list.focus();
+			list.dispatchEvent(new FocusEvent('focus'));
+			await instaService.invokeFunction(CommandsRegistry.getCommand('list.collapse')!.handler);
+			await instaService.invokeFunction(CommandsRegistry.getCommand('list.collapse')!.handler);
+			const collapsedGroup = labels();
+			widget.showSkillBundle('target');
+			const filtered = {
+				labels: labels(),
+				search: widget.element.querySelector<HTMLInputElement>('input')?.value,
+				expanded: widget.element.querySelector('.item-name')?.closest('.monaco-list-row')?.getAttribute('aria-expanded'),
+				focused: document.getElementById(list.getAttribute('aria-activedescendant')!)?.querySelector('.item-name')?.textContent,
+			};
+			const selected: string[] = [];
+			disposables.add(widget.onDidSelectItem(item => selected.push(item.uri.toString())));
+			widget.element.querySelectorAll('.item-name')[1].dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+			widget.refresh();
+			const afterRefresh = labels();
+			widget.setSearchQuery('review changes');
+			const afterEditingSearch = labels();
+			widget.showSkillBundle('target');
+			widget.clearSearch();
+			assert.deepStrictEqual({ collapsedGroup, filtered, selected, afterRefresh, afterEditingSearch, cleared: labels() }, {
+				collapsedGroup: [],
+				filtered: { labels: ['Skills from test-skills', 'review-changes'], search: 'Skills from test-skills', expanded: 'true', focused: 'Skills from test-skills' },
+				selected: ['mcp-resource:/skills/target/SKILL.md'],
+				afterRefresh: ['Skills from test-skills', 'review-changes'],
+				afterEditingSearch: ['Skills from test-skills', 'review-changes', 'Skills from test-skills', 'review-changes'],
+				cleared: ['Skills from test-skills', 'Skills from test-skills'],
 			});
 		});
 
