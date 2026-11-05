@@ -4,6 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { DeferredPromise } from '../../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../base/common/errors.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { ExtUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -11,12 +15,12 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { TestId } from '../../common/testId.js';
 import { MainThreadTestCollection } from '../../common/mainThreadTestCollection.js';
-import { ITestService, simplifyTestsToExecute, testsInFile } from '../../common/testService.js';
-import { TestDiffOpType, TestItemExpandState } from '../../common/testTypes.js';
+import { ITestService, simplifyTestsToExecute, testsInFile, waitForTestToBeIdle } from '../../common/testService.js';
+import { TestDiffOpType, TestItemExpandState, TestsDiff } from '../../common/testTypes.js';
 import { TestTestCollection, TestTestItem, getInitializedMainTestCollection, makeSimpleStubTree } from './testStubs.js';
 
 suite('Workbench - Test Service', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const ds = ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('simplifyTestsToExecute', () => {
 		const tree1 = {
@@ -113,6 +117,52 @@ suite('Workbench - Test Service', () => {
 	});
 
 	suite('testsInFile', () => {
+		function createExpandableCollection(expand: () => Promise<void>) {
+			const ident = upcastPartial<IUriIdentityService>({ asCanonicalUri: uri => uri, extUri: new ExtUri(() => false) });
+			const collection = new MainThreadTestCollection(ident, expand);
+			collection.apply([{
+				op: TestDiffOpType.Add,
+				item: {
+					controllerId: 'ctrlId',
+					expand: TestItemExpandState.Expandable,
+					item: new TestTestItem(new TestId(['ctrlId']), 'root', URI.file('/workspace')).toTestItem(),
+				},
+			}]);
+			const service = upcastPartial<ITestService>({ collection });
+			return { ident, service, collection };
+		}
+
+		test('propagates expansion errors instead of reporting completed empty discovery', async () => {
+			const { ident, service } = createExpandableCollection(async () => { throw new Error('Discovery failed'); });
+			await assert.rejects(async () => {
+				for await (const _batch of testsInFile(service, ident, URI.file('/workspace/test.ts'))) {
+					assert.fail('failed discovery must not yield tests');
+				}
+			}, /Discovery failed/);
+		});
+
+		test('cancels an in-flight expansion without waiting for the provider', async () => {
+			const started = new DeferredPromise<void>();
+			const { ident, service } = createExpandableCollection(async () => {
+				void started.complete();
+				await new Promise<void>(() => { });
+			});
+			const token = ds.add(new CancellationTokenSource());
+			const iterator = testsInFile(service, ident, URI.file('/workspace/test.ts'), true, false, token.token)[Symbol.asyncIterator]();
+			const pending = iterator.next();
+			await started.p;
+			token.cancel();
+			await assert.rejects(pending, CancellationError);
+		});
+
+		test('does not start discovery with a pre-cancelled token', async () => {
+			let expanded = false;
+			const { ident, service } = createExpandableCollection(async () => { expanded = true; });
+			const iterator = testsInFile(service, ident, URI.file('/workspace/test.ts'), true, false, CancellationToken.Cancelled)[Symbol.asyncIterator]();
+			await assert.rejects(iterator.next(), CancellationError);
+			assert.strictEqual(expanded, false);
+		});
+
 		test('canonicalizes URI before comparing with stored test URIs (#275268)', async () => {
 			const canonicalUri = URI.from({ scheme: 'vscode-remote', authority: 'wsl+Ubuntu', path: '/home/user/test.py' });
 			const rawUri = URI.file('/home/user/test.py');
@@ -219,6 +269,46 @@ suite('Workbench - Test Service', () => {
 			}
 
 			assert.deepStrictEqual(found, [testId]);
+		});
+
+		suite('waitForTestToBeIdle', () => {
+			async function createBusyTest() {
+				const collection = await getInitializedMainTestCollection(makeSimpleStubTree({ a: undefined }));
+				const test = collection.getNodeById(new TestId(['ctrlId', 'a']).toString())!;
+				collection.apply([{ op: TestDiffOpType.Update, item: { extId: test.item.extId, item: { busy: true } } }]);
+				const diffs = ds.add(new Emitter<TestsDiff>());
+				const service = upcastPartial<ITestService>({ collection, onDidProcessDiff: diffs.event });
+				return { collection, test, diffs, service };
+			}
+
+			test('releases its diff listener on cancellation', async () => {
+				const { test, diffs, service } = await createBusyTest();
+				const token = ds.add(new CancellationTokenSource());
+				const pending = waitForTestToBeIdle(service, test, token.token);
+				token.cancel();
+				await assert.rejects(pending!, CancellationError);
+				assert.strictEqual(diffs.hasListeners(), false);
+			});
+
+			test('preserves the default wait-until-idle behavior and releases its listener', async () => {
+				const { collection, test, diffs, service } = await createBusyTest();
+				const pending = waitForTestToBeIdle(service, test);
+				const diff: TestsDiff = [{ op: TestDiffOpType.Update, item: { extId: test.item.extId, item: { busy: false } } }];
+				collection.apply(diff);
+				diffs.fire(diff);
+				await pending;
+				assert.strictEqual(diffs.hasListeners(), false);
+			});
+
+			test('releases its listener when the busy test is removed', async () => {
+				const { collection, test, diffs, service } = await createBusyTest();
+				const pending = waitForTestToBeIdle(service, test);
+				const diff: TestsDiff = [{ op: TestDiffOpType.Remove, itemId: test.item.extId }];
+				collection.apply(diff);
+				diffs.fire(diff);
+				await pending;
+				assert.strictEqual(diffs.hasListeners(), false);
+			});
 		});
 	});
 });

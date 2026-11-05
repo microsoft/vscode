@@ -6,6 +6,7 @@
 import { IReader } from '../../../../../base/common/observable.js';
 import { getCustomizationScopeEnablement, type CustomizationDisabledReason } from '../../../../../platform/agentHost/common/customizationEnablement.js';
 import { isContributionEnabled } from '../../common/enablement.js';
+import { customizationSearchMatchesAny } from '../../common/aiCustomizationSearch.js';
 import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
 import { IMcpServer } from '../../../mcp/common/mcpTypes.js';
 
@@ -51,8 +52,22 @@ export class ActiveSessionMcpServerMatcher {
 		return undefined;
 	}
 
+	takeConnector(keys: readonly (string | undefined)[], displayNames: readonly (string | undefined)[]): AgentHostMcpServer | undefined {
+		const exactMatch = this.take(keys);
+		if (exactMatch) {
+			return exactMatch;
+		}
+		const names = new Set(getUniqueMcpMatchKeys(displayNames));
+		const matches = this.servers.filter(server => !this.matchedIds.has(server.id) && server.displayName !== undefined && names.has(server.displayName));
+		if (matches.length === 1) {
+			this.matchedIds.add(matches[0].id);
+			return matches[0];
+		}
+		return undefined;
+	}
+
 	unmatched(query: string): AgentHostMcpServer[] {
-		return this.servers.filter(server => !this.matchedIds.has(server.id) && (!query || server.name.toLowerCase().includes(query)));
+		return this.servers.filter(server => !this.matchedIds.has(server.id) && customizationSearchMatchesAny(query, [server.name, server.displayName]));
 	}
 }
 

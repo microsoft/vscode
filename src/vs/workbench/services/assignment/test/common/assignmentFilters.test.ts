@@ -8,6 +8,7 @@ import { ICopilotTokenInfo } from '../../../../../base/common/defaultAccount.js'
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { isInternalAccount } from '../../../../../platform/assignment/common/assignment.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IExtensionDescription } from '../../../../../platform/extensions/common/extensions.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -154,6 +155,11 @@ suite('GitHubCoreAssignmentsFilterProvider', () => {
 
 		override copilotTrackingId: string | undefined;
 		override organisations: string[] | undefined;
+		isStaff: boolean | undefined;
+
+		override get isInternal(): boolean {
+			return isInternalAccount(this.isStaff, this.organisations);
+		}
 
 		fireChange(): void {
 			this._onDidChangeEntitlement.fire();
@@ -201,19 +207,62 @@ suite('GitHubCoreAssignmentsFilterProvider', () => {
 
 	test('reflects organization classification changes', () => {
 		const entitlement = new TestChatEntitlementService();
-		entitlement.organisations = undefined;
-
 		const provider = createProvider(entitlement);
+		const organizations = [
+			undefined,
+			['microsoft'],
+			['github'],
+			['Visual-Studio-Code'],
+			['microsoft', 'github', 'Visual-Studio-Code'],
+			['unrecognized-org'],
+			[],
+			undefined,
+		];
 
-		assert.strictEqual(provider.getFilterValue(GitHubAssignmentsFilter.IsGhOrMsftStaff), '0');
-		assert.strictEqual(provider.getFilterValue(GitHubAssignmentsFilter.GhMsftOrExternal), 'external');
+		assert.deepStrictEqual(organizations.map(organisations => {
+			entitlement.organisations = organisations;
+			entitlement.fireChange();
+			const filters = provider.getFilters();
+			return [
+				filters.get(GitHubAssignmentsFilter.GhMsftOrExternal),
+				filters.get(GitHubAssignmentsFilter.IsGhOrMsftStaff),
+			];
+		}), [
+			['external', '0'],
+			['microsoft', '1'],
+			['github', '1'],
+			['vscode', '1'],
+			['vscode', '1'],
+			['external', '0'],
+			['external', '0'],
+			['external', '0'],
+		]);
+	});
 
-		entitlement.organisations = ['microsoft'];
-		assert.strictEqual(provider.getFilterValue(GitHubAssignmentsFilter.IsGhOrMsftStaff), '1');
-		assert.strictEqual(provider.getFilterValue(GitHubAssignmentsFilter.GhMsftOrExternal), 'microsoft');
+	test('includes staff without internal organizations and notifies on staff-only changes', () => {
+		const entitlement = new TestChatEntitlementService();
+		entitlement.organisations = ['contoso'];
+		entitlement.isStaff = true;
+		const provider = createProvider(entitlement);
+		let changes = 0;
+		disposables.add(provider.onDidChangeFilters(() => changes++));
 
-		entitlement.organisations = ['Visual-Studio-Code'];
-		assert.strictEqual(provider.getFilterValue(GitHubAssignmentsFilter.GhMsftOrExternal), 'microsoft');
+		assert.deepStrictEqual([true, false, false, true, undefined].map(isStaff => {
+			entitlement.isStaff = isStaff;
+			entitlement.fireChange();
+			const filters = provider.getFilters();
+			return [
+				filters.get(GitHubAssignmentsFilter.IsGhOrMsftStaff),
+				filters.get(GitHubAssignmentsFilter.GhMsftOrExternal),
+				changes,
+			];
+		}), [
+			['1', 'external', 0],
+			['0', 'external', 1],
+			['0', 'external', 1],
+			['1', 'external', 2],
+			['0', 'external', 3],
+		]);
 	});
 
 	test('fires onDidChangeFilters only when relevant inputs change', () => {

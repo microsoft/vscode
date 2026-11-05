@@ -177,6 +177,12 @@ export interface IProductConfiguration {
 	readonly trustedExtensionPublishers?: readonly string[];
 
 	readonly extensionRecommendations?: IStringDictionary<IExtensionRecommendations>;
+	readonly connectorRecommendations?: IStringDictionary<{
+		readonly name: string;
+		readonly description: string;
+		readonly iconUrl: string;
+		readonly urls?: readonly string[];
+	}>;
 	readonly configBasedExtensionTips?: IStringDictionary<IConfigBasedExtensionTip>;
 	readonly exeBasedExtensionTips?: IStringDictionary<IExeBasedExtensionTip>;
 	readonly remoteExtensionTips?: IStringDictionary<IRemoteExtensionTip>;

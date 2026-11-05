@@ -38,6 +38,7 @@ function createMockSession(options: IMockSessionOptions): IActiveSession {
 		override readonly resource = URI.parse(`vscode-chat://chat/${Math.random().toString(36).slice(2)}`);
 		override readonly title: IObservable<string> = constObservable(options.title);
 		override readonly status: IObservable<SessionStatus> = constObservable(options.status ?? SessionStatus.Completed);
+		override readonly isRead: IObservable<boolean> = constObservable(true);
 		override readonly capabilities = constObservable({ canRename: options.supportsRename ?? true, canArchive: false, canDelete: false });
 	}();
 
@@ -101,7 +102,7 @@ function renderHeader(ctx: ComponentFixtureContext, session: IActiveSession, wit
 	if (withBackground) {
 		container.classList.add('agent-sessions-workbench');
 		const sessionsPart = document.createElement('div');
-		sessionsPart.classList.add('part', 'sessionspart', 'has-chat-background');
+		sessionsPart.classList.add('part', 'sessionspart', 'sessions-chat-surface', 'has-chat-background');
 		sessionsPart.style.backgroundImage = 'linear-gradient(135deg, var(--vscode-editor-background), var(--vscode-textLink-foreground))';
 		container.appendChild(sessionsPart);
 		headerHost = sessionsPart;

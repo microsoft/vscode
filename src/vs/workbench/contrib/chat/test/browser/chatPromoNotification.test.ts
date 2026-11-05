@@ -160,8 +160,8 @@ suite('ChatPromoNotificationContribution', () => {
 		const storage = disposables.add(new InMemoryStorageService());
 		disposables.add(new ChatPromoNotificationContribution(service, notifications.service, storage));
 		const notification = notifications.getNotification();
-		notification?.onDidShow?.();
-		notification?.onDidShow?.();
+		notification?.onDidShow?.(inputContext());
+		notification?.onDidShow?.(inputContext());
 		assert.deepStrictEqual({
 			seen: storage.get('chat.seenPromoIds', StorageScope.APPLICATION),
 			dismissed: storage.get('chat.dismissedPromoIds', StorageScope.APPLICATION),

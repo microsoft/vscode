@@ -13,10 +13,15 @@ exchanges:
           id: toolcall_0
           name: ask_user
           input:
-            question: Which fruit?
-            choices:
-              - Apple
-              - Banana
+            message: Which fruit?
+            requestedSchema:
+              properties:
+                fruit:
+                  type: string
+                  title: Fruit
+                  enum:
+                    - Apple
+                    - Banana
       stopReason: tool_use
   - request:
       model: claude-sonnet-5
@@ -26,18 +31,24 @@ exchanges:
           content: Call ask_user exactly once to ask "Which fruit?" with choices "Apple" and "Banana". After the answer, reply with only the selected fruit.
         - role: assistant
           content:
+            - type: thinking
             - type: tool_use
               name: ask_user
               input:
-                question: Which fruit?
-                choices:
-                  - Apple
-                  - Banana
+                message: Which fruit?
+                requestedSchema:
+                  properties:
+                    fruit:
+                      type: string
+                      title: Fruit
+                      enum:
+                        - Apple
+                        - Banana
         - role: user
           content:
             - type: tool_result
               tool_use_id: toolcall_0
-              content: 'User selected: Apple'
+              content: 'User responded: Apple'
     response:
       content: Apple
       stopReason: end_turn

@@ -7,6 +7,26 @@ import { basename } from '../../../base/common/path.js';
 import { basename as resourceBasename, dirname, isEqual, isEqualOrParent, joinPath, normalizePath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 
+/** Branch-name prefix for worktree-isolated agent sessions. */
+export const AGENT_BRANCH_PREFIX = 'agents/';
+
+/** Whether a branch uses the legacy agent namespace without a preceding configured prefix. */
+export function isUnprefixedAgentWorktreeBranch(branch: string): boolean {
+	return branch.lastIndexOf(AGENT_BRANCH_PREFIX) === 0;
+}
+
+/**
+ * Recognizes legacy unprefixed branches, or prefixed branches whose generated name matches the recorded worktree directory.
+ * Legacy records lack a separate prefix, so prefixed branches must retain their creation-time directory name.
+ */
+export function isAgentWorktreeBranch(branch: string, worktree: URI, repositoryRoot: URI): boolean {
+	if (isUnprefixedAgentWorktreeBranch(branch)) {
+		return true;
+	}
+	return isEqual(getRepositoryRootFromWorktree(worktree), repositoryRoot)
+		&& branch.endsWith(`${AGENT_BRANCH_PREFIX}${resourceBasename(worktree)}`);
+}
+
 /**
  * The `<repo>.worktrees` sibling directory where per-session isolated worktrees
  * are created, e.g. `/src/vscode` → `/src/vscode.worktrees`.

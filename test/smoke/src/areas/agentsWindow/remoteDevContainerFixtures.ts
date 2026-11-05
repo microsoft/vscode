@@ -16,6 +16,7 @@ import treeKill = require('tree-kill');
 import WebSocket = require('ws');
 import { CancellationToken, CancellationTokenSource } from 'vscode-jsonrpc';
 import { ApplicationOptions, getBuildElectronPath, getBuildProductPath, getDevElectronPath, Logger } from '../../../../automation';
+import { buildCopilotChatToken } from '../../utils';
 
 export type RemoteDevContainerTransport = 'ssh' | 'tunnel' | 'wsl';
 
@@ -26,6 +27,13 @@ export interface IRemoteDevContainerFixtureOptions {
 	logsPath: string;
 	mockServerUrl: string;
 	appOptions: ApplicationOptions;
+	/**
+	 * WSL only: start an Agent Host, without Docker or a Dev Container, that reaches the mock server only through the
+	 * proxy its Windows client resolves for it, with the client's Kerberos tickets and certificates. With `agentHost`, the
+	 * Agents window starts the Agent Host itself. With `server`, an editor window opens {@link IRemoteDevContainerFixture.remoteAuthority}
+	 * through the test resolver, which starts a VS Code server in WSL that spawns the Agent Host.
+	 */
+	wslClientProxy?: 'agentHost' | 'server';
 }
 
 export interface IRemoteDevContainerFixture {
@@ -35,6 +43,8 @@ export interface IRemoteDevContainerFixture {
 	readonly extraArgs?: string[];
 	readonly sourceAppRoot?: string;
 	readonly workspacePath?: string;
+	/** The authority of a remote editor window for {@link workspacePath}. */
+	readonly remoteAuthority?: string;
 	readonly ssh?: { host: string; port: number; username: string; password: string; fingerprint: string };
 	verifyMockServerRouting?(): Promise<void>;
 	dumpConnectionDiagnostics?(uiState: string): Promise<void>;
@@ -45,6 +55,62 @@ const repositoryRoot = path.resolve(__dirname, '../../../../..');
 const startupTimeout = 90_000;
 const fakeModelToken = 'smoketest-fake-agent-host-token';
 const tunnelTokenEnvironmentKey = 'VSCODE_SMOKE_TEST_TUNNEL_TOKEN';
+const tunnelPorts = [31545, 31546];
+
+/** Provision a matching CLI when published, otherwise a same-quality fallback for unpublished builds. */
+export function getDevContainerCliInstallCommand(codePath?: string): string {
+	const productPath = codePath ? getBuildProductPath(codePath) : path.join(repositoryRoot, 'product.json');
+	const product: { quality?: string; commit?: string; serverDataFolderName?: string } = JSON.parse(fs.readFileSync(productPath, 'utf8'));
+	const overridesPath = path.join(repositoryRoot, 'product.overrides.json');
+	if (!codePath && fs.existsSync(overridesPath)) {
+		Object.assign(product, JSON.parse(fs.readFileSync(overridesPath, 'utf8')));
+	}
+	if (!codePath && product.serverDataFolderName) {
+		product.serverDataFolderName += '-dev';
+	}
+	const quality = product.quality ?? 'insider';
+	assertCliQuality(quality);
+	const archive = quality === 'stable' ? 'code' : quality === 'exploration' ? 'code-exploration' : 'code-insiders';
+	const legacyDirectory = quality === 'stable' ? '.vscode-cli' : `.vscode-cli-${quality}`;
+	const serverDirectory = product.serverDataFolderName ?? '.vscode-server-oss';
+	if (!/^[\w.-]+$/.test(serverDirectory)) {
+		throw new Error(`Invalid CLI server data folder: ${serverDirectory}`);
+	}
+	if (product.commit !== undefined && !/^[0-9a-f]{40}$/i.test(product.commit)) {
+		throw new Error(`Invalid CLI commit: ${product.commit}`);
+	}
+	const commit = product.commit?.toLowerCase();
+	const latestDownload = `curl -fsSL "https://update.code.visualstudio.com/latest/cli-linux-\${cli_arch}/${quality}" -o "$cli_tmp/cli.tar.gz"`;
+	return [
+		'set -e',
+		'case "$(uname -m)" in x86_64) cli_arch=x64 ;; aarch64|arm64) cli_arch=arm64 ;; *) exit 1 ;; esac',
+		'cli_tmp=$(mktemp -d)',
+		'trap \'rm -rf "$cli_tmp"\' EXIT',
+		`cli_dir="$HOME/${legacyDirectory}"`,
+		`cli_bin="$cli_dir/${archive}"`,
+		...(commit ? [
+			`if curl -fsSL "https://update.code.visualstudio.com/commit:${commit}/cli-linux-\${cli_arch}/${quality}" -o "$cli_tmp/cli.tar.gz"; then`,
+			`cli_dir="$HOME/${serverDirectory}"`,
+			`cli_bin="$cli_dir/${archive}-${commit}"`,
+			`echo "Installing ${quality} CLI matching desktop commit ${commit}"`,
+			'else',
+			`echo "CLI for desktop commit ${commit} unavailable; falling back to latest ${quality} CLI" >&2`,
+			latestDownload,
+			'fi',
+		] : [latestDownload]),
+		'mkdir -p "$cli_dir"',
+		'tar -xzf "$cli_tmp/cli.tar.gz" -C "$cli_tmp"',
+		`mv "$cli_tmp/${archive}" "$cli_bin"`,
+		'chmod +x "$cli_bin"',
+		'"$cli_bin" --version',
+	].join('\n');
+}
+
+function assertCliQuality(quality: string): void {
+	if (quality !== 'stable' && quality !== 'insider' && quality !== 'exploration') {
+		throw new Error(`Unsupported CLI quality: ${quality}`);
+	}
+}
 
 async function readConnectionLogTail(file: string): Promise<string> {
 	const handle = await fs.promises.open(file, 'r');
@@ -96,7 +162,7 @@ function findTunnelCli(): ITunnelCli {
 		}
 		// These flags are hidden in some releases. Parsing them with --help
 		// checks compatibility without logging in, hosting, or downloading a CLI.
-		const result = cp.spawnSync(executable, ['tunnel', '--agent-host-only', '--machine-status', '--parent-process-id', String(process.pid),
+		const result = cp.spawnSync(executable, ['tunnel', '--machine-status', '--parent-process-id', String(process.pid),
 			'--tunnel-id', 'smoke-capability-probe', '--cluster', 'euw', '--host-token', 'smoke-capability-probe', '--help'], {
 			encoding: 'utf8', timeout: 10_000, windowsHide: true,
 			env: withoutSecrets(process.env),
@@ -122,7 +188,13 @@ function findTunnelCli(): ITunnelCli {
 			return { executable, consentFile };
 		}
 	}
-	throw new Error('Set VSCODE_SMOKE_TEST_TUNNEL_CLI to an installed CLI supporting tunnel --agent-host-only --machine-status and the schema-2 endpoint registry.');
+	throw new Error('Set VSCODE_SMOKE_TEST_TUNNEL_CLI to an installed CLI supporting tunnel --machine-status and the schema-2 endpoint registry.');
+}
+
+function assertTunnelPorts(tunnel: import('@microsoft/dev-tunnels-contracts').Tunnel): void {
+	if (tunnel.ports?.length !== tunnelPorts.length || tunnelPorts.some(portNumber => !tunnel.ports?.some(port => port.portNumber === portNumber))) {
+		throw new Error('The fixture tunnel must expose exactly the editor control port 31545 and agent-host port 31546.');
+	}
 }
 
 export function getTunnelSmokeTestAvailability(): { available: boolean; reason?: string } {
@@ -753,7 +825,7 @@ async function createTunnelFixture(options: IRemoteDevContainerFixtureOptions, r
 		labels: ['vscode-server-launcher', 'protocolv6', name],
 		// An empty ACL grants no additional access beyond the implicit owner.
 		accessControl: { entries: [] },
-		ports: [{ portNumber: 31546, protocol: 'auto', accessControl: { entries: [] } }],
+		ports: tunnelPorts.map(portNumber => ({ portNumber, protocol: 'auto', accessControl: { entries: [] } })),
 	}, undefined, cancellation));
 	hosting.tunnelId = created.tunnelId;
 	hosting.clusterId = created.clusterId;
@@ -780,11 +852,9 @@ async function createTunnelFixture(options: IRemoteDevContainerFixtureOptions, r
 	if (accessEntries.some(entry => !entry.isDeny && (entry.isInverse || entry.type !== 'Users' || entry.provider !== 'github' || entry.subjects.some(subject => subject !== String(account.id))))) {
 		throw new Error('The fixture tunnel grants access beyond its GitHub owner; refusing to host it.');
 	}
-	if (tunnelWithToken.ports?.length !== 1 || tunnelWithToken.ports[0].portNumber !== 31546) {
-		throw new Error('The fixture tunnel must expose only the agent-host port 31546.');
-	}
+	assertTunnelPorts(tunnelWithToken);
 	resources.log(`Starting private Dev Tunnels relay ${name} with a tunnel-scoped host+manage token, without CLI OAuth login.`);
-	const tunnelProcess = resources.spawn(cli.executable, [...prefix, 'tunnel', '--agent-host-only',
+	const tunnelProcess = resources.spawn(cli.executable, [...prefix, 'tunnel',
 		'--tunnel-id', created.tunnelId, '--cluster', created.clusterId, '--host-token', hostToken,
 		'--user-data-dir', registryRoot, '--name', name, '--machine-status', '--parent-process-id', String(process.pid),
 	...(acceptedTerms ? ['--accept-server-license-terms'] : []),
@@ -806,11 +876,12 @@ async function createTunnelFixture(options: IRemoteDevContainerFixtureOptions, r
 		}
 		return undefined;
 	});
-	const tunnels = await tunnelRequest(cancellation => client.listTunnels(undefined, undefined, undefined, cancellation));
+	const tunnels = await tunnelRequest(cancellation => client.listTunnels(undefined, undefined, { includePorts: true }, cancellation));
 	const tunnel = tunnels.find(candidate => candidate.tunnelId === hosting.tunnelId && candidate.labels?.includes(name));
 	if (!tunnel || !tunnel.labels?.some(label => /^protocolv(?<version>\d+)$/.test(label) && Number(label.slice('protocolv'.length)) >= 6)) {
 		throw new Error('The CLI must publish an agent-host gateway tunnel (protocolv6 or newer). Select a compatible installed CLI.');
 	}
+	assertTunnelPorts(tunnel);
 	resources.log(`Private tunnel ${name} is discoverable; its only registered endpoint is the compiled source/build host.`);
 	return {
 		name, settings: {},
@@ -832,6 +903,15 @@ async function createWslFixture(options: IRemoteDevContainerFixtureOptions, reso
 	if (process.platform !== 'win32' || !distro || !serverPath?.startsWith('/')) {
 		throw new Error('WSL smoke tests require Windows, VSCODE_SMOKE_TEST_WSL_DISTRO, and VSCODE_SMOKE_TEST_WSL_SERVER_PATH pointing to an extracted Linux VS Code server inside that distribution.');
 	}
+	const clientProxy = options.wslClientProxy;
+	const server = clientProxy === 'server';
+	// A source checkout has no bundled Node; VSCODE_SMOKE_TEST_WSL_NODE names a Linux Node for it.
+	const nodePath = process.env.VSCODE_SMOKE_TEST_WSL_NODE || `${serverPath}/node`;
+	// Seeds the Agent Host's `runtimePath`, such as a runtime built with features the bundled one lacks.
+	const copilotRuntimePath = process.env.VSCODE_SMOKE_TEST_WSL_COPILOT_RUNTIME_PATH;
+	if (!nodePath.startsWith('/') || (copilotRuntimePath && !copilotRuntimePath.startsWith('/'))) {
+		throw new Error('VSCODE_SMOKE_TEST_WSL_NODE and VSCODE_SMOKE_TEST_WSL_COPILOT_RUNTIME_PATH must be absolute Linux paths.');
+	}
 	const wsl = path.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'wsl.exe');
 	const run = (command: string, timeout = 60_000): Promise<string> => new Promise((resolve, reject) => {
 		cp.execFile(wsl, ['--distribution', distro, '--exec', 'sh', '-c', command], {
@@ -840,11 +920,23 @@ async function createWslFixture(options: IRemoteDevContainerFixtureOptions, reso
 			? reject(new Error(resources.redact(`WSL fixture command failed: ${error.message}\n${stderr}`)))
 			: resolve(stdout.trim()));
 	});
-	const dockerType = await run('docker info --format "{{.OSType}}"');
-	if (dockerType !== 'linux') {
-		throw new Error(`WSL distribution ${distro} needs a reachable Linux Docker daemon, but reports '${dockerType}'. Enable Docker Desktop WSL integration or install Docker in the distribution.`);
+	if (!clientProxy) {
+		const dockerType = await run('docker info --format "{{.OSType}}"');
+		if (dockerType !== 'linux') {
+			throw new Error(`WSL distribution ${distro} needs a reachable Linux Docker daemon, but reports '${dockerType}'. Enable Docker Desktop WSL integration or install Docker in the distribution.`);
+		}
 	}
-	await run(`test -x ${shellQuote(`${serverPath}/node`)} && test -f ${shellQuote(`${serverPath}/out/bootstrap-fork.js`)}`);
+	await run(`test -x ${shellQuote(nodePath)} && test -f ${shellQuote(`${serverPath}/out/${server ? 'server-main.js' : 'bootstrap-fork.js'}`)}${copilotRuntimePath ? ` && test -x ${shellQuote(copilotRuntimePath)}` : ''}`);
+	if (server && options.appOptions.codePath) {
+		// The server refuses a built client of another commit.
+		const clientCommit: string | undefined = JSON.parse(fs.readFileSync(getBuildProductPath(options.appOptions.codePath), 'utf8')).commit;
+		const serverCommit: string | undefined = JSON.parse(await run(`cat ${shellQuote(`${serverPath}/product.json`)}`)).commit;
+		if (clientCommit && serverCommit && clientCommit !== serverCommit) {
+			throw new Error(`The remote editor window needs a WSL server of the client's commit ${clientCommit}, but ${serverPath} is ${serverCommit}.`);
+		}
+	}
+	// Published servers bundle their NLS messages; a source checkout runs in development mode.
+	const sourceCheckout = (await run(`if [ -f ${shellQuote(`${serverPath}/out/nls.messages.json`)} ]; then echo bundled; fi`)) !== 'bundled';
 	const copiedLogs = path.join(resources.root, 'wsl-logs');
 	fs.mkdirSync(copiedLogs);
 	const windowsRoot = await run(`wslpath -u ${shellQuote(resources.root)}`);
@@ -856,9 +948,12 @@ async function createWslFixture(options: IRemoteDevContainerFixtureOptions, reso
 	resources.add(async () => {
 		try {
 			await run([
-				`if [ -f ${shellQuote(`${root}/host.pid`)} ]; then kill -TERM "$(cat ${shellQuote(`${root}/host.pid`)})" 2>/dev/null || test ! -d "/proc/$(cat ${shellQuote(`${root}/host.pid`)})"; fi`,
-				`ids=$(docker ps -aq --filter ${shellQuote(`label=devcontainer.local_folder=${workspacePath}`)})`,
-				'if [ -n "$ids" ]; then docker rm --force $ids; fi',
+				// Every start appends its PID, which leads the process group of the Agent Host or server and its children.
+				`if [ -f ${shellQuote(`${root}/host.pid`)} ]; then for pid in $(cat ${shellQuote(`${root}/host.pid`)}); do kill -TERM -- "-$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null || test ! -d "/proc/$pid"; done; fi`,
+				...(clientProxy ? [] : [
+					`ids=$(docker ps -aq --filter ${shellQuote(`label=devcontainer.local_folder=${workspacePath}`)})`,
+					'if [ -n "$ids" ]; then docker rm --force $ids; fi',
+				]),
 				`if [ -d ${shellQuote(`${root}/user-data/logs`)} ]; then cp -r ${shellQuote(`${root}/user-data/logs`)} ${shellQuote(`${windowsRoot}/wsl-logs/host`)}; fi`,
 				`if [ -d ${shellQuote(`${root}/home/.copilot/logs`)} ]; then cp -r ${shellQuote(`${root}/home/.copilot/logs`)} ${shellQuote(`${windowsRoot}/wsl-logs/copilot`)}; fi`,
 			].join(' && '));
@@ -867,51 +962,91 @@ async function createWslFixture(options: IRemoteDevContainerFixtureOptions, reso
 			await run(`rm -rf -- ${shellQuote(root)}`);
 		}
 	});
-	const token = randomBytes(32).toString('hex');
-	resources.addSecret(token);
-	fs.writeFileSync(path.join(resources.root, 'host-token'), token, { mode: 0o600 });
-	fs.copyFileSync(path.join(__dirname, 'fixtures/packagedAgentHost.js'), path.join(resources.root, 'packagedAgentHost.cjs'));
+	if (!server) {
+		const token = randomBytes(32).toString('hex');
+		resources.addSecret(token);
+		fs.writeFileSync(path.join(resources.root, 'host-token'), token, { mode: 0o600 });
+		fs.copyFileSync(path.join(__dirname, 'fixtures/packagedAgentHost.js'), path.join(resources.root, 'packagedAgentHost.cjs'));
+	}
 	const sourceWorkspace = await run(`wslpath -u ${shellQuote(options.workspacePath)}`);
 	await run([
 		`cp -r ${shellQuote(sourceWorkspace)} ${shellQuote(workspacePath)}`,
-		`cp ${shellQuote(`${windowsRoot}/host-token`)} ${shellQuote(`${root}/host-token`)}`,
-		`cp ${shellQuote(`${windowsRoot}/packagedAgentHost.cjs`)} ${shellQuote(`${root}/packagedAgentHost.cjs`)}`,
-		`chmod 600 ${shellQuote(`${root}/host-token`)}`,
+		...(server ? [] : [
+			`cp ${shellQuote(`${windowsRoot}/host-token`)} ${shellQuote(`${root}/host-token`)}`,
+			`cp ${shellQuote(`${windowsRoot}/packagedAgentHost.cjs`)} ${shellQuote(`${root}/packagedAgentHost.cjs`)}`,
+			`chmod 600 ${shellQuote(`${root}/host-token`)}`,
+		]),
 		`mkdir -p ${shellQuote(`${root}/home/.copilot`)} ${shellQuote(`${root}/home/.config`)} ${shellQuote(`${root}/home/.cache`)}`,
+		...(copilotRuntimePath ? [
+			`mkdir -p ${shellQuote(`${root}/user-data/User/globalStorage`)}`,
+			`printf %s ${shellQuote(JSON.stringify({ runtimePath: copilotRuntimePath }))} > ${shellQuote(`${root}/user-data/User/globalStorage/agent-host-config.json`)}`,
+		] : []),
 	].join(' && '));
-	const hostAddress = await run('if [ "$(wslinfo --networking-mode 2>/dev/null)" = mirrored ]; then printf 127.0.0.1; else ip route show default | awk \'{ print $3; exit }\'; fi');
-	if (!/^[0-9.]+$/.test(hostAddress)) {
-		throw new Error(`Cannot determine the Windows host address from WSL: ${hostAddress}`);
+	let networkEnvironment: Record<string, string>;
+	if (clientProxy) {
+		// Only the proxy resolves the mock host, so the Agent Host and the Copilot runtime must use the
+		// client's proxy, Kerberos tickets and certificates; no WSL-side credentials or CA are configured.
+		networkEnvironment = {
+			COPILOT_API_URL: options.mockServerUrl, COPILOT_DEBUG_GITHUB_API_URL: options.mockServerUrl,
+			VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE: options.mockServerUrl,
+			KRB5CCNAME: `FILE:${root}/no-kerberos-tickets`,
+		};
+	} else {
+		const hostAddress = await run('if [ "$(wslinfo --networking-mode 2>/dev/null)" = mirrored ]; then printf 127.0.0.1; else ip route show default | awk \'{ print $3; exit }\'; fi');
+		if (!/^[0-9.]+$/.test(hostAddress)) {
+			throw new Error(`Cannot determine the Windows host address from WSL: ${hostAddress}`);
+		}
+		const containerConfig: { runArgs: string[] } = JSON.parse(fs.readFileSync(path.join(options.workspacePath, '.devcontainer', 'devcontainer.json'), 'utf8'));
+		containerConfig.runArgs = containerConfig.runArgs.map(arg => arg === '--add-host=vscode-smoke.test:host-gateway' ? `--add-host=vscode-smoke.test:${hostAddress}` : arg);
+		fs.writeFileSync(path.join(resources.root, 'devcontainer.json'), JSON.stringify(containerConfig, null, 2));
+		await run(`cp ${shellQuote(`${windowsRoot}/devcontainer.json`)} ${shellQuote(`${workspacePath}/.devcontainer/devcontainer.json`)}`);
+		const mockServerUrl = new URL(options.mockServerUrl);
+		mockServerUrl.hostname = hostAddress;
+		networkEnvironment = { VSCODE_SMOKE_TEST_WSL_MOCK_UPSTREAM: mockServerUrl.href };
 	}
-	const containerConfig: { runArgs: string[] } = JSON.parse(fs.readFileSync(path.join(options.workspacePath, '.devcontainer', 'devcontainer.json'), 'utf8'));
-	containerConfig.runArgs = containerConfig.runArgs.map(arg => arg === '--add-host=vscode-smoke.test:host-gateway' ? `--add-host=vscode-smoke.test:${hostAddress}` : arg);
-	fs.writeFileSync(path.join(resources.root, 'devcontainer.json'), JSON.stringify(containerConfig, null, 2));
-	await run(`cp ${shellQuote(`${windowsRoot}/devcontainer.json`)} ${shellQuote(`${workspacePath}/.devcontainer/devcontainer.json`)}`);
-	const mockServerUrl = new URL(options.mockServerUrl);
-	mockServerUrl.hostname = hostAddress;
 	const environment: Record<string, string> = {
 		HOME: `${root}/home`, XDG_STATE_HOME: `${root}/state`, XDG_CONFIG_HOME: `${root}/home/.config`, XDG_CACHE_HOME: `${root}/home/.cache`,
-		PATH: `${serverPath}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin`,
+		PATH: `${path.posix.dirname(nodePath)}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin`,
 		COPILOT_HOME: `${root}/home/.copilot`, CODEX_HOME: `${root}/home/.codex`,
 		VSCODE_CLI_DATA_DIR: `${root}/cli`, VSCODE_CLI_USE_FILE_KEYCHAIN: '1',
-		VSCODE_SMOKE_TEST_WSL_MOCK_UPSTREAM: mockServerUrl.href,
+		...networkEnvironment,
+		...(sourceCheckout ? { VSCODE_DEV: '1' } : {}),
 		VSCODE_SMOKE_TEST_PROXY_HEADER: process.env.VSCODE_SMOKE_TEST_PROXY_HEADER ?? 'dev-container',
 		GITHUB_COPILOT_API_TOKEN: fakeModelToken, GITHUB_PAT: 'smoketest-fake-pat',
 		IS_SCENARIO_AUTOMATION: '1', VSCODE_AGENT_HOST_CLAUDE_AGENT_ENABLED: 'false', VSCODE_AGENT_HOST_CODEX_AGENT_ENABLED: 'false',
 		VSCODE_AGENT_HOST_TELEMETRY_LEVEL: 'off',
+		// Copilot Chat runs in the server's extension host, where it provides the editor window's default chat participant.
+		...(server ? { VSCODE_COPILOT_CHAT_TOKEN: buildCopilotChatToken(options.mockServerUrl) } : {}),
 	};
+	const environmentAssignments = Object.entries(environment).map(([key, value]) => `${key}=${shellQuote(value)}`).join(' ');
 	const command = [
-		`echo $$ > ${shellQuote(`${root}/host.pid`)}`,
-		`exec env -i ${Object.entries(environment).map(([key, value]) => `${key}=${shellQuote(value)}`).join(' ')} ${shellQuote(`${serverPath}/node`)} ${shellQuote(`${root}/packagedAgentHost.cjs`)} ${shellQuote(`${serverPath}/out/bootstrap-fork.js`)} ${shellQuote(`${root}/host-token`)} ${shellQuote(`${root}/user-data`)} --ignore-stdin`,
+		`echo $$ >> ${shellQuote(`${root}/host.pid`)}`,
+		server
+			// The test resolver appends the server's host, port and connection token.
+			? `exec env -i ${environmentAssignments} ${shellQuote(nodePath)} ${shellQuote(`${serverPath}/out/server-main.js`)} --server-data-dir ${shellQuote(`${root}/server`)} --user-data-dir ${shellQuote(`${root}/user-data`)} --logsPath ${shellQuote(`${root}/user-data/logs`)}`
+			: `exec env -i ${environmentAssignments} ${shellQuote(nodePath)} ${shellQuote(`${root}/packagedAgentHost.cjs`)} ${shellQuote(`${serverPath}/out/bootstrap-fork.js`)} ${shellQuote(`${root}/host-token`)} ${shellQuote(`${root}/user-data`)} --ignore-stdin`,
 	].join(' && ');
-	resources.log(`Using ${distro} source workspace ${workspacePath}`);
+	resources.log(`Using ${distro} ${server ? 'server with a client-proxy Agent Host' : clientProxy ? 'client-proxy Agent Host' : 'source workspace'} ${workspacePath}`);
 	return {
 		name: distro,
 		workspacePath,
-		settings: { 'chat.wslRemoteAgentHostCommand': command },
+		...(server ? {
+			remoteAuthority: `wsl+${distro}`,
+			settings: {},
+			extraEnv: { TESTRESOLVER_WSL_SERVER_COMMAND: command },
+		} : {
+			settings: { 'chat.wslRemoteAgentHostCommand': command },
+		}),
 		verifyMockServerRouting: async () => {
 			const logs = await run(`find ${shellQuote(`${root}/user-data/logs`)} -name agenthost.log -type f -exec cat {} +`);
-			if (!logs.includes('Using CAPI URL override http://127.0.0.1:') || logs.includes('Ignoring non-loopback CAPI URL override')) {
+			if (clientProxy) {
+				if (!logs.includes(`Using CAPI URL override ${options.mockServerUrl};`) || !logs.includes('[Copilot] Resolved CAPI proxy and forwarded HTTP_PROXY/HTTPS_PROXY to Copilot SDK')) {
+					throw new Error('The WSL Agent Host did not route the mock CAPI endpoint through the client-resolved proxy.');
+				}
+				if (copilotRuntimePath && !logs.includes(`[Copilot] Using configured runtime path: ${copilotRuntimePath}`)) {
+					throw new Error(`The WSL Agent Host did not use the Copilot runtime at ${copilotRuntimePath}.`);
+				}
+			} else if (!logs.includes('Using CAPI URL override http://127.0.0.1:') || logs.includes('Ignoring non-loopback CAPI URL override')) {
 				throw new Error('The WSL source Agent Host did not accept the loopback mock CAPI endpoint.');
 			}
 		},
@@ -931,7 +1066,7 @@ async function createWslFixture(options: IRemoteDevContainerFixtureOptions, reso
 			for (const file of files) {
 				try {
 					const entries = (await readConnectionLogTail(file)).split(/(?=^\d{4}-\d{2}-\d{2} )/m)
-						.filter(entry => /\[WSL|\[RemoteAgentHost|WSLRelayTransport/.test(entry)).slice(-20);
+						.filter(entry => /\[WSL|\[RemoteAgentHost|\[AgentHost:remote\]|WSLRelayTransport/.test(entry)).slice(-20);
 					report(`${path.relative(options.logsPath, file)}:\n${entries.length ? entries.map(entry => resources.redact(entry).slice(0, 2000)).join('\n') : '(no WSL or remote-host entries)'}`);
 				} catch (error) {
 					report(`Cannot read ${path.relative(options.logsPath, file)}: ${error instanceof Error ? error.message : String(error)}`);

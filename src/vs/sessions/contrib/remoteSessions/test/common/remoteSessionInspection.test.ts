@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { buildDefaultChatUri, ChatState, createChatState, createErrorResponsePart, MessageKind, ResponsePartKind, SessionStatus, ToolCallStatus, Turn, TurnState } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildDefaultChatUri, ChatState, createChatState, createErrorResponsePart, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus, ToolCallStatus, Turn, TurnState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { maxRemoteSessionResponseLength, parseGetRemoteSessionOptions, remoteSessionSnapshot } from '../../common/remoteSessionInspection.js';
 
 suite('RemoteSessionInspection', () => {
@@ -86,6 +86,7 @@ suite('RemoteSessionInspection', () => {
 			chat(),
 			chat({ queuedMessages: [pending] }),
 			chat({ steeringMessage: pending }),
+			chat({ queuedMessages: [{ ...pending, kind: PendingMessageKind.Steering }] }),
 			chat({ activeTurn, status: SessionStatus.InProgress | SessionStatus.IsRead }),
 			chat({ activeTurn, status: SessionStatus.InputNeeded | SessionStatus.IsRead | SessionStatus.IsArchived }),
 			chat({ turns: [turn()], status: SessionStatus.Idle | SessionStatus.IsArchived }),
@@ -94,7 +95,7 @@ suite('RemoteSessionInspection', () => {
 			chat({ status: SessionStatus.Error }),
 			chat({ turns: [turn({ state: TurnState.Error })], activeTurn, status: SessionStatus.InProgress }),
 		].map(state => remoteSessionSnapshot(state).status), [
-			'idle', 'queued', 'queued', 'running', 'needsInput', 'completed', 'cancelled', 'failed', 'failed', 'running',
+			'idle', 'queued', 'queued', 'queued', 'running', 'needsInput', 'completed', 'cancelled', 'failed', 'failed', 'running',
 		]);
 	});
 

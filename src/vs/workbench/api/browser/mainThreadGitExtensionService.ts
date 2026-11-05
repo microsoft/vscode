@@ -9,7 +9,7 @@ import { ResourceMap } from '../../../base/common/map.js';
 import { waitForState } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { GitRepository } from '../../contrib/git/browser/gitService.js';
-import { IGitExtensionDelegate, IGitService, GitRef, GitRefQuery, GitRefType, GitRepositoryState, GitBranch, GitChange, GitDiffChange, IGitRepository } from '../../contrib/git/common/gitService.js';
+import { IGitExtensionDelegate, IGitService, GitRef, GitRefQuery, GitRefType, GitRepositoryState, GitBranch, GitChange, GitDiffChange, IGitRepository, GitCommitOptions } from '../../contrib/git/common/gitService.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { ExtHostContext, ExtHostGitExtensionShape, GitDiffChangeDto, GitRefTypeDto, GitRepositoryStateDto, MainContext, MainThreadGitExtensionShape } from '../common/extHost.protocol.js';
 
@@ -160,6 +160,15 @@ export class MainThreadGitExtensionService extends Disposable implements MainThr
 
 		const result = await this._proxy.$diffBetweenWithStats2(handle, ref, path);
 		return result.map(toGitDiffChange);
+	}
+
+	async commitFiles(root: URI, files: readonly URI[], message: string, options?: GitCommitOptions): Promise<void> {
+		const handle = this._repositoryHandles.get(root);
+		if (handle === undefined) {
+			throw new Error(`Git repository is not open: ${root.toString()}`);
+		}
+
+		await this._proxy.$commitFiles(handle, [...files], message, options);
 	}
 
 	async $onDidChangeRepository(handle: number): Promise<void> {

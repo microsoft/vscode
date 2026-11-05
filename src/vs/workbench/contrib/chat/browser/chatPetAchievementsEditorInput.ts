@@ -6,9 +6,15 @@
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
-import { IModalEditorOptions, IModalEditorOptionsProvider } from '../../../../platform/editor/common/editor.js';
+import { IEditorOptions, IModalEditorOptions, IModalEditorOptionsProvider } from '../../../../platform/editor/common/editor.js';
 import { EditorInputCapabilities, IUntypedEditorInput } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
+
+export type ChatPetCustomizationTab = 'achievements' | 'color';
+
+export interface IChatPetCustomizationEditorOptions extends IEditorOptions {
+	readonly tab?: ChatPetCustomizationTab;
+}
 
 export class ChatPetAchievementsEditorInput extends EditorInput implements IModalEditorOptionsProvider {
 
@@ -33,7 +39,7 @@ export class ChatPetAchievementsEditorInput extends EditorInput implements IModa
 	}
 
 	override getName(): string {
-		return localize('chatPet.achievements.editorName', "Achievements");
+		return localize('chatPet.achievements.editorName', "Customize Blobby");
 	}
 
 	override getIcon(): ThemeIcon {

@@ -7,7 +7,7 @@ import * as dom from '../../../../../../base/browser/dom.js';
 import { IRenderedMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
 import { createPixelSpinner, IPixelSpinner } from '../../../../../../base/browser/ui/pixelSpinner/pixelSpinner.js';
 import { onUnexpectedError } from '../../../../../../base/common/errors.js';
-import { escapeMarkdownSyntaxTokens, MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { appendEscapedMarkdownInlineCode, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../nls.js';
@@ -81,7 +81,7 @@ export class ChatMcpServersStartingContentPart extends Disposable implements ICh
 		const backgroundableServers = blockingServers.filter(server => server.background !== undefined);
 		const visibleServers = blockingServers.length ? blockingServers : servers;
 		const links = visibleServers
-			.map(server => '`' + escapeMarkdownSyntaxTokens(server.name) + '`')
+			.map(server => appendEscapedMarkdownInlineCode(server.name))
 			.join(', ');
 		this.skipAction = this._renderMessage(
 			blockingServers.length

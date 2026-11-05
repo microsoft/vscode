@@ -18,7 +18,7 @@ import { toRemoteSessionMessageMetadata } from '../../../../platform/agentHost/c
 import { buildOpenSessionLinkUri } from '../../../../platform/agentHost/common/openSessionLink.js';
 import { ChatInteractivity as ProtocolChatInteractivity } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType } from '../../../../platform/agentHost/common/state/sessionActions.js';
-import { DEFAULT_CHAT_ID, effectiveChatInteractivity, getSessionChatResource, isSessionStatusArchived, MessageKind, parseChatUri, PendingMessageKind, readSessionWorkspaceless, SessionState, StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
+import { DEFAULT_CHAT_ID, effectiveChatInteractivity, getSessionChatResource, isSessionStatusArchived, MessageKind, PendingMessageKind, readSessionWorkspaceless, SessionState, StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
@@ -51,6 +51,11 @@ export interface ISendRemoteMessageResult extends IRemoteMessageTarget {
 interface IResolvedRemoteChat extends Omit<IRemoteSessionChat, 'chat'> {
 	readonly chat: URI;
 	readonly hostLabel: string;
+}
+
+interface IResolvedRemoteSource extends IResolvedRemoteChat {
+	/** The source chat's recorded resource. */
+	readonly sourceChat: string;
 }
 
 export function parseSendRemoteMessageOptions(value: unknown): ISendRemoteMessageOptions {
@@ -127,13 +132,13 @@ export class RemoteSessionMessageRouter {
 		return { ...chat, chat: resource, hostLabel: provider.label };
 	}
 
-	private async resolve(sourceResource: URI, targetReference: string, token: CancellationToken): Promise<{ source: IResolvedRemoteChat; target: IResolvedRemoteChat }> {
+	private async resolve(sourceResource: URI, targetReference: string, token: CancellationToken): Promise<{ source: IResolvedRemoteSource; target: IResolvedRemoteChat }> {
 		this.checkEnabled();
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
 		const sourceContext = await resolveRemoteSessionSource(sourceResource, this.sessionsService, this.connectionsService, token);
-		const source = this.resolveProvider(sourceContext);
+		const source: IResolvedRemoteSource = { ...this.resolveProvider(sourceContext), sourceChat: sourceContext.sourceChat };
 		if (targetReference === 'origin') {
 			const origin = sourceContext.origin;
 			if (!origin) {
@@ -141,7 +146,7 @@ export class RemoteSessionMessageRouter {
 			}
 			targetReference = origin.chat;
 		}
-		const { resource: targetResource } = resolveRemoteSessionReference(targetReference, this.connectionsService);
+		const { resource: targetResource } = await resolveRemoteSessionReference(targetReference, this.connectionsService);
 		const target = this.resolveChat(targetResource);
 		if (isEqual(source.chat, target.chat)) {
 			throw new Error(localize('remoteMessage.self', "A chat cannot send a remote message to itself."));
@@ -190,7 +195,7 @@ export class RemoteSessionMessageRouter {
 		}
 	}
 
-	private async doSend(source: IResolvedRemoteChat, target: IResolvedRemoteChat, options: ISendRemoteMessageOptions, token: CancellationToken): Promise<ISendRemoteMessageResult> {
+	private async doSend(source: IResolvedRemoteSource, target: IResolvedRemoteChat, options: ISendRemoteMessageOptions, token: CancellationToken): Promise<ISendRemoteMessageResult> {
 		const store = new DisposableStore();
 		let dispatched = false;
 		let rejected = false;
@@ -220,9 +225,9 @@ export class RemoteSessionMessageRouter {
 			const connection = target.host.connection;
 			const session = store.add(connection.getSubscription(StateComponents.Session, target.host.backendSession, 'RemoteSessionMessageRouter'));
 			const sessionState = await readRemoteSessionState(session.object, cancellation.token, true);
-			const chatResource = getSessionChatResource(sessionState, target.chat.fragment || DEFAULT_CHAT_ID);
-			const identity = chatResource ? parseChatUri(chatResource) : undefined;
-			if (!chatResource || !identity || !isEqual(URI.parse(identity.session), target.host.backendSession)) {
+			// A chat listed in the backend session's catalog belongs to that session.
+			const chatResource = getSessionChatResource(sessionState, target.chat.fragment || DEFAULT_CHAT_ID, sessionState.defaultChat);
+			if (!chatResource) {
 				throw new Error(localize('remoteMessage.missingChat', "The exact target chat no longer exists on its agent host."));
 			}
 			const chat = store.add(connection.getSubscription(StateComponents.Chat, URI.parse(chatResource), 'RemoteSessionMessageRouter'));
@@ -272,10 +277,7 @@ export class RemoteSessionMessageRouter {
 				message: {
 					text: options.message,
 					origin: { kind: MessageKind.Agent },
-					_meta: toRemoteSessionMessageMetadata({
-						session: source.session.resource.toString(),
-						chat: source.chat.toString(),
-					}),
+					_meta: toRemoteSessionMessageMetadata(source.session.resource.toString(), source.sourceChat),
 				},
 			});
 			await raceCancellationError(accepted, cancellation.token);

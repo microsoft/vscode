@@ -4,18 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { RequestAccount, RequestContext, RequestPriority, RequestOutcome, requestOutcome, IRequestTiming, RequestError, RequestTimeoutError, IRequestQueueTelemetry } from './types.js';
+import { RequestAccount, RequestContext, RequestPriority, RequestOutcome, requestOutcome, IRequestTiming, RequestError, RequestTimeoutError, IRequestQueueTelemetry, compareRequestPriority } from './types.js';
 import { IRequestScheduler, systemRequestScheduler } from './scheduler.js';
-
-const priorityOrder: Record<RequestPriority, number> = {
-	mutationReconciliation: 0,
-	mutation: 1,
-	interactive: 2,
-	mergeGate: 3,
-	visible: 4,
-	background: 5,
-	enrichment: 6,
-};
 
 /** Hard admission/concurrency limits and reserved capacity for interactive callers. */
 export interface RequestQueueOptions {
@@ -23,6 +13,8 @@ export interface RequestQueueOptions {
 	readonly maximumConcurrency: number;
 	/** Maximum active requests for one case-insensitive host, across accounts and callers. */
 	readonly maximumHostConcurrency: number;
+	/** Maximum active requests for one host/account pair, across callers and credentials. */
+	readonly maximumAccountConcurrency: number;
 	/** Maximum active requests for one caller, across hosts and accounts. */
 	readonly maximumCallerConcurrency: number;
 	/** Maximum retained requests across the queue, including active, queued, and cooldown-waiting requests. */
@@ -36,9 +28,10 @@ export interface RequestQueueOptions {
 }
 
 const defaultOptions: RequestQueueOptions = {
-	maximumConcurrency: 4,
-	maximumHostConcurrency: 2,
-	maximumCallerConcurrency: 2,
+	maximumConcurrency: 12,
+	maximumHostConcurrency: 12,
+	maximumAccountConcurrency: 10,
+	maximumCallerConcurrency: 8,
 	maximumRequests: 256,
 	maximumAccountRequests: 64,
 	maximumCallerRequests: 64,
@@ -102,14 +95,14 @@ export class RequestQueue extends Disposable {
 		this._drain();
 		const accountKey = RequestQueue.accountKey(context.account);
 		const requests = [...this._pending, ...this._active];
-		const limit = (maximum: number) => maximum - (priorityOrder[context.priority] <= priorityOrder.interactive
+		const limit = (maximum: number) => maximum - (compareRequestPriority(context.priority, 'interactive') <= 0
 			? 0 : Math.min(this._options.reservedInteractiveRequests, Math.floor(maximum / 4)));
 		const rejection = requests.length >= limit(this._options.maximumRequests) ? 'engine'
 			: requests.filter(request => request.accountKey === accountKey).length >= limit(this._options.maximumAccountRequests) ? 'account'
 				: requests.filter(request => request.context.caller === context.caller).length >= limit(this._options.maximumCallerRequests) ? 'caller'
 					: undefined;
 		if (rejection) {
-			this._telemetry?.recordRejection(rejection);
+			this._telemetry?.recordRejection(rejection, context.domain);
 			return Promise.reject(new RequestError('Request capacity exceeded', 'overloaded'));
 		}
 
@@ -191,7 +184,7 @@ export class RequestQueue extends Disposable {
 
 	promote(signal: AbortSignal, priority: RequestPriority): void {
 		for (const request of this._pending) {
-			if (request.context.signal === signal && priorityOrder[priority] < priorityOrder[request.priority]) {
+			if (request.context.signal === signal && compareRequestPriority(priority, request.priority) < 0) {
 				request.priority = priority;
 			}
 		}
@@ -294,7 +287,7 @@ export class RequestQueue extends Disposable {
 			const active = [...this._active];
 			const delay = getDelay(candidate);
 			if (delay > 0
-				|| active.some(request => request.accountKey === candidate.accountKey)
+				|| active.filter(request => request.accountKey === candidate.accountKey).length >= this._options.maximumAccountConcurrency
 				|| active.filter(request => request.host === candidate.host).length >= this._options.maximumHostConcurrency
 				|| active.filter(request => request.context.caller === candidate.context.caller).length >= this._options.maximumCallerConcurrency) {
 				continue;
@@ -307,7 +300,7 @@ export class RequestQueue extends Disposable {
 	}
 
 	private _compare(left: IQueuedRequest, right: IQueuedRequest): number {
-		return priorityOrder[left.priority] - priorityOrder[right.priority]
+		return compareRequestPriority(left.priority, right.priority)
 			|| (this._lastServed.get(left.context.caller) ?? -1) - (this._lastServed.get(right.context.caller) ?? -1)
 			|| left.sequence - right.sequence;
 	}

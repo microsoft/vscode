@@ -72,3 +72,26 @@
 		display: none;
 	}
 }
+
+.chat-working-logo-atlas {
+	> .chat-working-logo-face,
+	> .chat-working-logo-draw-container {
+		display: none;
+	}
+}
+
+.chat-working-logo-atlas-viewport {
+	position: absolute;
+	inset: 0;
+	overflow: clip;
+	contain: strict;
+}
+
+.chat-working-logo-atlas-sheet {
+	position: absolute;
+	inset: 0 auto auto 0;
+	max-width: none;
+	max-height: none;
+	will-change: transform;
+	pointer-events: none;
+}

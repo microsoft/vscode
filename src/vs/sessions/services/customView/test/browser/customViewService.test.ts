@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { constObservable, IObservable } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -55,6 +55,80 @@ suite('Sessions - CustomViewService', () => {
 			replaced: second,
 			hidden: undefined,
 		});
+	});
+
+	test('hides a custom view atomically with its replacement destination', () => {
+		const service = createService();
+		disposables.add(service.registerCustomView(descriptor('view')));
+		service.showCustomView('view');
+		const session = observableValue('session', 'first');
+		const observed: { view: string | undefined; session: string }[] = [];
+		disposables.add(autorun(reader => observed.push({
+			view: service.activeCustomView.read(reader)?.id,
+			session: session.read(reader),
+		})));
+
+		transaction(tx => {
+			service.hideCustomView(tx);
+			session.set('second', tx);
+		});
+
+		assert.deepStrictEqual(observed, [
+			{ view: 'view', session: 'first' },
+			{ view: undefined, session: 'second' },
+		]);
+	});
+
+	test('reopening a view publishes intent without replacing its rendered descriptor', () => {
+		const service = createService();
+		disposables.add(service.registerCustomView(descriptor('view')));
+		const openings: string[] = [];
+		const descriptors: (string | undefined)[] = [];
+		disposables.add(autorun(reader => {
+			const opening = service.activeCustomViewOpen.read(reader);
+			if (opening) {
+				openings.push(opening.source);
+			}
+		}));
+		disposables.add(autorun(reader => descriptors.push(service.activeCustomView.read(reader)?.id)));
+
+		service.showCustomView('view');
+		service.showCustomView('view', { source: 'history' });
+		service.showCustomView('view');
+
+		assert.deepStrictEqual({ openings, descriptors }, {
+			openings: ['explicit', 'history', 'explicit'],
+			descriptors: [undefined, 'view'],
+		});
+	});
+
+	test('publishes the state of each opening and keeps the shown opening when the view declines a state', () => {
+		const service = createService();
+		disposables.add(service.registerCustomView({ ...descriptor('view'), acceptsState: state => state !== 'removed' }));
+		const openings: (string | undefined)[] = [];
+		disposables.add(autorun(reader => openings.push(service.activeCustomViewOpen.read(reader)?.state)));
+
+		service.showCustomView('view', { state: 'first' });
+		service.showCustomView('view', { state: 'removed', source: 'history' });
+		service.showCustomView('view', { state: 'second' });
+		service.showCustomView('view');
+
+		assert.deepStrictEqual(openings, [undefined, 'first', 'second', undefined]);
+	});
+
+	test('a declined opening keeps the shown view as the one to restore', () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const firstService = disposables.add(new CustomViewService(new NullLogService(), storageService));
+		disposables.add(firstService.registerCustomView(descriptor('automations')));
+		disposables.add(firstService.registerCustomView({ ...descriptor('canvas'), acceptsState: () => false }));
+		firstService.showCustomView('automations');
+		firstService.showCustomView('canvas', { source: 'history', state: 'removed' });
+		const shown = firstService.activeCustomView.get()?.id;
+
+		const restoredService = disposables.add(new CustomViewService(new NullLogService(), storageService));
+		disposables.add(restoredService.registerCustomView(descriptor('automations')));
+
+		assert.deepStrictEqual({ shown, restored: restoredService.activeCustomView.get()?.id }, { shown: 'automations', restored: 'automations' });
 	});
 
 	test('ignores an unknown id and drops the active view when it is unregistered', () => {

@@ -105,7 +105,7 @@ suite('createClaudeThinkingLevelSchema (Phase 6.1 / Cycle D3)', () => {
 				properties: {
 					thinkingLevel: {
 						type: 'string',
-						title: 'Thinking Level',
+						title: 'Effort Level',
 						description: 'Controls how much reasoning effort Claude uses.',
 						enum: ['low', 'medium', 'high', 'xhigh', 'max'],
 						enumLabels: ['Low', 'Medium', 'High', 'Extra High', 'Max'],
@@ -119,7 +119,7 @@ suite('createClaudeThinkingLevelSchema (Phase 6.1 / Cycle D3)', () => {
 				properties: {
 					thinkingLevel: {
 						type: 'string',
-						title: 'Thinking Level',
+						title: 'Effort Level',
 						description: 'Controls how much reasoning effort Claude uses.',
 						enum: ['low', 'medium', 'high'],
 						enumLabels: ['Low', 'Medium', 'High'],
@@ -133,7 +133,7 @@ suite('createClaudeThinkingLevelSchema (Phase 6.1 / Cycle D3)', () => {
 				properties: {
 					thinkingLevel: {
 						type: 'string',
-						title: 'Thinking Level',
+						title: 'Effort Level',
 						description: 'Controls how much reasoning effort Claude uses.',
 						enum: ['high'],
 						enumLabels: ['High'],
@@ -147,7 +147,7 @@ suite('createClaudeThinkingLevelSchema (Phase 6.1 / Cycle D3)', () => {
 				properties: {
 					thinkingLevel: {
 						type: 'string',
-						title: 'Thinking Level',
+						title: 'Effort Level',
 						description: 'Controls how much reasoning effort Claude uses.',
 						enum: ['max', 'low'],
 						enumLabels: ['Max', 'Low'],

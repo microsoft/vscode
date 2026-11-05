@@ -9,7 +9,7 @@ import './media/editorBreadcrumbs.css';
 import './media/editorHeader.css';
 import '../../../../workbench/services/themes/browser/modernTabColorCustomizations.js';
 import './diffEditor.sessions.contribution.js';
-import { NewBrowserTabAction, NewChangesTabAction, NewFileTabAction, NewSearchTabAction } from './addTabActions.js';
+import { NewBrowserTabAction, NewChangesTabAction, NewFileTabAction, NewSearchTabAction, OpenBrowserAction, registerSessionActivityBarTabEntries } from './addTabActions.js';
 import { localize2 } from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
@@ -21,8 +21,9 @@ import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js
 import { Action2, isIMenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { canMoveModalEditorToEditorArea } from '../../../../platform/editor/common/editor.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { ActiveEditorContext, EditorPartModalContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../workbench/common/contextkeys.js';
+import { ActiveEditorContext, EditorPartModalCanMoveToEditorAreaContext, EditorPartModalContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../workbench/common/contextkeys.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { Menus } from '../../../browser/menus.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
@@ -42,7 +43,6 @@ import { IAuxiliaryWindowService } from '../../../../workbench/services/auxiliar
 import { MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID } from '../../../../workbench/browser/parts/editor/editorCommands.js';
 import { TERMINAL_VIEW_ID } from '../../../../workbench/contrib/terminal/common/terminal.js';
 import { TEXT_FILE_EDITOR_ID } from '../../../../workbench/contrib/files/common/files.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { SessionsCategories } from '../../../common/categories.js';
 import { IChangesViewService } from '../../changes/common/changesViewService.js';
@@ -129,8 +129,10 @@ class DesktopAddTabContribution extends Disposable implements IWorkbenchContribu
 
 		this._register(registerAction2(NewFileTabAction));
 		this._register(registerAction2(NewBrowserTabAction));
+		this._register(registerAction2(OpenBrowserAction));
 		this._register(registerAction2(NewSearchTabAction));
 		this._register(registerAction2(NewChangesTabAction));
+		this._register(registerSessionActivityBarTabEntries());
 	}
 }
 
@@ -295,14 +297,15 @@ class OpenModalEditorInEditorAction extends Action2 {
 			icon: Codicon.openInWindow,
 			f1: false,
 			// The editor area is not rendered while a custom view replaces the sessions grid.
-			precondition: CustomViewVisibleContext.negate(),
+			precondition: ContextKeyExpr.and(CustomViewVisibleContext.negate(), EditorPartModalCanMoveToEditorAreaContext),
 			menu: {
 				id: MenuId.ModalEditorTitle,
 				group: 'navigation',
 				order: 98,
 				when: ContextKeyExpr.and(
 					IsSessionsWindowContext,
-					EditorPartModalContext)
+					EditorPartModalContext,
+					EditorPartModalCanMoveToEditorAreaContext)
 			}
 		});
 	}
@@ -318,6 +321,9 @@ class OpenModalEditorInEditorAction extends Action2 {
 		const activeEditorPart = editorGroupsService.activeModalEditorPart;
 		const activeGroup = activeEditorPart?.activeGroup;
 		if (!activeEditorPart || !activeGroup) {
+			return;
+		}
+		if (!canMoveModalEditorToEditorArea(activeGroup.activeEditor)) {
 			return;
 		}
 
@@ -394,7 +400,6 @@ class AddFileAsContextAction extends Action2 {
 
 	run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		const editorService = accessor.get(IEditorService);
-		const sessionsService = accessor.get(ISessionsService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
 
 		const resolvedContext = resolveCommandsContext(args, editorService, accessor.get(IEditorGroupsService), accessor.get(IListService));
@@ -406,8 +411,7 @@ class AddFileAsContextAction extends Action2 {
 			return;
 		}
 
-		const sessionId = sessionsService.activeSession.get()?.sessionId;
-		sessionsPartService.getSessionView(sessionId)?.attach(resources);
+		sessionsPartService.getActiveSessionView()?.attach(resources);
 	}
 }
 

@@ -10,6 +10,7 @@ import BaseSeverity from '../../../base/common/severity.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { LegacyExtensionLinkParsing } from './notificationLegacy.js';
 import { NotificationText } from './notificationMessage.js';
+import type { NotificationTelemetry, NotificationActionTelemetryId } from './notificationTelemetry.js';
 
 export import Severity = BaseSeverity;
 
@@ -42,6 +43,9 @@ export enum NotificationPriority {
 }
 
 export interface INotificationProperties {
+
+	/** Audited telemetry attribution, independent of the message, display source, and deduplication ID. */
+	readonly telemetry?: NotificationTelemetry;
 
 	/**
 	 * Preserves link parsing for extension API messages. Core callers must use literal text or `NotificationText`.
@@ -239,6 +243,8 @@ export interface INotificationProgress {
 }
 
 export interface INotificationHandle {
+	/** Current visibility, when supported, including a toast shown before listeners attach. */
+	readonly visible?: boolean;
 
 	/**
 	 * Will be fired once the notification is closed.
@@ -290,6 +296,9 @@ export interface IStatusHandle {
 }
 
 interface IBasePromptChoice {
+
+	/** Optional audited semantic action ID; never derive this from the label or command arguments. */
+	readonly telemetryId?: NotificationActionTelemetryId;
 
 	/**
 	 * Label to show for the choice to the user.

@@ -28,6 +28,8 @@ export type AICustomizationManagementOpenEditorTarget =
 		readonly sessionType?: string;
 		readonly sessionResource?: URI;
 		readonly revealUri?: URI;
+		readonly showDiscover?: boolean;
+		readonly searchQuery?: string;
 		readonly migration?: boolean;
 		readonly migrationCategory?: CustomizationMigrationCategoryId;
 		readonly migrationHint?: ICustomizationMigrationHint;
@@ -39,7 +41,7 @@ export function resolveAICustomizationManagementOpenEditorTarget(
 	pendingSessionType: string | undefined,
 	chatSessionResource: URI | undefined,
 	getSessionResourceForHarness: (sessionType: string) => URI,
-): { readonly section?: AICustomizationManagementSection; readonly revealUri?: URI; readonly sessionResource?: URI; readonly migration?: boolean; readonly migrationCategory?: CustomizationMigrationCategoryId; readonly migrationHint?: ICustomizationMigrationHint } {
+): { readonly section?: AICustomizationManagementSection; readonly revealUri?: URI; readonly sessionResource?: URI; readonly showDiscover?: boolean; readonly searchQuery?: string; readonly migration?: boolean; readonly migrationCategory?: CustomizationMigrationCategoryId; readonly migrationHint?: ICustomizationMigrationHint } {
 	if (isChatViewTitleActionContext(target)) {
 		return { sessionResource: target.sessionResource };
 	}
@@ -49,6 +51,8 @@ export function resolveAICustomizationManagementOpenEditorTarget(
 	return {
 		section: options?.section,
 		revealUri: options?.revealUri,
+		showDiscover: options?.showDiscover,
+		searchQuery: options?.searchQuery,
 		migration: options?.migration,
 		migrationCategory: options?.migrationCategory,
 		migrationHint: options?.migrationHint,
@@ -158,6 +162,11 @@ export const AI_CUSTOMIZATION_ITEM_URI_KEY = 'aiCustomizationManagementItemUri';
  * Context key for the parent plugin URI, set when the item is provided by a plugin.
  */
 export const AI_CUSTOMIZATION_ITEM_PLUGIN_URI_KEY = 'aiCustomizationManagementItemPluginUri';
+
+/**
+ * Context key indicating whether the item's parent plugin is required by the organization and cannot be uninstalled.
+ */
+export const AI_CUSTOMIZATION_ITEM_PLUGIN_REQUIRED_KEY = 'aiCustomizationManagementItemPluginRequired';
 
 /**
  * Context key indicating whether the item is disabled.

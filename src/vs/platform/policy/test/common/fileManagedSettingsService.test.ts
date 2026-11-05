@@ -171,6 +171,13 @@ suite('normalizeManagedSettings', () => {
 		assert.deepStrictEqual(normalizeManagedSettings({}), {});
 	});
 
+	test('retains permission-key presence through serialization without treating an empty block as configured', () => {
+		const documents = [{ permissions: {} }, { permissions: { future: {} } }, { permissions: { future: null } }, { permissions: { limitTo: [] } }, { permissions: { disableAssistedPermissionsMode: false } }];
+		assert.deepStrictEqual(documents.map(document => JSON.parse(JSON.stringify(normalizeManagedSettings(document)))), [
+			{}, { 'permissions.future': '{}' }, { 'permissions.future': 'null' }, { 'permissions.limitTo': '[]' }, { 'permissions.disableAssistedPermissionsMode': false },
+		]);
+	});
+
 	test('retains empty and future-only telemetry block presence through JSON serialization', () => {
 		const documents = [{ telemetry: {} }, { telemetry: { capture: {} } }, { telemetry: { future: ['value'] } }];
 		assert.deepStrictEqual(documents.map(document => JSON.parse(JSON.stringify(normalizeManagedSettings(document)))), [
@@ -219,7 +226,7 @@ suite('FileManagedSettingsService', () => {
 		});
 	}));
 
-	test('retains raw settings that are absent from the normalized bag', () => runWithFakedTimers({}, async () => {
+	test('retains permission rules in both raw and normalized settings', () => runWithFakedTimers({}, async () => {
 		const logService = new NullLogService();
 		const fileService = disposables.add(new FileService(logService));
 		const inMemoryProvider = disposables.add(new InMemoryFileSystemProvider());
@@ -239,7 +246,11 @@ suite('FileManagedSettingsService', () => {
 
 		assert.deepStrictEqual({ raw: service.rawManagedSettings, normalized: service.managedSettings }, {
 			raw,
-			normalized: {},
+			normalized: {
+				'permissions.allow': JSON.stringify(raw.permissions.allow),
+				'permissions.ask': JSON.stringify(raw.permissions.ask),
+				'permissions.deny': JSON.stringify(raw.permissions.deny),
+			},
 		});
 	}));
 

@@ -108,7 +108,7 @@ abstract class RelatedInformationProviderEmbeddingsIndex<V extends { key: string
 			return [];
 		}
 		const startOfEmbeddingRequest = Date.now();
-		const embeddingResult = await this.embeddingsComputer.computeEmbeddings(EmbeddingType.text3small_512, [query], {}, new TelemetryCorrelationId('RelatedInformationProviderEmbeddingsIndex::provideRelatedInformation'), token);
+		const embeddingResult = await this.embeddingsComputer.computeEmbeddings(EmbeddingType.metis_1024_I16_Binary, [query], { inputType: 'query' }, new TelemetryCorrelationId('RelatedInformationProviderEmbeddingsIndex::provideRelatedInformation'), token);
 		this._logService.debug(`Related Information: Remote similarly request took ${Date.now() - startOfEmbeddingRequest}ms`);
 		if (token.isCancellationRequested) {
 			// return an array of 0s the same length as comparisons
@@ -127,7 +127,7 @@ abstract class RelatedInformationProviderEmbeddingsIndex<V extends { key: string
 				break;
 			}
 			if (item.embedding) {
-				const score = distance(embeddingResult.values[0], { value: item.embedding, type: EmbeddingType.text3small_512 }).value;
+				const score = distance(embeddingResult.values[0], { value: item.embedding, type: EmbeddingType.metis_1024_I16_Binary }).value;
 				if (score > this.relatedInformationConfig.threshold) {
 					results.push(this.toRelatedInformation(item, score));
 				}
@@ -161,13 +161,13 @@ class CommandIdIndex extends RelatedInformationProviderEmbeddingsIndex<CommandLi
 	) {
 		super(
 			'CommandIdIndex',
-			EmbeddingType.text3small_512,
+			EmbeddingType.metis_1024_I16_Binary,
 			'commandEmbeddings',
 			embeddingsFetcher,
 			embeddingscache,
 			{
 				type: RelatedInformationType.CommandInformation,
-				threshold: /* min threshold of 0 for text-3-small*/ 0,
+				threshold: 0,
 				maxResults: 100,
 			},
 			logService,
@@ -222,13 +222,13 @@ class SettingsIndex extends RelatedInformationProviderEmbeddingsIndex<SettingLis
 	) {
 		super(
 			'SettingsIndex',
-			EmbeddingType.text3small_512,
+			EmbeddingType.metis_1024_I16_Binary,
 			'settingEmbeddings',
 			embeddingsFetcher,
 			embeddingsCache,
 			{
 				type: RelatedInformationType.SettingInformation,
-				threshold: /* min threshold of 0 for text-3-small*/ 0,
+				threshold: 0,
 				maxResults: 100,
 			},
 			logService,
@@ -291,11 +291,11 @@ export class VSCodeCombinedIndexImpl implements ICombinedEmbeddingIndex {
 	) {
 		// Local embeddings cache version is locked to 1.98
 		const settingsEmbeddingsCache = useRemoteCache ?
-			instantiationService.createInstance(RemoteEmbeddingsExtensionCache, EmbeddingCacheType.GLOBAL, 'settingEmbeddings', sanitizeVSCodeVersion(envService.getEditorInfo().version), EmbeddingType.text3small_512, RemoteCacheType.Settings) :
-			instantiationService.createInstance(LocalEmbeddingsCache, EmbeddingCacheType.GLOBAL, 'settingEmbeddings', '1.98', EmbeddingType.text3small_512);
+			instantiationService.createInstance(RemoteEmbeddingsExtensionCache, EmbeddingCacheType.GLOBAL, 'settingEmbeddings', sanitizeVSCodeVersion(envService.getEditorInfo().version), EmbeddingType.metis_1024_I16_Binary, RemoteCacheType.Settings) :
+			instantiationService.createInstance(LocalEmbeddingsCache, EmbeddingCacheType.GLOBAL, 'settingEmbeddings', '1.98', EmbeddingType.metis_1024_I16_Binary);
 		const commandsEmbeddingsCache = useRemoteCache ?
-			instantiationService.createInstance(RemoteEmbeddingsExtensionCache, EmbeddingCacheType.GLOBAL, 'commandEmbeddings', sanitizeVSCodeVersion(envService.getEditorInfo().version), EmbeddingType.text3small_512, RemoteCacheType.Commands) :
-			instantiationService.createInstance(LocalEmbeddingsCache, EmbeddingCacheType.GLOBAL, 'commandEmbeddings', '1.98', EmbeddingType.text3small_512);
+			instantiationService.createInstance(RemoteEmbeddingsExtensionCache, EmbeddingCacheType.GLOBAL, 'commandEmbeddings', sanitizeVSCodeVersion(envService.getEditorInfo().version), EmbeddingType.metis_1024_I16_Binary, RemoteCacheType.Commands) :
+			instantiationService.createInstance(LocalEmbeddingsCache, EmbeddingCacheType.GLOBAL, 'commandEmbeddings', '1.98', EmbeddingType.metis_1024_I16_Binary);
 
 		this.settingsIndex = instantiationService.createInstance(SettingsIndex, settingsEmbeddingsCache);
 		this.commandIdIndex = instantiationService.createInstance(CommandIdIndex, commandsEmbeddingsCache);

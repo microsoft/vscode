@@ -6,6 +6,20 @@
 import type { ErrorInfo } from '../../state/protocol/common/state.js';
 import { isObject, isString } from '../../../../../base/common/types.js';
 
+const policyResolutionFailedKey = 'vscode.policyResolutionFailed';
+
+export function toPolicyResolutionErrorData(): { readonly _meta: Record<string, unknown> } {
+	return { _meta: { [policyResolutionFailedKey]: true } };
+}
+
+export function isPolicyResolutionErrorData(data: unknown): boolean {
+	if (!isObject(data)) {
+		return false;
+	}
+	const meta = (data as Record<string, unknown>)._meta;
+	return isObject(meta) && (meta as Record<string, unknown>)[policyResolutionFailedKey] === true;
+}
+
 export interface IAgentErrorTelemetryMeta {
 	readonly providerCallId?: string;
 	readonly serviceRequestId?: string;

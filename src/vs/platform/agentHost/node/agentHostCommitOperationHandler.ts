@@ -5,6 +5,7 @@
 
 import { basename } from '../../../base/common/resources.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
+import { captureCredentialSource, type IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
@@ -28,7 +29,7 @@ export class AgentHostCommitOperationHandler implements IChangesetOperationHandl
 
 	constructor(
 		private readonly _getSessionState: (sessionKey: string) => SessionState | undefined,
-		private readonly _onCommitted: (sessionKey: string) => Promise<void>,
+		private readonly _onCommitted: (sessionKey: string, source?: IAgentHostCredentialSource) => Promise<void>,
 		@IAgentHostAuthenticationService private readonly _authenticationService: IAgentHostAuthenticationService,
 		@IAgentHostGitHubEndpointService private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
@@ -37,20 +38,32 @@ export class AgentHostCommitOperationHandler implements IChangesetOperationHandl
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 	) { }
 
-	async invoke(params: InvokeChangesetOperationParams, token: CancellationToken): Promise<InvokeChangesetOperationResult> {
+	async invoke(params: InvokeChangesetOperationParams, token: CancellationToken, source?: IAgentHostCredentialSource): Promise<InvokeChangesetOperationResult> {
+		source = this.captureCredentialSource(params, source);
 		const abortController = new AbortController();
 		if (token.isCancellationRequested) {
 			abortController.abort();
 		}
 		const cancellationListener = token.onCancellationRequested(() => abortController.abort());
 		try {
-			return await this._invoke(params, token, abortController.signal);
+			return await this._invoke(params, token, abortController.signal, source);
 		} finally {
 			cancellationListener.dispose();
 		}
 	}
 
-	private async _invoke(params: InvokeChangesetOperationParams, token: CancellationToken, signal: AbortSignal): Promise<InvokeChangesetOperationResult> {
+	captureCredentialSource(params: InvokeChangesetOperationParams, source?: IAgentHostCredentialSource): IAgentHostCredentialSource | undefined {
+		const parsed = parseChangesetUri(params.channel);
+		const scope = parsed ? resolveChangesetOwnerScope(this._stateManager, parsed.ownerUri) : undefined;
+		source ??= scope ? this._authenticationService.getSessionCredentialSource(scope.sourceUri) : undefined;
+		const rawSource = source;
+		return rawSource ? captureCredentialSource({
+			principal: rawSource.principal,
+			getCredential: request => rawSource.getCredential({ ...request, session: scope?.sessionUri }),
+		}, [this._gitHubEndpointService.getRepoResource(), { ...this._gitHubEndpointService.getCopilotResource(), required: false }]) : undefined;
+	}
+
+	private async _invoke(params: InvokeChangesetOperationParams, token: CancellationToken, signal: AbortSignal, source?: IAgentHostCredentialSource): Promise<InvokeChangesetOperationResult> {
 		const parsed = parseChangesetUri(params.channel);
 		if (!parsed) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Not an uncommitted changeset URI: ${params.channel}`);
@@ -84,9 +97,10 @@ export class AgentHostCommitOperationHandler implements IChangesetOperationHandl
 
 		const copilotResource = this._gitHubEndpointService.getCopilotResource();
 		const authToken = this._authenticationService.getAuthToken({
+			session: sessionUri,
 			resource: copilotResource.resource,
 			scopes: copilotResource.scopes_supported,
-		});
+		}, source);
 		if (!authToken) {
 			throw new ProtocolError(
 				AHP_AUTH_REQUIRED,
@@ -131,7 +145,7 @@ export class AgentHostCommitOperationHandler implements IChangesetOperationHandl
 		}
 
 		try {
-			await this._onCommitted(parsed.ownerUri);
+			await this._onCommitted(parsed.ownerUri, source);
 		} catch (err) {
 			this._logService.warn(`[AgentHostCommitOperationHandler] Post-commit refresh failed for ${parsed.ownerUri}: ${err instanceof Error ? err.message : String(err)}`);
 		}

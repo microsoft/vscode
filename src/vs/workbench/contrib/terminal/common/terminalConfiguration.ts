@@ -42,7 +42,7 @@ terminalDescription += terminalDescriptors;
 
 export const defaultTerminalFontSize = isMacintosh ? 12 : 14;
 
-const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
+export const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	[TerminalSettingId.SendKeybindingsToShell]: {
 		markdownDescription: localize('terminal.integrated.sendKeybindingsToShell', "Dispatches most keybindings to the terminal instead of the workbench, overriding {0}, which can be used alternatively for fine tuning.", '`#terminal.integrated.commandsToSkipShell#`'),
 		type: 'boolean',
@@ -498,6 +498,16 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		type: 'boolean',
 		default: true,
 	},
+	[TerminalSettingId.WindowsReparentConsoleWindow]: {
+		restricted: true,
+		markdownDescription: localize('terminal.integrated.windowsReparentConsoleWindow', "Whether to make the window that shows a terminal the owner of its console window, so dialogs that console applications open, like sign-in prompts, appear in front of VS Code instead of behind it. Requires {0}.", `\`#${TerminalSettingId.WindowsUseConptyDll}#\``),
+		type: 'boolean',
+		default: true,
+		tags: ['advanced'],
+		experiment: {
+			mode: 'auto'
+		}
+	},
 	[TerminalSettingId.SplitCwd]: {
 		description: localize('terminal.integrated.splitCwd', "Controls the working directory a split terminal starts with."),
 		type: 'string',
@@ -527,6 +537,7 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		default: 'on'
 	},
 	[TerminalSettingId.AllowedLinkSchemes]: {
+		restricted: true,
 		description: localize('terminal.integrated.allowedLinkSchemes', "An array of strings containing the URI schemes that the terminal is allowed to open links for. By default, only a small subset of possible schemes are allowed for security reasons."),
 		type: 'array',
 		items: {

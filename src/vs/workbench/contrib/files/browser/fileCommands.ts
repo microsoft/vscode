@@ -29,6 +29,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { IEditorService, SIDE_GROUP, ISaveEditorsOptions } from '../../../services/editor/common/editorService.js';
+import { OpenWithEditorPicker } from '../../../services/editor/browser/openWithEditorPicker.js';
 import { IEditorGroupsService, GroupsOrder, IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { basename, joinPath, isEqual } from '../../../../base/common/resources.js';
@@ -40,7 +41,7 @@ import { ITextFileService } from '../../../services/textfile/common/textfiles.js
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { IAction, toAction } from '../../../../base/common/actions.js';
-import { EditorOpenSource, EditorResolution } from '../../../../platform/editor/common/editor.js';
+import { EditorOpenSource } from '../../../../platform/editor/common/editor.js';
 import { hash } from '../../../../base/common/hash.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
@@ -355,9 +356,13 @@ CommandsRegistry.registerCommand({
 	handler: async (accessor, resource: URI | object) => {
 		const editorService = accessor.get(IEditorService);
 		const listService = accessor.get(IListService);
+		const editorPicker = accessor.get(IInstantiationService).createInstance(OpenWithEditorPicker);
 		const uri = getResourceForCommand(resource, editorService, listService);
 		if (uri) {
-			return editorService.openEditor({ resource: uri, options: { override: EditorResolution.PICK, source: EditorOpenSource.USER } });
+			const options = await editorPicker.pick({ resource: uri, options: { source: EditorOpenSource.USER } });
+			if (options) {
+				return editorService.openEditor({ resource: uri, options });
+			}
 		}
 
 		return undefined;

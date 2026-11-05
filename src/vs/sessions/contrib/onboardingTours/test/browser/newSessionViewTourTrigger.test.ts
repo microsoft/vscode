@@ -12,6 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { AgentHostSessionTypesAvailableContext, IsNewChatSessionContext, SessionHasWorkspaceContext } from '../../../../common/contextkeys.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { noSessionPickerVisibility } from '../../../../services/sessions/common/sessionPickerVisibility.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { findOnboardingTarget, markOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
@@ -33,7 +34,7 @@ suite('NewSessionViewTourTrigger', () => {
 		const initialRestoreComplete = observableValue('initialRestoreComplete', options.restored ?? true);
 		const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
 		const sessionsService = new class extends mock<ISessionsService>() {
-			override readonly activeSession = activeSession;
+			readonly activeSession = activeSession;
 			override readonly initialRestoreComplete = initialRestoreComplete;
 		}();
 		const entitlement = observableValue('entitlement', options.entitlement ?? ChatEntitlement.Available);
@@ -51,6 +52,7 @@ suite('NewSessionViewTourTrigger', () => {
 			id,
 			onboardingService,
 			sessionsService,
+			sessionsService.activeSession,
 			storageService,
 			configurationService,
 			contextKeyService,
@@ -113,8 +115,8 @@ suite('NewSessionViewTourTrigger', () => {
 			beforeRender: { signals: [false, false], workspaceSteps: [false, false] },
 			afterRender: { signals: [true, true], workspaceSteps: [true, true] },
 			visibleTarget: true,
-			global: { workspace: true, harness: false, isolation: false },
-			local: { workspace: true, harness: false, isolation: false },
+			global: { ...noSessionPickerVisibility, workspace: true },
+			local: { ...noSessionPickerVisibility, workspace: true },
 			afterWorkspaceSelection: [false, false],
 		});
 	});
