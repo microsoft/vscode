@@ -301,7 +301,7 @@ suite('TabbedModelPicker', () => {
 			localModels: options.localModels,
 			models: availableModels, selectedModelId: options.selectedModelId ?? availableModels[0]?.identifier,
 			comparisonModels: options.comparisonModels,
-			recentModelIds: [], pinnedModelIds: options.pinnedModelIds ?? [],
+			pinnedModelIds: options.pinnedModelIds ?? [],
 			controlModels: options.controlModels ?? Object.fromEntries(availableModels.map(model => [model.metadata.id, { exists: true, featured: true, label: model.metadata.name }])),
 			configurationAccess: access, isUBB: false, showManageModels: options.showManageModels ?? false, manageModelsDisabledReason: options.manageModelsDisabledReason, providerPlaceholders: options.providerPlaceholders ?? [],
 			unavailableContext: { show: !!options.showUnavailable, currentVSCodeVersion: '1.140.0', manageSettingsUrl: options.manageSettingsUrl, organizationSupport: options.organizationSupport, updateStateType: StateType.Idle },
