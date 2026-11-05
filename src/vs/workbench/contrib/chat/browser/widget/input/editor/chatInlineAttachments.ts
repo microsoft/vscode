@@ -296,6 +296,9 @@ export class ChatInlineAttachments extends Disposable {
 			this._updateSelectedPills();
 			const previousActive = this._activePill;
 			this._updateActivePill();
+			if (e.source === 'keyboard' && previousActive !== this._activePill && this._editor.hasTextFocus()) {
+				this._activePill?.widget?.previewHover?.show(false);
+			}
 			// The cursor crosses a pill when it is moved, rather than when an edit, such as deleting the pill, moves it.
 			this._announcePillAtCursor(e.reason === CursorChangeReason.Explicit, previousActive);
 			// Typed text that stands for an attachment becomes a pill once the cursor leaves it.
@@ -514,7 +517,10 @@ export class ChatInlineAttachments extends Disposable {
 				const widget = pill.widget;
 				return {
 					range: pillRange,
-					createContent: () => widget.getPreviewHoverContent?.(),
+					createContent: () => {
+						widget.previewHover?.hide();
+						return widget.getPreviewHoverContent?.();
+					},
 					onDidChange: widget.onDidChangePreview ?? Event.None,
 				};
 			}
@@ -1277,6 +1283,7 @@ export class ChatInlineAttachments extends Disposable {
 			}
 		}
 		if (active !== this._activePill) {
+			this._activePill?.widget?.previewHover?.hide();
 			this._activePill?.setActive(false);
 			this._activePill = active;
 			active?.setActive(true);

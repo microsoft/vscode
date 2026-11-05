@@ -19,13 +19,13 @@ import { HoverStartMode, HoverStartSource } from '../../../../../../../../editor
 import { Selection } from '../../../../../../../../editor/common/core/selection.js';
 import { IMarkerDecorationsService } from '../../../../../../../../editor/common/services/markerDecorations.js';
 import { ICodeEditor } from '../../../../../../../../editor/browser/editorBrowser.js';
-import { EditorExtensionsRegistry } from '../../../../../../../../editor/browser/editorExtensions.js';
+import { EditorExtensionsRegistry, MultiCommand } from '../../../../../../../../editor/browser/editorExtensions.js';
 import { CodeEditorWidget } from '../../../../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { ContentHoverController } from '../../../../../../../../editor/contrib/hover/browser/contentHoverController.js';
 import { ShowOrFocusHoverAction } from '../../../../../../../../editor/contrib/hover/browser/hoverActions.js';
 import { SHOW_OR_FOCUS_HOVER_ACTION_ID } from '../../../../../../../../editor/contrib/hover/browser/hoverActionIds.js';
 import { EditorContextKeys } from '../../../../../../../../editor/common/editorContextKeys.js';
-import { HoverAccessibleView } from '../../../../../../../../editor/contrib/hover/browser/hoverAccessibleViews.js';
+import { HoverAccessibleView, HoverAccessibilityHelp } from '../../../../../../../../editor/contrib/hover/browser/hoverAccessibleViews.js';
 import '../../../../../../../../editor/contrib/hover/browser/hoverContribution.js';
 import { MoveLinesCommand } from '../../../../../../../../editor/contrib/linesOperations/browser/moveLinesCommand.js';
 import { CopyLinesCommand } from '../../../../../../../../editor/contrib/linesOperations/browser/copyLinesCommand.js';
@@ -33,6 +33,7 @@ import { createCodeEditorServices, instantiateTestCodeEditor } from '../../../..
 import { instantiateTextModel } from '../../../../../../../../editor/test/common/testTextModel.js';
 import { IConfigurationService } from '../../../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyService } from '../../../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextMenuService } from '../../../../../../../../platform/contextview/browser/contextView.js';
 import { KeybindingsRegistry } from '../../../../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { TestConfigurationService } from '../../../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -45,9 +46,11 @@ import { ChatAttachmentModel } from '../../../../../browser/attachments/chatAtta
 import { ChatDynamicVariableModel } from '../../../../../browser/attachments/chatDynamicVariables.js';
 import { IChatAttachmentResolveService } from '../../../../../browser/attachments/chatAttachmentResolveService.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../browser/chat.js';
+import { ChatResponseAccessibleView } from '../../../../../browser/accessibility/chatResponseAccessibleView.js';
 import { ChatInlineAttachments } from '../../../../../browser/widget/input/editor/chatInlineAttachments.js';
 import '../../../../../browser/widget/input/editor/chatInputEditorHover.js';
 import { GitHubResourceDetailsResolver } from '../../../../../../github/browser/githubResourceDetails.js';
+import { IManagedHover } from '../../../../../../../../base/browser/ui/hover/hover.js';
 import { IWorkbenchGitHubService } from '../../../../../../../services/github/common/githubService.js';
 import { IChatWidgetContrib } from '../../../../../browser/widget/chatWidget.js';
 import { ChatContextKeys } from '../../../../../common/actions/chatContextKeys.js';
@@ -79,10 +82,13 @@ suite('ChatInlineAttachments', () => {
 	 * whose chat widget does not own the input, such as the Automation dialog's,
 	 * does not.
 	 */
-	function createInput(text: string, showsPills = true, preview?: () => HTMLElement, realEditor = false): ITestInput {
+	function createInput(text: string, showsPills = true, preview?: () => HTMLElement, realEditor = false, previewHover?: IManagedHover): ITestInput {
 		const disposables = store.add(new DisposableStore());
 		const configurationService = new TestConfigurationService({ [ChatConfiguration.InlineAttachmentsEnabled]: true });
 		const instantiationService = createCodeEditorServices(disposables, new ServiceCollection([IConfigurationService, configurationService]));
+		if (realEditor) {
+			instantiationService.stub(IContextKeyService, disposables.add(new ContextKeyService(configurationService)));
+		}
 		instantiationService.stub(ILabelService, new class extends mock<ILabelService>() {
 			override getUriLabel(uri: URI): string { return uri.path; }
 		});
@@ -105,7 +111,9 @@ suite('ChatInlineAttachments', () => {
 			container.style.width = '800px';
 			container.style.height = '300px';
 			disposables.add(toDisposable(() => container.remove()));
-			editor = disposables.add(instantiationService.createInstance(CodeEditorWidget, container, {}, {
+			const overflowWidgetsDomNode = dom.append(document.body, dom.$('div'));
+			disposables.add(toDisposable(() => overflowWidgetsDomNode.remove()));
+			editor = disposables.add(instantiationService.createInstance(CodeEditorWidget, container, { overflowWidgetsDomNode }, {
 				isSimpleWidget: true,
 				contributions: EditorExtensionsRegistry.getEditorContributions().filter(contribution => contribution.id === ContentHoverController.ID),
 			}));
@@ -145,7 +153,7 @@ suite('ChatInlineAttachments', () => {
 				const element = dom.append(container, dom.$('span.chat-attached-context-attachment', undefined, attachment.name));
 				const onDidChangePreview = new Emitter<void>();
 				return {
-					element, supportsPreview: !!preview, getPreviewHoverContent: preview,
+					element, supportsPreview: !!preview, getPreviewHoverContent: preview, previewHover,
 					onDidChangePreview: onDidChangePreview.event, onDidDelete: Event.None, onDidOpen: Event.None,
 					dispose: () => { onDidChangePreview.fire(); onDidChangePreview.dispose(); element.remove(); },
 				};
@@ -178,13 +186,50 @@ suite('ChatInlineAttachments', () => {
 		return timeout(0);
 	}
 
+	test('keyboard activation reveals the shared hover without focusing it or showing it after edits', async () => {
+		const events: string[] = [];
+		const previewHover: IManagedHover = {
+			show: focus => events.push(`show:${focus}`),
+			hide: () => events.push('hide'),
+			update: async () => { },
+			dispose: () => { },
+		};
+		const input = createInput('review  tail', true, () => dom.$('div'), true, previewHover);
+		input.editor.setPosition(new Position(1, 8));
+		input.attachments.addContext({
+			kind: 'generic',
+			id: 'github-context:https://github.com/microsoft/vscode/issues/123',
+			name: 'microsoft/vscode#123',
+			value: '',
+		});
+		await settle();
+		const afterInsertion = [...events];
+		input.editor.focus();
+		input.editor.trigger('keyboard', 'cursorLeft', {});
+		input.editor.trigger('keyboard', 'cursorRight', {});
+		const afterKeyboardActivation = [...events];
+		input.editor.trigger('keyboard', 'cursorRight', {});
+		input.editor.setPosition(new Position(1, 9));
+		assert.deepStrictEqual({
+			afterInsertion,
+			afterKeyboardActivation,
+			afterLeavingAndProgrammaticReturn: events,
+			focusInComposer: input.editor.hasTextFocus(),
+		}, { afterInsertion: [], afterKeyboardActivation: ['show:false'], afterLeavingAndProgrammaticReturn: ['show:false', 'hide'], focusInComposer: true });
+	});
+
 	test('Show or Focus Hover displays reference details and Escape returns to the draft', async () => {
 		const content = dom.$('div', undefined, 'Issue title and description');
 		let rendered = 0;
+		let sharedPreviewVisible = false;
+		const previewHover = upcastPartial<IManagedHover>({
+			show: () => { sharedPreviewVisible = true; },
+			hide: () => { sharedPreviewVisible = false; },
+		});
 		const input = createInput('review ', true, () => {
 			rendered++;
 			return content;
-		}, true);
+		}, true, previewHover);
 		const hover = ContentHoverController.get(input.editor)!;
 		input.editor.setPosition(new Position(1, 8));
 		input.attachments.addContext({
@@ -194,6 +239,7 @@ suite('ChatInlineAttachments', () => {
 			value: '',
 		});
 		await settle();
+		input.editor.focus();
 		input.editor.trigger('keyboard', 'cursorLeft', {});
 		input.editor.trigger('keyboard', 'cursorRight', {});
 		await settle();
@@ -202,11 +248,13 @@ suite('ChatInlineAttachments', () => {
 		await settle();
 		const shownForMouse = hover.isHoverVisible;
 		const renderedBeforeCommand = rendered;
+		const sharedPreviewBeforeCommand = sharedPreviewVisible;
 		const before = input.state();
 		input.editor.focus();
 		const context = input.editor.invokeWithinContext(accessor => {
 			const contextKeyService = accessor.get(IContextKeyService);
 			ChatContextKeys.inChatInput.bindTo(contextKeyService).set(true);
+			ChatContextKeys.inChatSession.bindTo(contextKeyService).set(true);
 			return { getValue: <T>(key: string) => contextKeyService.getContextKeyValue<T>(key) };
 		});
 		const hoverBinding = KeybindingsRegistry.getDefaultKeybindings().some(binding =>
@@ -218,13 +266,29 @@ suite('ChatInlineAttachments', () => {
 		input.editor.invokeWithinContext(accessor => new ShowOrFocusHoverAction().run(accessor, input.editor, { focus: true }));
 		await settle();
 		const shown = hover.isHoverVisible;
-		const provider = input.editor.invokeWithinContext(accessor => new HoverAccessibleView().getProvider(accessor));
+		const accessibleView = new HoverAccessibleView();
+		const accessibilityHelp = new HoverAccessibilityHelp();
+		const command = new MultiCommand({ id: 'test.referenceAccessibleView', precondition: undefined });
+		let provider: ReturnType<HoverAccessibleView['getProvider']>;
+		const chatResponse = new ChatResponseAccessibleView();
+		store.add(command.addImplementation(chatResponse.priority, chatResponse.name, () => true, chatResponse.when));
+		store.add(command.addImplementation(accessibleView.priority, accessibleView.name, accessor => {
+			provider = accessibleView.getProvider(accessor);
+			return !!provider;
+		}, accessibleView.when));
+		input.instantiationService.invokeFunction(accessor => command.runCommand(accessor, undefined));
 		assert.ok(provider);
 		store.add(provider);
+		const focusedContext = input.instantiationService.get(IContextKeyService).getContext(dom.getActiveElement());
+		assert.deepStrictEqual({
+			outsideEditor: !input.editor.getDomNode()!.contains(dom.getActiveElement()),
+			accessibleViewAvailable: accessibleView.when.evaluate(focusedContext),
+			accessibilityHelpAvailable: accessibilityHelp.when.evaluate(focusedContext),
+		}, { outsideEditor: true, accessibleViewAvailable: true, accessibilityHelpAvailable: true });
 		provider.onOpen?.();
 		const accessibleContent = provider.provideContent();
-		assert.deepStrictEqual({ shownForMouse, renderedBeforeCommand, renderedAfterCommand: rendered > 0, shown, accessibleContent }, {
-			shownForMouse: false, renderedBeforeCommand: 0, renderedAfterCommand: true, shown: true, accessibleContent: 'Issue title and description',
+		assert.deepStrictEqual({ shownForMouse, renderedBeforeCommand, renderedAfterCommand: rendered > 0, sharedPreviewBeforeCommand, sharedPreviewAfterCommand: sharedPreviewVisible, shown, accessibleContent }, {
+			shownForMouse: false, renderedBeforeCommand: 0, renderedAfterCommand: true, sharedPreviewBeforeCommand: true, sharedPreviewAfterCommand: false, shown: true, accessibleContent: 'Issue title and description',
 		});
 		let contentUpdates = 0;
 		store.add(hover.onHoverContentsChanged(() => contentUpdates++));

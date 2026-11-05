@@ -11,7 +11,7 @@ import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { decodeBase64, VSBuffer } from '../../../../../base/common/buffer.js';
 import { IAction, Separator } from '../../../../../base/common/actions.js';
-import { HoverStyle, IDelayedHoverOptions, type IHoverLifecycleOptions, type IHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
+import { HoverStyle, IDelayedHoverOptions, type IHoverLifecycleOptions, type IHoverOptions, type IManagedHover } from '../../../../../base/browser/ui/hover/hover.js';
 import { IHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegate.js';
 import { createInstantHoverDelegate, getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
@@ -959,6 +959,7 @@ export class PasteAttachmentWidget extends AbstractChatAttachmentWidget {
 
 export class DefaultChatAttachmentWidget extends AbstractChatAttachmentWidget {
 
+	readonly previewHover: IManagedHover | undefined;
 	private readonly _tooltipHover: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 	private _referenceHover: (() => IGitHubResourceDetailsHover) | undefined;
 	get supportsPreview(): boolean {
@@ -1067,6 +1068,7 @@ export class DefaultChatAttachmentWidget extends AbstractChatAttachmentWidget {
 				this._referenceHover = createHover;
 				// Keep the external pill's lazy content and spacing contract intact.
 				const hover = this.hoverService.setupManagedHover(options.hoverDelegate ?? getDefaultHoverDelegate('element'), this.element, () => createHover().pillHover);
+				this.previewHover = hover;
 				this._tooltipHover.value = hover;
 				this._register(this.gitHubService.onDidChangeDefaultClient(() => {
 					hover.hide();

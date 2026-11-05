@@ -94,14 +94,26 @@ suite('ChatAttachmentsContentPart', () => {
 				widgets[0].element.dispatchEvent(new MouseEvent('mouseleave'));
 				widgets[1].element.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
 				await timeout(0);
+				const secondShownForPointer = previews[1].isConnected;
+				widgets[1].element.dispatchEvent(new MouseEvent('mouseleave'));
+				const focusedElement = dom.getActiveElement();
+				widgets[0].previewHover?.show(false);
+				await timeout(0);
+				const keyboardShown = previews[0].isConnected;
+				const keyboardPreservedFocus = dom.getActiveElement() === focusedElement;
+				widgets[1].element.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+				await timeout(0);
 				assert.deepStrictEqual({
 					beforeDeadline,
 					resolvedBeforeDeadline,
 					firstShown,
 					contentOwnsPadding,
+					secondShownForPointer,
+					keyboardShown,
+					keyboardPreservedFocus,
 					firstDismissed: !previews[0].isConnected,
 					secondShown: previews[1].isConnected,
-				}, { beforeDeadline: false, resolvedBeforeDeadline: 0, firstShown: true, contentOwnsPadding: true, firstDismissed: true, secondShown: true });
+				}, { beforeDeadline: false, resolvedBeforeDeadline: 0, firstShown: true, contentOwnsPadding: true, secondShownForPointer: true, keyboardShown: true, keyboardPreservedFocus: true, firstDismissed: true, secondShown: true });
 			}));
 		}
 
