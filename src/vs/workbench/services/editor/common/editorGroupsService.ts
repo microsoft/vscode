@@ -615,6 +615,13 @@ export interface IContentPart extends IEditorPart {
 	readonly onWillClose: Event<void>;
 
 	/**
+	 * Fired before a group of the part moves to another part, while the group
+	 * still has all its editors: the move copies the group into the other
+	 * part, then closes its editors here.
+	 */
+	readonly onWillMoveGroupOut: Event<IEditorGroup>;
+
+	/**
 	 * Returns the state of the part, to pass as `state` when creating
 	 * a part again. The owner is responsible for persisting it.
 	 */

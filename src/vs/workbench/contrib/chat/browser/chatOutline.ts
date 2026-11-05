@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './media/chatOutline.css';
 import { IconLabel, IIconLabelValueOptions } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
@@ -97,7 +98,7 @@ class ChatOutlineRenderer implements ITreeRenderer<ChatOutlineEntry, FuzzyScore,
 		container.classList.add('chat-outline-element');
 		const iconClass = document.createElement('div');
 		container.append(iconClass);
-		const iconLabel = new IconLabel(container, { supportHighlights: true });
+		const iconLabel = new IconLabel(container, { supportHighlights: true, hoverTargetOverride: container });
 		return { container, iconClass, iconLabel };
 	}
 
@@ -105,6 +106,7 @@ class ChatOutlineRenderer implements ITreeRenderer<ChatOutlineEntry, FuzzyScore,
 		const options: IIconLabelValueOptions = {
 			matches: createMatches(node.filterData),
 			labelEscapeNewLines: true,
+			title: node.element.label,
 		};
 		template.iconClass.className = 'element-icon ' + ThemeIcon.asClassNameArray(node.element.icon).join(' ');
 		template.iconLabel.setLabel(node.element.label, undefined, options);

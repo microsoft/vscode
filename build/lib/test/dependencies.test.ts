@@ -8,7 +8,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { suite, test } from 'node:test';
-import { getMixedInDistroDependencies } from '../dependencies.ts';
+import { getMixedInDistroDependencies, toFlatProductionDependencies } from '../dependencies.ts';
 
 suite('dependencies', () => {
 
@@ -30,5 +30,21 @@ suite('dependencies', () => {
 			mixedIn: [path.join('remote', 'node_modules', 'vsda'), path.join('remote', 'node_modules', '@vscode', 'vsce-sign')],
 			noDistro: [],
 		});
+	});
+
+	test('packages dependencies flat, wherever the workspace installed them', () => {
+		const remote = path.join(os.tmpdir(), 'remote');
+		const folders = [
+			path.join(remote, 'web', 'node_modules', 'jschardet'),
+			path.join(remote, 'node_modules', '@xterm', 'xterm'),
+			path.join(remote, 'node_modules', 'katex', 'node_modules', 'commander'),
+		];
+
+		assert.deepStrictEqual(toFlatProductionDependencies(folders).map(({ folder, base }) => [path.relative(remote, base), path.relative(base, folder)]), [
+			['web', path.join('node_modules', 'jschardet')],
+			['', path.join('node_modules', '@xterm', 'xterm')],
+			[path.join('node_modules', 'katex'), path.join('node_modules', 'commander')],
+		]);
+		assert.throws(() => toFlatProductionDependencies([...folders, path.join(remote, 'web', 'node_modules', 'commander')]), /both named commander/);
 	});
 });

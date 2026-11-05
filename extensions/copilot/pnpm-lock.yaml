@@ -183,8 +183,8 @@ importers:
         specifier: ^10.0.10
         version: 10.0.10
       '@types/node':
-        specifier: ^22.16.3
-        version: 22.16.3
+        specifier: 24.x
+        version: 24.13.2
       '@types/picomatch':
         specifier: ^4.0.0
         version: 4.0.0
@@ -325,13 +325,13 @@ importers:
         version: '@typescript/typescript6@6.0.2'
       vite:
         specifier: ^8.0.16
-        version: 8.0.16(@types/node@22.16.3)(esbuild@0.28.1)(tsx@4.22.4)(yaml@2.8.3)
+        version: 8.0.16(@types/node@24.13.2)(esbuild@0.28.1)(tsx@4.22.4)(yaml@2.8.3)
       vite-plugin-wasm:
         specifier: ^3.6.0
-        version: 3.6.0(vite@8.0.16(@types/node@22.16.3)(esbuild@0.28.1)(tsx@4.22.4)(yaml@2.8.3))
+        version: 3.6.0(vite@8.0.16(@types/node@24.13.2)(esbuild@0.28.1)(tsx@4.22.4)(yaml@2.8.3))
       vitest:
         specifier: ^4.1.8
-        version: 4.1.11(@opentelemetry/api@1.9.0)(@types/node@22.16.3)(vite@8.0.16(@types/node@22.16.3)(esbuild@0.28.1)(tsx@4.22.4)(yaml@2.8.3))
+        version: 4.1.11(@opentelemetry/api@1.9.0)(@types/node@24.13.2)(vite@8.0.16(@types/node@24.13.2)(esbuild@0.28.1)(tsx@4.22.4)(yaml@2.8.3))
       vscode-languageserver-protocol:
         specifier: ^3.17.5
         version: 3.17.5
@@ -350,6 +350,94 @@ importers:
       zod:
         specifier: 3.25.76
         version: 3.25.76
+
+  chat-lib:
+    dependencies:
+      '@microsoft/tiktokenizer':
+        specifier: ^1.0.10
+        version: 1.0.10
+      '@sinclair/typebox':
+        specifier: ^0.34.41
+        version: 0.34.41
+      '@unicode/unicode-15.0.0':
+        specifier: 2.1.0
+        version: 2.1.0
+      '@vscode/copilot-api':
+        specifier: ^0.5.2
+        version: 0.5.2
+      '@vscode/l10n':
+        specifier: ^0.0.18
+        version: 0.0.18
+      '@vscode/prompt-tsx':
+        specifier: ^0.4.0-alpha.8
+        version: 0.4.0-alpha.8
+      '@vscode/tree-sitter-wasm':
+        specifier: 0.0.5-php.2
+        version: 0.0.5-php.2
+      applicationinsights:
+        specifier: ^2.9.7
+        version: 2.9.8
+      jsonc-parser:
+        specifier: ^3.3.1
+        version: 3.3.1
+      monaco-editor:
+        specifier: 0.44.0
+        version: 0.44.0
+      openai:
+        specifier: ^6.7.0
+        version: 6.7.0(zod@3.25.76)
+      undici:
+        specifier: ^7.24.1
+        version: 7.29.1
+      vscode-languageserver-protocol:
+        specifier: ^3.17.5
+        version: 3.17.5
+      vscode-languageserver-textdocument:
+        specifier: ^1.0.12
+        version: 1.0.12
+      web-tree-sitter:
+        specifier: ^0.23.0
+        version: 0.23.2
+      yaml:
+        specifier: ^2.8.0
+        version: 2.8.3
+    devDependencies:
+      '@anthropic-ai/sdk':
+        specifier: ^0.82.0
+        version: 0.82.0(zod@3.25.76)
+      '@octokit/types':
+        specifier: ^14.1.0
+        version: 14.1.0
+      '@types/node':
+        specifier: 24.x
+        version: 24.13.2
+      copyfiles:
+        specifier: ^2.4.1
+        version: 2.4.1
+      dotenv:
+        specifier: ^17.2.0
+        version: 17.2.0
+      npm-run-all:
+        specifier: ^4.1.5
+        version: 4.1.5
+      outdent:
+        specifier: ^0.8.0
+        version: 0.8.0
+      rimraf:
+        specifier: ^6.0.1
+        version: 6.0.1
+      tsx:
+        specifier: ^4.22.4
+        version: 4.22.4
+      typescript:
+        specifier: npm:@typescript/typescript6@^6.0.2
+        version: '@typescript/typescript6@6.0.2'
+      vite:
+        specifier: ^8.0.16
+        version: 8.0.16(@types/node@24.13.2)(esbuild@0.28.1)(tsx@4.22.4)(yaml@2.8.3)
+      vitest:
+        specifier: ^4.1.8
+        version: 4.1.11(@opentelemetry/api@1.9.0)(@types/node@24.13.2)(vite@8.0.16(@types/node@24.13.2)(esbuild@0.28.1)(tsx@4.22.4)(yaml@2.8.3))
 
 packages:
 
@@ -1886,9 +1974,6 @@ packages:
 
   '@types/node@12.20.55':
     resolution: {integrity: sha512-J8xLz7q2OFulZ2cyGTLE1TbbZcjpno7FaN6zdJNrgAdrJ+DZzh/uFR6YrTb4C+nXakvud8Q4+rbhoIWlYQbUFQ==}
-
-  '@types/node@22.16.3':
-    resolution: {integrity: sha512-sr4Xz74KOUeYadexo1r8imhRtlVXcs+j3XK3TcoiYk7B1t3YRVJgtaD3cwX73NYb71pmVuMLNRhJ9XKdoDB74g==}
 
   '@types/node@24.13.2':
     resolution: {integrity: sha512-fRa09kZTgu8o71KFcDjUFuc7F+dEbZYZmkI0mg5YBTRs0yMKjYHsq/c0urDKeDb+D5qVgXOdFcuu+DZPKOITwA==}
@@ -4717,9 +4802,6 @@ packages:
   underscore@1.13.8:
     resolution: {integrity: sha512-DXtD3ZtEQzc7M8m4cXotyHR+FAS18C64asBYY5vqZexfYryNNnDc02W4hKg3rdQuqOYas1jkseX0+nZXjTXnvQ==}
 
-  undici-types@6.21.0:
-    resolution: {integrity: sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==}
-
   undici-types@7.18.2:
     resolution: {integrity: sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w==}
 
@@ -7224,7 +7306,7 @@ snapshots:
   '@types/body-parser@1.19.6':
     dependencies:
       '@types/connect': 3.4.38
-      '@types/node': 22.16.3
+      '@types/node': 24.13.2
 
   '@types/chai@5.2.3':
     dependencies:
@@ -7233,7 +7315,7 @@ snapshots:
 
   '@types/connect@3.4.38':
     dependencies:
-      '@types/node': 22.16.3
+      '@types/node': 24.13.2
 
   '@types/deep-eql@4.0.2': {}
 
@@ -7246,7 +7328,7 @@ snapshots:
 
   '@types/express-serve-static-core@5.1.1':
     dependencies:
-      '@types/node': 22.16.3
+      '@types/node': 24.13.2
       '@types/qs': 6.14.0
       '@types/range-parser': 1.2.7
       '@types/send': 1.2.1
@@ -7282,10 +7364,6 @@ snapshots:
 
   '@types/node@12.20.55': {}
 
-  '@types/node@22.16.3':
-    dependencies:
-      undici-types: 6.21.0
-
   '@types/node@24.13.2':
     dependencies:
       undici-types: 7.18.2
@@ -7316,12 +7394,12 @@ snapshots:
 
   '@types/send@1.2.1':
     dependencies:
-      '@types/node': 22.16.3
+      '@types/node': 24.13.2
 
   '@types/serve-static@2.2.0':
     dependencies:
       '@types/http-errors': 2.0.5
-      '@types/node': 22.16.3
+      '@types/node': 24.13.2
 
   '@types/sinon@17.0.4':
     dependencies:
@@ -7341,7 +7419,7 @@ snapshots:
 
   '@types/ws@8.18.1':
     dependencies:
-      '@types/node': 22.16.3
+      '@types/node': 24.13.2
 
   '@types/yargs-parser@21.0.3': {}
 
@@ -7437,13 +7515,13 @@ snapshots:
       chai: 6.2.2
       tinyrainbow: 3.1.0
 
-  '@vitest/mocker@4.1.11(vite@8.0.16(@types/node@22.16.3)(esbuild@0.28.1)(tsx@4.22.4)(yaml@2.8.3))':
+  '@vitest/mocker@4.1.11(vite@8.0.16(@types/node@24.13.2)(esbuild@0.28.1)(tsx@4.22.4)(yaml@2.8.3))':
     dependencies:
       '@vitest/spy': 4.1.11
       estree-walker: 3.0.3
       magic-string: 0.30.21
     optionalDependencies:
-      vite: 8.0.16(@types/node@22.16.3)(esbuild@0.28.1)(tsx@4.22.4)(yaml@2.8.3)
+      vite: 8.0.16(@types/node@24.13.2)(esbuild@0.28.1)(tsx@4.22.4)(yaml@2.8.3)
 
   '@vitest/pretty-format@4.1.11':
     dependencies:
@@ -9703,7 +9781,7 @@ snapshots:
       '@protobufjs/path': 1.1.2
       '@protobufjs/pool': 1.1.0
       '@protobufjs/utf8': 1.1.1
-      '@types/node': 22.16.3
+      '@types/node': 24.13.2
       long: 5.3.2
 
   proxy-addr@2.0.7:
@@ -10497,8 +10575,6 @@ snapshots:
 
   underscore@1.13.8: {}
 
-  undici-types@6.21.0: {}
-
   undici-types@7.18.2: {}
 
   undici@7.29.1: {}
@@ -10543,11 +10619,11 @@ snapshots:
 
   version-range@4.14.0: {}
 
-  vite-plugin-wasm@3.6.0(vite@8.0.16(@types/node@22.16.3)(esbuild@0.28.1)(tsx@4.22.4)(yaml@2.8.3)):
+  vite-plugin-wasm@3.6.0(vite@8.0.16(@types/node@24.13.2)(esbuild@0.28.1)(tsx@4.22.4)(yaml@2.8.3)):
     dependencies:
-      vite: 8.0.16(@types/node@22.16.3)(esbuild@0.28.1)(tsx@4.22.4)(yaml@2.8.3)
+      vite: 8.0.16(@types/node@24.13.2)(esbuild@0.28.1)(tsx@4.22.4)(yaml@2.8.3)
 
-  vite@8.0.16(@types/node@22.16.3)(esbuild@0.28.1)(tsx@4.22.4)(yaml@2.8.3):
+  vite@8.0.16(@types/node@24.13.2)(esbuild@0.28.1)(tsx@4.22.4)(yaml@2.8.3):
     dependencies:
       lightningcss: 1.32.0
       picomatch: 4.0.4
@@ -10555,16 +10631,16 @@ snapshots:
       rolldown: 1.0.3
       tinyglobby: 0.2.17
     optionalDependencies:
-      '@types/node': 22.16.3
+      '@types/node': 24.13.2
       esbuild: 0.28.1
       fsevents: 2.3.3
       tsx: 4.22.4
       yaml: 2.8.3
 
-  vitest@4.1.11(@opentelemetry/api@1.9.0)(@types/node@22.16.3)(vite@8.0.16(@types/node@22.16.3)(esbuild@0.28.1)(tsx@4.22.4)(yaml@2.8.3)):
+  vitest@4.1.11(@opentelemetry/api@1.9.0)(@types/node@24.13.2)(vite@8.0.16(@types/node@24.13.2)(esbuild@0.28.1)(tsx@4.22.4)(yaml@2.8.3)):
     dependencies:
       '@vitest/expect': 4.1.11
-      '@vitest/mocker': 4.1.11(vite@8.0.16(@types/node@22.16.3)(esbuild@0.28.1)(tsx@4.22.4)(yaml@2.8.3))
+      '@vitest/mocker': 4.1.11(vite@8.0.16(@types/node@24.13.2)(esbuild@0.28.1)(tsx@4.22.4)(yaml@2.8.3))
       '@vitest/pretty-format': 4.1.11
       '@vitest/runner': 4.1.11
       '@vitest/snapshot': 4.1.11
@@ -10581,11 +10657,11 @@ snapshots:
       tinyexec: 1.2.4
       tinyglobby: 0.2.17
       tinyrainbow: 3.1.0
-      vite: 8.0.16(@types/node@22.16.3)(esbuild@0.28.1)(tsx@4.22.4)(yaml@2.8.3)
+      vite: 8.0.16(@types/node@24.13.2)(esbuild@0.28.1)(tsx@4.22.4)(yaml@2.8.3)
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@opentelemetry/api': 1.9.0
-      '@types/node': 22.16.3
+      '@types/node': 24.13.2
     transitivePeerDependencies:
       - msw
 
