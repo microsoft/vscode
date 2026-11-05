@@ -253,6 +253,7 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 	private readonly tasSetupDisposables = this._register(new DisposableStore());
 	private readonly refetchScheduler = this._register(new RunOnceScheduler(() => this.refetchAssignments(), ASSIGNMENT_REFETCH_INTERVAL));
 	private refetchPromise: Promise<void> | undefined;
+	private refetchAfterFilterChange = false;
 
 	private assignmentsEndpoint: string | undefined;
 
@@ -427,6 +428,7 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 		this.tasSetupDisposables.clear();
 		this.refetchScheduler.cancel();
 		this.refetchPromise = undefined;
+		this.refetchAfterFilterChange = false;
 
 		// Each setup supersedes the previous client; track a generation so a stale client's
 		// initialFetch cannot flip networkInitialized for a newer client.
@@ -487,7 +489,7 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 
 		const extensionsFilterProvider = this.instantiationService.createInstance(CopilotAssignmentFilterProvider);
 		this.tasSetupDisposables.add(extensionsFilterProvider);
-		this.tasSetupDisposables.add(extensionsFilterProvider.onDidChangeFilters(() => this.refetchAssignments()));
+		this.tasSetupDisposables.add(extensionsFilterProvider.onDidChangeFilters(() => this.refetchAssignments(true)));
 
 		// New TAS assignments API. Its endpoint is sourced from account entitlements and it
 		// uses dedicated providers that emit the new userParam key names, so the legacy filter
@@ -506,7 +508,7 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 			);
 			const githubAssignmentsFilterProvider = this.instantiationService.createInstance(GitHubCoreAssignmentsFilterProvider);
 			this.tasSetupDisposables.add(githubAssignmentsFilterProvider);
-			this.tasSetupDisposables.add(githubAssignmentsFilterProvider.onDidChangeFilters(() => this.refetchAssignments()));
+			this.tasSetupDisposables.add(githubAssignmentsFilterProvider.onDidChangeFilters(() => this.refetchAssignments(true)));
 			assignmentsFilterProviders = [
 				coreAssignmentsFilterProvider,
 				githubAssignmentsFilterProvider,
@@ -580,13 +582,16 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 		});
 	}
 
-	private refetchAssignments(): Promise<void> {
+	private refetchAssignments(filtersChanged = false): Promise<void> {
 		if (!this.tasClient || this._store.isDisposed) {
 			return Promise.resolve();
 		}
 
-		if (!this.refetchPromise) {
+		if (this.refetchPromise) {
+			this.refetchAfterFilterChange ||= filtersChanged;
+		} else {
 			this.refetchScheduler.cancel();
+			this.refetchAfterFilterChange = false;
 			this.refetchPromise = this.doRefetchAssignments(this.tasClient);
 		}
 		return this.refetchPromise;
@@ -610,7 +615,7 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 		} finally {
 			if (!this._store.isDisposed && client === this.tasClient) {
 				this.refetchPromise = undefined;
-				this.refetchScheduler.schedule();
+				this.refetchScheduler.schedule(this.refetchAfterFilterChange ? 0 : ASSIGNMENT_REFETCH_INTERVAL);
 			}
 		}
 	}
