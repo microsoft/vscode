@@ -3504,6 +3504,33 @@ suite('SessionsManagementService', () => {
 		});
 	}
 
+	for (const preserveFocus of [true, undefined]) {
+		test(`openNewSession for a folder focuses the draft unless asked to preserve focus (${preserveFocus})`, async () => {
+			const folderUri = URI.file('/workspace');
+			const workspace: ISessionWorkspace = {
+				uri: folderUri, label: 'workspace', icon: Codicon.folder,
+				folders: [{ root: folderUri, workingDirectory: folderUri, name: 'workspace', description: undefined }],
+				requiresWorkspaceTrust: false, isVirtualWorkspace: false,
+			};
+			const draft = stubSession({
+				sessionId: 'draft', providerId: 'test', status: constObservable(SessionStatus.Untitled),
+				workspace: constObservable(workspace),
+			});
+			const provider = new class extends TestSessionsProvider {
+				override resolveWorkspace(): ISessionWorkspace { return workspace; }
+			}(draft);
+			const { view, sessionsPartService } = createSessionsManagementService(draft, disposables, provider);
+			sessionsPartService.focusedSessions.length = 0;
+
+			await view.openNewSession({ folderUri, providerId: provider.id, preserveFocus });
+
+			assert.deepStrictEqual({
+				active: view.activeSession.get()?.sessionId,
+				focused: sessionsPartService.focusedSessions,
+			}, { active: 'draft', focused: preserveFocus ? [] : ['draft'] });
+		});
+	}
+
 	for (const quickChat of [false, true]) {
 		test(`custom-view quick-chat preparation reconciles the normal draft without navigation (quick chat: ${quickChat})`, async () => {
 			const folderUri = URI.file('/workspace');
