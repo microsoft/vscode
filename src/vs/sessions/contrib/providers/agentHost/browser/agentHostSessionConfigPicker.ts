@@ -21,6 +21,8 @@ import { isCancellationError, onUnexpectedError } from '../../../../../base/comm
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IObservable, IReader, observableValue } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
+import Severity from '../../../../../base/common/severity.js';
+import { equalsIgnoreCase } from '../../../../../base/common/strings.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../../nls.js';
@@ -1095,6 +1097,13 @@ export class AgentHostSessionConfigPicker extends Disposable {
 					if (branches.some(branch => branch.value === name || branch.value.startsWith(`${name}/`) || name.startsWith(`${branch.value}/`))) {
 						return localize('agentHostSessionConfig.createBranch.exists', "A branch named '{0}' already exists or conflicts with an existing branch.", name);
 					}
+					const caseMatch = branches.find(branch => equalsIgnoreCase(branch.value, name));
+					if (caseMatch) {
+						return {
+							content: localize('agentHostSessionConfig.createBranch.caseConflict', "Branch '{0}' already exists with different casing. This can cause problems on case-insensitive but case-preserving file systems. Press Enter to attempt creation anyway.", caseMatch.value),
+							severity: Severity.Warning,
+						};
+					}
 					return undefined;
 				},
 			});
@@ -1135,12 +1144,12 @@ export class AgentHostSessionConfigPicker extends Disposable {
 
 	private _withCreateBranchAction(provider: IAgentHostSessionsProvider, sessionId: string, isBranchPicker: boolean, items: IActionListItem<IConfigPickerItem>[]): IActionListItem<IConfigPickerItem>[] {
 		return isBranchPicker && this._getCreateBranchChangeset(provider, sessionId)
-			? [{
+			? [...items, ...(items.length ? [{ kind: ActionListItemKind.Separator }] : []), {
 				kind: ActionListItemKind.Action,
 				label: CREATE_BRANCH_LABEL,
 				group: { title: '', icon: Codicon.gitBranchCreate },
 				item: { value: '', label: CREATE_BRANCH_LABEL, createBranch: true },
-			}, { kind: ActionListItemKind.Separator }, ...items]
+			}]
 			: items;
 	}
 

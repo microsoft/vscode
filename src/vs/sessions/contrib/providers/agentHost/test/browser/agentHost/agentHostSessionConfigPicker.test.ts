@@ -11,6 +11,7 @@ import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
+import Severity from '../../../../../../../base/common/severity.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
@@ -445,6 +446,25 @@ suite('Agent Host Session Config Picker', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('places branch creation after a separator below available and filtered branches', async () => {
+		const services = setupServices(store, { createBranchSupported: true });
+		services.provider.config = makeDynamicBranchConfig('main');
+		services.provider.completions = ['main', 'feature/existing'].map(value => ({ value, label: value }));
+		const { container } = renderPicker(store, services);
+		branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
+		await timeout(0);
+		const rows = (items: readonly IActionListItem<IConfigPickerItem>[]) => items.map(item =>
+			item.kind === ActionListItemKind.Separator ? 'separator' : item.item?.createBranch ? 'create' : item.item?.value);
+		const initial = rows(services.actionWidget.items);
+		const filtered = rows(await services.actionWidget.delegate!.onFilter!('feature', CancellationToken.None));
+		const empty = rows(await services.actionWidget.delegate!.onFilter!('no-matching-branch', CancellationToken.None));
+		assert.deepStrictEqual({ initial, filtered, empty }, {
+			initial: ['main', 'separator', 'feature/existing', 'separator', 'create'],
+			filtered: ['feature/existing', 'separator', 'create'],
+			empty: ['create'],
+		});
+	});
+
 	for (const isolation of ['folder', 'worktree', undefined] as const) {
 		test(`creates and selects a branch only after Git succeeds with ${isolation ?? 'default worktree'} isolation`, async () => {
 			const created = new DeferredPromise<void>();
@@ -506,6 +526,45 @@ suite('Agent Host Session Config Picker', () => {
 			invalid: invalidNames.map(() => true),
 			valid: undefined,
 			invocations: [],
+		});
+	});
+
+	test('warns about case-only branch matches but allows attempting creation', async () => {
+		const services = setupServices(store, { createBranchSupported: true });
+		services.provider.config = makeDynamicBranchConfig('main');
+		services.provider.completions = ['main', 'Feature/Existing'].map(value => ({ value, label: value }));
+		let inputOptions: IInputOptions | undefined;
+		services.instantiationService.stub(IQuickInputService, new class extends mock<IQuickInputService>() {
+			override async input(options?: IInputOptions) {
+				inputOptions = options;
+				return 'feature/existing';
+			}
+		}());
+		const { container } = renderPicker(store, services);
+		branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
+		await timeout(0);
+		await services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.createBranch)!.item!);
+		const warning = {
+			content: 'Branch \'Feature/Existing\' already exists with different casing. This can cause problems on case-insensitive but case-preserving file systems. Press Enter to attempt creation anyway.',
+			severity: Severity.Warning,
+		};
+		assert.deepStrictEqual({
+			lowerCase: await inputOptions?.validateInput?.('feature/existing'),
+			upperCase: await inputOptions?.validateInput?.('FEATURE/EXISTING'),
+			exact: await inputOptions?.validateInput?.('Feature/Existing'),
+			distinct: await inputOptions?.validateInput?.('feature/new'),
+			invocations: services.checkoutInvocations,
+			selection: services.provider.config.values.branch,
+		}, {
+			lowerCase: warning,
+			upperCase: warning,
+			exact: 'A branch named \'Feature/Existing\' already exists or conflicts with an existing branch.',
+			distinct: undefined,
+			invocations: [{
+				operationId: AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID,
+				_meta: { 'vscode.createBranch': { branchName: 'feature/existing', startPoint: 'main', checkout: false } },
+			}],
+			selection: 'feature/existing',
 		});
 	});
 
