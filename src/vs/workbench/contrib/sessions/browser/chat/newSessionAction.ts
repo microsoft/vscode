@@ -3,30 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { URI } from '../../../../base/common/uri.js';
-import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
-import { localize, localize2 } from '../../../../nls.js';
-import { Action2 } from '../../../../platform/actions/common/actions.js';
-import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { ActiveEditorContext, EditorAreaFocusContext } from '../../../../workbench/common/contextkeys.js';
-import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
-import { INewSessionInAgentsWindowOptions } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
-import { resolveDevContainerSourceWorkspace } from '../../../../workbench/contrib/sessions/browser/openInVSCodeUtils.js';
-import { isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
-import { SessionsListRearrangeContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
-import { ISessionsPartService } from '../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
-import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { ISessionsRecentWorkspacesService } from '../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
-import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { getMainWindowHost, ISessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
-import { ICustomViewService } from '../../../../workbench/contrib/sessions/browser/customView.js';
-import { WindowCanvasInput, IWindowCanvasService } from '../../../../workbench/contrib/sessions/browser/windowCanvas.js';
-import { inheritableSessionTarget, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { NEW_SESSION_ACTION_ID } from '../../../../workbench/contrib/sessions/common/chatConstants.js';
-import { INewSessionComposerService } from '../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
+import { localize, localize2 } from '../../../../../nls.js';
+import { Action2 } from '../../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ActiveEditorContext, EditorAreaFocusContext } from '../../../../common/contextkeys.js';
+import { CHAT_CATEGORY } from '../../../chat/browser/actions/chatActions.js';
+import { INewSessionInAgentsWindowOptions } from '../../../chat/common/chatSessionsService.js';
+import { Menus } from '../menus.js';
+import { resolveDevContainerSourceWorkspace } from '../openInVSCodeUtils.js';
+import { isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../common/agentHostSessionsProvider.js';
+import { SessionsListRearrangeContext } from '../../common/contextkeys.js';
+import { ISessionsPartService } from '../sessionsPartService.js';
+import { ISessionsProvidersService } from '../sessionsProvidersService.js';
+import { ISessionsRecentWorkspacesService } from '../sessionsRecentWorkspacesService.js';
+import { ISessionsService } from '../sessionsService.js';
+import { getMainWindowHost, ISessionHostService } from '../sessionHost.js';
+import { ICustomViewService } from '../customView.js';
+import { WindowCanvasInput, IWindowCanvasService } from '../windowCanvas.js';
+import { inheritableSessionTarget, ISessionsManagementService } from '../../common/sessionsManagement.js';
+import { NEW_SESSION_ACTION_ID } from '../../common/chatConstants.js';
+import { INewSessionComposerService } from '../newSessionComposerService.js';
 
 export class NewChatInSessionsWindowAction extends Action2 {
 

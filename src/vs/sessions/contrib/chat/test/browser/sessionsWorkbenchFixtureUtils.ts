@@ -55,7 +55,7 @@ import { SessionActionFeedback } from '../../../sessions/browser/sessionActionFe
 import { NEW_SESSION_BUTTON_STYLE_SETTING, NewSessionActionViewItemContribution } from '../../../sessions/browser/sessionsActions.js';
 import { registerSessionsTitleBarMenus, SessionsTitleBarWidget } from '../../../sessions/browser/sessionsTitleBarWidget.js';
 import { acquireArchiveActions, FixtureActionViewItemService, FixtureContextMenuService } from '../../../sessions/test/browser/sessionsListFixtureUtils.js';
-import { NewChatInSessionsWindowAction } from '../../browser/newSessionAction.js';
+import { NewChatInSessionsWindowAction } from '../../../../../workbench/contrib/sessions/browser/chat/newSessionAction.js';
 import { appendNewSessionTitleBarMenuItem } from '../../browser/newSessionTitleBarMenu.js';
 
 import '../../../../browser/layoutActions.js';
