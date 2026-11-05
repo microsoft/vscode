@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../common/cancellation.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../common/lifecycle.js';
 import { Embedding, nextMacrotask } from './embedding.js';
 import { TimeApi } from './timeApi.js';
 import { ROOT_TRACE, TraceContext } from './trace.js';
@@ -178,7 +178,7 @@ export class VirtualTimeProcessor extends Disposable {
 	private _disposed = false;
 
 	private _inDrive = false;
-	private _parkCleanup: IDisposable | undefined;
+	private readonly _parkCleanup = this._register(new MutableDisposable<DisposableStore>());
 
 	private readonly _defaultMaxEvents: number;
 
@@ -312,12 +312,11 @@ export class VirtualTimeProcessor extends Disposable {
 		this._unpark();
 		const store = new DisposableStore();
 		store.add(this._clock.onEventScheduled(() => this._wake()));
-		this._parkCleanup = store;
+		this._parkCleanup.value = store;
 	}
 
 	private _unpark(): void {
-		this._parkCleanup?.dispose();
-		this._parkCleanup = undefined;
+		this._parkCleanup.clear();
 	}
 
 	private _wake(): void {

@@ -44,6 +44,21 @@ suite('myTests', () => {
 
 Always call `sinon.restore()` in `teardown` to avoid leaking mocks.
 
+### Disposal During Async Work
+
+Code that continues after an `await` as if its object were still alive is a recurring source of leaks. A disposable that is added to a disposed store is never disposed, and the leak, or the warning it logs, often fails a later test instead of the one that caused it.
+
+- After an `await`, register an awaited disposable with `thenRegisterOrDispose(promise, this._store)` when nothing else follows. Otherwise re-check disposal before registering anything or causing other side effects, and dispose what was created, for example `if (this._store.isDisposed) { result.dispose(); return; }`.
+- When you add or change async initialization or disposal, test it with `interruptAtEveryStep` from `src/vs/base/test/common/interruptAtEveryStep.ts`. It reruns the operation and disposes or cancels it after each step, and reports the step after which something leaked or an unexpected error occurred. Pass `step: 'macrotask'` when the operation waits on timers or I/O.
+- When you fix such a bug, look for the same shape nearby, such as other awaits in the same method or class. The lint rule `local/code-no-register-after-await` reports registrations after an `await` that skip the check. Files that already did this are listed in `.eslint-allowed-register-after-await-files`; remove the file from that list to see its reports.
+
+```typescript
+test('init does not leak when disposed at any step', () => interruptAtEveryStep(store => {
+  const storage = store.add(new InMemoryStorageMain(logService, fileService));
+  return { promise: storage.init(), interrupt: () => storage.dispose() };
+}));
+```
+
 ### Best Practices
 
 - Minimize assertions per test — prefer one `assert.deepStrictEqual` snapshot over many fine-grained assertions

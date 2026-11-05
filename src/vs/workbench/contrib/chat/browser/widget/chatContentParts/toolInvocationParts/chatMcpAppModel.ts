@@ -725,6 +725,9 @@ export class ChatMcpAppModel extends Disposable implements IAgentHostMcpAppToolP
 				method: 'ui/notifications/tool-input',
 				params: { arguments: args }
 			});
+			if (this._store.isDisposed) {
+				return;
+			}
 
 			if (this.toolInvocation.kind === 'toolInvocationSerialized') {
 				this._sendToolResult(this.toolInvocation.resultDetails);
