@@ -61,12 +61,12 @@ import {
 	buildAgentHostBaseCommand,
 	buildAgentHostSpawnCommand,
 	buildAgentRelayCommand,
+	detectRemotePlatform,
 	extractAgentHostWebSocketURL,
 	filterLiveAgentHostEndpoints,
 	getNewAgentHostRegistrationTimeoutMs,
 	getRemoteCLIDataDir,
 	redactToken,
-	resolveRemotePlatform,
 	runAgentEndpoints,
 	shellEscape,
 	validateAgentHostTelemetryLevel,
@@ -930,11 +930,20 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			} else {
 				// 2. Resolve the remote CLI first — every registry command
 				// (`agent endpoints`/`agent host`/`agent relay`) needs it.
-				const { stdout: unameS } = await sshExec(sshClient, 'uname -s');
-				const { stdout: unameM } = await sshExec(sshClient, 'uname -m');
-				const platform = resolveRemotePlatform(unameS, unameM);
-				if (!platform) {
-					throw new Error(`${LOG_PREFIX} Unsupported remote platform: ${unameS.trim()} ${unameM.trim()}`);
+				// The probe is shell-aware: `uname` does not exist when the
+				// remote OpenSSH default shell is PowerShell/cmd (Windows),
+				// so a failed `uname` falls back to Windows detection
+				// instead of failing the connection with a cryptic
+				// `uname -s` error (#316712).
+				const platform = await detectRemotePlatform(bindSshExec(sshClient));
+				if (platform.os === 'win32') {
+					// Windows was detected, but the CLI install / endpoint
+					// discovery pipeline below is POSIX-shell only (`test`,
+					// `curl | tar`, `kill -0`, ...). Fail with a clear
+					// message instead of letting the installer die on the
+					// first command.
+					throw new Error(`${LOG_PREFIX} Remote host is running Windows (${platform.arch}). Agent over SSH to Windows targets is not yet supported; `
+						+ 'the remote setup requires a POSIX shell. Workaround: set the remote OpenSSH default shell to Bash, or connect to a Linux/WSL target instead.');
 				}
 				this._logService.info(`${LOG_PREFIX} Remote platform: ${platform.os}-${platform.arch}`);
 				reportProgress(localize('sshProgressInstallingCLI', "Checking remote CLI installation..."));
