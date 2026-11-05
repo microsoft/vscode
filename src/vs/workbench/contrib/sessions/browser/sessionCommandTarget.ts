@@ -10,7 +10,8 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { isEditorCommandsContext } from '../../../common/editor.js';
 import { isWindowCommandContext } from '../../../common/windowCommandContext.js';
 import { IChat, ISession } from '../common/session.js';
-import { ISessionsManagementService } from '../common/sessionsManagement.js';
+import { IActiveSession, ISessionsManagementService } from '../common/sessionsManagement.js';
+import { getChatHostOpenerOfHost, IChatHostOpener, IChatHostOpenerService } from './chatHostOpener.js';
 import { getHostOfSession, getWindowHost, IFocusedSessionHostService, ISessionGridPanes, ISessionHost, ISessionHostService, isSessionHostCommandContext, SessionHostKind } from './sessionHost.js';
 import { ISessionsPartService, ISessionView } from './sessionsPartService.js';
 import { ISessionsService } from './sessionsService.js';
@@ -41,10 +42,9 @@ function ofHost(host: ISessionHost): ISessionCommandTarget {
 	return { host, session: host.session.get(), chat: host.chat.get() };
 }
 
-function ofSession(sessionHostService: ISessionHostService, gridPanes: ISessionGridPanes, session: ISession, focusedWindowHost: ISessionHost, passed: boolean): ISessionCommandTarget {
-	// A host's own session object, as its toolbars pass it, names that host: a pane's names that pane, detached or not.
-	const host = (passed ? sessionHostService.getHostsOfSession(session.resource).find(candidate => candidate.session.get() === session) : undefined)
-		?? getHostOfSession(sessionHostService, gridPanes, session.resource, focusedWindowHost);
+function ofSession(sessionHostService: ISessionHostService, gridPanes: ISessionGridPanes, session: ISession, focusedWindowHost: ISessionHost): ISessionCommandTarget {
+	// A session names the host that shows it, never a pane by its own object: a pane's toolbars pass the pane's host.
+	const host = getHostOfSession(sessionHostService, gridPanes, session.resource, focusedWindowHost);
 	return host ? { host, session: host.session.get() ?? session, chat: host.chat.get() ?? session.mainChat.get() } : { host, session, chat: session.mainChat.get() };
 }
 
@@ -106,12 +106,12 @@ export function resolveSessionCommandTarget(accessor: ServicesAccessor, args: re
 		const sessionContext = value && typeof value === 'object' ? (value as { readonly session?: unknown }).session : undefined;
 		const session = isSession(value) ? value : isSession(sessionContext) ? sessionContext : undefined;
 		if (session) {
-			return ofSession(sessionHostService, accessor.get(ISessionsService), session, accessor.get(IFocusedSessionHostService).getFocusedHost(), true);
+			return ofSession(sessionHostService, accessor.get(ISessionsService), session, accessor.get(IFocusedSessionHostService).getFocusedHost());
 		}
 		if (value instanceof URI) {
 			const ofResource = managementService.getSession(value);
 			if (ofResource) {
-				return ofSession(sessionHostService, accessor.get(ISessionsService), ofResource, accessor.get(IFocusedSessionHostService).getFocusedHost(), false);
+				return ofSession(sessionHostService, accessor.get(ISessionsService), ofResource, accessor.get(IFocusedSessionHostService).getFocusedHost());
 			}
 			const owner = managementService.getSessionForChatResource(value);
 			return owner && ofChat(sessionHostService, owner.session, owner.chat);
@@ -127,4 +127,43 @@ export function resolveSessionCommandTarget(accessor: ServicesAccessor, args: re
 export function resolveGridCommandView(accessor: ServicesAccessor): ISessionView | undefined {
 	const host = resolveSessionCommandTarget(accessor, [])?.host;
 	return host && getWindowHost(host).kind === SessionHostKind.MainWindow ? accessor.get(ISessionsPartService).getActiveSessionView() : undefined;
+}
+
+/** What a pane command acts on; see {@link resolvePaneCommandTarget}. */
+export interface IPaneCommandTarget {
+	/** The host the arguments name, or the host of the grid's active pane. */
+	readonly host: ISessionHost;
+	/** The view of the grid pane the host stands for; `undefined` for a host outside the grid, such as a chat editor's. */
+	readonly view: ISessionView | undefined;
+	/** The session of that pane, the grid's view of it; `undefined` also for the new-session slot. */
+	readonly session: IActiveSession | undefined;
+	/** For a host outside the grid, the opener of the surface that shows its chat, through which a command acts instead. */
+	readonly opener: IChatHostOpener | undefined;
+}
+
+/**
+ * Resolves the pane a pane command, such as Pin or Close, acts on from its arguments: the pane of the host they name, as a
+ * pane's toolbars and menus pass it (`createHostMenuOptions`). Without one, as from keybindings and the Command Palette, the
+ * grid's active pane while the main window is the focused host, else none. A host outside the grid, such as a chat editor's,
+ * has no pane: the command acts through the opener of the surface that shows its chat, if at all. Never by the identity of a
+ * session object.
+ */
+export function resolvePaneCommandTarget(accessor: ServicesAccessor, args: readonly unknown[]): IPaneCommandTarget | undefined {
+	const hostContext = args.find(isSessionHostCommandContext);
+	if (!hostContext) {
+		const view = resolveGridCommandView(accessor);
+		return view && { host: view.host, view, session: view.getSession(), opener: undefined };
+	}
+	const host = accessor.get(ISessionHostService).getHost(hostContext.sessionHostId);
+	if (!host) {
+		accessor.get(ILogService).trace('[sessionCommandTarget] the pane command names a host that is gone, the command does nothing');
+		return undefined;
+	}
+	const sessionsService = accessor.get(ISessionsService);
+	if (sessionsService.isGridPaneHost(host)) {
+		const sessionsPartService = accessor.get(ISessionsPartService);
+		const view = host === sessionsService.gridHost ? sessionsPartService.getActiveSessionView() : sessionsPartService.getSessionViewOfHost(host);
+		return { host, view, session: sessionsService.getPaneSessionOfHost(host), opener: undefined };
+	}
+	return { host, view: undefined, session: undefined, opener: getChatHostOpenerOfHost(accessor.get(IChatHostOpenerService), sessionsService, host) };
 }

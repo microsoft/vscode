@@ -46,7 +46,7 @@ import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actio
 import { SessionsView, SessionsViewId } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { createTestSession, TestSessionsManagementService } from './sessionsListTestUtils.js';
 import '../../browser/sessionsActions.js';
-import { ITestSessionsService, stubSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionsService, stubSessionHostsFromSessionsService, stubPaneHost } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 const DELETE_CHAT_COMMAND_ID = 'sessions.chatCompositeBar.deleteChat';
 
@@ -448,7 +448,7 @@ suite('Sessions - Session management actions', () => {
 			input: async () => 'Renamed',
 		}));
 
-		return { instantiationService, managementService, dialogService, playedSignals, inlineRenamedSessions, inlineRenamedChats, inlineRenamedTabs, inlineRenamedFocusedTabs: () => inlineRenamedFocusedTabs };
+		return { instantiationService, managementService, dialogService, playedSignals, sessionView, inlineRenamedSessions, inlineRenamedChats, inlineRenamedTabs, inlineRenamedFocusedTabs: () => inlineRenamedFocusedTabs };
 	}
 
 	test('archives active sessions without confirmation', async () => {
@@ -525,7 +525,9 @@ suite('Sessions - Session management actions', () => {
 		await renameSessionHandler(chatHarness.instantiationService);
 		await renameChatHandler(chatHarness.instantiationService);
 		await renameChatHandler(chatTabHarness.instantiationService);
-		await renameChatHandler(chatTabMenuHarness.instantiationService, { session: activeSession, chat: peerChat, inline: true });
+		// A tab's menu passes its pane's host, which names the pane whose title edits inline.
+		const [, , tabPaneContext] = stubPaneHost(chatTabMenuHarness.instantiationService, { grid: true, session: activeSession, view: chatTabMenuHarness.sessionView });
+		await renameChatHandler(chatTabMenuHarness.instantiationService, { session: activeSession, chat: peerChat, inline: true }, undefined, tabPaneContext);
 		await renameChatHandler(nestedChatHarness.instantiationService);
 		await archiveHarness.instantiationService.invokeFunction(accessor => new ArchiveSessionAction().run(accessor));
 		await inactiveArchiveHarness.instantiationService.invokeFunction(accessor => new ArchiveSessionAction().run(accessor));

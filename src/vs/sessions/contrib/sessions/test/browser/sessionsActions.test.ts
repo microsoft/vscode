@@ -79,7 +79,7 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { resolveOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { ICustomViewService, ICustomViewDescriptor } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { WindowCanvasInput, IWindowCanvasService } from '../../../../../workbench/contrib/sessions/browser/windowCanvas.js';
-import { ITestSessionsService, stubMissingSessionHostsFromSessionsService, withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionsService, stubMissingSessionHostsFromSessionsService, stubPaneHost, withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Sessions - Actions', () => {
 
@@ -464,6 +464,28 @@ suite('Sessions - Actions', () => {
 			markedRead: sessions.map(session => session.mainChat.get().resource.toString()),
 			markedUnread: sessions.map(session => session.mainChat.get().resource.toString()),
 		});
+	});
+
+	test('the menus of two panes of one session object name their own pane by its host; session-level commands still get the session first', async () => {
+		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
+		// One session object for both panes, as once hosts share it: only the host tells the panes apart.
+		const { session: model } = createTestSession('two-panes');
+		const session = upcastPartial<IActiveSession>({ ...model, activeChat: model.mainChat });
+		const calls: string[] = [];
+		const viewOf = (name: string) => upcastPartial<SessionView>({ toggleActiveChatPin: () => { calls.push(`pin chat in ${name}`); } });
+		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+			override async markRead(read: ISession): Promise<void> {
+				calls.push(`mark read ${read === session ? 'the session' : 'another object'}`);
+			}
+		});
+		const slotArgs = stubPaneHost(instantiationService, { grid: true, session, view: viewOf('slot') });
+		const detachedArgs = stubPaneHost(instantiationService, { grid: true, session, view: viewOf('detached pane') });
+
+		await CommandsRegistry.getCommand(TOGGLE_PIN_CHAT_COMMAND_ID)!.handler(instantiationService, ...detachedArgs);
+		await CommandsRegistry.getCommand(TOGGLE_PIN_CHAT_COMMAND_ID)!.handler(instantiationService, ...slotArgs);
+		await CommandsRegistry.getCommand(MARK_SESSION_READ_COMMAND_ID)!.handler(instantiationService, ...detachedArgs);
+
+		assert.deepStrictEqual(calls, ['pin chat in detached pane', 'pin chat in slot', 'mark read the session']);
 	});
 
 	test('keeps session header read actions in parity with the overflow menu', () => {
@@ -1194,8 +1216,10 @@ suite('Sessions - Actions', () => {
 		}));
 		instantiationService.stub(IChatHostOpenerService, opener);
 
+		// The editor's header passes its host, which is not a pane of the grid.
+		const editorArgs = stubPaneHost(instantiationService, { grid: false, session: editorSession });
 		for (const id of [CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID]) {
-			await CommandsRegistry.getCommand(id)!.handler(instantiationService, editorSession);
+			await CommandsRegistry.getCommand(id)!.handler(instantiationService, ...editorArgs);
 		}
 		const context = disposables.add(new ContextKeyService(new TestConfigurationService()));
 		SessionIsCreatedContext.bindTo(context).set(true);
@@ -1244,8 +1268,9 @@ suite('Sessions - Actions', () => {
 		}));
 		instantiationService.stub(IChatHostOpenerService, opener);
 
+		const paneArgs = stubPaneHost(instantiationService, { grid: true, session: pane, view: upcastPartial<SessionView>({ getActiveChat: () => undefined }) });
 		for (const id of [CLOSE_SESSION_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID]) {
-			await CommandsRegistry.getCommand(id)!.handler(instantiationService, pane);
+			await CommandsRegistry.getCommand(id)!.handler(instantiationService, ...paneArgs);
 		}
 
 		assert.deepStrictEqual({ fallenBackTo: pane.activeChat.get().resource.toString(), calls }, {
@@ -1563,7 +1588,7 @@ suite('Sessions - Actions', () => {
 			override getSessionView(): undefined {
 				return undefined;
 			}
-			override getActiveSessionView() { return upcastPartial<SessionView>({ getSession: () => activeSession }); }
+			override getActiveSessionView() { return upcastPartial<SessionView>({ getSession: () => activeSession, getActiveChat: () => undefined }); }
 			override focusSession(): void { }
 		});
 
@@ -1591,9 +1616,10 @@ suite('Sessions - Actions', () => {
 		});
 		stubMissingSessionHostsFromSessionsService(instantiationService);
 		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
-			override getActiveSessionView() { return upcastPartial<SessionView>({ getSession: () => activeSession }); }
-			override getSessionView(): SessionView {
+			// The active pane's view, which shows its main chat.
+			override getActiveSessionView(): SessionView {
 				return new class extends mock<SessionView>() {
+					override getSession() { return activeSession; }
 					override getActiveChat(): IChat {
 						return activeSession.mainChat.get();
 					}
@@ -1665,9 +1691,11 @@ suite('Sessions - Actions', () => {
 
 		const command = CommandsRegistry.getCommand(CLOSE_CHAT_COMMAND_ID);
 		assert.ok(command);
-		await command.handler(instantiationService, activeSession);
-		await command.handler(instantiationService, activeSession, tabChat);
-		await command.handler(instantiationService, activeSession, mainChat);
+		const view = instantiationService.get(ISessionsPartService).getSessionView(activeSession);
+		const [, , paneContext] = stubPaneHost(instantiationService, { grid: true, session: activeSession, view });
+		await command.handler(instantiationService, activeSession, undefined, paneContext);
+		await command.handler(instantiationService, activeSession, tabChat, paneContext);
+		await command.handler(instantiationService, activeSession, mainChat, paneContext);
 
 		assert.deepStrictEqual(operations, [
 			`closeGroup:${headerChat.resource.toString()}`,
@@ -1724,10 +1752,11 @@ suite('Sessions - Actions', () => {
 
 			const command = CommandsRegistry.getCommand(CLOSE_CHAT_COMMAND_ID);
 			assert.ok(command);
+			const args = stubPaneHost(instantiationService, { grid: true, session: activeSession, view: instantiationService.get(ISessionsPartService).getSessionView(activeSession), chat: untitledChat });
 			if (scenario.deleteResult instanceof Error) {
-				await assert.rejects(async () => command.handler(instantiationService, activeSession, untitledChat), /delete failed/);
+				await assert.rejects(async () => command.handler(instantiationService, ...args), /delete failed/);
 			} else {
-				await command.handler(instantiationService, activeSession, untitledChat);
+				await command.handler(instantiationService, ...args);
 			}
 
 			assert.deepStrictEqual(operations, scenario.expectedOperations);
@@ -1758,7 +1787,7 @@ suite('Sessions - Actions', () => {
 
 		const command = CommandsRegistry.getCommand(RENAME_CHAT_COMMAND_ID);
 		assert.ok(command);
-		await command.handler(instantiationService, activeSession, headerChat);
+		await command.handler(instantiationService, ...stubPaneHost(instantiationService, { grid: true, session: activeSession, view: instantiationService.get(ISessionsPartService).getSessionView(activeSession), chat: headerChat }));
 
 		assert.deepStrictEqual(renamedChats, [headerChat.resource.toString()]);
 	});
@@ -1766,7 +1795,7 @@ suite('Sessions - Actions', () => {
 	test('pins the chat represented by a chat group header', async () => {
 		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
 		const { session } = createTestSession('pin-header-chat');
-		const activeSession = upcastPartial<IActiveSession>(session);
+		const activeSession = upcastPartial<IActiveSession>({ ...session, activeChat: session.mainChat });
 		let toggleCalls = 0;
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			readonly activeSession = constObservable(activeSession);
@@ -1784,7 +1813,7 @@ suite('Sessions - Actions', () => {
 
 		const command = CommandsRegistry.getCommand(TOGGLE_PIN_CHAT_COMMAND_ID);
 		assert.ok(command);
-		await command.handler(instantiationService, activeSession);
+		await command.handler(instantiationService, ...stubPaneHost(instantiationService, { grid: true, session: activeSession, view: instantiationService.get(ISessionsPartService).getSessionView(activeSession) }));
 
 		assert.strictEqual(toggleCalls, 1);
 	});

@@ -12,7 +12,7 @@ import { IAccessibilityService } from '../../../../../platform/accessibility/com
 import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { DEFAULT_EDITOR_PART_OPTIONS } from '../../../../browser/parts/editor/editor.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
@@ -33,6 +33,7 @@ import '../../../../contrib/sessions/browser/parts/media/chatCompositeBar.css';
 import '../../../../../sessions/browser/media/workbench.css';
 import '../../../../contrib/sessions/browser/parts/media/sessionsPart.css';
 import '../../../../contrib/sessions/browser/parts/media/chatGroupsView.css';
+import { ISessionHost } from '../../../../contrib/sessions/browser/sessionHost.js';
 
 // ============================================================================
 // Mock helpers
@@ -100,6 +101,7 @@ function renderBar(ctx: ComponentFixtureContext, chats: readonly IChat[], active
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: ctx.theme,
 		additionalServices: (reg) => {
+			reg.defineInstance(ISessionHost, upcastPartial<ISessionHost>({ commandContext: { sessionHostId: 'fixture-pane' } }));
 			registerWorkbenchServices(reg);
 			reg.defineInstance(IAccessibilityService, new class extends TestAccessibilityService {
 				override isMotionReduced(): boolean { return options.reducedMotion ?? false; }

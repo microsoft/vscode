@@ -6,6 +6,7 @@
 import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import type { ISessionGridPanes, ISessionHost } from './sessionHost.js';
 
 /**
  * Opens chats where a surface outside of the main window's grid shows them, such as a chat window that shows chats as
@@ -50,6 +51,15 @@ export interface IChatHostOpenerService {
 }
 
 export const IChatHostOpenerService = createDecorator<IChatHostOpenerService>('chatHostOpenerService');
+
+/**
+ * The opener of the surface that `host` is, when it is not a pane of the main window's grid: a host of a chat window, or of
+ * one of its editors, which shows its chat. What acts on such a host goes through its opener rather than the grid.
+ */
+export function getChatHostOpenerOfHost(chatHostOpenerService: IChatHostOpenerService, gridPanes: ISessionGridPanes, host: ISessionHost | undefined): IChatHostOpener | undefined {
+	const chat = host?.chatResource.get();
+	return host && chat && !gridPanes.isGridPaneHost(host) ? chatHostOpenerService.getOpenerOf(chat) : undefined;
+}
 
 export class ChatHostOpenerService implements IChatHostOpenerService {
 	declare readonly _serviceBrand: undefined;

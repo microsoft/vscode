@@ -28,6 +28,7 @@ import { BaseAgentHostSessionsProvider } from '../../../../../../workbench/contr
 // which is the slot that hosts our skill buttons as a dropdown.
 import '../../../../applyCommitsToParentRepo/browser/applyChangesToParentRepo.js';
 import { ITestSessionsService, stubFocusedSessionHostFromSessionsService, stubSessionHostsFromSessionsService } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ISessionHostService, SessionHostKind } from '../../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 
 function makeActiveSession(providerId: string): IActiveSession {
 	const chat = {
@@ -265,7 +266,9 @@ suite('agentHostSkillButtons - target', () => {
 			}
 		}());
 
-		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID)!.handler(accessor, chatWindowSession));
+		// The window's Changes bar passes the session and its window's host, which names the window.
+		const chatWindowHost = instantiationService.get(ISessionHostService).hosts.get().find(host => host.kind === SessionHostKind.ChatWindow)!;
+		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID)!.handler(accessor, chatWindowSession, undefined, { sessionHostId: chatWindowHost.id }));
 
 		assert.deepStrictEqual(sent, ['agent-host-chat:/session/other /update-pr']);
 	});

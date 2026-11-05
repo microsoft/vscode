@@ -17,6 +17,7 @@ import { autorun, IObservable, IReader } from '../../../../../base/common/observ
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { localize } from '../../../../../nls.js';
 import { IActiveSession, ISessionsManagementService } from '../../common/sessionsManagement.js';
+import { ISessionHost, sessionMenuArgs } from '../sessionHost.js';
 import { getChatCapabilities, getUntitledSessionTitle, IChat, isSessionCreated, SessionStatus } from '../../common/session.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
@@ -147,6 +148,7 @@ export class SessionHeaderBar extends Disposable {
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHoverService hoverService: IHoverService,
+		@ISessionHost private readonly _sessionHost: ISessionHost,
 	) {
 		super();
 
@@ -349,7 +351,7 @@ export class SessionHeaderBar extends Disposable {
 		this._activateChatGroup = activateChatGroup;
 		this._closeSession = closeSession;
 		this._activeChat = undefined;
-		this._menuActionArgs.splice(0, this._menuActionArgs.length, ...(session ? [session] : []));
+		this._menuActionArgs.splice(0, this._menuActionArgs.length, ...(session ? sessionMenuArgs(session, undefined, this._sessionHost) : []));
 		this._toolbar.context = session;
 		this._statusIcon.reset();
 
@@ -406,7 +408,7 @@ export class SessionHeaderBar extends Disposable {
 			this._titleEl.classList.remove('editable');
 			return;
 		}
-		this._menuActionArgs.splice(0, this._menuActionArgs.length, session, ...(this._actionsTargetChat ? [activeChat] : []));
+		this._menuActionArgs.splice(0, this._menuActionArgs.length, ...sessionMenuArgs(session, this._actionsTargetChat ? activeChat : undefined, this._sessionHost));
 		if (this._activeChat?.resource.toString() !== activeChat.resource.toString()) {
 			this._cancelTitleEditing();
 			this._activeChat = activeChat;
@@ -581,7 +583,6 @@ export class SessionViewFloatingToolbar extends Disposable {
 
 	private readonly _container: HTMLElement;
 	private readonly _toolbarContainer: HTMLElement;
-	private readonly _toolbar: MenuWorkbenchToolBar;
 	private _session: IActiveSession | undefined;
 	private readonly _sessionDisposables = this._register(new MutableDisposable<DisposableStore>());
 
@@ -589,9 +590,12 @@ export class SessionViewFloatingToolbar extends Disposable {
 		return this._container;
 	}
 
+	private readonly _menuActionArgs: unknown[] = [];
+
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@ISessionHost private readonly _sessionHost: ISessionHost,
 	) {
 		super();
 
@@ -603,9 +607,9 @@ export class SessionViewFloatingToolbar extends Disposable {
 		toolbar.style.display = 'none';
 		this._container.appendChild(toolbar);
 
-		this._toolbar = this._register(instantiationService.createInstance(MenuWorkbenchToolBar, toolbar, Menus.SessionBarToolbar, {
+		this._register(instantiationService.createInstance(MenuWorkbenchToolBar, toolbar, Menus.SessionBarToolbar, {
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
-			menuOptions: { shouldForwardArgs: true },
+			menuOptions: { args: this._menuActionArgs },
 			getSecondaryActionsPosition: getSessionToolbarSecondaryActionsPosition,
 			highlightToggledItems: true,
 			actionViewItemProvider: createSessionActionViewItemProvider(instantiationService, configurationService),
@@ -635,7 +639,7 @@ export class SessionViewFloatingToolbar extends Disposable {
 			return;
 		}
 		this._session = session;
-		this._toolbar.context = session;
+		this._menuActionArgs.splice(0, this._menuActionArgs.length, ...(session ? sessionMenuArgs(session, undefined, this._sessionHost) : []));
 		this._toolbarContainer.style.display = session ? '' : 'none';
 
 		const store = new DisposableStore();

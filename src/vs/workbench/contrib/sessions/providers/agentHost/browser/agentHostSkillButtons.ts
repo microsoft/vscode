@@ -172,11 +172,12 @@ export function registerAgentHostSkillButton(spec: IAgentHostSkillButtonSpec): v
 			});
 		}
 
-		async run(accessor: ServicesAccessor, sessionArg?: unknown): Promise<void> {
+		async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 			const chatService = accessor.get(IChatService);
 
-			// The session the button acts on, such as that of a chat window, else the active one; and the chat it shows.
-			const target = resolveSessionCommandTarget(accessor, [sessionArg]);
+			// The session the button acts on, such as that of the chat window whose host its bar passes, else the active one;
+			// and the chat it shows.
+			const target = resolveSessionCommandTarget(accessor, args);
 			const session = target?.session;
 			if (!session) {
 				return;

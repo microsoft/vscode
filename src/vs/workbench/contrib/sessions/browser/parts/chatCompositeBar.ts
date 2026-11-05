@@ -53,6 +53,7 @@ import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { createInstantHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ISessionsService } from '../sessionsService.js';
+import { ISessionHost, sessionMenuArgs } from '../sessionHost.js';
 
 interface IChatTab {
 	readonly chat: IChat;
@@ -128,7 +129,7 @@ export class ChatCompositeBar extends Disposable {
 	private readonly _connectedTabOverflowEdge: HTMLElement;
 	private _connectedTab: IChatTab | undefined;
 	private readonly _sessionActionsContainer: HTMLElement;
-	private readonly _sessionToolbar: MenuWorkbenchToolBar;
+	private readonly _sessionMenuArgs: unknown[] = [];
 	private readonly _tabs: IChatTab[] = [];
 	private readonly _tabDisposables = this._register(new DisposableStore());
 
@@ -173,6 +174,7 @@ export class ChatCompositeBar extends Disposable {
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@ISessionHost private readonly _sessionHost: ISessionHost,
 	) {
 		super();
 
@@ -206,10 +208,10 @@ export class ChatCompositeBar extends Disposable {
 		this._tabsRow.appendChild(this._sessionActionsContainer);
 		const sessionToolbarContainer = $('.chat-composite-bar-toolbar');
 		this._sessionActionsContainer.appendChild(sessionToolbarContainer);
-		this._sessionToolbar = this._register(this._instantiationService.createInstance(MenuWorkbenchToolBar, sessionToolbarContainer, Menus.SessionBarToolbar, {
+		this._register(this._instantiationService.createInstance(MenuWorkbenchToolBar, sessionToolbarContainer, Menus.SessionBarToolbar, {
 			hoverDelegate: this._hoverDelegate,
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
-			menuOptions: { shouldForwardArgs: true },
+			menuOptions: { args: this._sessionMenuArgs },
 			getSecondaryActionsPosition: getSessionToolbarSecondaryActionsPosition,
 			highlightToggledItems: true,
 		}));
@@ -280,7 +282,7 @@ export class ChatCompositeBar extends Disposable {
 		}
 
 		this._delegate = delegate;
-		this._sessionToolbar.context = delegate?.session;
+		this._sessionMenuArgs.splice(0, this._sessionMenuArgs.length, ...(delegate?.session ? sessionMenuArgs(delegate.session, undefined, this._sessionHost) : []));
 
 		const store = new DisposableStore();
 		this._groupDisposables.value = store;
@@ -493,10 +495,9 @@ export class ChatCompositeBar extends Disposable {
 			tabToolbar = this._tabDisposables.add(this._instantiationService.createInstance(MenuWorkbenchToolBar, actionsContainer, Menus.SessionChatTab, {
 				hoverDelegate: this._hoverDelegate,
 				hiddenItemStrategy: HiddenItemStrategy.Ignore,
-				menuOptions: { args: [session, chat] },
+				menuOptions: { args: sessionMenuArgs(session, chat, this._sessionHost) },
 				toolbarOptions: { primaryGroup: () => true },
 			}));
-			tabToolbar.context = session;
 		}
 
 		this._tabsContainer.appendChild(tab);
@@ -566,7 +567,7 @@ export class ChatCompositeBar extends Disposable {
 			}
 
 			this._cancelTabEditing();
-			void this._commandService.executeCommand(CLOSE_CHAT_COMMAND_ID, session, chat).catch(onUnexpectedError);
+			void this._commandService.executeCommand(CLOSE_CHAT_COMMAND_ID, ...sessionMenuArgs(session, chat, this._sessionHost)).catch(onUnexpectedError);
 		}));
 
 		// A tab drag carries two payloads: a group-move payload (to move/split the
@@ -633,7 +634,7 @@ export class ChatCompositeBar extends Disposable {
 			})
 			: new Action(RENAME_CHAT_COMMAND_ID, renameLabel, undefined, true, async () => {
 				if (session) {
-					await this._commandService.executeCommand(RENAME_CHAT_COMMAND_ID, { session, chat, inline: true });
+					await this._commandService.executeCommand(RENAME_CHAT_COMMAND_ID, { session, chat, inline: true }, undefined, this._sessionHost.commandContext);
 				}
 			}));
 
@@ -646,7 +647,7 @@ export class ChatCompositeBar extends Disposable {
 		const closeAction = this._tabDisposables.add(new Action(CLOSE_CHAT_COMMAND_ID, localize('chatTab.close', "Close"), undefined, true, async () => {
 			if (session) {
 				this._cancelTabEditing();
-				await this._commandService.executeCommand(CLOSE_CHAT_COMMAND_ID, session, chat);
+				await this._commandService.executeCommand(CLOSE_CHAT_COMMAND_ID, ...sessionMenuArgs(session, chat, this._sessionHost));
 			}
 		}));
 		const markReadAction = this._tabDisposables.add(new Action(MARK_SESSION_READ_COMMAND_ID, localize('chatTab.markRead', "Mark as Read"), undefined, true, async () => {

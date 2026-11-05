@@ -33,10 +33,13 @@ import { ISessionsListModelService } from '../../../browser/sessionsListModelSer
 import { ISessionsService } from '../../../browser/sessionsService.js';
 import { ChatOriginKind, IChat, ISession, ISessionCapabilities, SessionStatus } from '../../../common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../common/sessionsManagement.js';
+import { ISessionHost, isSessionHostCommandContext } from '../../../browser/sessionHost.js';
 
 function createHarness(disposables: Pick<DisposableStore, 'add'>, capabilities: ISessionCapabilities = { supportsMultipleChats: false }, mainChatStatus = SessionStatus.Completed) {
 	const store = disposables.add(new DisposableStore());
 	const instantiationService = workbenchInstantiationService(undefined, store);
+	// The pane the header is in, whose command context its menus pass.
+	instantiationService.stub(ISessionHost, upcastPartial<ISessionHost>({ commandContext: { sessionHostId: 'test-pane' } }));
 	const closedSessions: string[] = [];
 
 	instantiationService.stub(IAccessibilityService, new class extends mock<IAccessibilityService>() {
@@ -492,7 +495,9 @@ suite('Sessions - Headers', () => {
 			arg === session ? 'session'
 				: arg === mainChat ? 'mainChat'
 					: arg === secondChat ? 'secondChat'
-						: 'unknown');
+						: arg === undefined ? 'no chat'
+							: isSessionHostCommandContext(arg) ? `host ${arg.sessionHostId}`
+								: 'unknown');
 		const getMenuActionArgs = (target: SessionHeader | ChatHeader) =>
 			(Reflect.get(target, '_bar') as { _menuActionArgs: readonly unknown[] })._menuActionArgs;
 
@@ -517,10 +522,10 @@ suite('Sessions - Headers', () => {
 			mainChatContexts,
 			nestedChatContexts,
 		}, {
-			sessionArgs: ['session'],
-			initialChatArgs: ['session', 'mainChat'],
-			nestedSessionArgs: ['session', 'secondChat'],
-			updatedChatArgs: ['session', 'secondChat'],
+			sessionArgs: ['session', 'no chat', 'host test-pane'],
+			initialChatArgs: ['session', 'mainChat', 'host test-pane'],
+			nestedSessionArgs: ['session', 'secondChat', 'host test-pane'],
+			updatedChatArgs: ['session', 'secondChat', 'host test-pane'],
 			mainChatContexts: { headerTargetsChat: false, toolbarShowsSession: true },
 			nestedChatContexts: { headerTargetsChat: true, toolbarShowsSession: true },
 		});

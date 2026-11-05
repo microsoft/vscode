@@ -41,7 +41,7 @@ import { SessionsFlatList, SessionsGrouping, SessionsList, SessionsSorting } fro
 import { createListHarness, createTestSession, TestCommandService, TestSessionsManagementService } from './sessionsListTestUtils.js';
 import '../../browser/sessionsActions.js';
 import '../../browser/views/sessionsViewActions.js';
-import { stubMissingSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { stubMissingSessionHostsFromSessionsService, stubPaneHost } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 class TestQuickInputService extends mock<IQuickInputService>() {
 	result: string | undefined;
@@ -925,36 +925,36 @@ suite('Sessions rename', () => {
 				readonly activeSession = constObservable<IActiveSession | undefined>(session);
 			});
 			stubMissingSessionHostsFromSessionsService(instantiationService);
-			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
-				override getActiveSessionView() { return upcastPartial<SessionView>({ getSession: () => session }); }
-				override getSessionView() {
-					if (inlineRename === undefined) {
-						return undefined;
-					}
-					return new class extends mock<SessionView>() {
-						override startTitleEditing(): boolean {
-							inlineRenameCalls++;
-							return inlineRename;
-						}
-					};
-				}
+			// The view of the pane that shows the session: the grid's active pane.
+			const view = upcastPartial<SessionView>({
+				getSession: () => session,
+				startTitleEditing: () => {
+					inlineRenameCalls++;
+					return inlineRename ?? false;
+				},
 			});
+			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
+				override getActiveSessionView() { return view; }
+			});
+			// The arguments of the header's menu: of a pane of the grid, or, for a session no pane of the grid shows, of a header
+			// elsewhere, such as a chat editor's.
+			const menuArgs = stubPaneHost(instantiationService, inlineRename === undefined ? { grid: false, session } : { grid: true, session, view });
 			const handler = CommandsRegistry.getCommand('sessions.sessionHeader.rename')?.handler;
 			assert.ok(handler);
-			return { handler, instantiationService, commandService, session, inlineRenameCalls: () => inlineRenameCalls };
+			return { handler, instantiationService, commandService, session, menuArgs, inlineRenameCalls: () => inlineRenameCalls };
 		}
 
 		test('renames inline in the header and only prompts when that is not possible', async () => {
 			const inline = createHeaderHarness(true);
-			await inline.handler(inline.instantiationService, inline.session);
+			await inline.handler(inline.instantiationService, ...inline.menuArgs);
 
 			// The header cannot show the title (e.g. the chat tabs row replaced it).
 			const headerUnavailable = createHeaderHarness(false);
-			await headerUnavailable.handler(headerUnavailable.instantiationService, headerUnavailable.session);
+			await headerUnavailable.handler(headerUnavailable.instantiationService, ...headerUnavailable.menuArgs);
 
 			// The session is not shown in the sessions part at all.
 			const noView = createHeaderHarness(undefined);
-			await noView.handler(noView.instantiationService, noView.session);
+			await noView.handler(noView.instantiationService, ...noView.menuArgs);
 
 			const withoutSession = createHeaderHarness(true);
 			await withoutSession.handler(withoutSession.instantiationService, undefined);

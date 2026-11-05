@@ -84,6 +84,11 @@ export interface IChangesSessionScope {
 	readonly changes: IChangesSessionObservables;
 	/** Whether the session is that of the main window, whose workspace is mounted and whose keys are bound globally. */
 	readonly isMainWindow: boolean;
+	/**
+	 * The command context of the window host whose session this is. Actions that name the session pass it too, so they act on
+	 * that host, such as a chat window, rather than on another that shows the session.
+	 */
+	readonly hostCommandContext?: { readonly sessionHostId: string };
 }
 
 /** The changes observables of the active session, assembled from the service's `activeSession*` observables. */

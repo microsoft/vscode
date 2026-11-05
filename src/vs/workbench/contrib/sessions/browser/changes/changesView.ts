@@ -152,7 +152,7 @@ export function createChangesSessionScope(changesViewService: IChangesViewServic
 	const windowHost = getWindowHost(host);
 	const isMainWindow = windowHost.kind === SessionHostKind.MainWindow;
 	const { session, chat } = windowHost;
-	return { session, chat, isMainWindow, changes: isMainWindow ? getActiveSessionChanges(changesViewService) : changesViewService.getSessionChanges(session, chat) };
+	return { session, chat, isMainWindow, hostCommandContext: windowHost.commandContext, changes: isMainWindow ? getActiveSessionChanges(changesViewService) : changesViewService.getSessionChanges(session, chat) };
 }
 
 class ChangesMenuWorkbenchButtonBarWidget extends Disposable implements IChangesButtonBarWidget {
@@ -342,7 +342,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 	) {
 		super();
 
-		const { session: sessionObs, chat: chatObs, changes, isMainWindow } = source;
+		const { session: sessionObs, chat: chatObs, changes, isMainWindow, hostCommandContext } = source;
 		const menu = this._register(menuService.createMenu(MenuId.AgentsChangesToolbar, contextKeyService, { emitEventsForSubmenuChanges: true }));
 		const dropdownMenu = this._register(menuService.createMenu(Menus.ChangesOperationsDropdown, contextKeyService, { emitEventsForSubmenuChanges: true }));
 		const createPullRequestContextView = this._register(instantiationService.createInstance(CreatePullRequestContextView));
@@ -389,7 +389,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 				return getActionBarActions(menu.getActions({ shouldForwardArgs: true }));
 			}
 			return getActionBarActions(actionsNamingSession(
-				menu.getActions({ arg: session, shouldForwardArgs: true }),
+				menu.getActions({ args: [session, undefined, hostCommandContext], shouldForwardArgs: true }),
 				menu.getActions({ arg: session.resource, shouldForwardArgs: true }),
 			));
 		});
@@ -414,7 +414,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 			dropdownMenuChanged.read(reader);
 			// Its actions, such as those of Agent Merge, act on the session of this bar, such as that of a chat window,
 			// rather than on whichever session is active.
-			const groups = dropdownMenu.getActions({ arg: sessionObs.read(reader), shouldForwardArgs: true });
+			const groups = dropdownMenu.getActions({ args: [sessionObs.read(reader), undefined, hostCommandContext], shouldForwardArgs: true });
 			const primaryGroup = groups.find(([group]) => group === CHANGES_OPERATIONS_DROPDOWN_PRIMARY_GROUP)?.[1] ?? [];
 			const rest = groups.filter(([group]) => group !== CHANGES_OPERATIONS_DROPDOWN_PRIMARY_GROUP).map(([, actions]) => actions);
 			const contributed = primaryGroup[0];

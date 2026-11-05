@@ -16,7 +16,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { ActiveSessionHost, IFocusedSessionHostService, ISessionHost, ISessionHostService, SessionHostKind } from '../../browser/sessionHost.js';
+import { ActiveSessionHost, IFocusedSessionHostService, ISessionHost, ISessionHostService, SessionHostKind, sessionMenuArgs } from '../../browser/sessionHost.js';
 import { resolveSessionCommandTarget } from '../../browser/sessionCommandTarget.js';
 import { SessionHostService } from '../../browser/sessionHostService.js';
 import { ISessionsService } from '../../browser/sessionsService.js';
@@ -182,11 +182,13 @@ suite('resolveSessionCommandTarget: panes of the grid', () => {
 		});
 		const sessionHostService = disposables.add(new SessionHostService(sessionsService, upcastPartial<IEditorGroupsService>({ getGroup: () => undefined })));
 		const panes = new Map<ISessionHost, string>();
+		const hostOfPane = new Map<IActiveSession, ISessionHost>();
 		for (const pane of model.gridSessions.get()) {
 			if (pane) {
 				const host = new ActiveSessionHost({ kind: SessionHostKind.Pane, parent: mainHost, session: constObservable(pane), contextKeyService });
 				disposables.add(sessionHostService.registerHost(host));
 				panes.set(host, model.isDetachedPane(pane) ? `${pane.sessionId} (detached)` : pane.sessionId);
+				hostOfPane.set(pane, host);
 			}
 		}
 		const instantiationService = disposables.add(new TestInstantiationService());
@@ -203,7 +205,7 @@ suite('resolveSessionCommandTarget: panes of the grid', () => {
 			return target && { pane: target.host && (panes.get(target.host) ?? target.host.kind), chat: target.chat?.resource.path.slice(1) };
 		};
 		const paneOf = (detached: boolean) => model.gridSessions.get().find(pane => pane?.sessionId === 'a' && model.isDetachedPane(pane) === detached)!;
-		return { model, resolve, paneOf };
+		return { model, resolve, paneOf, hostOf: (pane: IActiveSession) => hostOfPane.get(pane)! };
 	}
 
 	/** Session A in a slot and its side chat in a detached pane beside session B, which the detached pane becomes the active pane of. */
@@ -239,13 +241,14 @@ suite('resolveSessionCommandTarget: panes of the grid', () => {
 		assert.deepStrictEqual(resolve(sessionA.resource), { pane: 'a (detached)', chat: 'side' });
 	});
 
-	test('the session of a pane, as its toolbars pass it, resolves to that pane, whichever pane is active', () => {
+	test('the arguments of a pane\'s menus resolve to that pane, whichever pane is active; its session object alone does not name it', () => {
 		const resolvePanes = (active: (model: VisibleSessions) => void) => {
-			const { resolve, paneOf } = setup(model => {
+			const { resolve, paneOf, hostOf } = setup(model => {
 				detachSideChat(model);
 				active(model);
 			});
-			return { slot: resolve(paneOf(false)), detached: resolve(paneOf(true)) };
+			const menuArgsOf = (pane: IActiveSession) => sessionMenuArgs(pane, undefined, hostOf(pane));
+			return { slot: resolve(...menuArgsOf(paneOf(false))), detached: resolve(...menuArgsOf(paneOf(true))), detachedSessionObject: resolve(paneOf(true)) };
 		};
 
 		assert.deepStrictEqual({
@@ -253,9 +256,9 @@ suite('resolveSessionCommandTarget: panes of the grid', () => {
 			detachedActive: resolvePanes(() => { }),
 			otherSessionActive: resolvePanes(model => model.setActive(model.visibleSessions.get()[1])),
 		}, {
-			slotActive: { slot: { pane: 'a', chat: 'main' }, detached: { pane: 'a (detached)', chat: 'side' } },
-			detachedActive: { slot: { pane: 'a', chat: 'main' }, detached: { pane: 'a (detached)', chat: 'side' } },
-			otherSessionActive: { slot: { pane: 'a', chat: 'main' }, detached: { pane: 'a (detached)', chat: 'side' } },
+			slotActive: { slot: { pane: 'a', chat: 'main' }, detached: { pane: 'a (detached)', chat: 'side' }, detachedSessionObject: { pane: 'a', chat: 'main' } },
+			detachedActive: { slot: { pane: 'a', chat: 'main' }, detached: { pane: 'a (detached)', chat: 'side' }, detachedSessionObject: { pane: 'a (detached)', chat: 'side' } },
+			otherSessionActive: { slot: { pane: 'a', chat: 'main' }, detached: { pane: 'a (detached)', chat: 'side' }, detachedSessionObject: { pane: 'a', chat: 'main' } },
 		});
 	});
 });

@@ -50,6 +50,7 @@ import '../../../workbench/contrib/sessions/browser/media/chatBackground.css';
 import '../../../workbench/contrib/modernUI/browser/media/tabs.css';
 // eslint-disable-next-line local/code-import-patterns -- Test the presentation supplied by the editor contribution.
 import '../../../workbench/contrib/modernUI/browser/connectedEditorTabs.js';
+import { ISessionHost } from '../../../workbench/contrib/sessions/browser/sessionHost.js';
 
 class TestResizeObserver implements ResizeObserver {
 	static instance: TestResizeObserver | undefined;
@@ -81,6 +82,9 @@ class TestResizeObserver implements ResizeObserver {
 		}], this);
 	}
 }
+
+/** The command context of the pane the bar is in, which its menus and tab actions pass. */
+const testPaneContext = { sessionHostId: 'test-pane' };
 
 class TestCommandService extends mock<ICommandService>() {
 	readonly calls: { readonly commandId: string; readonly args: readonly unknown[] }[] = [];
@@ -195,6 +199,8 @@ interface IChatCompositeBarHarness {
 function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { readonly isAgentHost?: boolean; readonly isQuickChat?: boolean; readonly standaloneChat?: boolean; readonly resizeObserverCtor?: typeof ResizeObserver; readonly mainIsRead?: boolean; readonly secondaryIsRead?: boolean; readonly secondaryArchived?: boolean; readonly secondaryCanArchive?: boolean; readonly terminalControls?: boolean; readonly sessionSupportsRename?: boolean; readonly secondaryHarness?: string; readonly knownHarnesses?: IObservable<readonly string[]>; readonly accessibilityService?: IAccessibilityService }): IChatCompositeBarHarness {
 	const store = disposables.add(new DisposableStore());
 	const instantiationService = workbenchInstantiationService(undefined, store);
+	// The pane the bar is in, whose command context its menus pass.
+	instantiationService.stub(ISessionHost, upcastPartial<ISessionHost>({ commandContext: testPaneContext }));
 	const commandService = new TestCommandService();
 	const contextMenuService = new TestContextMenuService();
 	const sessionsService = new TestSessionsService();
@@ -935,7 +941,7 @@ suite('Sessions - ChatCompositeBar', () => {
 				const removed = chats.at(-1)!;
 				const replacement = chats.at(-2)!;
 				harness.commandService.onExecute = (commandId, args) => {
-					assert.deepStrictEqual({ commandId, args }, { commandId: CLOSE_CHAT_COMMAND_ID, args: [harness.session, removed] });
+					assert.deepStrictEqual({ commandId, args }, { commandId: CLOSE_CHAT_COMMAND_ID, args: [harness.session, removed, testPaneContext] });
 					transaction(tx => {
 						harness.chats.set(chats.slice(0, -1), tx);
 						harness.activeChatResource.set(replacement.resource.toString(), tx);
@@ -1212,7 +1218,7 @@ suite('Sessions - ChatCompositeBar', () => {
 					session,
 					chat: session.visibleChatTabs.get()[1],
 					inline: true,
-				}],
+				}, undefined, testPaneContext],
 			}],
 		});
 	});
@@ -1249,7 +1255,7 @@ suite('Sessions - ChatCompositeBar', () => {
 
 		assert.deepStrictEqual(commandService.calls, [
 			{ commandId: MARK_SESSION_UNREAD_COMMAND_ID, args: [{ session, chat: session.visibleChatTabs.get()[0] }] },
-			{ commandId: CLOSE_CHAT_COMMAND_ID, args: [session, session.visibleChatTabs.get()[1]] },
+			{ commandId: CLOSE_CHAT_COMMAND_ID, args: [session, session.visibleChatTabs.get()[1], testPaneContext] },
 		]);
 	});
 
@@ -1485,7 +1491,7 @@ suite('Sessions - ChatCompositeBar', () => {
 		}, {
 			commandCalls: [{
 				commandId: CLOSE_CHAT_COMMAND_ID,
-				args: [session, session.visibleChatTabs.get()[1]],
+				args: [session, session.visibleChatTabs.get()[1], testPaneContext],
 			}],
 			openedChats: [],
 			defaultPrevented: true,
@@ -1504,7 +1510,7 @@ suite('Sessions - ChatCompositeBar', () => {
 
 		assert.deepStrictEqual(commandService.calls, [{
 			commandId: CLOSE_CHAT_COMMAND_ID,
-			args: [session, session.visibleChatTabs.get()[1]],
+			args: [session, session.visibleChatTabs.get()[1], testPaneContext],
 		}]);
 	});
 

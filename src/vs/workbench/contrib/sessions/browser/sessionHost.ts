@@ -241,6 +241,15 @@ export function shownChatOf(host: ISessionHost, reader?: IReader): IShownChat | 
 	return session && chat ? { session, chat } : undefined;
 }
 
+/**
+ * The arguments of the menus of a pane's session header and chat tabs: the session, the chat they act on, if any, and the
+ * command context of `host`, by which pane commands, such as Pin or Close, find the pane rather than by the session object.
+ * Session-level commands, which the sessions list shares, read the session and chat.
+ */
+export function sessionMenuArgs(session: IHostSession, chat: IChat | undefined, host: ISessionHost): unknown[] {
+	return [session, chat, host.commandContext];
+}
+
 /** The menu options of the toolbars and button bars a host creates, so their commands act on the host. */
 export function createHostMenuOptions(host: ISessionHost): { readonly arg: ISessionHostCommandContext; readonly shouldForwardArgs: true } {
 	return { arg: host.commandContext, shouldForwardArgs: true };

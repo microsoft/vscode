@@ -37,6 +37,17 @@ import { ActiveSessionHost, SessionHostKind } from '../../../../../workbench/con
 suite('ChangesActionsBar', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	/** The command context of the window host of the bar's session. */
+	const barHostContext = { sessionHostId: 'bar-window' };
+
+	function describeArg(arg: unknown, session: IActiveSession): unknown {
+		return Array.isArray(arg) ? arg.map(item => describeArg(item, session))
+			: arg === session ? 'session'
+				: arg === session.resource ? 'resource'
+					: arg === barHostContext ? 'bar window host'
+						: arg;
+	}
+
 	function createBar(providerId: string, getActionsOptions: Map<MenuId, IMenuActionOptions | undefined> = new Map(), { isMainWindowSession = false, operations = [] as ISessionChangesetOperation[] } = {}) {
 		const menus: MenuId[] = [];
 		const toolbarArgs: unknown[] = [];
@@ -44,7 +55,7 @@ suite('ChangesActionsBar', () => {
 		instantiationService.stub(IMenuService, upcastPartial<IMenuService>({
 			createMenu: (id: MenuId) => {
 				menus.push(id);
-				return upcastPartial<IMenu>({ onDidChange: Event.None, getActions: (options?: IMenuActionOptions) => { getActionsOptions.set(id, options); if (id === MenuId.AgentsChangesToolbar) { toolbarArgs.push(options?.arg); } return []; }, dispose: () => { } });
+				return upcastPartial<IMenu>({ onDidChange: Event.None, getActions: (options?: IMenuActionOptions) => { getActionsOptions.set(id, options); if (id === MenuId.AgentsChangesToolbar) { toolbarArgs.push(options?.args ?? options?.arg); } return []; }, dispose: () => { } });
 			},
 		}));
 		instantiationService.stub(IContextKeyService, store.add(new ContextKeyService(new TestConfigurationService())));
@@ -74,6 +85,7 @@ suite('ChangesActionsBar', () => {
 			session: sessionObs,
 			chat: constObservable(session.activeChat.get()),
 			isMainWindow: isMainWindowSession,
+			hostCommandContext: barHostContext,
 			changes: upcastPartial<IChangesSessionObservables>({
 				stateObs: constObservable(undefined),
 				resourceObs: constObservable(undefined),
@@ -102,9 +114,9 @@ suite('ChangesActionsBar', () => {
 
 		assert.deepStrictEqual({
 			// The session itself, for its own actions, and its resource, for those of extensions.
-			otherSession: toolbarArgs.map(arg => arg === session ? 'session' : arg === session.resource ? 'resource' : arg),
+			otherSession: toolbarArgs.map(arg => describeArg(arg, session)),
 			mainWindow: ofMainWindowSession.get(MenuId.AgentsChangesToolbar),
-		}, { otherSession: ['session', 'resource'], mainWindow: { shouldForwardArgs: true } });
+		}, { otherSession: [['session', undefined, 'bar window host'], 'resource'], mainWindow: { shouldForwardArgs: true } });
 	});
 
 	test('its own actions get the session, which names it whichever window has focus, and those of extensions its resource, as the API gives them', () => {
@@ -134,7 +146,7 @@ suite('ChangesActionsBar', () => {
 		const { session } = createBar('local-agent-host', getActionsOptions);
 		const options = getActionsOptions.get(Menus.ChangesOperationsDropdown);
 
-		assert.deepStrictEqual({ argIsBarSession: options?.arg === session, shouldForwardArgs: options?.shouldForwardArgs }, { argIsBarSession: true, shouldForwardArgs: true });
+		assert.deepStrictEqual({ args: describeArg(options?.args, session), shouldForwardArgs: options?.shouldForwardArgs }, { args: ['session', undefined, 'bar window host'], shouldForwardArgs: true });
 	});
 
 	test('creates the scope from the active session observables only for the main window, from the window host of a pane', () => {

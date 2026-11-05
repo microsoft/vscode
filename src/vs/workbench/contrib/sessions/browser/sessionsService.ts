@@ -207,6 +207,14 @@ export interface ISessionsService extends ISessionGridPanes {
 	/** The id of the active pane of the grid, as {@link getSessionPaneId} gives it; `undefined` while its new-session slot is. */
 	readonly activePaneId: IObservable<string | undefined>;
 
+	/**
+	 * The session of the grid pane `host` stands for, the grid's view of it: the active pane's for the grid host, a slot's or
+	 * detached pane's for the host of its view. `undefined` for the new-session slot and hosts outside the grid.
+	 *
+	 * @deprecated Transitional: pane commands move to the pane API.
+	 */
+	getPaneSessionOfHost(host: ISessionHost): IActiveSession | undefined;
+
 	/** Whether the initial persisted visible-session restore has settled. */
 	readonly initialRestoreComplete: IObservable<boolean>;
 
@@ -991,12 +999,15 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	isDetachedPaneHost(host: ISessionHost): boolean {
-		const pane = host === this.gridHost ? this.activeSession.get() : this.sessionsPartService.getSessionViewOfHost(host)?.getSession();
-		return this._visibility.isDetachedPane(pane);
+		return this._visibility.isDetachedPane(this.getPaneSessionOfHost(host));
 	}
 
 	isGridPaneHost(host: ISessionHost): boolean {
 		return host === this.gridHost || !!this.sessionsPartService.getSessionViewOfHost(host);
+	}
+
+	getPaneSessionOfHost(host: ISessionHost): IActiveSession | undefined {
+		return host === this.gridHost ? this.activeSession.get() : this.sessionsPartService.getSessionViewOfHost(host)?.getSession();
 	}
 
 	getRecentlyOpenedSessions(): IRecentlyOpenedSessions {

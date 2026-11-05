@@ -8,7 +8,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon, themeColorFromId } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { SessionHeader } from '../../../../contrib/sessions/browser/parts/sessionHeader.js';
 import { ISessionsListModelService } from '../../../../contrib/sessions/browser/sessionsListModelService.js';
 import { IChat, ISessionCapabilities, SessionStatus } from '../../../../contrib/sessions/common/session.js';
@@ -16,6 +16,7 @@ import { IActiveSession, ISessionsManagementService } from '../../../../contrib/
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 
 import '../../../../contrib/sessions/browser/parts/media/chatCompositeBar.css';
+import { ISessionHost } from '../../../../contrib/sessions/browser/sessionHost.js';
 
 interface IMockSessionOptions {
 	readonly title: string;
@@ -79,6 +80,7 @@ function renderHeader(ctx: ComponentFixtureContext, session: IActiveSession, wit
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: ctx.theme,
 		additionalServices: reg => {
+			reg.defineInstance(ISessionHost, upcastPartial<ISessionHost>({ commandContext: { sessionHostId: 'fixture-pane' } }));
 			registerWorkbenchServices(reg);
 			reg.defineInstance(ISessionsListModelService, createMockListModelService());
 			reg.defineInstance(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {

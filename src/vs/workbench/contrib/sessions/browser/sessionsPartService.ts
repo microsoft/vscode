@@ -34,6 +34,9 @@ export type SessionGridRequest = { readonly type: 'arrange' } | { readonly type:
  * view implementation.
  */
 export interface ISessionView {
+	/** The host of the session the view shows. */
+	readonly host: ISessionHost;
+
 	focus(): void;
 	focusWorkspacePicker(): void;
 	focusHarnessPicker(): void;

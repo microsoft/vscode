@@ -15,6 +15,7 @@ import { IEditorGroupsService } from '../../../../services/editor/common/editorG
 import { ActiveSessionHost, IFocusedSessionHostService, ISessionHost, ISessionHostService, SessionHostKind } from '../../browser/sessionHost.js';
 import { SessionHostService } from '../../browser/sessionHostService.js';
 import { ISessionsService } from '../../browser/sessionsService.js';
+import { ISessionsPartService, ISessionView } from '../../browser/sessionsPartService.js';
 import { IChat, SessionStatus } from '../../common/session.js';
 import { IActiveSession } from '../../common/sessionsManagement.js';
 
@@ -233,4 +234,47 @@ function isMissingOrDerived(instantiationService: TestInstantiationService, id: 
  */
 export function stubMissingSessionHostsFromSessionsService(instantiationService: TestInstantiationService): void {
 	stubSessionHostsFromSessionsService(instantiationService, true);
+}
+
+let paneHostIds = 0;
+
+/**
+ * Stubs the host of a pane for tests of the commands its menus run, which find the pane by its host
+ * (`resolvePaneCommandTarget`): the host lookups know the host, and, for a pane of the grid, the sessions and part services
+ * take it for the pane of `session` and `view`; else, as a chat editor's, for no pane. Keeps the other lookups of the
+ * services the test stubbed, and stubs them when it did not. Returns the arguments the pane's menus pass.
+ */
+export function stubPaneHost(instantiationService: TestInstantiationService, options: { readonly grid: boolean; readonly session: IActiveSession | undefined; readonly view?: ISessionView; readonly chat?: IChat }): unknown[] {
+	const id = `pane:test:${paneHostIds++}`;
+	// Partial session fakes may have no active chat.
+	const shown = options.chat ?? options.session?.activeChat?.get();
+	const host = upcastPartial<ISessionHost>({
+		id,
+		kind: SessionHostKind.Pane,
+		session: constObservable(options.session),
+		chat: constObservable(shown),
+		chatResource: constObservable(shown?.resource),
+		commandContext: { sessionHostId: id },
+	});
+	const existing = <T>(service: ServiceIdentifier<T>): T | undefined => {
+		try {
+			return instantiationService.get(service);
+		} catch {
+			return undefined;
+		}
+	};
+	// Stubs `service` with `members` over the stub the test has, which keeps its other members and answers for other hosts.
+	const extend = <T extends object>(service: ServiceIdentifier<T>, members: (current: T | undefined) => Partial<T>) => {
+		const current = existing(service);
+		instantiationService.stub(service, Object.assign(Object.create(current ?? null), members(current)));
+	};
+	extend(ISessionHostService, current => ({ getHost: candidate => candidate === id ? host : current?.getHost?.(candidate) }));
+	extend(ISessionsService, current => ({
+		isGridPaneHost: candidate => candidate === host ? options.grid : current?.isGridPaneHost?.(candidate) ?? false,
+		getPaneSessionOfHost: candidate => candidate === host ? (options.grid ? options.session : undefined) : current?.getPaneSessionOfHost?.(candidate),
+	}));
+	extend(ISessionsPartService, current => ({
+		getSessionViewOfHost: candidate => candidate === host ? (options.grid ? options.view : undefined) : current?.getSessionViewOfHost?.(candidate),
+	}));
+	return [options.session, options.chat, host.commandContext];
 }
