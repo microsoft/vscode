@@ -20,6 +20,8 @@ export const enum NewSessionBannerPriority {
 	Tip = 100,
 	/** The notice that agent customizations need to be migrated. */
 	Migration = 200,
+	/** The notice that the folder's profile has agent setup, such as MCP servers, that the Agents window does not use. */
+	FolderProfile = 250,
 	/** The suggestion to start the session in a new worktree, because its folder has uncommitted changes. */
 	WorktreeSuggestion = 300,
 }

@@ -90,6 +90,7 @@ import { isAutoModel, isHydraFusionModel } from '../../../../workbench/contrib/c
 import { IAgentsWindowDraft } from '../../../../platform/window/common/window.js';
 import { reviveChatDraft } from '../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
 import { NewChatMigrationNotice } from './newChatMigrationNotice.js';
+import { NewChatProfileNotice } from './newChatProfileNotice.js';
 import { WorktreeSuggestionController } from '../../worktreeSuggestion/browser/worktreeSuggestionController.js';
 import { NewChatConnectorRecommendations } from './newChatConnectorRecommendations.js';
 import { FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_WHEN, FOCUS_NEW_SESSION_HARNESS_PICKER_WHEN, FOCUS_NEW_SESSION_WORKSPACE_PICKER_WHEN } from './newChatPickerKeybinding.js';
@@ -873,12 +874,13 @@ export class NewChatWidget extends Disposable {
 			onDidChangeInputValue: this._newChatInput.onDidChangeInput,
 		}, undefined));
 
-		// The tip, migration notice and worktree suggestion below the input show one at a time, by priority,
-		// and only once the user started enough sessions.
+		// The tip, migration notice, folder profile notice and worktree suggestion below the input show one at a
+		// time, by priority, and only once the user started enough sessions.
 		const banners = this._register(this.instantiationService.createInstance(NewSessionBanners));
 		const chatTipContainer = dom.$(`.new-session-getting-started-tip.new-session-getting-started-tip-below.chat-getting-started-tip-container.${chatInputStackSlotClass}`);
 		belowInputSurfaces.prepend(chatTipContainer);
 		this._register(this.instantiationService.createInstance(NewChatMigrationNotice, belowInputSurfaces, banners, this._session, () => this.focusInput()));
+		this._register(this.instantiationService.createInstance(NewChatProfileNotice, belowInputSurfaces, banners, this._session, () => this.focusInput()));
 		this._worktreeSuggestion = this._register(this.instantiationService.createInstance(WorktreeSuggestionController, belowInputSurfaces, {
 			session: this._session,
 			pickerVisibility: this._newChatInput.pickerVisibility,
