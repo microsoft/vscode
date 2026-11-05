@@ -430,6 +430,8 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		}, sessionHostServiceOf(store, { mainWindowActiveSession: constObservable(undefined), visibleSessions: constObservable([]), windowSessions: constObservable([]) }), focusedSessionHostServiceOf(constObservable(undefined)), new class extends mock<ISessionsService>() {
 			override isActivePane() { return false; }
 			override isDetachedPane() { return false; }
+			override isActivePaneHost() { return false; }
+			override isDetachedPaneHost() { return false; }
 		}, new class extends mock<IDecorationsService>() {
 			override registerDecorationsProvider() { return toDisposable(() => { }); }
 		}, new NullLogService())),

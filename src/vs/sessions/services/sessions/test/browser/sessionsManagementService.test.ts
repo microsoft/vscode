@@ -82,7 +82,7 @@ import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/service
 import { ChatHostOpenerService, IChatHostOpenerService } from '../../../../../workbench/contrib/sessions/browser/chatHostOpener.js';
 import { SessionActivatingActionRunner } from '../../../../../workbench/contrib/sessions/browser/sessionActionRunner.js';
 import { SessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHostService.js';
-import { createMainWindowInstantiationService, getMainWindowHost, ISessionHost, ISessionHostService, SessionHostKind } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ActiveSessionHost, createMainWindowInstantiationService, getMainWindowHost, ISessionHost, ISessionHostService, SessionHostKind } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { getSingletonServiceDescriptors } from '../../../../../platform/instantiation/common/extensions.js';
 import { InstantiationService } from '../../../../../platform/instantiation/common/instantiationService.js';
@@ -350,6 +350,8 @@ class TestSessionsPartService extends mock<ISessionsPartService>() {
 		return this.part?.getSessionView(sessionId) ?? this.sessionViews.get(sessionId);
 	}
 	override getFocusedSessionView(): SessionView | undefined { return this.part?.getFocusedSessionView() ?? this.focusedSessionView; }
+	override getActiveSessionView(): SessionView | undefined { return this.part?.getActiveSessionView(); }
+	override getSessionViewOfHost(host: ISessionHost): SessionView | undefined { return this.part?.getSessionViewOfHost(host); }
 }
 
 class TestCustomView extends AbstractCustomView {
@@ -585,6 +587,34 @@ suite('SessionsManagementService', () => {
 				active: view.activeSession.get()?.sessionId,
 				focused: sessionsPartService.focusedSessions,
 			}, { visible: ['a'], active: 'a', focused: [] });
+		});
+
+		test('hosts stand for grid panes: the grid host for the active pane, a view\'s host for its slot or detached pane, other hosts for none', async () => {
+			const session = created('parent');
+			const main = session.mainChat.get();
+			const child = { ...main, resource: main.resource.with({ fragment: 'child' }) };
+			const parent = { ...session, chats: constObservable([main, child]) };
+			const { view, part } = harness([parent]);
+			const of = (host: ISessionHost | undefined) => host && { active: view.isActivePaneHost(host), detached: view.isDetachedPaneHost(host), grid: view.isGridPaneHost(host) };
+			const empty = { grid: of(view.gridHost), emptySlot: of(part.getSessionView(undefined)?.host) };
+			await view.openSession(parent.resource);
+			await view.moveChatToGrid(parent.sessionId, child.resource, (Reflect.get(view, '_visibility') as VisibleSessions).getGridSlots()[0].id, 'right');
+			const [slot, detached] = view.visibleSessionPanes.get();
+			const chatWindow = new ActiveSessionHost({ kind: SessionHostKind.ChatWindow, parent: undefined, session: constObservable(detached), contextKeyService: upcastPartial<IContextKeyService>({}) });
+
+			assert.deepStrictEqual({
+				empty,
+				grid: of(view.gridHost),
+				slot: of(part.getViewOfSession(slot!)?.host),
+				detached: of(part.getViewOfSession(detached!)?.host),
+				chatWindow: of(chatWindow),
+			}, {
+				empty: { grid: { active: true, detached: false, grid: true }, emptySlot: { active: true, detached: false, grid: true } },
+				grid: { active: true, detached: true, grid: true },
+				slot: { active: false, detached: false, grid: true },
+				detached: { active: true, detached: true, grid: true },
+				chatWindow: { active: false, detached: false, grid: false },
+			});
 		});
 
 		test('the grid host is one instance: the one the host lookups register and the main window\'s UI injects, showing the grid\'s active pane; the root has none', async () => {

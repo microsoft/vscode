@@ -43,7 +43,7 @@ export type ITestSessionsService = ISessionsService & ITestSessionsGridState;
 /** A sessions service whose grid host is `gridHost`, for a real {@link SessionHostService}. */
 export function sessionsServiceWithGridHost(gridHost: ISessionHost): ISessionsService {
 	// A grid without panes of its own: no pane is its active or a detached one.
-	return upcastPartial<ISessionsService>({ gridHost, isActivePane: () => false, isDetachedPane: () => false });
+	return upcastPartial<ISessionsService>({ gridHost, isActivePane: () => false, isDetachedPane: () => false, isActivePaneHost: () => false, isDetachedPaneHost: () => false, isGridPaneHost: () => false });
 }
 
 /**

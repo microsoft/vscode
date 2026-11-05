@@ -151,6 +151,19 @@ export interface ISessionGridPanes {
 	isDetachedPane(pane: IHostSession | undefined): boolean;
 	/** Whether `pane` is a pane of the grid, a slot or a detached pane, rather than of another surface, such as a chat editor. */
 	isGridPane(pane: IHostSession | undefined): boolean;
+
+	/**
+	 * Whether `host` stands for the grid's active pane: the grid host, which shows the active pane, or the host of the
+	 * active pane's view. `false` for other hosts, such as a chat window's.
+	 */
+	isActivePaneHost(host: ISessionHost): boolean;
+	/** Whether `host` stands for a detached pane: the host of a detached pane's view, or the grid host while one is active. */
+	isDetachedPaneHost(host: ISessionHost): boolean;
+	/**
+	 * Whether `host` stands for a pane of the grid: the grid host, or the host of a slot's or detached pane's view, including
+	 * the new-session slot's. `false` for the hosts of chat windows, chat editors, composers and dialogs.
+	 */
+	isGridPaneHost(host: ISessionHost): boolean;
 }
 
 /**
@@ -169,13 +182,13 @@ export function getHostOfSession(sessionHostService: ISessionHostService, gridPa
 		return inWindow[0];
 	}
 	const isActive = (host: ISessionHost) => preferredWindowHost?.kind === SessionHostKind.MainWindow
-		? gridPanes.isActivePane(host.session.get())
+		? gridPanes.isActivePaneHost(host)
 		: isEqual(host.chatResource.get(), preferredWindowHost?.chatResource.get());
 	const active = inWindow.filter(isActive);
 	if (active.length === 1) {
 		return active[0];
 	}
-	const ofGrid = inWindow.filter(host => !gridPanes.isDetachedPane(host.session.get()));
+	const ofGrid = inWindow.filter(host => !gridPanes.isDetachedPaneHost(host));
 	return ofGrid.length === 1 ? ofGrid[0] : undefined;
 }
 

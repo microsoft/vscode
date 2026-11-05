@@ -14,6 +14,7 @@ import { IProgressIndicator } from '../../../../platform/progress/common/progres
 import { Event } from '../../../../base/common/event.js';
 import { Direction, ISerializedGrid } from '../../../../base/browser/ui/grid/grid.js';
 import { IObservable } from '../../../../base/common/observable.js';
+import type { ISessionHost } from './sessionHost.js';
 
 export interface ISessionGridPlacement {
 	readonly reference: string;
@@ -169,6 +170,9 @@ export interface ISessionsPartService {
 	 * focused host.
 	 */
 	getActiveSessionView(): ISessionView | undefined;
+
+	/** The view of the grid whose host is `host`: a slot or a detached pane. `undefined` for other hosts, such as a chat window's. */
+	getSessionViewOfHost(host: ISessionHost): ISessionView | undefined;
 
 	/**
 	 * Returns the progress indicator for the sessions part, which drives the

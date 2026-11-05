@@ -34,6 +34,7 @@ import { isPhoneLayout } from '../mobileLayout.js';
 import { SessionsChatSurface } from '../sessionsChatSurface.js';
 import { noSessionPickerVisibility, SessionPickerVisibilityContextKeys } from '../../common/sessionPickerVisibility.js';
 import { ISessionGridSlot, SessionGridRequest } from '../sessionsPartService.js';
+import type { ISessionHost } from '../sessionHost.js';
 import { SessionGridLayout } from './sessionGridLayout.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../../common/layoutConstants.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -351,6 +352,11 @@ export class SessionsPart extends Part {
 
 	getFocusedSessionView(): SessionView | undefined {
 		return this._slots.find(slot => isAncestorOfActiveElement(slot.view.element))?.view;
+	}
+
+	/** The view of a slot or detached pane whose host is `host`. */
+	getSessionViewOfHost(host: ISessionHost): SessionView | undefined {
+		return this._slots.find(slot => slot.view.host === host)?.view;
 	}
 
 	getActiveSessionView(): SessionView | undefined {

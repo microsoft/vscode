@@ -18,7 +18,7 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { ISessionGridSlot, ISessionsPartService, IToggleMaximizeSessionEvent, SessionGridRequest } from '../../../workbench/contrib/sessions/browser/sessionsPartService.js';
 import { Direction } from '../../../base/browser/ui/grid/grid.js';
 import { IAgentWorkbenchLayoutService } from '../workbench.js';
-import { createMainWindowInstantiationService } from '../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { createMainWindowInstantiationService, ISessionHost } from '../../../workbench/contrib/sessions/browser/sessionHost.js';
 
 /**
  * Owns the lifecycle of the {@link SessionsPart}. Selects the mobile vs. desktop
@@ -117,6 +117,10 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 
 	getActiveSessionView(): SessionView | undefined {
 		return this._mainPart.getActiveSessionView();
+	}
+
+	getSessionViewOfHost(host: ISessionHost): SessionView | undefined {
+		return this._mainPart.getSessionViewOfHost(host);
 	}
 
 	getProgressIndicator(): IProgressIndicator {

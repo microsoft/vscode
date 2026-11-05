@@ -982,6 +982,23 @@ export class SessionsService extends Disposable implements ISessionsService {
 		return this._visibility.isGridPane(pane);
 	}
 
+	isActivePaneHost(host: ISessionHost): boolean {
+		if (host === this.gridHost) {
+			return true;
+		}
+		const view = this.sessionsPartService.getSessionViewOfHost(host);
+		return !!view && view === this.sessionsPartService.getActiveSessionView();
+	}
+
+	isDetachedPaneHost(host: ISessionHost): boolean {
+		const pane = host === this.gridHost ? this.activeSession.get() : this.sessionsPartService.getSessionViewOfHost(host)?.getSession();
+		return this._visibility.isDetachedPane(pane);
+	}
+
+	isGridPaneHost(host: ISessionHost): boolean {
+		return host === this.gridHost || !!this.sessionsPartService.getSessionViewOfHost(host);
+	}
+
 	getRecentlyOpenedSessions(): IRecentlyOpenedSessions {
 		const seen = new Set<string>();
 		const recent: ISession[] = [];

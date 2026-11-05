@@ -170,7 +170,16 @@ suite('resolveSessionCommandTarget: panes of the grid', () => {
 		arrange(model);
 		const contextKeyService = upcastPartial<IContextKeyService>({});
 		const mainHost = new ActiveSessionHost({ kind: SessionHostKind.MainWindow, parent: undefined, session: model.activeSession, contextKeyService, windowId: constObservable(mainWindow.vscodeWindowId) });
-		const sessionsService = upcastPartial<ISessionsService>({ gridHost: mainHost, isActivePane: pane => model.isActivePane(pane), isDetachedPane: pane => model.isDetachedPane(pane) });
+		// A pane host stands for the pane whose session it shows; the main window's for the grid's active pane.
+		const paneOfHost = (host: ISessionHost) => host === mainHost ? model.activeSession.get() : host.session.get();
+		const sessionsService = upcastPartial<ISessionsService>({
+			gridHost: mainHost,
+			isActivePane: pane => model.isActivePane(pane),
+			isDetachedPane: pane => model.isDetachedPane(pane),
+			isActivePaneHost: host => host === mainHost || model.isActivePane(paneOfHost(host)),
+			isDetachedPaneHost: host => model.isDetachedPane(paneOfHost(host)),
+			isGridPaneHost: host => host === mainHost || model.isGridPane(paneOfHost(host)),
+		});
 		const sessionHostService = disposables.add(new SessionHostService(sessionsService, upcastPartial<IEditorGroupsService>({ getGroup: () => undefined })));
 		const panes = new Map<ISessionHost, string>();
 		for (const pane of model.gridSessions.get()) {

@@ -21,6 +21,7 @@ import { GRID_GAP_SASH_CLASS } from '../../../../../workbench/browser/parts/part
 import { ISessionsChatBackground } from '../../../../../workbench/contrib/sessions/browser/chatBackgroundService.js';
 import { IChatViewFactory } from '../../../../../workbench/contrib/sessions/browser/chatViewFactory.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISessionHost } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { ChatOriginKind, IChat, ISession, ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession, IHostSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
@@ -222,6 +223,16 @@ async function renderSessionsGrid(context: ComponentFixtureContext, options: { b
 		}
 		override isDetachedPane(): boolean {
 			return false;
+		}
+		// A pane's host stands for the pane whose session it shows.
+		override isActivePaneHost(host: ISessionHost): boolean {
+			return this.isActivePane(host.session.get());
+		}
+		override isDetachedPaneHost(): boolean {
+			return false;
+		}
+		override isGridPaneHost(host: ISessionHost): boolean {
+			return this.isGridPane(host.session.get());
 		}
 		override toggleSessionStickiness(session: ISession): void {
 			const target = sessions.find(candidate => candidate.sessionId === session.sessionId);
