@@ -12,7 +12,8 @@ import { getTurnError, MessageAttachmentKind, ResponsePartKind, ToolCallCancella
 import { ElicitationState, ToolConfirmKind, type IChatCodeCitation, type IChatContentReference, type IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
 import { LanguageModelPartAudience, type ILanguageModelsService } from '../../../common/languageModels.js';
 import type { IChatProgressResponseContent, IChatModel, IChatRequestModel, IChatResponseModel } from '../../../common/model/chatModel.js';
-import { createImportedConversationStats, importedTurnsFromChatModel, resolveImportedCopilotModel } from '../../../browser/agentSessions/agentHost/importLocalConversationToAgentSession.js';
+import { createImportedConversationStats, importedConversationPrimaryFolder, importedTurnsFromChatModel, resolveImportedCopilotModel } from '../../../browser/agentSessions/agentHost/importLocalConversationToAgentSession.js';
+import type { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { completedToolCallToSerialized, rewriteAgentHostLinkTarget } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 
 suite('importedTurnsFromChatModel', () => {
@@ -533,6 +534,29 @@ suite('importedTurnsFromChatModel', () => {
 			// A web link is written as-is.
 			'\n\nSimilar code found with 1 license type: [x.ts](https://github.com/owner/repo/blob/main/x.ts) (MIT)\n\n',
 		]);
+	});
+
+	test('continues a conversation in the workspace folder its last terminal command ran in, else the last active one', () => {
+		const folders = [URI.file('/a'), URI.file('/b')];
+		const workspace = {
+			getWorkspaceFolder: (uri: URI) => {
+				const folder = folders.find(candidate => uri.path === candidate.path || uri.path.startsWith(`${candidate.path}/`));
+				return folder ? { uri: folder } : null;
+			},
+		} as unknown as Pick<IWorkspaceContextService, 'getWorkspaceFolder'>;
+		const terminal = (cwd: URI) => ({
+			kind: 'toolInvocationSerialized', toolId: 'run_in_terminal', toolCallId: 'terminal', invocationMessage: 'Running', pastTenseMessage: 'Ran',
+			isComplete: true, toolSpecificData: { kind: 'terminal', commandLine: { original: 'ls' }, language: 'sh', cwd },
+		}) as unknown as IChatProgressResponseContent;
+		const choose = (requests: IChatRequestModel[], lastActive?: URI) => importedConversationPrimaryFolder(model(requests), workspace, lastActive)?.path;
+
+		assert.deepStrictEqual({
+			lastTerminal: choose([request('1', response([terminal(URI.file('/a/src'))])), request('2', response([terminal(URI.file('/b'))]))], URI.file('/a/index.ts')),
+			// A directory outside the workspace folders is passed over.
+			outsideWorkspace: choose([request('1', response([terminal(URI.file('/a')), terminal(URI.file('/tmp'))]))]),
+			lastActive: choose([request('1', response([markdown('No terminal')]))], URI.file('/b/src/index.ts')),
+			nothing: choose([request('1', response([markdown('No terminal')]))]),
+		}, { lastTerminal: '/b', outsideWorkspace: '/a', lastActive: '/b', nothing: undefined });
 	});
 
 	test('preserves local reasoning timing when importing into an agent session', () => {

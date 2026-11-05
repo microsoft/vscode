@@ -20,8 +20,9 @@ import { IRange } from '../../../../../../editor/common/core/range.js';
 import { isLocation, type Location } from '../../../../../../editor/common/languages.js';
 import { localize } from '../../../../../../nls.js';
 import { identityAgentHostResourceUriMapper, type IAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import type { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { MessageAttachmentKind, MessageKind, readUsageInfoMeta, ResponsePartKind, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type AgentSelection, type ErrorInfo, type ITurnTokenTotal, type MessageAttachment, type ModelSelection, type ResponsePart, type StringOrMarkdown, type ToolCallCancelledState, type ToolCallCompletedState, type ToolResultContent, type Turn, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { ElicitationState, IChatToolInvocation, ToolConfirmKind, type IChatCodeCitation, type IChatConfirmation, type IChatContentInlineReference, type IChatContentReference, type IChatElicitationRequest, type IChatElicitationRequestSerialized, type IChatInfoMessage, type IChatMultiDiffData, type IChatMultiDiffDataSerialized, type IChatMultiDiffInnerData, type IChatQuestion, type IChatQuestionAnswerValue, type IChatQuestionCarousel, type IChatToolInvocationSerialized, type IChatWarningMessage, type IToolResultOutputDetailsSerialized, type ToolDeniedReason } from '../../../common/chatService/chatService.js';
+import { ElicitationState, IChatToolInvocation, isLegacyChatTerminalToolInvocationData, ToolConfirmKind, type IChatCodeCitation, type IChatConfirmation, type IChatContentInlineReference, type IChatContentReference, type IChatElicitationRequest, type IChatElicitationRequestSerialized, type IChatInfoMessage, type IChatMultiDiffData, type IChatMultiDiffDataSerialized, type IChatMultiDiffInnerData, type IChatQuestion, type IChatQuestionAnswerValue, type IChatQuestionCarousel, type IChatToolInvocationSerialized, type IChatWarningMessage, type IToolResultOutputDetailsSerialized, type ToolDeniedReason } from '../../../common/chatService/chatService.js';
 import { isImageVariableEntry, type IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { coerceImageBuffer } from '../../../common/chatImageExtraction.js';
 import { LanguageModelPartAudience, type ILanguageModelsService } from '../../../common/languageModels.js';
@@ -969,6 +970,32 @@ function combineTurnUsage(usages: readonly (UsageInfo | undefined)[]): UsageInfo
 	};
 	const usage = withWholeTurnUsage(counters, usages.length ? nanoAiu : undefined, turnTokenTotals?.size ? [...turnTokenTotals.values()] : undefined);
 	return Object.keys(usage).length ? usage : undefined;
+}
+
+/**
+ * The workspace folder a moved conversation continues in, chosen where its
+ * Local agent would run its next command: the folder of the directory its last
+ * terminal command ran in, else the folder of the window's last active editor.
+ * A Local chat has no single folder (its tools reach every workspace folder),
+ * but an agent-host session runs from one fixed primary folder, which matters
+ * in a multi-root workspace. `undefined` leaves the window's default.
+ */
+export function importedConversationPrimaryFolder(model: IChatModel, workspace: Pick<IWorkspaceContextService, 'getWorkspaceFolder'>, lastActiveWorkspaceRoot: URI | undefined): URI | undefined {
+	const requests = model.getRequests();
+	for (let i = requests.length - 1; i >= 0; i--) {
+		const parts = requests[i].response?.entireResponse.value ?? [];
+		for (let j = parts.length - 1; j >= 0; j--) {
+			const part = parts[j];
+			const cwd = (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && part.toolSpecificData?.kind === 'terminal' && !isLegacyChatTerminalToolInvocationData(part.toolSpecificData)
+				? part.toolSpecificData.cwd
+				: undefined;
+			const folder = cwd && workspace.getWorkspaceFolder(URI.revive(cwd));
+			if (folder) {
+				return folder.uri;
+			}
+		}
+	}
+	return lastActiveWorkspaceRoot ? workspace.getWorkspaceFolder(lastActiveWorkspaceRoot)?.uri : undefined;
 }
 
 /**
