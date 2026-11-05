@@ -39,6 +39,7 @@ import type { ArtifactIntegrationDescriptor } from '../../artifactIntegrations/c
 import { AgentHostCopilotExtensionsCapabilityMetaKey } from './meta/agentHostCopilotExtensionsMeta.js';
 import { AgentHostGitHubEnvironmentCapabilityMetaKey, type IAgentHostGitHubEnvironmentStatus } from './meta/agentHostGitHubEnvironmentMeta.js';
 import { AgentHostBuildMetaKey, AgentHostUpgradeMethodCapabilityMetaKey, type IAgentHostBuild } from './meta/agentHostUpgradeMeta.js';
+import { byokLmChatRequestValidator, byokLmChatResultValidator, registerClientByokLmModelsParamsValidator, RegisterClientByokLmModelsExtensionMethod, RequestAgentHostByokLmChatExtensionMethod, unregisterClientByokLmModelsParamsValidator, UnregisterClientByokLmModelsExtensionMethod } from './agentHostByokLmProtocol.js';
 
 export { supportsAgentHostArtifactRemoval } from './meta/agentHostArtifactRemovalMeta.js';
 export { StageCreateSessionImportChunkExtensionMethod, stageCreateSessionImportChunkParamsValidator, supportsAgentHostCreateSessionImport };
@@ -153,6 +154,7 @@ export const ListAgentExtensionsExtensionMethod = 'vscode/listAgentExtensions';
 export const SetAgentExtensionEnabledExtensionMethod = 'vscode/setAgentExtensionEnabled';
 export const AgentHostChatStateFileCapabilityMetaKey = 'vscode.getAgentHostSessionStateFile.chat';
 const AgentHostDetachedWorktreeCapabilityMetaKey = 'vscode.detachedWorktrees';
+export const AgentHostByokLmBridgeCapabilityMetaKey = 'vscode.byokLmBridge';
 
 /** Namespaced VS Code implementation capabilities carried alongside standardized AHP initialize capabilities. */
 export interface IAgentHostExtensionInitializeResultMeta extends Record<string, unknown> {
@@ -199,6 +201,7 @@ export interface IAgentHostExtensionInitializeResultMeta extends Record<string, 
 	readonly [AgentHostAutomationHistoryDeletionStateCapabilityMetaKey]?: true;
 	/** Present when scheduled chats can target an existing chat. */
 	readonly [AgentHostScheduledChatExistingConversationCapabilityMetaKey]?: true;
+	readonly [AgentHostByokLmBridgeCapabilityMetaKey]?: true;
 }
 
 /** Standard AHP initialize response with typed VS Code-specific capability metadata. */
@@ -206,7 +209,7 @@ export interface IAgentHostExtensionInitializeResult extends InitializeResult {
 	readonly _meta?: IAgentHostExtensionInitializeResultMeta;
 }
 
-export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true, devContainers = false, timing = false, sessionImport = false, savedChat = false, savedChatContinuation = false, sessionMove = false, artifactIntegrations = false, copilotExtensions = false, automationHistory = false): IAgentHostExtensionInitializeResultMeta {
+export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true, devContainers = false, timing = false, sessionImport = false, savedChat = false, savedChatContinuation = false, sessionMove = false, artifactIntegrations = false, copilotExtensions = false, automationHistory = false, byokLmBridge = false): IAgentHostExtensionInitializeResultMeta {
 	return {
 		[AgentHostDebugLogsCancellationCapabilityMetaKey]: true,
 		[AgentHostSessionUrisCapabilityMetaKey]: true,
@@ -232,8 +235,14 @@ export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true
 		...(timing ? { [AgentHostTimingCapabilityMetaKey]: true as const } : {}),
 		...(timing ? { [ChatUserInteractionCapability]: true as const } : {}),
 		...(artifactIntegrations ? { [AgentHostArtifactIntegrationsCapabilityMetaKey]: 1 as const, [AgentHostArtifactNoticesCapabilityMetaKey]: 1 as const } : {}),
+		...(byokLmBridge ? { [AgentHostByokLmBridgeCapabilityMetaKey]: true as const } : {}),
 		[AgentHostCopilotExtensionsCapabilityMetaKey]: copilotExtensions ? true : undefined,
 	};
+}
+
+export function supportsAgentHostByokLmBridge(result: IAgentHostExtensionInitializeResult | undefined): boolean {
+	const meta = result?._meta;
+	return meta?.[AgentHostByokLmBridgeCapabilityMetaKey] === true;
 }
 
 export function supportsAgentHostChatStateFile(result: IAgentHostExtensionInitializeResult | undefined): boolean {
@@ -401,6 +410,8 @@ export interface IAgentHostExtensionCommandMap {
 	[ArtifactIntegrationExtensionMethod]: { params: ArtifactIntegrationRequest; result: ArtifactIntegrationResponse };
 	[RegisterClientArtifactIntegrationsExtensionMethod]: { params: { readonly integrations: readonly ArtifactIntegrationDescriptor[] }; result: void };
 	[ClientArtifactIntegrationUpdateExtensionMethod]: { params: ArtifactIntegrationUpdate; result: void };
+	[RegisterClientByokLmModelsExtensionMethod]: { params: ValidatorType<typeof registerClientByokLmModelsParamsValidator>; result: void };
+	[UnregisterClientByokLmModelsExtensionMethod]: { params: ValidatorType<typeof unregisterClientByokLmModelsParamsValidator>; result: void };
 	[ListAgentExtensionsExtensionMethod]: { params: ValidatorType<typeof listAgentExtensionsParamsValidator> | undefined; result: IAgentHostAgentExtensionInventoryResult };
 	[SetAgentExtensionEnabledExtensionMethod]: { params: ValidatorType<typeof setAgentExtensionEnabledParamsValidator>; result: void };
 	[DevContainerIsDockerAvailableExtensionMethod]: { params: undefined; result: boolean };
@@ -499,6 +510,10 @@ export interface IAgentHostMcpAuthenticationRequest {
 
 export interface IAgentHostExtensionServerCommandMap {
 	[LoadClientCertificatesExtensionMethod]: { params: Record<string, never>; result: ValidatorType<typeof loadClientCertificatesResultValidator> };
+	[RequestAgentHostByokLmChatExtensionMethod]: {
+		params: ValidatorType<typeof byokLmChatRequestValidator>;
+		result: ValidatorType<typeof byokLmChatResultValidator>;
+	};
 	[ResolveClientProxyExtensionMethod]: { params: ValidatorType<typeof resolveClientProxyParamsValidator>; result: ValidatorType<typeof resolveClientProxyResultValidator> };
 	[LookupClientProxyKerberosAuthorizationExtensionMethod]: {
 		params: ValidatorType<typeof lookupClientProxyKerberosAuthorizationParamsValidator>;
