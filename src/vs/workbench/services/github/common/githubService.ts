@@ -10,6 +10,7 @@ import { refineServiceDecorator } from '../../../../platform/instantiation/commo
 import { IGitHubAccountClient } from '../../../../platform/github/common/account/account.js';
 import { IGitHubAnonymousClient } from '../../../../platform/github/common/anonymous/anonymous.js';
 import { GitHubAuthorizationContext } from '../../../../platform/github/common/githubTypes.js';
+import { ICloudSandboxDiscoverySubscription } from '../../../../platform/agentHost/common/cloudSandboxDiscoveryService.js';
 
 export const IWorkbenchGitHubService = refineServiceDecorator<IGitHubService, IWorkbenchGitHubService>(IGitHubService);
 
@@ -19,4 +20,5 @@ export interface IWorkbenchGitHubService extends IGitHubService {
 	acquireAccountApiClient(authorization: GitHubAuthorizationContext, signal: AbortSignal): Promise<IGitHubAccountClient>;
 	acquireDefaultAccountClient(signal: AbortSignal): Promise<IReference<IGitHubClient>>;
 	acquireDefaultAccountApiClient(signal: AbortSignal): Promise<IGitHubAccountClient>;
+	acquireCloudSandboxDiscovery?(authorization: GitHubAuthorizationContext, signal: AbortSignal): Promise<ICloudSandboxDiscoverySubscription>;
 }

@@ -11,6 +11,7 @@ import { ApiErrorResponse, CodedApiErrorResponse } from '../missionControl/missi
 import { parse } from '../client/schema.js';
 import { GitHubAuthorizationContext, GitHubClientOptions, GitHubGraphQLError, GitHubResponseMetadata, IGitHubCredentialProvider } from '../githubTypes.js';
 import { RequestErrorKind } from '../types.js';
+import { ICloudSandboxDiscoverySubscription } from '../../../agentHost/common/cloudSandboxDiscoveryService.js';
 
 export const GITHUB_CHANNEL_NAME = 'github';
 export const GITHUB_CREDENTIALS_CHANNEL_NAME = 'githubCredentials';
@@ -30,6 +31,7 @@ export interface ISharedProcessGitHubService {
 	/** The signal governs acquisition, while the returned client owns its lease until disposal. */
 	acquireAnonymousClient(signal: AbortSignal): Promise<IGitHubAnonymousClient>;
 	acquireClient(authorization: GitHubAuthorizationContext, signal: AbortSignal): Promise<IGitHubAccountClient>;
+	acquireCloudSandboxDiscovery(authorization: GitHubAuthorizationContext, profile: string, signal: AbortSignal): Promise<ICloudSandboxDiscoverySubscription>;
 }
 
 /** Client-generated lease IDs are scoped to the connection and allow release after a lost acquisition reply. */

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { ICloudSandboxDiscoverySubscription, ICloudSandboxDiscoveryUpdate } from '../../../../../../platform/agentHost/common/cloudSandboxDiscoveryService.js';
 import * as sinon from 'sinon';
 import { DeferredPromise, raceCancellationError, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
@@ -25,7 +26,7 @@ import { IAgentHostConnectionsService, IAgentHostSessionResolutionPolicy } from 
 import { agentHostAuthority, createAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { remoteAgentHostSessionTypeId } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
-import { CLOUD_SANDBOX_AGENT_PROVIDER, cloudSandboxAddress, CloudSandboxAuthenticationRequiredError, CloudSandboxEarlyPreparationSettingId, CloudSandboxEnabledSettingId, CloudSandboxSessionFeedEnabledSettingId, CloudSandboxRequestError, ICloudSandboxAgentHostService, ICloudSandboxApiService, ICloudSandboxConnectOptions, ICloudSandboxCreatedSession, ICloudSandboxCreateSessionRequest, ICloudSandboxDiscoveredSession, ICloudSandboxDiscoveryOptions, ICloudSandboxDiscoveryResult, ICloudSandboxDraftPreparationService, ICloudSandboxReservedSession, ICloudSandboxReserveSessionRequest } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CLOUD_SANDBOX_AGENT_PROVIDER, cloudSandboxAddress, CloudSandboxAuthenticationRequiredError, CloudSandboxEarlyPreparationSettingId, CloudSandboxEnabledSettingId, CloudSandboxRequestError, ICloudSandboxAgentHostService, ICloudSandboxApiService, ICloudSandboxConnectOptions, ICloudSandboxCreatedSession, ICloudSandboxCreateSessionRequest, ICloudSandboxDiscoveredSession, ICloudSandboxDiscoveryOptions, ICloudSandboxDiscoveryResult, ICloudSandboxDraftPreparationService, ICloudSandboxReservedSession, ICloudSandboxReserveSessionRequest } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType, INotification, NotificationType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -190,8 +191,8 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	readonly initializeResult?: InitializeResult;
 	readonly earlyPreparation?: boolean;
 	readonly reserveSession?: (request: ICloudSandboxReserveSessionRequest) => Promise<ICloudSandboxReservedSession>;
-	readonly sessionFeedEnabled?: boolean;
 	readonly sessionFeed?: Partial<CloudSandboxSessionFeed>;
+	readonly sharedDiscovery?: ICloudSandboxDiscoverySubscription;
 	readonly chatSessionsService?: IChatSessionsService;
 	readonly remoteAgentHostService?: IRemoteAgentHostService;
 	readonly listSessions?: () => Promise<ICloudSandboxDiscoveryResult>;
@@ -214,7 +215,6 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	}
 	const configuration = new TestConfigurationService({
 		[CloudSandboxEnabledSettingId]: options?.enabled ?? true,
-		[CloudSandboxSessionFeedEnabledSettingId]: options?.sessionFeedEnabled ?? true,
 		[RemoteAgentHostsEnabledSettingId]: true,
 		[CloudSandboxEarlyPreparationSettingId]: options?.earlyPreparation ?? false,
 	});
@@ -398,6 +398,11 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 		override get sentiment() { return { hidden: state.hidden }; }
 	}());
 	instantiationService.stub(ICloudSandboxApiService, new class extends mock<ICloudSandboxApiService>() {
+		override readonly supportsSharedDiscovery = !!options?.sharedDiscovery;
+		override async acquireDiscovery() {
+			assert.ok(options?.sharedDiscovery);
+			return options.sharedDiscovery;
+		}
 		override readonly onDidChangeAccount = accountChanged.event;
 		override invalidateSessionHistory(): void { }
 		override clearSessionHistory(taskId?: string): void { calls.clearedHistory.push(taskId); }
@@ -753,7 +758,7 @@ suite('Editor cloud sandbox discovery', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('labels initial and manual discovery without requiring window focus', async () => {
-		const h = createHarness(store, { hasFocus: false, sessionFeedEnabled: false });
+		const h = createHarness(store, { hasFocus: false });
 		await Promise.all(h.initialRefreshes);
 		await h.refresh();
 
@@ -762,9 +767,9 @@ suite('Editor cloud sandbox discovery', () => {
 		}, { scans: 2, triggers: ['startup', 'manual'], items: [discovered.name] });
 	});
 
-	for (const sessionFeedEnabled of [false, true]) {
-		test(`automatic refresh reuses fresh discovery with the feed ${sessionFeedEnabled ? 'enabled' : 'disabled'}`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-			const h = createHarness(store, { sessionFeedEnabled });
+	for (const connected of [false, true]) {
+		test(`automatic refresh reuses fresh discovery with the feed connected=${connected}`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const h = createHarness(store, { sessionFeed: { connected, start: async () => { }, dispose: () => { } } });
 			await Promise.all(h.initialRefreshes);
 			for (let i = 0; i < 10; i++) {
 				await timeout(3_000);
@@ -838,7 +843,7 @@ suite('Editor cloud sandbox discovery', () => {
 	for (const hasSessions of [false, true]) {
 		test(`automatic discovery respects the ${hasSessions ? 'five-minute' : 'empty-inventory fifteen-minute'} interval`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 			let result: ICloudSandboxDiscoveryResult = { kind: 'complete', sessions: hasSessions ? [discovered] : [] };
-			const h = createHarness(store, { sessionFeedEnabled: false, listSessions: async () => result });
+			const h = createHarness(store, { listSessions: async () => result });
 			await Promise.all(h.initialRefreshes);
 
 			h.state.hasFocus = false;
@@ -872,30 +877,28 @@ suite('Editor cloud sandbox discovery', () => {
 		assert.strictEqual(h.calls.discovered, 1);
 	});
 
-	for (const enabled of [false, true]) {
-		test(`discovers editor sessions with the session feed ${enabled ? 'enabled' : 'disabled'}`, async () => {
-			const h = createHarness(store, { sessionFeedEnabled: enabled });
-			await h.refresh();
-			assert.deepStrictEqual({ negotiations: h.calls.feedNegotiations, items: h.items().map(item => item.label), connected: h.calls.connected }, {
-				negotiations: enabled ? 1 : 0, items: [discovered.name], connected: [],
-			});
+	test('shared discovery publishes editor rows without renderer task requests or sandbox connections', async () => {
+		const changes = store.add(new Emitter<ICloudSandboxDiscoveryUpdate>());
+		let released = 0;
+		const sharedDiscovery: ICloudSandboxDiscoverySubscription = {
+			onDidChange: changes.event, onDidInvalidate: Event.None,
+			refresh: async () => changes.fire({ result: { kind: 'scoped', sessions: [discovered], removedTaskIds: [] }, includesArchived: false }),
+			setDemand: async () => { },
+			reconcile: async () => { },
+			dispose: () => { released++; },
+		};
+		const h = createHarness(store, { sharedDiscovery });
+		await Promise.all(h.initialRefreshes);
+		const initial = h.items().map(item => item.label);
+		changes.fire({ result: { kind: 'incremental', sessions: [{ ...discovered, name: 'Shared update' }], removedTaskIds: [] }, includesArchived: false });
+		const changed = h.items().map(item => item.label);
+		h.contribution.dispose();
+		assert.deepStrictEqual({ initial, changed, reads: h.calls.discovered, feeds: h.calls.feedNegotiations, connects: h.calls.connected, released }, {
+			initial: [discovered.name], changed: ['Shared update'], reads: 0, feeds: 0, connects: [], released: 1,
 		});
-	}
-
-	test('switches discovery transports without removing editor sessions', async () => {
-		const h = createHarness(store, { sessionFeedEnabled: false });
-		await h.refresh();
-		const pollingNegotiations = h.calls.feedNegotiations;
-		await h.setEnabled(CloudSandboxSessionFeedEnabledSettingId, true);
-		await h.refresh();
-		const feedNegotiations = h.calls.feedNegotiations;
-		await h.setEnabled(CloudSandboxSessionFeedEnabledSettingId, false);
-		await h.refresh();
-		assert.deepStrictEqual({
-			negotiations: [pollingNegotiations, feedNegotiations, h.calls.feedNegotiations],
-			items: h.items().map(item => item.label), removed: h.calls.removed,
-		}, { negotiations: [0, 1, 1], items: [discovered.name], removed: [] });
 	});
+
+
 
 	for (const teardown of ['task removal', 'feature disable', 'AI disable', 'account change'] as const) {
 		test(`${teardown} clears recorded history at the owning lifetime`, async () => {

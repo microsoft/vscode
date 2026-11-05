@@ -13,9 +13,11 @@ import { ITelemetryService, TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_S
 import { getTelemetryLevel } from '../../telemetry/common/telemetryUtils.js';
 import { createGitHubClientMetadata } from '../common/githubRequestMetadata.js';
 import { GitHubService } from '../common/githubService.js';
-import { createFetch } from './githubFetch.js';
+import { createGitHubNetworking } from './githubFetch.js';
+import { CloudSandboxDiscoveryRegistry } from '../common/cloudSandboxDiscoveryRegistry.js';
 
 export class SharedProcessGitHubService extends GitHubService {
+	readonly cloudDiscovery: CloudSandboxDiscoveryRegistry;
 	constructor(
 		@INativeHostService nativeHostService: INativeHostService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -24,8 +26,9 @@ export class SharedProcessGitHubService extends GitHubService {
 		@ILogService logService: ILogService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
+		const networking = createGitHubNetworking(nativeHostService, configurationService, environmentService, logService);
 		super({
-			fetch: createFetch(nativeHostService, configurationService, environmentService, logService),
+			fetch: networking.fetch,
 			connectorsApiBaseUri: productService.defaultChatAgent?.mcpConnectorsUrl,
 			telemetrySource: 'sharedProcess',
 			clientMetadata: createGitHubClientMetadata(productService, 'shared-process', 'node'),
@@ -35,5 +38,6 @@ export class SharedProcessGitHubService extends GitHubService {
 				|| event.affectsConfiguration(TELEMETRY_CRASH_REPORTER_SETTING_ID)
 			), () => getTelemetryLevel(configurationService)),
 		}, logService, telemetryService);
+		this.cloudDiscovery = this._register(new CloudSandboxDiscoveryRegistry(networking.createWebSocket, logService, telemetryService));
 	}
 }

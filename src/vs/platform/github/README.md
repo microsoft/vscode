@@ -21,6 +21,8 @@ Portable clients share contracts and execution policies, but engine state belong
 
 Legacy renderer clients can still execute locally. Independent engines and browser tabs do not share application-wide request state. Within the shared process, connections share admission and verified-account cooldowns, but private caches and credential callbacks remain connection- and grant-scoped.
 
+Cloud sandbox discovery additionally shares its task-status feed, bounded task inventory and catch-up coordinator across desktop windows with the same profile, grant, approved endpoints and credential. The [discovery registry](common/cloudSandboxDiscoveryRegistry.ts) retains a separate connection-owned client for each subscriber; closing a window releases its client without retiring surviving subscribers. Different credentials do not share inventory. Grant or token changes invalidate the affected subscription, which reacquires through its own window's credential broker. The last subscriber releases the feed and in-memory inventory. Live sandbox AHP connections and chat models remain window-owned.
+
 The main implementation layers are:
 
 - [GitHubService](common/githubService.ts): client pooling and ownership of shared queue, cooldown, and telemetry state.
@@ -85,7 +87,7 @@ Repository operations use `RepositoryRef` (`{ owner, repo }`). Typed request met
 - **Raw repository content:** reads are anonymous and confined to the configured raw origin and pinned repository/commit path. The text-download limit is 1 MiB; mutable refs must first be resolved to a full SHA-1 or SHA-256 commit. Raw files are not fetched through arbitrary response-provided URLs. See the [content client](common/content/contentClient.ts).
 - **Legacy resources and guarded mutations:** existing [subscriptions](common/githubQueryService.ts) and [compound mutations](common/githubPullRequestMutationService.ts) retain their own polling, reconciliation, and authorization rules. A raw endpoint call is not a replacement for guarded merging or reply-and-resolve behavior; an unpublished review reply must not be treated as a published comment.
 
-The workbench's [session feed](../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxSessionFeed.ts) uses exponential reconnect backoff with jitter (one-second base, 60-second cap), resetting only after a connection stays healthy for 60 seconds. A failed HTTP negotiation still stops feed retries for that lifetime; discovery polling remains available.
+The portable [session feed](../agentHost/common/cloudSandboxSessionFeed.ts) uses exponential reconnect backoff with jitter, resetting only after a connection stays healthy for 60 seconds. Transient negotiation and handshake failures retry slowly while discovery polling remains available; account unavailability or an invalid message stops feed attempts for the subscription lifetime.
 
 ## Request execution
 

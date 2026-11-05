@@ -8,7 +8,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IGitHubAccountClient } from '../../../../platform/github/common/account/account.js';
 import { IGitHubAnonymousClient } from '../../../../platform/github/common/anonymous/anonymous.js';
-import { GitHubClientOptions } from '../../../../platform/github/common/githubTypes.js';
+import { GitHubAuthorizationContext, GitHubClientOptions } from '../../../../platform/github/common/githubTypes.js';
 import { ISharedProcessGitHubService } from '../../../../platform/github/common/remote/ipc.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -17,6 +17,8 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IAuthenticationService } from '../../authentication/common/authentication.js';
 import { WorkbenchGitHubService } from '../browser/githubService.js';
 import { IWorkbenchGitHubService } from '../common/githubService.js';
+import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
+import { ICloudSandboxDiscoverySubscription } from '../../../../platform/agentHost/common/cloudSandboxDiscoveryService.js';
 
 export class NativeWorkbenchGitHubService extends WorkbenchGitHubService {
 	constructor(
@@ -27,6 +29,7 @@ export class NativeWorkbenchGitHubService extends WorkbenchGitHubService {
 		@IProductService productService: IProductService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ISharedProcessGitHubService private readonly sharedGitHubService: ISharedProcessGitHubService,
+		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 	) {
 		super(authenticationService, defaultAccountService, logService, telemetryService, productService, configurationService);
 	}
@@ -37,6 +40,10 @@ export class NativeWorkbenchGitHubService extends WorkbenchGitHubService {
 
 	protected override acquireApiClient(options: GitHubClientOptions, signal: AbortSignal): Promise<IGitHubAccountClient> {
 		return this.sharedGitHubService.acquireClient(options.authorization, signal);
+	}
+
+	acquireCloudSandboxDiscovery(authorization: GitHubAuthorizationContext, signal: AbortSignal): Promise<ICloudSandboxDiscoverySubscription> {
+		return this.sharedGitHubService.acquireCloudSandboxDiscovery(authorization, this.userDataProfileService.currentProfile.id, signal);
 	}
 }
 
