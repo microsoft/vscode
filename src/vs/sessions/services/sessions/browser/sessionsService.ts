@@ -11,6 +11,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { mainWindow } from '../../../../base/browser/window.js';
+import { IHostService } from '../../../../workbench/services/host/browser/host.js';
 import { IObservable, autorun, constObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -91,8 +92,6 @@ export interface IOpenNewSessionOptions extends ICreateNewSessionOptions {
 	readonly preserveNavigation?: boolean;
 	/** Prepare a draft without changing the Sessions grid or navigation, or hiding its hosting custom view. */
 	readonly preserveCustomView?: boolean;
-	/** Show the draft without moving focus into it, such as when a background draft seeds an empty grid. */
-	readonly preserveFocus?: boolean;
 
 	/**
 	 * When `true`, opens the new session (or empty composer slot) to the side
@@ -484,6 +483,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 	/** Tracks wrapper identity so same-ID replacements restore focus but unrelated visibility changes do not. */
 	private _focusedActiveSession: IActiveSession | undefined;
+	/** The window that last gained focus; sticky, so the app being in the background doesn't change it. */
+	private _focusedWindowId = mainWindow.vscodeWindowId;
+	/** A focus the main window skipped while another window was focused; applied once when the main window next becomes active. */
+	private _focusPendingForMainWindow = false;
 
 	/** The in-flight foreground send's "keep newest chat active" follow. */
 	private readonly _sendFollow = this._register(new MutableDisposable<DisposableStore>());
@@ -505,8 +508,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 		@ISessionOpenTelemetryService private readonly sessionOpenTelemetryService: ISessionOpenTelemetryService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IChatHostOpenerService private readonly chatHostOpenerService: IChatHostOpenerService,
+		@IHostService hostService: IHostService,
 	) {
 		super();
+		this._register(hostService.onDidChangeActiveWindow(windowId => this._onDidChangeActiveWindow(windowId)));
 
 		// Load persisted state
 		this._sessionStates = this._loadSessionStates();
@@ -641,7 +646,12 @@ export class SessionsService extends Disposable implements ISessionsService {
 				this._focusedActiveSession = active;
 				// Startup restoration may populate the grid underneath an open or opening canvas.
 				if (!preserveFocus && !canvasNavigation) {
-					this.sessionsPartService.focusSession(active);
+					// Another window of the app holding focus (e.g. a chat window a chat just moved into) must not be pulled back to the main window.
+					if (this._focusedWindowId === mainWindow.vscodeWindowId) {
+						this.sessionsPartService.focusSession(active);
+					} else {
+						this._focusPendingForMainWindow = true;
+					}
 				}
 			}
 		}));
@@ -1911,7 +1921,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 					}
 				}
 				if (!options?.preserveCustomView) {
-					this._activateOrInsert(session, options?.toSide, intent, options?.preserveFocus);
+					this._activateOrInsert(session, options?.toSide, intent);
 				}
 				if (intent === 'explicit' && !options?.preserveNavigation) {
 					this._navigation.recordOpened({ kind: 'newSession' });
@@ -1962,7 +1972,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		const targetSession = options?.toSide && newSession?.sessionId === activeSession?.sessionId
 			? undefined
 			: newSession;
-		this._activateOrInsert(targetSession, options?.toSide, intent, options?.preserveCustomView || options?.preserveFocus);
+		this._activateOrInsert(targetSession, options?.toSide, intent, options?.preserveCustomView);
 		if (intent === 'explicit' && !options?.preserveNavigation) {
 			this._navigation.recordOpened({ kind: 'newSession' });
 		}
@@ -2095,6 +2105,19 @@ export class SessionsService extends Disposable implements ISessionsService {
 		}
 	}
 
+	private _onDidChangeActiveWindow(windowId: number): void {
+		this._focusedWindowId = windowId;
+		if (windowId !== mainWindow.vscodeWindowId || !this._focusPendingForMainWindow) {
+			return;
+		}
+		this._focusPendingForMainWindow = false;
+		// Only when the element that held focus went away; otherwise keep the focus where it is.
+		const focused = mainWindow.document.activeElement;
+		if (!focused || focused === mainWindow.document.body) {
+			this.sessionsPartService.focusSession(this._visibility.activeSession.get());
+		}
+	}
+
 	hideChatFromGrid(session: ISession, chat: URI): IDisposable {
 		const hold = this._visibility.hideChatFromGrid(session.sessionId, chat);
 		// The session leaves the grid too when that was the only chat it shows there. Subagent chats it does not show as
@@ -2106,6 +2129,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			this._startOpenSession();
 			const wasActive = this._visibility.activeSession.get()?.sessionId === session.sessionId;
 			this._visibility.removeMany([session.sessionId], true, true);
+			this._focusPendingForMainWindow = true;
 			if (wasActive && this._visibility.activeSession.get() === undefined && !this._visibility.visibleSessions.get().includes(undefined)) {
 				// The grid shows the new-session composer instead, without taking focus from the window.
 				this._visibility.setActive(undefined, true);

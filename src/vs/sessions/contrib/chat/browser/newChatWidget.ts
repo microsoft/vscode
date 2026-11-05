@@ -1118,7 +1118,7 @@ export class NewChatWidget extends Disposable {
 			return;
 		}
 		if (restoredFolderUri) {
-			void this._createNewSession(restoredFolderUri, undefined, undefined, true);
+			void this._createNewSession(restoredFolderUri);
 		} else {
 			void this._restoreNoWorkspaceDraft();
 		}
@@ -1156,10 +1156,10 @@ export class NewChatWidget extends Disposable {
 			if (environment ? !!target : this.sessionsManagementService.isQuickChatTargetAvailable()) {
 				if (this._workspacePicker.isNoWorkspaceSelected()) {
 					// Restoring the previous choice is not a new user choice, so it must not supersede a window-open workspace either.
-					this.selectNoWorkspace(target, { userSelection: false, preserveNavigation: true, preserveFocus: true });
+					this.selectNoWorkspace(target, { userSelection: false, preserveNavigation: true });
 				} else {
 					// An automatic fallback must not persist a user choice or supersede a window-open workspace.
-					this._createdSessionId = (this._preserveCustomView ? this._openQuickChat(target, true) : this.sessionsService.openQuickChat(target, true, true))?.sessionId;
+					this._createdSessionId = (this._preserveCustomView ? this._openQuickChat(target, true) : this.sessionsService.openQuickChat(target, true))?.sessionId;
 				}
 			}
 		} catch (error) {
@@ -1245,7 +1245,6 @@ export class NewChatWidget extends Disposable {
 		folderUri: URI,
 		userPick = this._newChatInput.sessionTypePicker.getUserPickedSessionType(),
 		handoff?: { readonly token: CancellationToken; readonly providerId?: string; readonly preferDevContainer?: boolean },
-		preserveFocus?: boolean,
 	): Promise<IOpenNewSessionResult> {
 		this._pendingPreferredUpgrade.clear();
 		const creationCts = new CancellationTokenSource(handoff?.token);
@@ -1261,7 +1260,7 @@ export class NewChatWidget extends Disposable {
 		let changedWhilePending = false;
 		pendingChange.add(this.sessionsManagementService.onDidChangeSessionTypes(() => changedWhilePending = true));
 		let result: IOpenNewSessionResult;
-		const creation = this._createSessionNow(folderUri, userPick, creationCts.token, handoff?.providerId, preserveFocus);
+		const creation = this._createSessionNow(folderUri, userPick, creationCts.token, handoff?.providerId);
 		this._pendingWorkspaceCreation = creation;
 		try {
 			result = await creation;
@@ -1326,7 +1325,7 @@ export class NewChatWidget extends Disposable {
 		this._preferredDevContainerFolderUri = undefined;
 	}
 
-	private async _createSessionNow(folderUri: URI, userPick: IPreferredSessionType | undefined, token: CancellationToken, providerId?: string, preserveFocus?: boolean): Promise<IOpenNewSessionResult> {
+	private async _createSessionNow(folderUri: URI, userPick: IPreferredSessionType | undefined, token: CancellationToken, providerId?: string): Promise<IOpenNewSessionResult> {
 		// Prefer the user's explicit pick when its provider can serve the
 		// folder; otherwise fall back to the preferred (first) session type.
 		const preferredPick = userPick && this._isPreferredServable(folderUri, userPick)
@@ -1342,7 +1341,6 @@ export class NewChatWidget extends Disposable {
 			return await this.sessionsService.openNewSession({
 				folderUri,
 				preserveNavigation: true,
-				...(preserveFocus ? { preserveFocus } : {}),
 				...(this._preserveCustomView ? { preserveCustomView: true } : {}),
 				...(environment?.kind === 'container' ? { requireDevContainer: true } : undefined),
 				...(preferredPick
@@ -1400,15 +1398,15 @@ export class NewChatWidget extends Disposable {
 		this._workspacePicker.selectNoWorkspace(selectionOptions?.userSelection !== false);
 		const environment = this._environment.get();
 		const session = environment?.kind === 'cloud' || environment?.kind === 'container'
-			? this._createQuickChat(options ?? this._workspaceOptOutTarget.get(), selectionOptions?.preserveNavigation, selectionOptions?.preserveFocus)
-			: this._openQuickChat(options, selectionOptions?.preserveNavigation, selectionOptions?.preserveFocus);
+			? this._createQuickChat(options ?? this._workspaceOptOutTarget.get(), selectionOptions?.preserveNavigation)
+			: this._openQuickChat(options, selectionOptions?.preserveNavigation);
 		if (session && environment && (environment.kind === 'container' || !environment.providerIds.includes(session.providerId))) {
 			this._reconcileWorkspaceEnvironment({ providerId: session.providerId });
 		}
 		return session;
 	}
 
-	private _openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation?: boolean, preserveFocus?: boolean): IActiveSession | undefined {
+	private _openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation?: boolean): IActiveSession | undefined {
 		const environment = this._environment.get();
 		if (!options && environment) {
 			options = this._workspaceOptOutTarget.get();
@@ -1417,10 +1415,10 @@ export class NewChatWidget extends Disposable {
 				return undefined;
 			}
 		}
-		return this._createQuickChat(options, preserveNavigation, preserveFocus);
+		return this._createQuickChat(options, preserveNavigation);
 	}
 
-	private _createQuickChat(options?: ICreateNewSessionOptions, preserveNavigation?: boolean, preserveFocus?: boolean): IActiveSession | undefined {
+	private _createQuickChat(options?: ICreateNewSessionOptions, preserveNavigation?: boolean): IActiveSession | undefined {
 		if (this._preserveCustomView) {
 			try {
 				this.sessionsManagementService.createQuickChat(options);
@@ -1430,7 +1428,7 @@ export class NewChatWidget extends Disposable {
 				return undefined;
 			}
 		}
-		return this.sessionsService.openQuickChat(options, preserveNavigation, preserveFocus);
+		return this.sessionsService.openQuickChat(options, preserveNavigation);
 	}
 
 	private _getWorkspaceOptOutTarget(environment: ISessionCreationEnvironment | undefined, session: ISession | undefined): ICreateNewSessionOptions | undefined {

@@ -97,8 +97,6 @@ export interface ISelectWorkspaceOptions {
 export interface ISelectNoWorkspaceOptions {
 	readonly userSelection?: boolean;
 	readonly preserveNavigation?: boolean;
-	/** Show the quick chat without moving focus into it, such as when a background draft seeds an empty grid. */
-	readonly preserveFocus?: boolean;
 	/** Only replace an automatic default in a fresh, empty composer. */
 	readonly isDefault?: boolean;
 }

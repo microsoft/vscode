@@ -496,6 +496,53 @@ suite('SessionsManagementService', () => {
 			}, { chats: [main.resource.toString(), child.resource.toString()], active: child.resource.toString() });
 		});
 
+		test('the main window focuses the active session only while no other window holds focus', async () => {
+			const a = created('a');
+			const b = created('b');
+			const { view, sessionsPartService } = harness([a, b]);
+			const chatWindowId = mainWindow.vscodeWindowId + 1;
+			await view.openSession(a.resource);
+			sessionsPartService.focusedSessions.length = 0;
+
+			activeWindowChanges.get(view)!.fire(chatWindowId);
+			await view.openSession(b.resource);
+			const whileChatWindowFocused = [...sessionsPartService.focusedSessions];
+			sessionsPartService.focusedSessions.length = 0;
+
+			// Becoming active applies the skipped focus (b), then a normal open focuses.
+			activeWindowChanges.get(view)!.fire(mainWindow.vscodeWindowId);
+			await view.openSession(a.resource);
+
+			assert.deepStrictEqual({ whileChatWindowFocused, whileMainFocused: sessionsPartService.focusedSessions }, { whileChatWindowFocused: [], whileMainFocused: ['b', 'a'] });
+		});
+
+		for (const elementStillFocused of [false, true]) {
+			test(`after a chat moves into a chat window, the main window ${elementStillFocused ? 'keeps its focused element' : 'focuses its active session once its focused element went away'} when it becomes active`, async () => {
+				const a = created('a');
+				const b = created('b');
+				const { view, sessionsPartService } = harness([a, b]);
+				const input = mainWindow.document.body.appendChild(mainWindow.document.createElement('input'));
+				disposables.add(toDisposable(() => input.remove()));
+				await view.openSession(a.resource);
+				await view.openSessionsAt([b], a.sessionId, 'right');
+				if (elementStillFocused) {
+					input.focus();
+				} else {
+					(mainWindow.document.activeElement as HTMLElement | null)?.blur();
+				}
+				disposables.add(view.hideChatFromGrid(b, b.mainChat.get().resource));
+				sessionsPartService.focusedSessions.length = 0;
+
+				const windowChanges = activeWindowChanges.get(view)!;
+				windowChanges.fire(mainWindow.vscodeWindowId + 1);
+				const whileChatWindowFocused = [...sessionsPartService.focusedSessions];
+				windowChanges.fire(mainWindow.vscodeWindowId);
+				windowChanges.fire(mainWindow.vscodeWindowId);
+
+				assert.deepStrictEqual({ whileChatWindowFocused, afterMainActive: sessionsPartService.focusedSessions }, { whileChatWindowFocused: [], afterMainActive: elementStillFocused ? [] : ['a'] });
+			});
+		}
+
 		test('a chat that leaves the grid for a chat window does not move focus into the main window\'s next session', async () => {
 			const a = created('a');
 			const b = created('b');
@@ -3501,33 +3548,6 @@ suite('SessionsManagementService', () => {
 				preservedNavigation: preserveNavigation,
 				focused: preserveFocus ? [] : ['quick-chat'],
 			});
-		});
-	}
-
-	for (const preserveFocus of [true, undefined]) {
-		test(`openNewSession for a folder focuses the draft unless asked to preserve focus (${preserveFocus})`, async () => {
-			const folderUri = URI.file('/workspace');
-			const workspace: ISessionWorkspace = {
-				uri: folderUri, label: 'workspace', icon: Codicon.folder,
-				folders: [{ root: folderUri, workingDirectory: folderUri, name: 'workspace', description: undefined }],
-				requiresWorkspaceTrust: false, isVirtualWorkspace: false,
-			};
-			const draft = stubSession({
-				sessionId: 'draft', providerId: 'test', status: constObservable(SessionStatus.Untitled),
-				workspace: constObservable(workspace),
-			});
-			const provider = new class extends TestSessionsProvider {
-				override resolveWorkspace(): ISessionWorkspace { return workspace; }
-			}(draft);
-			const { view, sessionsPartService } = createSessionsManagementService(draft, disposables, provider);
-			sessionsPartService.focusedSessions.length = 0;
-
-			await view.openNewSession({ folderUri, providerId: provider.id, preserveFocus });
-
-			assert.deepStrictEqual({
-				active: view.activeSession.get()?.sessionId,
-				focused: sessionsPartService.focusedSessions,
-			}, { active: 'draft', focused: preserveFocus ? [] : ['draft'] });
 		});
 	}
 

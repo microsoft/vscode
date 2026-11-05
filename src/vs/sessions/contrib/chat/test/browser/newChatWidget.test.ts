@@ -133,8 +133,6 @@ const createSessionNow = Reflect.get(NewChatWidget.prototype, '_createSessionNow
 	folderUri: URI,
 	userPick: IPreferredSessionType | undefined,
 	token: CancellationToken,
-	providerId?: string,
-	preserveFocus?: boolean,
 ) => Promise<IOpenNewSessionResult>;
 const canApplyWorkspaceDefault = Reflect.get(NewChatWidget.prototype, '_canApplyWorkspaceDefault') as (this: NewChatWidget) => boolean;
 const isPreferredServable = Reflect.get(NewChatWidget.prototype, '_isPreferredServable') as (
@@ -398,8 +396,8 @@ interface ISelectNoWorkspaceHarness {
 	readonly _workspacePicker: { selectNoWorkspace(userSelection?: boolean): void };
 	readonly sessionsService: { openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation?: boolean, preserveFocus?: boolean): { readonly sessionId: string } };
 	readonly logService: Pick<ILogService, 'trace' | 'error'>;
-	_openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation?: boolean, preserveFocus?: boolean): { readonly sessionId: string } | undefined;
-	_createQuickChat(options?: ICreateNewSessionOptions, preserveNavigation?: boolean, preserveFocus?: boolean): { readonly sessionId: string } | undefined;
+	_openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation?: boolean): { readonly sessionId: string } | undefined;
+	_createQuickChat(options?: ICreateNewSessionOptions, preserveNavigation?: boolean): { readonly sessionId: string } | undefined;
 	_reconcileWorkspaceEnvironment?(options: { providerId: string }): void;
 }
 
@@ -1859,36 +1857,9 @@ suite('NewChatWidget', () => {
 		});
 	});
 
-	test('a background draft seed asks the session service not to move focus', async () => {
-		const requests: IOpenNewSessionOptions[] = [];
-		const folderUri = URI.file('/workspace');
-		const harness: ICreateSessionNowHarness = {
-			_environment: constObservable(undefined),
-			_newChatInput: { sessionTypePicker: { getPreferredSessionType: () => undefined } },
-			_workspacePicker: { selectedResolved: undefined },
-			sessionsService: {
-				openNewSession: async options => {
-					requests.push(options);
-					return { session: undefined, trustDeclined: false };
-				},
-			},
-			logService: { error: () => assert.fail('unexpected creation error') },
-			_isPreferredServable: () => true,
-		};
-
-		await createSessionNow.call(harness, folderUri, undefined, CancellationToken.None, undefined, true);
-		await createSessionNow.call(harness, folderUri, undefined, CancellationToken.None);
-
-		assert.deepStrictEqual(requests, [
-			{ folderUri, preserveNavigation: true, preserveFocus: true },
-			{ folderUri, preserveNavigation: true },
-		]);
-	});
-
 	test('programmatic No workspace selection preserves navigation', () => {
 		const userSelections: boolean[] = [];
 		const preserveNavigation: (boolean | undefined)[] = [];
-		const preserveFocus: (boolean | undefined)[] = [];
 		const harness: ISelectNoWorkspaceHarness = {
 			_environment: constObservable(undefined),
 			_workspaceOptOutTarget: constObservable(undefined),
@@ -1896,23 +1867,21 @@ suite('NewChatWidget', () => {
 			_newSessionCreation: disposables.add(new MutableDisposable()),
 			_workspacePicker: { selectNoWorkspace: userSelection => userSelections.push(userSelection ?? true) },
 			sessionsService: {
-				openQuickChat: (_options, preserve, focus) => {
+				openQuickChat: (_options, preserve) => {
 					preserveNavigation.push(preserve);
-					preserveFocus.push(focus);
 					return { sessionId: 'quick-chat' };
 				},
 			},
-			_openQuickChat: (options, preserve, focus) => openQuickChat.call(harness, options, preserve, focus),
+			_openQuickChat: (options, preserve) => openQuickChat.call(harness, options, preserve),
 			_createQuickChat: createQuickChat,
 			logService: { trace: () => { }, error: () => assert.fail('Unexpected quick-chat preparation error') },
 		};
 
-		selectNoWorkspace.call(harness, undefined, { userSelection: false, preserveNavigation: true, preserveFocus: true });
+		selectNoWorkspace.call(harness, undefined, { userSelection: false, preserveNavigation: true });
 
-		assert.deepStrictEqual({ userSelections, preserveNavigation, preserveFocus }, {
+		assert.deepStrictEqual({ userSelections, preserveNavigation }, {
 			userSelections: [false],
 			preserveNavigation: [true],
-			preserveFocus: [true],
 		});
 	});
 
@@ -2084,7 +2053,7 @@ suite('NewChatWidget', () => {
 			await state.restore();
 			assert.deepStrictEqual({ opened: state.opened, selections: state.noWorkspaceSelections }, {
 				opened: ['checked'],
-				selections: [{ userSelection: false, preserveNavigation: true, preserveFocus: true }],
+				selections: [{ userSelection: false, preserveNavigation: true }],
 			});
 		});
 
