@@ -6,7 +6,7 @@
 import { createHash } from 'node:crypto';
 
 import { version } from '@typescript/native';
-import { ModuleKind, SignatureKind, SymbolFlags, type Project, type Symbol as NativeSymbol } from '@typescript/native/unstable/async';
+import { ModuleKind, SignatureKind, SymbolFlags, type Project, type Symbol as NativeSymbol } from '@typescript/native/async';
 import {
 	ScriptTarget,
 	SyntaxKind,
@@ -31,7 +31,7 @@ import {
 	type SourceFile,
 	type TypeNode,
 	type VariableDeclaration,
-} from '@typescript/native/unstable/ast';
+} from '@typescript/native/ast';
 import * as protocol from '../../common/serverProtocol';
 import {
 	AbstractContextRunnable,

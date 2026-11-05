@@ -314,6 +314,13 @@ export interface IHoverPositionOptions {
 	 * position.
 	 */
 	forcePosition?: boolean;
+
+	/**
+	 * An element whose bounds clip the target, for example the viewport of a horizontally
+	 * scrollable list whose rows can be wider than the list. When set, the hover is positioned
+	 * relative to the part of the target that is visible within this element.
+	 */
+	clippingElement?: HTMLElement;
 }
 
 export interface IHoverPersistenceOptions {

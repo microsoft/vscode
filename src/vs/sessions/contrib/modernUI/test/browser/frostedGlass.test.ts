@@ -10,6 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { append, createFrostedGlassOverlays, readColor, supportsGlass } from '../../../../../workbench/contrib/modernUI/test/browser/frostedGlassTestUtils.js';
 import '../../../../browser/media/style.css';
 import '../../../automations/browser/media/automationDialog.css';
+import '../../../agentFeedback/browser/media/agentFeedbackEditorWidget.css';
 
 suite('Agents frosted glass styles', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -26,6 +27,80 @@ suite('Agents frosted glass styles', () => {
 			...overlays,
 			backgrounds: [...overlays.backgrounds, overlays.pickerFilter, overlays.pickerFooter, titlebar, header, html, listRows, treeRows],
 		};
+	}
+
+	function createCommentCard(root: HTMLElement) {
+		const widget = append(root, 'agent-feedback-widget visible');
+		const body = append(widget, 'agent-feedback-widget-body');
+		const card = append(body, 'agent-feedback-widget-item');
+		const content = append(card, 'agent-feedback-widget-text');
+		content.textContent = 'A review comment above the editor.';
+		return { card, content };
+	}
+
+	for (const customBackground of [undefined, '#304050']) {
+		test(`frosts comment cards using their ${customBackground ? 'custom' : 'menu'} background and configured opacity`, () => {
+			const { root } = createOverlays();
+			if (customBackground) {
+				root.style.setProperty('--vscode-agentFeedbackEditorWidget-background', customBackground);
+			}
+			const { card, content } = createCommentCard(root);
+			const solid = readColor(card).rgba;
+			const supported = supportsGlass(root);
+			root.classList.add('modern-ui-frosted-glass');
+			const percentages = [50, 75, 100];
+
+			assert.deepStrictEqual(percentages.map(percentage => {
+				root.style.setProperty('--modern-ui-glass-opacity', `${percentage}%`);
+				const paint = readColor(card, '::before').rgba;
+				return {
+					background: readColor(card).rgba,
+					tint: Math.round(paint.a * 100),
+					matchesTheme: !supported || Math.abs(paint.r - solid.r) <= 1 && Math.abs(paint.g - solid.g) <= 1 && Math.abs(paint.b - solid.b) <= 1,
+					filter: getWindow(card).getComputedStyle(card).backdropFilter,
+					paintFilter: getWindow(card).getComputedStyle(card, '::before').backdropFilter,
+					cardOpacity: getWindow(card).getComputedStyle(card).opacity,
+					contentOpacity: getWindow(content).getComputedStyle(content).opacity,
+				};
+			}), percentages.map(percentage => ({
+				background: supported ? new RGBA(0, 0, 0, 0) : solid,
+				tint: supported ? percentage : 0,
+				matchesTheme: true,
+				filter: 'none',
+				paintFilter: supported ? 'blur(12px)' : 'none',
+				cardOpacity: '1',
+				contentOpacity: '1',
+			})));
+		});
+	}
+
+	test('restores solid comment cards when frosted glass is disabled', () => {
+		const { root } = createOverlays();
+		const { card } = createCommentCard(root);
+		const state = () => ({
+			background: readColor(card).rgba,
+			paintFilter: getWindow(card).getComputedStyle(card, '::before').backdropFilter,
+		});
+		const before = state();
+		root.classList.add('modern-ui-frosted-glass');
+		root.classList.remove('modern-ui-frosted-glass');
+
+		assert.deepStrictEqual(state(), before);
+	});
+
+	for (const themeClass of ['hc-black', 'hc-light']) {
+		test(`keeps comment cards solid in ${themeClass}`, () => {
+			const { root } = createOverlays();
+			root.classList.add(themeClass);
+			const { card } = createCommentCard(root);
+			const before = readColor(card).rgba;
+			root.classList.add('modern-ui-frosted-glass');
+
+			assert.deepStrictEqual({
+				background: readColor(card).rgba,
+				paintFilter: getWindow(card).getComputedStyle(card, '::before').backdropFilter,
+			}, { background: before, paintFilter: 'none' });
+		});
 	}
 
 	for (const background of ['#203040', '#ffffff']) {
@@ -87,21 +162,31 @@ suite('Agents frosted glass styles', () => {
 		assert.deepStrictEqual(state(), before);
 	});
 
-	test('keeps sticky picker headings and the automation titlebar solid', () => {
+	test('uses the solid Agents panel color for the automation dialog with glass enabled', () => {
 		const { root, quickInput, dialog } = createOverlays();
 		dialog.classList.add('automation-dialog');
 		const titlebar = append(dialog, 'automation-titlebar');
 		const sticky = append(quickInput, 'monaco-tree-sticky-container');
 		sticky.style.backgroundColor = 'var(--vscode-quickInput-background)';
-		const original = [titlebar, sticky].map(element => readColor(element).rgba);
+		root.classList.add('automation-dialog-open');
+		const panel = new RGBA(32, 48, 64, 1);
+		const solidDialog = readColor(dialog).rgba;
+		const originalSticky = readColor(sticky).rgba;
 		root.classList.add('modern-ui-frosted-glass');
 		root.style.setProperty('--modern-ui-glass-opacity', '50%');
+		const supported = supportsGlass(root);
 		assert.deepStrictEqual({
-			headings: [titlebar, sticky].map(element => readColor(element).rgba),
-			dialogTint: Math.round(readColor(dialog, '::before').rgba.a * 100),
+			solidDialog,
+			titlebar: readColor(titlebar).rgba,
+			sticky: readColor(sticky).rgba,
+			dialog: readColor(dialog).rgba,
+			dialogTint: readColor(dialog, '::before').rgba,
 		}, {
-			headings: original,
-			dialogTint: supportsGlass(root) ? 50 : 0,
+			solidDialog: panel,
+			titlebar: new RGBA(0, 0, 0, 0),
+			sticky: originalSticky,
+			dialog: supported ? new RGBA(0, 0, 0, 0) : panel,
+			dialogTint: supported ? panel : new RGBA(0, 0, 0, 0),
 		});
 	});
 

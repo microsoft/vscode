@@ -13,6 +13,7 @@ import { safeIntl } from '../../../../../base/common/date.js';
 import { Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { language } from '../../../../../base/common/platform.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -23,7 +24,7 @@ import { IRange } from '../../../../../editor/common/core/range.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, ICommandPaletteOptions, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsLinuxContext, IsWindowsContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -57,7 +58,7 @@ import { ElicitationState, IChatService, IChatToolInvocation } from '../../commo
 import { ISCMHistoryItemChangeRangeVariableEntry, ISCMHistoryItemChangeVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/model/chatViewModel.js';
 import { IChatWidgetHistoryService } from '../../common/widget/chatWidgetHistoryService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, getDefaultNewChatSessionTypeAndReason } from '../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatProgressAnimation, ChatProgressVerbosity, getDefaultNewChatSessionTypeAndReason } from '../../common/constants.js';
 import { AICustomizationManagementCommands } from '../aiCustomization/aiCustomizationManagement.js';
 import { ILanguageModelChatSelector, ILanguageModelsService } from '../../common/languageModels.js';
 import { CopilotUsageExtensionFeatureId } from '../../common/languageModelStats.js';
@@ -586,6 +587,60 @@ export abstract class ModeOpenChatGlobalAction extends OpenChatGlobalAction {
 	}
 }
 
+/**
+ * Registers the chat view mode choices and their View Mode submenu.
+ */
+export function registerChatViewModeActions(): IDisposable {
+	const store = new DisposableStore();
+
+	for (const [order, { mode, title }] of [
+		{ mode: ChatProgressVerbosity.Compact, title: localize2('chat.viewMode.compact', "Compact") },
+		{ mode: ChatProgressVerbosity.Verbose, title: localize2('chat.viewMode.verbose', "Verbose") },
+		{ mode: ChatProgressVerbosity.Conversation, title: localize2('chat.viewMode.conversation', "Conversation") },
+	].entries()) {
+		store.add(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: `workbench.action.chat.viewMode.${mode}`,
+					title,
+					category: CHAT_CATEGORY,
+					precondition: ChatContextKeys.enabled,
+					toggled: ContextKeyExpr.and(
+						ContextKeyExpr.notEquals(`config.${ChatConfiguration.PersistentProgress}`, ChatProgressAnimation.Off),
+						ContextKeyExpr.equals(`config.${ChatConfiguration.PersistentProgressVerbosity}`, mode),
+					),
+					menu: {
+						id: MenuId.ChatViewMode,
+						group: '1_state',
+						order,
+						when: ChatContextKeys.enabled,
+					},
+				});
+			}
+
+			override async run(accessor: ServicesAccessor): Promise<void> {
+				const configurationService = accessor.get(IConfigurationService);
+				const updatePreference = (key: ChatConfiguration, value: string) => configurationService.updateValue(key, value,
+					configurationService.inspect(key).workspaceValue === undefined ? ConfigurationTarget.USER : ConfigurationTarget.WORKSPACE);
+				await updatePreference(ChatConfiguration.PersistentProgressVerbosity, mode);
+				if (configurationService.getValue<string>(ChatConfiguration.PersistentProgress) === ChatProgressAnimation.Off) {
+					await updatePreference(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
+				}
+			}
+		}));
+	}
+
+	store.add(MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
+		submenu: MenuId.ChatViewMode,
+		title: localize2('chat.viewMode', "View Mode"),
+		group: '3_configure',
+		order: 14,
+		when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
+	}));
+
+	return store;
+}
+
 export function registerChatActions() {
 	/**
 	 * Returns the resource and creation metadata for a brand-new chat editor,
@@ -1082,24 +1137,21 @@ export function registerChatActions() {
 				title: localize2('interactiveSession.focusNotice.label', "Chat: Toggle Focus Between Notice and Input"),
 				category: CHAT_CATEGORY,
 				f1: true,
-				// The Agents composer is not a chat widget, so it never sets
-				// `inChatSession`; it reports its own focus instead.
-				precondition: ContextKeyExpr.or(ChatContextKeys.inChatSession, ChatContextKeys.inChatComposer),
+				precondition: ChatContextKeys.inChatSession,
 				keybinding: [{
 					weight: KeybindingWeight.WorkbenchContrib,
 					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Slash,
 					when: ContextKeyExpr.or(
 						ChatContextKeys.inChatSession,
 						ChatContextKeys.inChatTip,
-						ChatContextKeys.inChatComposer
 					),
 				}]
 			});
 		}
 
 		run(accessor: ServicesAccessor): void {
-			// Resolved through the notice hub rather than the chat widget service so
-			// this also works in the Agents window, whose composer is not a chat widget.
+			// Resolved through the notice hub rather than the chat widget service, as
+			// chat inputs in different surfaces do not share a widget registry.
 			if (!accessor.get(IChatInputNoticeHubService).toggleNoticeFocus()) {
 				alert(localize('chat.notice.focusUnavailable', "No chat notice."));
 			}
@@ -1365,12 +1417,13 @@ export function registerChatActions() {
 			});
 		}
 
-		async run(accessor: ServicesAccessor): Promise<void> {
+		async run(accessor: ServicesAccessor, workspaceFolder?: URI): Promise<void> {
 			const commandService = accessor.get(ICommandService);
 			await commandService.executeCommand('workbench.action.chat.open', {
 				mode: 'agent',
 				query: '/create-instructions ',
 				isPartialQuery: true,
+				attachFiles: workspaceFolder ? [workspaceFolder] : undefined,
 			});
 		}
 	});
@@ -1388,12 +1441,13 @@ export function registerChatActions() {
 			});
 		}
 
-		async run(accessor: ServicesAccessor): Promise<void> {
+		async run(accessor: ServicesAccessor, workspaceFolder?: URI): Promise<void> {
 			const commandService = accessor.get(ICommandService);
 			await commandService.executeCommand('workbench.action.chat.open', {
 				mode: 'agent',
 				query: '/create-prompt ',
 				isPartialQuery: true,
+				attachFiles: workspaceFolder ? [workspaceFolder] : undefined,
 			});
 		}
 	});
@@ -1411,12 +1465,13 @@ export function registerChatActions() {
 			});
 		}
 
-		async run(accessor: ServicesAccessor): Promise<void> {
+		async run(accessor: ServicesAccessor, workspaceFolder?: URI): Promise<void> {
 			const commandService = accessor.get(ICommandService);
 			await commandService.executeCommand('workbench.action.chat.open', {
 				mode: 'agent',
 				query: '/create-skill ',
 				isPartialQuery: true,
+				attachFiles: workspaceFolder ? [workspaceFolder] : undefined,
 			});
 		}
 	});
@@ -1434,12 +1489,13 @@ export function registerChatActions() {
 			});
 		}
 
-		async run(accessor: ServicesAccessor): Promise<void> {
+		async run(accessor: ServicesAccessor, workspaceFolder?: URI): Promise<void> {
 			const commandService = accessor.get(ICommandService);
 			await commandService.executeCommand('workbench.action.chat.open', {
 				mode: 'agent',
 				query: '/create-agent ',
 				isPartialQuery: true,
+				attachFiles: workspaceFolder ? [workspaceFolder] : undefined,
 			});
 		}
 	});
@@ -1457,12 +1513,13 @@ export function registerChatActions() {
 			});
 		}
 
-		async run(accessor: ServicesAccessor): Promise<void> {
+		async run(accessor: ServicesAccessor, workspaceFolder?: URI): Promise<void> {
 			const commandService = accessor.get(ICommandService);
 			await commandService.executeCommand('workbench.action.chat.open', {
 				mode: 'agent',
 				query: '/create-hook ',
 				isPartialQuery: true,
+				attachFiles: workspaceFolder ? [workspaceFolder] : undefined,
 			});
 		}
 	});
@@ -1510,6 +1567,8 @@ export function registerChatActions() {
 		}
 	});
 
+	registerChatViewModeActions();
+
 	registerAction2(class OpenChatFeatureSettingsAction extends Action2 {
 		constructor() {
 			super({
@@ -1539,13 +1598,12 @@ export function registerChatActions() {
 		}
 	});
 
-	// Show a direct gear action to open the Customizations editor
 	MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 		command: {
 			id: AICustomizationManagementCommands.OpenEditor,
 			title: localize2('openChatCustomizations', "Open Customizations"),
 			category: CHAT_CATEGORY,
-			icon: Codicon.gear
+			icon: Codicon.extensions
 		},
 		group: 'navigation',
 		when: ContextKeyExpr.and(

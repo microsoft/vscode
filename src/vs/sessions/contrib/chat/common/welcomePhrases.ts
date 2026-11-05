@@ -6,16 +6,17 @@
 import { localize } from '../../../../nls.js';
 
 /** Placeholder users put in custom welcome phrases to position the welcome name. */
-export const NEW_SESSION_WELCOME_NAME_PLACEHOLDER = '{name}';
+export const NEW_SESSION_WELCOME_NAME_PLACEHOLDER = '${name}';
 
 export interface INewSessionWelcomeMessagesConfiguration {
 	readonly mode?: 'replace' | 'append';
 	readonly phrases?: readonly string[];
 }
 
-/** Matches `{name}` together with the separator (comma or dash) and whitespace around it. */
+const WELCOME_NAME_PLACEHOLDER = /\$?\{name\}/gu;
+/** Matches `${name}` or legacy `{name}` together with an adjoining separator and whitespace. */
 // allow-any-unicode-next-line
-const WELCOME_NAME_PLACEHOLDER_SEGMENT = /\s*[,—–-]?\s*\{name\}\s*[,—–-]?\s*/gu;
+const WELCOME_NAME_PLACEHOLDER_SEGMENT = /\s*[,—–-]?\s*\$?\{name\}\s*[,—–-]?\s*/gu;
 const SPACE_BEFORE_PUNCTUATION = /\s+([!?.,;:])/gu;
 
 function getDefaultWelcomePhrases(accountName: string | undefined): string[] {
@@ -43,16 +44,14 @@ function getDefaultWelcomePhrases(accountName: string | undefined): string[] {
 }
 
 /**
- * Resolves a custom welcome phrase template. `{name}` is replaced with the welcome
- * name; when no name is known the placeholder and its adjoining separator are
- * removed so the phrase still reads naturally.
+ * Resolves a custom welcome phrase template, including the legacy `{name}` syntax.
  */
 export function resolveWelcomePhraseTemplate(phrase: string, accountName: string | undefined): string {
 	if (accountName) {
-		return phrase.split(NEW_SESSION_WELCOME_NAME_PLACEHOLDER).join(accountName).trim();
+		return phrase.replace(WELCOME_NAME_PLACEHOLDER, () => accountName).trim();
 	}
 
-	const startsWithPlaceholder = /^\s*\{name\}/u.test(phrase);
+	const startsWithPlaceholder = /^\s*\$?\{name\}/u.test(phrase);
 	const stripped = phrase
 		.replace(WELCOME_NAME_PLACEHOLDER_SEGMENT, (match, offset: number, source: string) =>
 			offset === 0 || offset + match.length === source.length ? '' : ' ')
@@ -64,15 +63,14 @@ export function resolveWelcomePhraseTemplate(phrase: string, accountName: string
 /**
  * Builds the pool of welcome phrases. Custom phrases either replace the defaults
  * (`mode: 'replace'`) or extend them (`mode: 'append'`, the default). Phrases that
- * resolve to nothing are dropped, and an empty custom pool always falls back to the
- * defaults.
+ * resolve to nothing are dropped.
  */
 export function getNewSessionWelcomePhrases(configuration: INewSessionWelcomeMessagesConfiguration | undefined, accountName: string | undefined): string[] {
 	const customPhrases = (configuration?.phrases ?? [])
 		.filter(phrase => typeof phrase === 'string')
 		.map(phrase => resolveWelcomePhraseTemplate(phrase, accountName))
 		.filter(phrase => phrase.length > 0);
-	if (configuration?.mode === 'replace' && customPhrases.length > 0) {
+	if (configuration?.mode === 'replace') {
 		return customPhrases;
 	}
 	return [...getDefaultWelcomePhrases(accountName), ...customPhrases];

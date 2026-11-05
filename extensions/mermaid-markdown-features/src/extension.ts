@@ -5,6 +5,7 @@
 import * as vscode from 'vscode';
 import { registerChatSupport } from './chatOutputRenderer';
 import { MermaidEditorManager } from './editorManager';
+import { MermaidCodeBlockEditorProvider, mermaidCodeBlockEditorProviderId } from './markdownEditor/mermaidCodeBlockEditorProvider';
 import { configSection, injectMermaidConfig } from './markdownMermaid/config';
 import { extendMarkdownItWithMermaid } from './markdownMermaid/markdownIt';
 import { MermaidCommandContext, MermaidWebviewManager } from './webviewManager';
@@ -15,6 +16,9 @@ export function activate(context: vscode.ExtensionContext) {
 
 	const editorManager = new MermaidEditorManager(context.extensionUri, webviewManager);
 	context.subscriptions.push(editorManager);
+
+	const codeBlockEditorProvider = new MermaidCodeBlockEditorProvider(context.extensionUri);
+	context.subscriptions.push(codeBlockEditorProvider);
 
 	// Register chat support
 	context.subscriptions.push(registerChatSupport(context, webviewManager, editorManager));
@@ -56,6 +60,11 @@ export function activate(context: vscode.ExtensionContext) {
 			});
 			md.use(injectMermaidConfig);
 			return md;
-		}
+		},
+		markdownCodeBlockEditors: {
+			apiV1: {
+				getProvider: (id: string) => id === mermaidCodeBlockEditorProviderId ? codeBlockEditorProvider : undefined,
+			},
+		},
 	};
 }

@@ -121,6 +121,7 @@ export class CodexContinuationGuide extends Disposable {
 			const current = await this._nudge.resolve(candidate);
 			if (!current || store.isDisposed || !this._host.hasFocus || !this._trust.isWorkspaceTrusted()) { throw new Error('unavailable'); }
 			const resource = this._connections.getSessionResource(current.session.session);
+			if (!resource) { throw new Error('unavailable'); }
 			const activeWidget = () => {
 				const active = navigation.getActiveWidget();
 				return active?.visible && active.viewModel?.sessionResource.toString() === resource.toString() ? active : undefined;

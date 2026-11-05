@@ -5,7 +5,8 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { mergeSectionOrder, resolveSectionOrder, spliceSectionOrder } from '../../browser/sessionSectionOrderService.js';
+import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
+import { mergeSectionOrder, resolveSectionOrder, restoreSectionOrderPositions, SessionSectionOrderService, spliceSectionOrder } from '../../browser/sessionSectionOrderService.js';
 
 suite('SessionSectionOrder Helpers', () => {
 
@@ -68,6 +69,77 @@ suite('SessionSectionOrder Helpers', () => {
 			const persisted = ['w1', 'g1', 'g2'];
 			const visibleAfter = ['g2', 'g1'];
 			assert.deepStrictEqual(mergeSectionOrder(persisted, visibleAfter), ['w1', 'g2', 'g1']);
+		});
+	});
+
+	suite('restoreSectionOrderPositions', () => {
+
+		test('re-inserts dropped ids after the ids they followed, or first when none of those remain', () => {
+			// 'g1' and 'g3' were dropped; 'w1' moved meanwhile and keeps its new position.
+			assert.deepStrictEqual(restoreSectionOrderPositions(['g2', 'w1'], ['g1', 'w1', 'g2', 'g3'], new Set(['g1', 'g3'])), ['g1', 'g2', 'g3', 'w1']);
+		});
+
+		test('leaves captured ids that are still ordered where they are', () => {
+			assert.deepStrictEqual(restoreSectionOrderPositions(['g2', 'g1'], ['g1', 'g2'], new Set(['g1', 'g2'])), ['g2', 'g1']);
+		});
+	});
+});
+
+suite('SessionSectionOrderService', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('restores captured positions that retain dropped, and persists them', () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const service = disposables.add(new SessionSectionOrderService(storageService));
+		service.reorder(['g1', 'g2', 'g3'], 'g1', 'g3', 'after');
+		const positions = service.capturePositions(['g2']);
+		service.retain(['g1', 'g3']);
+		const afterRetain = service.resolveOrder(['g1', 'g2', 'g3']);
+		let changes = 0;
+		disposables.add(service.onDidChange(() => changes++));
+
+		service.restorePositions(positions);
+		service.restorePositions(positions);
+
+		assert.deepStrictEqual({
+			afterRetain,
+			restored: service.resolveOrder(['g1', 'g2', 'g3']),
+			reloaded: disposables.add(new SessionSectionOrderService(storageService)).resolveOrder(['g1', 'g2', 'g3']),
+			changes,
+		}, {
+			// Without its position, 'g2' falls back to its default place after 'g1'.
+			afterRetain: ['g3', 'g1', 'g2'],
+			restored: ['g2', 'g3', 'g1'],
+			reloaded: ['g2', 'g3', 'g1'],
+			changes: 1,
+		});
+	});
+
+	test('adopts the position and promotion of a former identity unless it has its own', () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const service = disposables.add(new SessionSectionOrderService(storageService));
+		service.reorder(['a', 'b', 'c'], 'a', 'c', 'after', 'a');
+		let changes = 0;
+		disposables.add(service.onDidChange(() => changes++));
+
+		service.adoptPosition('a', 'renamed-a');
+		// 'c' keeps its own position, and 'b' has no promotion to give.
+		service.adoptPosition('b', 'c');
+		service.adoptPosition('missing', 'renamed-missing');
+		service.adoptPosition('a', 'renamed-a');
+
+		const ids = ['a', 'b', 'c', 'renamed-a', 'renamed-missing'];
+		assert.deepStrictEqual({
+			order: service.capturePositions(ids).order,
+			promoted: ids.filter(id => service.isPromoted(id)),
+			reloaded: disposables.add(new SessionSectionOrderService(storageService)).capturePositions(ids).order,
+			changes,
+		}, {
+			order: ['b', 'c', 'a', 'renamed-a'],
+			promoted: ['a', 'renamed-a'],
+			reloaded: ['b', 'c', 'a', 'renamed-a'],
+			changes: 1,
 		});
 	});
 });

@@ -1,0 +1,84 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.session-canvas-editor {
+	position: relative;
+	width: 100%;
+	height: 100%;
+	background: var(--vscode-editor-background);
+}
+
+.session-canvas-editor .browser-container-wrapper {
+	position: absolute;
+	inset: 0;
+}
+
+/* The native view copies this radius, so keep canvases square unless a host frame rounds them. */
+.session-canvas-editor > .browser-container-wrapper > .browser-container {
+	border-radius: 0;
+}
+
+.session-canvas-editor .session-canvas-message {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: var(--vscode-spacing-size160);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body1);
+	text-align: center;
+	pointer-events: none;
+}
+
+.session-canvas-editor .session-canvas-message:empty {
+	display: none;
+}
+
+/*
+ * Last frames of pages the view keeps hidden: the previous canvas's, held while the next one loads so a
+ * switch does not flash, and a copy of this canvas's, frozen while its provider reconnects.
+ */
+.session-canvas-editor .session-canvas-held-frame,
+.session-canvas-editor .session-canvas-frozen-frame {
+	position: absolute;
+	inset: 0;
+	display: none;
+	background-color: var(--vscode-editor-background);
+	background-size: contain;
+	background-repeat: no-repeat;
+	pointer-events: none;
+}
+
+.session-canvas-editor .session-canvas-held-frame.held {
+	display: block;
+}
+
+/* The frozen frame stays dimmed beneath a status card. */
+.session-canvas-editor.provider-reconnecting .session-canvas-frozen-frame {
+	display: block;
+
+	&::after {
+		content: '';
+		position: absolute;
+		inset: 0;
+		background-color: var(--vscode-editor-background);
+		opacity: 0.6;
+	}
+}
+
+.session-canvas-editor.provider-reconnecting .session-canvas-message {
+	z-index: 1;
+	margin: auto;
+	width: fit-content;
+	height: fit-content;
+	max-width: 80%;
+	padding: var(--vscode-spacing-size120) var(--vscode-spacing-size200);
+	color: var(--vscode-foreground);
+	background-color: var(--vscode-editorWidget-background);
+	border: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border);
+	border-radius: var(--vscode-cornerRadius-large);
+	box-shadow: var(--vscode-shadow-lg);
+}

@@ -20,6 +20,7 @@ import { ISessionsSetUpService } from '../../../browser/sessionsSetUpService.js'
 import { WorkspaceSelectionOrigin } from '../../../common/workspaceSelection.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { WorkspaceHandoffState } from '../../sessions/browser/sessionsWindowOpenTelemetry.js';
 import { SessionsView, SessionsViewId } from '../../sessions/browser/views/sessionsView.js';
@@ -36,6 +37,7 @@ export interface IAgentsWindowWorkspaceHandoff {
 	readonly isDefault: boolean;
 	readonly draft?: IAgentsWindowDraft;
 	readonly noWorkspace?: boolean;
+	readonly revealNewSession?: boolean;
 }
 
 /** Keeps one opening intent alive until the target composer applies it or a newer user intent wins. */
@@ -46,6 +48,7 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 
 	constructor(
 		@ISessionsService private readonly sessionsService: ISessionsService,
+		@IFocusedSessionHostService private readonly _focusedSessionHostService: IFocusedSessionHostService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsPartService private readonly sessionsPartService: ISessionsPartService,
 		@ISessionsSetUpService private readonly sessionsSetUpService: ISessionsSetUpService,
@@ -103,11 +106,11 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 		store.add(Event.once(this.sessionsManagementService.onWillSendRequest)(() => cancel('sessionAlreadyCreated')));
 		store.add(Event.once(this.composerService.onWillSendRequest)(() => cancel('sessionAlreadyCreated')));
 		let restoreComplete = this.sessionsService.initialRestoreComplete.get();
-		let previousSession = this.sessionsService.activeSession.get();
+		let previousSession = this._focusedSessionHostService.focusedHost.get().session.get();
 		let previousCreated = previousSession?.isCreated.get() ?? false;
 		store.add(autorun(reader => {
 			const restored = this.sessionsService.initialRestoreComplete.read(reader);
-			const session = this.sessionsService.activeSession.read(reader);
+			const session = this._focusedSessionHostService.focusedHost.read(reader).session.read(reader);
 			const created = session?.isCreated.read(reader) ?? false;
 			if (restoreComplete && created && (session !== previousSession || !previousCreated)) {
 				cancel('sessionAlreadyCreated');
@@ -117,7 +120,7 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 			previousCreated = created;
 		}));
 		try {
-			if (intent.draft && this._hasDraftInput()) {
+			if (intent.draft && !intent.revealNewSession && this._hasDraftInput()) {
 				onState('preservedSession');
 				return;
 			}
@@ -127,28 +130,36 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 				return;
 			}
 			onState('waitingForSessionView');
-			if (intent.isDefault && !intent.draft) {
+			if (intent.isDefault && !intent.draft && !intent.revealNewSession) {
 				await waitForState(this.sessionsService.initialRestoreComplete, complete => complete, undefined, source.token);
 			} else {
 				await raceCancellationError(this.lifecycleService.when(LifecyclePhase.Restored), source.token);
 				if (source.token.isCancellationRequested) {
 					return;
 				}
-				if (intent.draft && this._hasDraftInput()) {
+				if (intent.draft && !intent.revealNewSession && this._hasDraftInput()) {
 					onState('preservedSession');
 					return;
 				}
-				if (!intent.draft) {
+				if (!intent.draft || intent.revealNewSession) {
+					// Navigation can rebind the mounted composer before its draft is restored.
+					const preserveDraft = intent.revealNewSession && this._hasDraftInput();
 					await this.sessionsService.openNewSession({ cancelRestore: true }, source.token);
+					if (preserveDraft) {
+						if (!source.token.isCancellationRequested) {
+							onState('preservedSession');
+						}
+						return;
+					}
 				}
 			}
 
-			let draftNeedsNavigation = !!intent.draft;
+			let draftNeedsNavigation = !!intent.draft && !intent.revealNewSession;
 			let noWorkspaceNeedsSelection = !!intent.noWorkspace;
 			const deadline = Date.now() + WORKSPACE_HANDOFF_TIMEOUT_MS;
 			while (!source.token.isCancellationRequested) {
-				const currentSession = this.sessionsService.activeSession.get();
-				if ((!intent.draft && currentSession?.isCreated.get()) || (intent.draft && this._hasDraftInput())) {
+				const currentSession = this._focusedSessionHostService.focusedHost.get().session.get();
+				if ((!intent.draft && currentSession?.isCreated.get()) || ((intent.draft || intent.revealNewSession) && this._hasDraftInput())) {
 					onState('preservedSession');
 					return;
 				}
@@ -162,7 +173,7 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 						return;
 					}
 				}
-				const session = this.sessionsService.activeSession.get();
+				const session = this._focusedSessionHostService.focusedHost.get().session.get();
 				if (!draftNeedsNavigation && session?.isCreated.get()) {
 					onState('preservedSession');
 					return;
@@ -231,7 +242,7 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 	}
 
 	private _hasDraftInput(): boolean {
-		const activeSession = this.sessionsService.activeSession.get();
+		const activeSession = this._focusedSessionHostService.focusedHost.get().session.get();
 		if (!activeSession?.isCreated.get() && !activeSession?.isQuickChat?.get()) {
 			const mountedInput = this.composerService.getDraftInputStateForSession(activeSession?.resource);
 			if (mountedInput !== undefined) {

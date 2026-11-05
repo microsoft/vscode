@@ -163,6 +163,37 @@ function readAscii(data: Uint8Array, offset: number, length: number): string {
 	return String.fromCodePoint(...data.subarray(offset, offset + length));
 }
 
+const bmpDibHeaderSizes = new Set([12, 40, 52, 56, 64, 108, 124]);
+
+/**
+ * Detects the image format from the leading bytes (magic number) of the data, ignoring any
+ * declared MIME type or file extension.
+ * @returns the detected image MIME type, or `undefined` if the data is not a PNG, JPEG, GIF,
+ * WebP or BMP image.
+ */
+export function getImageMimeTypeFromBytes(data: Uint8Array): string | undefined {
+	if (hasBytes(data, 0, [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])) {
+		return 'image/png';
+	}
+	if (hasBytes(data, 0, [0xFF, 0xD8, 0xFF])) {
+		return 'image/jpeg';
+	}
+	if (hasAsciiSequence(data, 0, 'GIF87a') || hasAsciiSequence(data, 0, 'GIF89a')) {
+		return 'image/gif';
+	}
+	if (hasAsciiSequence(data, 0, 'RIFF') && hasAsciiSequence(data, 8, 'WEBP')) {
+		return 'image/webp';
+	}
+	// 'BM' alone is too weak a signature, so also require a known DIB header size
+	if (hasAsciiSequence(data, 0, 'BM') && data.length >= 18) {
+		const dibHeaderSize = data[14] | (data[15] << 8) | (data[16] << 16) | (data[17] << 24);
+		if (bmpDibHeaderSizes.has(dibHeaderSize)) {
+			return 'image/bmp';
+		}
+	}
+	return undefined;
+}
+
 export function getMimeType(base64String: string): string | undefined {
 	const mimeTypes: { [key: string]: string } = {
 		'/9j/': 'image/jpeg',

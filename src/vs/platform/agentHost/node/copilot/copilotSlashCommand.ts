@@ -13,7 +13,7 @@ export type CopilotSlashCommandResult = Awaited<ReturnType<CopilotSession['rpc']
 
 export type CopilotSlashCommandOutput =
 	| { readonly kind: 'text'; readonly text: string; readonly markdown?: boolean }
-	| { readonly kind: 'link'; readonly resource: URI; readonly label: string; readonly preview?: boolean };
+	| { readonly kind: 'link'; readonly resource: URI; readonly label: string; readonly preview?: boolean; readonly openInEditor?: boolean };
 
 /** Host-side behavior attached to a resolved command, separate from SDK catalog metadata. */
 export interface ICopilotSlashCommandHandler {

@@ -71,7 +71,7 @@ export class ContextKeysContribution extends Disposable {
 		void this._updateClientByokEnabledContext().catch(console.error);
 		this._register(_authenticationService.onDidAuthenticationChange(async () => await this._onAuthenticationChange()));
 		this._register(_authenticationService.onDidCopilotTokenChange(() => this._onCopilotTokenChange()));
-		this._register(commands.registerCommand('github.copilot.refreshToken', async () => await this._inspectContext()));
+		this._register(commands.registerCommand('github.copilot.refreshToken', async () => await this._inspectContext(true)));
 		this._register(commands.registerCommand('github.copilot.debug.showChatLogView', async () => {
 			this._showLogView = true;
 			await commands.executeCommand('setContext', showLogViewContextKey, true);
@@ -129,14 +129,14 @@ export class ContextKeysContribution extends Disposable {
 		}
 	}
 
-	private async _inspectContext() {
+	private async _inspectContext(forceTokenRefresh?: boolean) {
 		this._logService.debug(`[context keys] Updating context keys.`);
 		this._cancelPendingOfflineCheck();
 		const allKeys = Object.values(welcomeViewContextKeys);
 		let error: unknown | undefined = undefined;
 		let key: string | undefined;
 		try {
-			await this._authenticationService.getCopilotToken();
+			await this._authenticationService.getCopilotToken(forceTokenRefresh);
 			key = welcomeViewContextKeys.Activated;
 		} catch (e: any) {
 			error = e;

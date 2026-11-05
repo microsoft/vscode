@@ -14,6 +14,7 @@ import { IActionListItem } from '../../../../../../platform/actionWidget/browser
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
@@ -25,6 +26,7 @@ import { ISessionsService } from '../../../../../services/sessions/browser/sessi
 import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { AgentHostClaudePermissionModePicker } from '../../browser/agentHostClaudePermissionModePicker.js';
 import { IAgentHostSessionEnumPickerItem } from '../../browser/agentHostModePicker.js';
+import { sessionChatSourceOf } from '../../../../../services/sessions/browser/sessionHost.js';
 
 const PROVIDER_ID = 'local-agent-host';
 const SESSION_ID = 'local-agent-host:s1';
@@ -73,7 +75,7 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 		return constObservable(false);
 	}
 
-	async setSessionConfigValue(sessionId: string, property: string, value: unknown): Promise<void> {
+	async setSessionConfigValue(sessionId: string, _chat: URI, property: string, value: unknown): Promise<void> {
 		this.setCalls.push([sessionId, property, value]);
 	}
 }
@@ -95,9 +97,10 @@ function setupPicker(store: Pick<ReturnType<typeof ensureNoDisposablesAreLeakedI
 			onHide = delegate.onHide;
 		},
 	});
-	const sessionObs = observableValue<IActiveSession | undefined>('activeSession', { providerId: PROVIDER_ID, sessionId: SESSION_ID } as IActiveSession);
+	const sessionObs = observableValue<IActiveSession | undefined>('activeSession', { providerId: PROVIDER_ID, sessionId: SESSION_ID, activeChat: constObservable({ resource: URI.parse('agent-host-claude:/session') }) } as unknown as IActiveSession);
 	instantiationService.set(ISessionsService, new (class extends mock<ISessionsService>() {
-		override readonly activeSession = sessionObs;
+		readonly activeSession = sessionObs;
+		readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
 	})());
 	instantiationService.set(ISessionsProvidersService, new (class extends mock<ISessionsProvidersService>() {
 		override readonly onDidChangeProviders = Event.None;
@@ -113,11 +116,9 @@ function setupPicker(store: Pick<ReturnType<typeof ensureNoDisposablesAreLeakedI
 		}
 	})());
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
-	instantiationService.stub(IHoverService, {
-		setupDelayedHover: () => ({ dispose: () => { } }),
-	} as Partial<IHoverService> as IHoverService);
+	instantiationService.stub(IHoverService, { ...NullHoverService });
 
-	const picker = store.add(instantiationService.createInstance(AgentHostClaudePermissionModePicker, sessionObs));
+	const picker = store.add(instantiationService.createInstance(AgentHostClaudePermissionModePicker, sessionChatSourceOf(sessionObs)));
 	const container = document.createElement('div');
 	picker.render(container);
 	const trigger = container.querySelector<HTMLElement>('a.action-label');

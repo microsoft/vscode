@@ -4,6 +4,9 @@ trigger:
     include:
       - main
       - release/*
+  paths:
+    include:
+      - extensions/copilot
 
 pr: none
 
@@ -30,6 +33,9 @@ name: "$(Date:yyyyMMdd).$(Rev:r)${{ replace(format(' (🚀 {0})', parameters.nex
 extends:
   template: azure-pipelines/npm-package/pipeline.yml@templates
   parameters:
+    # Skip the shared template's bootstrap, which invokes Yarn in this pnpm repository.
+    # Registry is configured else where for this pipeline.
+    customNPMRegistry: ''
     npmPackages:
       - name: vscode-copilot-chat
         buildSteps:

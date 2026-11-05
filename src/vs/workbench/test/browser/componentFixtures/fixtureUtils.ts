@@ -12,6 +12,7 @@ import { DisposableStore, DisposableTracker, IDisposable, IReference, MutableDis
 import { URI } from '../../../../base/common/uri.js';
 import { $, ModifierKeyEmitter } from '../../../../base/browser/dom.js';
 import { getBaseLayerHoverDelegate, setBaseLayerHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate2.js';
+import { disableScrollbarRevealOnScroll } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 // eslint-disable-next-line local/code-import-patterns
 import '../../../../../../build/vite/style.css';
 import '../../../browser/media/style.css';
@@ -112,6 +113,8 @@ import { IChatEditingService } from '../../../contrib/chat/common/editing/chatEd
 import { ISessionsManagementService } from '../../../../sessions/services/sessions/common/sessionsManagement.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionsService } from '../../../../sessions/services/sessions/browser/sessionsService.js';
+// eslint-disable-next-line local/code-import-patterns
+import { ActiveSessionHost, SessionHostKind } from '../../../../sessions/services/sessions/browser/sessionHost.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionChangesStatsCache, SessionChangesStatsCache } from '../../../../sessions/services/sessions/common/sessionChangesStatsCache.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -287,18 +290,20 @@ import monokai from '../../../../../../extensions/theme-monokai/themes/monokai-c
 import quietlight from '../../../../../../extensions/theme-quietlight/themes/quietlight-color-theme.json' with { type: 'json' };
 import solarized_dark from '../../../../../../extensions/theme-solarized-dark/themes/solarized-dark-color-theme.json' with { type: 'json' };
 import solarized_light from '../../../../../../extensions/theme-solarized-light/themes/solarized-light-color-theme.json' with { type: 'json' };
+import { mainWindow } from '../../../../base/browser/window.js';
 /* eslint-enable local/code-import-patterns */
 
 function toThemeJsonText(theme: string | object): string {
 	return typeof theme === 'string' ? theme : JSON.stringify(theme);
 }
 
-export type ComponentFixtureFileIconTheme = 'none' | 'vs-seti' | 'vs-minimal';
+export type ComponentFixtureFileIconTheme = 'none' | 'vs-seti' | 'vs-minimal' | 'vscode-modern-icons';
 type BuiltInComponentFixtureFileIconTheme = Exclude<ComponentFixtureFileIconTheme, 'none'>;
 
 const fileIconThemeResources = {
 	'vs-seti': URI.parse(new URL('./extensions/theme-seti/icons/vs-seti-icon-theme.json', document.baseURI).href),
 	'vs-minimal': URI.parse(new URL('./extensions/theme-defaults/fileicons/vs_minimal-icon-theme.json', document.baseURI).href),
+	'vscode-modern-icons': URI.parse(new URL('./extensions/theme-modern-icons/fileicons/vscode-modern-icons-icon-theme.json', document.baseURI).href),
 } satisfies Record<BuiltInComponentFixtureFileIconTheme, URI>;
 const fileIconThemeResourceUrls = new Set(Object.values(fileIconThemeResources).map(resource => resource.toString(true)));
 
@@ -371,6 +376,7 @@ const fileIconThemes = {
 	none: FileIconThemeData.noIconTheme,
 	'vs-seti': createBuiltInFileIconTheme('vs-seti', 'vscode-theme-seti'),
 	'vs-minimal': createBuiltInFileIconTheme('vs-minimal', 'theme-defaults'),
+	'vscode-modern-icons': createBuiltInFileIconTheme('vscode-modern-icons', 'vscode-modern-icons'),
 } satisfies Record<ComponentFixtureFileIconTheme, FileIconThemeData>;
 const defaultFileIconTheme = fileIconThemes['vs-seti'];
 
@@ -452,6 +458,7 @@ export async function setupTheme(
 	container.classList.add('component-fixture', 'monaco-workbench', getPlatformClass(), 'disable-animations', ...theme.classNames);
 	fileIconThemeScope.classList.toggle('component-fixture-file-icon-theme-vs-seti', fileIconThemeId === 'vs-seti');
 	fileIconThemeScope.classList.toggle('component-fixture-file-icon-theme-vs-minimal', fileIconThemeId === 'vs-minimal');
+	fileIconThemeScope.classList.toggle('component-fixture-file-icon-theme-vscode-modern-icons', fileIconThemeId === 'vscode-modern-icons');
 	if (fileIconThemeClassName) {
 		container.classList.add('file-icons-enabled');
 	}
@@ -815,7 +822,14 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 
 	definePartialInstance(ISessionsService, {
 		_serviceBrand: undefined,
-		activeSession: constObservable(undefined),
+		// The main window's host, which shows no session.
+		gridHost: new ActiveSessionHost({
+			kind: SessionHostKind.MainWindow,
+			parent: undefined,
+			session: constObservable(undefined),
+			contextKeyService: () => { throw new Error('The fixture grid host binds no context keys'); },
+			windowId: constObservable(mainWindow.vscodeWindowId),
+		}),
 	});
 
 	// The real cache: it only reads and writes the (null) storage service, and
@@ -931,6 +945,8 @@ export function registerWorkbenchServices(registration: ServiceRegistration): vo
 	registration.defineInstance(IChatPhoneInputPresenter, {
 		_serviceBrand: undefined,
 		enabled: constObservable(false),
+		registerSessionModelPicker: () => ({ dispose: () => { } }),
+		getSessionModelPicker: () => undefined,
 		showCombinedModeAndModelSheet: () => Promise.resolve(),
 		setImpl: () => ({ dispose: () => { } }),
 	});
@@ -1108,6 +1124,44 @@ type ThemedFixtures = ReturnType<typeof defineFixtureVariants>;
 // Permanent logging layer that detects real timer API usage.
 // Includes handler source for identification since bundled stack traces are not useful.
 const realTimeApi = captureGlobalTimeApi();
+
+/** Waits for browser-owned readiness without advancing the fixture's virtual clock. */
+export async function waitForFixtureCondition(condition: () => boolean, message: string): Promise<void> {
+	const requestAnimationFrame = realTimeApi.requestAnimationFrame;
+	if (!requestAnimationFrame) {
+		throw new Error('Fixture readiness requires browser animation frames');
+	}
+	let stableFrames = 0;
+	for (let frame = 0; frame < 120; frame++) {
+		await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+		stableFrames = condition() ? stableFrames + 1 : 0;
+		if (stableFrames === 3) {
+			return;
+		}
+	}
+	throw new Error(message);
+}
+
+/**
+ * Resolves once `condition` holds, re-checking it after each DOM mutation under `root`.
+ * A condition that never holds fails the render at the explorer's fixture timeout.
+ */
+export function waitForFixtureDomCondition(root: Node, condition: () => boolean, store: DisposableStore): Promise<void> {
+	if (condition()) {
+		return Promise.resolve();
+	}
+	return new Promise<void>(resolve => {
+		const observer = new MutationObserver(() => {
+			if (condition()) {
+				observer.disconnect();
+				resolve();
+			}
+		});
+		store.add(toDisposable(() => observer.disconnect()));
+		observer.observe(root, { attributes: true, characterData: true, childList: true, subtree: true });
+	});
+}
+
 const logOutsideTime = false;
 if (logOutsideTime) {
 	const loggingTimeApi = createLoggingTimeApi(realTimeApi, (name, stack, handler) => {
@@ -1143,6 +1197,11 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 
 			// Replace Math.random with a seeded PRNG so fixtures render deterministically.
 			disposableStore.add(pushRandomOverwrite(42));
+
+			// Auto-hiding scrollbars would otherwise flash on layout changes and race the screenshot.
+			if (context.host.kind === 'headless') {
+				context.addDisposable(disableScrollbarRevealOnScroll());
+			}
 
 			// Do not enable virtual time in explorer ui, as multiple fixtures are rendered in parallel.
 			const virtualTimeEnabled = (options.virtualTime?.enabled ?? true) && context.host.kind !== 'explorer-ui';
@@ -1188,6 +1247,14 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 			);
 			const virtualTimeApi = createVirtualTimeApi(clock, { fakeRequestAnimationFrame: true });
 			const teardownDrainMs = options.virtualTime?.teardownDrainMs ?? 1100;
+			// Installed while the render is pending. A render that outlives the explorer's
+			// timeout must not keep its virtual clock global, or the explorer's dispose and the
+			// next fixture would schedule work on a clock that nothing advances.
+			let renderTimeApi: IDisposable | undefined;
+			const uninstallRenderTimeApi = () => {
+				renderTimeApi?.dispose();
+				renderTimeApi = undefined;
+			};
 
 			// Single async dispose orchestrates teardown order:
 			//   1. dispose user disposables (synchronous part)
@@ -1204,6 +1271,7 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 					// land in `p` and can be drained below. Render unpushes
 					// virtual time when it completes (so screenshot capture
 					// etc. can use real timers), so we have to push again.
+					uninstallRenderTimeApi();
 					let teardownTimeApi: IDisposable | undefined;
 					if (virtualTimeEnabled) {
 						teardownTimeApi = pushGlobalTimeApi(virtualTimeApi);
@@ -1263,7 +1331,6 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 					onDidChangeEnableAnimations.fire(enabled);
 				});
 
-				let renderTimeApi: IDisposable | undefined;
 				if (virtualTimeEnabled) {
 					renderTimeApi = pushGlobalTimeApi(virtualTimeApi);
 
@@ -1324,7 +1391,7 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 				} finally {
 					// Unpush virtual time so the post-render flow (screenshot
 					// capture, stability checks, …) runs with real timers.
-					renderTimeApi?.dispose();
+					uninstallRenderTimeApi();
 				}
 			}
 

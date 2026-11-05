@@ -16,6 +16,9 @@ export const PICK_REPOSITORY_COMMAND_ID = '_chat.pickRepository';
 
 export interface IRepositoryPickerOptions {
 	readonly allowRepositoryUrl?: boolean;
+	readonly placeholder?: string;
+	/** Maps the typed value to what items are filtered by locally, so a search term that is rewritten for the API still matches its results. */
+	readonly filterValue?: (value: string) => string;
 }
 
 export interface IRepositoryPickResult {
@@ -51,12 +54,15 @@ export class RepositoryPicker extends Disposable {
 		const pickToken = cancelOnDispose(store);
 		const requests = store.add(new DisposableStore());
 		const quickPick = store.add(this.quickInputService.createQuickPick<RepositoryQuickPickItem>());
-		quickPick.placeholder = options.allowRepositoryUrl
+		quickPick.placeholder = options.placeholder ?? (options.allowRepositoryUrl
 			? localize('repositoryPicker.searchOrUrl', "Search for a repository or paste a repository URL...")
-			: localize('repositoryPicker.search', "Search for a repository...");
+			: localize('repositoryPicker.search', "Search for a repository..."));
 		quickPick.ariaLabel = quickPick.placeholder;
 		quickPick.matchOnDescription = true;
 		quickPick.matchOnDetail = true;
+		if (options.filterValue) {
+			quickPick.filterValue = options.filterValue;
+		}
 
 		const updateItems = async () => {
 			requests.clear();

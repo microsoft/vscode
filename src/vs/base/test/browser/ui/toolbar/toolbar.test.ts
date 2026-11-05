@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import { IContextMenuProvider } from '../../../../browser/contextmenu.js';
 import { addDisposableListener } from '../../../../browser/dom.js';
 import { ActionBar } from '../../../../browser/ui/actionbar/actionbar.js';
 import { BaseActionViewItem } from '../../../../browser/ui/actionbar/actionViewItems.js';
-import { ActionWithDropdownActionViewItem } from '../../../../browser/ui/dropdown/dropdownActionViewItem.js';
+import { ActionWithDropdownActionViewItem, DropdownMenuActionViewItem } from '../../../../browser/ui/dropdown/dropdownActionViewItem.js';
 import { ToggleMenuAction, ToolBar } from '../../../../browser/ui/toolbar/toolbar.js';
-import { Action, IAction, Separator } from '../../../../common/actions.js';
+import { Action, IAction, Separator, SubmenuAction } from '../../../../common/actions.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
 
 class FixedWidthActionViewItem extends BaseActionViewItem {
@@ -52,7 +53,108 @@ suite('ToolBar', () => {
 	});
 
 	teardown(() => {
+		sinon.restore();
 		container.remove();
+	});
+
+	test('only updates current dropdown contexts after repeated responsive overflow', () => {
+		let availableWidth = 400;
+		const actions = [
+			store.add(new Action('first', 'First')),
+			new SubmenuAction('submenu', 'Submenu', [store.add(new Action('child', 'Child'))]),
+		];
+		const toolbar = store.add(new ToolBar(container, contextMenuProvider, {
+			responsiveBehavior: { enabled: true, kind: 'all', actionMinWidth: 24, reserveMinWidth: false, getAvailableWidth: () => availableWidth },
+		}));
+		toolbar.setActions(actions);
+		const removedViewItems: sinon.SinonSpy[] = [];
+		for (let index = 0; index < 5; index++) {
+			const submenu = toolbar.getItemViewItem(1);
+			assert.ok(submenu instanceof DropdownMenuActionViewItem);
+			const submenuContext = sinon.spy(submenu, 'setActionContext');
+			availableWidth = 24;
+			toolbar.relayout();
+			const overflow = toolbar.getItemViewItem(0);
+			assert.ok(overflow instanceof DropdownMenuActionViewItem);
+			const overflowContext = sinon.spy(overflow, 'setActionContext');
+			availableWidth = 400;
+			toolbar.relayout();
+			removedViewItems.push(submenuContext, overflowContext);
+		}
+		const current = toolbar.getItemViewItem(1);
+		assert.ok(current instanceof DropdownMenuActionViewItem);
+		const currentContext = sinon.spy(current, 'setActionContext');
+		const context = { response: 'current' };
+		toolbar.context = context;
+		assert.deepStrictEqual({
+			removedContextUpdates: removedViewItems.map(spy => spy.callCount),
+			currentContextUpdates: currentContext.args,
+			renderedActions: [toolbar.getItemAction(0)?.id, toolbar.getItemAction(1)?.id],
+		}, {
+			removedContextUpdates: new Array(10).fill(0),
+			currentContextUpdates: [[context]],
+			renderedActions: ['first', 'submenu'],
+		});
+	});
+
+	test('clears removed overflow context and actions when replacing the toolbar actions', () => {
+		const secondary = store.add(new Action('secondary', 'Secondary'));
+		const toolbar = store.add(new ToolBar(container, contextMenuProvider));
+		toolbar.setActions([], [secondary]);
+		const overflow = toolbar.getItemViewItem(0);
+		assert.ok(overflow instanceof DropdownMenuActionViewItem);
+		const action = overflow.action;
+		assert.ok(action instanceof ToggleMenuAction);
+		const setContext = sinon.spy(overflow, 'setActionContext');
+		toolbar.setActions([store.add(new Action('replacement', 'Replacement'))]);
+		toolbar.context = { response: 'next' };
+		assert.deepStrictEqual({
+			removedContextUpdates: setContext.callCount,
+			removedMenuActions: action.menuActions,
+			renderedActions: toolbar.getItemsLength(),
+			hasOverflow: toolbar.hasOverflow(),
+		}, { removedContextUpdates: 0, removedMenuActions: [], renderedActions: 1, hasOverflow: false });
+	});
+
+	test('preserves the secondary-actions trigger position through responsive relayouts', () => {
+		let availableWidth = 300;
+		const toolbar = store.add(new ToolBar(container, contextMenuProvider, {
+			getSecondaryActionsPosition: primaryActions => primaryActions.findIndex(action => action.id === 'close'),
+			responsiveBehavior: {
+				enabled: true,
+				kind: 'last',
+				minItems: 0,
+				getAvailableWidth: () => availableWidth,
+			},
+		}));
+		toolbar.setActions([
+			store.add(new Action('pin', 'Pin')),
+			store.add(new Action('close', 'Close')),
+		], [
+			store.add(new Action('rename', 'Rename')),
+		]);
+
+		const snapshot = () => {
+			const items = Array.from({ length: toolbar.getItemsLength() }, (_, index) => toolbar.getItemAction(index)?.id);
+			const shrinkableIndex = Array.from({ length: toolbar.getItemsLength() }, (_, index) => index)
+				.find(index => toolbar.getItemElement(index)?.classList.contains('toolbar-shrinkable-item'));
+			return {
+				items,
+				shrinkable: shrinkableIndex === undefined ? undefined : toolbar.getItemAction(shrinkableIndex)?.id,
+			};
+		};
+		const initial = snapshot();
+		availableWidth = 1;
+		toolbar.relayout();
+		const collapsed = snapshot();
+		availableWidth = 300;
+		toolbar.relayout();
+
+		assert.deepStrictEqual({ initial, collapsed, restored: snapshot() }, {
+			initial: { items: ['pin', ToggleMenuAction.ID, 'close'], shrinkable: 'close' },
+			collapsed: { items: [ToggleMenuAction.ID], shrinkable: undefined },
+			restored: { items: ['pin', ToggleMenuAction.ID, 'close'], shrinkable: 'close' },
+		});
 	});
 
 	test('keeps the last primary action shrinkable when overflow is inserted', () => {
@@ -552,6 +654,47 @@ suite('ToolBar', () => {
 			['attach', 'agent', ToggleMenuAction.ID],
 			['attach', 'agent', 'model', 'settings'],
 		]);
+	});
+
+	test('overflows the minimum actions when their width is not reserved and does not fit', () => {
+		let availableWidth = 300;
+		const toolbar = store.add(new TestToolBar(container, contextMenuProvider, {
+			responsiveBehavior: {
+				enabled: true,
+				kind: 'last',
+				minItems: 2,
+				actionMinWidth: 22,
+				reserveMinWidth: false,
+				getAvailableWidth: () => availableWidth,
+			},
+			actionViewItemProvider: action => new FixedWidthActionViewItem(action, 60),
+		}));
+		toolbar.setActions([
+			store.add(new Action('attach', 'Attach')),
+			store.add(new Action('agent', 'Agent')),
+			store.add(new Action('model', 'Model')),
+			store.add(new Action('settings', 'Settings')),
+		]);
+
+		const states: string[][] = [];
+		for (const width of [100, 40, 100, 300]) {
+			availableWidth = width;
+			toolbar.relayout();
+			states.push(Array.from({ length: toolbar.getItemsLength() }, (_, index) => toolbar.getItemAction(index)?.id ?? ''));
+		}
+
+		assert.deepStrictEqual({
+			states,
+			minWidths: [container.style.minWidth, toolbar.getElement().style.minWidth],
+		}, {
+			states: [
+				['attach', 'agent', ToggleMenuAction.ID],
+				[ToggleMenuAction.ID],
+				['attach', 'agent', ToggleMenuAction.ID],
+				['attach', 'agent', 'model', 'settings'],
+			],
+			minWidths: ['', ''],
+		});
 	});
 
 	test('uses overflow-specific proxy actions', async () => {

@@ -38,7 +38,7 @@ import { EditorAreaFocusContext, EditorPartMaximizedEditorGroupContext, EditorPa
 import { mainWindow } from '../../../../base/browser/window.js';
 
 /**
- * The width (in pixels) of the editor card border drawn on every side when the
+ * The width (in pixels) of each visible editor card border when the
  * Modern UI Update experiment is enabled (`modernUI/media/editorBorder.css`).
  * The editor reserves this thickness when laying out its contents so they sit
  * inside the frame instead of overflowing (and being clipped by) the border.
@@ -314,6 +314,13 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 	get hasRestorableState(): boolean {
 		return !!this.workspaceMemento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY];
 	}
+
+	/**
+	 * Whether the part is owned by someone else than the editor parts service:
+	 * it is not restored, not part of working sets and does not affect the
+	 * labels of other parts. Its owner is responsible for its lifecycle.
+	 */
+	get isTransient(): boolean { return false; }
 
 	private _willRestoreState = false;
 	get willRestoreState(): boolean { return this._willRestoreState; }
@@ -1011,6 +1018,40 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		return result;
 	}
 
+	/**
+	 * Merges all editors of this part into the most recently active
+	 * unlocked group of `targetPart` (by default, the main part),
+	 * without changing the editors that are already there.
+	 */
+	protected mergeGroupsToMainPart(targetPart: IEditorGroupsView = this.editorPartsView.mainPart): boolean {
+		if (!this.groups.some(group => group.count > 0)) {
+			return true; // skip if we have no editors opened
+		}
+
+		// Find the most recent group that is not locked
+		let targetGroup: IEditorGroupView | undefined = undefined;
+		for (const group of targetPart.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
+			if (!group.isLocked) {
+				targetGroup = group;
+				break;
+			}
+		}
+
+		if (!targetGroup) {
+			targetGroup = targetPart.addGroup(targetPart.activeGroup, this.partOptions.openSideBySideDirection === 'right' ? GroupDirection.RIGHT : GroupDirection.DOWN);
+		}
+
+		const result = this.mergeAllGroups(targetGroup, {
+			// Try to reduce the impact of closing this part
+			// as much as possible by not changing existing
+			// editors in the main part.
+			preserveExistingIndex: true
+		});
+		targetGroup.focus();
+
+		return result;
+	}
+
 	protected assertGroupView(group: IEditorGroupView | GroupIdentifier): IEditorGroupView {
 		let groupView: IEditorGroupView | undefined;
 		if (typeof group === 'number') {
@@ -1452,9 +1493,10 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 			height = Math.max(0, height - top - bottom);
 
 			// Reserve space for the Modern UI editor border (modernUI/media/editorBorder.css) so content doesn't get clipped.
-			const borderTotal = this.getFloatingBorderWidth() * 2;
-			width = Math.max(0, width - borderTotal);
-			height = Math.max(0, height - borderTotal);
+			const borderWidth = this.getFloatingBorderWidth();
+			const leftBorderWidth = this.layoutService.isModernUICompact() && !outerLeft ? 0 : borderWidth;
+			width = Math.max(0, width - (leftBorderWidth + borderWidth));
+			height = Math.max(0, height - borderWidth * 2);
 
 			this.element.classList.toggle('floating-editor-outer-left', outerLeft);
 			this.element.classList.toggle('floating-editor-outer-right', outerRight);

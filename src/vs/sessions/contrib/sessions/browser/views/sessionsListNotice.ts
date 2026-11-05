@@ -5,21 +5,23 @@
 
 import * as DOM from '../../../../../base/browser/dom.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
-import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import '../media/sessionsListNotice.css';
 
+/** Where a notice renders: above the sessions tree, or below it. */
+export type SessionsListNoticePlacement = 'top' | 'bottom';
+
 export interface ISessionsListNoticeHost {
 	readonly container: HTMLElement;
+	/** Lays out the sessions tree again after the notice changes its height. */
+	relayout(): void;
 	readonly onDidChangeVisibility: Event<boolean>;
 	readonly onDidOpenSession: Event<URI>;
 	revealSession(resource: URI): IDisposable & { readonly targetId: string; open(token: CancellationToken): Promise<boolean> };
@@ -29,15 +31,15 @@ export interface ISessionsListNoticeHost {
 }
 
 type NoticeFactory = (instantiation: IInstantiationService, host: ISessionsListNoticeHost) => IDisposable;
-const factories: NoticeFactory[] = [];
+const factories: { readonly factory: NoticeFactory; readonly placement: SessionsListNoticePlacement }[] = [];
 
-/** Provider-owned notices contribute through this slot without provider imports in the list. */
-export function registerSessionsListNotice(factory: NoticeFactory): void {
-	factories.push(factory);
+/** Notices contribute through this slot without the list importing their owners. */
+export function registerSessionsListNotice(factory: NoticeFactory, placement: SessionsListNoticePlacement = 'bottom'): void {
+	factories.push({ factory, placement });
 }
 
-export function createSessionsListNotices(instantiation: IInstantiationService, host: ISessionsListNoticeHost): IDisposable[] {
-	return factories.map(factory => factory(instantiation, host));
+export function createSessionsListNotices(instantiation: IInstantiationService, hosts: Record<SessionsListNoticePlacement, ISessionsListNoticeHost>): IDisposable[] {
+	return factories.map(({ factory, placement }) => factory(instantiation, hosts[placement]));
 }
 
 export interface ISessionsListNoticeOptions {
@@ -53,19 +55,18 @@ export interface ISessionsListNoticeOptions {
 /** A quiet, keyboard-accessible notice below the Sessions tree. */
 export class SessionsListNotice extends Disposable {
 	readonly domNode: HTMLElement;
-	constructor(options: ISessionsListNoticeOptions, @IHoverService hoverService: IHoverService) {
+	constructor(options: ISessionsListNoticeOptions) {
 		super();
 		this.domNode = DOM.$('.agent-sessions-list-notice', { role: 'region', 'aria-label': options.label });
 		const content = DOM.append(this.domNode, DOM.$('.agent-sessions-list-notice-content'));
 		DOM.append(content, DOM.$('.agent-sessions-list-notice-description')).textContent = options.description;
-		const dismiss = DOM.append(content, DOM.$('button.agent-sessions-list-notice-dismiss')) as HTMLButtonElement;
-		dismiss.type = 'button';
-		dismiss.appendChild(renderIcon(Codicon.close));
 		const dismissLabel = localize('sessionsListNotice.dismiss', "Dismiss Suggestion");
-		dismiss.setAttribute('aria-label', dismissLabel);
-		this._register(hoverService.setupManagedHover(getDefaultHoverDelegate('element'), dismiss, dismissLabel));
+		const dismiss = this._register(new Button(content, { ...defaultButtonStyles, secondary: true, title: dismissLabel, ariaLabel: dismissLabel }));
+		dismiss.element.classList.add('agent-sessions-list-notice-dismiss');
+		dismiss.icon = Codicon.close;
 		const close = () => { options.dismiss(); options.focusSessionsList(); };
-		this._register(DOM.addDisposableListener(dismiss, DOM.EventType.CLICK, close));
+		this._register(dismiss.onDidClick(close));
+		this._register(dismiss.onDidEscape(close));
 		const actions = DOM.append(this.domNode, DOM.$('.agent-sessions-list-notice-actions'));
 		const primary = this._register(new Button(actions, defaultButtonStyles));
 		primary.label = options.label;

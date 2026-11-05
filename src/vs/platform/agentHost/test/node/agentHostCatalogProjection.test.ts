@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { SessionOriginKind } from '../../common/state/protocol/state.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY } from '../../common/meta/agentDevContainerWorktreeMeta.js';
 import { readRemoteSessionOrigin, REMOTE_SESSION_ORIGIN_METADATA_KEY } from '../../common/meta/agentRemoteSessionMeta.js';
@@ -104,6 +105,27 @@ function encode(data: AgentHostCatalogData = createData()) {
 }
 
 suite('AgentHostCatalogProjection', () => {
+	test('V2 canonicalization and hash include optional automation provenance while the older shape stays valid', () => {
+		const origin = { kind: SessionOriginKind.Automation, automation: 'ahp-automation:/a', run: 'ahp-automation-run:/r' } as const;
+		const data = createData();
+		const encoded = encode({ ...data, origin });
+		const withOrigin = decodeAgentHostCatalogPayload(encoded.payload);
+		const withoutOrigin = decodeAgentHostCatalogPayload(encode(data).payload);
+		assert.deepStrictEqual({
+			version: AGENT_HOST_CATALOG_PAYLOAD_VERSION,
+			current: withOrigin.ok && withOrigin.value.data.origin,
+			legacy: withoutOrigin.ok && withoutOrigin.value.data.origin,
+			canonical: withOrigin.ok && withOrigin.value.payload,
+			hash: encoded.payloadHash,
+		}, {
+			version: 2,
+			current: origin,
+			legacy: undefined,
+			canonical: encoded.payload,
+			hash: hashAgentHostCatalogPayload(encoded.payload),
+		});
+	});
+
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('round trips creating-client identity through the validated catalog', () => {
@@ -146,7 +168,7 @@ suite('AgentHostCatalogProjection', () => {
 				ok: true,
 				value: { data: typedData, payload: encoded.payload },
 			},
-			payload: '{"data":{"_meta":{"agentHost/createdBySession":{"chat":"agent-chat://test/parent/default","session":"agent-session://test/parent","turnId":"turn-1"},"agentHost/sessionArtifacts":[{"id":"artifact-1","isArtifact":true,"label":"Catalog payload","link":"https://github.com/microsoft/vscode/pull/1","type":"pullRequest"}],"ehcliAdoptable":true,"ehcliAdopted":true,"git":{"branchName":"feature/catalog","hasGitHubRemote":true,"incomingChanges":2},"github":{"issueUrls":["https://github.com/microsoft/vscode/issues/2"],"owner":"microsoft","pullRequestUrls":["https://github.com/microsoft/vscode/pull/1"],"repo":"vscode"},"multiRoot":{"workspaceFile":"file:///workspace/project.code-workspace"},"vscode.folderPicker":{"hidden":true,"primary":"file:///workspace"},"vscode.sourceControl":{"latestOutcome":"merge","merge":{"commit":"0123456789abcdef"}},"workspaceless":true},"changes":{"additions":12,"deletions":4,"files":2},"chats":[{"kind":"default","order":0,"origin":{"kind":"default","metadata":{"a":1,"b":2}},"summary":"Main","titleSource":"auto","uri":"agent-chat://test/session/default"},{"archived":true,"kind":"peer","order":1,"origin":{"kind":"subagent"},"summary":"Peer","titleSource":"agent","uri":"agent-chat://test/session/peer"}],"isArchived":false,"isChatBacking":false,"isRead":true,"modifiedTime":1720000000000,"project":{"displayName":"workspace","uri":"file:///workspace"},"summary":"Implement opaque catalog payload","titleSource":"user","workingDirectories":["file:///workspace","file:///workspace/secondary"]},"payloadVersion":1}',
+			payload: '{"data":{"_meta":{"agentHost/createdBySession":{"chat":"agent-chat://test/parent/default","session":"agent-session://test/parent","turnId":"turn-1"},"agentHost/sessionArtifacts":[{"id":"artifact-1","isArtifact":true,"label":"Catalog payload","link":"https://github.com/microsoft/vscode/pull/1","type":"pullRequest"}],"ehcliAdoptable":true,"ehcliAdopted":true,"git":{"branchName":"feature/catalog","hasGitHubRemote":true,"incomingChanges":2},"github":{"issueUrls":["https://github.com/microsoft/vscode/issues/2"],"owner":"microsoft","pullRequestUrls":["https://github.com/microsoft/vscode/pull/1"],"repo":"vscode"},"multiRoot":{"workspaceFile":"file:///workspace/project.code-workspace"},"vscode.folderPicker":{"hidden":true,"primary":"file:///workspace"},"vscode.sourceControl":{"latestOutcome":"merge","merge":{"commit":"0123456789abcdef"}},"workspaceless":true},"changes":{"additions":12,"deletions":4,"files":2},"chats":[{"kind":"default","order":0,"origin":{"kind":"default","metadata":{"a":1,"b":2}},"summary":"Main","titleSource":"auto","uri":"agent-chat://test/session/default"},{"archived":true,"kind":"peer","order":1,"origin":{"kind":"subagent"},"summary":"Peer","titleSource":"agent","uri":"agent-chat://test/session/peer"}],"isArchived":false,"isChatBacking":false,"isRead":true,"modifiedTime":1720000000000,"project":{"displayName":"workspace","uri":"file:///workspace"},"summary":"Implement opaque catalog payload","titleSource":"user","workingDirectories":["file:///workspace","file:///workspace/secondary"]},"payloadVersion":2}',
 			hash: hashAgentHostCatalogPayload(encoded.payload),
 		});
 	});
@@ -225,6 +247,40 @@ suite('AgentHostCatalogProjection', () => {
 			git: { isDetachedHead: true },
 			artifacts: artifacts.slice(-AGENT_HOST_CATALOG_ARTIFACT_LIMIT),
 		});
+	});
+
+	test('round trips artifact provenance without inventing it for legacy records', () => {
+		const artifacts = [
+			undefined,
+			{ chat: 'agent-chat://test/session/default' },
+			{ chat: 'agent-chat://test/session/peer', turnId: 'turn-1' },
+		].map((origin, index) => ({
+			id: `artifact-${index}`,
+			type: 'file' as const,
+			label: `Artifact ${index}`,
+			uri: `file:///workspace/${index}`,
+			...(origin ? { origin } : {}),
+		}));
+		const encoded = encode({ ...createData(), _meta: { [SESSION_META_ARTIFACTS_KEY]: artifacts } });
+		const decoded = decodeAgentHostCatalogPayload(encoded.payload);
+
+		assert.deepStrictEqual(decoded.ok && decoded.value.data._meta?.[SESSION_META_ARTIFACTS_KEY], artifacts);
+	});
+
+	test('rejects malformed artifact provenance', () => {
+		const data = createData();
+		const artifact = data._meta![SESSION_META_ARTIFACTS_KEY]![0];
+		const results = [
+			{},
+			{ chat: '' },
+			{ chat: 'not-a-uri' },
+			{ chat: 'agent-chat://test/session/peer', turnId: 42 },
+		].map(origin => decodeAgentHostCatalogPayload(JSON.stringify({
+			payloadVersion: 1,
+			data: { ...data, _meta: { [SESSION_META_ARTIFACTS_KEY]: [{ ...artifact, origin }] } },
+		})).ok);
+
+		assert.deepStrictEqual(results, [false, false, false, false]);
 	});
 
 	test('preserves Dev Container worktree and pull request state metadata', () => {

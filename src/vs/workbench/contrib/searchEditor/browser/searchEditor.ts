@@ -80,6 +80,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 	private queryEditorWidget!: SearchWidget;
 	private get searchResultEditor() { return this.editorControl!; }
 	private queryEditorContainer!: HTMLElement;
+	private searchResultContainer!: HTMLElement;
 	private dimension?: DOM.Dimension;
 	private inputPatternIncludes!: IncludePatternInputWidget;
 	private inputPatternExcludes!: ExcludePatternInputWidget;
@@ -135,8 +136,8 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 	protected override createEditor(parent: HTMLElement) {
 		DOM.append(parent, this.container);
 		this.queryEditorContainer = DOM.append(this.container, DOM.$('.query-container'));
-		const searchResultContainer = DOM.append(this.container, DOM.$('.search-results'));
-		super.createEditor(searchResultContainer);
+		this.searchResultContainer = DOM.append(this.container, DOM.$('.search-results'));
+		super.createEditor(this.searchResultContainer);
 		this.registerEditorListeners();
 
 		const scopedContextKeyService = assertReturnsDefined(this.scopedContextKeyService);
@@ -283,7 +284,14 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 			if (!this.updatingModelForSearch) {
 				this.getInput()?.setDirty(true);
 			}
+			this.updateEmptyState();
 		}));
+		this._register(this.searchResultEditor.onDidChangeModel(() => this.updateEmptyState()));
+	}
+
+	private updateEmptyState(): void {
+		this.container.classList.toggle('search-editor-empty', this.searchResultEditor.getModel()?.getValueLength() === 0);
+		this.reLayout();
 	}
 
 	override getControl() {
@@ -666,6 +674,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 
 	override layout(dimension: DOM.Dimension) {
 		this.dimension = dimension;
+		DOM.size(this.container, dimension.width, dimension.height);
 		this.reLayout();
 	}
 
@@ -679,10 +688,14 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 
 	private reLayout() {
 		if (this.dimension) {
-			const configuredOffset = Number.parseFloat(DOM.getWindow(this.queryEditorContainer).getComputedStyle(this.queryEditorContainer).getPropertyValue('--search-editor-query-layout-offset'));
-			const queryEditorWidth = this.dimension.width - (Number.isFinite(configuredOffset) ? configuredOffset : DEFAULT_QUERY_EDITOR_LAYOUT_OFFSET);
-			this.queryEditorWidget.setWidth(queryEditorWidth);
-			this.searchResultEditor.layout({ height: this.dimension.height - DOM.getTotalHeight(this.queryEditorContainer), width: this.dimension.width });
+			const queryStyle = DOM.getWindow(this.queryEditorContainer).getComputedStyle(this.queryEditorContainer);
+			const configuredOffset = Number.parseFloat(queryStyle.getPropertyValue('--search-editor-query-layout-offset'));
+			const queryWidth = queryStyle.maxWidth === 'none' ? this.dimension.width : this.queryEditorContainer.clientWidth;
+			const queryEditorWidth = Math.max(0, queryWidth - (Number.isFinite(configuredOffset) ? configuredOffset : DEFAULT_QUERY_EDITOR_LAYOUT_OFFSET));
+			const controlsHidden = queryStyle.getPropertyValue('--search-editor-query-controls-hidden').trim() === 'true';
+			this.queryEditorWidget.setWidth(queryEditorWidth, controlsHidden);
+			this.searchResultEditor.updateOptions({ tabIndex: controlsHidden ? -1 : 0 });
+			this.searchResultEditor.layout({ height: this.searchResultContainer.clientHeight, width: this.searchResultContainer.clientWidth });
 			this.inputPatternExcludes.setWidth(queryEditorWidth);
 			this.inputPatternIncludes.setWidth(queryEditorWidth);
 		}

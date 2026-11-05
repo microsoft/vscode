@@ -6,12 +6,13 @@
 import assert from 'assert';
 import { constObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { mock } from '../../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { ContextKeyValue, IContext } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IRemoteAgentHostConnectionInfo, RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { INotificationService, type INotification, type INotificationHandle } from '../../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
@@ -23,17 +24,18 @@ import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common
 import { buildLocalCopilotLogsUri, buildRemoteCopilotLogsUri, getCopilotCliSessionRawId, resolveEventsUri } from '../../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
 import { IAgentHostSessionsProvider } from '../../../../../common/agentHostSessionsProvider.js';
 import { IChat } from '../../../../../services/sessions/common/session.js';
-import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ISessionsManagementService } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { IsAgentHostSession } from '../../browser/agentHostSkillButtons.js';
+import { IsAgentHostSession } from '../../../../../services/sessions/browser/sessionScopedContextKeys.js';
 import { OpenAgentHostStateFileAction } from '../../browser/openAgentHostStateFileAction.js';
+import { stubMissingSessionHostsFromSessionsService } from '../../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Open Agent Host State File', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	const userHome = URI.file('/home/me');
+	const copilotHome = URI.file('/home/me/.copilot');
 
 	function makeRemoteConn(address: string, defaultDirectory: string | undefined): IRemoteAgentHostConnectionInfo {
 		return {
@@ -81,19 +83,18 @@ suite('Open Agent Host State File', () => {
 	});
 
 	test('local AH copilotcli session resolves to ~/.copilot/session-state/<id>/events.jsonl', () => {
-		const result = resolveEventsUri(URI.parse('agent-host-copilotcli:/abc'), userHome, () => undefined);
+		const result = resolveEventsUri(URI.parse('agent-host-copilotcli:/abc'), copilotHome, () => undefined);
 		assert.deepStrictEqual(
 			{ kind: result.kind, resource: result.kind === 'ok' ? result.resource.toString() : undefined },
 			{ kind: 'ok', resource: 'file:///home/me/.copilot/session-state/abc/events.jsonl' },
 		);
 	});
 
-	test('local AH copilotcli session resolves from COPILOT_HOME', () => {
+	test('local AH copilotcli session resolves from a configured Copilot home', () => {
 		const result = resolveEventsUri(
 			URI.parse('agent-host-copilotcli:/abc'),
-			userHome,
+			URI.file('/custom/copilot'),
 			() => undefined,
-			{ COPILOT_HOME: '/custom/copilot' },
 		);
 		assert.deepStrictEqual(
 			{ kind: result.kind, resource: result.kind === 'ok' ? result.resource.toString() : undefined },
@@ -107,7 +108,7 @@ suite('Open Agent Host State File', () => {
 		assert.deepStrictEqual({
 			rawId: getCopilotCliSessionRawId(URI.parse('agent-host-copilotcli:/abc')),
 			nonCopilotRawId: getCopilotCliSessionRawId(URI.parse('agent-host-copilot:/abc')),
-			localLogs: buildLocalCopilotLogsUri(userHome).toString(),
+			localLogs: buildLocalCopilotLogsUri(copilotHome).toString(),
 			remoteLogs: remoteLogs ? {
 				scheme: remoteLogs.scheme,
 				authority: remoteLogs.authority,
@@ -125,15 +126,15 @@ suite('Open Agent Host State File', () => {
 		});
 	});
 
-	test('local copilot log root resolves from COPILOT_HOME', () => {
+	test('local copilot log root resolves from a configured Copilot home', () => {
 		assert.strictEqual(
-			buildLocalCopilotLogsUri(userHome, { COPILOT_HOME: '/custom/copilot' }).toString(),
+			buildLocalCopilotLogsUri(URI.file('/custom/copilot')).toString(),
 			'file:///custom/copilot/logs',
 		);
 	});
 
 	test('EH CLI copilotcli session resolves to ~/.copilot/session-state/<id>/events.jsonl', () => {
-		const result = resolveEventsUri(URI.parse('copilotcli:/abc'), userHome, () => undefined);
+		const result = resolveEventsUri(URI.parse('copilotcli:/abc'), copilotHome, () => undefined);
 		assert.deepStrictEqual(
 			{ kind: result.kind, resource: result.kind === 'ok' ? result.resource.toString() : undefined },
 			{ kind: 'ok', resource: 'file:///home/me/.copilot/session-state/abc/events.jsonl' },
@@ -144,7 +145,7 @@ suite('Open Agent Host State File', () => {
 		const conn = makeRemoteConn('localhost:4321', '/home/remote');
 		const result = resolveEventsUri(
 			URI.parse('remote-localhost__4321-copilotcli:/xyz'),
-			userHome,
+			copilotHome,
 			authority => authority === 'localhost__4321' ? conn : undefined,
 		);
 		assert.deepStrictEqual(
@@ -156,7 +157,7 @@ suite('Open Agent Host State File', () => {
 	test('remote scheme without an active connection returns remote-not-connected', () => {
 		const result = resolveEventsUri(
 			URI.parse('remote-myhost-copilotcli:/abc'),
-			userHome,
+			copilotHome,
 			() => undefined,
 		);
 		assert.deepStrictEqual(result, { kind: 'remote-not-connected', authority: 'myhost' });
@@ -166,19 +167,19 @@ suite('Open Agent Host State File', () => {
 		const conn = makeRemoteConn('myhost', undefined);
 		const result = resolveEventsUri(
 			URI.parse('remote-myhost-copilotcli:/abc'),
-			userHome,
+			copilotHome,
 			authority => authority === 'myhost' ? conn : undefined,
 		);
 		assert.deepStrictEqual(result, { kind: 'remote-no-home', authority: 'myhost' });
 	});
 
 	test('unknown scheme returns unsupported-scheme', () => {
-		const result = resolveEventsUri(URI.parse('claude:/abc'), userHome, () => undefined);
+		const result = resolveEventsUri(URI.parse('claude:/abc'), copilotHome, () => undefined);
 		assert.deepStrictEqual(result, { kind: 'unsupported-scheme', scheme: 'claude' });
 	});
 
 	test('missing session resource returns no-session', () => {
-		const result = resolveEventsUri(undefined, userHome, () => undefined);
+		const result = resolveEventsUri(undefined, copilotHome, () => undefined);
 		assert.deepStrictEqual(result, { kind: 'no-session' });
 	});
 
@@ -231,7 +232,8 @@ suite('Open Agent Host State File', () => {
 			override readonly activeChat = constObservable(activeChat);
 		}();
 		const sessionsService = new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable(activeSession);
+			readonly activeSession = constObservable(activeSession);
+			readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
 		}();
 		const provider = new class extends mock<IAgentHostSessionsProvider>() {
 			override readonly id = 'local-agent-host';
@@ -251,6 +253,7 @@ suite('Open Agent Host State File', () => {
 		instantiationService.stub(IEditorService, editorService);
 		instantiationService.stub(INotificationService, notificationService);
 		instantiationService.stub(ISessionsService, sessionsService);
+		stubMissingSessionHostsFromSessionsService(instantiationService);
 		instantiationService.stub(ISessionsProvidersService, sessionsProvidersService);
 
 		await new OpenAgentHostStateFileAction().run(instantiationService);
@@ -267,8 +270,22 @@ suite('Open Agent Host State File', () => {
 			values.length = 0;
 		}
 		await new OpenAgentHostStateFileAction().run(instantiationService);
+		const unresolved = {
+			mapped: [...calls.mapped],
+			resolved: [...calls.resolved],
+			requested: [...calls.requested],
+			opened: [...calls.opened],
+			notifications: [...calls.notifications],
+		};
+		for (const values of Object.values(calls)) {
+			values.length = 0;
+		}
+		// A session that is gone: the command does nothing.
+		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({ getSession: () => undefined, getSessionForChatResource: () => undefined }));
+		instantiationService.stub(ILogService, new NullLogService());
+		await new OpenAgentHostStateFileAction().run(instantiationService, URI.parse('agent-host-copilotcli:/gone'));
 
-		assert.deepStrictEqual({ resolved, unresolved: calls }, {
+		assert.deepStrictEqual({ resolved, unresolved, stale: calls }, {
 			resolved: {
 				mapped: ['agent-host-copilotcli:/client-session-id#peer-1'],
 				resolved: ['agent-host-copilotcli:/client-session-id'],
@@ -286,6 +303,7 @@ suite('Open Agent Host State File', () => {
 				opened: [],
 				notifications: ['The active Agent Host chat does not expose a state file.'],
 			},
+			stale: { mapped: [], resolved: [], requested: [], opened: [], notifications: [] },
 		});
 	});
 });

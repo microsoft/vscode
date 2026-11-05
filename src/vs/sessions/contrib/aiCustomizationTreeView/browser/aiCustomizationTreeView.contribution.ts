@@ -153,27 +153,27 @@ MenuRegistry.appendMenuItem(AICustomizationItemMenuId, {
 // Context menu items (shown on right-click)
 MenuRegistry.appendMenuItem(AICustomizationItemMenuId, {
 	command: { id: OPEN_AI_CUSTOMIZATION_FILE_ID, title: localize('open', "Open") },
-	group: '1_open',
+	group: 'navigation',
 	order: 1,
 });
 
 MenuRegistry.appendMenuItem(AICustomizationItemMenuId, {
 	command: { id: RUN_PROMPT_FROM_VIEW_ID, title: localize('runPrompt', "Run Prompt"), icon: Codicon.play },
-	group: '2_run',
-	order: 1,
+	group: 'navigation',
+	order: 2,
 	when: ContextKeyExpr.equals(AICustomizationItemTypeContextKey.key, PromptsType.prompt),
 });
 
 MenuRegistry.appendMenuItem(AICustomizationItemMenuId, {
 	command: { id: COPY_AI_CUSTOMIZATION_PATH_ID, title: localize('copyPath', "Copy Path") },
-	group: '3_modify',
+	group: '3_copy',
 	order: 1,
 });
 
 MenuRegistry.appendMenuItem(AICustomizationItemMenuId, {
-	command: { id: DELETE_AI_CUSTOMIZATION_FILE_ID, title: localize('delete', "Delete") },
-	group: '3_modify',
-	order: 10,
+	command: { id: DELETE_AI_CUSTOMIZATION_FILE_ID, title: localize('deleteWithConfirmation', "Delete...") },
+	group: '4_manage',
+	order: 1,
 });
 
 // Disable item action
@@ -241,7 +241,7 @@ registerAction2(class extends Action2 {
 // Context menu: Disable (shown when builtin item is enabled)
 MenuRegistry.appendMenuItem(AICustomizationItemMenuId, {
 	command: { id: DISABLE_AI_CUSTOMIZATION_ITEM_ID, title: localize('disable', "Disable") },
-	group: '4_toggle',
+	group: '1_state',
 	order: 1,
 	when: ContextKeyExpr.and(
 		ContextKeyExpr.equals(AICustomizationItemDisabledContextKey.key, false),
@@ -253,7 +253,7 @@ MenuRegistry.appendMenuItem(AICustomizationItemMenuId, {
 // Context menu: Enable (shown when builtin item is disabled)
 MenuRegistry.appendMenuItem(AICustomizationItemMenuId, {
 	command: { id: ENABLE_AI_CUSTOMIZATION_ITEM_ID, title: localize('enable', "Enable") },
-	group: '4_toggle',
+	group: '1_state',
 	order: 1,
 	when: ContextKeyExpr.and(
 		ContextKeyExpr.equals(AICustomizationItemDisabledContextKey.key, true),

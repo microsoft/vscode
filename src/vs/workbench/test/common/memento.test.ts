@@ -4,14 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { StorageScope, IStorageService, StorageTarget } from '../../../platform/storage/common/storage.js';
 import { Memento } from '../../common/memento.js';
 import { TestStorageService } from './workbenchTestServices.js';
 
 suite('Memento', () => {
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let storage: IStorageService;
 
 	setup(() => {
@@ -19,10 +18,6 @@ suite('Memento', () => {
 		Memento.clear(StorageScope.APPLICATION);
 		Memento.clear(StorageScope.PROFILE);
 		Memento.clear(StorageScope.WORKSPACE);
-	});
-
-	teardown(() => {
-		disposables.clear();
 	});
 
 	test('Loading and Saving Memento with Scopes', () => {
@@ -232,5 +227,4 @@ suite('Memento', () => {
 		assert.deepStrictEqual(workspaceMemento, {});
 	});
 
-	ensureNoDisposablesAreLeakedInTestSuite();
 });

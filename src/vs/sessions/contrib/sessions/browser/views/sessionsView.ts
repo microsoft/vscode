@@ -9,7 +9,7 @@ import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, derivedOpts, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, derivedOpts, IObservable, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { structuralEquals } from '../../../../../base/common/equals.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { Orientation } from '../../../../../base/browser/ui/sash/sash.js';
@@ -26,6 +26,7 @@ import { IThemeService } from '../../../../../platform/theme/common/themeService
 import { IViewPaneOptions, IViewPaneLocationColors, ViewPane } from '../../../../../workbench/browser/parts/views/viewPane.js';
 import { IViewDescriptorService } from '../../../../../workbench/common/views.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -37,8 +38,8 @@ import { ISessionsProvidersService } from '../../../../services/sessions/browser
 import { getSessionFilterOptions, ISessionFilterOption, sessionFilterKey } from './sessionsListFilters.js';
 import { AICustomizationShortcutsWidget } from '../aiCustomizationShortcutsWidget.js';
 import { AgentHostShortcutsWidget } from '../agentHostShortcutsWidget.js';
-import { Action2, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
-import { SubmenuEntryActionViewItem } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { Action2, IMenuService, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { getFlatContextMenuActions, SubmenuEntryActionViewItem } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IDropdownMenuActionViewItemOptions } from '../../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { agentsBackground } from '../../../../common/theme.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
@@ -46,7 +47,7 @@ import { IHostService } from '../../../../../workbench/services/host/browser/hos
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { PANEL_SECTION_BORDER } from '../../../../../workbench/common/theme.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
+import { getMainWindowHost, ISessionHost, ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { Menus } from '../../../../browser/menus.js';
@@ -55,12 +56,14 @@ import { IMobileSortGroupSheetItem, showMobileSortGroupSheet } from '../../../..
 import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
 import { IsPhoneLayoutContext, SessionsListRearrangeContext } from '../../../../common/contextkeys.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
+import { ISessionsListPresentation } from '../../../../services/presentation/browser/sessionsListPresentation.js';
 import { logSessionsListCompactViewState } from '../../../../common/sessionsTelemetry.js';
-import { SessionsListRearrangeExperimentState } from '../sessionsListRearrangeExperiment.js';
+import { IPinnedCanvasService } from '../../../canvases/browser/pinnedCanvases.js';
+import { SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING } from '../../../../common/sessionConfig.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { CustomizationsNavigationState } from '../customizationsNavigationState.js';
-import { createSessionsListNotices } from './sessionsListNotice.js';
+import { createSessionsListNotices, ISessionsListNoticeHost } from './sessionsListNotice.js';
 import { SessionStorageCleanupNotice } from './sessionStorageCleanupNotice.js';
 import { SessionsListNotification } from './sessionsListNotification.js';
 
@@ -155,9 +158,9 @@ export class SessionsView extends ViewPane {
 	private readonly sessionsHeaders = new Set<ISessionsHeaderElements>();
 	private isFindWidgetOpen = false;
 	sessionsControl: SessionsList | undefined;
-	archiveNotification: SessionsListNotification | undefined;
+	listNotification: SessionsListNotification | undefined;
 	private _customizationsWidget: AICustomizationShortcutsWidget | undefined;
-	private readonly sessionsListRearrangeExperimentState: SessionsListRearrangeExperimentState;
+	private readonly separateNavigation: IObservable<boolean>;
 	private readonly sessionsListRearrangeContext: IContextKey<boolean>;
 	private readonly customizationsNavigationVisible = observableValue(this, false);
 	private readonly customizationsNavigationState: CustomizationsNavigationState;
@@ -169,10 +172,14 @@ export class SessionsView extends ViewPane {
 	private sortingContextKey: IContextKey | undefined;
 	private compactContextKey: IContextKey<boolean> | undefined;
 	private workspaceGroupCappedContextKey: IContextKey<boolean> | undefined;
-	private readonly filterContextKeys = new Map<string, { key: IContextKey<boolean>; getDefault: () => boolean }>();
+	/** Context keys of filter menu toggles, each with a reader of the list state it mirrors. */
+	private readonly filterContextKeys = new Map<string, { key: IContextKey<boolean>; read: () => boolean }>();
 	private currentBodyHeight = 0;
 	private currentBodyWidth = 0;
 	private didInitializePaneSizes = false;
+
+	/** The host of the main window, whose session the list reveals. */
+	private readonly _mainWindowHost: ISessionHost;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -187,7 +194,7 @@ export class SessionsView extends ViewPane {
 		@IHoverService hoverService: IHoverService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
-		@ISessionsPartService private readonly sessionsPartService: ISessionsPartService,
+		@ISessionHostService sessionHostService: ISessionHostService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@ISessionComparisonService private readonly sessionComparisonService: ISessionComparisonService,
 		@IHostService private readonly hostService: IHostService,
@@ -195,9 +202,13 @@ export class SessionsView extends ViewPane {
 		@IStorageService private readonly storageService: IStorageService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
+		@IMenuService private readonly menuService: IMenuService,
+		@ISessionsListPresentation private readonly presentation: ISessionsListPresentation,
+		@IPinnedCanvasService private readonly pinnedCanvasService: IPinnedCanvasService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
-		this.sessionsListRearrangeExperimentState = this._register(instantiationService.createInstance(SessionsListRearrangeExperimentState));
+		this._mainWindowHost = getMainWindowHost(sessionHostService);
+		this.separateNavigation = observableConfigValue(SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING, false, configurationService);
 		this.customizationsNavigationState = this._register(instantiationService.createInstance(CustomizationsNavigationState, this.customizationsNavigationVisible));
 		this.sessionsListRearrangeContext = SessionsListRearrangeContext.bindTo(this.scopedContextKeyService);
 
@@ -279,6 +290,7 @@ export class SessionsView extends ViewPane {
 		const navigationContainer = DOM.append(sessionsContent, $('.agent-sessions-navigation-container'));
 		const sessionsHeaderContainer = DOM.append(sessionsContent, $('.agent-sessions-header-container'));
 		const header = this.createSessionsHeader(sessionsHeaderContainer, phoneLayout, this._register(new DisposableStore()));
+		const topNoticesContainer = DOM.append(sessionsContent, $('.agent-sessions-top-notices'));
 
 		// Container for the tree's find widget (toggled by the toolbar's Find action)
 		const findWidgetContainer = this.findWidgetContainer = DOM.append(header.row, $('.agent-sessions-find-widget-container'));
@@ -286,13 +298,20 @@ export class SessionsView extends ViewPane {
 
 		// Reserve DOM slot for mobile filter chips (phone layout only).
 		// The actual widget is created after sessionsControl is available.
+		this._register(this.presentation.renderHeader(sessionsContent));
 		const filterChipsContainer = isPhoneLayout(this.layoutService)
 			? DOM.append(sessionsContent, $('.mobile-session-filter-chips-slot'))
 			: undefined;
 
 		// Sessions List Control
 		this.sessionsControlContainer = DOM.append(sessionsContent, $('.agent-sessions-control-container'));
+		this._register(this.presentation.decorateList(
+			this.sessionsControlContainer,
+			() => this.sessionsControl?.refresh(),
+			() => !this.sessionsControl || this.sessionsControl.scrollTop === 0,
+		));
 		const sessionsControl = this.sessionsControl = this._register(this.instantiationService.createInstance(SessionsList, this.sessionsControlContainer, {
+			sectionRowHeight: this.presentation.sectionRowHeight,
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 			grouping: () => this.currentGrouping,
 			sorting: () => this.currentSorting,
@@ -300,9 +319,11 @@ export class SessionsView extends ViewPane {
 			showNavigationShortcuts: () => this.customizationsPresentation === 'treatment',
 			customizationsCount: this.customizationsNavigationState.totalCount,
 			customizationMigrationsAvailable: this.customizationsNavigationState.migrationAvailable,
+			customizationExtensionSuggestionsAvailable: this.customizationsNavigationState.extensionSuggestionsAvailable,
 			navigationContainer,
 			onDidChangeNavigationHeight: () => this.layoutSidebarSplitView(),
-			focusNewSessionInput: () => this.sessionsPartService.focusSession(this.sessionsService.activeSession.get()),
+			pinnedCanvases: this.pinnedCanvasService,
+			focusNewSessionInput: () => this.sessionsService.focusActiveSession(),
 			findWidgetContainer,
 			onSessionOpen: (resource, preserveFocus, sideBySide) => {
 				const session = this.sessionsManagementService.getSession(resource);
@@ -332,8 +353,9 @@ export class SessionsView extends ViewPane {
 		}));
 		const storageCleanupNotice = this._register(this.instantiationService.createInstance(SessionStorageCleanupNotice, () => sessionsControl.focus(), status));
 		sessionsContent.appendChild(storageCleanupNotice.domNode);
-		for (const notice of createSessionsListNotices(this.instantiationService, {
-			container: sessionsContent,
+		const createNoticeHost = (container: HTMLElement): ISessionsListNoticeHost => ({
+			container,
+			relayout: () => this.layoutSidebarSplitView(),
 			onDidChangeVisibility: this.onDidChangeBodyVisibility,
 			isVisible: () => this.isBodyVisible(),
 			focusSessionsList: () => sessionsControl.focus(),
@@ -353,9 +375,13 @@ export class SessionsView extends ViewPane {
 				};
 			},
 			announce: status,
+		});
+		for (const notice of createSessionsListNotices(this.instantiationService, {
+			top: createNoticeHost(topNoticesContainer),
+			bottom: createNoticeHost(sessionsContent),
 		})) { this._register(notice); }
 		this._register(this.onDidChangeBodyVisibility(visible => sessionsControl.setVisible(visible)));
-		this.archiveNotification = this._register(this.instantiationService.createInstance(SessionsListNotification, sessionsContent, () => sessionsControl.focus()));
+		this.listNotification = this._register(this.instantiationService.createInstance(SessionsListNotification, sessionsContent, () => sessionsControl.focus()));
 
 		// Toggle header label/actions visibility when find widget opens/closes
 		this._register(sessionsControl.onDidChangeFindOpenState(open => {
@@ -376,6 +402,7 @@ export class SessionsView extends ViewPane {
 
 		this.registerSessionFilters(sessionsControl);
 		this.registerArchivedFilter(sessionsControl);
+		this.registerResetFiltersAction();
 
 		// Refresh sessions when window gets focus to compensate for missing events
 		this._register(this.hostService.onDidChangeFocus(hasFocus => {
@@ -401,9 +428,10 @@ export class SessionsView extends ViewPane {
 			}));
 		}
 
-		// When the active session changes, reveal it in the sessions list.
+		// When the session the main window shows changes, reveal it in the sessions list: chat windows, which are other
+		// windows, do not select theirs.
 		this._register(autorun(reader => {
-			const activeSession = this.sessionsService.activeSession.read(reader);
+			const activeSession = this._mainWindowHost.session.read(reader);
 			if (activeSession) {
 				if (!sessionsControl.reveal(activeSession.resource)) {
 					sessionsControl.clearFocus();
@@ -433,7 +461,7 @@ export class SessionsView extends ViewPane {
 		const aiVisibilityChanged = observableSignalFromEvent(this, this.scopedContextKeyService.onDidChangeContext);
 		this._register(autorun(reader => {
 			aiVisibilityChanged.read(reader);
-			const treatment = this.sessionsListRearrangeExperimentState.rearrangeList.read(reader);
+			const treatment = this.separateNavigation.read(reader);
 			const sentiment = this.chatEntitlementService.sentimentObs.read(reader);
 			const aiEnabled = this.scopedContextKeyService.contextMatchesRules(ChatContextKeys.enabled);
 			const presentation = getCustomizationsPresentation(isPhoneLayout(this.layoutService), aiEnabled, sentiment.hidden === true, treatment);
@@ -469,11 +497,29 @@ export class SessionsView extends ViewPane {
 	}
 
 	private createSessionsHeader(parent: HTMLElement, phoneLayout: boolean, disposables: DisposableStore): ISessionsHeaderElements {
-		const header = renderSessionsHeader(parent, phoneLayout, this.instantiationService, this.scopedContextKeyService, disposables, () => this.sessionsControl?.reportArchivedFilterShown());
+		const header = renderSessionsHeader(parent, phoneLayout, this.instantiationService, this.scopedContextKeyService, disposables, () => this.sessionsControl?.reportFilterMenuShown());
 		this.sessionsHeaders.add(header);
 		disposables.add(toDisposable(() => this.sessionsHeaders.delete(header)));
 		this.updateHeaderLayout();
 		return header;
+	}
+
+	showApplicationFilters(): void {
+		const header = [...this.sessionsHeaders].find(header => DOM.isHTMLElement(header.row.offsetParent));
+		const anchor = header?.actions ?? this.sessionsControlContainer;
+		if (!anchor) {
+			return;
+		}
+		this.hoverService.hideHover(true);
+		const actions = getFlatContextMenuActions(this.menuService.getMenuActions(Menus.SessionsViewFilter, this.scopedContextKeyService));
+		const applicationIndex = actions.findIndex(action => action instanceof SubmenuItemAction && action.item.submenu === Menus.SessionsViewSource);
+		this.sessionsControl?.reportFilterMenuShown();
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => anchor,
+			getActions: () => actions,
+			autoSelectItem: applicationIndex >= 0 ? applicationIndex : true,
+			onHide: () => this.sessionsControl?.focus(),
+		});
 	}
 
 	private updateCustomizationsPresentation(presentation: CustomizationsPresentation): void {
@@ -593,7 +639,7 @@ export class SessionsView extends ViewPane {
 	}
 
 	private restoreLastSelectedSession(): void {
-		const activeSession = this.sessionsService.activeSession.get();
+		const activeSession = this._mainWindowHost.session.get();
 		if (activeSession && this.sessionsControl) {
 			this.sessionsControl.reveal(activeSession.resource);
 		}
@@ -610,7 +656,6 @@ export class SessionsView extends ViewPane {
 		));
 		const menuState = derivedOpts<{
 			readonly options: readonly (ISessionFilterOption & { readonly checked: boolean })[];
-			readonly environmentTitle: string;
 			readonly emptySourcesTitle: string | undefined;
 		}>({ owner: this, equalsFn: structuralEquals }, reader => {
 			changed.read(reader);
@@ -618,6 +663,7 @@ export class SessionsView extends ViewPane {
 			const options = getSessionFilterOptions(
 				this.sessionsManagementService.getSessions(),
 				environments,
+				(session, reader) => sessionsControl.isSessionListed(session, reader),
 				reader,
 			);
 			const environmentLabels = new Map(options
@@ -629,30 +675,21 @@ export class SessionsView extends ViewPane {
 				}
 			}
 			const includedEnvironments = [...environmentLabels].filter(([id]) => !sessionsControl.filters.isExcluded({ kind: 'environment', id }));
-			let environmentTitle = localize('environment', "Environment");
-			if (includedEnvironments.length === 0) {
-				environmentTitle = localize('environment.none', "Environment (None)");
-			} else if (includedEnvironments.length === 1) {
-				environmentTitle = localize('environment.selected', "Environment ({0})", includedEnvironments[0][1]);
-			} else if (includedEnvironments.length < environmentLabels.size) {
-				environmentTitle = localize('environment.multiple', "Environment ({0} Selected)", includedEnvironments.length);
-			}
 			const scopedOptions = options
 				.filter(option => option.filter.kind !== 'application' || !sessionsControl.filters.isExcluded({ kind: 'environment', id: option.filter.environment }))
 				.map(option => ({ ...option, checked: !sessionsControl.filters.isExcluded(option.filter) }));
 			return {
 				options: scopedOptions,
-				environmentTitle,
 				emptySourcesTitle: scopedOptions.some(option => option.filter.kind === 'application') ? undefined
 					: includedEnvironments.length === 0 ? localize('selectEnvironmentFirst', "Select an Environment First")
 						: localize('noCreatingApplications', "No Applications Found"),
 			};
 		});
 		this._register(autorun(reader => {
-			const { options, environmentTitle, emptySourcesTitle } = menuState.read(reader);
+			const { options, emptySourcesTitle } = menuState.read(reader);
 			reader.store.add(MenuRegistry.appendMenuItem(Menus.SessionsViewFilter, {
 				submenu: Menus.SessionsViewEnvironment,
-				title: environmentTitle,
+				title: localize('environment', "Environment"),
 				group: '2_filters',
 				order: 0,
 			}));
@@ -695,7 +732,7 @@ export class SessionsView extends ViewPane {
 		// Archived toggle
 		const archivedContextKey = new RawContextKey<boolean>('sessionsViewPane.filter.showArchived', !sessionsControl.isExcludeArchived());
 		const archivedContextKeyInstance = archivedContextKey.bindTo(this.scopedContextKeyService);
-		this.filterContextKeys.set(archivedContextKey.key, { key: archivedContextKeyInstance, getDefault: () => false });
+		this.filterContextKeys.set(archivedContextKey.key, { key: archivedContextKeyInstance, read: () => !sessionsControl.isExcludeArchived() });
 
 		// The archived filter label follows the configured archive action wording,
 		// so the action is re-registered whenever that setting changes.
@@ -730,10 +767,10 @@ export class SessionsView extends ViewPane {
 				registerArchivedFilter();
 			}
 		}));
+	}
 
-		// Reset filter action
-		const filterContextKeys = this.filterContextKeys;
-		const workspaceGroupCappedContextKey = this.workspaceGroupCappedContextKey;
+	private registerResetFiltersAction(): void {
+		const resetFilters = () => this.resetFilters();
 		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
@@ -747,13 +784,52 @@ export class SessionsView extends ViewPane {
 				});
 			}
 			override run() {
-				sessionsControl.resetFilters();
-				for (const { key, getDefault } of filterContextKeys.values()) {
-					key.set(getDefault());
-				}
-				workspaceGroupCappedContextKey?.set(sessionsControl.isWorkspaceGroupCapped());
+				resetFilters();
 			}
 		}));
+	}
+
+	/** Returns every filter and display option to its default, offering Undo. */
+	resetFilters(): void {
+		const sessionsControl = this.sessionsControl;
+		if (!sessionsControl) {
+			return;
+		}
+		const restore = sessionsControl.resetFilters();
+		this.syncFilterContextKeys(sessionsControl);
+		this.listNotification?.show({
+			message: localize('filtersReset', "Filters reset"),
+			help: localize('filtersResetHelp', "This notice appears after resetting the filters. Undo restores the previous filters, including which sessions are shown and how many each section lists."),
+			undo: async () => {
+				restore();
+				this.syncFilterContextKeys(sessionsControl);
+				status(localize('filtersRestored', "Filters restored."));
+			},
+		});
+	}
+
+	/** Shows or hides archived sessions, as the filter menu's toggle does. */
+	setShowArchived(show: boolean): void {
+		if (this.sessionsControl && this.sessionsControl.isExcludeArchived() === show) {
+			this.sessionsControl.setExcludeArchived(!show);
+			this.syncFilterContextKeys(this.sessionsControl);
+		}
+	}
+
+	/** Caps workspace, repository, and environment sections to their recent sessions, or shows all of them. */
+	setWorkspaceGroupCapped(capped: boolean): void {
+		if (this.sessionsControl && this.sessionsControl.isWorkspaceGroupCapped() !== capped) {
+			this.sessionsControl.setWorkspaceGroupCapped(capped);
+			this.syncFilterContextKeys(this.sessionsControl);
+		}
+	}
+
+	/** Updates the filter menu context keys to the list's current state, such as after resetting the filters or undoing that. */
+	private syncFilterContextKeys(sessionsControl: SessionsList): void {
+		for (const { key, read } of this.filterContextKeys.values()) {
+			key.set(read());
+		}
+		this.workspaceGroupCappedContextKey?.set(sessionsControl.isWorkspaceGroupCapped());
 	}
 
 	protected override layoutBody(height: number, width: number): void {
@@ -766,7 +842,7 @@ export class SessionsView extends ViewPane {
 			isPhoneLayout(this.layoutService),
 			this.scopedContextKeyService.contextMatchesRules(ChatContextKeys.enabled),
 			this.chatEntitlementService.sentiment.hidden === true,
-			this.sessionsListRearrangeExperimentState.rearrangeList.get(),
+			this.separateNavigation.get(),
 		));
 		this.layoutSidebarSplitView();
 
@@ -851,7 +927,7 @@ export class SessionsView extends ViewPane {
 	}
 
 	/**
-	 * Phone-only: present a bottom sheet with the four sort/group toggles.
+	 * Phone-only: present a bottom sheet with the sort and group toggles.
 	 * The sheet omits the desktop filtering, capping, and collapse actions.
 	 */
 	private openSortGroupSheet(): void {
@@ -880,6 +956,18 @@ export class SessionsView extends ViewPane {
 				groupTitle: groupTitle,
 			},
 			{
+				id: SessionsGrouping.Repository,
+				label: localize('groupByRepository', "Group by Repository"),
+				checked: this.currentGrouping === SessionsGrouping.Repository,
+				group: 'group',
+			},
+			{
+				id: SessionsGrouping.Environment,
+				label: localize('groupByEnvironment', "Group by Environment"),
+				checked: this.currentGrouping === SessionsGrouping.Environment,
+				group: 'group',
+			},
+			{
 				id: SessionsGrouping.Date,
 				label: localize('groupByTime', "Group by Time"),
 				checked: this.currentGrouping === SessionsGrouping.Date,
@@ -893,10 +981,22 @@ export class SessionsView extends ViewPane {
 			}
 			if (selectedId === SessionsSorting.Created || selectedId === SessionsSorting.Updated) {
 				this.setSorting(selectedId);
-			} else if (selectedId === SessionsGrouping.Workspace || selectedId === SessionsGrouping.Date) {
+			} else if (selectedId === SessionsGrouping.Workspace || selectedId === SessionsGrouping.Repository || selectedId === SessionsGrouping.Environment || selectedId === SessionsGrouping.Date) {
 				this.setGrouping(selectedId);
 			}
 		});
+	}
+
+	get grouping(): SessionsGrouping {
+		return this.currentGrouping;
+	}
+
+	get sorting(): SessionsSorting {
+		return this.currentSorting;
+	}
+
+	get compact(): boolean {
+		return this.currentCompact;
 	}
 
 	setGrouping(grouping: SessionsGrouping): void {

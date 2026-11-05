@@ -18,7 +18,7 @@ import { extUri, extUriIgnorePathCase, IExtUri, isAbsolutePath } from '../../../
 import { consumeStream, isReadableBufferedStream, isReadableStream, listenStream, newWriteableStream, peekReadable, peekStream, transform } from '../../../base/common/stream.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
-import { ensureFileSystemProviderError, etag, ETAG_DISABLED, FileChangesEvent, IFileDeleteOptions, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, hasFileAppendCapability, hasFileAtomicReadCapability, hasFileFolderCopyCapability, hasFileReadStreamCapability, hasOpenReadWriteCloseCapability, hasReadWriteCapability, ICreateFileOptions, IFileContent, IFileService, IFileStat, IFileStatWithMetadata, IFileStreamContent, IFileSystemProvider, IFileSystemProviderActivationEvent, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IReadFileOptions, IReadFileStreamOptions, IResolveFileOptions, IFileStatResult, IFileStatResultWithMetadata, IResolveMetadataFileOptions, IStat, IFileStatWithPartialMetadata, IWatchOptions, IWriteFileOptions, NotModifiedSinceFileOperationError, toFileOperationResult, toFileSystemProviderErrorCode, hasFileCloneCapability, TooLargeFileOperationError, hasFileAtomicDeleteCapability, hasFileAtomicWriteCapability, IWatchOptionsWithCorrelation, IFileSystemWatcher, IWatchOptionsWithoutCorrelation, hasFileRealpathCapability } from './files.js';
+import { ensureFileSystemProviderError, etag, ETAG_DISABLED, FileChangesEvent, IFileDeleteOptions, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, hasFileAppendCapability, hasFileAtomicReadCapability, hasFileFolderCopyCapability, hasFileReadStreamCapability, hasOpenReadWriteCloseCapability, hasReadWriteCapability, ICreateFileOptions, IFileContent, IFileService, IFileStat, IFileStatWithMetadata, IFileStreamContent, IFileSystemProvider, IFileSystemProviderActivationEvent, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IReadFileOptions, IReadFileStreamOptions, IResolveFileOptions, IFileStatResult, IFileStatResultWithMetadata, IResolveMetadataFileOptions, IStat, IFileStatWithPartialMetadata, IWatchOptions, IWriteFileOptions, NotModifiedSinceFileOperationError, toFileOperationResult, toFileSystemProviderErrorCode, hasFileCloneCapability, TooLargeFileOperationError, hasFileAtomicDeleteCapability, hasFileAtomicWriteCapability, IWatchOptionsWithCorrelation, IFileSystemWatcher, IWatchOptionsWithoutCorrelation, hasFileRealpathCapability, hasFileAtomicRenameCapability } from './files.js';
 import { readFileIntoStream } from './io.js';
 import { ILogService } from '../../log/common/log.js';
 import { ErrorNoTelemetry } from '../../../base/common/errors.js';
@@ -789,12 +789,12 @@ export class FileService extends Disposable implements IFileService {
 		return true;
 	}
 
-	async move(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata> {
+	async move(source: URI, target: URI, overwrite?: boolean, options?: { readonly atomic?: boolean }): Promise<IFileStatWithMetadata> {
 		const sourceProvider = this.throwIfFileSystemIsReadonly(await this.withWriteProvider(source), source);
 		const targetProvider = this.throwIfFileSystemIsReadonly(await this.withWriteProvider(target), target);
 
 		// move
-		const mode = await this.doMoveCopy(sourceProvider, source, targetProvider, target, 'move', !!overwrite);
+		const mode = await this.doMoveCopy(sourceProvider, source, targetProvider, target, 'move', !!overwrite, options?.atomic);
 
 		// resolve and send events
 		const fileStat = await this.resolve(target, { resolveMetadata: true });
@@ -817,21 +817,41 @@ export class FileService extends Disposable implements IFileService {
 		return fileStat;
 	}
 
-	private async doMoveCopy(sourceProvider: IFileSystemProvider, source: URI, targetProvider: IFileSystemProvider, target: URI, mode: 'move' | 'copy', overwrite: boolean): Promise<'move' | 'copy'> {
+	private async doMoveCopy(sourceProvider: IFileSystemProvider, source: URI, targetProvider: IFileSystemProvider, target: URI, mode: 'move' | 'copy', overwrite: boolean, atomic = false): Promise<'move' | 'copy'> {
 		if (source.toString() === target.toString()) {
 			return mode; // simulate node.js behaviour here and do a no-op if paths match
 		}
 
+		if (atomic && sourceProvider !== targetProvider) {
+			throw new Error(localize('atomicMoveProvider', "Atomic moves require the same file system provider."));
+		}
+		const atomicProvider = atomic && hasFileAtomicRenameCapability(sourceProvider) ? sourceProvider : undefined;
+		if (atomic && !atomicProvider) {
+			throw new Error(localize('atomicMoveUnsupported', "The file system provider does not support atomic rename."));
+		}
+
 		// validation
-		const { exists, isSameResourceWithDifferentPathCase } = await this.doValidateMoveCopy(sourceProvider, source, targetProvider, target, mode, overwrite);
+		const { exists, isSameResourceWithDifferentPathCase, targetStat } = await this.doValidateMoveCopy(sourceProvider, source, targetProvider, target, mode, overwrite, atomic);
+
+		if (atomic) {
+			if (!((await sourceProvider.stat(source)).type & FileType.File)) {
+				throw new Error(localize('atomicMoveSource', "Atomic moves only support files."));
+			}
+			if (targetStat && !(targetStat.type & FileType.File)) {
+				throw new Error(localize('atomicMoveTarget', "Atomic moves only support replacing files."));
+			}
+		}
 
 		// delete as needed (unless target is same resurce with different path case)
-		if (exists && !isSameResourceWithDifferentPathCase && overwrite) {
+		if (exists && !isSameResourceWithDifferentPathCase && overwrite && !atomic) {
 			await this.del(target, { recursive: true });
 		}
 
-		// create parent folders
-		await this.mkdirp(targetProvider, this.getExtUri(targetProvider).providerExtUri.dirname(target));
+		// Atomic sibling replacement already validated the source and thus its parent.
+		const { providerExtUri } = this.getExtUri(targetProvider);
+		if (!atomic || !providerExtUri.isEqual(providerExtUri.dirname(source), providerExtUri.dirname(target))) {
+			await this.mkdirp(targetProvider, providerExtUri.dirname(target));
+		}
 
 		// copy source => target
 		if (mode === 'copy') {
@@ -860,7 +880,11 @@ export class FileService extends Disposable implements IFileService {
 
 			// same provider: leverage rename() functionality
 			if (sourceProvider === targetProvider) {
-				await sourceProvider.rename(source, target, { overwrite });
+				if (atomicProvider) {
+					await atomicProvider.renameFileAtomic(source, target, { overwrite });
+				} else {
+					await sourceProvider.rename(source, target, { overwrite });
+				}
 
 				return mode;
 			}
@@ -916,7 +940,7 @@ export class FileService extends Disposable implements IFileService {
 		}
 	}
 
-	private async doValidateMoveCopy(sourceProvider: IFileSystemProvider, source: URI, targetProvider: IFileSystemProvider, target: URI, mode: 'move' | 'copy', overwrite?: boolean): Promise<{ exists: boolean; isSameResourceWithDifferentPathCase: boolean }> {
+	private async doValidateMoveCopy(sourceProvider: IFileSystemProvider, source: URI, targetProvider: IFileSystemProvider, target: URI, mode: 'move' | 'copy', overwrite?: boolean, atomic = false): Promise<{ exists: boolean; isSameResourceWithDifferentPathCase: boolean; targetStat: IStat | undefined }> {
 		let isSameResourceWithDifferentPathCase = false;
 
 		// Check if source is equal or parent to target (requires providers to be the same)
@@ -936,7 +960,17 @@ export class FileService extends Disposable implements IFileService {
 		}
 
 		// Extra checks if target exists and this is not a rename
-		const exists = await this.exists(target);
+		let targetStat: IStat | undefined;
+		if (atomic) {
+			try {
+				targetStat = await targetProvider.stat(target);
+			} catch (error) {
+				if (toFileSystemProviderErrorCode(error) !== FileSystemProviderErrorCode.FileNotFound) {
+					throw error;
+				}
+			}
+		}
+		const exists = atomic ? !!targetStat : await this.exists(target);
 		if (exists && !isSameResourceWithDifferentPathCase) {
 
 			// Bail out if target exists and we are not about to overwrite
@@ -954,7 +988,7 @@ export class FileService extends Disposable implements IFileService {
 			}
 		}
 
-		return { exists, isSameResourceWithDifferentPathCase };
+		return { exists, isSameResourceWithDifferentPathCase, targetStat };
 	}
 
 	private getExtUri(provider: IFileSystemProvider): { providerExtUri: IExtUri; isPathCaseSensitive: boolean } {

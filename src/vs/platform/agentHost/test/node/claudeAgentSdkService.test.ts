@@ -131,6 +131,25 @@ suite('ClaudeAgentSdkService metadata', () => {
 		assert.deepStrictEqual({ result: await service.listSessions(), calls: bindings.listCalls }, { result: [], calls: 2 });
 	});
 
+	test('saved history never downloads a missing SDK', async () => {
+		let downloads = 0;
+		const downloader = new class extends mock<IAgentSdkDownloader>() {
+			override isAvailable(): boolean { return true; }
+			override async resolveInstalledSdkRoot(): Promise<string | undefined> { return undefined; }
+			override async loadSdkRoot(): Promise<string> {
+				downloads++;
+				throw new Error('Unexpected SDK download');
+			}
+		};
+		const services = new ServiceCollection(
+			[ILogService, disposables.add(new NullLogService())],
+			[IAgentSdkDownloader, downloader],
+		);
+		const service = disposables.add(new InstantiationService(services)).createInstance(ClaudeAgentSdkService);
+		await assert.rejects(service.getSessionMessages('saved-chat'), /not installed/);
+		assert.strictEqual(downloads, 0);
+	});
+
 	test('does not retain transcript buffers through metadata strings', async function () {
 		this.timeout(30_000);
 		await promisify(execFile)(process.execPath, [

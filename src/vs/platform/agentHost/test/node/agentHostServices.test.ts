@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Event } from '../../../../base/common/event.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
@@ -14,7 +15,8 @@ import { createDecorator, IInstantiationService, ServiceIdentifier, _util } from
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { StrictServiceCollection } from '../../../instantiation/common/strictServiceCollection.js';
-import { ILogService } from '../../../log/common/log.js';
+import { ILogService, NullLogService } from '../../../log/common/log.js';
+import product from '../../../product/common/product.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { IRequestService } from '../../../request/common/request.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
@@ -28,10 +30,14 @@ import { IAgentHostClientConnectionService } from '../../node/agentHostClientCon
 import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
 import { IAgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
 import { IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
+import { IAgentHostPeerChatPersistenceService } from '../../node/agentHostPeerChatStore.js';
 import { IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { NullByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
+import { IAgentHostUtilityModelService } from '../../node/agentHostUtilityModelService.js';
 import { registerAgentHostCoreServices, registerAgentHostHostServices } from '../../node/agentHostServices.js';
+import { createAgentServiceFoundation } from '../../node/agentServiceFoundation.js';
 import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
+import { MockAgent } from './mockAgent.js';
 
 const ITestService = createDecorator<ITestService>('agentHostTestService');
 
@@ -100,6 +106,7 @@ function registerHostServices(services: ServiceCollection): void {
 		userDataPath: URI.file('/user-data'),
 		fetchFn: globalThis.fetch,
 		byok: { kind: 'renderer', bridgeRegistry: new NullByokLmBridgeRegistry() },
+		localModel: { kind: 'localUtilityProcess' },
 	});
 }
 
@@ -142,6 +149,40 @@ function assertCompleteAcyclicGraph(services: RecordingServiceCollection, extern
 suite('Agent Host service registrations', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('repository authentication events include accepted reauthorization and revocation only', async () => {
+		const foundation = createAgentServiceFoundation({
+			services: new ServiceCollection(),
+			owned: disposables.add(new DisposableStore()),
+			logService: new NullLogService(),
+			productService: { _serviceBrand: undefined, ...product },
+			transientProxyConfiguration: false,
+		});
+		const repoResource = foundation.gitHubEndpointService.getRepoResource();
+		const copilotResource = foundation.gitHubEndpointService.getCopilotResource();
+		let accept = true;
+		const provider = disposables.add(new class extends MockAgent {
+			override getProtectedResources() { return [repoResource, copilotResource]; }
+			override async authenticate() { return accept; }
+		}());
+		const tokens: (string | undefined)[] = [];
+		disposables.add(Event.filter(foundation.authenticationService.onDidAuthenticate, event => event.resource === repoResource.resource)(() => {
+			tokens.push(foundation.authenticationService.getAuthToken({ resource: repoResource.resource, scopes: ['repo'] }));
+		}));
+		const authenticate = (token: string) => foundation.authenticationService.authenticate({ resource: repoResource.resource, scopes: ['repo'], token }, [provider]);
+
+		await authenticate('same-token');
+		await authenticate('same-token');
+		await foundation.authenticationService.authenticate({ resource: copilotResource.resource, token: 'copilot-token' }, [provider]);
+		accept = false;
+		const rejected = await authenticate('refused-token');
+		await authenticate('');
+
+		assert.deepStrictEqual({ tokens, rejected }, {
+			tokens: ['same-token', 'same-token', undefined],
+			rejected: { authenticated: false },
+		});
+	});
+
 	test('resolves descriptors lazily and caches the instance', () => {
 		let createCount = 0;
 		const services = new StrictServiceCollection(
@@ -179,6 +220,7 @@ suite('Agent Host service registrations', () => {
 			IRequestService,
 			IInstantiationService,
 			IAgentHostStateManager,
+			IAgentHostPeerChatPersistenceService,
 			IAgentConfigurationService,
 			IAgentHostManagedSettingsService,
 			IAgentHostAuthenticationService,
@@ -205,6 +247,7 @@ suite('Agent Host service registrations', () => {
 			IRequestService,
 			IInstantiationService,
 			IAgentHostStateManager,
+			IAgentHostPeerChatPersistenceService,
 			IAgentConfigurationService,
 			IAgentHostManagedSettingsService,
 			IAgentHostAuthenticationService,
@@ -247,6 +290,23 @@ suite('Agent Host service registrations', () => {
 		const descriptor = services.get(IAgentHostOTelService);
 		assert.ok(descriptor instanceof SyncDescriptor);
 		assert.deepStrictEqual(descriptor.staticArguments, [{ fetchFn: globalThis.fetch }]);
+	});
+
+	test('enables BYOK utility model routing only for hosts with a renderer BYOK bridge', () => {
+		const staticArguments = (byok: Parameters<typeof registerAgentHostHostServices>[1]['byok']) => {
+			const services = new StrictServiceCollection();
+			registerAgentHostHostServices(services, { userDataPath: URI.file('/user-data'), fetchFn: globalThis.fetch, byok });
+			const descriptor = services.get(IAgentHostUtilityModelService);
+			assert.ok(descriptor instanceof SyncDescriptor);
+			return descriptor.staticArguments;
+		};
+		assert.deepStrictEqual({
+			local: staticArguments({ kind: 'renderer', bridgeRegistry: new NullByokLmBridgeRegistry() }),
+			remote: staticArguments({ kind: 'unavailable' }),
+		}, {
+			local: [true],
+			remote: [false],
+		});
 	});
 
 	test('descriptor-created services have one disposal owner', () => {
