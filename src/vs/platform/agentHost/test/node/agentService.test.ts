@@ -17356,6 +17356,13 @@ suite('AgentService (node dispatcher)', () => {
 			readonly importChatCalls: string[] = [];
 			importChatError: Error | undefined;
 			importedSelection: IAgentImportedChat | undefined;
+			readonly reloadedChats = new Emitter<URI>();
+			readonly onDidReloadChat = this.reloadedChats.event;
+
+			override dispose(): void {
+				this.reloadedChats.dispose();
+				super.dispose();
+			}
 
 			override async listExternalChats(): Promise<IAgentListedChat[]> {
 				return [];
@@ -17470,6 +17477,27 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual({ whileRunning, after: turnTexts() }, {
 				whileRunning: { turns: ['From the CLI'], running: 'sent-meanwhile' },
 				after: ['From the CLI', 'Back in the CLI', 'Sent meanwhile'],
+			});
+		});
+
+		test('a provider that reloads a chat while its turn runs replaces the chat\'s turns once the turn ends', async () => {
+			const { svc, agent, session, chat } = await createImportableExternalSession();
+			const userMessage = (messageId: string, content: string): IHistoryRecord => ({ type: 'message', session, role: 'user', messageId, content, toolRequests: [] });
+			const manager = getStateManager(svc);
+			const turnTexts = () => manager.getChatState(chat)?.turns.map(turn => turn.message.text);
+			agent.sessionMessages = [userMessage('msg-1', 'From the CLI')];
+			await svc.importSession(session);
+			manager.dispatchServerAction(chat, chatTurnStarted('taking-over', 'Taking over'));
+			agent.sessionMessages = [userMessage('msg-1', 'From the CLI'), userMessage('msg-2', 'Back in the CLI')];
+			agent.reloadedChats.fire(URI.parse(chat));
+			await timeout(0);
+			const whileRunning = turnTexts();
+			agent.sessionMessages = [...agent.sessionMessages, userMessage('msg-3', 'Taking over')];
+			manager.dispatchServerAction(chat, chatTurnComplete('taking-over', 1));
+			await waitForCondition(manager.onDidEmitEnvelope, () => turnTexts()?.length === 3, 'the reloaded turns should replace the chat\'s turns');
+			assert.deepStrictEqual({ whileRunning, after: turnTexts() }, {
+				whileRunning: ['From the CLI'],
+				after: ['From the CLI', 'Back in the CLI', 'Taking over'],
 			});
 		});
 

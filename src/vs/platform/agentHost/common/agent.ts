@@ -2348,6 +2348,11 @@ export interface IAgent {
 	readonly onDidDiscoverChats: Event<readonly IAgentDiscoveredChat[]>;
 	/** Passive transcript changes from another client; these must not start host-side turn execution. */
 	readonly onDidChangeChatHistory?: Event<IAgentChatHistoryChange>;
+	/**
+	 * The provider reloaded a loaded chat from storage, for example to take its session over from another process. The
+	 * host replaces the chat's turns with the provider's, as after an import that reloaded it ({@link IAgentImportedChat.reloaded}).
+	 */
+	readonly onDidReloadChat?: Event<URI>;
 	/** Observe another client's persisted transcript while a host client subscribes to this chat. */
 	watchChatHistory?(chat: URI): IDisposable;
 	/**

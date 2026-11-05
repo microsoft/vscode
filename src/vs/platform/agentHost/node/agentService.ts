@@ -1145,7 +1145,7 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _chatWatchOwners = new ResourceMap<string>();
 	/** External histories waiting for their chat's turn to end; delivered when its current owner goes idle (Block 4: the owner is read then). */
 	private readonly _pendingChatHistories = new Map<string, { readonly provider: IAgent; readonly chat: URI; readonly turns: readonly Turn[] }>();
-	/** Chats a provider reloaded on import whose turns wait for a running turn to end before they are replaced ({@link _replaceReloadedChatTurns}). */
+	/** Chats a provider reloaded from storage whose turns wait for a running turn to end before they are replaced ({@link _replaceReloadedChatTurns}). */
 	private readonly _pendingChatReloads = new Map<string, IAgent>();
 	private readonly _authService: AgentHostAuthenticationService;
 	/** Shared side-effect handler for action dispatch and session lifecycle. */
@@ -2131,6 +2131,9 @@ export class AgentService extends Disposable implements IAgentService {
 						this._logService.warn('[AgentService] Failed to refresh external chat history', error);
 					});
 				}));
+			}
+			if (provider.onDidReloadChat) {
+				subscriptions.add(provider.onDidReloadChat(chat => this._queueReloadedChatTurns(provider, chat)));
 			}
 			subscriptions.add(provider.onDidSpawnChat(e => this._onChatSpawned(e)));
 			this._providerSubscriptions.set(provider.id, subscriptions);

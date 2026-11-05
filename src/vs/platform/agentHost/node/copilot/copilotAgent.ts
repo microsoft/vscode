@@ -519,6 +519,18 @@ interface IReleasedCanvasContinuity {
 	readonly handoff: ICopilotCanvasHandoff;
 }
 
+/** The turn {@link CopilotAgent._claimSessionForTurn} claims a session for, as `sendMessage` received it. */
+interface ICopilotTurnClaim {
+	readonly turnId: string;
+	readonly senderClientId: string | undefined;
+	readonly clientType: AgentHostClientType;
+	readonly clientTelemetryContext: IAgentHostClientTelemetryContext | undefined;
+	readonly workingDirectories: readonly URI[] | undefined;
+	readonly stageRecorder: IAgentProviderSendStageRecorder | undefined;
+	readonly operationContext: URI | IAgentChatContext | undefined;
+	readonly enterUnboundedPhase: () => void;
+}
+
 interface IResolvedCopilotChatContext {
 	/** The chat's owner when the operation resolved it; operations re-resolve inside their queue. */
 	readonly ownerSession: URI;
@@ -1242,6 +1254,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private readonly _onDidChatProgress = this._register(new Emitter<AgentSignal>());
 	readonly onDidChatProgress = this._onDidChatProgress.event;
+	private readonly _onDidReloadChat = this._register(new Emitter<URI>());
+	/** Reports a chat reloaded from storage to take it over from another process, so the host replaces its turns. */
+	readonly onDidReloadChat = this._onDidReloadChat.event;
 
 	private readonly _managedSettingsResolver: CopilotManagedSettingsResolver;
 	private readonly _authenticationRequired = observableValueOpts<Omit<AuthRequiredParams, 'channel'> | undefined>(
@@ -9119,6 +9134,23 @@ export class CopilotAgent extends Disposable implements IAgent {
 			await this._applyPendingModelSelection(current, entry, token);
 			if (turnId) {
 				entry.resetTurnState(turnId, senderClientId, clientType, clientTelemetryContext);
+				let claimed: CopilotAgentSession | undefined;
+				try {
+					claimed = await this._claimSessionForTurn(current, entry, { turnId, senderClientId, clientType, clientTelemetryContext, workingDirectories, stageRecorder, operationContext, enterUnboundedPhase }, token);
+				} catch (err) {
+					// The turn never reached the runtime, so no runtime event ends it.
+					entry.discardActiveTurn();
+					throw err;
+				}
+				if (!claimed) {
+					return;
+				}
+				if (claimed !== entry) {
+					entry = claimed;
+					if (credential) {
+						entry.assertScopedCredential(credential);
+					}
+				}
 			}
 
 			try {
@@ -9136,6 +9168,62 @@ export class CopilotAgent extends Disposable implements IAgent {
 				throw err;
 			}
 		});
+	}
+
+	/**
+	 * Makes sure no other process is running a chat's session before its turn is sent. When one is, asks in the turn
+	 * whether to take the session over. Taking over reloads it from storage, so the turn continues after the other
+	 * process's turns, and the host replaces the chat's turns with the reloaded ones. Returns the session to send the
+	 * turn to, or `undefined` when the user cancelled the turn. Throws when the turn can't be sent, leaving the caller
+	 * to end it.
+	 */
+	private async _claimSessionForTurn(current: IResolvedCopilotChatContext, entry: CopilotAgentSession, turn: ICopilotTurnClaim, token: CancellationToken): Promise<CopilotAgentSession | undefined> {
+		const sdkSessionId = entry.sessionId;
+		let inUse = false;
+		try {
+			// The chat's own client: its runtime's lock on the session doesn't count as another process.
+			const client = await this._ensureClientForChat(current.chat);
+			inUse = (await client.rpc.sessions.checkInUse({ sessionIds: [sdkSessionId] })).inUse.includes(sdkSessionId);
+		} catch (err) {
+			this._logService.warn(`[Copilot:${current.ownerSessionId}] Couldn't check whether another process runs session ${sdkSessionId}; sending turn ${turn.turnId}`, err);
+		}
+		// The turn may have been stopped while the check ran.
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		if (!inUse) {
+			return entry;
+		}
+		turn.enterUnboundedPhase();
+		const answer = entry.askToTakeOverSessionInUse();
+		if (!answer) {
+			throw new ProtocolError(AhpErrorCodes.Conflict, localize('copilotAgent.sessionInUseTurn', "This session is open in another Copilot CLI process. Exit the session there, then send your message again."));
+		}
+		const takeOver = await answer;
+		// Stopping the turn also declines the question; the host has already ended the turn then.
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		if (!takeOver) {
+			this._logService.info(`[Copilot:${current.ownerSessionId}] Not sending turn ${turn.turnId}: session ${sdkSessionId} is open in another process`);
+			entry.cancelTurnBeforeSend();
+			return undefined;
+		}
+		this._logService.info(`[Copilot:${current.ownerSessionId}] Taking over session ${sdkSessionId} from another process; reloading it from storage`);
+		const selection = entry.appliedModelSelection;
+		entry.releaseTurnForReplacement();
+		await this._destroyLiveSession(entry, true);
+		this._persistedChatHistory.delete(current.chatKey);
+		const resumed = await this._ensureResolvedChatSession({ ...current, target: undefined }, turn.workingDirectories, turn.stageRecorder, token, turn.operationContext);
+		if (!resumed) {
+			throw new Error(`[Copilot] Couldn't reload session ${sdkSessionId} to take it over`);
+		}
+		if (selection) {
+			await this._applyModelSelection(current, resumed, selection, token);
+		}
+		this._onDidReloadChat.fire(current.chat);
+		resumed.resetTurnState(turn.turnId, turn.senderClientId, turn.clientType, turn.clientTelemetryContext);
+		return resumed;
 	}
 
 	/**

@@ -75,7 +75,7 @@ import { agentModelCatalogStatusKey } from '../../common/agentModelCatalogStatus
 import { isAgentModelFusion, readAgentModelAutoTierPromotionsMeta, readAgentModelAutoTiersMeta, readAgentModelFusionInlineChatTier } from '../../common/meta/agentModelMeta.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { AgentHostGitHubMcpServerEnabledSettingId, buildAgentHostOTelEnv } from '../../common/agentService.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostBrowserUseEnabledConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceTrustConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostBrowserUseEnabledConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceTrustConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { toClientPluginMcpDefaultCwdsMeta, toClientPluginStandaloneMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
@@ -85,7 +85,7 @@ import { subagentChatUri } from '../../common/agentHostChatMinting.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { ISessionDataService, type StoredAssistantResponsePart } from '../../common/sessionDataService.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
-import { buildDefaultChatUri, buildChatUri, buildSubagentChatUri, buildSubagentSessionUri, CustomizationLoadStatus, MessageKind, readSessionEhcliAdoptable, readSessionWorkspaceless, ResponsePartKind, ToolCallCancellationReason, ToolCallStatus, ToolResultContentType, TurnState, customizationId, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, type ClientPluginCustomization, type Customization, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, buildChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputResponseKind, buildSubagentChatUri, buildSubagentSessionUri, CustomizationLoadStatus, MessageKind, readSessionEhcliAdoptable, readSessionWorkspaceless, ResponsePartKind, ToolCallCancellationReason, ToolCallStatus, ToolResultContentType, TurnState, customizationId, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, type ClientPluginCustomization, type Customization, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
 import { ChatInteractivity, ChatOriginKind, CustomizationEnablementKind, CustomizationType, McpServerStatus, SessionStatus, ToolCallContributorKind, type AgentSelection, type McpServerCustomization, type ModelSelection, type ProtectedResourceMetadata, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { readChatInputState } from '../../common/meta/agentHostChatInputState.js';
 import { ActionType, AuthRequiredReason, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
@@ -888,6 +888,7 @@ class TestCopilotClient implements ITestCopilotClient {
 			},
 			checkInUse: async params => {
 				this.checkInUseRequests.push(params.sessionIds);
+				await this.checkInUseGate?.();
 				if (this.checkInUseRequests.length > (this.releaseInUseAfterChecks ?? Infinity)) {
 					this.inUseSessionIds.clear();
 				}
@@ -978,6 +979,8 @@ class TestCopilotClient implements ITestCopilotClient {
 	readonly inUseSessionIds = new Set<string>();
 	/** How many `sessions.checkInUse` calls report {@link inUseSessionIds} before that process releases them. */
 	releaseInUseAfterChecks: number | undefined;
+	/** Awaited by each `sessions.checkInUse` call before it answers. */
+	checkInUseGate: (() => Promise<void>) | undefined;
 	readonly checkInUseRequests: string[][] = [];
 	readonly modelListRequests: Parameters<CopilotModelsList>[0][] = [];
 	readonly pluginInstallRequests: Parameters<CopilotPluginsInstall>[0][] = [];
@@ -21349,6 +21352,83 @@ suite('CopilotAgent', () => {
 			assert.deepStrictEqual({ multiRoot, singleRoot }, {
 				multiRoot: { workingDirectory: URI.file('/repo-a').fsPath, additionalDirectories: [URI.file('/repo-b').fsPath] },
 				singleRoot: { workingDirectory: URI.file('/repo-a').fsPath, additionalDirectories: [] },
+			});
+		});
+
+		/** A chat whose runtime session another process holds; `events` records the questions, cancellations and reloads the turn causes. */
+		async function createHeldChat(options: { readonly answer?: 'takeOver' | 'cancel'; readonly rootConfig?: Record<string, unknown> } = {}) {
+			const client = new TestCopilotClient([], [{ id: 'claude-sonnet', name: 'Claude Sonnet' }]);
+			const runtimes: MockCopilotSession[] = [];
+			const createRuntime = () => {
+				const runtime = new MockCopilotSession();
+				runtimes.push(runtime);
+				return runtime as unknown as CopilotSession;
+			};
+			client.createSession = async () => createRuntime();
+			client.resumeSession = async () => createRuntime();
+			const { agent } = createTestAgentContext(disposables, { copilotClient: client, sessionDataService: disposables.add(new TestSessionDataService()), rootConfig: options.rootConfig });
+			afterTest(() => disposeAgent(agent));
+			await agent.authenticate('https://api.github.com', 'token');
+			const session = AgentSession.uri('copilotcli', 'held-elsewhere');
+			const chat = defaultChatUri(session);
+			const context = exactChatContext(session, chat, session);
+			const result = await provisionSession(agent, { session, workingDirectories: [URI.file('/workspace')] });
+			client.inUseSessionIds.add(JSON.parse(result.providerData!).sdkSessionId);
+			const events: string[] = [];
+			disposables.add(agent.onDidReloadChat(reloaded => events.push(`reloaded ${isEqual(reloaded, chat)}`)));
+			disposables.add(agent.onDidChatProgress(signal => {
+				if (signal.kind !== 'action') {
+					return;
+				}
+				if (signal.action.type === ActionType.ChatInputRequested) {
+					const question = signal.action.request.questions?.[0];
+					events.push(`asked ${question?.id}`);
+					if (options.answer) {
+						agent.respondToUserInputRequest(signal.action.request.id, ChatInputResponseKind.Accept, {
+							[question!.id]: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Selected, value: options.answer } },
+						});
+					}
+				} else if (signal.action.type === ActionType.ChatTurnCancelled) {
+					events.push('cancelled');
+				}
+			}));
+			const send = () => agent.chats.sendMessage(chat, 'hello', [URI.file('/workspace')], undefined, 'turn-1', undefined, context)
+				.then(() => 'resolved', err => isCancellationError(err) ? 'cancelled' : `failed ${(err as { code?: number }).code}`);
+			const running = () => agent['_resolveChatContext'](chat, context).target?.hasActiveTurn;
+			return { agent, client, chat, context, runtimes, events, send, running };
+		}
+
+		for (const answer of ['cancel', 'takeOver'] as const) {
+			test(`a turn in a chat that another process holds asks first, then ${answer === 'takeOver' ? 'takes the session over from storage' : 'ends without sending'}`, async () => {
+				const { runtimes, events, send } = await createHeldChat({ answer });
+				const outcome = await send();
+				assert.deepStrictEqual({ outcome, events, sends: runtimes.map(runtime => runtime.sendCalls), disconnects: runtimes.map(runtime => runtime.disconnectCalls) }, answer === 'takeOver'
+					? { outcome: 'resolved', events: ['asked sessionInUse', 'reloaded true'], sends: [0, 1], disconnects: [1, 0] }
+					: { outcome: 'resolved', events: ['asked sessionInUse', 'cancelled'], sends: [0], disconnects: [0] });
+			});
+		}
+
+		test('a turn in a chat that another process holds fails without asking when no one can answer, and leaves no turn running', async () => {
+			const { runtimes, events, send, running } = await createHeldChat({ rootConfig: { [AgentHostAutoReplyEnabledConfigKey]: true } });
+			assert.deepStrictEqual({ outcome: await send(), events, sends: runtimes.map(runtime => runtime.sendCalls), running: running() }, {
+				outcome: `failed ${AhpErrorCodes.Conflict}`, events: [], sends: [0], running: false,
+			});
+		});
+
+		test('stopping a turn while it checks whether another process holds the session neither asks nor sends it', async () => {
+			const { agent, client, chat, context, runtimes, events, send, running } = await createHeldChat({ answer: 'takeOver' });
+			const checking = new DeferredPromise<void>();
+			const release = new DeferredPromise<void>();
+			client.checkInUseGate = async () => {
+				checking.complete();
+				await release.p;
+			};
+			const sent = send();
+			await checking.p;
+			await agent.chats.abort(chat, context);
+			release.complete();
+			assert.deepStrictEqual({ outcome: await sent, events, sends: runtimes.map(runtime => runtime.sendCalls), running: running() }, {
+				outcome: 'resolved', events: [], sends: [0], running: false,
 			});
 		});
 
