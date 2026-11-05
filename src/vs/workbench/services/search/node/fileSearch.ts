@@ -8,6 +8,8 @@ import * as path from '../../../../base/common/path.js';
 import { Readable } from 'stream';
 import { StringDecoder } from 'string_decoder';
 import * as arrays from '../../../../base/common/arrays.js';
+import { Limiter } from '../../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import * as glob from '../../../../base/common/glob.js';
 import * as normalization from '../../../../base/common/normalization.js';
@@ -54,6 +56,11 @@ process.on('exit', () => {
 	killCmds.forEach(cmd => cmd());
 });
 
+/**
+ * Creating a process blocks the thread, so exists queries, which only need one match, search a few folders at a time.
+ */
+export const MAX_PARALLEL_EXISTS_FOLDER_TRAVERSALS = 4;
+
 type SpawnRipgrepCmd = typeof spawnRipgrepCmd;
 
 export class FileWalker {
@@ -75,6 +82,7 @@ export class FileWalker {
 	private excludeExceptionRuns = 0;
 	private excludeExceptionTime = 0;
 	private readonly killCmds = new Set<() => void>();
+	private readonly stopTokenSource = new CancellationTokenSource();
 
 	private folderExcludePatterns: Map<string, AbsoluteAndRelativeParsedExpression>;
 	private readonly nestedRootFolders = new Map<string, string[]>();
@@ -133,7 +141,19 @@ export class FileWalker {
 
 	cancel(): void {
 		this.isCanceled = true;
+		this.stop();
+	}
+
+	private stop(): void {
+		this.stopTokenSource.cancel();
 		this.killCmds.forEach(cmd => cmd());
+	}
+
+	private setLimitHit(): void {
+		this.isLimitHit = true;
+		if (this.exists) {
+			this.stop();
+		}
 	}
 
 	walk(folderQueries: IFolderQuery[], extraFiles: URI[], numThreads: number | undefined, onResult: (result: IRawFileMatch) => void, onMessage: (message: IProgressMessage) => void, done: (error: Error | null, isLimitHit: boolean) => void): void {
@@ -157,59 +177,37 @@ export class FileWalker {
 
 		this.cmdSW = StopWatch.create(false);
 
-		// For each root folder
-		this.parallel<IFolderQuery, void>(folderQueries, (folderQuery: IFolderQuery, rootFolderDone: (err: Error | null, result: void) => void) => {
-			this.call(this.folderTraversal, this, folderQuery, numThreads, onResult, onMessage, (err?: Error) => {
-				if (err) {
-					const errorMessage = toErrorMessage(err);
-					console.error(errorMessage);
-					this.errors.push(errorMessage);
-					rootFolderDone(err, undefined);
-				} else {
-					rootFolderDone(null, undefined);
-				}
-			});
-		}, (errors, _result) => {
+		this.traverseFolders(folderQueries, numThreads, onResult, onMessage).then(err => {
 			this.fileWalkSW!.stop();
-			const err = errors ? arrays.coalesce(errors)[0] : null;
 			done(err, this.isLimitHit);
 		});
 	}
 
-	private parallel<T, E>(list: T[], fn: (item: T, callback: (err: Error | null, result: E | null) => void) => void, callback: (err: Array<Error | null> | null, result: E[]) => void): void {
-		const results = new Array(list.length);
-		const errors = new Array<Error | null>(list.length);
-		let didErrorOccur = false;
-		let doneCount = 0;
-
-		if (list.length === 0) {
-			return callback(null, []);
+	private async traverseFolders(folderQueries: IFolderQuery[], numThreads: number | undefined, onResult: (result: IRawFileMatch) => void, onMessage: (message: IProgressMessage) => void): Promise<Error | null> {
+		const limiter = new Limiter<Error | undefined>(this.exists ? MAX_PARALLEL_EXISTS_FOLDER_TRAVERSALS : folderQueries.length);
+		try {
+			const errors = await Promise.all(folderQueries.map(folderQuery => limiter.queue(() => this.traverseFolder(folderQuery, numThreads, onResult, onMessage))));
+			return arrays.coalesce(errors)[0] ?? null;
+		} finally {
+			limiter.dispose();
 		}
-
-		list.forEach((item, index) => {
-			fn(item, (error, result) => {
-				if (error) {
-					didErrorOccur = true;
-					results[index] = null;
-					errors[index] = error;
-				} else {
-					results[index] = result;
-					errors[index] = null;
-				}
-
-				if (++doneCount === list.length) {
-					return callback(didErrorOccur ? errors : null, results);
-				}
-			});
-		});
 	}
 
-	private call<F extends Function>(fun: F, that: any, ...args: any[]): void {
-		try {
-			fun.apply(that, args);
-		} catch (e) {
-			args[args.length - 1](e);
+	private async traverseFolder(folderQuery: IFolderQuery, numThreads: number | undefined, onResult: (result: IRawFileMatch) => void, onMessage: (message: IProgressMessage) => void): Promise<Error | undefined> {
+		if (this.stopTokenSource.token.isCancellationRequested) {
+			return undefined;
 		}
+
+		const err = await new Promise<Error | undefined>(resolve => {
+			this.folderTraversal(folderQuery, numThreads, onResult, onMessage, resolve)
+				.catch(err => resolve(err instanceof Error ? err : new Error(String(err))));
+		});
+		if (err) {
+			const errorMessage = toErrorMessage(err);
+			console.error(errorMessage);
+			this.errors.push(errorMessage);
+		}
+		return err;
 	}
 
 	/**
@@ -245,9 +243,13 @@ export class FileWalker {
 
 		let ripgrep;
 		try {
-			ripgrep = await this.spawnRipgrep(this.config, folderQuery, this.config.includePattern, this.folderExcludePatterns.get(folderQuery.folder.fsPath)!.expression, numThreads, excludeExceptions);
+			ripgrep = await this.spawnRipgrep(this.config, folderQuery, this.config.includePattern, this.folderExcludePatterns.get(folderQuery.folder.fsPath)!.expression, numThreads, excludeExceptions, this.stopTokenSource.token);
 		} catch (err) {
 			cb(err instanceof Error ? err : new Error(String(err)));
+			return;
+		}
+		if (!ripgrep) {
+			cb();
 			return;
 		}
 		const cmd = ripgrep.cmd;
@@ -266,7 +268,7 @@ export class FileWalker {
 			cb(err);
 		};
 
-		if (this.isCanceled) {
+		if (this.stopTokenSource.token.isCancellationRequested) {
 			cmd.once('error', () => { });
 			cmd.once('close', () => done());
 			killCmd();
@@ -488,7 +490,7 @@ export class FileWalker {
 				onData(new Error(`command failed with error code ${code}: ${this.decodeData(stderr, encoding)}`));
 			} else {
 				if (this.exists && isExistsFromExitCode && code === 0) {
-					this.isLimitHit = true;
+					this.setLimitHit();
 				}
 				onData(null, '', true);
 			}
@@ -618,7 +620,7 @@ export class FileWalker {
 			this.resultCount++;
 
 			if (this.exists || (this.maxResults && this.resultCount > this.maxResults)) {
-				this.isLimitHit = true;
+				this.setLimitHit();
 			}
 
 			if (!this.isLimitHit) {

@@ -215,6 +215,56 @@ flakySuite('FileSearch-integration', function () {
 		assert.deepStrictEqual([await exists('nonexistent/**'), await exists('examples/**')], [false, true]);
 	});
 
+	test('File - exists queries over many folders find a match in the first or the last folder', async () => {
+		const root = getRandomTestPath(tmpdir(), 'vsctests', 'filesearch-exists-many-folders');
+		try {
+			const folders = Array.from({ length: 12 }, (_, index) => path.join(root, `folder${index}`));
+			for (const folder of folders) {
+				await fs.promises.mkdir(path.join(folder, 'src'), { recursive: true });
+				await fs.promises.writeFile(path.join(folder, 'src', 'index.js'), '');
+			}
+			await fs.promises.writeFile(path.join(folders[0], 'src', 'first.marker'), '');
+			await fs.promises.writeFile(path.join(folders[folders.length - 1], 'src', 'last.marker'), '');
+
+			const exists = async (includePattern: string) => {
+				const complete = await new SearchService().doFileSearch({
+					type: QueryType.File,
+					folderQueries: folders.map(folder => ({ folder: URI.file(folder) })),
+					includePattern: { [includePattern]: true },
+					exists: true
+				}, numThreads, () => { });
+				return complete.limitHit;
+			};
+
+			assert.deepStrictEqual([await exists('**/first.marker'), await exists('**/last.marker'), await exists('**/none.marker')], [true, true, false]);
+		} finally {
+			await fs.promises.rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('File - exists queries do not find a file of a nested folder that the nested folder excludes', async () => {
+		const root = getRandomTestPath(tmpdir(), 'vsctests', 'filesearch-exists-nested-folder');
+		try {
+			const nested = path.join(root, 'nested');
+			await fs.promises.mkdir(nested, { recursive: true });
+			await fs.promises.writeFile(path.join(nested, 'file.marker'), '');
+
+			const exists = async (nestedExcludePattern: { [pattern: string]: boolean }) => {
+				const complete = await new SearchService().doFileSearch({
+					type: QueryType.File,
+					folderQueries: [{ folder: URI.file(root) }, { folder: URI.file(nested), excludePattern: [{ pattern: nestedExcludePattern }] }],
+					includePattern: { '**/*.marker': true },
+					exists: true
+				}, numThreads, () => { });
+				return complete.limitHit;
+			};
+
+			assert.deepStrictEqual([await exists({}), await exists({ '*.marker': true })], [true, false]);
+		} finally {
+			await fs.promises.rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test('File - exclude exception with different casing reports each file once with its casing on disk', async () => {
 		const paths = await getRelativePaths({
 			type: QueryType.File,
