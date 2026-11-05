@@ -41,9 +41,6 @@ importers:
       vscode-grammar-updater:
         specifier: ^1.1.0
         version: 1.1.0
-      zod:
-        specifier: ^4.4.3
-        version: 4.4.3
 
   configuration-editing:
     dependencies:
@@ -593,6 +590,9 @@ importers:
       playwright:
         specifier: ^1.61.1
         version: 1.61.1
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
 
   microsoft-authentication:
     dependencies:

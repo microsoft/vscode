@@ -13,7 +13,6 @@
     "minimatch": "^3.1.5",
     "path-browserify": "^1.0.1",
     "tslib": "^2.6.3",
-    "vscode-grammar-updater": "^1.1.0",
-    "zod": "^4.4.3"
+    "vscode-grammar-updater": "^1.1.0"
   }
 }
