@@ -217,6 +217,58 @@ suite('Session chat view editor', () => {
 		assert.deepStrictEqual({ whileBoth, afterSecondGoes, afterBoth: titleRow.childElementCount }, { whileBoth: { headers: 1, ofSecond: 1 }, afterSecondGoes: { headers: 1, ofFirst: 1 }, afterBoth: 0 });
 	});
 
+	test('a view that disposes takes its session header out of the title row without laying out what it shows again, then disposes what it shows, then the services it created that with', () => {
+		const { instantiationService } = createSessionViewTestServices(disposables);
+		const events: string[] = [];
+		// The services of the view's own scope, which it creates its content with
+		const createChild = instantiationService.createChild;
+		instantiationService.createChild = (...args: Parameters<typeof createChild>) => {
+			const child = createChild.apply(instantiationService, args);
+			const disposeChild = child.dispose;
+			child.dispose = () => {
+				events.push('dispose services');
+				disposeChild.apply(child);
+			};
+			return child;
+		};
+		const titleRow = $('.title-row');
+		const attached = observableValue<ChatEditorContent[]>('attached', []);
+		const host: ISessionChatViewHost = {
+			session: constObservable(undefined),
+			window: constObservable(undefined),
+			header: constObservable({ element: titleRow, actionsElement: undefined, setShown: () => { } }),
+			showsTitle: constObservable(false),
+			active: constObservable(true),
+			createTitle: () => undefined,
+			attach: view => {
+				attached.set([...attached.get(), view], undefined);
+				return toDisposable(() => attached.set(attached.get().filter(candidate => candidate !== view), undefined));
+			},
+			view: derived(reader => attached.read(reader).at(-1)),
+		};
+		const view = instantiationService.createInstance(ChatEditorView, host);
+		instantiationService.createChild = createChild;
+		const content = view.sessionView;
+		const setHeaderHost = content.setHeaderHost;
+		content.setHeaderHost = (...args: Parameters<typeof setHeaderHost>) => {
+			events.push('lay out the header');
+			setHeaderHost.apply(content, args);
+		};
+		const disposeContent = content.dispose;
+		content.dispose = () => {
+			events.push(`dispose content, header in the title row: ${titleRow.childElementCount}`);
+			disposeContent.apply(content);
+		};
+		const headersBefore = titleRow.childElementCount;
+		view.dispose();
+
+		assert.deepStrictEqual({ headersBefore, events, headersAfter: titleRow.childElementCount }, {
+			headersBefore: 1,
+			events: ['dispose content, header in the title row: 0', 'dispose services'],
+			headersAfter: 0,
+		});
+	});
+
 	test('a chat editor shows exactly one chat, with no tabs of chats in it, also of a session of several chats: its chats are editors of their own', () => {
 		const { instantiationService, chatViews } = createSessionViewTestServices(disposables);
 		const host: ISessionChatViewHost = {

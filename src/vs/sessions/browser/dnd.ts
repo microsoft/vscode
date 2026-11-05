@@ -72,6 +72,14 @@ export function fillSessionDragData(event: DragEvent, session: ISession | undefi
 		[new DraggedSessionIdentifier(session?.sessionId, session?.resource)],
 		DraggedSessionIdentifier.prototype,
 	);
+	fillSessionDataTransfer(event, session);
+}
+
+/**
+ * Attaches the session to a drag on the drag's own data only, not on the shared {@link LocalSelectionTransfer}, such as to
+ * a drag that is of something else in the window, an editor, whose payload the shared transfer holds.
+ */
+export function fillSessionDataTransfer(event: DragEvent, session: ISession | undefined): void {
 	event.dataTransfer?.setData(SessionsDataTransfers.SESSION, JSON.stringify({ sessionId: session?.sessionId, resource: session?.resource.toString() }));
 }
 

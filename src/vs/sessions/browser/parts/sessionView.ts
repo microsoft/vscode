@@ -123,6 +123,12 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 	/** The title of the session header, wherever the header shows; see {@link setHeaderHost}. */
 	get headerTitleElement(): HTMLElement { return this._header.titleElement; }
 
+	/**
+	 * The services of its own scope, which what it shows is created with: disposed after it, as what disposes may still
+	 * use them, such as a composer whose input clears as it goes away; see {@link dispose}.
+	 */
+	private readonly _scopedServices = new DisposableStore();
+
 	constructor(
 		private readonly _hostOptions: ISessionViewHostOptions | undefined,
 		@IChatViewFactory private readonly _chatViewFactory: IChatViewFactory,
@@ -143,7 +149,7 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 
 		// Scoped context key service so toolbars hosted within can react to
 		// session-specific context keys (e.g. sessionIsCreated, sessionIsSticky).
-		const scopedContextKeyService = this._scopedContextKeyService = this._register(contextKeyService.createScoped(this.element));
+		const scopedContextKeyService = this._scopedContextKeyService = this._scopedServices.add(contextKeyService.createScoped(this.element));
 		this._sessionIsMaximizedKey = SessionIsMaximizedContext.bindTo(scopedContextKeyService);
 		const pickerVisibilityContextKeys = this._register(new SessionPickerVisibilityContextKeys(scopedContextKeyService));
 		this._register(autorun(reader => pickerVisibilityContextKeys.set(this.pickerVisibility.read(reader))));
@@ -152,7 +158,7 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 		// action view items (e.g. the changes diff stats in the header) can read it.
 		this.host = new ActiveSessionHost({ kind: SessionHostKind.Pane, parent: parentHost, session: this._sessionObs, contextKeyService: scopedContextKeyService });
 		this._register(sessionHostService.registerHost(this.host));
-		this._scopedInstantiationService = this._register(instantiationService.createChild(createSessionHostServices(scopedContextKeyService, this.host)));
+		this._scopedInstantiationService = this._scopedServices.add(instantiationService.createChild(createSessionHostServices(scopedContextKeyService, this.host)));
 
 		// Expose the content cap so aligned chat surfaces do not duplicate it.
 		this.element.style.setProperty('--session-view-centered-content-max-width', `${SessionView.CENTERED_CONTENT_MAX_WIDTH}px`);
@@ -363,7 +369,7 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 		this._headerHeight.set(barHeight, undefined);
 		const contentHeight = Math.max(0, height - barHeight);
 		const contentTop = top + barHeight;
-		this._standaloneSessionActivityBar?.layout(barHeight, contentHeight);
+		this._standaloneSessionActivityBar?.layout(barHeight);
 		const columnWidth = this._standaloneSessionActivityBar?.reservedWidth.get() ?? 0;
 		const previous = this._lastContentLayout;
 		if (previous?.view === view && previous.width === width && previous.height === contentHeight && previous.top === contentTop && previous.left === left && previous.gap === gap) {
@@ -638,5 +644,6 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 		this._lastContentLayout = undefined;
 		this._isVisibleObs.set(false, undefined);
 		super.dispose();
+		this._scopedServices.dispose();
 	}
 }

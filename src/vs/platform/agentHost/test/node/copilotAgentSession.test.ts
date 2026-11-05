@@ -72,7 +72,7 @@ import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js
 import { ActionType, isChatAction, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatUsageAction, type SessionAction, type StateAction } from '../../common/state/sessionActions.js';
 import { chatToolCallComplete, chatToolCallStart, chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
 import { TestChatOwnerRef } from './agentChatContextTestUtils.js';
-import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, createChatState, createSessionState, getInlineToolInput, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, withSessionPromptCacheState, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfoMeta, type MessageAttachment } from '../../common/state/sessionState.js';
+import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, createChatState, createSessionState, getInlineToolInput, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, withSessionPromptCacheState, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfoMeta, type MessageAttachment } from '../../common/state/sessionState.js';
 import { chatReducer, sessionReducer } from '../../common/state/sessionReducers.js';
 import { BackgroundWorkKind, TerminalClaimKind, type BackgroundWork, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { canStopBackgroundWork, toStoppableBackgroundWorkMeta } from '../../common/meta/agentHostBackgroundWorkStopMeta.js';
@@ -1525,6 +1525,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	dispatchSessionAction: (action: StateAction) => void;
 	storageService: IAgentHostStorageService;
 	customizationEnablementService: IAgentHostCustomizationEnablementService;
+	copilotApiService: TestCopilotApiService;
 } & ITestSessionConfiguration> {
 	const progressEmitter = disposables.add(new Emitter<AgentSignal>());
 	const signals: AgentSignal[] = options?.signals ?? [];
@@ -1964,6 +1965,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		},
 		storageService,
 		customizationEnablementService,
+		copilotApiService,
 	};
 }
 
@@ -24769,7 +24771,7 @@ Use the attached image as context.
 			assert.ok(hasPart, 'should have surfaced the message content');
 		});
 
-		test('history replay renders assistant tool requests when lifecycle events are missing', async () => {
+		test('history replay skips assistant tool requests without a recorded completion', async () => {
 			const { session, mockSession } = await createAgentSession(disposables);
 			mockSession.messages = [
 				{
@@ -24829,6 +24831,7 @@ Use the attached image as context.
 								toolCallId: part.toolCall.toolCallId,
 								toolName: part.toolCall.toolName,
 								status: part.toolCall.status,
+								reason: part.toolCall.status === ToolCallStatus.Cancelled ? part.toolCall.reason : undefined,
 								success: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.success : undefined,
 								content: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.content : undefined,
 							});
@@ -24847,8 +24850,8 @@ Use the attached image as context.
 				message: 'inspect the workspace',
 				parts: [
 					{ kind: ResponsePartKind.Markdown, content: 'I will inspect the workspace.' },
-					{ kind: ResponsePartKind.ToolCall, toolCallId: 'tc-view', toolName: 'view', status: ToolCallStatus.Completed, success: true, content: undefined },
-					{ kind: ResponsePartKind.ToolCall, toolCallId: 'tc-bash', toolName: 'bash', status: ToolCallStatus.Completed, success: false, content: [{ type: ToolResultContentType.Text, text: 'tests failed' }] },
+					{ kind: ResponsePartKind.ToolCall, toolCallId: 'tc-view', toolName: 'view', status: ToolCallStatus.Cancelled, reason: ToolCallCancellationReason.Skipped, success: undefined, content: undefined },
+					{ kind: ResponsePartKind.ToolCall, toolCallId: 'tc-bash', toolName: 'bash', status: ToolCallStatus.Completed, reason: undefined, success: false, content: [{ type: ToolResultContentType.Text, text: 'tests failed' }] },
 					{ kind: ResponsePartKind.Markdown, content: 'Done.' },
 				],
 			}]);
@@ -28180,7 +28183,7 @@ Use the attached image as context.
 			return created;
 		}
 
-		async function createMcpRoutingSession(connected = false, routingEnabled = true, serverEnabled = true) {
+		async function createMcpRoutingSession(connected = false, routingEnabled = true, serverEnabled = true, telemetryService?: ITelemetryService) {
 			const configuration = {
 				type: McpServerType.REMOTE,
 				url: 'https://docs.example.com/mcp',
@@ -28197,6 +28200,7 @@ Use the attached image as context.
 			activeClientToolSet.set('tool-search-client', toolSearchSnapshot.tools);
 			const serverCustomizationId = 'mcp-top-level:copilotcli:test-session-1:docs';
 			const created = await createAgentSession(disposables, {
+				telemetryService,
 				clientSnapshot: toolSearchSnapshot,
 				activeClientToolSet,
 				modelId: 'claude-opus-4.8',
@@ -28382,6 +28386,179 @@ Use the attached image as context.
 				changedConfigurationMissesCache: true,
 				persistedContainsSecret: false,
 			});
+		});
+
+		for (const routingEnabled of [false, true]) {
+			test(`MCP usage telemetry compares real tool use and zero-use turns with routing=${routingEnabled}`, async () => {
+				const telemetryService = new PlatformCapturingTelemetryService<Record<string, unknown>>();
+				const { session, runtime, mockSession } = await createMcpRoutingSession(true, routingEnabled, true, telemetryService);
+				runtime.configureClientTools!(clientToolConfiguration(true));
+				runtime.createClientSdkTools(true);
+				session.resetTurnState('zero-use');
+				session.discardActiveTurn();
+				session.resetTurnState('real-use');
+				mockSession.fire('tool.execution_start', { toolCallId: 'real-tool', toolName: 'mcp_docs_search', mcpServerName: 'docs', arguments: {} });
+				mockSession.fire('tool.execution_complete', { toolCallId: 'real-tool', success: true, result: { content: 'Found docs' } });
+				session.failActiveTurn({ errorType: 'test', message: 'A later operation failed' });
+				assert.deepStrictEqual(telemetryService.events
+					.filter(event => event.eventName === 'agentHost.mcpUsageStarted' || event.eventName === 'agentHost.mcpUsageCompleted')
+					.map(({ eventName, data }) => ({
+						eventName, turnId: data.turnId, routingEnabled: data.routingEnabled,
+						configuredServerCount: data.configuredServerCount, toolSearchActive: data.toolSearchActive,
+						mcpToolSuccesses: data.mcpToolSuccesses, serversUsed: data.serversUsed, result: data.result,
+					})), [
+					{ eventName: 'agentHost.mcpUsageStarted', turnId: 'zero-use', routingEnabled, configuredServerCount: 1, toolSearchActive: true, mcpToolSuccesses: undefined, serversUsed: undefined, result: undefined },
+					{ eventName: 'agentHost.mcpUsageCompleted', turnId: 'zero-use', routingEnabled, configuredServerCount: 1, toolSearchActive: true, mcpToolSuccesses: 0, serversUsed: 0, result: 'interrupted' },
+					{ eventName: 'agentHost.mcpUsageStarted', turnId: 'real-use', routingEnabled, configuredServerCount: 1, toolSearchActive: true, mcpToolSuccesses: undefined, serversUsed: undefined, result: undefined },
+					{ eventName: 'agentHost.mcpUsageCompleted', turnId: 'real-use', routingEnabled, configuredServerCount: 1, toolSearchActive: true, mcpToolSuccesses: 1, serversUsed: 1, result: 'failed' },
+				]);
+			});
+		}
+
+		test('MCP usage telemetry records search results and proxy success without claiming real MCP use', async () => {
+			const telemetryService = new PlatformCapturingTelemetryService<Record<string, unknown>>();
+			const { session, runtime, mockSession } = await createMcpRoutingSession(false, true, true, telemetryService);
+			runtime.configureClientTools!(clientToolConfiguration(true));
+			const [search, proxy] = runtime.createClientSdkTools(true);
+			assert.ok(proxy.description);
+			session.resetTurnState('proxy-only');
+			mockSession.fire('tool.execution_start', { toolCallId: 'search-proxy', toolName: RUNTIME_TOOL_SEARCH_TOOL_NAME, arguments: { query: 'docs' } });
+			const result = invokeClientToolHandler(search, 'search-proxy', { query: 'docs' }, [{ name: proxy.name, description: proxy.description, deferLoading: true }]);
+			session.handleClientToolCallComplete('search-proxy', { success: true, pastTenseMessage: 'Searched', content: [{ type: ToolResultContentType.Text, text: JSON.stringify([proxy.name]) }] });
+			await result;
+			mockSession.fire('tool.execution_start', { toolCallId: 'proxy', toolName: proxy.name, arguments: {} });
+			mockSession.fire('tool.execution_complete', { toolCallId: 'proxy', success: true, result: { content: 'Connected' } });
+			session.discardActiveTurn();
+			assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'agentHost.mcpUsageCompleted').map(({ data }) => ({
+				searches: data.searches, searchesReturningRoutingTools: data.searchesReturningRoutingTools,
+				routingToolCalls: data.routingToolCalls, routingToolSuccesses: data.routingToolSuccesses,
+				mcpToolCalls: data.mcpToolCalls, mcpToolSuccesses: data.mcpToolSuccesses, serversUsed: data.serversUsed,
+			})), [{ searches: 1, searchesReturningRoutingTools: 1, routingToolCalls: 1, routingToolSuccesses: 1, mcpToolCalls: 0, mcpToolSuccesses: 0, serversUsed: 0 }]);
+		});
+
+		for (const routingEnabled of [false, true]) {
+			test(`MCP authentication telemetry reports callback cancellation with routing=${routingEnabled}`, async () => {
+				const telemetryService = new PlatformCapturingTelemetryService<Record<string, unknown>>();
+				const { session, runtime, configuration } = await createMcpRoutingSession(false, routingEnabled, true, telemetryService);
+				session.resetTurnState('cancel-auth');
+				const authentication = runtime.handleMcpAuthRequest({ requestId: 'cancel-auth-request', serverName: 'docs', serverUrl: configuration.url, reason: 'initial' }, { sessionId: 'test-session-1' });
+				await timeout(0);
+				await session.abort();
+				await authentication;
+				assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'agentHost.mcpAuthentication').map(({ data }) => ({
+					turnId: data.turnId, routingEnabled: data.routingEnabled, result: data.result,
+				})), [{ turnId: 'cancel-auth', routingEnabled, result: 'cancelled' }]);
+			});
+		}
+
+		test('MCP usage telemetry stays open after a mapped subagent error', async () => {
+			const telemetryService = new PlatformCapturingTelemetryService<Record<string, unknown>>();
+			const { session, mockSession } = await createAgentSession(disposables, { telemetryService });
+			session.resetTurnState('root-turn');
+			mockSession.fire('subagent.started', { toolCallId: 'child', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore tests' }, { agentId: 'child-agent' });
+			mockSession.fire('session.error', { errorType: 'test', message: 'Child failed' }, { agentId: 'child-agent' });
+			mockSession.fire('tool.execution_start', { toolCallId: 'real-tool', toolName: 'mcp_docs_search', mcpServerName: 'docs' });
+			mockSession.fire('tool.execution_complete', { toolCallId: 'real-tool', success: true, result: { content: 'Found docs' } });
+			mockSession.fire('session.idle', {});
+			await timeout(0);
+			assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'agentHost.mcpUsageCompleted').map(({ data }) => ({
+				result: data.result, mcpToolSuccesses: data.mcpToolSuccesses, serversUsed: data.serversUsed,
+			})), [{ result: 'success', mcpToolSuccesses: 1, serversUsed: 1 }]);
+		});
+
+		for (const routing of [false, true]) {
+			test(`MCP usage telemetry counts client authentication cancellation for routing proxy=${routing}`, async () => {
+				const telemetryService = new PlatformCapturingTelemetryService<Record<string, unknown>>();
+				const { session, runtime, mockSession, configuration } = await createMcpRoutingSession(false, routing, true, telemetryService);
+				const tools = runtime.createClientSdkTools(true);
+				session.resetTurnState('cancel-tool');
+				mockSession.fire('tool.execution_start', { toolCallId: 'cancelled-tool', toolName: routing ? tools[1].name : 'mcp_docs_search', ...(routing ? {} : { mcpServerName: 'docs' }) });
+				const authentication = runtime.handleMcpAuthRequest({ requestId: 'cancel-tool-auth', serverName: 'docs', serverUrl: configuration.url, reason: 'upscope' }, { sessionId: 'test-session-1' });
+				await timeout(0);
+				session.handleClientToolCallComplete('cancelled-tool', { success: false, pastTenseMessage: 'Cancelled', error: { code: 'cancelled', message: 'Authentication cancelled' } });
+				await authentication;
+				mockSession.fire('tool.execution_complete', { toolCallId: 'cancelled-tool', success: false, error: { code: 'cancelled', message: 'Authentication cancelled' } });
+				session.discardActiveTurn();
+				assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'agentHost.mcpUsageCompleted').map(({ data }) => ({
+					mcpToolCalls: data.mcpToolCalls, mcpToolCancellations: data.mcpToolCancellations,
+					routingToolCalls: data.routingToolCalls, routingToolCancellations: data.routingToolCancellations,
+				})), [{ mcpToolCalls: routing ? 0 : 1, mcpToolCancellations: routing ? 0 : 1, routingToolCalls: routing ? 1 : 0, routingToolCancellations: routing ? 1 : 0 }]);
+			});
+		}
+
+		test('MCP usage telemetry counts SDK success before resource persistence when the turn fails', async () => {
+			const telemetryService = new PlatformCapturingTelemetryService<Record<string, unknown>>();
+			const writeStarted = new DeferredPromise<void>();
+			const writeGate = new DeferredPromise<void>();
+			const database = new class extends TestSessionDatabase {
+				override async storeToolResultResources(...args: Parameters<ISessionDatabase['storeToolResultResources']>): Promise<void> {
+					writeStarted.complete();
+					await writeGate.p;
+					await super.storeToolResultResources(...args);
+				}
+			}();
+			const { session, mockSession, signals } = await createAgentSession(disposables, { telemetryService, sessionDatabase: database });
+			session.resetTurnState('persisting-turn');
+			mockSession.fire('tool.execution_start', { toolCallId: 'resource-tool', toolName: 'mcp_docs_read', mcpServerName: 'docs' });
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'resource-tool', success: true,
+				result: { content: 'Document', contents: [{ type: 'resource', resource: { uri: 'demo://resource/1', text: 'Document' } }] },
+			});
+			await writeStarted.p;
+			session.failActiveTurn({ errorType: 'test', message: 'Failed during persistence' });
+			writeGate.complete();
+			await timeout(0);
+			assert.deepStrictEqual({
+				usage: telemetryService.events.filter(event => event.eventName === 'agentHost.mcpUsageCompleted').map(({ data }) => ({ result: data.result, mcpToolSuccesses: data.mcpToolSuccesses })),
+				publishedTools: getActions(signals).filter(action => action.type === ActionType.ChatToolCallComplete),
+			}, { usage: [{ result: 'failed', mcpToolSuccesses: 1 }], publishedTools: [] });
+		});
+
+		test('MCP authentication telemetry reports guarded cancellation during token lookup and abort', async () => {
+			const telemetryService = new PlatformCapturingTelemetryService<Record<string, unknown>>();
+			const { session, runtime, mockSession, copilotApiService } = await createAgentSession(disposables, { telemetryService, githubToken: 'existing-token' });
+			const lookupStarted = new DeferredPromise<void>();
+			const lookupGate = new DeferredPromise<void>();
+			copilotApiService.resolveApiEndpoint = async () => {
+				lookupStarted.complete();
+				await lookupGate.p;
+				return undefined;
+			};
+			session.resetTurnState('auth-owner');
+			const request = { requestId: 'before-abort', serverName: 'github', serverUrl: 'https://api.githubcopilot.com/mcp/', reason: 'initial' as const };
+			const before = runtime.handleMcpAuthRequest(request, { sessionId: 'test-session-1' });
+			await lookupStarted.p;
+			const abortGate = new DeferredPromise<void>();
+			mockSession.abortGate = abortGate.p;
+			const abort = session.abort();
+			const during = runtime.handleMcpAuthRequest({ ...request, requestId: 'during-abort' }, { sessionId: 'test-session-1' });
+			abortGate.complete();
+			await abort;
+			const results = await Promise.all([before, during]);
+			lookupGate.complete();
+			await timeout(0);
+			assert.deepStrictEqual({
+				results,
+				events: telemetryService.events.filter(event => event.eventName === 'agentHost.mcpAuthentication').map(({ data }) => ({ requestId: data.requestId, result: data.result })).sort((a, b) => String(a.requestId).localeCompare(String(b.requestId))),
+			}, {
+				results: [{ kind: 'cancelled' }, { kind: 'cancelled' }],
+				events: [{ requestId: 'before-abort', result: 'cancelled' }, { requestId: 'during-abort', result: 'cancelled' }],
+			});
+		});
+
+		test('MCP authentication telemetry keeps its original turn and excludes credentials', async () => {
+			const telemetryService = new PlatformCapturingTelemetryService<Record<string, unknown>>();
+			const { session, runtime, configuration } = await createMcpRoutingSession(false, true, true, telemetryService);
+			session.resetTurnState('auth-owner');
+			const authentication = runtime.handleMcpAuthRequest({ requestId: 'auth-telemetry', serverName: 'docs', serverUrl: configuration.url, reason: 'initial' }, { sessionId: 'test-session-1' });
+			await timeout(0);
+			session.resetTurnState('successor');
+			await session.resolveMcpAuthentication({ resource: configuration.url, scopes: [], token: 'private-access-token' });
+			await authentication;
+			assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'agentHost.mcpAuthentication').map(({ data }) => ({
+				turnId: data.turnId, routingEnabled: data.routingEnabled, requestId: data.requestId, hasToolCall: data.hasToolCall, result: data.result,
+				containsCredentials: JSON.stringify(data).includes('private-access-token') || JSON.stringify(data).includes(configuration.url),
+			})), [{ turnId: 'auth-owner', routingEnabled: true, requestId: 'auth-telemetry', hasToolCall: false, result: 'tokenProvided', containsCredentials: false }]);
 		});
 
 		test('configured MCP server adds a cautious routing proxy without cached tool metadata', async () => {
