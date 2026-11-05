@@ -345,6 +345,8 @@ suite('Chat window terminals', () => {
 		environment.mainGroup.open(editor('workbench.editors.terminal', moved.resource));
 		await pending.complete([acquired]);
 		await showing;
+		// The window's main part moves a terminal that opens there to the part that holds its terminals once it opened.
+		await timeout(0);
 
 		assert.deepStrictEqual({ acquired: environment.owners.get(5), created: environment.owners.get(30), moved: environment.owners.get(31) }, {
 			acquired: 'session-1',
