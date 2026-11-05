@@ -98,8 +98,7 @@ suite('Session Sync Changes', () => {
 		const sessionsService = new class extends mock<ISessionsService>() {
 			override readonly visibleSessions = visibleSessions;
 			override readonly visibleSessionPanes = visibleSessions;
-			override readonly activeSession = activeSession;
-			override readonly mainWindowActiveSession = this.activeSession;
+			readonly activeSession = activeSession;
 		}();
 		let factory: IActionViewItemFactory | undefined;
 		const actionViewItemService = new class extends NullActionViewItemService {

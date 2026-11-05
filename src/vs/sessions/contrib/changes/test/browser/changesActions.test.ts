@@ -59,8 +59,7 @@ suite('Changes Actions', () => {
 			}]);
 		});
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable<IActiveSession | undefined>(upcastPartial<IActiveSession>({ sessionId: 'active', resource: URI.parse('agent-host:active') }));
-			override readonly mainWindowActiveSession = this.activeSession;
+			readonly activeSession = constObservable<IActiveSession | undefined>(upcastPartial<IActiveSession>({ sessionId: 'active', resource: URI.parse('agent-host:active') }));
 			override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([]);
 		});
 		stubSessionHostsFromSessionsService(instantiationService);
@@ -195,7 +194,7 @@ suite('Changes Actions', () => {
 		}();
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		instantiationService.stub(IChangesViewService, changesViewService);
-		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { override readonly mainWindowActiveSession = constObservable(undefined); }());
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { readonly mainWindowActiveSession = constObservable(undefined); }());
 		stubSessionHostsFromSessionsService(instantiationService);
 		// The main window's context, bound for its session.
 		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
@@ -352,7 +351,7 @@ suite('Changes Actions', () => {
 		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
 		disposables.add(bindChangesetOperations({ session: activeSession, changes }, contextKeyService));
 		const instantiationService = disposables.add(new TestInstantiationService());
-		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { override readonly mainWindowActiveSession = activeSession; }());
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { readonly mainWindowActiveSession = activeSession; }());
 		stubSessionHostsFromSessionsService(instantiationService);
 		instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
 			override readonly activeSessionChangesetObs = changes.changesetObs;

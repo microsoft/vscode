@@ -17,6 +17,7 @@ import { ActiveSessionHost, getMainWindowHost, getWindowHost, ISessionHost, Sess
 import { FocusedSessionHostService, SessionHostService } from '../../browser/sessionHostService.js';
 import { IChat } from '../../common/session.js';
 import { IActiveSession } from '../../common/sessionsManagement.js';
+import { sessionsServiceWithGridHost } from './sessionHostTestUtils.js';
 
 function chat(path: string): IChat {
 	return upcastPartial<IChat>({ resource: URI.parse(`chat:/${path}`) });
@@ -64,7 +65,7 @@ suite('SessionHost', () => {
 	function createService(groups: readonly IEditorGroup[] = [], mainSession: IObservable<IActiveSession | undefined> = constObservable(sessionA)) {
 		const mainHost = host(SessionHostKind.MainWindow, undefined, mainSession, { windowId: mainWindow.vscodeWindowId });
 		const editorGroupsService = upcastPartial<IEditorGroupsService>({ getGroup: id => groups.find(group => group.id === id) });
-		const service = disposables.add(new SessionHostService(mainHost, editorGroupsService));
+		const service = disposables.add(new SessionHostService(sessionsServiceWithGridHost(mainHost), editorGroupsService));
 		return { service, mainHost };
 	}
 

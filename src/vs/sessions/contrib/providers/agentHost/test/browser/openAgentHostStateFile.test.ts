@@ -232,9 +232,8 @@ suite('Open Agent Host State File', () => {
 			override readonly activeChat = constObservable(activeChat);
 		}();
 		const sessionsService = new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable(activeSession);
-			override readonly mainWindowActiveSession = this.activeSession;
-			override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
+			readonly activeSession = constObservable(activeSession);
+			readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
 		}();
 		const provider = new class extends mock<IAgentHostSessionsProvider>() {
 			override readonly id = 'local-agent-host';

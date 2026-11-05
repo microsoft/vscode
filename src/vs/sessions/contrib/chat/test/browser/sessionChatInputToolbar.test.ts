@@ -69,6 +69,7 @@ import { GitHubPullRequestModel } from '../../../github/browser/models/githubPul
 import { GitHubIssueModel } from '../../../github/browser/models/githubIssueModel.js';
 import { buildSessionIssueSections, buildSessionPullRequestSections, computeSessionInputPillStats, findSessionOfChat, readLoadedSessionInputPillStats, SessionChatInputToolbar } from '../../browser/sessionChatInputToolbar.js';
 import { buildSessionArtifactSections, type ISessionArtifactActions } from '../../browser/sessionArtifacts.js';
+import { ITestSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('SessionChatInputToolbar', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -97,7 +98,7 @@ suite('SessionChatInputToolbar', () => {
 		instantiationService.stub(IExternalUriOpenerService, upcastPartial<IExternalUriOpenerService>({
 			getOpener: async () => upcastPartial<IExternalUriOpener>({ id: 'test-opener' }),
 		}));
-		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({
+		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
 			visibleSessions: constObservable([]),
 			activeSession: constObservable(undefined),
 		}));
@@ -1761,11 +1762,11 @@ suite('SessionChatInputToolbar', () => {
 		const { instantiationService, visibility } = createServices();
 		visibility.toggle(SessionChatPillKind.Subagents);
 		const opened: Parameters<ISessionsService['openChatToSide']>[] = [];
-		instantiationService.stub(ISessionsService, {
+		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
 			visibleSessions: constObservable([]),
 			activeSession: constObservable(undefined),
 			openChatToSide: async (...args) => { opened.push(args); },
-		});
+		}));
 		let entries: { label: string | undefined; select(): void }[] = [];
 		let hideDropdown: (() => void) | undefined;
 		instantiationService.stub(IActionWidgetService, {

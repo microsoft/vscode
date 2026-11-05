@@ -114,8 +114,7 @@ suite('Changes View Actions', () => {
 		});
 
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
-			override readonly mainWindowActiveSession = this.activeSession;
+			readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
 		});
 		stubSessionHostsFromSessionsService(instantiationService);
 
@@ -143,9 +142,8 @@ suite('Changes View Actions', () => {
 			const { mainHost } = stubSessionHosts(instantiationService, disposables);
 			instantiationService.stub(IFocusedSessionHostService, upcastPartial<IFocusedSessionHostService>({ getFocusedHost: () => mainHost }));
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-				override readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
-				override readonly mainWindowActiveSession = this.activeSession;
-				override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
+				readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
+				readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
 				override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>(visible);
 			});
 			stubSessionHostsFromSessionsService(instantiationService);

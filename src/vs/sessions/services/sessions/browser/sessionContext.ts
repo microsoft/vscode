@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IObservable } from '../../../../base/common/observable.js';
+import { constObservable, IObservable } from '../../../../base/common/observable.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IActiveSession } from '../common/sessionsManagement.js';
+import { hasActiveSessionSource } from './sessionHost.js';
 import { ISessionsService } from './sessionsService.js';
 
 export const ISessionContext = createDecorator<ISessionContext>('sessionContext');
@@ -61,7 +62,9 @@ class ActiveSessionContext implements ISessionContext {
 	constructor(
 		@ISessionsService sessionsService: ISessionsService,
 	) {
-		this.session = sessionsService.activeSession;
+		// The main window's: the session of the grid's active pane.
+		const gridHost = sessionsService.gridHost;
+		this.session = hasActiveSessionSource(gridHost) ? gridHost.activeSession : constObservable(undefined);
 	}
 }
 

@@ -116,10 +116,9 @@ suite('DesktopLayoutController', () => {
 		// The chat window that shows B has focus: a window-dependent read of the focused host or of the
 		// sessions service's active session would see B.
 		harness.instaService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable(sessionB);
-			override readonly mainWindowActiveSession = this.activeSession;
+			readonly activeSession = constObservable(sessionB);
 			override readonly visibleSessions = harness.visibleSessionsObs;
-			override readonly windowSessions = constObservable([]);
+			readonly windowSessions = constObservable([]);
 		});
 		harness.instaService.stub(ISessionHostService, sessionHostServiceOf(store, { mainWindowActiveSession: harness.activeSessionObs, visibleSessions: constObservable([]), windowSessions: constObservable([sessionB]) }));
 		harness.instaService.stub(IFocusedSessionHostService, focusedSessionHostServiceOf(constObservable(sessionB)));

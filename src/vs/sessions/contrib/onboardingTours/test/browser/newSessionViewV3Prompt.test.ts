@@ -1029,8 +1029,7 @@ async function runPrompt(
 	const workspace = createWorkspace(workspaceUri, 'r', options.includeGitHubInfo !== false);
 	const activeSession = createSession(workspace);
 	const sessionsService = new class extends mock<ISessionsService>() {
-		override readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
-		override readonly mainWindowActiveSession = this.activeSession;
+		readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
 	}();
 	const composerService = new class extends mock<INewSessionComposerService>() {
 		override readonly activeComposer = constObservable({

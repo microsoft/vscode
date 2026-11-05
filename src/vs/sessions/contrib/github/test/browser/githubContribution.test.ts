@@ -25,7 +25,6 @@ import { AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_QUERY, AUTOMATIC_MERGED_SESSI
 import { IGitHubService } from '../../browser/githubService.js';
 import { ChatInteractivity, IChat, IGitHubInfo, ISession, ISessionArtifact, ISessionCapabilities, ISessionChangeset, IChatCheckpoints, ISessionFileChange, ISessionWorkspace, SessionArtifactKind, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { focusedSessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
 import { isEqual } from '../../../../../base/common/resources.js';
@@ -41,7 +40,6 @@ suite('GitHubPullRequestPollingContribution', () => {
 	const store = new DisposableStore();
 	const logService = new NullLogService();
 	let sessionsManagementService: TestSessionsManagementService;
-	let sessionsService: ISessionsService;
 	let gitHubService: TestGitHubService;
 	let activeSession: ISettableObservable<IActiveSession | undefined>;
 	/** The session each host shows; a session appears once per host that shows it. */
@@ -51,10 +49,6 @@ suite('GitHubPullRequestPollingContribution', () => {
 		sessionsManagementService = new TestSessionsManagementService(store);
 		activeSession = observableValue<IActiveSession | undefined>('test.activeSession', undefined);
 		shownByHosts = observableValue<readonly ISession[]>('test.shownByHosts', []);
-		sessionsService = new class extends mock<ISessionsService>() {
-			override readonly activeSession = activeSession;
-			override readonly mainWindowActiveSession = this.activeSession;
-		};
 		gitHubService = new TestGitHubService();
 	});
 
@@ -335,7 +329,7 @@ suite('GitHubPullRequestPollingContribution', () => {
 		return new GitHubPullRequestPollingContribution(
 			gitHubService,
 			sessionsManagementService,
-			focusedSessionHostServiceOf(sessionsService.activeSession),
+			focusedSessionHostServiceOf(activeSession),
 			upcastPartial<ISessionHostService>({ isShown: (resource, reader) => shownByHosts.read(reader).some(session => isEqual(session.resource, resource)) }),
 			logService,
 		);

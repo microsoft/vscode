@@ -23,13 +23,13 @@ import { IWorkbenchLayoutService } from '../../../../../workbench/services/layou
 import { Menus } from '../../../../browser/menus.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IChat, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { BlockedSessionsIndicatorModel } from '../../browser/blockedSessionsIndicatorModel.js';
 import { SessionActionFeedback } from '../../browser/sessionActionFeedback.js';
 import { SessionsTitleBarWidget } from '../../browser/sessionsTitleBarWidget.js';
 import { ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
+import { ITestSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('SessionsTitleBarWidget - Remote Host', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -83,7 +83,7 @@ suite('SessionsTitleBarWidget - Remote Host', () => {
 				onDidChangeSessions: Event.None,
 				onDidChangeSessionTypes: onDidChangeSessionTypes.event,
 			}),
-			upcastPartial<ISessionsService>({ activeSession }),
+			upcastPartial<ITestSessionsService>({ activeSession }),
 			upcastPartial<ISessionHost>({ session: activeSession, chat: derived(reader => activeSession.read(reader)?.activeChat.read(reader)) }),
 			providersService,
 			upcastPartial<ICommandService>({}),

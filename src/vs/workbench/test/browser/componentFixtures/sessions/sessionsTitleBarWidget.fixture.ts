@@ -156,7 +156,7 @@ function renderTitleBar(ctx: ComponentFixtureContext, state: ITitleBarState): vo
 				[SESSIONS_CHAT_TABS_SETTING]: state.chatTabsMode ?? SessionsChatTabsMode.Multiple,
 			}));
 			reg.defineInstance(ISessionsService, new class extends mock<ISessionsService>() {
-				override readonly activeSession: IObservable<IActiveSession | undefined> = constObservable(state.activeSession);
+				readonly activeSession: IObservable<IActiveSession | undefined> = constObservable(state.activeSession);
 				override readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> = constObservable<readonly (IActiveSession | undefined)[]>([]);
 			}());
 			reg.defineInstance(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {

@@ -47,13 +47,12 @@ suite('Sessions - Workspace Folder Label Service', () => {
 			});
 		};
 		const sessionsService = new class extends mock<ISessionsService>() {
-			override readonly activeSession = observableValue<IActiveSession | undefined>(this, new class extends mock<IActiveSession>() {
+			readonly activeSession = observableValue<IActiveSession | undefined>(this, new class extends mock<IActiveSession>() {
 				override readonly workspace = session.workspace;
 				override readonly activeChat = observableValue<IChat>(this, new class extends mock<IChat>() {
 					override readonly workspace = session.workspace;
 				});
 			});
-			override readonly mainWindowActiveSession = this.activeSession;
 		};
 		const uriIdentityService = new class extends mock<IUriIdentityService>() {
 			override readonly extUri = extUri;
@@ -94,8 +93,7 @@ suite('Sessions - Workspace Folder Label Service', () => {
 			});
 		};
 		const sessionsService = new class extends mock<ISessionsService>() {
-			override readonly activeSession = observableValue<IActiveSession | undefined>(this, undefined);
-			override readonly mainWindowActiveSession = this.activeSession;
+			readonly activeSession = observableValue<IActiveSession | undefined>(this, undefined);
 		};
 		const sessionsManagementService = new class extends mock<ISessionsManagementService>() {
 			override getSessions(): ISession[] {

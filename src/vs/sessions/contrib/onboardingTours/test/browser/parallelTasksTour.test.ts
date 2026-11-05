@@ -60,7 +60,7 @@ suite('ParallelTasksTour', () => {
 				override readonly onDidStartSession = started.event;
 			}(),
 			new class extends mock<ISessionsService>() {
-				override readonly activeSession = activeSession;
+				readonly activeSession = activeSession;
 				override readonly initialRestoreComplete = initialRestoreComplete;
 			}(),
 			focusedSessionHostServiceOf(activeSession),

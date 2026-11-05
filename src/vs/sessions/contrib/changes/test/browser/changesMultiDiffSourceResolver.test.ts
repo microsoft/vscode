@@ -23,9 +23,9 @@ import { sessionHostServiceOf } from '../../../../services/sessions/test/browser
 
 function noSessions(): ISessionsService {
 	return new class extends mock<ISessionsService>() {
-		override readonly activeSession = constObservable<IActiveSession | undefined>(undefined);
-		override readonly mainWindowActiveSession = constObservable<IActiveSession | undefined>(undefined);
-		override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
+		readonly activeSession = constObservable<IActiveSession | undefined>(undefined);
+		readonly mainWindowActiveSession = constObservable<IActiveSession | undefined>(undefined);
+		readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
 		override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([]);
 	}();
 }
@@ -89,9 +89,9 @@ suite('ChangesMultiDiffSourceResolver', () => {
 		let chainsCreated = 0;
 		const visibleSession = upcastPartial<IActiveSession>({ sessionId: 'visible', resource: sessionResource });
 		const sessionsService = new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable<IActiveSession | undefined>(upcastPartial<IActiveSession>({ sessionId: 'active', resource: URI.parse('agent-host:active') }));
-			override readonly mainWindowActiveSession = constObservable<IActiveSession | undefined>(undefined);
-			override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
+			readonly activeSession = constObservable<IActiveSession | undefined>(upcastPartial<IActiveSession>({ sessionId: 'active', resource: URI.parse('agent-host:active') }));
+			readonly mainWindowActiveSession = constObservable<IActiveSession | undefined>(undefined);
+			readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
 			override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([visibleSession]);
 		}();
 		const changesViewService = new class extends mock<IChangesViewService>() {
@@ -186,9 +186,9 @@ suite('ChangesMultiDiffSourceResolver', () => {
 		const windowSessions = observableValue<readonly IActiveSession[]>('windowSessions', []);
 		const visibleSessions = observableValue<readonly (IActiveSession | undefined)[]>('visibleSessions', [mainWindowWrapper]);
 		const sessionsService = new class extends mock<ISessionsService>() {
-			override readonly activeSession = activeSession;
-			override readonly mainWindowActiveSession = mainWindowActiveSession;
-			override readonly windowSessions = windowSessions;
+			readonly activeSession = activeSession;
+			readonly mainWindowActiveSession = mainWindowActiveSession;
+			readonly windowSessions = windowSessions;
 			override readonly visibleSessions = visibleSessions;
 		}();
 		const management = new class extends mock<ISessionsManagementService>() {

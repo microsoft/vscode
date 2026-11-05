@@ -4,32 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getActiveWindow, hasWindow } from '../../../../base/browser/dom.js';
-import { mainWindow } from '../../../../base/browser/window.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { constObservable, derivedObservableWithCache, IObservable, IReader, recomputeInitiallyAndOnChange, observableValue } from '../../../../base/common/observable.js';
+import { derivedObservableWithCache, IObservable, IReader, recomputeInitiallyAndOnChange, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { GroupIdentifier } from '../../../../workbench/common/editor.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
-import { ActiveSessionHost, IFocusedSessionHostService, ISessionHost, ISessionHostService, hostShows, SessionHostKind } from './sessionHost.js';
+import { IFocusedSessionHostService, ISessionHost, ISessionHostService, hostShows, SessionHostKind } from './sessionHost.js';
 import { ISessionsService } from './sessionsService.js';
 
-/** The host of the main window: the session and chat of the active slot of its grid. */
-export class MainWindowSessionHost extends ActiveSessionHost {
-	constructor(
-		@ISessionsService sessionsService: ISessionsService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-	) {
-		super({
-			kind: SessionHostKind.MainWindow,
-			parent: undefined,
-			session: sessionsService.mainWindowActiveSession,
-			contextKeyService,
-			windowId: constObservable(mainWindow.vscodeWindowId),
-		});
+/**
+ * The host the main window's UI injects as {@link ISessionHost}: the grid's host, the instance the sessions service owns,
+ * not another one. Its constructor returns that instance; it has no state of its own. The grid host is not disposable, so
+ * disposing the services disposes nothing twice. Temporary: C10 removes it with the root registration.
+ */
+export interface MainWindowSessionHost extends ISessionHost { }
+export class MainWindowSessionHost {
+	constructor(@ISessionsService sessionsService: ISessionsService) {
+		return sessionsService.gridHost;
 	}
 }
 
@@ -58,13 +52,16 @@ export class SessionHostService extends Disposable implements ISessionHostServic
 	private readonly _hosts = observableValue<readonly ISessionHost[]>(this, []);
 	readonly hosts: IObservable<readonly ISessionHost[]> = this._hosts;
 
+	/** The host of the main window: the grid's host. Not part of {@link ISessionHostService}: UI injects the host it is in. */
+	readonly mainWindowHost: ISessionHost;
+
 	constructor(
-		/** The host of the main window. Not part of {@link ISessionHostService}: UI injects the host it is in. */
-		@ISessionHost readonly mainWindowHost: ISessionHost,
+		@ISessionsService sessionsService: ISessionsService,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 	) {
 		super();
-		this._register(this.registerHost(mainWindowHost));
+		this.mainWindowHost = sessionsService.gridHost;
+		this._register(this.registerHost(this.mainWindowHost));
 	}
 
 	registerHost(host: ISessionHost): IDisposable {
@@ -146,6 +143,7 @@ export class FocusedSessionHostService extends Disposable implements IFocusedSes
 	}
 }
 
-registerSingleton(ISessionHost, MainWindowSessionHost, InstantiationType.Delayed);
+// Eager: a delayed service is a proxy, not the grid host itself.
+registerSingleton(ISessionHost, MainWindowSessionHost, InstantiationType.Eager);
 registerSingleton(ISessionHostService, SessionHostService, InstantiationType.Delayed);
 registerSingleton(IFocusedSessionHostService, FocusedSessionHostService, InstantiationType.Delayed);

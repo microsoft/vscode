@@ -484,10 +484,10 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		override getSessions() { return []; }
 	});
 	instaService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-		override readonly activeSession = harness.activeSessionObs;
-		override readonly mainWindowActiveSession = harness.activeSessionObs;
+		readonly activeSession = harness.activeSessionObs;
+		readonly mainWindowActiveSession = harness.activeSessionObs;
 		override readonly visibleSessions = harness.visibleSessionsObs;
-		override readonly windowSessions = constObservable([]);
+		readonly windowSessions = constObservable([]);
 	});
 	stubSessionHostsFromSessionsService(instaService);
 	instaService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {

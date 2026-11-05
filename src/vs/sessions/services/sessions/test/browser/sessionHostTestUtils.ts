@@ -19,6 +19,25 @@ import { IChat } from '../../common/session.js';
 import { IActiveSession } from '../../common/sessionsManagement.js';
 
 /**
+ * The grid state a test models on its `ISessionsService` mock, from which the host stubs derive what the windows show:
+ * the session of the grid's active pane, the main window's when it differs, and the sessions of chat windows. None of it
+ * is part of `ISessionsService`: others read the windows' hosts.
+ */
+export interface ITestSessionsGridState {
+	readonly activeSession?: IObservable<IActiveSession | undefined>;
+	readonly mainWindowActiveSession?: IObservable<IActiveSession | undefined>;
+	readonly windowSessions?: IObservable<readonly IActiveSession[]>;
+}
+
+/** An `ISessionsService` mock with the grid state the host stubs derive from. */
+export type ITestSessionsService = ISessionsService & ITestSessionsGridState;
+
+/** A sessions service whose grid host is `gridHost`, for a real {@link SessionHostService}. */
+export function sessionsServiceWithGridHost(gridHost: ISessionHost): ISessionsService {
+	return upcastPartial<ISessionsService>({ gridHost });
+}
+
+/**
  * Stubs the main window host and the host lookups on `instantiationService`, for tests of UI that hosts sessions, such
  * as session views and composers, which nest their hosts in the one they are created in.
  */
@@ -30,7 +49,7 @@ export function stubSessionHosts(instantiationService: TestInstantiationService,
 		contextKeyService: upcastPartial<IContextKeyService>({}),
 		windowId: constObservable(mainWindow.vscodeWindowId),
 	});
-	const sessionHostService = store.add(new SessionHostService(mainHost, options?.editorGroupsService ?? upcastPartial<IEditorGroupsService>({ getGroup: () => undefined })));
+	const sessionHostService = store.add(new SessionHostService(sessionsServiceWithGridHost(mainHost), options?.editorGroupsService ?? upcastPartial<IEditorGroupsService>({ getGroup: () => undefined })));
 	instantiationService.stub(ISessionHost, mainHost);
 	instantiationService.stub(ISessionHostService, sessionHostService);
 	return { mainHost, sessionHostService };
@@ -38,10 +57,15 @@ export function stubSessionHosts(instantiationService: TestInstantiationService,
 
 /**
  * A real {@link SessionHostService} with hosts for the state `ISessionsService` has: the main window shows
- * `mainWindowActiveSession`, a pane of the main window each of `visibleSessions`, and a chat window each of
- * `windowSessions`. Each host shows the active chat of its session.
+ * `mainWindowActiveSession` (else `activeSession`), a pane of the main window each of `visibleSessions`, and a chat window
+ * each of `windowSessions`. Each host shows the active chat of its session.
  */
-export function sessionHostServiceOf(store: Pick<DisposableStore, 'add'>, state: { readonly mainWindowActiveSession: IObservable<IActiveSession | undefined>; readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; readonly windowSessions: IObservable<readonly IActiveSession[]> }): SessionHostService {
+export function sessionHostServiceOf(store: Pick<DisposableStore, 'add'>, grid: Partial<ITestSessionsService>): SessionHostService {
+	const state = {
+		mainWindowActiveSession: grid.mainWindowActiveSession ?? grid.activeSession ?? constObservable(undefined),
+		visibleSessions: grid.visibleSessions ?? constObservable<readonly (IActiveSession | undefined)[]>([]),
+		windowSessions: grid.windowSessions ?? constObservable<readonly IActiveSession[]>([]),
+	};
 	let nextChatWindowId = 1000;
 	const hostOf = (kind: SessionHostKind, parent: ISessionHost | undefined, session: IObservable<IActiveSession | undefined>, windowId: number | undefined): ISessionHost => {
 		// A chat window shows the chat it is scoped to; other hosts the active chat of their session.
@@ -60,7 +84,7 @@ export function sessionHostServiceOf(store: Pick<DisposableStore, 'add'>, state:
 		});
 	};
 	const mainHost = hostOf(SessionHostKind.MainWindow, undefined, state.mainWindowActiveSession, mainWindow.vscodeWindowId);
-	const service = store.add(new SessionHostService(mainHost, upcastPartial<IEditorGroupsService>({ getGroup: () => undefined })));
+	const service = store.add(new SessionHostService(sessionsServiceWithGridHost(mainHost), upcastPartial<IEditorGroupsService>({ getGroup: () => undefined })));
 	const registered = store.add(new DisposableMap<IActiveSession>());
 	store.add(autorun(reader => {
 		const shown = new Map<IActiveSession, SessionHostKind>();
@@ -103,7 +127,7 @@ export function focusedSessionHostServiceOf(session: IObservable<IActiveSession 
  * of focus-following services that model focus with that active session.
  */
 export function stubFocusedSessionHostFromSessionsService(instantiationService: TestInstantiationService): void {
-	const sessionsService = instantiationService.get(ISessionsService) as Partial<ISessionsService> | undefined;
+	const sessionsService = instantiationService.get(ISessionsService) as Partial<ITestSessionsService> | undefined;
 	instantiationService.stub(IFocusedSessionHostService, focusedSessionHostServiceOf(sessionsService?.activeSession ?? constObservable(undefined)));
 }
 
@@ -115,7 +139,7 @@ export function stubFocusedSessionHostFromSessionsService(instantiationService: 
  * main window's. Lookups return the innermost hosts, as {@link SessionHostService} does.
  */
 export function stubSessionHostsFromSessionsService(instantiationService: TestInstantiationService, onlyMissing = false): void {
-	const sessionsService = instantiationService.get(ISessionsService) as Partial<ISessionsService> | undefined;
+	const sessionsService = instantiationService.get(ISessionsService) as Partial<ITestSessionsService> | undefined;
 	const none = constObservable(undefined);
 	const activeSession = sessionsService?.activeSession ?? none;
 	let hostIds = 0;

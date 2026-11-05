@@ -26,7 +26,7 @@ import { ISessionWorkspace } from '../../../../services/sessions/common/session.
 import { IActiveSession, ICreateNewSessionOptions, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { INewSessionComposerService } from '../../browser/newSessionComposerService.js';
 import { NewChatInSessionsWindowAction } from '../../browser/newSessionAction.js';
-import { stubMissingSessionHostsFromSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionsService, stubMissingSessionHostsFromSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('NewChatInSessionsWindowAction', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -42,7 +42,7 @@ suite('NewChatInSessionsWindowAction', () => {
 		instantiationService.stub(ISessionsManagementService, {
 			isQuickChatTargetAvailable: () => options.available ?? true,
 		});
-		instantiationService.stub(ISessionsService, {
+		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
 			activeSession: constObservable(options.active ? upcastPartial<IActiveSession>({
 				providerId: 'other-provider',
 				sessionType: 'other-agent',
@@ -51,7 +51,7 @@ suite('NewChatInSessionsWindowAction', () => {
 				opened.push({ target, preserveNavigation });
 				return options.creationFailed ? undefined : upcastPartial<IActiveSession>({ resource });
 			},
-		});
+		}));
 		stubMissingSessionHostsFromSessionsService(instantiationService);
 		if (!CommandsRegistry.getCommand(NEW_SESSION_IN_AGENTS_WINDOW_COMMAND_ID)) {
 			store.add(registerAction2(NewChatInSessionsWindowAction));
@@ -132,7 +132,7 @@ suite('NewChatInSessionsWindowAction', () => {
 			getNewSessionTarget: (providerId, sessionResource) => providerId === 'sandbox-backend' && isEqual(sessionResource, backendResource) ? creationTarget : undefined,
 			isNewSessionTargetAvailable: (folder, target) => isEqual(folder, creationTarget.folderUri) && target?.providerId === creationTarget.providerId,
 		});
-		instantiationService.stub(ISessionsService, {
+		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
 			activeSession: constObservable(upcastPartial<IActiveSession>({
 				providerId: 'sandbox-backend', sessionType: 'copilot', resource: backendResource,
 				workspace: constObservable(upcastPartial<ISessionWorkspace>({ uri: backendFolder })),
@@ -141,7 +141,7 @@ suite('NewChatInSessionsWindowAction', () => {
 				opened.push(options);
 				return { session: upcastPartial<IActiveSession>({ resource }), trustDeclined: false };
 			},
-		});
+		}));
 		stubMissingSessionHostsFromSessionsService(instantiationService);
 		const result = await instantiationService.invokeFunction(accessor => new NewChatInSessionsWindowAction().run(accessor));
 		assert.deepStrictEqual({ result, opened }, {

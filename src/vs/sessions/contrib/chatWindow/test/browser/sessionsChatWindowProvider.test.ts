@@ -124,7 +124,7 @@ suite('Sessions chat window provider', () => {
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			override readonly visibleSessions = constObservable([]);
 			override readonly initialRestoreComplete = constObservable(true);
-			override readonly mainWindowActiveSession = mainWindowActiveSession;
+			readonly mainWindowActiveSession = mainWindowActiveSession;
 			override async openMovedChats(chats: readonly { readonly session: ISession; readonly chatResource: URI }[]) {
 				events.push(`open moved ${chats.map(chat => `${chat.session.sessionId} ${chat.chatResource.path}`).join(', ')}`);
 			}

@@ -219,8 +219,7 @@ suite('Pull Request Actions', () => {
 		};
 		instantiationService.stub(IClipboardService, clipboardService);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable(undefined);
-			override readonly mainWindowActiveSession = this.activeSession;
+			readonly activeSession = constObservable(undefined);
 		});
 		stubSessionHostsFromSessionsService(instantiationService);
 
@@ -259,7 +258,7 @@ suite('Pull Request Actions', () => {
 		const openerService = new TestOpenerService();
 		instantiationService.stub(IOpenerService, openerService);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable(upcastPartial<IActiveSession>({ workspace: session.workspace }));
+			readonly activeSession = constObservable(upcastPartial<IActiveSession>({ workspace: session.workspace }));
 		});
 		stubSessionHostsFromSessionsService(instantiationService);
 
@@ -284,8 +283,7 @@ suite('Pull Request Actions', () => {
 		};
 		instantiationService.stub(IClipboardService, clipboardService);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable(undefined);
-			override readonly mainWindowActiveSession = this.activeSession;
+			readonly activeSession = constObservable(undefined);
 		});
 		stubSessionHostsFromSessionsService(instantiationService);
 
@@ -302,8 +300,7 @@ suite('Pull Request Actions', () => {
 		const openerService = new TestOpenerService();
 		instantiationService.stub(IOpenerService, openerService);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable(undefined);
-			override readonly mainWindowActiveSession = this.activeSession;
+			readonly activeSession = constObservable(undefined);
 		});
 		stubSessionHostsFromSessionsService(instantiationService);
 
@@ -336,8 +333,7 @@ suite('Pull Request Actions', () => {
 		instantiationService.stub(IOpenerService, openerService);
 		instantiationService.stub(IClipboardService, clipboardService);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable(undefined);
-			override readonly mainWindowActiveSession = this.activeSession;
+			readonly activeSession = constObservable(undefined);
 		});
 		stubSessionHostsFromSessionsService(instantiationService);
 
@@ -374,8 +370,7 @@ suite('Pull Request Actions', () => {
 		};
 		instantiationService.stub(IClipboardService, clipboardService);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable(undefined);
-			override readonly mainWindowActiveSession = this.activeSession;
+			readonly activeSession = constObservable(undefined);
 		});
 		stubSessionHostsFromSessionsService(instantiationService);
 
@@ -391,7 +386,7 @@ suite('Pull Request Actions', () => {
 
 		const instantiationService = new TestInstantiationService();
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable(undefined);
+			readonly activeSession = constObservable(undefined);
 		});
 		stubSessionHostsFromSessionsService(instantiationService);
 		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {

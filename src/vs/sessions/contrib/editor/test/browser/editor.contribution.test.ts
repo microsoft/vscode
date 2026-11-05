@@ -568,13 +568,12 @@ suite('Sessions - Editor Contribution', () => {
 		stubEditorGroupCount(instantiationService, 7);
 		stubEditorVisibility(instantiationService, true);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable({
+			readonly activeSession = constObservable({
 				workspace: constObservable(sessionWorkspace),
 				activeChat: constObservable({
 					workspace: constObservable(chatWorkspace),
 				}),
 			} as IActiveSession);
-			override readonly mainWindowActiveSession = this.activeSession;
 		});
 		stubSessionHostsFromSessionsService(instantiationService);
 
@@ -1786,8 +1785,7 @@ suite('Sessions - Editor Contribution', () => {
 		const resource = URI.parse('session:1');
 		stubEditorGroupCount(instantiationService, 5);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable({ resource, isCreated: constObservable(true) } as IActiveSession);
-			override readonly mainWindowActiveSession = this.activeSession;
+			readonly activeSession = constObservable({ resource, isCreated: constObservable(true) } as IActiveSession);
 		});
 		stubSessionHostsFromSessionsService(instantiationService);
 		const opened: { resource: URI; index: number | undefined }[] = [];
@@ -1812,8 +1810,7 @@ suite('Sessions - Editor Contribution', () => {
 		const resource = URI.parse('session:new');
 		stubEditorGroupCount(instantiationService, 2);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable({ resource, isCreated: constObservable(false) } as IActiveSession);
-			override readonly mainWindowActiveSession = this.activeSession;
+			readonly activeSession = constObservable({ resource, isCreated: constObservable(false) } as IActiveSession);
 		});
 		stubSessionHostsFromSessionsService(instantiationService);
 		const opened: { resource: URI; index: number | undefined }[] = [];
@@ -1837,8 +1834,7 @@ suite('Sessions - Editor Contribution', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		stubEditorGroupCount(instantiationService, 0);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable(undefined);
-			override readonly mainWindowActiveSession = this.activeSession;
+			readonly activeSession = constObservable(undefined);
 		});
 		stubSessionHostsFromSessionsService(instantiationService);
 		let opened = false;
@@ -1864,12 +1860,11 @@ suite('Sessions - Editor Contribution', () => {
 		const existingFiles = store.add(instantiationService.createInstance(EmptyFileEditorInput, workspace));
 		stubEditorGroupCount(instantiationService, 3, [existingChanges, existingFiles]);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable({
+			readonly activeSession = constObservable({
 				resource,
 				isCreated: constObservable(true),
 				activeChat: constObservable({ workspace: constObservable(workspace) }),
 			} as unknown as IActiveSession);
-			override readonly mainWindowActiveSession = this.activeSession;
 		});
 		stubSessionHostsFromSessionsService(instantiationService);
 		const opened: { readonly kind: string; readonly index: number | undefined }[] = [];

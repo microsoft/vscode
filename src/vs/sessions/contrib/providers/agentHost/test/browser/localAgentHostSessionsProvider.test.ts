@@ -855,9 +855,8 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 	const activeSessionObs = options?.activeSession ?? constObservable<IActiveSession | undefined>(undefined);
 	const visibleSessionsObs = options?.visibleSessions ?? constObservable<readonly (IActiveSession | undefined)[]>([]);
 	instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-		override readonly activeSession: IObservable<IActiveSession | undefined> = activeSessionObs;
-		override readonly mainWindowActiveSession = this.activeSession;
-		override readonly windowSessions = options?.windowSessions ?? constObservable<readonly IActiveSession[]>([]);
+		readonly activeSession: IObservable<IActiveSession | undefined> = activeSessionObs;
+		readonly windowSessions = options?.windowSessions ?? constObservable<readonly IActiveSession[]>([]);
 		override readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> = visibleSessionsObs;
 	}());
 	instantiationService.stub(ISessionHostService, sessionHostServiceOf(disposables, instantiationService.get(ISessionsService)));
@@ -13683,9 +13682,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			instantiationService.stub(IGitHubService, new class extends mock<IGitHubService>() { });
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-				override readonly activeSession = constObservable<IActiveSession | undefined>(undefined);
-				override readonly mainWindowActiveSession = this.activeSession;
-				override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
+				readonly activeSession = constObservable<IActiveSession | undefined>(undefined);
+				readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
 			});
 			instantiationService.stub(IPullRequestIconCache, new class extends mock<IPullRequestIconCache>() { });
 			const options: IAgentHostAdapterOptions = {

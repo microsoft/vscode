@@ -100,7 +100,7 @@ suite('Issue Actions', () => {
 			}
 		});
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable(upcastPartial<IActiveSession>({ workspace: session.workspace }));
+			readonly activeSession = constObservable(upcastPartial<IActiveSession>({ workspace: session.workspace }));
 		});
 		stubSessionHostsFromSessionsService(instantiationService);
 
@@ -123,8 +123,7 @@ suite('Issue Actions', () => {
 		instantiationService.stub(IOpenerService, openerService);
 		instantiationService.stub(IURLService, urlService);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable(undefined);
-			override readonly mainWindowActiveSession = this.activeSession;
+			readonly activeSession = constObservable(undefined);
 		});
 		stubSessionHostsFromSessionsService(instantiationService);
 
@@ -153,8 +152,7 @@ suite('Issue Actions', () => {
 		instantiationService.stub(IOpenerService, openerService);
 		instantiationService.stub(IURLService, urlService);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable(undefined);
-			override readonly mainWindowActiveSession = this.activeSession;
+			readonly activeSession = constObservable(undefined);
 		});
 		stubSessionHostsFromSessionsService(instantiationService);
 
@@ -197,8 +195,7 @@ suite('Issue Actions', () => {
 		};
 		instantiationService.stub(IClipboardService, clipboardService);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable<IActiveSession | undefined>(session as IActiveSession);
-			override readonly mainWindowActiveSession = this.activeSession;
+			readonly activeSession = constObservable<IActiveSession | undefined>(session as IActiveSession);
 		});
 		stubSessionHostsFromSessionsService(instantiationService);
 
@@ -219,8 +216,7 @@ suite('Issue Actions', () => {
 		};
 		instantiationService.stub(IClipboardService, clipboardService);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable(undefined);
-			override readonly mainWindowActiveSession = this.activeSession;
+			readonly activeSession = constObservable(undefined);
 		});
 		stubSessionHostsFromSessionsService(instantiationService);
 

@@ -75,7 +75,7 @@ suite('Chat window editor area', () => {
 		}());
 		// The window acts on the session of its host, whichever session is active.
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = observableValue<IActiveSession | undefined>('active', undefined);
+			readonly activeSession = observableValue<IActiveSession | undefined>('active', undefined);
 		}());
 		// It shows the chat `session` names as its own.
 		const shown = session && upcastPartial<IActiveSession>({ ...session, isCreated: constObservable(true) });

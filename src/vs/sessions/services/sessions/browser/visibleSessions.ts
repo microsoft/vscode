@@ -585,9 +585,6 @@ export class VisibleSessions extends Disposable {
 	private readonly _activeSession = observableValue<IActiveSession | undefined>(this, undefined);
 	readonly activeSession: IObservable<IActiveSession | undefined> = this._activeSession;
 
-	/** The session the main window is laid out for: the active session. */
-	readonly mainWindowActiveSession: IObservable<IActiveSession | undefined> = this._activeSession;
-
 	/**
 	 * Whether the most recent active-session change asked to preserve keyboard
 	 * focus (i.e. show the session without moving focus into it). Always set in

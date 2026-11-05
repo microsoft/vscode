@@ -67,9 +67,9 @@ suite('SessionChangesEditor empty state layout', () => {
 		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
 		const activeSession = constObservable<IActiveSession | undefined>(undefined);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = activeSession;
-			override readonly mainWindowActiveSession = activeSession;
-			override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
+			readonly activeSession = activeSession;
+			readonly mainWindowActiveSession = activeSession;
+			readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
 		}());
 		stubSessionHosts(instantiationService, store, { session: activeSession });
 		instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
@@ -241,9 +241,9 @@ suite('SessionChangesEditor changed files list', () => {
 		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
 		const activeSession = constObservable<IActiveSession | undefined>(undefined);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = activeSession;
-			override readonly mainWindowActiveSession = activeSession;
-			override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
+			readonly activeSession = activeSession;
+			readonly mainWindowActiveSession = activeSession;
+			readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
 		}());
 		stubSessionHosts(instantiationService, store, { session: activeSession });
 		instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
@@ -323,9 +323,9 @@ suite('SessionChangesEditor disposal', () => {
 		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
 		const activeSession = constObservable<IActiveSession | undefined>(undefined);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = activeSession;
-			override readonly mainWindowActiveSession = activeSession;
-			override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
+			readonly activeSession = activeSession;
+			readonly mainWindowActiveSession = activeSession;
+			readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
 		}());
 		stubSessionHosts(instantiationService, store, { session: activeSession });
 		instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
@@ -378,9 +378,9 @@ suite('SessionChangesEditor input', () => {
 		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
 		const activeSession = constObservable<IActiveSession | undefined>(undefined);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = activeSession;
-			override readonly mainWindowActiveSession = activeSession;
-			override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
+			readonly activeSession = activeSession;
+			readonly mainWindowActiveSession = activeSession;
+			readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
 		}());
 		stubSessionHosts(instantiationService, store, { session: activeSession });
 		instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {

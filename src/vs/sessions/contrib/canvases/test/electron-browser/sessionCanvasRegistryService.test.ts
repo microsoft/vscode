@@ -30,7 +30,6 @@ import { CanvasInput, getCanvasReferenceKey, ICanvasContextService, ICanvasRefer
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { Menus } from '../../../../browser/menus.js';
 import { ActiveSessionCanvasReferenceContext, SessionActiveChatCanvasReferenceKeysContext } from '../../../../common/contextkeys.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IChat, ISessionCanvas, ISessionCanvasDefinition, ISessionCapabilities } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { NEW_SESSION_ACTION_ID } from '../../../chat/common/constants.js';
@@ -57,7 +56,6 @@ suite('SessionCanvasRegistryService', () => {
 			capabilities,
 		});
 		const activeSession = observableValue<IActiveSession | undefined>('activeSession', session);
-		const sessionsService = upcastPartial<ISessionsService>({ activeSession });
 		const listedChats: URI[] = [];
 		const didListCanvases = store.add(new Emitter<URI>());
 		const opened: Array<{ chat: URI; canvas: ISessionCanvasDefinition; instanceId: string }> = [];
@@ -97,7 +95,7 @@ suite('SessionCanvasRegistryService', () => {
 			}),
 		});
 		const registryService = store.add(new SessionCanvasRegistryService(
-			focusedSessionHostServiceOf(sessionsService.activeSession),
+			focusedSessionHostServiceOf(activeSession),
 			sessionsManagementService,
 			canvasService,
 			new NullLogService(),

@@ -103,7 +103,7 @@ suite('GetStartedTourRunner', () => {
 			}
 		}());
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = activeSession;
+			readonly activeSession = activeSession;
 			override async openSession(resource: URI): Promise<void> {
 				events.push(`open session ${resource.authority}`);
 				const opened = scenario.sessions.find(candidate => extUri.isEqual(candidate.resource, resource));

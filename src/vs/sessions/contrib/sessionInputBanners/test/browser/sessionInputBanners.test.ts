@@ -83,8 +83,8 @@ suite('SessionInputBanners', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		// The chat window of session A has focus: it is the globally active session.
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', windowA);
-			override readonly mainWindowActiveSession = observableValue<IActiveSession | undefined>('mainWindowActiveSession', main);
+			readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', windowA);
+			readonly mainWindowActiveSession = observableValue<IActiveSession | undefined>('mainWindowActiveSession', main);
 		}());
 		const agentHostProvider = new class extends mock<IAgentHostSessionsProvider>() {
 			override readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
@@ -167,8 +167,7 @@ suite('SessionInputBanners', () => {
 			override readonly isCreated = constObservable(true);
 		}();
 		const sessionsService = new class extends mock<ISessionsService>() {
-			override readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', session);
-			override readonly mainWindowActiveSession = this.activeSession;
+			readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', session);
 		}();
 		const agentMergeState = observableValue<AgentMergeSessionState>('agentMergeState', { enabled: false });
 		const agentHostProvider = new class extends mock<IAgentHostSessionsProvider>() {
@@ -271,7 +270,7 @@ suite('SessionInputBanners', () => {
 		const configuration = new TestConfigurationService();
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const banners = store.add(new SessionInputBanners(
-			stubSessionHosts(instantiationService, store, { session: sessionsService.mainWindowActiveSession }).mainHost,
+			stubSessionHosts(instantiationService, store, { session: sessionsService.activeSession }).mainHost,
 			sessionsProvidersService,
 			configuration,
 			gitHubService,

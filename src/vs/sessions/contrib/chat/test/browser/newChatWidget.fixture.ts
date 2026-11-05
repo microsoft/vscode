@@ -461,8 +461,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	const composerService = disposableStore.add(new NewSessionComposerService());
 	const sessionsService = new class extends mock<ISessionsService>() {
 		override readonly initialRestoreComplete = constObservable(true);
-		override readonly activeSession = activeSessionObservable;
-		override readonly mainWindowActiveSession = this.activeSession;
+		readonly activeSession = activeSessionObservable;
 	}();
 	const configurationService = new TestConfigurationService({
 		// Editor settings the composer's chat widget reads.

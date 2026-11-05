@@ -77,7 +77,7 @@ suite('NewChatInSessionWidget', () => {
 			new class extends mock<ISessionsRecentWorkspacesService>() { }(),
 			new class extends mock<IFileDialogService>() { }(),
 			new class extends mock<ISessionsManagementService>() { }(),
-			new class extends mock<ISessionsService>() { override readonly activeSession = constObservable<IActiveSession | undefined>(session); }(),
+			new class extends mock<ISessionsService>() { readonly activeSession = constObservable<IActiveSession | undefined>(session); }(),
 			store.add(new InMemoryStorageService()),
 			new TestAccessibilityService(),
 			new class extends mock<IFileService>() { }(),

@@ -26,7 +26,7 @@ import { IChatRequestViewModel } from '../../../../../../workbench/contrib/chat/
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../common/agentHostSessionsProvider.js';
 import { IOpenSessionOptions, ISessionNavigationRequest, ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
 import { IFocusedSessionHostService } from '../../../../../services/sessions/browser/sessionHost.js';
-import { focusedSessionHostServiceOf } from '../../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { focusedSessionHostServiceOf, ITestSessionsService } from '../../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 import { IChat, ISession } from '../../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { IForkChatOptions } from '../../../../../services/sessions/common/sessionsProvider.js';
@@ -110,7 +110,7 @@ suite('Agent Host fork actions', () => {
 				return { resource: forkChat.resource, label: 'Fork', timing: { created: 0, lastRequestStarted: undefined, lastRequestEnded: undefined } };
 			},
 		}));
-		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({
+		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
 			activeSession,
 			navigationRequest,
 			openChat: async (_session, resource, options) => { opens.push({ kind: 'chat', resource, options }); },

@@ -16,17 +16,18 @@ import { ServiceCollection } from '../../../../../platform/instantiation/common/
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { ISessionsService } from '../../browser/sessionsService.js';
 import { IActiveSession } from '../../common/sessionsManagement.js';
+import { sessionsServiceWithGridHost } from './sessionHostTestUtils.js';
 
 suite('ActiveSessionScope', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('at root, follows the session of the main window through the delayed main window host', () => {
+	test('at root, follows the session of the main window through the main window host', () => {
 		const main = upcastPartial<IActiveSession>({ sessionId: 'main' });
 		const instantiationService = disposables.add(new InstantiationService(new ServiceCollection(
-			[ISessionsService, upcastPartial<ISessionsService>({ mainWindowActiveSession: constObservable<IActiveSession | undefined>(main) })],
+			[ISessionsService, sessionsServiceWithGridHost(new ActiveSessionHost({ kind: SessionHostKind.MainWindow, parent: undefined, session: constObservable<IActiveSession | undefined>(main), contextKeyService: upcastPartial<IContextKeyService>({}) }))],
 			[IContextKeyService, upcastPartial<IContextKeyService>({})],
-			[ISessionHost, new SyncDescriptor(MainWindowSessionHost, [], true)],
+			[ISessionHost, new SyncDescriptor(MainWindowSessionHost, [], false)],
 			[ISessionScope, new SyncDescriptor(ActiveSessionScope, [], true)],
 		)));
 		assert.strictEqual(instantiationService.invokeFunction(accessor => accessor.get(ISessionScope).session.get())?.sessionId, 'main');

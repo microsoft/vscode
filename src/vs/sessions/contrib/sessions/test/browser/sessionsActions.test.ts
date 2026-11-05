@@ -78,7 +78,7 @@ import { resolveOnboardingTarget } from '../../../../../workbench/contrib/onboar
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
 import { IWindowCanvasService, WindowCanvasInput } from '../../../../services/canvas/browser/windowCanvasService.js';
-import { stubMissingSessionHostsFromSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionsService, stubMissingSessionHostsFromSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Sessions - Actions', () => {
 
@@ -415,7 +415,7 @@ suite('Sessions - Actions', () => {
 			}
 		});
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable(activeSession);
+			readonly activeSession = constObservable(activeSession);
 			override async closeChat(target: ISession, chat: IChat): Promise<void> {
 				assert.strictEqual(target, activeSession);
 				operations.push(`close:${chat.resource.toString()}`);
@@ -892,8 +892,7 @@ suite('Sessions - Actions', () => {
 		const untitled = createChat('untitled', SessionStatus.Untitled);
 		const options: Array<{ readonly skipConfirmation?: boolean } | undefined> = [];
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable(undefined);
-			override readonly mainWindowActiveSession = this.activeSession;
+			readonly activeSession = constObservable(undefined);
 		});
 		stubMissingSessionHostsFromSessionsService(instantiationService);
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
@@ -970,8 +969,7 @@ suite('Sessions - Actions', () => {
 				}
 			});
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-				override readonly activeSession = activeSession;
-				override readonly mainWindowActiveSession = this.activeSession;
+				readonly activeSession = activeSession;
 				override unsetNewSession() {
 					unsetNewSessionCalls++;
 					activeSession.set(undefined, undefined);
@@ -1074,8 +1072,7 @@ suite('Sessions - Actions', () => {
 		const calls: string[] = [];
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable<IActiveSession | undefined>(active);
-			override readonly mainWindowActiveSession = this.activeSession;
+			readonly activeSession = constObservable<IActiveSession | undefined>(active);
 			override setActive() { calls.push('setActive'); }
 			override arrangeSessions() { calls.push('arrange'); }
 			override focusSessionInDirection() { calls.push('focus'); }
@@ -1169,7 +1166,7 @@ suite('Sessions - Actions', () => {
 		const calls: string[] = [];
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable<IActiveSession | undefined>(createTestActiveSession('grid'));
+			readonly activeSession = constObservable<IActiveSession | undefined>(createTestActiveSession('grid'));
 			override async closeChat() { calls.push('grid closeChat'); }
 			override closeSession() { calls.push('grid closeSession'); }
 			override toggleSessionStickiness() { calls.push('grid pin'); }
@@ -1213,8 +1210,7 @@ suite('Sessions - Actions', () => {
 		});
 		const calls: { session: IActiveSession; resource: string }[] = [];
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable(active);
-			override readonly mainWindowActiveSession = this.activeSession;
+			readonly activeSession = constObservable(active);
 			override async detachChat(session: IActiveSession, resource: URI): Promise<void> { calls.push({ session, resource: resource.toString() }); }
 		});
 		const command = CommandsRegistry.getCommand(DETACH_CHAT_COMMAND_ID);
@@ -1498,8 +1494,7 @@ suite('Sessions - Actions', () => {
 		const activeSession = upcastPartial<IActiveSession>(session);
 		const closedSessions: Array<IActiveSession | undefined> = [];
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable(activeSession);
-			override readonly mainWindowActiveSession = this.activeSession;
+			readonly activeSession = constObservable(activeSession);
 			override closeSession(session: IActiveSession | undefined): void {
 				closedSessions.push(session);
 			}
@@ -1528,8 +1523,7 @@ suite('Sessions - Actions', () => {
 		let closeSessionCalls = 0;
 		const closedGroups: string[] = [];
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable(activeSession);
-			override readonly mainWindowActiveSession = this.activeSession;
+			readonly activeSession = constObservable(activeSession);
 			override closeSession(): void {
 				closeSessionCalls++;
 			}
@@ -1587,8 +1581,7 @@ suite('Sessions - Actions', () => {
 
 		const operations: string[] = [];
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable(activeSession);
-			override readonly mainWindowActiveSession = this.activeSession;
+			readonly activeSession = constObservable(activeSession);
 			override async closeChat(_session: ISession, chat: IChat): Promise<void> {
 				operations.push(`close:${chat.resource.toString()}`);
 			}
@@ -1645,8 +1638,7 @@ suite('Sessions - Actions', () => {
 			});
 			const operations: string[] = [];
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-				override readonly activeSession = constObservable(activeSession);
-				override readonly mainWindowActiveSession = this.activeSession;
+				readonly activeSession = constObservable(activeSession);
 			});
 			stubMissingSessionHostsFromSessionsService(instantiationService);
 			instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
@@ -1716,8 +1708,7 @@ suite('Sessions - Actions', () => {
 		const activeSession = upcastPartial<IActiveSession>(session);
 		let toggleCalls = 0;
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable(activeSession);
-			override readonly mainWindowActiveSession = this.activeSession;
+			readonly activeSession = constObservable(activeSession);
 		});
 		stubMissingSessionHostsFromSessionsService(instantiationService);
 		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
@@ -1916,8 +1907,7 @@ suite('Sessions - Actions', () => {
 		let accessorValid = true;
 		let targetAvailable = true;
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = currentSession;
-			override readonly mainWindowActiveSession = this.activeSession;
+			readonly activeSession = currentSession;
 			override openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation?: boolean): IActiveSession {
 				quickChatRequests.push({ options, preserveNavigation });
 				currentSession.set(quickChat, undefined);
@@ -1994,8 +1984,7 @@ suite('Sessions - Actions', () => {
 				});
 				const requests: (IOpenNewSessionOptions | undefined)[] = [];
 				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-					override readonly activeSession = constObservable(activeSession);
-					override readonly mainWindowActiveSession = this.activeSession;
+					readonly activeSession = constObservable(activeSession);
 					override async openNewSession(options?: IOpenNewSessionOptions): Promise<IOpenNewSessionResult> {
 						requests.push(options);
 						return { session: undefined, trustDeclined: false };
@@ -2076,8 +2065,7 @@ suite('Sessions - Actions', () => {
 				});
 				const requests: (IOpenNewSessionOptions | undefined)[] = [];
 				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-					override readonly activeSession = activeSession;
-					override readonly mainWindowActiveSession = this.activeSession;
+					readonly activeSession = activeSession;
 					override async openNewSession(options?: IOpenNewSessionOptions): Promise<IOpenNewSessionResult> {
 						requests.push(options);
 						requested.delete(activeSession.get().sessionId);
@@ -2148,8 +2136,7 @@ suite('Sessions - Actions', () => {
 			const events: string[] = [];
 			const requests: (IOpenNewSessionOptions | undefined)[] = [];
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-				override readonly activeSession = activeSession;
-				override readonly mainWindowActiveSession = this.activeSession;
+				readonly activeSession = activeSession;
 				override unsetNewSession(): void {
 					events.push('unset');
 					activeSession.set(undefined, undefined);
@@ -2210,7 +2197,7 @@ suite('Sessions - Actions', () => {
 			getNewSessionTarget: () => undefined,
 			isNewSessionTargetAvailable: () => true,
 		});
-		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({
+		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
 			activeSession: constObservable(undefined),
 			focusActiveSession: () => { },
 			openNewSession: () => opening.p,
@@ -2276,7 +2263,7 @@ suite('Sessions - Actions', () => {
 		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({
 			getProvider: <T extends ISessionsProvider>(providerId: string) => providers.find(provider => provider.id === providerId) as T | undefined,
 		}));
-		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({
+		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
 			activeSession: constObservable(undefined),
 			focusActiveSession: () => { },
 			openNewSession: async () => ({ session: undefined, trustDeclined: false }),
@@ -2336,11 +2323,11 @@ suite('Sessions - Actions', () => {
 					},
 					isNewSessionTargetAvailable: (folder, target) => available && isEqual(folder, creationTarget.folderUri) && target?.providerId === creationTarget.providerId,
 				});
-				instantiationService.stub(ISessionsService, {
+				instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
 					activeSession: constObservable(draft),
 					openNewSession: async () => ({ session: draft, trustDeclined: false }),
 					focusActiveSession: () => instantiationService.get(ISessionsPartService).focusSession(draft),
-				});
+				}));
 				stubMissingSessionHostsFromSessionsService(instantiationService);
 				instantiationService.stub(ISessionsPartService, {
 					getSessionView: () => upcastPartial<SessionView>({
@@ -2391,7 +2378,7 @@ suite('Sessions - Actions', () => {
 		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({
 			getProvider: <T extends ISessionsProvider>(providerId: string) => upcastPartial<ISessionsProvider>({ id: providerId, environment: { id: providerId === 'local-provider' ? 'local' : 'cloud', label: providerId } }) as T,
 		}));
-		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({
+		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
 			activeSession: constObservable(undefined),
 			focusActiveSession: () => { },
 			openNewSession: async () => {
@@ -2437,10 +2424,10 @@ suite('Sessions - Actions', () => {
 				return Promise.resolve();
 			},
 		});
-		instantiationService.stub(ISessionsService, {
+		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
 			activeSession: constObservable(undefined),
 			openNewSession: async () => { sessionRequests++; return { session: undefined, trustDeclined: false }; },
-		});
+		}));
 		stubMissingSessionHostsFromSessionsService(instantiationService);
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({}));
 		const command = CommandsRegistry.getCommand(NEW_SESSION_ACTION_ID);
@@ -2496,10 +2483,10 @@ suite('Sessions - Actions', () => {
 		const activeCustomView = observableValue<ICustomViewDescriptor | undefined>('customView', descriptor);
 		instantiationService.stub(ICustomViewService, { activeCustomView });
 		instantiationService.stub(IWindowCanvasService, { openNewSession: () => undefined });
-		instantiationService.stub(ISessionsService, {
+		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
 			activeSession: constObservable(undefined),
 			openNewSession: async () => { opened++; return { session: undefined, trustDeclined: false }; },
-		});
+		}));
 		stubMissingSessionHostsFromSessionsService(instantiationService);
 		instantiationService.stub(ISessionsManagementService, {});
 		const command = CommandsRegistry.getCommand(NEW_SESSION_ACTION_ID)!;
@@ -2518,8 +2505,7 @@ suite('Sessions - Actions', () => {
 		const error = new Error('Opening failed');
 		instantiationService.stub(INewSessionComposerService, disposables.add(new NewSessionComposerService()));
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable(undefined);
-			override readonly mainWindowActiveSession = this.activeSession;
+			readonly activeSession = constObservable(undefined);
 			override async openNewSession(): Promise<IOpenNewSessionResult> {
 				throw error;
 			}

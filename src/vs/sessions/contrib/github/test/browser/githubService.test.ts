@@ -44,8 +44,8 @@ suite('GitHubService', () => {
 		activeSession = observableValue<IActiveSession | undefined>('test.activeSession', undefined);
 		mainWindowActiveSession = observableValue<IActiveSession | undefined>('test.mainWindowActiveSession', undefined);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = activeSession;
-			override readonly mainWindowActiveSession = mainWindowActiveSession;
+			readonly activeSession = activeSession;
+			readonly mainWindowActiveSession = mainWindowActiveSession;
 		}());
 		instantiationService.stub(ISessionHostService, sessionHostServiceOf(store, { mainWindowActiveSession, visibleSessions: constObservable([]), windowSessions: constObservable([]) }));
 		instantiationService.stub(IPullRequestIconCache, instantiationService.createInstance(PullRequestIconCache));

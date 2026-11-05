@@ -669,8 +669,7 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 			});
 			reg.defineInstance(ISessionsService, new class extends mock<ISessionsService>() {
 				override readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> = constObservable(visibleSessions);
-				override readonly activeSession: IObservable<IActiveSession | undefined> = constObservable(undefined);
-				override readonly mainWindowActiveSession = this.activeSession;
+				readonly activeSession: IObservable<IActiveSession | undefined> = constObservable(undefined);
 			}());
 			reg.defineInstance(ISessionHostService, sessionHostServiceOf(disposableStore, { mainWindowActiveSession: constObservable(undefined), visibleSessions: constObservable(visibleSessions), windowSessions: constObservable([]) }));
 			reg.defineInstance(IAgentHostFilterService, new class extends mock<IAgentHostFilterService>() {

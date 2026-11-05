@@ -468,9 +468,9 @@ suite('SessionChangesEditorInput', () => {
 			// The editor shows the changes of its host's session: here the main window's.
 			const mainWindowSession = constObservable<IActiveSession | undefined>(undefined);
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-				override readonly activeSession = mainWindowSession;
-				override readonly mainWindowActiveSession = mainWindowSession;
-				override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
+				readonly activeSession = mainWindowSession;
+				readonly mainWindowActiveSession = mainWindowSession;
+				readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
 			}());
 			stubSessionHosts(instantiationService, disposables, { session: mainWindowSession });
 			instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {

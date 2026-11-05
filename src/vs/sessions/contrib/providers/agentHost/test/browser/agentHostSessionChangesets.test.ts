@@ -1743,9 +1743,8 @@ suite('AgentHostSessionChangesets', () => {
 				workspace,
 			});
 			const sessionsService = new class extends mock<ISessionsService>() {
-				override readonly activeSession = constObservable(session);
-				override readonly mainWindowActiveSession = this.activeSession;
-				override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
+				readonly activeSession = constObservable(session);
+				readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
 				override readonly visibleSessions = constObservable([session]);
 				override readonly visibleSessionPanes = constObservable([session]);
 			}();

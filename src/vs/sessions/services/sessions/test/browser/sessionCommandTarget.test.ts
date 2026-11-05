@@ -18,6 +18,7 @@ import { resolveSessionCommandTarget } from '../../browser/sessionCommandTarget.
 import { SessionHostService } from '../../browser/sessionHostService.js';
 import { IChat, ISession } from '../../common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../common/sessionsManagement.js';
+import { sessionsServiceWithGridHost } from './sessionHostTestUtils.js';
 
 const CHAT_WINDOW_ID = 4242;
 
@@ -42,7 +43,7 @@ suite('resolveSessionCommandTarget', () => {
 		const contextKeyService = upcastPartial<IContextKeyService>({});
 		const mainHost = new ActiveSessionHost({ kind: SessionHostKind.MainWindow, parent: undefined, session: constObservable<IActiveSession | undefined>(sessionB), contextKeyService, windowId: constObservable(mainWindow.vscodeWindowId) });
 		const groups = [upcastPartial<IEditorGroup>({ id: 1, windowId: mainWindow.vscodeWindowId }), upcastPartial<IEditorGroup>({ id: 7, windowId: CHAT_WINDOW_ID })];
-		const sessionHostService = disposables.add(new SessionHostService(mainHost, upcastPartial<IEditorGroupsService>({ getGroup: id => groups.find(group => group.id === id) })));
+		const sessionHostService = disposables.add(new SessionHostService(sessionsServiceWithGridHost(mainHost), upcastPartial<IEditorGroupsService>({ getGroup: id => groups.find(group => group.id === id) })));
 		const chatWindowHost = new ActiveSessionHost({ kind: SessionHostKind.ChatWindow, parent: undefined, session: constObservable<IActiveSession | undefined>(sessionAInWindow), contextKeyService, windowId: constObservable(CHAT_WINDOW_ID) });
 		disposables.add(sessionHostService.registerHost(chatWindowHost));
 		instantiationService.stub(ISessionHostService, sessionHostService);

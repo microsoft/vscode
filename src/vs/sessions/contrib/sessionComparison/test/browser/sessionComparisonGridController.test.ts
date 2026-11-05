@@ -109,8 +109,7 @@ suite('Session comparison grid controller', () => {
 			override readonly onDidFocusSession = focused.event;
 		}());
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = activeSession;
-			override readonly mainWindowActiveSession = this.activeSession;
+			readonly activeSession = activeSession;
 			override readonly visibleSessions = visibleSessions;
 			override readonly visibleSessionPanes = visibleSessions;
 			override readonly activePaneId = activeSession.map(getSessionPaneId);

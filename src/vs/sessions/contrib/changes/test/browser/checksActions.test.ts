@@ -18,7 +18,7 @@ import { IChat } from '../../../../services/sessions/common/session.js';
 import { IGitHubService, IGitHubSessionPullRequestObservables } from '../../../github/browser/githubService.js';
 import { GitHubPullRequestCIModel } from '../../../github/browser/models/githubPullRequestCIModel.js';
 import { FIX_CI_CHECKS_COMMAND_ID } from '../../browser/checksActions.js';
-import { stubSessionHostsFromSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionsService, stubSessionHostsFromSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 
 suite('Fix Checks', () => {
@@ -58,7 +58,7 @@ suite('Fix Checks', () => {
 				override readonly resource = secondChat;
 			}());
 		}();
-		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({ windowSessions: constObservable([session]) }));
+		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({ windowSessions: constObservable([session]) }));
 		stubSessionHostsFromSessionsService(instantiationService);
 
 		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(FIX_CI_CHECKS_COMMAND_ID)!.handler(accessor, session));

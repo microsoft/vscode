@@ -349,8 +349,7 @@ suite('SessionsTerminalContribution', () => {
 			override getSessions(): ISession[] { return [...allSessions]; }
 		});
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = activeSessionObs;
-			override readonly mainWindowActiveSession = this.activeSession;
+			readonly activeSession = activeSessionObs;
 		});
 		instantiationService.stub(ISessionHostService, sessionHostServiceOf(store, { mainWindowActiveSession: activeSessionObs, visibleSessions: constObservable([]), windowSessions: constObservable([]) }));
 

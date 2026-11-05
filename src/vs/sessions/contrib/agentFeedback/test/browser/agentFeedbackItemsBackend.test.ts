@@ -43,7 +43,7 @@ suite('AnnotationsAgentFeedbackItemsBackend', () => {
 		activeSession: IObservable<IActiveSession | undefined> = constObservable(undefined),
 	): void {
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = activeSession;
+			readonly activeSession = activeSession;
 			override readonly visibleSessions = visibleSessions;
 			override readonly visibleSessionPanes = visibleSessionPanes;
 		}());

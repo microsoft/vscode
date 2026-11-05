@@ -218,9 +218,8 @@ function setup(store: Pick<DisposableStore, 'add'>, activeSession: IActiveSessio
 	let managedSettings: ManagedSettingsData = {};
 	const managedSettingsChanged = store.add(new Emitter<void>());
 	const sessionsManagementService = new (class extends mock<ISessionsService>() {
-		override readonly activeSession = activeSessionObs;
-		override readonly mainWindowActiveSession = this.activeSession;
-		override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
+		readonly activeSession = activeSessionObs;
+		readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
 	})();
 
 	const insta = store.add(new TestInstantiationService());

@@ -10,6 +10,7 @@ import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 import { IObservable, autorun, constObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -41,6 +42,7 @@ import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.j
 import { Direction } from '../../../../base/browser/ui/grid/grid.js';
 import { ISessionGridState, isSessionGridState, projectSessionGrid } from './sessionGridState.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
+import { ActiveSessionHost, ISessionHost, SessionHostKind } from './sessionHost.js';
 
 const ACTIVE_SESSION_STATES_KEY = 'agentSessions.activeSessionStates';
 const SESSION_GRID_STATE_KEY = 'agentSessions.gridState';
@@ -184,15 +186,10 @@ export interface ISessionsService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Observable for the currently active session as {@link IActiveSession},
-	 * or `undefined` for the new-session (empty) slot.
-	 *
-	 * This is the canonical active session: it reflects the visible active slot
-	 * in the grid. The split mirrors `IEditorService.activeEditor` (view owns
-	 * the active editor) vs the session model in
-	 * {@link ISessionsManagementService}.
+	 * The host of the main window, which shows the grid's active pane: its session, or none for the new-session (empty)
+	 * slot, and the chat it shows. The one instance {@link ISessionHostService} registers for the main window.
 	 */
-	readonly activeSession: IObservable<IActiveSession | undefined>;
+	readonly gridHost: ISessionHost;
 
 	/**
 	 * Observable list of main-session slots, excluding standalone child panes.
@@ -392,11 +389,6 @@ export interface ISessionsService {
 	/** Moves focus into the grid's active pane: its session's chat, or the new-session composer. */
 	focusActiveSession(): void;
 
-	/** No sessions: chats of chat windows show as chat editors there, not as sessions of this service. */
-	readonly windowSessions: IObservable<readonly IActiveSession[]>;
-
-	/** The session the main window is laid out for, with its editors, side pane and panel: the {@link activeSession}. */
-	readonly mainWindowActiveSession: IObservable<IActiveSession | undefined>;
 
 	/**
 	 * Hides `chat` of `session` from the grid while the returned disposable is not disposed, such as while a chat window
@@ -448,10 +440,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 	/** Remembers the single most recently closed chat or session for {@link reopenLastClosedItem}. */
 	private readonly _closedItems: ClosedItemHistory;
 
-	/** The canonical active session — the visible active slot. */
+	/** The grid's selection: the session of its active pane. Not part of {@link ISessionsService}: others read {@link gridHost}. */
 	readonly activeSession: IObservable<IActiveSession | undefined>;
-	readonly windowSessions: IObservable<readonly IActiveSession[]>;
-	readonly mainWindowActiveSession: IObservable<IActiveSession | undefined>;
+	readonly gridHost: ISessionHost;
 	private readonly _initialRestoreComplete = observableValue<boolean>(this, false);
 	readonly initialRestoreComplete: IObservable<boolean> = this._initialRestoreComplete;
 	private readonly _navigationRequest = observableValue<ISessionNavigationRequest | undefined>(this, undefined);
@@ -531,8 +522,13 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this.visibleSessionPanes = this._visibility.gridSessions;
 		this.activePaneId = this._visibility.activeSession.map(getSessionPaneId);
 		this.activeSession = this._visibility.activeSession;
-		this.windowSessions = constObservable([]);
-		this.mainWindowActiveSession = this._visibility.mainWindowActiveSession;
+		this.gridHost = new ActiveSessionHost({
+			kind: SessionHostKind.MainWindow,
+			parent: undefined,
+			session: this._visibility.activeSession,
+			contextKeyService: this.contextKeyService,
+			windowId: constObservable(mainWindow.vscodeWindowId),
+		});
 
 		this._closedItems = this._register(this.instantiationService.createInstance(
 			ClosedItemHistory,

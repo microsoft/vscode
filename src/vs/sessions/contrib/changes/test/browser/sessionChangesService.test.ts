@@ -9,7 +9,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IFocusedSessionHostService, ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
-import { focusedSessionHostServiceOf, sessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { focusedSessionHostServiceOf, ITestSessionsService, sessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -33,15 +33,15 @@ import { ISessionChangesService, SessionChangesService } from '../../browser/ses
 import { IChangesViewService } from '../../common/changesViewService.js';
 
 /** The host lookups and the focused host for the state of `sessionsService`, as {@link SessionChangesService} takes them. */
-function hostsOf(store: Pick<DisposableStore, 'add'>, sessionsService: ISessionsService): [ISessionHostService, IFocusedSessionHostService] {
-	return [sessionHostServiceOf(store, sessionsService), focusedSessionHostServiceOf(sessionsService.activeSession)];
+function hostsOf(store: Pick<DisposableStore, 'add'>, sessionsService: Partial<ITestSessionsService>): [ISessionHostService, IFocusedSessionHostService] {
+	return [sessionHostServiceOf(store, sessionsService), focusedSessionHostServiceOf(sessionsService.activeSession ?? constObservable(undefined))];
 }
 
 function noSessions(active?: IActiveSession): ISessionsService {
 	return new class extends mock<ISessionsService>() {
-		override readonly activeSession = constObservable<IActiveSession | undefined>(active);
-		override readonly mainWindowActiveSession = constObservable<IActiveSession | undefined>(active);
-		override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
+		readonly activeSession = constObservable<IActiveSession | undefined>(active);
+		readonly mainWindowActiveSession = constObservable<IActiveSession | undefined>(active);
+		readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
 		override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([]);
 	}();
 }
@@ -137,9 +137,9 @@ suite('SessionChangesService', () => {
 		const selections: { readonly changesetId: string | undefined; readonly session: IActiveSession | undefined }[] = [];
 		const otherSession = upcastPartial<IActiveSession>({ sessionId: 'other', resource: URI.parse('agent-host:other-session'), activeChat: constObservable(upcastPartial<IChat>({})) });
 		const sessionsService = new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable<IActiveSession | undefined>(upcastPartial<IActiveSession>({ sessionId: 'active', resource: URI.parse('agent-host:active-session'), activeChat: constObservable(upcastPartial<IChat>({})) }));
-			override readonly mainWindowActiveSession = constObservable<IActiveSession | undefined>(undefined);
-			override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
+			readonly activeSession = constObservable<IActiveSession | undefined>(upcastPartial<IActiveSession>({ sessionId: 'active', resource: URI.parse('agent-host:active-session'), activeChat: constObservable(upcastPartial<IChat>({})) }));
+			readonly mainWindowActiveSession = constObservable<IActiveSession | undefined>(undefined);
+			readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
 			override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([otherSession]);
 		}();
 		const changesViewService = new class extends mock<IChangesViewService>() {
@@ -173,9 +173,9 @@ suite('SessionChangesService', () => {
 		const first = upcastPartial<IActiveSession>({ sessionId: 'session', resource: sessionResource, scopedChatResource: firstChat, activeChat: constObservable(upcastPartial<IChat>({})) });
 		const second = upcastPartial<IActiveSession>({ sessionId: 'session', resource: sessionResource, scopedChatResource: secondChat, activeChat: constObservable(upcastPartial<IChat>({})) });
 		const sessionsService = new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable<IActiveSession | undefined>(first);
-			override readonly mainWindowActiveSession = constObservable<IActiveSession | undefined>(undefined);
-			override readonly windowSessions = constObservable<readonly IActiveSession[]>([first, second]);
+			readonly activeSession = constObservable<IActiveSession | undefined>(first);
+			readonly mainWindowActiveSession = constObservable<IActiveSession | undefined>(undefined);
+			readonly windowSessions = constObservable<readonly IActiveSession[]>([first, second]);
 			override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([]);
 		}();
 		const changesViewService = new class extends mock<IChangesViewService>() {
