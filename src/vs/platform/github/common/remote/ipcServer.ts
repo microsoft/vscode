@@ -17,13 +17,16 @@ import { GitHubAuthorizationContext, GitHubClientOptions, GitHubCredentialChange
 import { AcquireClientRequest, ApiRequestMessage, ApiResponseMessage, ClientRequest, ClientResponse, GITHUB_CHANNEL_NAME, GITHUB_CREDENTIALS_CHANNEL_NAME, parseAuthorization, parseBodyText, parseRequestEnvelope } from './ipc.js';
 import { parseClientResponse, serializeGitHubError } from './serialization.js';
 import { parseMissionControlOptions, MissionControlClient } from '../missionControl/missionControlClient.js';
+import { CloudSandboxDiscoveryRegistry } from '../cloudSandboxDiscoveryRegistry.js';
+import { ICloudSandboxDiscoverySubscription } from '../../../agentHost/common/cloudSandboxDiscoveryService.js';
+import { cloudSandboxDiscoveryTriggers, ICloudSandboxDiscoveredSession } from '../../../agentHost/common/cloudSandboxAgentHost.js';
 
 /** Registers a separate lease owner for each physical connection, even when connection contexts repeat. */
-export function registerGitHubChannel(server: IPCServer<string>, service: IGitHubService): IDisposable {
+export function registerGitHubChannel(server: IPCServer<string>, service: IGitHubService, discovery?: CloudSandboxDiscoveryRegistry): IDisposable {
 	const lifetime = new DisposableStore();
 	const channels = lifetime.add(new DisposableMap<ChannelServer<string>, GitHubChannel>());
 	const register = (connection: IPCServer<string>['connections'][number]) => {
-		const channel = new GitHubChannel(connection.channelClient.getChannel(GITHUB_CREDENTIALS_CHANNEL_NAME), service);
+		const channel = new GitHubChannel(connection.channelClient.getChannel(GITHUB_CREDENTIALS_CHANNEL_NAME), service, discovery);
 		channels.set(connection.channelServer, channel);
 		connection.channelServer.registerChannel(GITHUB_CHANNEL_NAME, channel);
 	};
@@ -42,10 +45,12 @@ class GitHubChannel extends Disposable implements IServerChannel<string> {
 	private readonly pendingRequests = this._register(new DisposableMap<string, DisposableStore>());
 	private readonly credentials = this._register(new MutableDisposable<RemoteGitHubCredentialProvider>());
 	private readonly credentialScope = this._register(new MutableDisposable<IGitHubRequestProviderScope>());
+	private readonly discoveries = this._register(new DisposableMap<string, ICloudSandboxDiscoverySubscription>());
 
 	constructor(
 		private readonly credentialsChannel: IChannel,
 		@IGitHubService private readonly service: IGitHubService,
+		private readonly discovery?: CloudSandboxDiscoveryRegistry,
 	) {
 		super();
 	}
@@ -58,6 +63,30 @@ class GitHubChannel extends Disposable implements IServerChannel<string> {
 			throw new GitHubRequestError('GitHub connection was disposed', 'unknown');
 		}
 		switch (command) {
+			case 'acquireDiscovery':
+				return await this.acquireDiscovery(parseDiscoveryAcquisition(arg), token) as T;
+			case 'releaseDiscovery': {
+				const { clientId } = parseClientRequest(arg);
+				this.pendingAcquisitions.deleteAndDispose(clientId);
+				this.discoveries.deleteAndDispose(clientId);
+				return undefined as T;
+			}
+			case 'refreshDiscovery': {
+				const { clientId, options } = parseDiscoveryRefresh(arg);
+				return await this.runDiscoveryOperation(() => this.getDiscovery(clientId).refresh(options, token)) as T;
+			}
+			case 'discoveryDemand': {
+				const { clientId, archived, focused } = parseDiscoveryDemand(arg);
+				return await this.runDiscoveryOperation(() => this.getDiscovery(clientId).setDemand(archived, focused)) as T;
+			}
+			case 'reconcileDiscovery': {
+				const { clientId, kind, taskId } = parseDiscoveryMutation(arg);
+				return await this.runDiscoveryOperation(() => this.getDiscovery(clientId).reconcile({ kind, taskId })) as T;
+			}
+			case 'seedDiscovery': {
+				const { clientId, session } = parseDiscoverySeed(arg);
+				return await this.runDiscoveryOperation(() => this.getDiscovery(clientId).reconcile({ kind: 'seed', session })) as T;
+			}
 			case 'cancelRequest': {
 				const { clientId, requestId } = parseCancellation(arg);
 				this.pendingRequests.deleteAndDispose(`${clientId}\0${requestId}`);
@@ -84,8 +113,68 @@ class GitHubChannel extends Disposable implements IServerChannel<string> {
 	}
 
 	private checkAvailableClientId(clientId: string): void {
-		if (this.clients.has(clientId) || this.pendingAcquisitions.has(clientId)) {
+		if (this.clients.has(clientId) || this.discoveries.has(clientId) || this.pendingAcquisitions.has(clientId)) {
 			throw new GitHubRequestError('GitHub client lease already exists', 'validation');
+		}
+	}
+
+	private async runDiscoveryOperation(operation: () => Promise<void>): Promise<ClientResponse<void>> {
+		try {
+			await operation();
+			return [{ type: 'success', value: undefined }, undefined];
+		} catch (error) {
+			return serializeGitHubError(error);
+		}
+	}
+
+	private getDiscovery(clientId: string): ICloudSandboxDiscoverySubscription {
+		const discovery = this.discoveries.get(clientId);
+		if (!discovery) {
+			throw new GitHubRequestError('Cloud discovery lease is not available for this connection', 'authorization');
+		}
+		return discovery;
+	}
+
+	private async acquireDiscovery(request: ReturnType<typeof parseDiscoveryAcquisition>, token: CancellationToken): Promise<ClientResponse<void>> {
+		this.checkAvailableClientId(request.clientId);
+		const lifetime = new DisposableStore();
+		this.pendingAcquisitions.set(request.clientId, lifetime);
+		try {
+			if (!this.discovery) {
+				throw new GitHubRequestError('Shared cloud discovery is not available', 'validation');
+			}
+			const controller = new AbortController();
+			lifetime.add(toDisposable(() => controller.abort(new CancellationError())));
+			const credentials = this.credentials.value ??= new RemoteGitHubCredentialProvider(this.credentialsChannel);
+			const scope = this.credentialScope.value ??= this.service.createRequestProviderScope(credentials);
+			lifetime.add(credentials.onDidChange(change => {
+				if (change.providerId === request.authorization.providerId && (!change.sessionIds || change.sessionIds.includes(request.authorization.sessionId))) {
+					controller.abort(new GitHubRequestError('Cloud discovery grant changed during acquisition', 'authentication'));
+				}
+			}));
+			lifetime.add(credentials.onDidChangeToken(change => {
+				if (change.providerId === request.authorization.providerId && (!change.sessionIds || change.sessionIds.includes(request.authorization.sessionId))) {
+					controller.abort(new GitHubRequestError('Cloud discovery token changed during acquisition', 'authentication'));
+				}
+			}));
+			const signal = AbortSignal.any([controller.signal, CancellationToken.toAbortSignal(token, lifetime)]);
+			const { options, credential } = await withGitHubCredentialDeadline(signal, async signal => {
+				const options = await credentials.resolveClient(request.authorization, signal);
+				return { options, credential: await credentials.getToken(options.authorization, signal) };
+			});
+			signal.throwIfAborted();
+			if (!credential) {
+				throw new GitHubRequestError('Cloud discovery has no usable credential', 'authentication');
+			}
+			const subscription = this.discovery.acquire(options, credential, request.profile, scope.acquireClient(options));
+			this.discoveries.set(request.clientId, subscription);
+			return [{ type: 'success', value: undefined }, undefined];
+		} catch (error) {
+			return serializeGitHubError(error);
+		} finally {
+			if (this.pendingAcquisitions.get(request.clientId) === lifetime) {
+				this.pendingAcquisitions.deleteAndDispose(request.clientId);
+			}
 		}
 	}
 
@@ -158,6 +247,12 @@ class GitHubChannel extends Disposable implements IServerChannel<string> {
 	}
 
 	listen<T>(_ctx: string, event: string, arg?: unknown): Event<T> {
+		if (event === 'onDiscoveryChanged') {
+			return this.getDiscovery(parseClientRequest(arg).clientId).onDidChange as Event<T>;
+		}
+		if (event === 'onDiscoveryInvalidated') {
+			return this.getDiscovery(parseClientRequest(arg).clientId).onDidInvalidate as Event<T>;
+		}
 		const client = this.clients.get(parseClientRequest(arg).clientId);
 		if (!client) {
 			throw new GitHubRequestError('GitHub client lease is not available for this connection', 'authorization');
@@ -171,6 +266,27 @@ class GitHubChannel extends Disposable implements IServerChannel<string> {
 }
 
 const parseClientRequest = parse.object<ClientRequest>({ clientId: parse.nonEmptyString });
+const parseDiscoveryAcquisition = parse.object({ clientId: parse.nonEmptyString, authorization: parseAuthorization, profile: parse.nonEmptyString });
+const parseDiscoveryRefresh = parse.object({
+	clientId: parse.nonEmptyString,
+	options: parse.object({
+		incremental: parse.optional(parse.boolean),
+		includeArchived: parse.optional(parse.boolean),
+		taskIds: parse.optional(parse.arrayOf(parse.nonEmptyString)),
+		trigger: parse.optional(parse.oneOf(...cloudSandboxDiscoveryTriggers)),
+	}),
+});
+const parseDiscoveryDemand = parse.object({ clientId: parse.nonEmptyString, archived: parse.boolean, focused: parse.boolean });
+const parseDiscoveryMutation = parse.object({ clientId: parse.nonEmptyString, kind: parse.oneOf('remove', 'refresh'), taskId: parse.nonEmptyString });
+const parseDiscoverySeed = parse.object({
+	clientId: parse.nonEmptyString,
+	session: parse.copyObject<ICloudSandboxDiscoveredSession>({
+		taskId: parse.nonEmptyString, sessionId: parse.nonEmptyString, environmentId: parse.nonEmptyString,
+		name: parse.string, repoName: parse.optional(parse.string), hasRepository: parse.optional(parse.boolean),
+		updatedAt: parse.optional(parse.dateTime), status: parse.optional(parse.nonNegativeInteger),
+		isArchived: parse.optional(parse.boolean), application: parse.optional(parse.string), eventType: parse.optional(parse.string),
+	}),
+});
 const parseCancellation = parse.object({ clientId: parse.nonEmptyString, requestId: parse.nonEmptyString });
 
 const parseAcquireClientRequest = parse.object<AcquireClientRequest>({

@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../base/common/async.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -33,6 +33,9 @@ import { registerGitHubChannel } from '../../common/remote/ipcServer.js';
 import { parseClientResponse } from '../../common/remote/serialization.js';
 import { RequestFetch } from '../../common/types.js';
 import { TestConnection } from './testConnection.js';
+import { CloudSandboxDiscoveryRegistry } from '../../common/cloudSandboxDiscoveryRegistry.js';
+import { SessionFeedSocket } from '../../../agentHost/common/cloudSandboxSessionFeed.js';
+import { ICloudSandboxDiscoveryUpdate } from '../../../agentHost/common/cloudSandboxDiscoveryService.js';
 
 class RecordingGitHubService extends GitHubService {
 	readonly onDidAcquireClient = this._register(new Emitter<void>());
@@ -77,7 +80,7 @@ class RecordingGitHubService extends GitHubService {
 	}
 }
 
-function createTestServer(store: Pick<DisposableStore, 'add'>, fetch: RequestFetch = async () => Response.json({ value: 1 }), logService: ILogService = store.add(new NullLogService()), telemetryService: ITelemetryService = NullTelemetryService) {
+function createTestServer(store: Pick<DisposableStore, 'add'>, fetch: RequestFetch = async () => Response.json({ value: 1 }), logService: ILogService = store.add(new NullLogService()), telemetryService: ITelemetryService = NullTelemetryService, discovery?: CloudSandboxDiscoveryRegistry) {
 	const service = store.add(new RecordingGitHubService({
 		fetch,
 		telemetrySource: 'sharedProcess',
@@ -88,7 +91,7 @@ function createTestServer(store: Pick<DisposableStore, 'add'>, fetch: RequestFet
 	}, logService, telemetryService));
 	const onDidConnect = store.add(new Emitter<ClientConnectionEvent>());
 	const server = store.add(new IPCServer<string>(onDidConnect.event));
-	const registration = store.add(registerGitHubChannel(server, service));
+	const registration = store.add(registerGitHubChannel(server, service, discovery));
 	const connect = (context = 'window:1') => {
 		const connection = store.add(new TestConnection(onDidConnect, context));
 		return { connection, remote: new GitHubChannelClient(connection.channel, logService) };
@@ -725,6 +728,246 @@ suite('GitHub anonymous IPC clients', () => {
 		await assert.rejects(remote.acquireClient(authorization, signal()), { name: 'SchemaError' });
 		await assert.rejects(connection.channel.call('acquireClient', { clientId: 'client', authorization }), { name: 'SchemaError' });
 		assert.deepStrictEqual({ acquisitions: service.acquisitions, scopes: service.scopes }, { acquisitions: 0, scopes: 0 });
+	});
+});
+
+suite('Shared cloud sandbox discovery IPC', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const authorization = { providerId: 'github', sessionId: 'selected', scopes: ['repo'] };
+
+	class FeedSocket extends mock<WebSocket>() implements SessionFeedSocket {
+		override onmessage: SessionFeedSocket['onmessage'] = null;
+		override onerror: SessionFeedSocket['onerror'] = null;
+		override onclose: SessionFeedSocket['onclose'] = null;
+		closed = false;
+		constructor() {
+			super();
+			queueMicrotask(() => this.message({ type: 'system', event: 'connected' }));
+		}
+		message(data: object): void {
+			this.onmessage?.(new MessageEvent('message', { data: JSON.stringify(data) }));
+		}
+		change(): void {
+			this.message({ type: 'message', from: 'server', data: { type: 'task.changed', schema_version: 1, task: { id: 'task', updated_at: new Date().toISOString() } } });
+		}
+		override close(): void { this.closed = true; }
+	}
+
+	function setup() {
+		const sockets: FeedSocket[] = [];
+		const requests: string[] = [];
+		let name = 'Initial';
+		let updatedAt = new Date().toISOString();
+		let delayedList: { readonly started: DeferredPromise<void>; readonly response: DeferredPromise<Response> } | undefined;
+		const log = store.add(new NullLogService());
+		const discovery = store.add(new CloudSandboxDiscoveryRegistry(() => {
+			const socket = new FeedSocket();
+			sockets.push(socket);
+			return socket;
+		}, log, NullTelemetryService));
+		const task = () => ({
+			id: 'task', name, state: 'idle', created_at: '2026-01-01T00:00:00Z', updated_at: updatedAt,
+			remote_steerable: false, compute: { provider: 'sandboxes' },
+			sessions: [{ id: 'session', environment_id: 'environment', state: 'idle', created_at: '2026-01-01T00:00:00Z' }],
+		});
+		const server = createTestServer(store, async input => {
+			const url = new URL(String(input));
+			requests.push(url.pathname + url.search);
+			if (url.pathname === '/user') {
+				return Response.json({ id: 101 });
+			}
+			if (url.pathname.endsWith('/feed/connect')) {
+				return Response.json({
+					url: 'wss://feed.example.test', subprotocol: 'json.webpubsub.azure.v1', group: 'lane',
+					expires_at: new Date(Date.now() + 600_000).toISOString(), reconnect_after: new Date(Date.now() + 480_000).toISOString(),
+					expires_in: 600_000, reconnect_in: 480_000, frame_schema_version: 1,
+				});
+			}
+			if (url.pathname === '/agents/tasks/task') {
+				return Response.json(task());
+			}
+			if (url.pathname === '/agents/tasks') {
+				if (delayedList) {
+					const delayed = delayedList;
+					delayedList = undefined;
+					await delayed.started.complete();
+					return delayed.response.p;
+				}
+				return Response.json({ tasks: url.searchParams.get('with_repo') === 'false' && url.searchParams.get('is_archived') === 'false' ? [task()] : [] },
+					{ headers: { date: new Date().toUTCString() } });
+			}
+			throw new Error(`Unexpected request ${url.pathname}`);
+		}, log, NullTelemetryService, discovery);
+		const connect = (token = 'same-token') => {
+			const peer = server.connect();
+			const broker = store.add(new TestCredentialBroker());
+			broker.token = token;
+			broker.options = { ...broker.options, missionControl: { endpoint: { apiBaseUri: 'https://api.githubcopilot.com/agents', feedApiBaseUri: 'https://api.github.com/cmc_internal/api/agents', integrationId: 'test' } } };
+			peer.connection.registerCredentials(broker);
+			return { ...peer, broker };
+		};
+		const counts = () => ({
+			feeds: requests.filter(url => url.includes('/feed/connect')).length,
+			lists: requests.filter(url => url.startsWith('/agents/tasks?')).length,
+			details: requests.filter(url => url === '/agents/tasks/task').length,
+			openSockets: sockets.filter(socket => !socket.closed).length,
+		});
+		return {
+			...server, connect, sockets, requests, counts,
+			rename: (value: string) => { name = value; updatedAt = new Date().toISOString(); },
+			delayList: () => delayedList = { started: new DeferredPromise<void>(), response: new DeferredPromise<Response>() },
+		};
+	}
+
+	test('shares initial discovery, hints and renewal across windows and survives closing the supplying window', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const h = setup();
+		const first = h.connect();
+		const second = h.connect();
+		const one = store.add(await first.remote.acquireCloudSandboxDiscovery(authorization, 'profile', new AbortController().signal));
+		const two = store.add(await second.remote.acquireCloudSandboxDiscovery(authorization, 'profile', new AbortController().signal));
+		const updates: ICloudSandboxDiscoveryUpdate[][] = [[], []];
+		store.add(one.onDidChange(update => updates[0].push(update)));
+		store.add(two.onDidChange(update => updates[1].push(update)));
+		await Promise.all([one.setDemand(false, true), two.setDemand(false, true)]);
+		await Promise.all([one.refresh({ trigger: 'startup' }, CancellationToken.None), two.refresh({ trigger: 'startup' }, CancellationToken.None)]);
+		await Promise.all([first.connection.flush(), second.connection.flush()]);
+		const initial = h.counts();
+
+		h.rename('Changed');
+		h.sockets[0].change();
+		await timeout(501);
+		await Promise.all([first.connection.flush(), second.connection.flush()]);
+		const changed = h.counts();
+		await timeout(480_000);
+		await Promise.all([first.connection.flush(), second.connection.flush()]);
+		const renewed = h.counts();
+		first.connection.dispose();
+		h.rename('After close');
+		h.sockets[h.sockets.length - 1].change();
+		await timeout(501);
+		await second.connection.flush();
+
+		const third = h.connect();
+		const three = store.add(await third.remote.acquireCloudSandboxDiscovery(authorization, 'profile', new AbortController().signal));
+		let restored: ICloudSandboxDiscoveryUpdate | undefined;
+		store.add(three.onDidChange(update => restored = update));
+		await three.setDemand(false, true);
+		await three.refresh({ trigger: 'startup' }, CancellationToken.None);
+		await third.connection.flush();
+		assert.deepStrictEqual({
+			initial, changed, renewed, afterClose: h.counts(),
+			firstSawChange: updates[0].some(update => update.result.kind !== 'failed' && update.result.sessions.some(session => session.name === 'Changed')),
+			survivorName: updates[1].some(update => update.result.kind !== 'failed' && update.result.sessions.some(session => session.name === 'After close')),
+			restored: restored?.result.kind !== 'failed' ? restored?.result.sessions.map(session => session.name) : undefined,
+		}, {
+			initial: { feeds: 1, lists: 2, details: 1, openSockets: 1 },
+			changed: { feeds: 1, lists: 2, details: 2, openSockets: 1 },
+			renewed: { feeds: 2, lists: 4, details: 2, openSockets: 1 },
+			afterClose: { feeds: 2, lists: 4, details: 3, openSockets: 1 },
+			firstSawChange: true,
+			survivorName: true,
+			restored: ['After close'],
+		});
+	}));
+
+	test('keeps different credentials and profiles separate and releases the last consumer', async () => {
+		const h = setup();
+		const peers = [h.connect(), h.connect('other-token'), h.connect()];
+		const subscriptions = [];
+		for (const [index, peer] of peers.entries()) {
+			const subscription = store.add(await peer.remote.acquireCloudSandboxDiscovery(authorization, index === 2 ? 'other-profile' : 'profile', new AbortController().signal));
+			subscriptions.push(subscription);
+			store.add(subscription.onDidChange(() => { }));
+			await subscription.setDemand(false, true);
+			await subscription.refresh({ trigger: 'startup' }, CancellationToken.None);
+		}
+		const separate = h.counts();
+		for (const peer of peers) {
+			peer.connection.dispose();
+		}
+		assert.deepStrictEqual({ separate, released: h.counts().openSockets }, {
+			separate: { feeds: 3, lists: 6, details: 3, openSockets: 3 }, released: 0,
+		});
+	});
+
+	test('shared archive demand fetches once and cached reopening does not scan', async () => {
+		const h = setup();
+		const first = h.connect();
+		const second = h.connect();
+		const one = store.add(await first.remote.acquireCloudSandboxDiscovery(authorization, 'profile', new AbortController().signal));
+		const two = store.add(await second.remote.acquireCloudSandboxDiscovery(authorization, 'profile', new AbortController().signal));
+		store.add(one.onDidChange(() => { }));
+		store.add(two.onDidChange(() => { }));
+		await one.setDemand(false, true);
+		await two.setDemand(false, true);
+		await one.refresh({ trigger: 'startup' }, CancellationToken.None);
+		await Promise.all([one.setDemand(true, true), two.setDemand(true, true)]);
+		await Promise.all([one.refresh({ trigger: 'manual' }, CancellationToken.None), two.refresh({ trigger: 'manual' }, CancellationToken.None)]);
+		const loaded = h.counts();
+		await one.setDemand(false, true);
+		await one.setDemand(true, true);
+		await one.refresh({ trigger: 'startup' }, CancellationToken.None);
+		assert.deepStrictEqual({ loaded, reopened: h.counts() }, {
+			loaded: { feeds: 1, lists: 6, details: 1, openSockets: 1 },
+			reopened: { feeds: 1, lists: 6, details: 1, openSockets: 1 },
+		});
+	});
+
+	test('targeted task reads do not advertise completed archive discovery', async () => {
+		const h = setup();
+		const peer = h.connect();
+		const subscription = store.add(await peer.remote.acquireCloudSandboxDiscovery(authorization, 'profile', new AbortController().signal));
+		const updates: ICloudSandboxDiscoveryUpdate[] = [];
+		store.add(subscription.onDidChange(update => updates.push(update)));
+		await subscription.setDemand(false, true);
+		await subscription.refresh({ trigger: 'startup' }, CancellationToken.None);
+		await subscription.setDemand(true, true);
+		await subscription.refresh({ taskIds: ['task'], trigger: 'feedChange' }, CancellationToken.None);
+		await peer.connection.flush();
+		assert.deepStrictEqual({
+			result: updates.at(-1)?.result.kind, includesArchived: updates.at(-1)?.includesArchived,
+			archiveRequests: h.requests.filter(url => url.includes('is_archived=true')).length,
+		}, { result: 'incremental', includesArchived: false, archiveRequests: 0 });
+	});
+
+	test('cancelling one refresh waiter leaves the shared scan and peer alive', async () => {
+		const h = setup();
+		const first = h.connect();
+		const second = h.connect();
+		const one = store.add(await first.remote.acquireCloudSandboxDiscovery(authorization, 'profile', new AbortController().signal));
+		const two = store.add(await second.remote.acquireCloudSandboxDiscovery(authorization, 'profile', new AbortController().signal));
+		store.add(one.onDidChange(() => { }));
+		store.add(two.onDidChange(() => { }));
+		await Promise.all([one.setDemand(false, true), two.setDemand(false, true)]);
+		const delayed = h.delayList();
+		const cancelled = store.add(new CancellationTokenSource());
+		const rejected = assert.rejects(one.refresh({ trigger: 'startup' }, cancelled.token), error => isCancellationError(error));
+		await delayed.started.p;
+		const peer = two.refresh({ trigger: 'startup' }, CancellationToken.None);
+		cancelled.cancel();
+		await rejected;
+		await delayed.response.complete(Response.json({ tasks: [] }, { headers: { date: new Date().toUTCString() } }));
+		await peer;
+		assert.deepStrictEqual(h.counts(), { feeds: 1, lists: 2, details: 1, openSockets: 1 });
+	});
+
+	test('grant invalidation retires only its window subscription and cannot mutate the surviving inventory', async () => {
+		const h = setup();
+		const first = h.connect();
+		const second = h.connect();
+		const one = store.add(await first.remote.acquireCloudSandboxDiscovery(authorization, 'profile', new AbortController().signal));
+		const two = store.add(await second.remote.acquireCloudSandboxDiscovery(authorization, 'profile', new AbortController().signal));
+		store.add(one.onDidChange(() => { }));
+		store.add(two.onDidChange(() => { }));
+		const invalidated = new DeferredPromise<void>();
+		store.add(one.onDidInvalidate(() => void invalidated.complete()));
+		await Promise.all([one.setDemand(false, true), two.setDemand(false, true)]);
+		await one.refresh({ trigger: 'startup' }, CancellationToken.None);
+		first.broker.grants.fire({ providerId: 'github', sessionIds: ['selected'] });
+		await invalidated.p;
+		await assert.rejects(one.reconcile({ kind: 'remove', taskId: 'task' }), { kind: 'authorization' });
+		await two.refresh({ trigger: 'manual' }, CancellationToken.None);
+		assert.deepStrictEqual(h.counts(), { feeds: 1, lists: 4, details: 1, openSockets: 1 });
 	});
 });
 

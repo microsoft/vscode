@@ -447,7 +447,8 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 	private initChannels(accessor: ServicesAccessor): void {
 
 		const instantiationService = accessor.get(IInstantiationService);
-		this._register(registerGitHubChannel(this.server, accessor.get(IGitHubService)));
+		const github = accessor.get(IGitHubService);
+		this._register(registerGitHubChannel(this.server, github, github instanceof SharedProcessGitHubService ? github.cloudDiscovery : undefined));
 		this.server.registerChannel(agentHostMcpOAuthMetadataChannelName, ProxyChannel.fromService(instantiationService.createInstance(AgentHostMcpOAuthMetadataService), this._store));
 
 		// Extensions Management

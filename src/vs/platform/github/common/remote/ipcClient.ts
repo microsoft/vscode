@@ -22,6 +22,8 @@ import { ApiRequestMessage, ApiRequestTarget, ClientResponse, IGitHubCredentialB
 import { deserializeGitHubError, parseApiResponse, parseClientResponse, serializeGitHubError } from './serialization.js';
 import { MutationUncertainError, missionControlRequestPolicy } from '../missionControl/missionControlClient.js';
 import { RequestError } from '../types.js';
+import { ICloudSandboxDiscoverySubscription, ICloudSandboxDiscoveryUpdate } from '../../../agentHost/common/cloudSandboxDiscoveryService.js';
+import { parse } from '../client/schema.js';
 
 /** GitHub IPC channel client implementation. */
 export class GitHubChannelClient implements ISharedProcessGitHubService {
@@ -39,6 +41,39 @@ export class GitHubChannelClient implements ISharedProcessGitHubService {
 	async acquireClient(authorization: GitHubAuthorizationContext, signal: AbortSignal): Promise<IGitHubAccountClient> {
 		signal.throwIfAborted();
 		return this.acquire(parseAuthorization(authorization), signal);
+	}
+
+	async acquireCloudSandboxDiscovery(authorization: GitHubAuthorizationContext, profile: string, signal: AbortSignal): Promise<ICloudSandboxDiscoverySubscription> {
+		const clientId = generateUuid();
+		const lifetime = new DisposableStore();
+		const token = CancellationToken.fromAbortSignal(signal, lifetime);
+		const release = () => {
+			void this.channel.call('releaseDiscovery', { clientId }).catch(error => this.logService.error('[GitHubChannelClient] Failed to release cloud discovery', error));
+		};
+		try {
+			parseClientResponse(await raceCancellationError(this.channel.call<ClientResponse<void>>('acquireDiscovery', { clientId, authorization, profile }, token), token), parse.optional(parse.string));
+			signal.throwIfAborted();
+			const disposal = toDisposable(release);
+			return {
+				onDidChange: this.channel.listen<ICloudSandboxDiscoveryUpdate>('onDiscoveryChanged', { clientId }),
+				onDidInvalidate: this.channel.listen<void>('onDiscoveryInvalidated', { clientId }),
+				refresh: (options, token) => this.discoveryOperation('refreshDiscovery', { clientId, options }, token),
+				setDemand: (archived, focused) => this.discoveryOperation('discoveryDemand', { clientId, archived, focused }),
+				reconcile: mutation => mutation.kind === 'seed'
+					? this.discoveryOperation('seedDiscovery', { clientId, session: mutation.session })
+					: this.discoveryOperation('reconcileDiscovery', { clientId, ...mutation }),
+				dispose: () => disposal.dispose(),
+			};
+		} catch (error) {
+			release();
+			throw error;
+		} finally {
+			lifetime.dispose();
+		}
+	}
+
+	private async discoveryOperation(command: string, argument: object, token = CancellationToken.None): Promise<void> {
+		parseClientResponse(await this.channel.call<ClientResponse<void>>(command, argument, token), parse.optional(parse.string));
 	}
 
 	private acquire(authorization: undefined, signal: AbortSignal): Promise<IGitHubAnonymousClient>;

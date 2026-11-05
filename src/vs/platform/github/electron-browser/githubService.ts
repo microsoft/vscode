@@ -12,6 +12,7 @@ import { IGitHubAnonymousClient } from '../common/anonymous/anonymous.js';
 import { GitHubAuthorizationContext } from '../common/githubTypes.js';
 import { GITHUB_CHANNEL_NAME, GITHUB_CREDENTIALS_CHANNEL_NAME, IGitHubCredentialBroker, ISharedProcessGitHubService } from '../common/remote/ipc.js';
 import { GitHubChannelClient, GitHubCredentialsChannel } from '../common/remote/ipcClient.js';
+import { ICloudSandboxDiscoverySubscription } from '../../agentHost/common/cloudSandboxDiscoveryService.js';
 
 class SharedProcessGitHubService extends Disposable implements ISharedProcessGitHubService {
 	declare readonly _serviceBrand: undefined;
@@ -33,6 +34,10 @@ class SharedProcessGitHubService extends Disposable implements ISharedProcessGit
 
 	acquireClient(authorization: GitHubAuthorizationContext, signal: AbortSignal): Promise<IGitHubAccountClient> {
 		return this.client.acquireClient(authorization, signal);
+	}
+
+	acquireCloudSandboxDiscovery(authorization: GitHubAuthorizationContext, profile: string, signal: AbortSignal): Promise<ICloudSandboxDiscoverySubscription> {
+		return this.client.acquireCloudSandboxDiscovery(authorization, profile, signal);
 	}
 }
 

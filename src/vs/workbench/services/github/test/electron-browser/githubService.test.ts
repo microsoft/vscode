@@ -20,6 +20,7 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IAuthenticationService } from '../../../authentication/common/authentication.js';
 import { NativeWorkbenchGitHubService } from '../../electron-browser/githubService.js';
+import { IUserDataProfileService } from '../../../userDataProfile/common/userDataProfile.js';
 
 suite('Native workbench GitHub API clients', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -79,6 +80,7 @@ suite('Native workbench GitHub API clients', () => {
 					return delayed ? pending.p : client;
 				}
 			}(),
+			new class extends mock<IUserDataProfileService>() { }(),
 		));
 		return {
 			service, client, requests, accountChanged, accounts, pending, started, anonymousClient, anonymousSignals,

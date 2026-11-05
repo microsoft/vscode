@@ -19,16 +19,31 @@ export function createFetch(
 	environmentService: INativeEnvironmentService,
 	logService: ILogService,
 ): typeof globalThis.fetch {
-	let fetchPromise: Promise<typeof globalThis.fetch> | undefined;
-	return async (input, init) => {
-		const request = input instanceof Request && init === undefined ? input : new Request(input, init);
-		const fetch = await (fetchPromise ??= createProxyFetch());
-		request.signal.throwIfAborted();
-		return fetch(request);
+	return createGitHubNetworking(nativeHostService, configurationService, environmentService, logService).fetch;
+}
+
+export function createGitHubNetworking(
+	nativeHostService: INativeHostService,
+	configurationService: IConfigurationService,
+	environmentService: INativeEnvironmentService,
+	logService: ILogService,
+): { fetch: typeof globalThis.fetch; createWebSocket: (url: string, protocol: string) => Promise<WebSocket> } {
+	let networking: Promise<{ fetch: typeof globalThis.fetch; webSocket: typeof WebSocket }> | undefined;
+	return {
+		fetch: async (input, init) => {
+			const request = input instanceof Request && init === undefined ? input : new Request(input, init);
+			const { fetch } = await (networking ??= createProxyNetworking());
+			request.signal.throwIfAborted();
+			return fetch(request);
+		},
+		createWebSocket: async (url, protocol) => {
+			const { webSocket } = await (networking ??= createProxyNetworking());
+			return new webSocket(url, protocol);
+		},
 	};
 
-	async function createProxyFetch(): Promise<typeof globalThis.fetch> {
-		const [{ createFetchPatch, createProxyAuthorizationLookup, createProxyResolver, LogLevel }, { getCACertificates }] = await Promise.all([
+	async function createProxyNetworking(): Promise<{ fetch: typeof globalThis.fetch; webSocket: typeof WebSocket }> {
+		const [{ createFetchPatch, createWebSocketPatch, createProxyAuthorizationLookup, createProxyResolver, LogLevel }, { getCACertificates }] = await Promise.all([
 			import('@vscode/proxy-agent'),
 			import('tls'),
 		]);
@@ -66,7 +81,7 @@ export function createFetch(
 			getProxySupport: () => 'override',
 			getNoProxyConfig: () => getConfigurationValue<string[]>('http.noProxy', []),
 			isAdditionalFetchSupportEnabled: () => true,
-			isWebSocketPatchEnabled: () => false,
+			isWebSocketPatchEnabled: () => true,
 			addCertificatesV1: () => getConfigurationValue('http.systemCertificates', true),
 			addCertificatesV2: () => false,
 			loadSystemCertificatesFromNode: () => getConfigurationValue('http.systemCertificatesNode', systemCertificatesNodeDefault),
@@ -90,6 +105,10 @@ export function createFetch(
 			env: { ...process.env, ...shellEnv },
 		};
 
-		return createFetchPatch(params, globalThis.fetch, createProxyResolver(params).resolveProxyURL);
+		const resolver = createProxyResolver(params);
+		return {
+			fetch: createFetchPatch(params, globalThis.fetch, resolver.resolveProxyURL),
+			webSocket: createWebSocketPatch(params, globalThis.WebSocket, resolver.resolveProxyURL),
+		};
 	}
 }

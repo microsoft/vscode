@@ -28,7 +28,6 @@ export const CloudSandboxEnabledSettingId = 'chat.agentHost.cloudSandbox.enabled
 export const CloudSandboxAutoConnectOnOpenSettingId = 'chat.agentHost.cloudSandbox.autoConnectOnOpen';
 
 export const CloudSandboxEarlyPreparationSettingId = 'chat.agentHost.cloudSandbox.earlyPreparation';
-export const CloudSandboxSessionFeedEnabledSettingId = 'chat.agentHost.cloudSandbox.sessionFeed.enabled';
 
 /**
  * Whether cloud sandbox sessions can be created or connected to. A sandbox is reached over the
@@ -384,6 +383,8 @@ export interface ICloudSandboxSessionFeedConnection {
 
 /** Account identity and control-plane APIs for sandbox credentials, discovery, and persisted history. */
 export interface ICloudSandboxApiService {
+	readonly supportsSharedDiscovery?: boolean;
+	acquireDiscovery?(token: CancellationToken): Promise<import('./cloudSandboxDiscoveryService.js').ICloudSandboxDiscoverySubscription>;
 	readonly _serviceBrand: undefined;
 
 	/** Account identity after authentication changes, or undefined when signed out. */
