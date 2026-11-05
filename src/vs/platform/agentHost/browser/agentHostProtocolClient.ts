@@ -3516,7 +3516,9 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 					case RequestAgentHostByokLmChatExtensionMethod: {
 						const request = byokLmChatRequestValidator.validateOrThrow(params);
 						const handler = this._byokLmHandler;
-						if (!handler) {
+						// Refuse before serving even if a handler was registered while the
+						// host never advertised the bridge (mirrors the publish gate above).
+						if (!handler || !supportsAgentHostByokLmBridge(this._initializeResult.get())) {
 							throw new Error('This client is not serving BYOK Language Models');
 						}
 						const result = await handler.chat(request, CancellationToken.None);

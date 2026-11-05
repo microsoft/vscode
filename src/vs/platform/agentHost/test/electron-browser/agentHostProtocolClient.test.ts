@@ -592,16 +592,27 @@ suite('AgentHostProtocolClient', () => {
 		const { client: unsupportedClient, transport: unsupportedTransport } = createClient();
 		await connectClient(unsupportedClient, unsupportedTransport);
 		let enumerations = 0;
+		let chats = 0;
 		disposables.add(unsupportedClient.registerByokLmHandler({
 			...handler,
 			listModels: async () => {
 				enumerations++;
 				return models;
 			},
+			chat: async bridgeRequest => {
+				chats++;
+				return handler.chat(bridgeRequest, CancellationToken.None);
+			},
 		}));
 		await timeout(0);
 		assert.strictEqual(enumerations, 0);
 		assert.strictEqual(unsupportedTransport.sentMessages.some(message => hasKey(message, { method: true }) && message.method === RegisterClientByokLmModelsExtensionMethod), false);
+		// A host that never advertised the bridge must not be served over the command
+		// path either: the reverse request is answered with an error, not a chat result.
+		unsupportedTransport.fireExtensionRequest(72, RequestAgentHostByokLmChatExtensionMethod, { ...request });
+		await timeout(0);
+		assert.strictEqual(chats, 0);
+		assert.strictEqual(unsupportedTransport.sentMessages.some(message => hasKey(message, { id: true, error: true }) && message.id === 72 && typeof message.error === 'object' && message.error !== null && hasKey(message.error, { message: true }) && message.error.message === 'This client is not serving BYOK Language Models'), true);
 	});
 
 	suite('client certificates', () => {
