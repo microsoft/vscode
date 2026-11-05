@@ -130,15 +130,19 @@ suite('codex package paths', () => {
 			await writeFile(join(binDir, 'codex'), '');
 		}
 
-		test('finds the platform package next to @openai/codex (downloaded SDK, flat node_modules) or next to its real folder (pnpm\'s isolated layout), and otherwise returns the first path', async () => {
+		test('finds the platform package next to @openai/codex (downloaded SDK, flat node_modules) or next to its real folder (pnpm\'s isolated layout), returns its real path, and otherwise returns the first path', async () => {
 			const flatRoot = join(testDir, 'flat');
 			await createCodexPackages(join(flatRoot, 'node_modules'));
 
 			// pnpm's isolated layout: node_modules/@openai/codex links to the package in the virtual
-			// store, whose own node_modules folder holds its optional dependencies.
+			// store, whose own node_modules folder links to its optional dependencies, each in its own
+			// folder of the virtual store.
 			const isolatedRoot = join(testDir, 'isolated');
 			const storeNodeModules = join(isolatedRoot, 'node_modules', '.pnpm', '@openai+codex@1.0.0', 'node_modules');
-			await createCodexPackages(storeNodeModules);
+			const platformStoreNodeModules = join(isolatedRoot, 'node_modules', '.pnpm', '@openai+codex@1.0.0-darwin-arm64', 'node_modules');
+			await createCodexPackages(platformStoreNodeModules);
+			await mkdir(join(storeNodeModules, '@openai', 'codex'), { recursive: true });
+			await symlink(join(platformStoreNodeModules, '@openai', 'codex-darwin-arm64'), join(storeNodeModules, '@openai', 'codex-darwin-arm64'), 'junction');
 			await mkdir(join(isolatedRoot, 'node_modules', '@openai'), { recursive: true });
 			await symlink(join(storeNodeModules, '@openai', 'codex'), join(isolatedRoot, 'node_modules', '@openai', 'codex'), 'junction');
 
@@ -151,7 +155,7 @@ suite('codex package paths', () => {
 				missing: await resolve(missingRoot),
 			}, {
 				flat: 'flat/node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/bin/codex',
-				isolated: 'isolated/node_modules/.pnpm/@openai+codex@1.0.0/node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/bin/codex',
+				isolated: 'isolated/node_modules/.pnpm/@openai+codex@1.0.0-darwin-arm64/node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/bin/codex',
 				missing: 'missing/node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/bin/codex',
 			});
 		});

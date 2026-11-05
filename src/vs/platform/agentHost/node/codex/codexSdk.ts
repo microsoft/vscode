@@ -77,8 +77,9 @@ export async function resolveCodexBinaryPath(sdkRoot: string, sdkTarget: string,
 	const paths = candidates.map(dir => join(dir, `codex-${sdkTarget}`, 'vendor', triple, 'bin', binaryName));
 	for (const path of paths) {
 		try {
-			await fs.access(path);
-			return path;
+			// The real path: in pnpm's isolated layout the platform package folder is a link, and
+			// Codex's macOS sandbox can't read the link when its file helper starts the binary again.
+			return await fs.realpath(path);
 		} catch {
 			// Try the next folder.
 		}
