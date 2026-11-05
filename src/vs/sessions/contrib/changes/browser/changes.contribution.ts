@@ -26,7 +26,7 @@ import './changesActions.js';
 import './changesViewActions.js';
 import './changesetReviewActions.js';
 import './checksActions.js';
-import './sessionActionContextKeys.js';
+import './sessionActionContextKeys.contribution.js';
 import './sessionSyncChanges.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';

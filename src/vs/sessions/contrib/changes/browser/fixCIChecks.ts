@@ -9,6 +9,10 @@ import { GitHubPullRequestCIModel } from '../../../../workbench/contrib/sessions
 import { GitHubCheckStatus, IGitHubCICheck } from '../../../../workbench/contrib/sessions/common/github/types.js';
 import { PullRequestCheck } from '../../../../platform/github/common/githubPullRequestService.js';
 import { getPullRequestCheckState, isUnreportedCheckSuite, RequiredPullRequestChecks } from '../../../../platform/github/common/pullRequestRequiredChecks.js';
+import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { IGitHubSessionPullRequestObservables } from '../../../../workbench/contrib/sessions/browser/github/githubService.js';
 
 /** Command that opens the Changes view and reveals (expands + focuses) the CI checks section. */
 export const REVEAL_CI_CHECKS_COMMAND_ID = 'sessions.action.revealCIChecks';
@@ -134,4 +138,37 @@ export async function submitFixCIChecks(ciModel: GitHubPullRequestCIModel, chatW
 	if (response) {
 		ciModel.markFixRequested();
 	}
+}
+
+export const hasActiveSessionFailedCIChecks = new RawContextKey<boolean>('sessions.hasActiveSessionFailedCIChecks', false);
+
+/**
+ * True when the user has already requested a CI fix for the active session's
+ * current PR head commit. Used to hide the "Fix Checks" action until a new
+ * commit lands on the PR.
+ */
+export const activeSessionCIFixRequested = new RawContextKey<boolean>('sessions.activeSessionCIFixRequested', false);
+
+/**
+ * Binds `hasActiveSessionFailedCIChecks` (a failed check that counts on the pull
+ * request of the session; see {@link GitHubPullRequestCIModel.requiredChecks}) and
+ * `activeSessionCIFixRequested` on the given context key service.
+ */
+export function bindSessionCIChecksContextKeys(pullRequest: Pick<IGitHubSessionPullRequestObservables, 'pullRequestCIObs'>, contextKeyService: IContextKeyService): IDisposable {
+	const store = new DisposableStore();
+	store.add(bindContextKey(hasActiveSessionFailedCIChecks, contextKeyService, reader => {
+		const ciModel = pullRequest.pullRequestCIObs.read(reader);
+		if (!ciModel) {
+			return false;
+		}
+		return (ciModel.requiredChecks.read(reader)?.failed.length ?? 0) > 0;
+	}));
+	store.add(bindContextKey(activeSessionCIFixRequested, contextKeyService, reader => {
+		const ciModel = pullRequest.pullRequestCIObs.read(reader);
+		if (!ciModel) {
+			return false;
+		}
+		return ciModel.fixRequested.read(reader);
+	}));
+	return store;
 }

@@ -4,60 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
-import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { localize2 } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { constObservable } from '../../../../base/common/observable.js';
-import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
-import { IGitHubService, IGitHubSessionPullRequestObservables } from '../../../../workbench/contrib/sessions/browser/github/githubService.js';
-import { GitHubPullRequestCIModel } from '../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
+import { IGitHubService } from '../../../../workbench/contrib/sessions/browser/github/githubService.js';
 import { SessionIsActiveContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { resolveSessionCommandTarget } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
 import { whenChatWidgetForSession } from '../../chat/browser/chatWidgetUtils.js';
-import { submitFixCIChecks } from './fixCIChecks.js';
-
-export const hasActiveSessionFailedCIChecks = new RawContextKey<boolean>('sessions.hasActiveSessionFailedCIChecks', false);
-
-/**
- * True when the user has already requested a CI fix for the active session's
- * current PR head commit. Used to hide the "Fix Checks" action until a new
- * commit lands on the PR.
- */
-export const activeSessionCIFixRequested = new RawContextKey<boolean>('sessions.activeSessionCIFixRequested', false);
+import { submitFixCIChecks, hasActiveSessionFailedCIChecks, activeSessionCIFixRequested } from './fixCIChecks.js';
 
 /** Command that sends the `fix-ci` prompt for the active session's failed checks. */
 export const FIX_CI_CHECKS_COMMAND_ID = 'sessions.action.fixCIChecks';
-
-/**
- * Binds `hasActiveSessionFailedCIChecks` (a failed check that counts on the pull
- * request of the session; see {@link GitHubPullRequestCIModel.requiredChecks}) and
- * `activeSessionCIFixRequested` on the given context key service.
- */
-export function bindSessionCIChecksContextKeys(pullRequest: Pick<IGitHubSessionPullRequestObservables, 'pullRequestCIObs'>, contextKeyService: IContextKeyService): IDisposable {
-	const store = new DisposableStore();
-	store.add(bindContextKey(hasActiveSessionFailedCIChecks, contextKeyService, reader => {
-		const ciModel = pullRequest.pullRequestCIObs.read(reader);
-		if (!ciModel) {
-			return false;
-		}
-		return (ciModel.requiredChecks.read(reader)?.failed.length ?? 0) > 0;
-	}));
-	store.add(bindContextKey(activeSessionCIFixRequested, contextKeyService, reader => {
-		const ciModel = pullRequest.pullRequestCIObs.read(reader);
-		if (!ciModel) {
-			return false;
-		}
-		return ciModel.fixRequested.read(reader);
-	}));
-	return store;
-}
 
 class FixCIChecksAction extends Action2 {
 
