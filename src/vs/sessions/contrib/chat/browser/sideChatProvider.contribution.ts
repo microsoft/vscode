@@ -18,7 +18,7 @@ import { IChatSideChatOrigin, IChatSideChatProvider, IChatSideChatRequestOptions
 import { IWorkbenchEnvironmentService } from '../../../../workbench/services/environment/common/environmentService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
-import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, getChatHarness, IChat, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { createAndSendSideChat } from './sideChatOrchestration.js';
 
@@ -53,12 +53,12 @@ export class SessionsSideChatProviderContribution extends Disposable implements 
 		this._register(sideChatService.registerProvider(this));
 	}
 
-	canAskInSideChat(sessionResource: URI): boolean {
-		return !!this._resolveSource(sessionResource);
+	canAskInSideChat(sessionResource: URI, includeSourceContext?: boolean): boolean {
+		return !!this._resolveSource(sessionResource, undefined, includeSourceContext);
 	}
 
 	async askInSideChat(sessionResource: URI, query: string, selection?: IChatSideChatSelection, options?: IChatSideChatRequestOptions): Promise<void> {
-		const source = this._resolveSource(sessionResource, options?.sourceTurnId);
+		const source = this._resolveSource(sessionResource, options?.sourceTurnId, options?.includeSourceContext);
 		if (!source) {
 			throw new Error(`Side chats are not supported for ${sessionResource.toString()}`);
 		}
@@ -160,13 +160,17 @@ export class SessionsSideChatProviderContribution extends Disposable implements 
 	 * archived, its provider lacks side chat support, or nothing has been sent
 	 * yet so there is no turn to anchor to.
 	 */
-	private _resolveSource(sessionResource: URI, sourceTurnId?: string) {
+	private _resolveSource(sessionResource: URI, sourceTurnId?: string, includeSourceContext = true) {
 		const found = this.sessionsManagementService.getSessionForChatResource(sessionResource);
 		if (!found) {
 			return undefined;
 		}
 		const { session, chat } = found;
 		if (session.status.get() === SessionStatus.Untitled || session.isArchived.get() || !session.capabilities.get().supportsSideChat || chat.interactivity.get() !== ChatInteractivity.Full) {
+			return undefined;
+		}
+		const harness = getChatHarness(session, chat);
+		if (!includeSourceContext && harness !== session.harness && !session.capabilities.get().supportsChatHarnesses?.includes(harness)) {
 			return undefined;
 		}
 		const model = this.chatService.getSession(chat.resource);

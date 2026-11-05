@@ -27,7 +27,7 @@ export class ChatTerminalToolExplanation extends Disposable {
 	}
 
 	get button(): Omit<IChatConfirmationButton<() => Promise<void>>, 'moreActions'> | undefined {
-		if (!this.sideChatService.canAskInSideChat(this.sessionResource)) {
+		if (!this.sideChatService.canAskInSideChat(this.sessionResource, false)) {
 			return undefined;
 		}
 		return {

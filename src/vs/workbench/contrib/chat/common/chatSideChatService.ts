@@ -47,10 +47,10 @@ export interface IChatSideChatRequestOptions {
 /** Supplies window-specific side chat creation and origin navigation. */
 export interface IChatSideChatProvider {
 	/**
-	 * Whether a side chat can be branched from `sessionResource` right now, e.g.
-	 * the conversation supports side chats and has a turn to branch from.
+	 * Whether a side chat can be created from `sessionResource` with the requested context mode.
+	 * Source context is included by default.
 	 */
-	canAskInSideChat(sessionResource: URI): boolean;
+	canAskInSideChat(sessionResource: URI, includeSourceContext?: boolean): boolean;
 
 	/**
 	 * Branches a side chat from the chosen or latest turn, reveals it, and
@@ -76,7 +76,7 @@ export interface IChatSideChatService {
 	registerProvider(provider: IChatSideChatProvider): IDisposable;
 
 	/** @see IChatSideChatProvider.canAskInSideChat */
-	canAskInSideChat(sessionResource: URI): boolean;
+	canAskInSideChat(sessionResource: URI, includeSourceContext?: boolean): boolean;
 
 	/** @see IChatSideChatProvider.askInSideChat */
 	askInSideChat(sessionResource: URI, query: string, selection?: IChatSideChatSelection, options?: IChatSideChatRequestOptions): Promise<void>;
@@ -110,12 +110,12 @@ export class ChatSideChatService extends Disposable implements IChatSideChatServ
 		});
 	}
 
-	canAskInSideChat(sessionResource: URI): boolean {
-		return !!this._findProvider(sessionResource);
+	canAskInSideChat(sessionResource: URI, includeSourceContext?: boolean): boolean {
+		return !!this._findProvider(sessionResource, includeSourceContext);
 	}
 
 	async askInSideChat(sessionResource: URI, query: string, selection?: IChatSideChatSelection, options?: IChatSideChatRequestOptions): Promise<void> {
-		const provider = this._findProvider(sessionResource);
+		const provider = this._findProvider(sessionResource, options?.includeSourceContext);
 		if (!provider) {
 			throw new Error(`No side chat provider for ${sessionResource.toString()}`);
 		}
@@ -158,9 +158,9 @@ export class ChatSideChatService extends Disposable implements IChatSideChatServ
 		}
 	}
 
-	private _findProvider(sessionResource: URI): IChatSideChatProvider | undefined {
+	private _findProvider(sessionResource: URI, includeSourceContext?: boolean): IChatSideChatProvider | undefined {
 		for (const provider of this._providers.get()) {
-			if (provider.canAskInSideChat(sessionResource)) {
+			if (provider.canAskInSideChat(sessionResource, includeSourceContext)) {
 				return provider;
 			}
 		}

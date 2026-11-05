@@ -52,7 +52,7 @@ suite('ChatTerminalToolExplanation', () => {
 	test('omits unsupported explanations and reports failures without leaving the action disabled', async () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		let supported = false;
-		instantiationService.stub(IChatSideChatService, { canAskInSideChat: () => supported, askInSideChat: async () => { throw new Error('Unavailable'); } });
+		instantiationService.stub(IChatSideChatService, { canAskInSideChat: (_resource, includeSourceContext = true) => includeSourceContext || supported, askInSideChat: async () => { throw new Error('Unavailable'); } });
 		const error = sinon.spy();
 		instantiationService.stub(INotificationService, 'error', error);
 		const explanation = store.add(instantiationService.createInstance(ChatTerminalToolExplanation, URI.parse('test:///chat'), undefined, () => 'command'));

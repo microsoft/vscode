@@ -13884,6 +13884,29 @@ suite('LocalAgentHostSessionsProvider', () => {
 				});
 			}));
 
+			test('createSideChat rejects fresh cross-harness chats after the host gate turns off, but keeps ordinary side chats', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+				const provider = createProvider(disposables, agentHost, undefined, { configurationService: enableChatProviders() });
+				const session = setupMultiChatSession(provider, 'fresh-harness-gate');
+				const peerChat = buildChatUri(AgentSession.uri('copilotcli', 'fresh-harness-gate').toString(), 'other');
+				setupCatalog('fresh-harness-gate', [{ ...makeChatSummary(peerChat, 'Other'), provider: 'otheragent' }]);
+				const source = session.chats.get().find(chat => chat.harness === 'otheragent');
+				assert.ok(source);
+				await provider.createSideChat(session.sessionId, source.resource, 'turn-1', undefined, false);
+				setHostGate(false);
+
+				await assert.rejects(provider.createSideChat(session.sessionId, source.resource, 'turn-1', undefined, false), /does not support chats using harness/);
+				await provider.createSideChat(session.sessionId, source.resource, 'turn-1');
+				await provider.createSideChat(session.sessionId, session.resource, 'turn-1', undefined, false);
+
+				assert.deepStrictEqual(agentHost.createdChats.map(call => ({
+					provider: call.options?.provider, source: call.options?.sideChat?.source.toString(),
+				})), [
+					{ provider: 'otheragent', source: undefined },
+					{ provider: undefined, source: peerChat },
+					{ provider: undefined, source: undefined },
+				]);
+			}));
+
 			test('a chat whose reported agent changes (e.g. moved in from another session) is rebuilt with that harness', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 				const provider = createProvider(disposables, agentHost, undefined, { configurationService: enableChatProviders() });
 				const session = setupMultiChatSession(provider, 'harness-moved');
@@ -14277,11 +14300,15 @@ suite('LocalAgentHostSessionsProvider', () => {
 		}));
 
 		test('createSideChat can keep an opaque peer model and harness without copying its conversation', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-			agentHost.setAgents([
+			const agents: AgentInfo[] = [
 				{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { sideChat: true } } },
 				{ provider: 'claude', displayName: 'Claude', description: '', models: [], capabilities: { multipleChats: { sideChat: true } } },
-			]);
-			const provider = createProvider(disposables, agentHost);
+			];
+			agentHost.setRootState({ agents, config: { schema: { type: 'object', properties: {} }, values: { [ChatProvidersConfigKey.Enabled]: true } } });
+			agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), multipleChatProviders: {} }, undefined);
+			const provider = createProvider(disposables, agentHost, undefined, {
+				configurationService: new TestConfigurationService({ [ChatProvidersSettingId.Enabled]: true }),
+			});
 			const session = setupMultiChatSession(provider, 'fresh-side-chat');
 			const defaultChat = 'ahp-chat:/host-selected/main';
 			const peerChat = 'ahp-chat:/host-selected/peer';

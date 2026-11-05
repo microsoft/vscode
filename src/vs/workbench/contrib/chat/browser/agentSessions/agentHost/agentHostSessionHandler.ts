@@ -33,6 +33,7 @@ import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../..
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
 import { newAgentHostChatUri, newAgentHostSessionUri } from '../../../../../../platform/agentHost/common/agentHostSessionIdentity.js';
 import { getAgentHostChatId } from '../../../../../../platform/agentHost/common/agentHostChatIdentity.js';
+import { ChatProvidersConfigKey, ChatProvidersSettingId } from '../../../../../../platform/agentHost/common/agentHostChatProviders.js';
 import { IChatSideChatOrigin, IChatSideChatSelection } from '../../../common/chatSideChatService.js';
 import { getTelemetryChatId } from '../../../../../../platform/agentHost/common/agentTelemetryCorrelation.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
@@ -828,6 +829,9 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 	get createSideChat(): IChatSession['createSideChat'] {
 		return this._supportsSideChat() ? this._createSideChatIfWritable : undefined;
 	}
+	get supportsSideChatWithoutContext(): boolean {
+		return this._supportsSideChat(false);
+	}
 	private readonly _createSideChatIfWritable: NonNullable<IChatSession['createSideChat']>;
 	readonly renameSession: IChatSession['renameSession'];
 	readonly transferredState: IChatSession['transferredState'];
@@ -854,7 +858,7 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 		interruptActiveResponse: () => boolean,
 		private readonly _supportsFork: () => boolean,
 		private readonly _createSideChat: NonNullable<IChatSession['createSideChat']>,
-		private readonly _supportsSideChat: () => boolean,
+		private readonly _supportsSideChat: (includeSourceContext?: boolean) => boolean,
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
@@ -2098,9 +2102,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				},
 				(turnId, token, selection, includeSourceContext) =>
 					this._createSideChat(sessionResource, resolvedSession, turnId, token, selection, includeSourceContext),
-				() => {
+				(includeSourceContext = true) => {
 					const agent = this._getRootState()?.agents.find(agent => agent.provider === this._config.provider);
-					return agent?.capabilities?.multipleChats?.sideChat === true;
+					return agent?.capabilities?.multipleChats?.sideChat === true && (includeSourceContext || this._canCreateSideChatWithoutContext(sessionResource, resolvedSession));
 				},
 			);
 		} catch (err) {
@@ -6831,6 +6835,20 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return this._connectionsService.findSessionResource(legacy, authority) ? legacy : undefined;
 	}
 
+	private _canCreateSideChatWithoutContext(sessionResource: URI, backendSession: URI): boolean {
+		const session = this._getRawSessionState(backendSession.toString());
+		const chat = session && this._getChatURIOrDefault(sessionResource, backendSession, session);
+		const summary = session?.chats.find(summary => summary.resource === chat);
+		if (!session || !summary) {
+			return false;
+		}
+		return !summary.provider || summary.provider === session.provider || (
+			this._configurationService.getValue<boolean>(ChatProvidersSettingId.Enabled) === true
+			&& !!this._config.connection.initializeResult.get()?.multipleChatProviders
+			&& this._getRootState()?.config?.values[ChatProvidersConfigKey.Enabled] === true
+		);
+	}
+
 	private async _createSideChat(sessionResource: URI, backendSession: URI, turnId: string, token: CancellationToken, selection?: IChatSideChatSelection, includeSourceContext = true): Promise<IChatSessionItem> {
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
@@ -6849,14 +6867,32 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (sourceState?.activeTurn?.id !== turnId && !sourceState?.turns.some(turn => turn.id === turnId)) {
 			throw new Error(`Cannot create side chat: turn ${turnId} not found`);
 		}
+		if (!includeSourceContext && !this._canCreateSideChatWithoutContext(sessionResource, backendSession)) {
+			throw new Error(localize('agentHost.freshSideChatUnsupported', "This conversation's agent is not available for a new chat in this session."));
+		}
 		const chat = URI.parse(newAgentHostChatUri(sessionUri, rawState.defaultChat, this._config.connection.initializeResult.get()));
-		const sourceProvider = rawState.chats.find(summary => summary.resource === sourceChat)?.provider;
+		const sourceProvider = rawState.chats.find(summary => summary.resource === sourceChat)?.provider ?? rawState.provider;
 		await this._config.connection.createChat(backendSession, chat, {
 			model: lastTurnModelSelection(sourceState),
 			...(includeSourceContext
 				? { sideChat: { source: URI.parse(sourceChat), turnId, ...(selection ? { selection } : {}) } }
-				: sourceProvider ? { provider: sourceProvider } : {}),
+				: sourceProvider !== rawState.provider ? { provider: sourceProvider } : {}),
 		});
+		if (!includeSourceContext && sourceState) {
+			const draft = emptyDraftFromLastTurn(sourceState);
+			if (draft) {
+				// createChat has no model field on the wire without an initial message.
+				const ref = this._config.connection.getSubscription(StateComponents.Chat, chat, 'AgentHostSessionHandler.freshSideChatDraft');
+				try {
+					const acknowledgement = await this._config.connection.dispatchConfirmed(chat.toString(), ref.object, { type: ActionType.ChatDraftChanged, draft }, token);
+					if (acknowledgement.rejectionReason !== undefined) {
+						throw new Error(acknowledgement.rejectionReason);
+					}
+				} finally {
+					ref.dispose();
+				}
+			}
+		}
 		const subscription = this._ensureSessionSubscription(sessionUri);
 		const summary = await waitForState(
 			observableFromSubscription(this, subscription).map(state => state?.chats.find(summary => summary.resource === chat.toString())),

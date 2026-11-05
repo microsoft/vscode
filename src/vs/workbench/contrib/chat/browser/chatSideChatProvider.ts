@@ -43,12 +43,12 @@ export class EditorSideChatProviderContribution extends Disposable implements IC
 		}
 	}
 
-	canAskInSideChat(sessionResource: URI): boolean {
-		return !!this._resolveSourceTurn(sessionResource);
+	canAskInSideChat(sessionResource: URI, includeSourceContext?: boolean): boolean {
+		return !!this._resolveSourceTurn(sessionResource, undefined, includeSourceContext);
 	}
 
 	async askInSideChat(sessionResource: URI, query: string, selection?: IChatSideChatSelection, options?: IChatSideChatRequestOptions): Promise<void> {
-		const turn = this._resolveSourceTurn(sessionResource, options?.sourceTurnId);
+		const turn = this._resolveSourceTurn(sessionResource, options?.sourceTurnId, options?.includeSourceContext);
 		if (!turn) {
 			throw new Error(localize('sideChat.unsupported', "This conversation does not support side chats."));
 		}
@@ -97,9 +97,9 @@ export class EditorSideChatProviderContribution extends Disposable implements IC
 		}
 	}
 
-	private _resolveSourceTurn(sessionResource: URI, sourceTurnId?: string) {
+	private _resolveSourceTurn(sessionResource: URI, sourceTurnId?: string, includeSourceContext?: boolean) {
 		const model = this.chatService.getSession(sessionResource);
-		return model && !model.isReadOnly.get() && this.chatSessionsService.sessionSupportsSideChat(sessionResource)
+		return model && !model.isReadOnly.get() && this.chatSessionsService.sessionSupportsSideChat(sessionResource, includeSourceContext)
 			? sourceTurnId === undefined ? model.getRequests().at(-1) : model.getRequests().find(request => request.id === sourceTurnId)
 			: undefined;
 	}

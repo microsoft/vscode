@@ -662,6 +662,8 @@ export interface IChatSession extends IDisposable {
 	forkSession?: (request: IChatSessionRequestHistoryItem | undefined, token: CancellationToken, options?: IChatSessionForkOptions) => Promise<IChatSessionItem>;
 	/** Creates a side chat, or a fresh peer when includeSourceContext is false, without adding to the source conversation. */
 	createSideChat?: (turnId: string, token: CancellationToken, selection?: IChatSideChatSelection, includeSourceContext?: boolean) => Promise<IChatSessionItem>;
+	/** Whether a fresh side chat can currently retain this chat's harness without inheriting its conversation. */
+	readonly supportsSideChatWithoutContext?: boolean;
 	/**
 	 * Renames the session.
 	 * @param title The new title for the session.
@@ -1187,8 +1189,8 @@ export interface IChatSessionsService {
 	 */
 	sessionSupportsFork(sessionResource: URI): boolean;
 
-	/** Returns whether the loaded session supports side chats. */
-	sessionSupportsSideChat(sessionResource: URI): boolean;
+	/** Returns whether the loaded session supports side chats with the requested context mode (included by default). */
+	sessionSupportsSideChat(sessionResource: URI, includeSourceContext?: boolean): boolean;
 
 	/** Observes a loaded session's origin, including subsequent loading and disposal. */
 	observeSideChatOrigin(sessionResource: URI): IObservable<IChatSideChatOrigin | undefined>;

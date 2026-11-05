@@ -100,6 +100,28 @@ suite('ChatSideChatService', () => {
 		await assert.rejects(service.askInSideChat(resource, 'question'), /No side chat provider/);
 	});
 
+	test('rechecks fresh-chat support without disabling context-inheriting side chats', async () => {
+		const { store, service } = createService();
+		let supportsFresh = true;
+		const calls: Parameters<IChatSideChatProvider['askInSideChat']>[] = [];
+		store.add(service.registerProvider({
+			...createProvider(constObservable(undefined)),
+			canAskInSideChat: (_resource, includeSourceContext = true) => includeSourceContext || supportsFresh,
+			askInSideChat: async (...args) => { calls.push(args); },
+		}));
+		const before = service.canAskInSideChat(resource, false);
+		supportsFresh = false;
+		await assert.rejects(service.askInSideChat(resource, 'Explain', undefined, { includeSourceContext: false }), /No side chat provider/);
+		await service.askInSideChat(resource, 'Follow-up');
+
+		assert.deepStrictEqual({
+			before, fresh: service.canAskInSideChat(resource, false), inherited: service.canAskInSideChat(resource), calls,
+		}, {
+			before: true, fresh: false, inherited: true,
+			calls: [[resource, 'Follow-up', undefined, undefined]],
+		});
+	});
+
 	test('returns undefined after a provider is unregistered', () => {
 		const { store, service } = createService();
 		const observed = service.observeSideChatOrigin(resource);

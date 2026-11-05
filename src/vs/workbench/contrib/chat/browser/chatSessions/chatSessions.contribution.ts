@@ -1749,9 +1749,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return session.session.forkSession(request, token, options);
 	}
 
-	public sessionSupportsSideChat(sessionResource: URI): boolean {
+	public sessionSupportsSideChat(sessionResource: URI, includeSourceContext = true): boolean {
 		const session = this._sessions.get(sessionResource) ?? this._sessions.get(this._resolveResource(sessionResource));
-		return !!session?.session.createSideChat;
+		return !!session?.session.createSideChat && (includeSourceContext || session.session.supportsSideChatWithoutContext === true);
 	}
 
 	public observeSideChatOrigin(sessionResource: URI): IObservable<IChatSideChatOrigin | undefined> {
@@ -1764,7 +1764,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	public async createSideChat(sessionResource: URI, turnId: string, token: CancellationToken, selection?: IChatSideChatSelection, includeSourceContext?: boolean): Promise<IChatSessionItem> {
 		const session = this._sessions.get(sessionResource) ?? this._sessions.get(this._resolveResource(sessionResource));
-		if (!session?.session.createSideChat) {
+		if (!session?.session.createSideChat || (includeSourceContext === false && !session.session.supportsSideChatWithoutContext)) {
 			this._logService.trace(`[ChatSessionsService] Cannot create a side chat for unsupported session '${sessionResource.toString()}'`);
 			throw new Error(localize('chatSessions.sideChatsUnsupported', "This conversation does not support side chats."));
 		}

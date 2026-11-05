@@ -8766,15 +8766,15 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			?? (selectedModel ? `${cached.getChatModelScheme(sourceChat)}:${selectedModel.id}` : undefined);
 		const selectedAgentUri = cached.getChatMode(sourceChat)?.id;
 
+		const chatProvider = includeSourceContext ? undefined : this._resolveNewChatProvider(cached, toAgentHostChatHarness(cached.getChatAgentProvider(sourceChat)));
 		// Keep the session-state subscription alive so the `chatAdded` it emits
 		// flows into `_applyChatCatalogFromState` and updates `cached.chats`.
 		this._keepSessionStateAlive(cached.sessionId);
-		const sourceProvider = cached.getChatAgentProvider(sourceChat);
 		await connection.createChat(sessionUri, chatUri, {
 			model: selectedModel,
 			...(includeSourceContext
 				? { sideChat: { source: sourceBackendUri, turnId, ...(selection ? { selection } : {}) } }
-				: sourceProvider !== cached.agentProvider ? { provider: sourceProvider } : {}),
+				: chatProvider ? { provider: chatProvider } : {}),
 		});
 
 		const chat = await waitForState(

@@ -26,7 +26,7 @@ import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/
 import { SessionsSideChatProviderContribution } from '../../browser/sideChatProvider.contribution.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionNavigationRequest, ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ChatInteractivity, ChatOriginKind, IChat, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISessionCapabilities, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISendRequestOptions, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 
 suite('SessionsSideChatProviderContribution', () => {
@@ -39,6 +39,7 @@ suite('SessionsSideChatProviderContribution', () => {
 		status?: SessionStatus;
 		isArchived?: boolean;
 		supportsSideChat?: boolean;
+		supportsChatHarnesses?: readonly string[];
 		hasTurn?: boolean;
 		sourceTurnIds?: string[];
 		readOnly?: boolean;
@@ -56,13 +57,17 @@ suite('SessionsSideChatProviderContribution', () => {
 		const chat = options.chat ?? sourceChat;
 		const parentChat = options.parentChat ?? sourceChat;
 		const activeChat = observableValue<IChat>(store, chat);
+		const capabilities = observableValue<ISessionCapabilities>(store, {
+			supportsMultipleChats: true, supportsSideChat: options.supportsSideChat ?? true, supportsChatHarnesses: options.supportsChatHarnesses,
+		});
 
 		const session = upcastPartial<IActiveSession>({
 			sessionId: 'session',
 			resource: URI.parse('test:///session'),
+			harness: 'copilot',
 			status: constObservable(options.status ?? SessionStatus.Completed),
 			isArchived: constObservable(options.isArchived ?? false),
-			capabilities: constObservable({ supportsMultipleChats: true, supportsSideChat: options.supportsSideChat ?? true }),
+			capabilities,
 			chats: constObservable([parentChat, chat]),
 			activeChat,
 		});
@@ -137,7 +142,7 @@ suite('SessionsSideChatProviderContribution', () => {
 		}));
 
 		store.add(instantiationService.createInstance(SessionsSideChatProviderContribution));
-		return { provider: () => registered, callOrder, requests, sourceContextOptions, activeSession, activeChat, navigationRequest, session };
+		return { provider: () => registered, callOrder, requests, sourceContextOptions, activeSession, activeChat, navigationRequest, session, capabilities };
 	}
 
 	test('registers a provider that branches, opens, then sends on the side chat', async () => {
@@ -281,6 +286,23 @@ suite('SessionsSideChatProviderContribution', () => {
 			callOrder: ['create:turn-1:', `open:${sideChat.resource.toString()}`, `split:${sideChat.resource.toString()}`, `send:${sideChat.resource.toString()}:Explain this`],
 			sourceContextOptions: [false],
 			requests: [{ query: 'Explain this', attachedContext }],
+		});
+	});
+
+	test('gates fresh cross-harness explanations without disabling ordinary side chats', async () => {
+		const harness = setup({ chat: { ...sourceChat, harness: 'claude' }, supportsChatHarnesses: ['claude'] });
+		const provider = harness.provider()!;
+		const before = provider.canAskInSideChat(sourceChat.resource, false);
+		harness.capabilities.set({ supportsMultipleChats: true, supportsSideChat: true }, undefined);
+		await assert.rejects(provider.askInSideChat(sourceChat.resource, 'Explain', undefined, { includeSourceContext: false }), /not supported/);
+		await provider.askInSideChat(sourceChat.resource, 'Follow-up');
+		assert.deepStrictEqual({
+			before, fresh: provider.canAskInSideChat(sourceChat.resource, false), inherited: provider.canAskInSideChat(sourceChat.resource),
+			sameHarness: setup().provider()!.canAskInSideChat(sourceChat.resource, false),
+			requests: harness.requests,
+		}, {
+			before: true, fresh: false, inherited: true, sameHarness: true,
+			requests: [{ query: 'Follow-up', attachedContext: undefined }],
 		});
 	});
 

@@ -46,6 +46,7 @@ suite('BtwSlashCommandContribution', () => {
 	function setup(options?: {
 		isSessionsWindow?: boolean;
 		supported?: boolean;
+		freshSupported?: boolean;
 		unavailable?: boolean;
 		readOnly?: boolean;
 		noTurn?: boolean;
@@ -113,7 +114,7 @@ suite('BtwSlashCommandContribution', () => {
 		disposables.add(new EditorSideChatProviderContribution(
 			sideChatService,
 			upcastPartial<IChatSessionsService>({
-				sessionSupportsSideChat: () => options?.supported !== false,
+				sessionSupportsSideChat: (_resource, includeSourceContext = true) => options?.supported !== false && (includeSourceContext || options?.freshSupported !== false),
 				observeSideChatOrigin: () => options?.origin ?? constObservable(undefined),
 				createSideChat: async (resource, turnId, _token, selection, includeSourceContext) => {
 					calls.push({ create: resource, turnId, selection });
@@ -293,6 +294,22 @@ suite('BtwSlashCommandContribution', () => {
 			creation: { create: source, turnId: 'active-turn', selection: undefined },
 			sourceContextOptions: [false],
 			attachments: [[{ kind: 'paste', value: 'echo example' }]],
+		});
+	});
+
+	test('keeps /btw available when the source harness cannot create a fresh editor chat', async () => {
+		const harness = setup({ freshSupported: false });
+		await assert.rejects(harness.sideChatService.askInSideChat(source, 'Explain', undefined, { includeSourceContext: false }), /No side chat provider/);
+		await harness.run();
+		assert.deepStrictEqual({
+			fresh: harness.sideChatService.canAskInSideChat(source, false),
+			inherited: harness.sideChatService.canAskInSideChat(source),
+			creation: harness.calls[0],
+			sourceContextOptions: harness.sourceContextOptions,
+		}, {
+			fresh: false, inherited: true,
+			creation: { create: source, turnId: 'active-turn', selection: undefined },
+			sourceContextOptions: [undefined],
 		});
 	});
 

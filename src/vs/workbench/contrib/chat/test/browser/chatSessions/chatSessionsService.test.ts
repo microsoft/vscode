@@ -884,6 +884,7 @@ suite('ChatSessionsService - side chats', () => {
 		store.add(service.registerChatSessionContentProvider(type, {
 			provideChatSessionContent: async sessionResource => ({
 				sessionResource, history: [], onWillDispose: Event.None, dispose: () => { },
+				supportsSideChatWithoutContext: true,
 				createSideChat: async (...args) => {
 					calls.push(args);
 					return target;
@@ -895,6 +896,34 @@ suite('ChatSessionsService - side chats', () => {
 		assert.deepStrictEqual({ result, calls }, {
 			result: target,
 			calls: [[origin.sourceTurnId, CancellationToken.None, undefined, false]],
+		});
+	});
+
+	test('checks fresh-chat capability independently and rejects stale fresh-chat requests', async () => {
+		let supportsFresh: boolean | undefined;
+		const calls: Parameters<NonNullable<IChatSession['createSideChat']>>[] = [];
+		store.add(service.registerChatSessionContentProvider(type, {
+			provideChatSessionContent: async sessionResource => ({
+				sessionResource, history: [], onWillDispose: Event.None, dispose: () => { },
+				get supportsSideChatWithoutContext() { return supportsFresh; },
+				createSideChat: async (...args) => {
+					calls.push(args);
+					return { resource, label: 'Side Chat', timing: { created: 0, lastRequestStarted: 0, lastRequestEnded: 0 } };
+				},
+			}),
+		}));
+		await service.getOrCreateChatSession(resource, CancellationToken.None);
+		const fresh = [service.sessionSupportsSideChat(resource, false)];
+		supportsFresh = true;
+		fresh.push(service.sessionSupportsSideChat(resource, false));
+		supportsFresh = false;
+		fresh.push(service.sessionSupportsSideChat(resource, false));
+		await assert.rejects(service.createSideChat(resource, origin.sourceTurnId, CancellationToken.None, undefined, false), /does not support side chats/);
+		await service.createSideChat(resource, origin.sourceTurnId, CancellationToken.None);
+
+		assert.deepStrictEqual({ fresh, inherited: service.sessionSupportsSideChat(resource), calls }, {
+			fresh: [false, true, false], inherited: true,
+			calls: [[origin.sourceTurnId, CancellationToken.None, undefined, undefined]],
 		});
 	});
 
