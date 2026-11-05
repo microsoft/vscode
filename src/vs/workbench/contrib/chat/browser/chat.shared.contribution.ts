@@ -24,11 +24,12 @@ import { ChatPetJumpGameAccessibleView } from './accessibility/chatPetJumpGameAc
 import { registerAction2 } from '../../../../platform/actions/common/actions.js';
 import '../../../../platform/agentHost/browser/agentHostEnablementService.js';
 import '../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { AgentHostAutoReplyEnabledConfigKey, AgentHostByokUtilityModelDefaultConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostExternalSessionsMode, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostUtilitySmallModelConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
+import { AgentHostAssistedApprovalInstructionsConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostByokUtilityModelDefaultConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostExternalSessionsMode, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostUtilitySmallModelConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
 import '../../../../platform/agentHost/common/agentHostStarter.config.contribution.js';
 import { AgentMergeSettingId } from '../../../../platform/agentHost/common/agentMerge.js';
 import { CodexPreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
 import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, AgentHostCopilotIncludeCoAuthoredBySettingId, AgentHostCopilotLocalMemoryEnabledSettingId, AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotProgressUpdatesPromptSettingId, AgentHostCopilotRuntimePathSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, CopilotSearchSubagentEnabledSettingId, CopilotSearchSubagentModelSettingId, CopilotExploreAgentEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, CopilotStabilityOrderedPromptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotAutoModeTierOverrideSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, CopilotSkillCharBudgetSettingId, copilotSdkLogLevelSettingValues, DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL, DEFAULT_COPILOT_SKILL_CHAR_BUDGET, normalizeSkillCharBudget } from '../../../../platform/agentHost/common/copilotCliConfig.js';
+import { copilotPolicyHelperConfigurationProperties } from './copilotPolicyHelperConfiguration.js';
 import { imageGenerationConfigurationProperties } from '../../../../platform/agentHost/common/imageGenerationConfiguration.js';
 import { getLocalModelSafetyDisclosure, LOCAL_MODEL_MIN_GPU_MEMORY_GB_PLACEHOLDER, LocalModelEnabledSettingId, LocalModelLlamaServerPathSettingId, LocalModelUseInAutoSettingId } from '../../../../platform/agentHost/common/localModel.js';
 import '../../../services/agentHost/browser/localModelService.js';
@@ -37,7 +38,7 @@ import { reasoningEffortLevels } from '../../../../platform/agentHost/common/rea
 import { ChatSessionArchiveActionWordingSettingId } from '../../../../platform/chat/common/sessionArchiveActions.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { AgentHostConfigurationSyncScope, Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationNode, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { AgentHostConfigurationSyncScope, EditPresentationTypes, Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationNode, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -262,7 +263,7 @@ import { BrowserPluginGitCommandService } from './pluginGitCommandService.js';
 import { PluginInstallService } from './pluginInstallService.js';
 import { PluginUrlHandler } from './pluginUrlHandler.js';
 import './promptSyntax/promptCodingAgentActionContribution.js';
-import './promptSyntax/promptToolsCodeLensProvider.js';
+import { PromptToolsCodeLensProvider } from './promptSyntax/promptToolsCodeLensProvider.js';
 import './promptSyntax/promptToolSetsCodeLensProvider.js';
 import { PromptUrlHandler } from './promptSyntax/promptUrlHandler.js';
 import './promptTimeline/promptTimeline.contribution.js';
@@ -715,7 +716,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.InlineAttachmentsEnabled]: {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.inlineAttachments.enabled', "Controls whether context attached to the chat input, such as files, folders, images, symbols, tools, and pull requests, is shown as pills inline with the prompt text at the position where it was added, instead of above the input. Each inline attachment behaves like a single character: move the cursor across it, select it, or delete it like text. Sent requests show the same pills inline. The prompt sent to the model mentions each pill by its attachment's name and location, and attaches each attachment once, however often it is mentioned."),
+			markdownDescription: nls.localize('chat.inlineAttachments.enabled', "Controls whether context attached to the chat input, such as files, folders, images, symbols, tools, and pull requests, is shown as pills inline with the prompt text at the position where it was added, instead of above the input. Each inline attachment behaves like a single character: move the cursor across it, select it, or delete it like text. Sent requests show the same pills inline, and still show attached images as thumbnails above their text. The prompt sent to the model mentions each pill by its attachment's name and location, and attaches each attachment once, however often it is mentioned."),
 			default: product.quality === 'insider',
 			tags: ['experimental'],
 		},
@@ -867,6 +868,15 @@ configurationRegistry.registerConfiguration({
 					}
 				},
 			}
+		},
+		[ChatConfiguration.AssistedPermissionsInstructions]: {
+			type: 'string',
+			default: '',
+			editPresentation: EditPresentationTypes.Multiline,
+			description: nls.localize('chat.permissions.assisted.instructions', "Custom instructions for the reviewer that decides which tool calls can run without asking when a Copilot session uses Assisted permissions. They take precedence over the reviewer's default guidance but cannot override permission rules, organization policy, or the sandbox, and they are not sent to the agent. Leave empty to use the default guidance."),
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['chatPermissions'],
+			agentHost: { key: AgentHostAssistedApprovalInstructionsConfigKey },
 		},
 		[ChatConfiguration.SessionSyncEnabled]: {
 			default: false,
@@ -1089,8 +1099,7 @@ configurationRegistry.registerConfiguration({
 		[CodexPreferAgentHostEditorSettingId]: {
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.editor.codex.preferAgentHost', "When enabled, Codex sessions opened from the regular workbench (sidebar chat) run inside the agent host process using the Codex App Server instead of the OpenAI extension. Only one Codex implementation surfaces per window. Requires `#chat.agentHost.codexAgent.enabled#`."),
-			default: product.quality !== 'stable',
-			tags: ['experimental'],
+			default: true,
 			experiment: { mode: 'startup' },
 		},
 		[CODEX_CONTINUATION_SETTING]: {
@@ -1669,6 +1678,7 @@ configurationRegistry.registerConfiguration({
 				scope: AgentHostConfigurationSyncScope.Local,
 			},
 		},
+		...copilotPolicyHelperConfigurationProperties,
 		[CopilotClaudeAdvisorEnabledSettingId]: {
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.copilot.claudeAdvisor.enabled', "When enabled, Copilot Agent Host sessions using a supported Claude model can call the provider-native Advisor tool. Changing this setting restarts the Copilot SDK client after active turns finish."),
@@ -3285,6 +3295,7 @@ AccessibleViewRegistry.register(new ChatPetJumpGameAccessibleView(AccessibleView
 AccessibleViewRegistry.register(new ChatPetJumpGameAccessibleView(AccessibleViewType.View));
 
 registerEditorFeature(ChatInputBoxContentProvider);
+registerEditorFeature(PromptToolsCodeLensProvider);
 registerEditorFeature(ChatInputSessionLinkProvider);
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(ChatEditorInput.TypeID, ChatEditorInputSerializer);
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(ChatDebugEditorInput.ID, ChatDebugEditorInputSerializer);

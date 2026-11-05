@@ -17,6 +17,7 @@ import { ArtifactRun, ArtifactRunState, ArtifactSnapshot, IArtifactModel, isArti
 import { IChatWidget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../../../workbench/contrib/chat/common/model/chatViewModel.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ArtifactDetailsViewState, IArtifactActivitiesViewData, IArtifactActivityViewData } from './artifactDetailsView.js';
 
@@ -44,6 +45,7 @@ export class ArtifactActivitiesModel extends Disposable {
 		private readonly dismiss: () => void,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
+		@IFocusedSessionHostService private readonly _focusedSessionHostService: IFocusedSessionHostService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) {
 		super();
@@ -227,8 +229,7 @@ export class ArtifactActivitiesModel extends Disposable {
 			await this.sessionsService.openChat(owner.session, resource, { source: 'link' });
 			opened = true;
 			store.add(autorun(reader => {
-				const active = this.sessionsService.activeSession.read(reader);
-				if (!isEqual(active?.activeChat.read(reader)?.resource, resource)) {
+				if (!isEqual(this._focusedSessionHostService.focusedHost.read(reader).chat.read(reader)?.resource, resource)) {
 					cancelled = true;
 					if (!ready.isSettled) {
 						void ready.complete(undefined);

@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { AGENT_BUILTIN_CUSTOMIZATION_SCHEME, AGENT_DISCOVERY_CUSTOMIZATION_SCHEME, hasReadableCustomizationContent, isAgentBuiltinCustomizationUri } from '../../common/agentHostCustomizationUri.js';
+import { AGENT_BUILTIN_CUSTOMIZATION_SCHEME, AGENT_DISCOVERY_CUSTOMIZATION_SCHEME, getMcpSkillCustomizationUri, getMcpSkillName, hasReadableCustomizationContent, isAgentBuiltinCustomizationUri } from '../../common/agentHostCustomizationUri.js';
 import { toAgentHostUri } from '../../common/agentHostUri.js';
 
 suite('Agent Host customization URI', () => {
@@ -32,6 +32,24 @@ suite('Agent Host customization URI', () => {
 			fileReadable: true,
 		});
 
+	});
+
+	test('only host-routable MCP skills expose readable content', () => {
+		assert.deepStrictEqual(['opaque-mcp-channel:skills', undefined].map(channel => {
+			const uri = URI.parse(getMcpSkillCustomizationUri('skill://server/friendly/SKILL.md', channel, 'Friendly'));
+			return {
+				scheme: uri.scheme,
+				readable: hasReadableCustomizationContent(uri),
+				wrappedReadable: hasReadableCustomizationContent(toAgentHostUri(uri, 'remote')),
+			};
+		}), [
+			{ scheme: 'mcp-resource', readable: true, wrappedReadable: true },
+			{ scheme: AGENT_DISCOVERY_CUSTOMIZATION_SCHEME, readable: false, wrappedReadable: false },
+		]);
+	});
+
+	test('MCP skill names stay a single slash token', () => {
+		assert.deepStrictEqual([getMcpSkillName('fs', 'review'), getMcpSkillName('Docs Server', 'release notes')], ['fs:review', 'Docs-Server:release-notes']);
 	});
 
 	test('discovery identities do not imply readable source files', () => {

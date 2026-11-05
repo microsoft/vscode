@@ -197,7 +197,7 @@ suite('OpenerService', function () {
 		});
 	});
 
-	test('external URI opener contexts normalize placement without forwarding openToSide', async () => {
+	test('external URI opener contexts normalize placement without forwarding openToSide, and carry the window the link was activated in', async () => {
 		const openerService = new OpenerService(editorService, commandService);
 		const sourceUri = URI.parse('https://source.example.com');
 		const contexts: Parameters<IExternalOpener['openExternal']>[1][] = [];
@@ -211,15 +211,17 @@ suite('OpenerService', function () {
 		for (const options of [
 			{ openToSide: true },
 			{ openToSide: false },
-			{}
+			{},
+			{ sourceWindowId: 7 },
 		]) {
 			await openerService.open(sourceUri, { ...options, allowContributedOpeners: true });
 		}
 
 		assert.deepStrictEqual(contexts, [
-			{ sourceUri, sourceHref: sourceUri.toString(), preferredOpenerId: undefined, viewColumn: ViewColumn.Beside },
-			{ sourceUri, sourceHref: sourceUri.toString(), preferredOpenerId: undefined, viewColumn: undefined },
-			{ sourceUri, sourceHref: sourceUri.toString(), preferredOpenerId: undefined, viewColumn: undefined }
+			{ sourceUri, sourceHref: sourceUri.toString(), preferredOpenerId: undefined, viewColumn: ViewColumn.Beside, sourceWindowId: undefined },
+			{ sourceUri, sourceHref: sourceUri.toString(), preferredOpenerId: undefined, viewColumn: undefined, sourceWindowId: undefined },
+			{ sourceUri, sourceHref: sourceUri.toString(), preferredOpenerId: undefined, viewColumn: undefined, sourceWindowId: undefined },
+			{ sourceUri, sourceHref: sourceUri.toString(), preferredOpenerId: undefined, viewColumn: undefined, sourceWindowId: 7 },
 		]);
 	});
 

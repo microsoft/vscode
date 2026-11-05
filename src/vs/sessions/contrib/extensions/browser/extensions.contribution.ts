@@ -18,7 +18,7 @@ import { extensionsViewIcon } from '../../../../workbench/contrib/extensions/bro
 import { AgentsWindowExtensionAutoEnablementTelemetry } from './agentsWindowExtensionAutoEnablementTelemetry.js';
 import { AgentsWindowExtensionsAccessibilityHelp } from './agentsWindowExtensionsAccessibilityHelp.js';
 import { AGENTS_WINDOW_EXTENSION_SUGGESTIONS_SETTING, AgentsWindowExtensionSuggestionsService, getExtensionSuggestionsBadgeDescription, IAgentsWindowExtensionSuggestionsService } from './agentsWindowExtensionSuggestions.js';
-import { AgentsWindowExtensionsWidget } from './agentsWindowExtensionsWidget.js';
+import { AGENTS_WINDOW_CONFIRM_UNINSTALL_SETTING, AgentsWindowExtensionsWidget } from './agentsWindowExtensionsWidget.js';
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'extensions',
@@ -26,7 +26,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		[EXTENSIONS_AGENTS_WINDOW_MANAGEMENT]: {
 			type: 'boolean',
 			scope: ConfigurationScope.APPLICATION,
-			description: localize('extensions.experimental.agentsWindowManagement', "When enabled, you can choose which installed extensions run in the Agents window from the Extensions section of Agent Customizations. When disabled, extensions that don't support the Agents window stay disabled there, and your previous choices are kept but ignored."),
+			description: localize('extensions.experimental.agentsWindowManagement', "When enabled, you can choose which installed extensions run in the Agents window, and install extensions from the Marketplace, from the Extensions section of Agent Customizations. When disabled, extensions that don't support the Agents window stay disabled there, and your previous choices are kept but ignored."),
 			default: product.quality !== 'stable',
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
@@ -53,6 +53,13 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			tags: ['experimental'],
 			// Takes effect on startup, so assignment changes do not start or stop extensions while the window is open.
 			experiment: { mode: 'startup' },
+		},
+		[AGENTS_WINDOW_CONFIRM_UNINSTALL_SETTING]: {
+			type: 'boolean',
+			scope: ConfigurationScope.APPLICATION,
+			markdownDescription: localize('extensions.experimental.agentsWindowConfirmUninstall', "Controls whether to ask for confirmation before uninstalling an extension from the Extensions section of Agent Customizations, which also uninstalls it from VS Code. Requires `#{0}#`.", EXTENSIONS_AGENTS_WINDOW_MANAGEMENT),
+			default: true,
+			tags: ['experimental'],
 		},
 	},
 });

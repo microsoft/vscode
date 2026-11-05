@@ -273,7 +273,8 @@ const editorConfiguration: IConfigurationNode = {
 				nls.localize('diffAlgorithm.advanced', "Uses the advanced diffing algorithm."),
 				nls.localize('diffAlgorithm.advancedExternal', "Uses the advanced diffing algorithm from the external `@vscode/diff` package (pure JavaScript)."),
 				nls.localize('diffAlgorithm.advancedWasm', "Uses the advanced diffing algorithm from the external `@vscode/diff` package (WebAssembly)."),
-			]
+			],
+			experiment: { mode: 'startup' },
 		},
 		'diffEditor.experimental.verifyDiffSampleRate': {
 			type: 'number',

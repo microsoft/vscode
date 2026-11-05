@@ -118,6 +118,7 @@ Scanner sections:
 
 - Section 1 scans built-in extension dependencies. CG skips npm packages with `engines.vscode`, but VS Code ships built-in extensions, so their bundled dependencies are scanned from extension `node_modules` folders.
 - Section 2 scans root `node_modules` for packages whose LICENSE files exist on disk but whose ClearlyDefined coverage did not produce CG NOTICE text.
+- Sections 1 and 2 read a package's `LICENSE`/`LICENCE` file (`.md`, `.txt`, …), or else a `LICENSE-<name>` file such as `LICENSE-MIT.txt` (`punycode`) or `LICENSE-MIT` (`ignore`); with several (dual licenses), the MIT one first (`pickLicenseFileName()`, covered by `license-file.test.ts`).
 - Section 3 reads `licenseDetail` from `cgmanifest.json`, and for uncovered git components without inline text it tries `fetchLicenseFromGitRepo()` at the pinned `commitHash`.
 - Section 4 harvests Rust crate licenses from `Cargo.lock`; details below.
 - Section 5 enumerates platform-specific npm binary packages; details below.
@@ -317,6 +318,7 @@ Run from `build/azure-pipelines/oss`:
 ```powershell
 pnpm dlx tsx cargo-section4.test.ts
 pnpm dlx tsx platform-binary.test.ts
+pnpm dlx tsx license-file.test.ts
 ```
 
 Optional live Cargo check:

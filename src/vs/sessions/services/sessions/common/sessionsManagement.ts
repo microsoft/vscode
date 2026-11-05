@@ -6,7 +6,8 @@
 import { Event } from '../../../../base/common/event.js';
 import type { IAgentHostManagedWorktree, IAgentHostWorktreeCleanupStatus } from '../../../../platform/agentHost/common/agentHostWorktreeCleanup.js';
 
-import { IReference } from '../../../../base/common/lifecycle.js';
+import { IDisposable, IReference } from '../../../../base/common/lifecycle.js';
+import { IChatSessionItemArchiveState } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IArtifactModel } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -199,6 +200,18 @@ export interface IChatDeletedEvent {
 }
 
 /**
+ * The session as a host of the Agents window sees it: an {@link IActiveSession} without the chat selected for every place
+ * that shows it, as the host shows a chat of its own.
+ */
+export type IHostSession = Omit<IActiveSession, 'activeChat' | 'scopedChatResource'>;
+
+/** A chat a host shows, with its session. */
+export interface IShownChat {
+	readonly session: IHostSession;
+	readonly chat: IChat;
+}
+
+/**
  * An active session extends {@link ISession} with the currently focused chat.
  */
 export interface IActiveSession extends ISession {
@@ -259,6 +272,8 @@ export interface IMarkSessionReadOptions {
 }
 
 export interface ISessionsManagementService {
+	readonly archivedSessionItems: IObservable<IChatSessionItemArchiveState>;
+	acquireArchivedSessionItems(): IDisposable;
 	readonly _serviceBrand: undefined;
 
 	// -- Sessions --
@@ -408,7 +423,7 @@ export interface ISessionsManagementService {
 	/**
 	 * Fires when the in-progress new session is discarded via
 	 * {@link discardNewSession}: either the composer draft is abandoned without
-	 * sending, or {@link sendRequest} sends into an existing session (which
+	 * sending, or {@link sendRequest} sends into an existing session in the foreground (which
 	 * discards any pending draft first). Sending the draft itself via
 	 * {@link sendNewChatRequest} clears it without firing this event.
 	 */
@@ -584,6 +599,9 @@ export interface ISessionsManagementService {
 	 * caller can keep composing (e.g. start a parallel conversation).
 	 */
 	sendRequest(session: ISession, chat: IChat, options: ISendRequestOptions): Promise<void>;
+
+	/** Sends without navigating or discarding composer drafts, awaiting provider submission and propagating errors. */
+	sendRequestInBackground(session: ISession, chat: IChat, options: ISendRequestOptions): Promise<void>;
 
 	// -- Session Actions --
 
