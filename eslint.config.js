@@ -475,6 +475,7 @@ export default defineConfig(
 			'src/vs/platform/agentHost/**/*.ts',
 			'src/vs/workbench/contrib/chat/browser/agentSessions/**/*.ts',
 			'src/vs/workbench/services/agentHost/**/*.ts',
+			'src/vs/workbench/contrib/sessions/**/*.ts',
 			'src/vs/sessions/**/*.ts',
 		],
 		ignores: [
@@ -1960,6 +1961,41 @@ export default defineConfig(
 					]
 				},
 				{
+					// Session providers: may import shared sessions code and sibling providers, never vs/sessions.
+					// Other code, including vs/workbench/contrib/sessions/~, cannot import them: the import pattern
+					// 'vs/workbench/contrib/*/~' expands to layer folders and does not match 'contrib/sessions/providers/*/'.
+					'target': 'src/vs/workbench/contrib/sessions/providers/*/~',
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/editor/~',
+						'vs/editor/contrib/*/~',
+						'vs/workbench/~',
+						'vs/workbench/services/*/~',
+						'vs/workbench/contrib/*/~',
+						'vs/workbench/contrib/sessions/providers/*/~',
+						'@microsoft/dev-tunnels-connections', // type-only browser bundle conformance check
+						'@microsoft/dev-tunnels-management', // type-only browser bundle conformance check
+					]
+				},
+				{
+					// Shared sessions model, services and UI: the Agents window (vs/sessions) builds on them, never the reverse.
+					'target': 'src/vs/workbench/contrib/sessions/~',
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/editor/~',
+						'vs/editor/contrib/*/~',
+						'vs/workbench/~',
+						'vs/workbench/services/*/~',
+						'vs/workbench/contrib/*/~',
+						'vs/workbench/contrib/terminal/terminalContribChatExports*',
+						'vs/workbench/contrib/terminal/terminalContribExports*',
+					]
+				},
+				{
 					'target': 'src/vs/workbench/contrib/*/~',
 					'restrictions': [
 						'vs/base/~',
@@ -2201,6 +2237,7 @@ export default defineConfig(
 						'vs/editor/~',
 						'vs/editor/contrib/*/~',
 						'vs/editor/editor.all.js',
+						'vs/workbench/contrib/sessions/providers/*/~',
 						'vs/sessions/~',
 						'vs/sessions/services/*/~',
 						'vs/sessions/contrib/*/~',
@@ -2222,6 +2259,7 @@ export default defineConfig(
 						'vs/editor/~',
 						'vs/editor/contrib/*/~',
 						'vs/editor/editor.all.js',
+						'vs/workbench/contrib/sessions/providers/*/~',
 						'vs/sessions/~',
 						'vs/sessions/services/*/~',
 						'vs/sessions/contrib/*/~',
@@ -2243,6 +2281,7 @@ export default defineConfig(
 						'vs/editor/~',
 						'vs/editor/contrib/*/~',
 						'vs/editor/editor.all.js',
+						'vs/workbench/contrib/sessions/providers/*/~',
 						'vs/sessions/~',
 						'vs/sessions/services/*/~',
 						'vs/sessions/contrib/*/~',
@@ -2261,6 +2300,7 @@ export default defineConfig(
 						'vs/base/~',
 						'vs/base/parts/*/~',
 						'vs/platform/*/~',
+						'vs/workbench/contrib/sessions/providers/*/~',
 						'vs/sessions/~',
 						'vs/sessions/contrib/*/~',
 						'vs/sessions/contrib/providers/*/~',
@@ -2316,6 +2356,8 @@ export default defineConfig(
 						'vs/workbench/~',
 						'vs/workbench/browser/**',
 						'vs/workbench/services/*/~',
+						'vs/workbench/contrib/sessions/~', // shared sessions model, services and UI
+						'vs/workbench/contrib/sessions/providers/*/~',
 						'vs/sessions/~',
 						'vs/sessions/services/*/~'
 					]
@@ -2332,6 +2374,7 @@ export default defineConfig(
 						'vs/workbench/browser/**',
 						'vs/workbench/services/*/~',
 						'vs/workbench/contrib/*/~',
+						'vs/workbench/contrib/sessions/providers/*/~',
 						'vs/sessions/~',
 						'vs/sessions/contrib/*/~',
 						'vs/sessions/contrib/providers/*/~',
@@ -2352,6 +2395,7 @@ export default defineConfig(
 						'vs/workbench/browser/**',
 						'vs/workbench/services/*/~',
 						'vs/workbench/contrib/*/~',
+						'vs/workbench/contrib/sessions/providers/*/~',
 						'vs/sessions/~',
 						'vs/sessions/contrib/*/~',
 						'vs/sessions/services/*/~',
@@ -2370,6 +2414,7 @@ export default defineConfig(
 						'vs/sessions/~',
 						'vs/sessions/services/*/~',
 						'vs/workbench/contrib/*/~',
+						'vs/workbench/contrib/sessions/providers/*/~',
 						{
 							'when': 'test',
 							'pattern': 'vs/workbench/contrib/*/~'
@@ -2499,10 +2544,12 @@ export default defineConfig(
 		// rest of the Agents window (sessions workbench) must stay provider-agnostic.
 		// See src/vs/sessions/SESSIONS.md.
 		files: [
-			'src/vs/sessions/**/*.ts'
+			'src/vs/sessions/**/*.ts',
+			'src/vs/workbench/contrib/sessions/**/*.ts'
 		],
 		ignores: [
-			'src/vs/sessions/contrib/providers/copilotChatSessions/**/*.ts'
+			'src/vs/sessions/contrib/providers/copilotChatSessions/**/*.ts',
+			'src/vs/workbench/contrib/sessions/providers/copilotChatSessions/**/*.ts'
 		],
 		languageOptions: {
 			parser: tseslint.parser,
