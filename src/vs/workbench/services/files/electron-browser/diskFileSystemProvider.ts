@@ -141,6 +141,12 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		return this.provider.cloneFile(from, to);
 	}
 
+	//#region File Path Case Sensitivity
+
+	isPathCaseSensitive(resource: URI): Promise<boolean> {
+		return this.provider.isPathCaseSensitive(resource);
+	}
+
 	//#endregion
 
 	//#region File Watching
