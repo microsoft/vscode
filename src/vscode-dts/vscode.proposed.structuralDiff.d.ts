@@ -207,9 +207,10 @@ declare module 'vscode' {
 		readonly modifiedChanges: readonly StructuralDiffCoverage[];
 
 		/**
-		 * Changed descendants and the ancestors needed to contain them.
-		 * Unchanged subtrees are omitted. An ancestor retained for context can
-		 * have no directly owned changes.
+		 * Changed descendants and the ancestors needed to contain them. A node
+		 * is changed if a supplied textual change intersects its range in a
+		 * document in which it exists. Unchanged subtrees are omitted. An
+		 * ancestor retained for context can have no directly owned changes.
 		 *
 		 * Parenthood represents lexical containment, not semantic ownership.
 		 * On each side where a child exists, its parent must also exist and its

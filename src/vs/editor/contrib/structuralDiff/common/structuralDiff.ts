@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { findFirstIdxMonotonousOrArrLen } from '../../../../base/common/arraysFind.js';
 import { raceCancellationError } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError, onUnexpectedExternalError } from '../../../../base/common/errors.js';
@@ -155,6 +156,16 @@ function toValidRange(model: ITextModel, range: IRange): Range | undefined {
 	return Range.equalsRange(valid, range) ? valid : undefined;
 }
 
+/**
+ * Returns whether text changed within the range. The changed ranges are sorted and do not overlap, so if the first one
+ * that ends after the start of the range does not intersect it, none does. Ranges that only touch do not intersect.
+ */
+function containsChangedText(range: IRange, changedRanges: readonly IRange[]): boolean {
+	const start = Range.getStartPosition(range);
+	const index = findFirstIdxMonotonousOrArrLen(changedRanges, changed => start.isBefore(Range.getEndPosition(changed)));
+	return index < changedRanges.length && Range.areIntersecting(range, changedRanges[index]);
+}
+
 function validateEntity(node: StructuralDiffNode, side: Side, entity: StructuralDiffEntity, model: ITextModel, parent: StructuralDiffNode | undefined): void {
 	if (typeof entity !== 'object' || entity === null) {
 		throw invalid(node, `has an invalid ${side} entity`);
@@ -202,6 +213,10 @@ function validateCoverage(node: StructuralDiffNode, side: Side, coverage: Struct
  */
 function validateStructuralDiff(diff: StructuralDiff, context: StructuralDiffContext, originalModel: ITextModel, modifiedModel: ITextModel): void {
 	const models: Record<Side, ITextModel> = { original: originalModel, modified: modifiedModel };
+	const changedRanges: Record<Side, readonly IRange[]> = {
+		original: context.changes.map(change => change.originalRange),
+		modified: context.changes.map(change => change.modifiedRange),
+	};
 	const ids = new Set<string>();
 	const coverage: Record<Side, Map<number, Range[]>> = { original: new Map(), modified: new Map() };
 
@@ -213,6 +228,7 @@ function validateStructuralDiff(diff: StructuralDiff, context: StructuralDiffCon
 		if (node.original === undefined && node.modified === undefined) {
 			throw invalid(node, 'must have an original or a modified entity');
 		}
+		let isChanged = false;
 		for (const side of sides) {
 			const entity = node[side];
 			const changes = side === 'original' ? node.originalChanges : node.modifiedChanges;
@@ -223,6 +239,7 @@ function validateStructuralDiff(diff: StructuralDiff, context: StructuralDiffCon
 				continue;
 			}
 			validateEntity(node, side, entity, models[side], parent);
+			isChanged ||= containsChangedText(entity.range, changedRanges[side]);
 			for (const change of changes) {
 				const range = validateCoverage(node, side, change, entity, models[side], context);
 				const ranges = coverage[side].get(change.textChangeIndex);
@@ -232,6 +249,11 @@ function validateStructuralDiff(diff: StructuralDiff, context: StructuralDiffCon
 					coverage[side].set(change.textChangeIndex, [range]);
 				}
 			}
+		}
+		// Unchanged subtrees are omitted, so the root has no children when the documents are identical. A node can contain
+		// changed text without owning changes, because its ancestors can own them.
+		if (parent && !isChanged) {
+			throw invalid(node, 'contains no changed text, so it must be omitted');
 		}
 		for (const child of node.children) {
 			validateNode(child, node);

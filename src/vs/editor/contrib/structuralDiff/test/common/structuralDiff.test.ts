@@ -226,6 +226,8 @@ suite('Structural diff', () => {
 			['incompleteness that is not a boolean', { ...withInner({ modifiedChanges: [] }), isIncomplete: 'false' as unknown as boolean }, 'Invalid structural diff: isIncomplete must be true or false'],
 			['duplicate id', withInner({ id: 'outer' }), problem('outer', 'must have an identifier that is unique within the result')],
 			['no entity', withInner({ original: undefined, modified: undefined, originalChanges: [], modifiedChanges: [] }), problem('inner', 'must have an original or a modified entity')],
+			['node without changed text', withOuter({ children: [inner, { id: 'unchanged', original: entity('value', SymbolKind.Variable, new Range(1, 7, 1, 15)), modified: entity('value', SymbolKind.Variable, new Range(1, 7, 1, 15)), originalChanges: [], modifiedChanges: [], children: [] }] }), problem('unchanged', 'contains no changed text, so it must be omitted')],
+			['changed text whose changes an ancestor owns', withOuter({ originalChanges: [coverage], modifiedChanges: [coverage], children: [{ ...inner, originalChanges: [], modifiedChanges: [] }] }), 'valid'],
 			['changes without entity', withInner({ original: undefined }), problem('inner', 'has original changes but no original entity')],
 			['entity that is not an object', withInner({ original: null as unknown as StructuralDiffEntity, originalChanges: [] }), problem('inner', 'has an invalid original entity')],
 			['unknown kind', withInner({ modified: { ...inner.modified!, kind: 99 as SymbolKind } }), problem('inner', 'has an invalid modified entity name, detail, kind or language kind')],
@@ -324,6 +326,42 @@ suite('Structural diff', () => {
 			},
 		}));
 		assert.deepStrictEqual(await compute(), { ...createResult({ changes: [] }), context: { changes: [] } });
+	});
+
+	test('rejects children for identical documents, even in an incomplete result', async () => {
+		modified.setValue(original.getValue());
+		const errors: string[] = [];
+		const previousHandler = errorHandler.getUnexpectedErrorHandler();
+		setUnexpectedErrorHandler(error => errors.push(error.message));
+		try {
+			store.add(languageFeatures.structuralDiffProvider.register('*', {
+				provideStructuralDiff: (_original, _modified, context) => {
+					const { root } = createResult(context);
+					return { root: { ...root, children: [{ ...root, id: 'child' }] }, isIncomplete: true };
+				},
+			}));
+			const result = await compute();
+			assert.deepStrictEqual({ errors, result }, {
+				errors: [`Invalid structural diff: node 'child' contains no changed text, so it must be omitted`],
+				result: undefined,
+			});
+		} finally {
+			setUnexpectedErrorHandler(previousHandler);
+		}
+	});
+
+	test('accepts a node that contains only a later text change', async () => {
+		original.setValue('const a = 1;\nconst b = 1;\n');
+		modified.setValue('const a = 2;\nconst b = 2;\n');
+		store.add(languageFeatures.structuralDiffProvider.register('*', {
+			provideStructuralDiff: (_original, _modified, context) => {
+				const { root } = createResult(context);
+				const entity = { name: 'b', kind: SymbolKind.Variable, range: new Range(2, 1, 2, 13) };
+				return { root: { ...root, children: [{ id: 'b', original: entity, modified: entity, originalChanges: [], modifiedChanges: [], children: [] }] }, isIncomplete: false };
+			},
+		}));
+		const result = await compute();
+		assert.deepStrictEqual({ changes: result?.context.changes.length, children: result?.root.children.map(child => child.id) }, { changes: 2, children: ['b'] });
 	});
 
 	for (const [originalText, modifiedText] of [
