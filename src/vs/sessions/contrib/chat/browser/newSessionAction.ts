@@ -21,6 +21,7 @@ import { ISessionsPartService } from '../../../services/sessions/browser/session
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsRecentWorkspacesService } from '../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { getMainWindowHost, ISessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { ICustomViewService } from '../../../services/customView/browser/customViewService.js';
 import { IWindowCanvasService, WindowCanvasInput } from '../../../services/canvas/browser/windowCanvasService.js';
 import { inheritableSessionTarget, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
@@ -76,13 +77,14 @@ export class NewChatInSessionsWindowAction extends Action2 {
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const sessionsPartService = options?.prompt ? accessor.get(ISessionsPartService) : undefined;
-		const activeSession = sessionsService.activeSession.get();
+		// New sessions open in the main window, from the session it shows.
+		const mainWindowHost = getMainWindowHost(accessor.get(ISessionHostService));
+		const activeSession = mainWindowHost.session.get();
 		const sendPrompt = (): void => {
 			if (!options?.prompt) {
 				return;
 			}
-			const sessionId = sessionsService.activeSession.get()?.sessionId;
-			const sessionView = sessionsPartService?.getSessionView(sessionId);
+			const sessionView = sessionsPartService?.getSessionView(mainWindowHost.session.get()?.sessionId);
 			if (!sessionView) {
 				throw new Error(localize('sessions.newSession.chatUnavailable', "The new session chat is unavailable."));
 			}
@@ -121,8 +123,7 @@ export class NewChatInSessionsWindowAction extends Action2 {
 			}
 			sessionsService.unsetNewSession();
 			await sessionsService.openNewSession();
-			const replacementSessionId = sessionsService.activeSession.get()?.sessionId;
-			partService.getSessionView(replacementSessionId)?.focusWorkspacePicker();
+			partService.getSessionView(mainWindowHost.session.get()?.sessionId)?.focusWorkspacePicker();
 			sendPrompt();
 			return;
 		}

@@ -7,12 +7,13 @@ import assert from 'assert';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from '../../../../base/common/path.js';
+import { hasKey } from '../../../../base/common/types.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid, isUUID } from '../../../../base/common/uuid.js';
 import { AgentSession } from '../../common/agent.js';
-import { getTurnError, MessageAttachmentKind, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, type MessageAttachment, type ResponsePart, type ToolCallCompletedState, type Turn } from '../../common/state/sessionState.js';
-import { buildSessionEventLogFromTurns, buildSessionEventsFromTurns, IMPORTED_TURN_DURATIONS_DB_KEY, parseImportedTurnDurations, serializeImportedTurnDurations, serializeSessionEventsToJsonl } from '../../node/copilot/buildSessionEvents.js';
+import { getTurnError, MessageAttachmentKind, MessageKind, ResponsePartKind, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, type MessageAttachment, type ResponsePart, type ToolCallCancelledState, type ToolCallCompletedState, type Turn } from '../../common/state/sessionState.js';
+import { buildSessionEventLogFromTurns, buildSessionEventsFromTurns, IMPORTED_TOOL_CALLS_DB_KEY, IMPORTED_TURN_DURATIONS_DB_KEY, parseImportedTurnDurations, serializeImportedToolCalls, serializeImportedTurnDurations, serializeSessionEventsToJsonl } from '../../node/copilot/buildSessionEvents.js';
 import { TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { createCopilotSdkPathMapper, toCopilotWorkspace } from '../../node/copilot/copilotWorkspace.js';
 import { withAttachmentDetail } from '../../common/meta/attachmentMeta.js';
@@ -305,6 +306,172 @@ suite('buildSessionEventsFromTurns — reverse of mapSessionEvents', () => {
 		assert.ok(toolPart && toolPart.kind === ResponsePartKind.ToolCall);
 		assert.strictEqual((toolPart.toolCall as ToolCallCompletedState).success, false);
 		assert.strictEqual((toolPart.toolCall as ToolCallCompletedState).error?.message, 'boom');
+	});
+
+	test('a cold restore keeps an imported tool call\'s output, messages and confirmation, and that a denied call never ran', async () => {
+		const toolCalls: ResponsePart[] = [
+			{
+				kind: ResponsePartKind.ToolCall,
+				toolCall: {
+					status: ToolCallStatus.Completed,
+					toolCallId: 'outputs',
+					toolName: 'copilot_readFile',
+					displayName: 'Read File',
+					invocationMessage: { markdown: 'Reading [](file:///repo/a.ts)' },
+					toolInput: '{}',
+					success: true,
+					pastTenseMessage: { markdown: 'Read [](file:///repo/a.ts)' },
+					confirmed: ToolCallConfirmationReason.UserAction,
+					content: [
+						{ type: ToolResultContentType.Text, text: 'ok' },
+						{ type: ToolResultContentType.EmbeddedResource, data: 'AAEC', contentType: 'image/png' },
+						{ type: ToolResultContentType.EmbeddedResource, data: 'AQID', contentType: 'application/pdf' },
+						{ type: ToolResultContentType.Resource, uri: 'file:///repo/out.log', contentType: 'text/plain' },
+					],
+				} satisfies ToolCallCompletedState,
+			},
+			{
+				kind: ResponsePartKind.ToolCall,
+				toolCall: {
+					status: ToolCallStatus.Completed,
+					toolCallId: 'failed',
+					toolName: 'copilot_screenshot',
+					displayName: 'Screenshot',
+					invocationMessage: 'Capturing',
+					toolInput: '{}',
+					success: false,
+					pastTenseMessage: 'Captured',
+					confirmed: ToolCallConfirmationReason.NotNeeded,
+					content: [
+						{ type: ToolResultContentType.Text, text: 'Page crashed' },
+						{ type: ToolResultContentType.EmbeddedResource, data: 'BAUG', contentType: 'image/png' },
+					],
+					error: { message: 'Page crashed' },
+				} satisfies ToolCallCompletedState,
+			},
+			{
+				kind: ResponsePartKind.ToolCall,
+				toolCall: {
+					status: ToolCallStatus.Cancelled,
+					toolCallId: 'denied',
+					toolName: 'copilot_runInTerminal',
+					displayName: 'Run in Terminal',
+					invocationMessage: 'Running npm test',
+					toolInput: '{}',
+					reason: ToolCallCancellationReason.Denied,
+					reasonMessage: 'Denied by a hook.',
+				} satisfies ToolCallCancelledState,
+			},
+			{
+				kind: ResponsePartKind.ToolCall,
+				toolCall: {
+					status: ToolCallStatus.Cancelled,
+					toolCallId: 'skipped',
+					toolName: 'copilot_runInTerminal',
+					displayName: 'Run in Terminal',
+					invocationMessage: 'Running npm run build',
+					toolInput: '{}',
+					reason: ToolCallCancellationReason.Skipped,
+				} satisfies ToolCallCancelledState,
+			},
+			{
+				kind: ResponsePartKind.ToolCall,
+				toolCall: {
+					status: ToolCallStatus.Cancelled,
+					toolCallId: 'result-denied',
+					toolName: 'copilot_fetch',
+					displayName: 'Fetch',
+					invocationMessage: 'Fetching',
+					toolInput: '{}',
+					reason: ToolCallCancellationReason.ResultDenied,
+				} satisfies ToolCallCancelledState,
+			},
+		];
+		const turns = [userTurn(generateUuid(), 'check it', toolCalls)];
+		const events = buildSessionEventsFromTurns(turns, { sessionId });
+		const database = new TestSessionDatabase();
+		await database.setMetadata(IMPORTED_TOOL_CALLS_DB_KEY, serializeImportedToolCalls(turns)!);
+		const replay = async (db: ISessionDatabase | undefined) => (await mapSessionEvents(session, db, events)).turns[0].responseParts.map(part => {
+			if (part.kind !== ResponsePartKind.ToolCall) {
+				return part.kind;
+			}
+			const toolCall = part.toolCall;
+			return toolCall.status === ToolCallStatus.Completed
+				? { status: toolCall.status, displayName: toolCall.displayName, invocationMessage: toolCall.invocationMessage, pastTenseMessage: toolCall.pastTenseMessage, confirmed: toolCall.confirmed, content: toolCall.content, error: toolCall.error }
+				: { status: toolCall.status, displayName: toolCall.displayName, invocationMessage: toolCall.invocationMessage, reason: toolCall.status === ToolCallStatus.Cancelled ? toolCall.reason : undefined, reasonMessage: toolCall.status === ToolCallStatus.Cancelled ? toolCall.reasonMessage : undefined };
+		});
+		const restored = await replay(database);
+		const withoutRecord = await replay(undefined);
+
+		assert.deepStrictEqual({
+			// The model's history says the cancelled calls produced no result, naming who only when that was
+			// recorded, and that a call whose result was rejected had run.
+			cancelledResults: events.flatMap(e => e.type === 'tool.execution_complete' && !e.data.success && !e.data.result ? [e.data.error] : []),
+			restored,
+			// Without the record, a replay regenerates the messages and loses what only the record keeps.
+			withoutRecord: withoutRecord.map(call => typeof call === 'object' && hasKey(call, { content: true }) ? { status: call.status, confirmed: call.confirmed, content: call.content } : call),
+		}, {
+			cancelledResults: [
+				{ message: 'Denied by a hook.', code: 'denied' },
+				{ message: 'This tool call was skipped.', code: 'skipped' },
+				{ message: 'This tool call ran, but its result was rejected.', code: 'result-denied' },
+			],
+			restored: [
+				{
+					status: ToolCallStatus.Completed,
+					displayName: 'Read File',
+					invocationMessage: { markdown: 'Reading [](file:///repo/a.ts)' },
+					pastTenseMessage: { markdown: 'Read [](file:///repo/a.ts)' },
+					confirmed: ToolCallConfirmationReason.UserAction,
+					content: [
+						{ type: ToolResultContentType.Text, text: 'ok' },
+						{ type: ToolResultContentType.EmbeddedResource, data: 'AAEC', contentType: 'image/png' },
+						{ type: ToolResultContentType.EmbeddedResource, data: 'AQID', contentType: 'application/pdf' },
+						{ type: ToolResultContentType.Resource, uri: 'file:///repo/out.log', contentType: 'text/plain' },
+					],
+					error: undefined,
+				},
+				{
+					status: ToolCallStatus.Completed,
+					displayName: 'Screenshot',
+					invocationMessage: 'Capturing',
+					pastTenseMessage: 'Captured',
+					confirmed: ToolCallConfirmationReason.NotNeeded,
+					// A failed call keeps its diagnostic image.
+					content: [
+						{ type: ToolResultContentType.Text, text: 'Page crashed' },
+						{ type: ToolResultContentType.EmbeddedResource, data: 'BAUG', contentType: 'image/png' },
+					],
+					error: { message: 'Page crashed' },
+				},
+				{ status: ToolCallStatus.Cancelled, displayName: 'Run in Terminal', invocationMessage: 'Running npm test', reason: ToolCallCancellationReason.Denied, reasonMessage: 'Denied by a hook.' },
+				{ status: ToolCallStatus.Cancelled, displayName: 'Run in Terminal', invocationMessage: 'Running npm run build', reason: ToolCallCancellationReason.Skipped, reasonMessage: undefined },
+				{ status: ToolCallStatus.Cancelled, displayName: 'Fetch', invocationMessage: 'Fetching', reason: ToolCallCancellationReason.ResultDenied, reasonMessage: undefined },
+			],
+			withoutRecord: [
+				{
+					status: ToolCallStatus.Completed,
+					confirmed: ToolCallConfirmationReason.NotNeeded,
+					// Embedded data survives in the event log itself; the resource reference does not.
+					content: [
+						{ type: ToolResultContentType.Text, text: 'ok' },
+						{ type: ToolResultContentType.EmbeddedResource, data: 'AAEC', contentType: 'image/png' },
+						{ type: ToolResultContentType.EmbeddedResource, data: 'AQID', contentType: 'application/pdf' },
+					],
+				},
+				{
+					status: ToolCallStatus.Completed,
+					confirmed: ToolCallConfirmationReason.NotNeeded,
+					content: [
+						{ type: ToolResultContentType.Text, text: 'Page crashed' },
+						{ type: ToolResultContentType.EmbeddedResource, data: 'BAUG', contentType: 'image/png' },
+					],
+				},
+				{ status: ToolCallStatus.Completed, confirmed: ToolCallConfirmationReason.NotNeeded, content: [{ type: ToolResultContentType.Text, text: 'Denied by a hook.' }] },
+				{ status: ToolCallStatus.Completed, confirmed: ToolCallConfirmationReason.NotNeeded, content: [{ type: ToolResultContentType.Text, text: 'This tool call was skipped.' }] },
+				{ status: ToolCallStatus.Completed, confirmed: ToolCallConfirmationReason.NotNeeded, content: [{ type: ToolResultContentType.Text, text: 'This tool call ran, but its result was rejected.' }] },
+			],
+		});
 	});
 
 	test('emits subagent.started for a sub-agent tool call so the name/description survive the round-trip', async () => {

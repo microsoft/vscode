@@ -16,7 +16,7 @@ import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actio
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { resolveSessionCommandTarget } from '../../../services/sessions/browser/sessionCommandTarget.js';
 import { CodeReviewService, ICodeReviewService } from './codeReviewService.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { Menus } from '../../../browser/menus.js';
@@ -63,13 +63,12 @@ class RunSessionCodeReviewAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor, sessionResource?: URI): Promise<void> {
 		const sessionManagementService = accessor.get(ISessionsManagementService);
-		const sessionsService = accessor.get(ISessionsService);
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const sessionChangesService = accessor.get(ISessionChangesService);
 
 		const candidateResource = URI.isUri(sessionResource)
 			? sessionResource
-			: sessionsService.activeSession.get()?.resource;
+			: resolveSessionCommandTarget(accessor, [])?.session?.resource;
 		const resource = candidateResource
 			? sessionChangesService.getSessionResource(candidateResource) ?? candidateResource
 			: undefined;

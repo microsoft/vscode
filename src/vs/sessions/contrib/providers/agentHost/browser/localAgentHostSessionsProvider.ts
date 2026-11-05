@@ -44,7 +44,7 @@ import { ICopilotHomeService } from '../../../../../workbench/services/environme
 import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../../common/agentHostSessionWorkspace.js';
 import { areDevContainerSamplesEnabled, IDevContainerAgentHostService } from '../../../../common/devContainerAgentHostService.js';
 import { IGitHubInfo, ISession, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../../services/sessions/common/session.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService, ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
@@ -189,7 +189,8 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 		@ILogService logService: ILogService,
 		@IGitHubService gitHubService: IGitHubService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@ISessionsService sessionsService: ISessionsService,
+		@ISessionHostService sessionHostService: ISessionHostService,
+		@IFocusedSessionHostService focusedSessionHostService: IFocusedSessionHostService,
 		@IAgentHostActiveClientService activeClientService: IAgentHostActiveClientService,
 		@IAgentHostMcpAppToolsService mcpAppToolsService: IAgentHostMcpAppToolsService,
 		@IStorageService storageService: IStorageService,
@@ -205,7 +206,7 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
 	) {
-		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsService, activeClientService, mcpAppToolsService, storageService, dialogService, workspaceTrustManagementService, recentWorkspacesService, uriIdentityService);
+		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionHostService, focusedSessionHostService, activeClientService, mcpAppToolsService, storageService, dialogService, workspaceTrustManagementService, recentWorkspacesService, uriIdentityService);
 		this.initializeDevContainerSupport(devContainerAgentHostService, sessionsProvidersService, workspaceTrustRequestService);
 		const automations = this._register(instantiationService.createInstance(ReconnectableAgentHostAutomationStore, this.id, {
 			toHost: resource => resource,

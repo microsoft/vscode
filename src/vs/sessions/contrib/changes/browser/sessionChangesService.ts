@@ -19,9 +19,9 @@ import { IEditorService, PreferredGroup } from '../../../../workbench/services/e
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { getSessionChangesFileCountLabel } from '../common/changes.js';
 import { IChangesViewService } from '../common/changesViewService.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { findSessionByChatOrResource } from '../../../services/sessions/browser/sessionActionTarget.js';
+import { getHostOfSession, getMainWindowHost, IFocusedSessionHostService, ISessionHostService } from '../../../services/sessions/browser/sessionHost.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../common/sessionChangesService.js';
 import { UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
@@ -52,6 +52,8 @@ export class SessionChangesService extends Disposable implements ISessionChanges
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IAgentWorkbenchLayoutService private readonly layoutService: IAgentWorkbenchLayoutService,
 		@IChangesViewService private readonly changesViewService: IChangesViewService,
+		@ISessionHostService private readonly sessionHostService: ISessionHostService,
+		@IFocusedSessionHostService private readonly focusedSessionHostService: IFocusedSessionHostService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@IDecorationsService decorationsService: IDecorationsService,
 		@ILogService private readonly logService: ILogService,
@@ -143,13 +145,17 @@ export class SessionChangesService extends Disposable implements ISessionChanges
 	async openChangesEditor(sessionResource: URI, options?: ISessionChangesEditorOptions, group?: PreferredGroup): Promise<IEditorGroup | undefined> {
 		if (options?.changesetSelection) {
 			// Select the changeset of the session the editor is opened for, which may not be the active one.
-			const session = findSessionByChatOrResource(this.sessionsService, sessionResource, options.chatResource);
-			if (!session) {
+			// The host that shows the chat, else the session: in the focused window, else in the main window.
+			const host = (options.chatResource && this.sessionHostService.getHostOfChat(options.chatResource))
+				|| getHostOfSession(this.sessionHostService, this.sessionsService, sessionResource, this.focusedSessionHostService.getFocusedHost())
+				|| getHostOfSession(this.sessionHostService, this.sessionsService, sessionResource, getMainWindowHost(this.sessionHostService));
+			const session = host?.session.get();
+			if (!host || !session || !isEqual(session.resource, sessionResource)) {
 				this.logService.trace('[SessionChangesService] cannot select a changeset, the session is not shown', sessionResource.toString());
 			} else if (options.changesetSelection.kind === 'transient') {
-				this.changesViewService.showChangeset(options.changesetSelection.changeset, session);
+				this.changesViewService.showChangeset(options.changesetSelection.changeset, session, host.chat.get());
 			} else {
-				this.changesViewService.setChangesetId(options.changesetSelection.id, session);
+				this.changesViewService.setChangesetId(options.changesetSelection.id, session, host.chat.get());
 			}
 		}
 		let editorOptions: IMultiDiffEditorOptions | undefined;

@@ -419,7 +419,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 			let view = this._currentView.value;
 			if (!view || view.kind !== desiredKind) {
 				view = desiredKind === 'chat'
-					? this._chatViewFactory.createChatView(this._scopedInstantiationService, { input: this._hostOptions?.input })
+					? this._chatViewFactory.createChatView(this._scopedInstantiationService, { input: this._hostOptions?.input, session: context.options.session })
 					: this._chatViewFactory.createNewChatView(desiredKind === 'newChatInSession', context.options, this._scopedInstantiationService);
 				this._contentContainer.replaceChildren(view.element, this._remoteHostUnavailableEmptyState.domNode);
 				this._currentView.value = view;

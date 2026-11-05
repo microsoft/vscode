@@ -30,7 +30,6 @@ import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../../..
 import { CustomizationMigrationType, ICustomizationMigrationHint, ICustomizationMigrationIgnoredGroup, ICustomizationMigrationService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
 import { PromptsStorage } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { ILanguageModelToolsService, IToolData, IToolSet } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IAICustomizationMcpServerCountService } from '../../browser/customizationMcpServerCount.js';
 import { CUSTOMIZATION_ITEMS, CustomizationLinkViewItem, readCustomizationCount } from '../../browser/customizationsToolbar.contribution.js';
@@ -38,6 +37,7 @@ import { CustomizationsNavigationState } from '../../browser/customizationsNavig
 import { IAgentsWindowExtensionSuggestionsService } from '../../../extensions/browser/agentsWindowExtensionSuggestions.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
+import { focusedSessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 function createExtensionSuggestionsService(showBadge: IObservable<boolean>): IAgentsWindowExtensionSuggestionsService {
 	return new class extends mock<IAgentsWindowExtensionSuggestionsService>() {
@@ -168,10 +168,7 @@ suite('Customizations toolbar', () => {
 		const showExtensionSuggestionsBadge = observableValue(disposables, true);
 		const state = disposables.add(new CustomizationsNavigationState(
 			enabled,
-			new class extends mock<ISessionsService>() {
-				override readonly activeSession = activeSession;
-				override readonly mainWindowActiveSession = this.activeSession;
-			},
+			focusedSessionHostServiceOf(activeSession),
 			itemsModel,
 			mcpServerCountService,
 			toolsService,

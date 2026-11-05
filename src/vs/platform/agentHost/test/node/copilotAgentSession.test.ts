@@ -178,6 +178,8 @@ class MockCopilotSession {
 	readonly canvasOpenCalls: Parameters<CopilotSession['rpc']['canvas']['open']>[0][] = [];
 	readonly canvasCloseCalls: Parameters<CopilotSession['rpc']['canvas']['close']>[0][] = [];
 	canvasCloseGate: Promise<void> | undefined;
+	canvasCloseError: Error | undefined;
+	canvasListOpenGate: Promise<void> | undefined;
 	extensionListGate: Promise<void> | undefined;
 	extensionListError: Error | undefined;
 	canvasListGate: Promise<void> | undefined;
@@ -251,6 +253,10 @@ class MockCopilotSession {
 	agentSelectGate: Promise<void> | undefined;
 	agentDeselectGate: Promise<void> | undefined;
 	readonly agentSelections: (string | null)[] = [];
+	currentName: string | null = null;
+	nameGetGate: Promise<void> | undefined;
+	nameGetError: Error | undefined;
+	readonly nameSetCalls: Parameters<CopilotSession['rpc']['name']['set']>[0][] = [];
 	readonly compactCalls: unknown[] = [];
 	readonly commandListCalls: unknown[] = [];
 	readonly commandInvokeCalls: Array<{ name: string; input?: string }> = [];
@@ -526,6 +532,19 @@ class MockCopilotSession {
 	currentModelGate: Promise<void> | undefined;
 
 	readonly rpc = {
+		name: {
+			get: async () => {
+				await this.nameGetGate;
+				if (this.nameGetError) {
+					throw this.nameGetError;
+				}
+				return { name: this.currentName };
+			},
+			set: async (params: Parameters<CopilotSession['rpc']['name']['set']>[0]) => {
+				this.nameSetCalls.push(params);
+				this.currentName = params.name;
+			},
+		},
 		model: {
 			list: async () => ({ list: [] }),
 			getCurrent: async () => {
@@ -607,7 +626,8 @@ class MockCopilotSession {
 			},
 			listOpen: async () => {
 				this.onCanvasListOpen?.();
-				return { openCanvases: this.listedOpenCanvases };
+				await this.canvasListOpenGate;
+				return { openCanvases: [...this.listedOpenCanvases] };
 			},
 			open: async (params: Parameters<CopilotSession['rpc']['canvas']['open']>[0]) => {
 				this.canvasOpenCalls.push(params);
@@ -620,6 +640,9 @@ class MockCopilotSession {
 			close: async (params: Parameters<CopilotSession['rpc']['canvas']['close']>[0]) => {
 				this.canvasCloseCalls.push(params);
 				await this.canvasCloseGate;
+				if (this.canvasCloseError) {
+					throw this.canvasCloseError;
+				}
 			},
 		},
 		metadata: {
@@ -1532,6 +1555,18 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	const sessionUri = options?.sessionUri ?? parentSessionUri;
 	const chatChannelUri = options?.chatChannelUri ?? URI.parse(buildDefaultChatUri(sessionUri));
 	const mockSession = new MockCopilotSession();
+	for (const projection of options?.canvasHandoff?.projections ?? []) {
+		const canvas = projection.canvas;
+		if (!mockSession.canvases.some(candidate => candidate.extensionId === canvas.extensionId && candidate.canvasId === canvas.canvasId)) {
+			mockSession.canvases.push({
+				canvasId: canvas.canvasId,
+				extensionId: canvas.extensionId,
+				...(canvas.extensionName !== undefined ? { extensionName: canvas.extensionName } : {}),
+				displayName: canvas.title ?? canvas.canvasId,
+				description: 'Test canvas provider.',
+			});
+		}
+	}
 	options?.configureMockSession?.(mockSession);
 	const sandboxCertificateRpc = options?.sandboxCertificateRpc ?? new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() {
 		override checkRelevance = async (): Promise<boolean> => false;
@@ -3541,6 +3576,77 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
+	suite('title synchronization', () => {
+		test('does not rewrite a matching normalized runtime title after resume', async () => {
+			const name = '\u{1F600}'.repeat(100);
+			const { session, mockSession } = await createAgentSession(disposables, {
+				resume: true,
+				configureMockSession: mock => { mock.currentName = name; },
+			});
+
+			await session.synchronizeTitle(`  ${name}truncated suffix  `);
+
+			assert.deepStrictEqual(mockSession.nameSetCalls, []);
+		});
+
+		test('writes missing or changed runtime titles but skips repeated synchronization', async () => {
+			const results = [];
+			for (const currentName of [null, 'Old title']) {
+				const { session, mockSession } = await createAgentSession(disposables, {
+					resume: true,
+					configureMockSession: mock => { mock.currentName = currentName; },
+				});
+				await session.synchronizeTitle(' New title ');
+				await session.synchronizeTitle('New title');
+				results.push(mockSession.nameSetCalls);
+			}
+
+			assert.deepStrictEqual(results, [[{ name: 'New title' }], [{ name: 'New title' }]]);
+		});
+
+		test('a failed or timed-out title read neither writes nor requires SDK resynchronization', async () => {
+			const results = [];
+			for (const failure of ['error', 'timeout']) {
+				const { session, mockSession } = await createAgentSession(disposables, { controlPlaneRpcTimeoutMs: 1 });
+				if (failure === 'error') {
+					mockSession.nameGetError = new Error('Name lookup failed');
+				} else {
+					mockSession.nameGetGate = new Promise<void>(() => { });
+				}
+
+				await assert.rejects(session.synchronizeTitle('New title'), /Name lookup failed|Mission Control title synchronization timed out/);
+				results.push({ writes: mockSession.nameSetCalls, requiresResync: session.requiresControlPlaneResync });
+			}
+
+			assert.deepStrictEqual(results, [
+				{ writes: [], requiresResync: false },
+				{ writes: [], requiresResync: false },
+			]);
+		});
+
+		test('cancels synchronization after disposal or wrapper replacement during the title read', async () => {
+			const writes = [];
+			for (const replaceWrapper of [false, true]) {
+				const { session, mockSession } = await createAgentSession(disposables);
+				const read = new DeferredPromise<void>();
+				mockSession.nameGetGate = read.p;
+
+				const synchronization = assert.rejects(session.synchronizeTitle('New title'), isCancellationError);
+				if (replaceWrapper) {
+					session.markTelemetryRevocationRequiresRestart();
+					await session.revalidateTelemetryBeforeRegistration();
+				} else {
+					session.dispose();
+				}
+				await read.complete();
+				await synchronization;
+				writes.push(mockSession.nameSetCalls);
+			}
+
+			assert.deepStrictEqual(writes, [[], []]);
+		});
+	});
+
 	test('skips unchanged SDK agent selections and reapplies them after resume and relaunch', async () => {
 		const selections = [];
 		for (const resume of [false, true]) {
@@ -4684,6 +4790,365 @@ suite('CopilotAgentSession', () => {
 			replacement.session.dispose();
 		});
 
+		test('republishes canvas states before membership after host chat registration', async () => {
+			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
+			const replacement = await createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				configureMockSession: mock => {
+					mock.openCanvases.push({ ...preview });
+					mock.listedOpenCanvases.push({ ...preview, url: 'https://example.test/replacement' });
+				},
+			});
+			const resource = handoff.projections[0].resource.toString();
+			assert.strictEqual(replacement.session.adoptCanvasHandoff(handoff), true);
+			replacement.signals.length = 0;
+
+			replacement.session.republishCanvasProjection([]);
+			const republished = summarizeCanvasSignals(replacement.signals);
+			replacement.signals.length = 0;
+			replacement.session.republishCanvasProjection([resource]);
+
+			assert.deepStrictEqual({
+				republished,
+				unchanged: summarizeCanvasSignals(replacement.signals),
+			}, {
+				republished: {
+					states: [{ resource, url: 'https://example.test/replacement' }],
+					membership: [[resource]],
+				},
+				unchanged: {
+					states: [{ resource, url: 'https://example.test/replacement' }],
+					membership: [],
+				},
+			});
+			replacement.session.dispose();
+		});
+
+		test('discards an invalidated handoff without leaving membership suppressed', async () => {
+			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
+			const replacement = await createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				configureMockSession: mock => {
+					mock.openCanvases.push({ ...preview });
+					mock.listedOpenCanvases.push({ ...preview, url: 'https://example.test/replacement' });
+				},
+			});
+			replacement.signals.length = 0;
+
+			const discarded = replacement.session.discardCanvasHandoff(handoff);
+			replacement.mockSession.fire('session.canvas.opened', { ...preview, url: 'https://example.test/late' });
+
+			assert.deepStrictEqual({
+				discarded,
+				...summarizeCanvasSignals(replacement.signals),
+			}, {
+				discarded: true,
+				states: [],
+				membership: [[]],
+			});
+			replacement.session.dispose();
+		});
+
+		test('applies pending closes even when a handoff carries no projections', async () => {
+			const handoff: ICopilotCanvasHandoff = {
+				projections: [],
+				pendingCloseInstanceIds: new Set([preview.instanceId]),
+			};
+			const replacement = await createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				configureMockSession: mock => {
+					mock.openCanvases.push({ ...preview });
+					mock.listedOpenCanvases.push({ ...preview, url: 'https://example.test/restored' });
+				},
+			});
+
+			const adopted = replacement.session.adoptCanvasHandoff(handoff);
+
+			assert.deepStrictEqual({
+				adopted,
+				closeCalls: replacement.mockSession.canvasCloseCalls,
+				...summarizeCanvasSignals(replacement.signals),
+			}, {
+				adopted: true,
+				closeCalls: [{ instanceId: preview.instanceId }],
+				states: [],
+				membership: [[]],
+			});
+			replacement.session.dispose();
+		});
+
+		test('takes a handoff when only deferred close intent remains', async () => {
+			const { session } = await createAgentSession(disposables);
+			(session as unknown as { _deferredCanvasCloseInstanceIds: Set<string> })._deferredCanvasCloseInstanceIds.add(preview.instanceId);
+
+			const handoff = session.takeCanvasProjection();
+
+			assert.deepStrictEqual({
+				projections: handoff?.projections,
+				pendingCloses: [...(handoff?.pendingCloseInstanceIds ?? [])],
+			}, {
+				projections: [],
+				pendingCloses: [preview.instanceId],
+			});
+			session.dispose();
+		});
+
+		test('does not carry an applied close into the next handoff once the instance is reopened', async () => {
+			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
+			const replacement = await createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				configureMockSession: mock => {
+					mock.openCanvases.push({ ...preview });
+					mock.listedOpenCanvases.push({ ...preview, url: 'https://example.test/replacement' });
+				},
+			});
+			handoff.pendingCloseInstanceIds?.add(preview.instanceId);
+			assert.strictEqual(replacement.session.adoptCanvasHandoff(handoff), true);
+			await timeout(0);
+			await replacement.session.openCanvas(preview);
+			replacement.mockSession.fire('session.canvas.opened', { ...preview, url: 'https://example.test/reopened' });
+
+			const next = replacement.session.takeCanvasProjection();
+
+			assert.deepStrictEqual({
+				closeCalls: replacement.mockSession.canvasCloseCalls,
+				projections: next?.projections.map(projection => projection.canvas.instanceId),
+				pendingCloses: [...next?.pendingCloseInstanceIds ?? []],
+			}, {
+				closeCalls: [{ instanceId: preview.instanceId }],
+				projections: [preview.instanceId],
+				pendingCloses: [],
+			});
+			replacement.session.dispose();
+		});
+
+		test('resumes when a deferred close fails during reconciliation and retries it after adoption', async () => {
+			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
+			handoff.pendingCloseInstanceIds?.add(preview.instanceId);
+			const replacement = await createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				configureMockSession: mock => {
+					mock.openCanvases.push({ ...preview });
+					mock.listedOpenCanvases.push({ ...preview, url: 'https://example.test/restored' });
+					mock.canvasCloseError = new Error('provider close failed');
+				},
+			});
+			const resumed = summarizeCanvasSignals(replacement.signals);
+			replacement.mockSession.canvasCloseError = undefined;
+			replacement.signals.length = 0;
+
+			const adopted = replacement.session.adoptCanvasHandoff(handoff);
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				resumedStates: resumed.states,
+				adopted,
+				closeCalls: replacement.mockSession.canvasCloseCalls,
+				afterAdoption: summarizeCanvasSignals(replacement.signals),
+				next: replacement.session.takeCanvasProjection(),
+			}, {
+				resumedStates: [{ resource: handoff.projections[0].resource.toString(), url: undefined }],
+				adopted: true,
+				closeCalls: [{ instanceId: preview.instanceId }, { instanceId: preview.instanceId }],
+				afterAdoption: { states: [], membership: [[]] },
+				next: undefined,
+			});
+			replacement.session.dispose();
+		});
+
+		test('does not carry an applied close into a later handoff when the canvas stays closed', async () => {
+			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
+			const replacement = await createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				configureMockSession: mock => {
+					mock.openCanvases.push({ ...preview });
+					mock.listedOpenCanvases.push({ ...preview, url: 'https://example.test/replacement' });
+				},
+			});
+			handoff.pendingCloseInstanceIds?.add(preview.instanceId);
+			assert.strictEqual(replacement.session.adoptCanvasHandoff(handoff), true);
+			await timeout(0);
+
+			const next = replacement.session.takeCanvasProjection();
+
+			assert.deepStrictEqual({
+				closeCalls: replacement.mockSession.canvasCloseCalls,
+				next,
+			}, {
+				closeCalls: [{ instanceId: preview.instanceId }],
+				next: undefined,
+			});
+			replacement.session.dispose();
+		});
+
+		test('waits for an in-flight deferred close before reopening the same instance', async () => {
+			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
+			const listOpenReached = new DeferredPromise<void>();
+			const listOpenGate = new DeferredPromise<void>();
+			const replacement = await createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				configureMockSession: mock => {
+					mock.openCanvases.push({ ...preview });
+					mock.listedOpenCanvases.push({ ...preview, url: 'https://example.test/replacement' });
+				},
+			});
+			handoff.pendingCloseInstanceIds?.add(preview.instanceId);
+			replacement.mockSession.onCanvasListOpen = () => listOpenReached.complete();
+			replacement.mockSession.canvasListOpenGate = listOpenGate.p;
+			assert.strictEqual(replacement.session.adoptCanvasHandoff(handoff), true);
+			await listOpenReached.p;
+
+			const opening = replacement.session.openCanvas(preview);
+			await timeout(0);
+			const openCallsWhileClosePending = [...replacement.mockSession.canvasOpenCalls];
+			listOpenGate.complete();
+			await opening;
+			replacement.mockSession.fire('session.canvas.closed', preview);
+			await timeout(0);
+			const next = replacement.session.takeCanvasProjection();
+
+			assert.deepStrictEqual({
+				closeCalls: replacement.mockSession.canvasCloseCalls,
+				openCallsWhileClosePending,
+				openCalls: replacement.mockSession.canvasOpenCalls,
+				projections: next?.projections.map(projection => projection.canvas.instanceId),
+				pendingCloses: [...next?.pendingCloseInstanceIds ?? []],
+			}, {
+				closeCalls: [{ instanceId: preview.instanceId }],
+				openCallsWhileClosePending: [],
+				openCalls: [preview],
+				projections: [preview.instanceId],
+				pendingCloses: [],
+			});
+			replacement.session.dispose();
+		});
+
+		test('projects a model-opened canvas after its deferred close finishes during the turn', async () => {
+			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
+			const listOpenReached = new DeferredPromise<void>();
+			const listOpenGate = new DeferredPromise<void>();
+			const replacement = await createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				configureMockSession: mock => {
+					mock.openCanvases.push({ ...preview });
+					mock.listedOpenCanvases.push({ ...preview, url: 'https://example.test/replacement' });
+				},
+			});
+			handoff.pendingCloseInstanceIds?.add(preview.instanceId);
+			replacement.mockSession.onCanvasListOpen = () => listOpenReached.complete();
+			replacement.mockSession.canvasListOpenGate = listOpenGate.p;
+			assert.strictEqual(replacement.session.adoptCanvasHandoff(handoff), true);
+			await listOpenReached.p;
+
+			replacement.mockSession.fire('user.message', { content: 'Open the canvas again', messageId: 'message-1' } as SessionEventPayload<'user.message'>['data']);
+			replacement.mockSession.fire('session.canvas.opened', { ...preview, url: 'https://example.test/too-early' });
+			const beforeCloseSettled = summarizeCanvasSignals(replacement.signals);
+			listOpenGate.complete();
+			await (replacement.session as unknown as { _deferredCanvasCloseFlush: Promise<void> })._deferredCanvasCloseFlush;
+			replacement.mockSession.fire('session.canvas.opened', { ...preview, url: 'https://example.test/model-opened' });
+			const afterCloseSettled = summarizeCanvasSignals(replacement.signals);
+			const reopenedResource = afterCloseSettled.states.at(-1)?.resource;
+
+			assert.deepStrictEqual({
+				beforeCloseSettled: {
+					urls: beforeCloseSettled.states.map(state => state.url),
+					membership: beforeCloseSettled.membership,
+				},
+				afterCloseSettled: {
+					urls: afterCloseSettled.states.map(state => state.url),
+					membership: afterCloseSettled.membership,
+					reopenedUsesNewResource: reopenedResource !== handoff.projections[0].resource.toString(),
+				},
+			}, {
+				beforeCloseSettled: {
+					urls: [undefined, 'https://example.test/replacement'],
+					membership: [[]],
+				},
+				afterCloseSettled: {
+					urls: [undefined, 'https://example.test/replacement', 'https://example.test/model-opened'],
+					membership: [[], [reopenedResource]],
+					reopenedUsesNewResource: true,
+				},
+			});
+			replacement.session.dispose();
+		});
+
+		test('applies a close added after handoff reconciliation but before adoption', async () => {
+			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
+			const replacement = await createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				configureMockSession: mock => {
+					mock.openCanvases.push({ ...preview });
+					mock.listedOpenCanvases.push({ ...preview, url: 'https://example.test/replacement' });
+				},
+			});
+			const pendingCloseInstanceIds = handoff.pendingCloseInstanceIds;
+			assert.ok(pendingCloseInstanceIds instanceof Set);
+			pendingCloseInstanceIds.add(preview.instanceId);
+			replacement.signals.length = 0;
+
+			const adopted = replacement.session.adoptCanvasHandoff(handoff);
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				adopted,
+				closeCalls: replacement.mockSession.canvasCloseCalls,
+				...summarizeCanvasSignals(replacement.signals),
+			}, {
+				adopted: true,
+				closeCalls: [{ instanceId: preview.instanceId }],
+				states: [],
+				membership: [[]],
+			});
+			replacement.session.dispose();
+		});
+
+		test('does not remove a reopened canvas when a deferred close event arrives late', async () => {
+			const resource = URI.parse('ahp-canvas:/preview');
+			const handoff: ICopilotCanvasHandoff = {
+				projections: [{
+					resource,
+					canvas: preview,
+				}],
+				pendingCloseInstanceIds: new Set([preview.instanceId]),
+			};
+			const replacement = await createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				configureMockSession: mock => {
+					mock.openCanvases.push({ ...preview });
+					mock.listedOpenCanvases.push({ ...preview, url: 'https://example.test/restored' });
+				},
+			});
+			assert.strictEqual(replacement.session.adoptCanvasHandoff(handoff), true);
+			await replacement.session.openCanvas(preview);
+			replacement.mockSession.fire('session.canvas.opened', { ...preview, url: 'https://example.test/reopened' });
+			const beforeClosed = summarizeCanvasSignals(replacement.signals).membership.at(-1);
+
+			replacement.mockSession.fire('session.canvas.closed', preview);
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				closeCalls: replacement.mockSession.canvasCloseCalls,
+				beforeClosed,
+				afterClosed: summarizeCanvasSignals(replacement.signals).membership.at(-1),
+			}, {
+				closeCalls: [{ instanceId: preview.instanceId }],
+				beforeClosed,
+				afterClosed: beforeClosed,
+			});
+			replacement.session.dispose();
+		});
+
 		test('reconciles handed-over canvases with the canvases the replacement runtime has open', async () => {
 			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/preview' }, { ...chart, url: 'https://example.test/chart' });
 			const replacement = await createAgentSession(disposables, {
@@ -4698,9 +5163,10 @@ suite('CopilotAgentSession', () => {
 			const membershipBeforeAdoption = summarizeCanvasSignals(replacement.signals).membership;
 			const adopted = replacement.session.adoptCanvasHandoff(handoff);
 
-			assert.deepStrictEqual({ membershipBeforeAdoption, adopted, ...summarizeCanvasSignals(replacement.signals) }, {
+			assert.deepStrictEqual({ membershipBeforeAdoption, adopted, openCalls: replacement.mockSession.canvasOpenCalls, ...summarizeCanvasSignals(replacement.signals) }, {
 				membershipBeforeAdoption: [],
 				adopted: true,
+				openCalls: [],
 				states: [
 					{ resource: previewResource, url: undefined },
 					{ resource: chartResource, url: undefined },

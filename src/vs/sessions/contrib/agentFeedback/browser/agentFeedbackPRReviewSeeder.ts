@@ -8,7 +8,7 @@ import { autorun, observableSignalFromEvent } from '../../../../base/common/obse
 import { URI } from '../../../../base/common/uri.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { ICodeReviewService, IPRReviewComment, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
 import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackService } from './agentFeedbackService.js';
 
@@ -46,7 +46,7 @@ export class AgentFeedbackPRReviewSeederContribution extends Disposable implemen
 	constructor(
 		@IAgentFeedbackService private readonly _agentFeedbackService: IAgentFeedbackService,
 		@ICodeReviewService private readonly _codeReviewService: ICodeReviewService,
-		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@IFocusedSessionHostService private readonly _focusedSessionHostService: IFocusedSessionHostService,
 	) {
 		super();
 
@@ -56,7 +56,7 @@ export class AgentFeedbackPRReviewSeederContribution extends Disposable implemen
 		const feedbackChanged = observableSignalFromEvent(this, this._agentFeedbackService.onDidChangeFeedback);
 
 		this._register(autorun(reader => {
-			const activeSession = this._sessionsService.activeSession.read(reader);
+			const activeSession = this._focusedSessionHostService.focusedHost.read(reader).session.read(reader);
 			if (!activeSession || !isAgentHostProviderId(activeSession.providerId)) {
 				return;
 			}

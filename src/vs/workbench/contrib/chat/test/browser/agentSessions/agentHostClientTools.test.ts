@@ -3906,6 +3906,7 @@ suite('AgentHostClientTools', () => {
 					chatResource: subagentChat,
 					isChatAvailable: true,
 					isActive: true,
+					isError: false,
 					startedAt: Date.parse('2025-01-01T00:00:00.000Z'),
 					duration: undefined,
 				},
