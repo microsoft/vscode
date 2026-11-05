@@ -31,6 +31,7 @@ import { IChat, ISession } from '../../../../services/sessions/common/session.js
 import { IActiveSession, IChatDeletedEvent, ISessionCanvasClosedEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { CanvasesPinnedToSidebarContext, IPinnedCanvas, MAX_PINNED_CANVASES, PINNED_CANVAS_PAGE_ID, PinnedCanvasState } from '../../browser/pinnedCanvases.js';
 import { PinnedCanvasService } from '../../browser/pinnedCanvasService.js';
+import { ITestSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 const STORAGE_KEY = 'sessions.pinnedCanvases';
 
@@ -120,7 +121,7 @@ suite('PinnedCanvasService', () => {
 				canvasClosed.fire({ session, chatResource: chat.resource, canvasResource: canvas.resource });
 			},
 		}));
-		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({
+		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
 			activeSession: constObservable(options.activeSession),
 			openChat: async (_session, chatResource) => { openedChats.push(chatResource.toString()); },
 		}));

@@ -13,6 +13,7 @@ import { IChatWidget } from '../../../../../workbench/contrib/chat/browser/chat.
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
 import { LocalAgentHostSessionsProvider } from './localAgentHostSessionsProvider.js';
 
 export class SessionsAgentHostPolicyContinuationPresenter implements IAgentHostPolicyContinuationPresenter {
@@ -21,13 +22,14 @@ export class SessionsAgentHostPolicyContinuationPresenter implements IAgentHostP
 	constructor(
 		@ISessionsProvidersService private readonly _providers: ISessionsProvidersService,
 		@ISessionsService private readonly _sessions: ISessionsService,
+		@IFocusedSessionHostService private readonly _focusedSessionHostService: IFocusedSessionHostService,
 	) { }
 
 	async open(resource: URI, source: IChatWidget, ensureSourceCurrent: () => void): Promise<void> {
 		const sourceResource = source.viewModel?.sessionResource;
 		const ensureActiveSource = () => {
 			ensureSourceCurrent();
-			if (!sourceResource || !isEqual(this._sessions.activeSession.get()?.activeChat.get().resource, sourceResource)) {
+			if (!sourceResource || !isEqual(this._focusedSessionHostService.focusedHost.get().chat.get()?.resource, sourceResource)) {
 				throw new CancellationError();
 			}
 		};

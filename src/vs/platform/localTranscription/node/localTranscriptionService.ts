@@ -282,8 +282,8 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 	/** Latest interim (not-yet-finalized) segment text. */
 	private _partialText = '';
 	/**
-	 * Set when the native streaming session fails mid-recording (its result
-	 * stream throws). `stop()` rethrows this so the renderer treats the session
+	 * Set when the native result stream fails during recording or finalization.
+	 * `stop()` rethrows this so the renderer treats the session
 	 * as failed instead of reporting the partial transcript as a success.
 	 */
 	private _runtimeError: Error | undefined;
@@ -667,15 +667,15 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 			}
 		} catch (err) {
 			// A native streaming/push failure (or the inactivity timeout above)
-			// terminates the stream. If it happened while recording (not during our
-			// own teardown), record it and surface an error status so the renderer
-			// tears the session down and informs the user; stop() also rethrows it
-			// rather than reporting a false success.
-			if (generation === this._generation && this._sessionActive) {
+			// terminates the stream. Retain failures through stop(), but ignore
+			// errors from sessions already detached for cancellation or disposal.
+			if (generation === this._generation && this._session === session) {
 				const error = err instanceof Error ? err : new Error(String(err));
 				this._runtimeError = error;
-				const errorCode = /\btimed out\b/.test(error.message) ? 'timeout' : 'runtime';
-				this._setStatus({ state: LocalTranscriptionModelState.Error, error: error.message, errorCode });
+				if (this._sessionActive) {
+					const errorCode = /\btimed out\b/.test(error.message) ? 'timeout' : 'runtime';
+					this._setStatus({ state: LocalTranscriptionModelState.Error, error: error.message, errorCode });
+				}
 			}
 		} finally {
 			// Mirror `for await...of`'s implicit cleanup on early break/throw so a
@@ -743,8 +743,11 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 		if (this._openPromise) {
 			try {
 				await this._openPromise;
-			} catch {
-				// Load failed; status already reported as Error.
+			} catch (err) {
+				if (generation === this._generation) {
+					this._resetSessionState();
+					throw err;
+				}
 			}
 		}
 
@@ -760,6 +763,8 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 			return text;
 		}
 
+		const consumePromise = this._consumePromise;
+		let stopError: Error | undefined;
 		try {
 			// Drain every queued append (buffered backlog + live chunks) so the
 			// final captured audio reaches native core before we stop — otherwise
@@ -774,21 +779,27 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 			// Guarded so a wedged native stop can't hang the user's Stop click
 			// forever; `_disposeSession` still tears the session down afterwards.
 			await withTimeout(session.stop(), SESSION_TEARDOWN_TIMEOUT_MS, `Foundry Local session stop timed out after ${SESSION_TEARDOWN_TIMEOUT_MS}ms.`);
-		} catch {
-			// Best-effort: fall through to whatever transcript we accumulated.
+		} catch (err) {
+			stopError = err instanceof Error ? err : new Error(String(err));
 		}
-		if (this._consumePromise) {
+		if (consumePromise) {
 			try {
-				await this._consumePromise;
+				await consumePromise;
 			} catch { /* consumer swallows its own errors */ }
 		}
 
-		// The native stream failed mid-recording: fail the stop rather than
+		if (generation !== this._generation) {
+			return '';
+		}
+
+		// The native session failed: fail the stop rather than
 		// reporting the partial transcript as a successful dictation result.
-		const runtimeError = this._runtimeError;
-		if (runtimeError && generation === this._generation) {
+		const runtimeError = this._runtimeError ?? stopError;
+		if (runtimeError) {
 			await this._disposeSession();
-			this._resetSessionState();
+			if (generation === this._generation) {
+				this._resetSessionState();
+			}
 			throw runtimeError;
 		}
 
@@ -798,7 +809,9 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 			this._onDidTranscribe.fire({ text, isFinal: true, finalizedText: text });
 		}
 		await this._disposeSession();
-		this._resetSessionState();
+		if (generation === this._generation) {
+			this._resetSessionState();
+		}
 		return text;
 	}
 

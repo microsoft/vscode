@@ -39,7 +39,7 @@ if not exist %CODE% goto download_electron
 if not exist ".build\electron\version" goto download_electron
 
 set "EXPECTED_ELECTRON_VERSION="
-for /f "tokens=2 delims==" %%a in ('findstr /B /C:"target=" .npmrc') do set "EXPECTED_ELECTRON_VERSION=%%~a"
+for /f "usebackq delims=" %%a in (`node -p "require('./package.json').nativeBuild.target"`) do set "EXPECTED_ELECTRON_VERSION=%%a"
 set "INSTALLED_ELECTRON_VERSION="
 set /p INSTALLED_ELECTRON_VERSION=<".build\electron\version"
 if "%INSTALLED_ELECTRON_VERSION:~0,1%"=="v" set "INSTALLED_ELECTRON_VERSION=%INSTALLED_ELECTRON_VERSION:~1%"

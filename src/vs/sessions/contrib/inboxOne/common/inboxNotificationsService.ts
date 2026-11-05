@@ -9,7 +9,7 @@ import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IChatQuestion, IChatToolInvocation } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatPlanReview, IChatQuestion, IChatToolInvocation } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../../../workbench/contrib/chat/common/chat.js';
 import { AgentHostPullRequestOperationId } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { getGitHubPullRequestRefs, getSessionOwnedGitHubPullRequestRefs, IGitHubPullRequestRef, ISession, ISessionChangeset, ISessionChangesetOperation, SessionChangesetOperationScope, SessionChangesetOperationStatus } from '../../../services/sessions/common/session.js';
@@ -97,6 +97,13 @@ export interface IInboxNotificationQuestionCarouselPart {
 	readonly questions: readonly IChatQuestion[];
 }
 
+export interface IInboxNotificationPlanReviewPart extends Pick<IChatPlanReview, 'resolveId' | 'title' | 'content' | 'actions' | 'planUri'> {
+	readonly kind: 'planReview';
+	readonly chatResource: URI;
+	readonly requestId: string;
+	readonly reviewIndex: number;
+}
+
 export interface IInboxNotificationToolConfirmationButton {
 	readonly label: string;
 	readonly id?: string;
@@ -153,7 +160,7 @@ export function getInboxToolConfirmationDetails(invocation: IChatToolInvocation)
 	};
 }
 
-export type IInboxNotificationNeedsInputPart = IInboxNotificationConfirmationPart | IInboxNotificationQuestionCarouselPart | IInboxNotificationToolConfirmationPart;
+export type IInboxNotificationNeedsInputPart = IInboxNotificationConfirmationPart | IInboxNotificationQuestionCarouselPart | IInboxNotificationToolConfirmationPart | IInboxNotificationPlanReviewPart;
 
 export interface IInboxNotificationItem {
 	readonly id: string;
@@ -222,7 +229,7 @@ export interface IInboxNotificationsService {
 
 	/**
 	 * Map from a completed item's id to its structured, model-generated evidence pack.
-	 * Generation is focus-triggered via {@link requestDetailSummary}; an entry is absent
+	 * Generation is visibility-triggered via {@link requestDetailSummary}; an entry is absent
 	 * until it has been generated.
 	 */
 	readonly detailSummaries: IObservable<ReadonlyMap<string, IInboxDetailSummary>>;
@@ -239,10 +246,10 @@ export interface IInboxNotificationsService {
 	requestPreview(item: IInboxNotificationItem): void;
 
 	/**
-	 * Trigger (once, then cached) generation of the structured evidence pack for a completed
-	 * item. No-op for non-completed items. Results land in {@link detailSummaries}.
+	 * Generate and cache structured evidence for a session notification in {@link detailSummaries}.
+	 * Visibility requests settle empty results until inputs or models change; interaction requests can retry them.
 	 */
-	requestDetailSummary(item: IInboxNotificationItem): void;
+	requestDetailSummary(item: IInboxNotificationItem, source?: 'visibility' | 'interaction'): void;
 
 	/**
 	 * Privacy-safe telemetry identity for the item's session: a hashed session id and a bounded

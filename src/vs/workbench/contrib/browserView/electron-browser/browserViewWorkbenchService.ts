@@ -21,7 +21,7 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { BrowserEditorInput, IBrowserEditorInputData } from '../common/browserEditorInput.js';
-import { GroupsOrder, IEditorGroup, IEditorGroupsService, preferredSideBySideGroupDirection } from '../../../services/editor/common/editorGroupsService.js';
+import { getWindowMainPart, GroupsOrder, IEditorGroup, IEditorGroupsService, preferredSideBySideGroupDirection } from '../../../services/editor/common/editorGroupsService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
@@ -32,7 +32,7 @@ import { contrastBorder, descriptionForeground, focusBorder } from '../../../../
 import { buttonForeground, buttonBackground, inputPlaceholderForeground } from '../../../../platform/theme/common/colors/inputColors.js';
 import { editorWidgetBackground, editorWidgetBorder, editorWidgetForeground, toolbarHoverBackground, widgetShadow } from '../../../../platform/theme/common/colors/editorColors.js';
 import { DEFAULT_FONT_FAMILY } from '../../../../base/browser/fonts.js';
-import { findGroup } from '../../../services/editor/common/editorGroupFinder.js';
+import { findGroup, handOffFromSelfTitledEditor } from '../../../services/editor/common/editorGroupFinder.js';
 import { ChatEditorInput } from '../../chat/browser/widgetHosts/editor/chatEditorInput.js';
 import { IChatWidgetService } from '../../chat/browser/chat.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
@@ -383,10 +383,14 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		return this._getActiveGroupOfWindow(sourceWindowId) ?? preferredGroup;
 	}
 
-	/** The active group of the window `windowId`, among the editor parts of that window. */
+	/**
+	 * The active group of the window `windowId`, among the editor parts of that window. As for the active group when the
+	 * editor group finder chooses it: not one that shows only a view with its own title, such as a chat, whose window's
+	 * main part takes the editor instead, nor a locked one.
+	 */
 	private _getActiveGroupOfWindow(windowId: number | undefined): IEditorGroup | undefined {
 		const window = windowId === undefined ? undefined : getWindowById(windowId)?.window;
-		return window ? this._avoidLockedGroup(this.editorGroupsService.getPart(window.document.body).activeGroup) : undefined;
+		return window ? this._avoidLockedGroup(handOffFromSelfTitledEditor(this.editorGroupsService.getPart(window.document.body).activeGroup, this.editorGroupsService)) : undefined;
 	}
 
 	/**
@@ -398,8 +402,14 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			return group;
 		}
 		const part = this.editorGroupsService.getPart(group);
-		return part.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(candidate => !candidate.isLocked)
-			?? part.addGroup(group, preferredSideBySideGroupDirection(this.configurationService));
+		const unlocked = part.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(candidate => !candidate.isLocked);
+		if (unlocked) {
+			return unlocked;
+		}
+		// A part of locked groups other than the main part of its window, such as one that holds terminals, is not split
+		// for it: the main part of the window takes it.
+		const windowMainPart = getWindowMainPart(this.editorGroupsService, group.windowId);
+		return windowMainPart !== part ? this._avoidLockedGroup(windowMainPart.activeGroup) : part.addGroup(group, preferredSideBySideGroupDirection(this.configurationService));
 	}
 
 	/**

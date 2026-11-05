@@ -17,6 +17,8 @@ import { LanguageModelToolsService } from '../../../browser/tools/languageModelT
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { getLanguageIdForPromptsType, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { PromptFileParser, PromptHeaderAttributes, parseCommaSeparatedList } from '../../../common/promptSyntax/promptFileParser.js';
+import { formatArrayValue } from '../../../common/promptSyntax/utils/promptEditHelper.js';
+import { Range } from '../../../../../../editor/common/core/range.js';
 import { PromptFileRewriter } from '../../../browser/promptSyntax/promptFileRewriter.js';
 
 suite('PromptFileRewriter', () => {
@@ -133,4 +135,44 @@ suite('PromptFileRewriter', () => {
 			'Attribute range should start before value range (includes the key)'
 		);
 	});
+	for (const input of [
+		'tools: read',
+		'tools: [read]',
+		'tools:\n  - read',
+		'tools:\n- read',
+		'tools:\n    - read',
+	]) {
+		for (const names of [[], ['github/*', 'playwright/*'], ['owner\'s/tool', 'read'], ['read', 'owner\'s/tool'], ['read', 'vscode/usages']]) {
+			test(`tool names round-trip for ${JSON.stringify(input)} to ${JSON.stringify(names)}`, () => {
+				const uri = URI.parse('test:///test.agent.md');
+				const original = `---\n${input}\ndescription: keep me\n---\n`;
+				const model = disposables.add(createTextModel(original, getLanguageIdForPromptsType(PromptsType.agent), undefined, uri));
+				const parser = new PromptFileParser();
+				const attribute = parser.parse(uri, original).header!.getAttribute('tools')!;
+				instaService.createInstance(PromptFileRewriter).rewriteToolNames(model, names, attribute.value.range, attribute.value.type === 'scalar');
+				const header = parser.parse(uri, model.getValue()).header!;
+				const value = header.getAttribute('tools')!.value;
+				const parsedTools = value.type === 'scalar' ? parseCommaSeparatedList(value).items : value.type === 'sequence' ? value.items : [];
+				assert.deepStrictEqual({ tools: parsedTools.map(item => item.type === 'scalar' ? item.value : undefined), description: header.getAttribute('description')!.value }, {
+					tools: names,
+					description: { type: 'scalar', value: 'keep me', range: header.getAttribute('description')!.value.range, format: 'none' },
+				});
+				model.undo();
+				assert.strictEqual(model.getValue(), original);
+			});
+		}
+	}
+
+	test('quoted tool names round-trip through YAML and scalar-list parsing', () => {
+		const names = ['owner\'s/tool', 'tool"quoted', 'tool\\path'];
+		const parser = new PromptFileParser();
+		const uri = URI.parse('test:///test.agent.md');
+		for (const preference of ['\'', '"'] as const) {
+			const formatted = names.map(name => formatArrayValue(name, preference)).join(', ');
+			const scalar = parseCommaSeparatedList({ type: 'scalar', value: formatted, range: new Range(1, 1, 1, formatted.length + 1), format: 'none' });
+			const yaml = parser.parse(uri, `---\ntools: [${formatted}]\n---\n`).header!.getAttribute('tools')!.value;
+			assert.deepStrictEqual({ scalar: scalar.items.map(item => item.type === 'scalar' ? item.value : undefined), yaml: yaml.type === 'sequence' ? yaml.items.map(item => item.type === 'scalar' ? item.value : undefined) : [] }, { scalar: names, yaml: names });
+		}
+	});
+
 });
