@@ -1,0 +1,262 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "ready". Do not use tools.
+    response:
+      content: ready
+      stopReason: end_turn
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "ready". Do not use tools.
+        - role: assistant
+          content: ready
+        - role: user
+          content: 'Run only this exact command without modifications or directory overrides: `node -e "require(''fs'').writeFileSync(''seed.txt'',''first\n'')"`. Do not inspect files or run any other command. Then reply exactly "done".'
+    response:
+      content:
+        - type: text
+          text: Running that exact command now.
+        - type: tool_use
+          id: toolcall_0
+          name: exec_command
+          input:
+            cmd: node -e "require('fs').writeFileSync('seed.txt','first\n')"
+      stopReason: tool_use
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "ready". Do not use tools.
+        - role: assistant
+          content: ready
+        - role: user
+          content: 'Run only this exact command without modifications or directory overrides: `node -e "require(''fs'').writeFileSync(''seed.txt'',''first\n'')"`. Do not inspect files or run any other command. Then reply exactly "done".'
+        - role: assistant
+          content: Running that exact command now.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: exec_command
+              input:
+                cmd: node -e "require('fs').writeFileSync('seed.txt','first\n')"
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Chunk ID: a7e35d
+                Wall time: 0.0000 seconds
+                Process exited with code 0
+                Original token count: 0
+                Output:
+    response:
+      content: done
+      stopReason: end_turn
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "ready". Do not use tools.
+        - role: assistant
+          content: ready
+        - role: user
+          content: 'Run only this exact command without modifications or directory overrides: `node -e "require(''fs'').writeFileSync(''seed.txt'',''first\n'')"`. Do not inspect files or run any other command. Then reply exactly "done".'
+        - role: assistant
+          content: Running that exact command now.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: exec_command
+              input:
+                cmd: node -e "require('fs').writeFileSync('seed.txt','first\n')"
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Chunk ID: a7e35d
+                Wall time: 0.0000 seconds
+                Process exited with code 0
+                Original token count: 0
+                Output:
+        - role: assistant
+          content: done
+        - role: user
+          content: Reply exactly "settled". Do not use tools.
+    response:
+      content: settled
+      stopReason: end_turn
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "ready". Do not use tools.
+        - role: assistant
+          content: ready
+        - role: user
+          content: 'Run only this exact command without modifications or directory overrides: `node -e "require(''fs'').writeFileSync(''seed.txt'',''first\n'')"`. Do not inspect files or run any other command. Then reply exactly "done".'
+        - role: assistant
+          content: Running that exact command now.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: exec_command
+              input:
+                cmd: node -e "require('fs').writeFileSync('seed.txt','first\n')"
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Chunk ID: a7e35d
+                Wall time: 0.0000 seconds
+                Process exited with code 0
+                Original token count: 0
+                Output:
+        - role: assistant
+          content: done
+        - role: user
+          content: Reply exactly "settled". Do not use tools.
+        - role: assistant
+          content: settled
+        - role: user
+          content: 'Run only this exact command without modifications or directory overrides: `node -e "require(''fs'').writeFileSync(''seed.txt'',''second\n'')"`. Do not inspect files or run any other command. Then reply exactly "done".'
+    response:
+      content:
+        - type: text
+          text: Running that exact command now.
+        - type: tool_use
+          id: toolcall_1
+          name: exec_command
+          input:
+            cmd: node -e "require('fs').writeFileSync('seed.txt','second\n')"
+      stopReason: tool_use
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "ready". Do not use tools.
+        - role: assistant
+          content: ready
+        - role: user
+          content: 'Run only this exact command without modifications or directory overrides: `node -e "require(''fs'').writeFileSync(''seed.txt'',''first\n'')"`. Do not inspect files or run any other command. Then reply exactly "done".'
+        - role: assistant
+          content: Running that exact command now.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: exec_command
+              input:
+                cmd: node -e "require('fs').writeFileSync('seed.txt','first\n')"
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Chunk ID: a7e35d
+                Wall time: 0.0000 seconds
+                Process exited with code 0
+                Original token count: 0
+                Output:
+        - role: assistant
+          content: done
+        - role: user
+          content: Reply exactly "settled". Do not use tools.
+        - role: assistant
+          content: settled
+        - role: user
+          content: 'Run only this exact command without modifications or directory overrides: `node -e "require(''fs'').writeFileSync(''seed.txt'',''second\n'')"`. Do not inspect files or run any other command. Then reply exactly "done".'
+        - role: assistant
+          content: Running that exact command now.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: exec_command
+              input:
+                cmd: node -e "require('fs').writeFileSync('seed.txt','second\n')"
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: |-
+                Chunk ID: e0e2b2
+                Wall time: 0.0000 seconds
+                Process exited with code 0
+                Original token count: 0
+                Output:
+    response:
+      content: done
+      stopReason: end_turn
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "ready". Do not use tools.
+        - role: assistant
+          content: ready
+        - role: user
+          content: 'Run only this exact command without modifications or directory overrides: `node -e "require(''fs'').writeFileSync(''seed.txt'',''first\n'')"`. Do not inspect files or run any other command. Then reply exactly "done".'
+        - role: assistant
+          content: Running that exact command now.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: exec_command
+              input:
+                cmd: node -e "require('fs').writeFileSync('seed.txt','first\n')"
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Chunk ID: a7e35d
+                Wall time: 0.0000 seconds
+                Process exited with code 0
+                Original token count: 0
+                Output:
+        - role: assistant
+          content: done
+        - role: user
+          content: Reply exactly "settled". Do not use tools.
+        - role: assistant
+          content: settled
+        - role: user
+          content: 'Run only this exact command without modifications or directory overrides: `node -e "require(''fs'').writeFileSync(''seed.txt'',''second\n'')"`. Do not inspect files or run any other command. Then reply exactly "done".'
+        - role: assistant
+          content: Running that exact command now.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: exec_command
+              input:
+                cmd: node -e "require('fs').writeFileSync('seed.txt','second\n')"
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: |-
+                Chunk ID: e0e2b2
+                Wall time: 0.0000 seconds
+                Process exited with code 0
+                Original token count: 0
+                Output:
+        - role: assistant
+          content: done
+        - role: user
+          content: Reply exactly "settled". Do not use tools.
+    response:
+      content: settled
+      stopReason: end_turn

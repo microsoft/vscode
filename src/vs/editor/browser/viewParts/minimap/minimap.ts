@@ -1402,6 +1402,13 @@ class InnerMinimap extends Disposable {
 		this._domNode.setLeft(this._model.options.minimapLeft);
 		this._domNode.setWidth(this._model.options.minimapWidth);
 		this._domNode.setHeight(this._model.options.minimapHeight);
+		// The minimap is drawn on top of the editor contents, and its canvas can be narrower than the
+		// minimap (at fractional pixel ratios) and is styled slightly translucent. When the minimap
+		// background is opaque, paint it behind the canvas too, so the text and line highlights
+		// underneath don't show through. A translucent `minimap.background` is a deliberate choice
+		// to see the code underneath, so it is left as is.
+		const background = this._model.options.backgroundColor;
+		this._domNode.setBackgroundColor(background.a === 255 ? `rgb(${background.r}, ${background.g}, ${background.b})` : '');
 		this._shadow.setHeight(this._model.options.minimapHeight);
 
 		this._canvas.setWidth(this._model.options.canvasOuterWidth);
@@ -1838,7 +1845,10 @@ class InnerMinimap extends Disposable {
 		const sectionHeaderFontSize = this._model.options.sectionHeaderFontSize;
 		const sectionHeaderLetterSpacing = this._model.options.sectionHeaderLetterSpacing;
 		const backgroundFillHeight = sectionHeaderFontSize * 1.5;
-		const { canvasInnerWidth } = this._model.options;
+		const { canvasInnerWidth, canvasOuterWidth, pixelRatio } = this._model.options;
+		// With `minimap.size: fill` the canvas backing store can be wider than its CSS size, which would squeeze the text horizontally
+		const horizontalScale = Math.max(1, canvasInnerWidth / (canvasOuterWidth * pixelRatio));
+		const labelAreaWidth = canvasInnerWidth / horizontalScale;
 
 		const backgroundColor = this._model.options.backgroundColor;
 		const backgroundFill = `rgb(${backgroundColor.r} ${backgroundColor.g} ${backgroundColor.b} / .7)`;
@@ -1851,18 +1861,28 @@ class InnerMinimap extends Disposable {
 		canvasContext.font = '500 ' + sectionHeaderFontSize + 'px ' + this._model.options.sectionHeaderFontFamily;
 		canvasContext.strokeStyle = separatorStroke;
 		canvasContext.lineWidth = 0.4;
+		canvasContext.save();
+		canvasContext.scale(horizontalScale, 1);
 
 		const decorations = this._model.getSectionHeaderDecorationsInViewport(layout.startLineNumber, layout.endLineNumber);
 		decorations.sort((a, b) => a.range.startLineNumber - b.range.startLineNumber);
 
 		const fitWidth = InnerMinimap._fitSectionHeader.bind(null, canvasContext,
-			canvasInnerWidth - MINIMAP_GUTTER_WIDTH);
+			labelAreaWidth - MINIMAP_GUTTER_WIDTH);
 
+		// Headers on nearby lines (e.g. nested regions) would get labels drawn on top of each other.
+		// Stack such labels below one another instead, so that every header stays readable.
+		let nextLabelY = Number.NEGATIVE_INFINITY;
 		for (const decoration of decorations) {
-			const y = layout.getYForLineNumber(decoration.range.startLineNumber, minimapLineHeight) + sectionHeaderFontSize;
-			const backgroundFillY = y - sectionHeaderFontSize;
-			const separatorY = backgroundFillY + 2;
 			const headerText = this._model.getSectionHeaderText(decoration, fitWidth);
+			const lineY = layout.getYForLineNumber(decoration.range.startLineNumber, minimapLineHeight);
+			const backgroundFillY = headerText ? Math.max(lineY, nextLabelY) : lineY;
+			const y = backgroundFillY + sectionHeaderFontSize;
+			const separatorY = backgroundFillY + 2;
+
+			if (headerText) {
+				nextLabelY = backgroundFillY + backgroundFillHeight;
+			}
 
 			InnerMinimap._renderSectionLabel(
 				canvasContext,
@@ -1870,12 +1890,14 @@ class InnerMinimap extends Disposable {
 				decoration.options.minimap?.sectionHeaderStyle === MinimapSectionHeaderStyle.Underlined,
 				backgroundFill,
 				foregroundFill,
-				canvasInnerWidth,
+				labelAreaWidth,
 				backgroundFillY,
 				backgroundFillHeight,
 				y,
 				separatorY);
 		}
+
+		canvasContext.restore();
 	}
 
 	private static _fitSectionHeader(

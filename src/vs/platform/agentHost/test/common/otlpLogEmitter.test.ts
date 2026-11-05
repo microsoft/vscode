@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { LogLevel } from '../../../log/common/log.js';
 import {
@@ -14,6 +13,7 @@ import {
 	levelToSeverityNumber,
 	logLevelToOtlpLevelName,
 	logLevelToOtlpSeverity,
+	OtelData,
 	OtlpEmitterLogger,
 	OtlpLogEmitter,
 	parseOtlpLogLevel,
@@ -24,10 +24,8 @@ import {
 
 suite('OtlpLogEmitter', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('level <-> severity number mappings are inverse-ish', () => {
 		// Each VS Code level → severity number, then back, should land on
@@ -125,6 +123,84 @@ suite('OtlpLogEmitter', () => {
 		const payload = toResourceLogsPayload(record);
 		const decoded = [...iterateOtlpLogRecords(payload)];
 		assert.deepStrictEqual(decoded, [record]);
+	});
+
+	test('OtelData attributes survive the OtlpEmitterLogger round-trip and stay out of the body', () => {
+		const emitter = disposables.add(new OtlpLogEmitter());
+		const logger = disposables.add(new OtlpEmitterLogger(emitter, LogLevel.Trace));
+		const received: IOtlpLogRecord[] = [];
+		disposables.add(emitter.onDidLog(record => received.push(record)));
+
+		logger.info('MCP server started', new OtelData({ infoType: 'mcp', attempt: 2, enabled: true }));
+		logger.warn('plain warning');
+
+		const roundTripped = received.map(r => [...iterateOtlpLogRecords(toResourceLogsPayload(r))][0]);
+		const sanitised = roundTripped.map(r => ({ severityText: r.severityText, body: r.body, attributes: r.attributes }));
+		assert.deepStrictEqual(sanitised, [
+			{ severityText: 'info', body: 'MCP server started', attributes: { infoType: 'mcp', attempt: 2, enabled: true } },
+			{ severityText: 'warn', body: 'plain warning', attributes: undefined },
+		]);
+	});
+
+	test('integer attributes are string-encoded on the OTLP wire', () => {
+		const record: IOtlpLogRecord = {
+			timeUnixNano: '123000000',
+			severityNumber: 9,
+			severityText: 'info',
+			body: 'a body',
+			attributes: { count: 2, ratio: 1.5, label: 'ready', enabled: true },
+		};
+
+		assert.deepStrictEqual(toResourceLogsPayload(record), {
+			resourceLogs: [{
+				resource: { attributes: [] },
+				scopeLogs: [{
+					scope: { name: 'vscode.agentHost' },
+					logRecords: [{
+						timeUnixNano: '123000000',
+						observedTimeUnixNano: '123000000',
+						severityNumber: 9,
+						severityText: 'info',
+						body: { stringValue: 'a body' },
+						attributes: [
+							{ key: 'count', value: { intValue: '2' } },
+							{ key: 'ratio', value: { doubleValue: 1.5 } },
+							{ key: 'label', value: { stringValue: 'ready' } },
+							{ key: 'enabled', value: { boolValue: true } },
+						],
+					}],
+				}],
+			}],
+		});
+	});
+
+	test('invalid numeric OTLP attributes are ignored', () => {
+		const decoded = [...iterateOtlpLogRecords({
+			resourceLogs: [{
+				scopeLogs: [{
+					logRecords: [{
+						timeUnixNano: '123000000',
+						severityNumber: 9,
+						severityText: 'info',
+						body: { stringValue: 'a body' },
+						attributes: [
+							{ key: 'validInt', value: { intValue: '2' } },
+							{ key: 'nanInt', value: { intValue: 'not-a-number' } },
+							{ key: 'unsafeInt', value: { intValue: '9007199254740992' } },
+							{ key: 'infiniteDouble', value: { doubleValue: Infinity } },
+						],
+					}],
+				}],
+			}],
+		})];
+
+		assert.deepStrictEqual(decoded, [{
+			timeUnixNano: '123000000',
+			severityNumber: 9,
+			severityText: 'info',
+			body: 'a body',
+			attributes: { validInt: 2 },
+		}]);
 	});
 
 	test('iterateOtlpLogRecords tolerates malformed shapes', () => {

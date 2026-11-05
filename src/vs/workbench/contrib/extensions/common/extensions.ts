@@ -6,7 +6,7 @@
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { Event } from '../../../../base/common/event.js';
 import { IPager } from '../../../../base/common/paging.js';
-import { IQueryOptions, ILocalExtension, IGalleryExtension, IExtensionIdentifier, IExtensionInfo, IExtensionQueryOptions, IDeprecationInfo, InstallExtensionResult, InstallOptions } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { IQueryOptions, ILocalExtension, IGalleryExtension, IExtensionIdentifier, IExtensionInfo, IExtensionQueryOptions, IDeprecationInfo, InstallExtensionResult, InstallOptions, IExtensionBlockingInfo } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { EnablementState, IExtensionManagementServer, IResourceExtension } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
@@ -107,6 +107,8 @@ export interface IExtension {
 	readonly resourceExtension?: IResourceExtension;
 	readonly isMalicious: boolean | undefined;
 	readonly maliciousInfoLink: string | undefined;
+	readonly blockingInfo: IExtensionBlockingInfo | undefined;
+	readonly installedBlockingInfo: IExtensionBlockingInfo | undefined;
 	readonly deprecationInfo?: IDeprecationInfo;
 	readonly missingFromGallery?: boolean;
 }
@@ -121,12 +123,12 @@ export interface InstallExtensionOptions extends InstallOptions {
 }
 
 export interface IExtensionsNotification {
-	readonly message: string;
+	readonly message: string | IMarkdownString;
 	readonly severity: Severity;
 	readonly extensions: IExtension[];
 	readonly query?: string;
 	readonly action?: { readonly label: string; run(): void };
-	dismiss(): void;
+	dismiss?(): void;
 }
 
 export interface IExtensionsWorkbenchService {
@@ -163,6 +165,7 @@ export interface IExtensionsWorkbenchService {
 	getAutoUpdateValue(): AutoUpdateConfigurationValue;
 	isAutoUpdateDelayed(extension: IExtension): boolean;
 	getAutoUpdateDelayRemaining(extension: IExtension): number;
+	getAutoUpdateDelay(): number;
 	checkForUpdates(): Promise<void>;
 	getExtensionRuntimeStatus(extension: IExtension): IExtensionRuntimeStatus | undefined;
 	updateAll(): Promise<InstallExtensionResult[]>;
@@ -187,14 +190,16 @@ export const enum ExtensionEditorTab {
 
 export const ConfigurationKey = 'extensions';
 export const AutoUpdateConfigurationKey = 'extensions.autoUpdate';
+export const AutoUpdateDelayConfigurationKey = 'extensions.autoUpdateDelay';
 export const AutoCheckUpdatesConfigurationKey = 'extensions.autoCheckUpdates';
 export const CloseExtensionDetailsOnViewChangeKey = 'extensions.closeExtensionDetailsOnViewChange';
 export const AutoRestartConfigurationKey = 'extensions.autoRestart';
 
-export type AutoUpdateConfigurationValue = boolean | 'onlyEnabledExtensions' | 'onlySelectedExtensions';
+export type AutoUpdateConfigurationValue = 'on' | 'off';
 
 export interface IExtensionsConfiguration {
 	autoUpdate: AutoUpdateConfigurationValue;
+	autoUpdateDelay: number;
 	autoCheckUpdates: boolean;
 	ignoreRecommendations: boolean;
 	closeExtensionDetailsOnViewChange: boolean;

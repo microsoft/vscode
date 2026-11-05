@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { AbstractChatView, IChatViewOptions } from '../../../browser/parts/chatView.js';
 
 export const IChatViewFactory = createDecorator<IChatViewFactory>('chatViewFactory');
@@ -18,14 +18,19 @@ export interface IChatViewFactory {
 
 	readonly _serviceBrand: undefined;
 
-	/**
-	 * Creates a "new chat" view that lets the user pick a workspace and
-	 * start a new chat. This is the view the grid is seeded with on startup.
-	 */
-	createNewChatView(isNewChatInSession: boolean, options: IChatViewOptions): AbstractChatView;
+	/** Entry-owned metrics for chat inputs composed outside a chat view, such as automation prompts. */
+	readonly inputEditorOptions: IChatViewOptions['inputEditorOptions'];
 
 	/**
-	 * Creates a chat view that hosts a chat widget for an active session.
+	 * Creates a "new chat" view that lets the user pick a workspace and
+	 * start a new chat. This is the view the grid is seeded with on startup. `instantiationService` is the scope of the
+	 * surface that shows it, which provides its session host.
 	 */
-	createChatView(): AbstractChatView;
+	createNewChatView(isNewChatInSession: boolean, options: IChatViewOptions, instantiationService: IInstantiationService): AbstractChatView;
+
+	/**
+	 * Creates a chat view that hosts a chat widget for an active session, with the given options for its input.
+	 * `instantiationService` is the scope of the surface that shows it, which provides its session host.
+	 */
+	createChatView(instantiationService: IInstantiationService, options?: IChatViewOptions): AbstractChatView;
 }

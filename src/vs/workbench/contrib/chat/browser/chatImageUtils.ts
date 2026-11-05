@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { raceTimeout } from '../../../../base/common/async.js';
 import { decodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
-import { LRUCache } from '../../../../base/common/map.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -85,113 +83,14 @@ export async function resizeImage(data: Uint8Array | string, mimeType?: string):
 	});
 }
 
-/**
- * Creates a small downscaled thumbnail of an image. Useful for compact previews
- * (e.g. attachment pills) where the UI should retain a small rendered image
- * instead of a full-resolution object URL.
- *
- * The thumbnail is re-encoded as JPEG when the source is a JPEG and as PNG
- * otherwise, so that photographic images don't balloon in size from being
- * re-encoded as PNG.
- * @param data The image bytes.
- * @param maxSize The maximum width or height of the thumbnail, in pixels.
- * @param targetWindow The window whose document is used to decode and resize the
- * image, so the work happens in the same window that renders the thumbnail.
- * @returns A promise that resolves to a {@link Blob} of the thumbnail, or `undefined` on failure.
- */
-function createImageThumbnail(data: Uint8Array, maxSize: number, targetWindow: Window): Promise<Blob | undefined> {
-	return new Promise((resolve) => {
-		const blob = new Blob([data as Uint8Array<ArrayBuffer>]);
-		const img = targetWindow.document.createElement('img');
-		const url = URL.createObjectURL(blob);
-		img.src = url;
-
-		img.onload = () => {
-			URL.revokeObjectURL(url);
-			const { width, height } = img;
-			const scaleFactor = Math.min(1, maxSize / Math.max(width, height));
-			const targetWidth = Math.max(1, Math.round(width * scaleFactor));
-			const targetHeight = Math.max(1, Math.round(height * scaleFactor));
-
-			const canvas = targetWindow.document.createElement('canvas');
-			canvas.width = targetWidth;
-			canvas.height = targetHeight;
-			const ctx = canvas.getContext('2d');
-			if (!ctx) {
-				resolve(undefined);
-				return;
-			}
-
-			ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
-			// JPEG (FF D8 FF) re-encodes far smaller than PNG for photos, so keep it as JPEG.
-			const outputMimeType = data.length >= 3 && data[0] === 0xFF && data[1] === 0xD8 && data[2] === 0xFF ? 'image/jpeg' : 'image/png';
-			canvas.toBlob(thumbnail => resolve(thumbnail ?? undefined), outputMimeType);
-		};
-		img.onerror = () => {
-			URL.revokeObjectURL(url);
-			resolve(undefined);
-		};
-	});
-}
-
-/**
- * Bounded cache of generated image thumbnails, keyed by a caller-provided stable
- * identifier (e.g. an attachment id). Attachment widgets are torn down and
- * recreated whenever the attachment list re-renders, so memoizing the downscaled
- * blob avoids re-decoding and re-resizing the full-resolution image every time.
- *
- * Only the small thumbnail bytes are retained, and the cache is bounded so memory
- * stays predictable. The cached value is a `Promise` so concurrent renders of the
- * same image share a single in-flight decode.
- */
-const thumbnailCache = new LRUCache<string, Promise<Blob | undefined>>(50);
-
-/**
- * Safety net so a cached decode always settles. {@link createImageThumbnail}
- * only resolves via the image element's load/error events, which may never fire
- * if the {@link Window} it decodes in is torn down mid-decode. Without this, the
- * cached (pending) promise would never resolve, blocking every later render of
- * that image. The value is far larger than any real decode of an already-resized
- * image, so it never trips in the normal path. The timer is cleared the instant
- * the decode settles, so this adds negligible cost.
- */
-const THUMBNAIL_DECODE_TIMEOUT_MS = 10_000;
-
-/**
- * Memoized variant of {@link createImageThumbnail}. Repeated calls with the same
- * {@link cacheKey} (and matching size/byte length) reuse the previously generated
- * thumbnail instead of decoding and resizing the original image again.
- * @param cacheKey A stable identifier for the source image (e.g. the attachment id).
- * @param data The image bytes.
- * @param maxSize The maximum width or height of the thumbnail, in pixels.
- * @param targetWindow The window whose document is used to decode and resize the image.
- * @returns A promise that resolves to a {@link Blob} of the thumbnail, or `undefined` on failure.
- */
-export function getOrCreateImageThumbnail(cacheKey: string, data: Uint8Array, maxSize: number, targetWindow: Window): Promise<Blob | undefined> {
-	// Include the size and byte length so a reused id with different content or a
-	// different target size doesn't return a stale thumbnail.
-	const key = `${cacheKey}:${maxSize}:${data.byteLength}`;
-	const cached = thumbnailCache.get(key);
-	if (cached) {
-		return cached;
-	}
-
-	const thumbnail: Promise<Blob | undefined> = raceTimeout(createImageThumbnail(data, maxSize, targetWindow), THUMBNAIL_DECODE_TIMEOUT_MS).then(blob => {
-		// Don't keep failures cached so a later render can retry. Only evict our own
-		// entry in case LRU eviction already replaced it with a newer decode.
-		if (!blob && thumbnailCache.peek(key) === thumbnail) {
-			thumbnailCache.delete(key);
-		}
-		return blob;
-	});
-	thumbnailCache.set(key, thumbnail);
-	return thumbnail;
-}
-
 export function convertStringToUInt8Array(data: string): Uint8Array {
 	const base64Data = data.includes(',') ? data.split(',')[1] : data;
 	if (isValidBase64(base64Data)) {
-		return decodeBase64(base64Data).buffer;
+		try {
+			return decodeBase64(base64Data).buffer;
+		} catch {
+			// fall through to TextEncoder
+		}
 	}
 	return new TextEncoder().encode(data);
 }
@@ -209,14 +108,7 @@ export function convertUint8ArrayToString(data: Uint8Array): string {
 
 function isValidBase64(str: string): boolean {
 	// checks if the string is a valid base64 string that is NOT encoded
-	return /^[A-Za-z0-9+/]*={0,2}$/.test(str) && (() => {
-		try {
-			atob(str);
-			return true;
-		} catch {
-			return false;
-		}
-	})();
+	return str.length % 4 === 0 && /^[A-Za-z0-9+/]*={0,2}$/.test(str);
 }
 
 export async function createFileForMedia(fileService: IFileService, imagesFolder: URI, dataTransfer: Uint8Array, mimeType: string): Promise<URI | undefined> {

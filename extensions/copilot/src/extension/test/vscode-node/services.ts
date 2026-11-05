@@ -13,8 +13,6 @@ import { MockRunCommandExecutionService } from '../../../platform/commands/commo
 import { IRunCommandExecutionService } from '../../../platform/commands/common/runCommandExecutionService';
 import { IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { DefaultsOnlyConfigurationService } from '../../../platform/configuration/common/defaultsOnlyConfigurationService';
-import { IDebugOutputService } from '../../../platform/debug/common/debugOutputService';
-import { DebugOutputServiceImpl } from '../../../platform/debug/vscode/debugOutputServiceImpl';
 import { IDialogService } from '../../../platform/dialog/common/dialogService';
 import { IDiffService } from '../../../platform/diff/common/diffService';
 import { DiffServiceImpl } from '../../../platform/diff/node/diffServiceImpl';
@@ -63,6 +61,7 @@ import { INotificationService, NullNotificationService } from '../../../platform
 import { IOTelSqliteStore, OTelSqliteStore } from '../../../platform/otel/node/sqlite/otelSqliteStore';
 import { IPromptsService } from '../../../platform/promptFiles/common/promptsService';
 import { PromptsServiceImpl } from '../../../platform/promptFiles/vscode-node/promptsServiceImpl';
+import { AutomaticInstructionsCollector, IAutomaticInstructionsCollector } from '../../../platform/promptFiles/node/automaticInstructionsCollector';
 import { IPromptPathRepresentationService, PromptPathRepresentationService } from '../../../platform/prompts/common/promptPathRepresentationService';
 import { IProxyModelsService, NullProxyModelsService } from '../../../platform/proxyModels/common/proxyModelsService';
 import { IRemoteRepositoriesService, RemoteRepositoriesService } from '../../../platform/remoteRepositories/vscode/remoteRepositories';
@@ -187,7 +186,6 @@ export function createExtensionTestingServices(): TestingServiceCollection {
 	testingServiceCollection.define(IAlternativeNotebookContentEditGenerator, new SyncDescriptor(AlternativeNotebookContentEditGenerator));
 	testingServiceCollection.define(IDiffService, new SyncDescriptor(DiffServiceImpl));
 	testingServiceCollection.define(ICompletionsFetchService, new SyncDescriptor(CompletionsFetchService));
-	testingServiceCollection.define(IDebugOutputService, new SyncDescriptor(DebugOutputServiceImpl));
 	testingServiceCollection.define(IUserFeedbackService, new SyncDescriptor(UserFeedbackService));
 	testingServiceCollection.define(ITerminalService, new SyncDescriptor(TerminalServiceImpl));
 	testingServiceCollection.define(IConversationStore, new SyncDescriptor(ConversationStore));
@@ -199,6 +197,7 @@ export function createExtensionTestingServices(): TestingServiceCollection {
 	testingServiceCollection.define(IScopeSelector, new SyncDescriptor(ScopeSelectorImpl));
 	testingServiceCollection.define(IPromptPathRepresentationService, new SyncDescriptor(PromptPathRepresentationService));
 	testingServiceCollection.define(IPromptsService, new SyncDescriptor(PromptsServiceImpl));
+	testingServiceCollection.define(IAutomaticInstructionsCollector, new SyncDescriptor(AutomaticInstructionsCollector));
 	testingServiceCollection.define(IToolsService, new SyncDescriptor(NullToolsService));
 	testingServiceCollection.define(IToolDeferralService, new ToolDeferralService());
 	testingServiceCollection.define(IChatDiskSessionResources, new SyncDescriptor(ChatDiskSessionResources));

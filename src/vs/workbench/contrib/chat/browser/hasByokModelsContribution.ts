@@ -12,7 +12,7 @@ import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ChatEntitlementContextKeys } from '../../../services/chat/common/chatEntitlementService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
-import { ChatConfiguration } from '../common/constants.js';
+import { ChatAIDisabledSettingId } from '../common/constants.js';
 import { COPILOT_VENDOR_ID } from '../common/languageModels.js';
 import { ILanguageModelsConfigurationService } from '../common/languageModelsConfiguration.js';
 
@@ -77,14 +77,14 @@ export class HasByokModelsContribution extends Disposable implements IWorkbenchC
 		});
 
 		this._register(Event.any(
-			Event.filter(this._configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.AIDisabled)),
+			Event.filter(this._configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatAIDisabledSettingId)),
 			Event.filter(this._contextKeyService.onDidChangeContext, e => e.affectsSome(HasByokModelsContribution.TRACKED_KEYS)),
 			this._languageModelsConfigurationService.onDidChangeLanguageModelGroups,
 		)(() => this._update()));
 	}
 
 	private _isFeatureEnabled(): boolean {
-		return !this._configurationService.getValue<boolean>(ChatConfiguration.AIDisabled)
+		return !this._configurationService.getValue<boolean>(ChatAIDisabledSettingId)
 			&& !!this._contextKeyService.getContextKeyValue<boolean>(ChatEntitlementContextKeys.clientByokEnabled.key);
 	}
 

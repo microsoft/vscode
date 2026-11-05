@@ -48,6 +48,15 @@ export interface AllowedMcpServer {
 	 * Undefined for stdio servers, which have no URL.
 	 */
 	url?: string;
+	/**
+	 * Set when the grant is for an MCP server hosted by an agent host (which runs the server in the
+	 * CLI/agent-host process rather than registering it with the workbench `IMcpService`). Carries the
+	 * host `authority` and its display `label` so management surfaces can present agent-host servers in
+	 * their own section instead of filtering them out as "unknown". Agent hosts
+	 * may be ephemeral and not always connected, but we still want to be able to
+	 * display grants we know about and will respect.
+	 */
+	agentHost?: { authority: string; label: string };
 }
 
 export const IAuthenticationMcpAccessService = createDecorator<IAuthenticationMcpAccessService>('IAuthenticationMcpAccessService');
@@ -188,6 +197,11 @@ export class AuthenticationMcpAccessService extends Disposable implements IAuthe
 				// Only overwrite the URL when one is provided, so management toggles (which omit it) keep the binding.
 				if (mcpServer.url !== undefined) {
 					allowList[index].url = mcpServer.url;
+				}
+				// Preserve agent-host metadata across re-grants; only set when provided so management
+				// toggles (which omit it) don't clear it.
+				if (mcpServer.agentHost !== undefined) {
+					allowList[index].agentHost = mcpServer.agentHost;
 				}
 			}
 		}

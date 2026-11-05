@@ -7,8 +7,9 @@ import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/key
 import { ResolvedKeybinding } from '../../../../base/common/keybindings.js';
 import { OS } from '../../../../base/common/platform.js';
 import './media/issueReporterOverlay.css';
-import { $, addDisposableListener, append, disposableWindowInterval, EventType, getWindow } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, disposableWindowInterval, EventType, getWindow, isHTMLElement } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { IContextMenuProvider } from '../../../../base/browser/contextmenu.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -18,71 +19,78 @@ import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
 import { Action, Separator } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { isRemoteDiagnosticError } from '../../../../platform/diagnostics/common/diagnostics.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles, defaultKeybindingLabelStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import product from '../../../../platform/product/common/product.js';
-import { URI } from '../../../../base/common/uri.js';
-import { normalizeGitHubUrl } from '../common/issueReporterUtil.js';
-import { IssueReporterData, IssueReporterExtensionData, IssueSource, IssueType } from '../common/issue.js';
+import { IIssueReporterAttachmentUpload, IIssueReporterFileAttachment, IIssueReporterScreenshot, IssueReporterAttachment, IssueReporterData, IssueReporterExtensionData, IssueSource, IssueType } from '../common/issue.js';
+import { resolveIssueReporterTarget } from '../common/issueReporterTarget.js';
+import { renderIssueReporterRepositoryPicker } from './issueReporterRepositoryPicker.js';
 import { IssueReporterModel } from './issueReporterModel.js';
+import { IssueReporterEditorInput } from './issueReporterEditorInput.js';
+import { getIssueReporterScreenshotFile, MAX_ISSUE_ATTACHMENTS as MAX_ATTACHMENTS, validateIssueReporterMediaFile } from './issueReporterMedia.js';
 import { RecordingState } from './recordingService.js';
 import { IAnnotationEditorState, ScreenshotAnnotationEditor } from './screenshotAnnotation.js';
 
-const MAX_ATTACHMENTS = 5;
-const MAX_SIMILAR_ISSUES = 5;
-
-interface ISimilarIssue {
-	readonly html_url: string;
-	readonly title: string;
-	readonly state?: string;
-}
-
-const enum WizardStep {
-	Attachments = 0,
-	Describe = 1,
-	Review = 2,
-}
-
-const STEP_COUNT = 3;
-
-export interface IScreenshot {
-	readonly dataUrl: string;
+export interface IScreenshot extends IIssueReporterScreenshot {
 	readonly width: number;
 	readonly height: number;
 	annotatedDataUrl?: string;
 	annotationState?: IAnnotationEditorState;
 }
 
+export interface IIssueReporterAttachmentImport {
+	readonly id: string;
+	readonly file: File;
+}
+
+type PendingAttachment = { readonly id: string; readonly kind: 'pending'; readonly source: 'import' | 'screenshot' | 'recording' };
+
+type DiagnosticOption = 'includeSystemInfo' | 'includeProcessInfo' | 'includeWorkspaceInfo' | 'includeExtensions' | 'includeExperiments' | 'includeExtensionData';
+
+export interface IIssueReporterDiagnosticsState {
+	readonly included: Partial<Record<DiagnosticOption, boolean>>;
+	readonly expanded: Set<DiagnosticOption>;
+}
+
 export class IssueReporterOverlay {
 
 	private readonly disposables = new DisposableStore();
+	private readonly screenshotDisposables = this.disposables.add(new DisposableStore());
 	private readonly _onDidClose = new Emitter<void>();
 	readonly onDidClose: Event<void> = this._onDidClose.event;
 	private readonly _onDidSubmit = new Emitter<{ title: string; body: string }>();
 	readonly onDidSubmit: Event<{ title: string; body: string }> = this._onDidSubmit.event;
-	private readonly _onDidRequestScreenshot = new Emitter<void>();
-	readonly onDidRequestScreenshot: Event<void> = this._onDidRequestScreenshot.event;
+	private readonly _onDidRequestScreenshot = new Emitter<string>();
+	readonly onDidRequestScreenshot: Event<string> = this._onDidRequestScreenshot.event;
 	private readonly _onDidRequestStartRecording = new Emitter<void>();
 	readonly onDidRequestStartRecording: Event<void> = this._onDidRequestStartRecording.event;
 	private readonly _onDidRequestStopRecording = new Emitter<void>();
 	readonly onDidRequestStopRecording: Event<void> = this._onDidRequestStopRecording.event;
-	private readonly _onDidRequestOpenRecording = new Emitter<string>();
-	readonly onDidRequestOpenRecording: Event<string> = this._onDidRequestOpenRecording.event;
-	private readonly _onDidRequestOpenScreenshot = new Emitter<IScreenshot>();
-	readonly onDidRequestOpenScreenshot: Event<IScreenshot> = this._onDidRequestOpenScreenshot.event;
+	private readonly _onDidRequestOpenFile = new Emitter<string>();
+	readonly onDidRequestOpenFile: Event<string> = this._onDidRequestOpenFile.event;
+	private readonly _onDidChangeAttachments = new Emitter<void>();
+	/** Fires when attachments change so their input can retain ownership. */
+	readonly onDidChangeAttachments: Event<void> = this._onDidChangeAttachments.event;
+	private readonly _onDidRequestAddAttachments = this.disposables.add(new Emitter<readonly IIssueReporterAttachmentImport[]>());
+	readonly onDidRequestAddAttachments = this._onDidRequestAddAttachments.event;
 
 	private wizardPanel!: HTMLElement;
 	private updateBanner!: HTMLElement;
-	private stepContainer!: HTMLElement;
-	private readonly stepPages: HTMLElement[] = [];
+	private formContent!: HTMLElement;
 
-	// Step 1: Describe (category + description + title)
 	private readonly issueTypeButtons: Button[] = [];
 	private readonly issueSourceButtons: Button[] = [];
 	private selectedIssueType: IssueType | undefined;
@@ -91,19 +99,23 @@ export class IssueReporterOverlay {
 	private sourceButtonGroup!: HTMLElement;
 	private sourceError!: HTMLElement;
 	private targetStatus!: HTMLElement;
+	private readonly repositoryPicker = this.disposables.add(new MutableDisposable());
 	private extensionField!: HTMLElement;
 	private extensionSelect!: SelectBox;
 	private extensionOptions: { label: string; value: string | undefined; hidden?: boolean }[] = [];
 	private extensionError!: HTMLElement;
 	private extensionStatus!: HTMLElement;
-	private didAttemptDescribeSubmit = false;
-	private similarIssuesContainer!: HTMLElement;
-	private similarIssuesRequest = 0;
+	private didAttemptSubmit = false;
+	private diagnosticsContainer!: HTMLElement;
 	private extensionDataRequest = 0;
-	private similarIssuesHandle: ReturnType<typeof setTimeout> | undefined;
 	private typeButtonGroup!: HTMLElement;
 	private typeError!: HTMLElement;
-	private descriptionTextarea!: HTMLTextAreaElement;
+	private descriptionContainer!: HTMLElement;
+	private descriptionPreview!: HTMLElement;
+	private descriptionWriteTab!: Button;
+	private descriptionPreviewTab!: Button;
+	private previewingDescription = false;
+	private readonly descriptionPreviewDisposables = this.disposables.add(new DisposableStore());
 	private descriptionGuidance!: HTMLElement;
 	private descriptionError!: HTMLElement;
 	private titleInput!: InputBox;
@@ -112,104 +124,96 @@ export class IssueReporterOverlay {
 	private readonly _onDidRequestGenerateTitle = new Emitter<string>();
 	readonly onDidRequestGenerateTitle: Event<string> = this._onDidRequestGenerateTitle.event;
 
-	// Step 0: Screenshots & Recording
 	private screenshotContainer!: HTMLElement;
+	private screenshotAddCard: HTMLElement | undefined;
+	private addFilesButton!: Button;
+	private attachmentStatus!: HTMLElement;
+	private attachmentErrorDetails!: HTMLDetailsElement;
+	private attachmentErrorDetailText!: HTMLElement;
+	private readonly attachmentErrors = new Set<string>();
+	private attachmentUploadError: string | undefined;
+	private disposed = false;
 	private screenshotDelay = 0;
 	private recordingElapsedTimer: number | undefined;
 	private recordingStartTime = 0;
 	private currentRecordingState = RecordingState.Idle;
 	private delayedScreenshotPending = false;
-	private readonly recordings: { filePath: string; durationMs: number; thumbnailDataUrl?: string }[] = [];
+	private screenshotCapturePending = false;
+	private readonly attachments: (IssueReporterAttachment<IScreenshot> | PendingAttachment)[] = [];
 
-	// Step 2: Review
-	private reviewThumbCards: HTMLElement[] = [];
-	private readonly reviewRenderDisposables = new DisposableStore();
-	private readonly similarIssuesDisposables = new DisposableStore();
+	private readonly attachmentCards = new Map<string, HTMLElement>();
+	private readonly diagnosticsDisposables = this.disposables.add(new DisposableStore());
+	private readonly diagnosticControls = new Map<DiagnosticOption, { include: HTMLElement; details: HTMLElement }>();
+	private readonly descriptionGuidanceDisposables = new DisposableStore();
 	private uploading = false;
-	private includeSystemInfo = true;
-	private includeProcessInfo = true;
-	private includeWorkspaceInfo = true;
-	private includeExtensions = true;
-	private includeExperiments = true;
-	private includeExtensionData = false;
-	private diagnosticBulkToggleButton: Button | undefined;
-	private diagnosticSectionStates: (() => boolean)[] = [];
 	private performanceInfoLoaded = false;
 	private performanceInfoRefreshing = false;
 
-	// Navigation
-	private stepIndicator!: HTMLElement;
-	private stepLabel!: HTMLElement;
-	private backButton!: Button;
-	private nextButton!: Button;
-
-	// Progress dots
-	private readonly progressDots: HTMLElement[] = [];
-
-	private currentStep: WizardStep = WizardStep.Attachments;
-	private readonly screenshots: IScreenshot[] = [];
+	private previewButton!: Button;
+	private previewConsent!: HTMLElement;
 	private readonly model: IssueReporterModel;
 	private visible = false;
 	private floatingBar: HTMLElement | undefined;
 	private previewOpened = false;
 	private previewedDraftKey: string | undefined;
+	private submittedDraftKey: string | undefined;
 	private closeButton: Button | undefined;
 	private _hideToolbarInScreenshots = true;
 
+	private get descriptionInput(): HTMLTextAreaElement {
+		return this.input.descriptionInput;
+	}
+
 	constructor(
 		private data: IssueReporterData,
+		private readonly input: IssueReporterEditorInput,
 		private readonly recordingSupported: boolean = false,
 		private readonly container: HTMLElement,
 		private readonly contextViewService: IContextViewService,
-		private readonly contextMenuProvider?: IContextMenuProvider,
-		private readonly markdownRendererService?: IMarkdownRendererService,
+		private readonly contextMenuProvider: IContextMenuProvider | undefined = undefined,
 		initialHideToolbar: boolean = true,
-		private readonly resolveExtensionIssueData?: (extensionId: string) => Promise<IssueReporterData | undefined>,
-		private readonly openExternalLink?: (url: string) => Promise<void>,
+		private readonly resolveExtensionIssueData: ((extensionId: string) => Promise<IssueReporterData | undefined>) | undefined = undefined,
+		private readonly openExternalLink: ((url: string) => Promise<void>) | undefined = undefined,
 		private showUpdateBanner = false,
-		private readonly refreshPerformanceInfo?: () => Promise<void>,
+		private readonly refreshPerformanceInfo: (() => Promise<void>) | undefined = undefined,
 		/** Returns the user's currently-bound keybinding for the given command id, or undefined when unbound. */
-		private readonly resolveKeybinding?: (commandId: string) => ResolvedKeybinding | undefined,
+		private readonly resolveKeybinding: ((commandId: string) => ResolvedKeybinding | undefined) | undefined = undefined,
+		private readonly diagnosticsState: IIssueReporterDiagnosticsState = { included: {}, expanded: new Set() },
+		private readonly captureContainer: HTMLElement = container,
+		@ILogService private readonly logService: ILogService,
+		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
+		@IHoverService private readonly hoverService: IHoverService,
+		@IClipboardService private readonly clipboardService: IClipboardService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		this._hideToolbarInScreenshots = initialHideToolbar;
-		this.model = new IssueReporterModel({
+		const hasStandaloneExtensionData = !!data.data && !data.extensionId;
+		this.model = this.disposables.add(new IssueReporterModel({
 			...data,
+			issueDescription: this.descriptionInput.value,
 			issueType: data.issueType || IssueType.Bug,
 			allExtensions: data.enabledExtensions,
+			extensionData: hasStandaloneExtensionData ? data.data : undefined,
 			includeSystemInfo: true,
 			includeWorkspaceInfo: true,
 			includeProcessInfo: true,
 			includeExtensions: true,
 			includeExperiments: true,
-			includeExtensionData: false,
-		});
+			includeExtensionData: hasStandaloneExtensionData,
+		}));
 		this.selectedIssueType = data.issueType;
 		this.selectedIssueSource = data.issueSource ?? (data.extensionId ? IssueSource.Extension : undefined);
+		this.model.update(this.getDiagnosticOptions());
 
-		this.createWizard();
+		this.createForm();
 	}
 
-	private createWizard(): void {
-		this.wizardPanel = $('div.issue-reporter-wizard');
+	private createForm(): void {
+		this.wizardPanel = append(this.container, $('div.issue-reporter-wizard'));
 		this.wizardPanel.setAttribute('role', 'dialog');
 		this.wizardPanel.setAttribute('aria-label', localize('reportIssue', "Report Issue"));
 		this.wizardPanel.setAttribute('tabindex', '-1');
-
-		// Toolbar (drag region + step indicator + discard)
-		const toolbar = append(this.wizardPanel, $('div.wizard-toolbar'));
-
-		// Progress indicator area
-		const progressArea = append(toolbar, $('div.wizard-progress-area'));
-		const progressDotsContainer = append(progressArea, $('div.wizard-progress-dots'));
-		for (let i = 0; i < STEP_COUNT; i++) {
-			const dot = append(progressDotsContainer, $('div.wizard-progress-dot'));
-			this.progressDots.push(dot);
-		}
-		this.stepIndicator = append(progressArea, $('span.wizard-step-indicator'));
-		append(progressArea, $('span.wizard-step-separator'));
-		this.stepLabel = append(progressArea, $('span.wizard-step-label'));
-
-		append(toolbar, $('div.wizard-toolbar-spacer'));
 
 		this.updateBanner = append(this.wizardPanel, $('div.wizard-update-banner'));
 		this.updateBanner.setAttribute('role', 'status');
@@ -217,42 +221,49 @@ export class IssueReporterOverlay {
 		this.updateBanner.textContent = localize('updateAvailable', "A new version of {0} is available.", product.nameLong);
 		this.setUpdateAvailable(this.showUpdateBanner);
 
-		// Step content area
-		this.stepContainer = append(this.wizardPanel, $('div.wizard-step-container'));
-		this.createStep0Attachments();
-		this.createStep1Describe();
-		this.createStep2Review();
+		this.formContent = append(this.wizardPanel, $('div.issue-reporter-form'));
+		this.createReportFields(this.formContent);
+		this.createAttachmentsSection(this.formContent);
 
-		// Bottom navigation
-		const nav = append(this.wizardPanel, $('div.wizard-nav'));
+		const diagnostics = append(this.formContent, $('section.wizard-diagnostics'));
+		append(diagnostics, $('h2.wizard-heading')).textContent = localize('optionalDiagnostics', "Diagnostics (optional)");
+		append(diagnostics, $('p.wizard-subtitle')).textContent = localize('diagnosticChoices', "Choose which diagnostic information to include. Expand a section to review its details.");
+		this.diagnosticsContainer = append(diagnostics, $('div.review-diagnostics'));
+		this.updateDiagnostics();
 
-		this.backButton = this.disposables.add(new Button(nav, { ...defaultButtonStyles, secondary: true }));
-		this.backButton.label = localize('back', "Back");
-		this.backButton.element.classList.add('wizard-back');
-		this.backButton.element.title = localize('back', "Back");
+		const actions = append(this.formContent, $('div.wizard-actions'));
+		this.previewButton = this.disposables.add(new Button(actions, { ...defaultButtonStyles, supportIcons: true }));
+		this.previewButton.element.classList.add('wizard-preview');
+		this.disposables.add(this.previewButton.onDidClick(() => this.submit()));
+		this.previewConsent = append(this.formContent, $('p.wizard-subtitle'));
 
-		this.nextButton = this.disposables.add(new Button(nav, { ...defaultButtonStyles, supportIcons: true }));
-		this.nextButton.label = localize('next', "Next");
-		this.nextButton.element.classList.add('wizard-next');
-		this.nextButton.element.title = localize('next', "Next");
-
-		this.registerEventHandlers();
+		this.registerAttachmentInput();
 		if (this.data.extensionId) {
 			void this.updateSelectedExtension(this.data.extensionId, false);
 		}
-		this.updateStepUI();
+		this.updatePreviewButton();
+		this.createFloatingCaptureBar();
 	}
 
-	// Step 0: Attachments
-	private createStep0Attachments(): void {
-		const page = append(this.stepContainer, $('div.wizard-step'));
-		this.stepPages.push(page);
+	private createAttachmentsSection(parent: HTMLElement): void {
+		const page = append(parent, $('section.wizard-attachments'));
 
 		const heading = append(page, $('h2.wizard-heading'));
-		heading.textContent = localize('screenshotsHeading', "Add attachments for better context");
+		heading.textContent = localize('attachmentsHeading', "Attachments");
 
-		const subtitle = append(page, $('p.wizard-subtitle'));
-		subtitle.textContent = localize('screenshotsSubtitle', "You can add up to {0} screenshots or videos. Navigate VS Code and choose when to capture.", MAX_ATTACHMENTS);
+		const importHint = append(page, $('p.wizard-subtitle.wizard-attachment-hint'));
+		importHint.textContent = localize('attachmentImportHint', "Drop or paste up to {0} files. Images: 10 MB. Videos: 100 MB. Other files: 25 MB. Files stay local until you preview on GitHub.", MAX_ATTACHMENTS);
+		const fileInput = append(page, $<HTMLInputElement>('input'));
+		fileInput.type = 'file';
+		fileInput.multiple = true;
+		fileInput.hidden = true;
+		this.addFilesButton = this.disposables.add(new Button(page, { ...defaultButtonStyles, secondary: true }));
+		this.addFilesButton.label = localize('addFiles', "Add Files...");
+		this.disposables.add(this.addFilesButton.onDidClick(() => fileInput.click()));
+		this.disposables.add(addDisposableListener(fileInput, EventType.CHANGE, () => {
+			this.requestAddAttachments(Array.from(fileInput.files ?? []));
+			fileInput.value = '';
+		}));
 
 		const captureShortcut = this.resolveKeybinding?.('workbench.action.issueReporter.captureScreenshot');
 		const recordShortcut = this.recordingSupported ? this.resolveKeybinding?.('workbench.action.issueReporter.toggleRecording') : undefined;
@@ -276,9 +287,34 @@ export class IssueReporterOverlay {
 		}
 
 		this.screenshotContainer = append(page, $('div.wizard-screenshots'));
+		this.screenshotContainer.tabIndex = 0;
+		this.screenshotContainer.setAttribute('role', 'group');
+		this.screenshotContainer.setAttribute('aria-label', localize('attachmentArea', "Attachments. Paste or drop files here."));
+		this.attachmentStatus = append(page, $('p.wizard-subtitle.wizard-attachment-status'));
+		this.attachmentStatus.setAttribute('role', 'status');
+		this.attachmentStatus.setAttribute('aria-live', 'polite');
+		this.attachmentStatus.setAttribute('aria-atomic', 'true');
+		this.attachmentStatus.hidden = true;
+		this.attachmentErrorDetails = append(page, $('details.wizard-attachment-error-details'));
+		this.attachmentErrorDetails.hidden = true;
+		append(this.attachmentErrorDetails, $('summary')).textContent = localize('attachmentErrorDetails', "Technical details");
+		const copyDetailsButton = this.disposables.add(new Button(this.attachmentErrorDetails, { ...defaultButtonStyles, secondary: true }));
+		copyDetailsButton.element.classList.add('wizard-copy-error-details');
+		copyDetailsButton.element.setAttribute('aria-label', localize('copyAttachmentErrorDetails', "Copy technical details"));
+		copyDetailsButton.label = localize('copy', "Copy");
+		this.attachmentErrorDetailText = append(this.attachmentErrorDetails, $('pre'));
+		this.disposables.add(copyDetailsButton.onDidClick(async () => {
+			try {
+				await this.clipboardService.writeText(this.attachmentErrorDetailText.textContent ?? '');
+				if (!this.disposed) {
+					status(localize('attachmentErrorDetailsCopied', "Technical details copied."));
+				}
+			} catch (error) {
+				this.logService.error('[IssueReporter] Failed to copy technical details:', error);
+				this.notificationService.error(localize('copyAttachmentErrorDetailsFailed', "Could not copy technical details: {0}", toErrorMessage(error)));
+			}
+		}));
 		this.updateScreenshotThumbnails();
-
-		this.createFloatingCaptureBar();
 	}
 
 	private captureStripCaptureBtn: Button | undefined;
@@ -286,7 +322,7 @@ export class IssueReporterOverlay {
 	private captureStripRecordBtn: Button | undefined;
 
 	private createFloatingCaptureBar(): void {
-		const targetWindow = getWindow(this.container);
+		const targetWindow = getWindow(this.captureContainer);
 		// Mount inside .monaco-workbench so VS Code's color theme CSS vars
 		// (--vscode-debugToolBar-background, etc.) cascade and the bar matches the
 		// active theme. body is outside that scope and the vars wouldn't resolve.
@@ -376,6 +412,10 @@ export class IssueReporterOverlay {
 				return;
 			}
 			if (this.screenshotDelay > 0) {
+				const reservation = this.reserveAttachment('screenshot');
+				if (!reservation) {
+					return;
+				}
 				// Lock width so button doesn't shrink during countdown
 				captureBtn.element.style.minWidth = `${captureBtn.element.offsetWidth}px`;
 				captureBtn.enabled = false;
@@ -384,7 +424,7 @@ export class IssueReporterOverlay {
 				this.updateAttachmentButtons();
 				let remaining = this.screenshotDelay;
 				captureBtn.label = `${remaining}...`;
-				const targetWindow = getWindow(this.container);
+				const targetWindow = getWindow(this.captureContainer);
 				const intervalDisposable = this.disposables.add(disposableWindowInterval(targetWindow, () => {
 					remaining--;
 					if (remaining > 0) {
@@ -397,11 +437,11 @@ export class IssueReporterOverlay {
 						this.delayedScreenshotPending = false;
 						this.updateScreenshotThumbnails();
 						this.updateAttachmentButtons();
-						this._onDidRequestScreenshot.fire();
+						this.requestScreenshot(reservation);
 					}
 				}, 1000));
 			} else {
-				this._onDidRequestScreenshot.fire();
+				this.requestScreenshot();
 			}
 		}));
 
@@ -504,29 +544,41 @@ export class IssueReporterOverlay {
 		}));
 	}
 
-	private updateCaptureStripVisibility(): void {
-		if (!this.floatingBar) {
-			return;
-		}
-		// Show on all steps so the user can capture screenshots of the wizard itself
-		this.floatingBar.style.display = '';
-	}
-
-	// Step 1: Describe (category + description + title)
-	private createStep1Describe(): void {
-		const page = append(this.stepContainer, $('div.wizard-step'));
-		this.stepPages.push(page);
-
+	private createReportFields(page: HTMLElement): void {
 		const heading = append(page, $('h2.wizard-heading'));
 		heading.textContent = localize('describeHeading', "Describe your feedback");
+
+		// Issue guidance link — keep the same wording as the classic reporter.
+		if (this.markdownRendererService) {
+			const guidanceContainer = append(page, $('div.wizard-issue-guidance'));
+			const guidanceMd = new MarkdownString(localize(
+				{
+					key: 'reviewGuidanceLabelWizard',
+					comment: ['{Locked="https://github.com/microsoft/vscode/wiki/Submitting-Bugs-and-Suggestions"}']
+				},
+				'Before you report an issue here please [review the guidance we provide](https://github.com/microsoft/vscode/wiki/Submitting-Bugs-and-Suggestions). Please complete the form in English.'
+			), { isTrusted: true });
+			const rendered = this.markdownRendererService.render(guidanceMd, {
+				actionHandler: async (link: string) => {
+					await this.openExternalLink?.(link);
+					return true;
+				},
+			});
+			guidanceContainer.appendChild(rendered.element);
+			this.disposables.add(rendered);
+		}
 
 		// Issue source selection + extension dropdown share a row when both are visible
 		const targetRow = append(page, $('div.wizard-target-row'));
 		const sourceField = append(targetRow, $('div.wizard-field.wizard-source-field'));
 		const sourceLabel = append(sourceField, $('label.wizard-field-label'));
 		sourceLabel.textContent = localize('target', "Target");
+		this.appendRequiredMarker(sourceLabel);
 		this.sourceButtonGroup = append(sourceField, $('div.wizard-type-buttons.wizard-source-buttons'));
-		for (const option of this.getSourceOptions()) {
+		// Create a button for every source up front so async-loaded extensions can
+		// reveal the Extension target later; updateIssueSourceButtons() controls
+		// which buttons are visible.
+		for (const option of this.getAllSourceOptions()) {
 			const btn = this.disposables.add(new Button(this.sourceButtonGroup, { ...defaultButtonStyles, secondary: true }));
 			btn.element.classList.add('wizard-type-btn', 'wizard-source-btn');
 			btn.element.setAttribute('data-source', option.value);
@@ -542,10 +594,12 @@ export class IssueReporterOverlay {
 		}
 		this.sourceError = this.createFieldError(sourceField, localize('targetRequired', "Select a target to continue."));
 		this.targetStatus = append(sourceField, $('div.wizard-target-status'));
+		this.targetStatus.setAttribute('role', 'status');
 
 		this.extensionField = append(targetRow, $('div.wizard-field.wizard-extension-field'));
 		const extensionLabel = append(this.extensionField, $('label.wizard-field-label'));
 		extensionLabel.textContent = localize('extension', "Extension");
+		this.appendRequiredMarker(extensionLabel);
 		const extensionSelectContainer = append(this.extensionField, $('div.wizard-extension-select'));
 		this.extensionOptions = this.getExtensionOptions();
 		this.extensionSelect = this.disposables.add(new SelectBox(
@@ -563,37 +617,41 @@ export class IssueReporterOverlay {
 		this.extensionStatus = append(this.extensionField, $('div.wizard-extension-status'));
 		this.updateExtensionOptions();
 		this.updateExtensionFieldVisibility();
+
+		// Default the target to the most likely option when the reporter opens.
+		// In the Agents Window we preselect Agents Window; otherwise default to
+		// VS Code (the most common target). Extension is preselected only when an
+		// extension id was already provided. The user can always override.
+		if (!this.selectedIssueSource) {
+			if (this.data.extensionId) {
+				this.selectedIssueSource = IssueSource.Extension;
+			} else if (this.data.isSessionsWindow) {
+				this.selectedIssueSource = IssueSource.AgentsWindow;
+			} else {
+				this.selectedIssueSource = IssueSource.VSCode;
+			}
+			this.updateIssueSourceFlags();
+		}
 		this.updateIssueSourceButtons();
 
 		// Category selection
 		const catLabel = append(page, $('label.wizard-field-label'));
 		catLabel.textContent = localize('feedbackCategory', "Category");
+		this.appendRequiredMarker(catLabel);
 
 		this.typeButtonGroup = append(page, $('div.wizard-type-buttons'));
-		const types = [
-			{ type: IssueType.Bug, label: localize('bug', "Bug"), icon: Codicon.bug },
-			{ type: IssueType.FeatureRequest, label: localize('featureRequest', "Feature Request"), icon: Codicon.lightbulb },
-			{ type: IssueType.PerformanceIssue, label: localize('performanceIssue', "Performance Issue"), icon: Codicon.dashboard },
-		];
 
 		const selectType = (type: IssueType) => {
 			this.selectedIssueType = type;
-			this.model.update({ issueType: type });
+			this.updateIssueTypeButtons();
 			this.setFieldError(this.typeButtonGroup, this.typeError, false);
-			for (const b of this.issueTypeButtons) {
-				const isSelected = b.element.getAttribute('data-type') === String(type);
-				b.element.classList.toggle('selected', isSelected);
-				b.element.setAttribute('aria-pressed', String(isSelected));
-			}
 			this.updateDescriptionGuidance();
 			this.updateIssueSourceButtons();
-			if (this.currentStep === WizardStep.Review) {
-				this.updateReviewDetails();
-			}
-			this.searchSimilarIssues();
+			this.updateDiagnostics();
+			this.updatePreviewButton();
 		};
 
-		for (const { type, label, icon } of types) {
+		for (const { type, label, icon } of this.getAllIssueTypeOptions()) {
 			const btn = this.disposables.add(new Button(this.typeButtonGroup, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
 			btn.element.classList.add('wizard-type-btn');
 			btn.element.setAttribute('data-type', String(type));
@@ -609,6 +667,7 @@ export class IssueReporterOverlay {
 		const titleLabelRow = append(titleGroup, $('div.wizard-title-label-row'));
 		const titleLabel = append(titleLabelRow, $('label.wizard-field-label'));
 		titleLabel.textContent = localize('issueTitle', "Title");
+		this.appendRequiredMarker(titleLabel);
 
 		const aiBtn = this.disposables.add(new Button(titleLabelRow, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
 		aiBtn.label = `$(sparkle) ${localize('generateTitleBtn', "Generate from description")}`;
@@ -616,7 +675,7 @@ export class IssueReporterOverlay {
 		aiBtn.element.title = localize('generateTitle', "Generate title from description");
 		aiBtn.enabled = !!this.data.issueBody?.trim();
 		this.disposables.add(aiBtn.onDidClick(() => {
-			const desc = this.descriptionTextarea.value.trim();
+			const desc = this.descriptionInput.value.trim();
 			if (desc && !aiBtn.element.classList.contains('loading')) {
 				// Lock width to prevent layout shift during loading
 				aiBtn.element.style.minWidth = `${aiBtn.element.offsetWidth}px`;
@@ -629,6 +688,7 @@ export class IssueReporterOverlay {
 		this.generateTitleBtn = aiBtn;
 
 		this.titleInput = this.disposables.add(new InputBox(titleGroup, undefined, {
+			ariaLabel: localize('issueTitle', "Title"),
 			placeholder: localize('issueTitlePlaceholder', "Brief summary of the issue"),
 			inputBoxStyles: defaultInputBoxStyles,
 		}));
@@ -637,54 +697,219 @@ export class IssueReporterOverlay {
 			this.titleInput.value = this.data.issueTitle;
 		}
 		this.disposables.add(this.titleInput.onDidChange(() => {
+			this.data.issueTitle = this.titleInput.value;
+			this.model.update({ issueTitle: this.titleInput.value });
 			if (this.titleInput.value.trim()) {
 				this.setFieldError(this.titleInput.element, this.titleError, false);
 			}
-			this.searchSimilarIssues();
+			this.updatePreviewButton();
 		}));
 		this.titleError = this.createFieldError(titleGroup, localize('titleRequired', "Enter a title to continue."));
 
-		// Description field with guidance and auto-growing textarea
 		const descriptionGroup = append(page, $('div.wizard-field'));
-		const descLabel = append(descriptionGroup, $('label.wizard-field-label'));
+		const descLabel = append(descriptionGroup, $<HTMLLabelElement>('label.wizard-field-label'));
 		descLabel.textContent = localize('description', "Description");
+		this.appendRequiredMarker(descLabel);
 
 		this.descriptionGuidance = append(descriptionGroup, $('p.wizard-subtitle.wizard-description-guidance'));
 		this.updateDescriptionGuidance();
 
-		this.descriptionTextarea = append(descriptionGroup, $('textarea.wizard-textarea')) as HTMLTextAreaElement;
-		this.descriptionTextarea.placeholder = localize('descriptionPlaceholder', "Describe the issue in detail...");
-		this.descriptionTextarea.rows = 6;
-		if (this.data.issueBody) {
-			this.descriptionTextarea.value = this.data.issueBody;
+		const tabs = append(descriptionGroup, $('div.wizard-description-tabs'));
+		tabs.setAttribute('role', 'tablist');
+		tabs.setAttribute('aria-label', localize('descriptionMode', "Description mode"));
+		this.descriptionWriteTab = this.disposables.add(new Button(tabs, { ...defaultButtonStyles, secondary: true }));
+		this.descriptionWriteTab.label = localize('writeDescription', "Write");
+		this.descriptionPreviewTab = this.disposables.add(new Button(tabs, { ...defaultButtonStyles, secondary: true }));
+		this.descriptionPreviewTab.label = localize('previewDescription', "Preview");
+		for (const [button, preview] of [[this.descriptionWriteTab, false], [this.descriptionPreviewTab, true]] as const) {
+			button.element.setAttribute('role', 'tab');
+			this.disposables.add(button.onDidClick(() => this.setDescriptionPreview(preview)));
 		}
-		const autoGrowTextarea = () => {
-			this.descriptionTextarea.style.height = '0';
-			const newHeight = Math.max(this.descriptionTextarea.scrollHeight, 120);
-			this.descriptionTextarea.style.height = `${newHeight}px`;
-		};
-		autoGrowTextarea();
-		this.disposables.add(addDisposableListener(this.descriptionTextarea, EventType.INPUT, () => {
-			if (this.descriptionTextarea.value.trim()) {
-				this.setFieldError(this.descriptionTextarea, this.descriptionError, false);
+		this.disposables.add(addDisposableListener(tabs, EventType.KEY_DOWN, event => {
+			const keyboardEvent = new StandardKeyboardEvent(event);
+			if (keyboardEvent.keyCode === KeyCode.LeftArrow || keyboardEvent.keyCode === KeyCode.RightArrow || keyboardEvent.keyCode === KeyCode.Home || keyboardEvent.keyCode === KeyCode.End) {
+				keyboardEvent.preventDefault();
+				keyboardEvent.stopPropagation();
+				const preview = keyboardEvent.keyCode === KeyCode.End || keyboardEvent.keyCode !== KeyCode.Home && !this.previewingDescription;
+				this.setDescriptionPreview(preview);
+				(preview ? this.descriptionPreviewTab : this.descriptionWriteTab).element.focus();
 			}
-			autoGrowTextarea();
-			this.searchSimilarIssues();
+		}));
+		this.descriptionContainer = append(descriptionGroup, $('div.wizard-description-editor'));
+		this.descriptionInput.classList.add('wizard-description-input');
+		this.descriptionInput.setAttribute('aria-label', localize('descriptionInputLabel', "Description, Markdown. Paste or drop files to attach them."));
+		this.descriptionInput.rows = 10;
+		this.descriptionInput.required = true;
+		this.restoreDescriptionInput();
+		const descriptionId = `issue-description-${generateUuid()}`;
+		this.descriptionInput.id ||= descriptionId;
+		descLabel.htmlFor = this.descriptionInput.id;
+		this.descriptionGuidance.id = `${descriptionId}-guidance`;
+		this.descriptionInput.setAttribute('aria-describedby', this.descriptionGuidance.id);
+		this.descriptionPreview = append(descriptionGroup, $('div.wizard-description-preview'));
+		this.descriptionPreview.tabIndex = 0;
+		for (const [button, panel, suffix] of [[this.descriptionWriteTab, this.descriptionContainer, 'write'], [this.descriptionPreviewTab, this.descriptionPreview, 'preview']] as const) {
+			const id = `${descriptionId}-${suffix}`;
+			button.element.id = `${id}-tab`;
+			button.element.setAttribute('aria-controls', id);
+			panel.id = id;
+			panel.setAttribute('role', 'tabpanel');
+			panel.setAttribute('aria-labelledby', button.element.id);
+		}
+		this.setDescriptionPreview(false);
+		this.disposables.add(addDisposableListener(this.descriptionInput, EventType.INPUT, () => {
+			if (!this.descriptionContainer.contains(this.descriptionInput)) {
+				return;
+			}
+			this.data.issueBody = this.descriptionInput.value;
+			this.model.update({ issueDescription: this.data.issueBody });
+			if (this.hasDescriptionContent()) {
+				this.setFieldError(this.descriptionContainer, this.descriptionError, false);
+			}
 			this.updateGenerateTitleButtonState();
+			this.updatePreviewButton();
+			if (this.previewingDescription) {
+				this.renderDescriptionPreview();
+			}
 		}));
 		this.descriptionError = this.createFieldError(descriptionGroup, localize('descriptionRequired', "Enter a description to continue."));
+		this.descriptionError.id = `${descriptionId}-error`;
+		this.disposables.add(addDisposableListener(this.descriptionContainer, EventType.PASTE, (event: ClipboardEvent) => {
+			const files = this.getAttachmentFiles(event.clipboardData);
+			if (!files.length || event.defaultPrevented) {
+				return;
+			}
+			if (!event.clipboardData?.getData('text/plain')) {
+				event.preventDefault();
+				event.stopPropagation();
+			}
+			this.requestAddAttachments(files);
+		}, true));
 
 		this.updateIssueSourceFlags();
 		this.updateTargetStatus();
+
+		// Default the category to Bug (most common). Must run after
+		// descriptionGuidance is initialized because selectType ->
+		// updateDescriptionGuidance touches it.
+		if (this.selectedIssueType === undefined) {
+			selectType(IssueType.Bug);
+		} else {
+			selectType(this.selectedIssueType);
+		}
 	}
 
-	private getSourceOptions(): { label: string; value: IssueSource }[] {
-		const options: { label: string; value: IssueSource }[] = [
+	private setDescriptionPreview(preview: boolean): void {
+		this.previewingDescription = preview;
+		this.descriptionContainer.hidden = preview;
+		this.descriptionPreview.hidden = !preview;
+		this.descriptionWriteTab.element.setAttribute('aria-selected', String(!preview));
+		this.descriptionPreviewTab.element.setAttribute('aria-selected', String(preview));
+		this.descriptionWriteTab.element.tabIndex = preview ? -1 : 0;
+		this.descriptionPreviewTab.element.tabIndex = preview ? 0 : -1;
+		if (preview) {
+			this.renderDescriptionPreview();
+		} else {
+			this.descriptionPreviewDisposables.clear();
+			this.descriptionPreview.replaceChildren();
+		}
+	}
+
+	private renderDescriptionPreview(): void {
+		this.descriptionPreviewDisposables.clear();
+		this.descriptionPreview.replaceChildren();
+		const text = this.descriptionInput.value;
+		if (!text.trim()) {
+			this.descriptionPreview.textContent = localize('emptyDescriptionPreview', "Nothing to preview.");
+			return;
+		}
+		const rendered = this.descriptionPreviewDisposables.add(this.markdownRendererService.render(new MarkdownString(text)));
+		this.descriptionPreview.appendChild(rendered.element);
+	}
+
+	restoreDescriptionInput(): void {
+		this.input.attachDescriptionInput(this.descriptionContainer);
+		if (this.descriptionError) {
+			this.setFieldError(this.descriptionContainer, this.descriptionError, this.descriptionContainer.classList.contains('invalid-input'));
+		}
+		if (this.previewingDescription) {
+			this.renderDescriptionPreview();
+		}
+	}
+
+	private insertDescriptionText(text: string, atEnd = false): void {
+		const input = this.descriptionInput;
+		const targetWindow = getWindow(input);
+		const activeElement = targetWindow.document.activeElement;
+		const { selectionStart, selectionEnd, selectionDirection } = input;
+		this.descriptionContainer.hidden = false;
+		if (atEnd) {
+			input.setSelectionRange(input.value.length, input.value.length);
+		}
+		// Native insertion preserves undo without focusing a background reporter window.
+		if (!atEnd || targetWindow.document.hasFocus()) {
+			input.focus({ preventScroll: true });
+		}
+		if (targetWindow.document.activeElement !== input || !targetWindow.document.execCommand('insertText', false, text)) {
+			input.setRangeText(text, input.selectionStart, input.selectionEnd, 'end');
+			input.dispatchEvent(new InputEvent('input', { bubbles: true }));
+		}
+		if (atEnd) {
+			input.setSelectionRange(selectionStart, selectionEnd, selectionDirection);
+		}
+		if (targetWindow.document.hasFocus() && isHTMLElement(activeElement)) {
+			activeElement.focus({ preventScroll: true });
+		}
+		this.descriptionContainer.hidden = this.previewingDescription;
+	}
+
+	private appendRequiredMarker(label: HTMLElement): void {
+		const marker = append(label, $('span.wizard-required-marker'));
+		marker.textContent = '*';
+		marker.setAttribute('aria-hidden', 'true');
+	}
+
+	private getAllIssueTypeOptions(): { type: IssueType; label: string; icon: { id: string } }[] {
+		return [
+			{ type: IssueType.Bug, label: localize('bug', "Bug"), icon: Codicon.bug },
+			{ type: IssueType.FeatureRequest, label: localize('featureRequest', "Feature Request"), icon: Codicon.lightbulb },
+			{ type: IssueType.PerformanceIssue, label: localize('performanceIssue', "Performance Issue"), icon: Codicon.dashboard },
+		];
+	}
+
+	private getIssueTypeOptions(): { type: IssueType; label: string; icon: { id: string } }[] {
+		const options = this.getAllIssueTypeOptions();
+		// The Marketplace target is for issues with the marketplace site/service
+		// itself, where performance metrics from a single VS Code instance aren't useful.
+		if (this.selectedIssueSource === IssueSource.Marketplace) {
+			return options.filter(o => o.type !== IssueType.PerformanceIssue);
+		}
+		return options;
+	}
+
+	private getAllSourceOptions(): { label: string; value: IssueSource }[] {
+		return [
 			{ label: product.nameLong || localize('vscode', "Visual Studio Code"), value: IssueSource.VSCode },
+			{ label: localize('agentsWindow', "Agents Window"), value: IssueSource.AgentsWindow },
 			{ label: localize('extensionSource', "A VS Code extension"), value: IssueSource.Extension },
 			{ label: localize('marketplace', "Extensions Marketplace"), value: IssueSource.Marketplace },
 		];
+	}
+
+	private getSourceOptions(): { label: string; value: IssueSource }[] {
+		const options = this.getAllSourceOptions();
+		// The Extension target only applies when there are non-builtin, non-theme
+		// extensions to report against, which never happens in the Agents Window.
+		if (this.data.isSessionsWindow || !this.hasReportableExtensions()) {
+			return options.filter(o => o.value !== IssueSource.Extension);
+		}
 		return options;
+	}
+
+	private hasReportableExtensions(): boolean {
+		const modelData = this.model.getData();
+		const sourceExtensions = modelData.enabledNonThemeExtesions ?? modelData.allExtensions ?? [];
+		return sourceExtensions.some(extension => !extension.isTheme && !extension.isBuiltin);
 	}
 
 	private updateIssueSourceButtons(): void {
@@ -709,24 +934,55 @@ export class IssueReporterOverlay {
 
 	private setIssueSource(source: IssueSource | undefined): void {
 		this.selectedIssueSource = source;
-		this.setFieldError(this.sourceButtonGroup, this.sourceError, this.didAttemptDescribeSubmit && !source);
+		this.setFieldError(this.sourceButtonGroup, this.sourceError, this.didAttemptSubmit && !source);
 		this.updateIssueSourceFlags();
 		this.updateIssueSourceButtons();
+		this.updateIssueTypeButtons();
 		this.updateExtensionValidation();
 		this.updateTitlePlaceholder();
 		this.updateTargetStatus();
-		this.searchSimilarIssues();
+		this.updateDescriptionGuidance();
+		this.updateDiagnostics();
+		this.updatePreviewButton();
+	}
+
+	private setIssueRepository(repository: string): void {
+		this.data.issueRepository = repository;
+		this.updateTargetStatus();
+		this.updatePreviewButton();
+	}
+
+	private updateIssueTypeButtons(): void {
+		if (!this.issueTypeButtons.length) {
+			return;
+		}
+		const allowedTypes = new Set(this.getIssueTypeOptions().map(option => String(option.type)));
+		if (!allowedTypes.has(String(this.selectedIssueType))) {
+			this.selectedIssueType = IssueType.Bug;
+		}
+		this.data.issueType = this.selectedIssueType;
+		this.model.update({ issueType: this.selectedIssueType });
+		for (const button of this.issueTypeButtons) {
+			const buttonType = button.element.getAttribute('data-type');
+			const isAvailable = !!buttonType && allowedTypes.has(buttonType);
+			button.element.classList.toggle('hidden', !isAvailable);
+			const isSelected = isAvailable && buttonType === String(this.selectedIssueType);
+			button.element.classList.toggle('selected', isSelected);
+			button.element.setAttribute('aria-pressed', String(isSelected));
+		}
 	}
 
 	private updateIssueSourceFlags(): void {
 		const fileOnExtension = this.selectedIssueSource === IssueSource.Extension;
 		const fileOnMarketplace = this.selectedIssueSource === IssueSource.Marketplace;
-		const fileOnProduct = this.selectedIssueSource === IssueSource.VSCode || this.selectedIssueSource === IssueSource.Unknown;
+		const fileOnProduct = this.selectedIssueSource === IssueSource.VSCode || this.selectedIssueSource === IssueSource.AgentsWindow || this.selectedIssueSource === IssueSource.Unknown;
+		const fileOnAgentsWindow = this.selectedIssueSource === IssueSource.AgentsWindow;
 		this.model.update({
 			issueSource: this.selectedIssueSource,
 			fileOnExtension,
 			fileOnMarketplace,
 			fileOnProduct,
+			isSessionsWindow: fileOnAgentsWindow ? true : this.data.isSessionsWindow,
 			selectedExtension: this.selectedExtension,
 		});
 		this.data.issueSource = this.selectedIssueSource;
@@ -746,6 +1002,9 @@ export class IssueReporterOverlay {
 				break;
 			case IssueSource.Marketplace:
 				this.titleInput.setPlaceHolder(localize('marketplacePlaceholder', "E.g. Cannot disable installed extension"));
+				break;
+			case IssueSource.AgentsWindow:
+				this.titleInput.setPlaceHolder(localize('agentsWindowPlaceholder', "E.g. Sessions list does not refresh after creating a new session"));
 				break;
 			case IssueSource.VSCode:
 				this.titleInput.setPlaceHolder(localize('vscodePlaceholder', "E.g. Workbench is missing problems panel"));
@@ -791,7 +1050,7 @@ export class IssueReporterOverlay {
 	private updateExtensionValidation(): void {
 		const hasExtension = this.selectedIssueSource !== IssueSource.Extension || !!this.selectedExtension;
 		const hasExtensionIssueUrl = this.selectedIssueSource !== IssueSource.Extension || !this.selectedExtension || !!this.getSelectedExtensionIssueUrl();
-		this.setFieldError(this.extensionField, this.extensionError, this.didAttemptDescribeSubmit && (!hasExtension || !hasExtensionIssueUrl));
+		this.setFieldError(this.extensionField, this.extensionError, this.didAttemptSubmit && (!hasExtension || !hasExtensionIssueUrl));
 	}
 
 	private async updateSelectedExtension(extensionId: string | undefined, loadExtensionData = true): Promise<void> {
@@ -814,25 +1073,11 @@ export class IssueReporterOverlay {
 
 		if (!extension) {
 			this.updateTargetStatus();
-			this.searchSimilarIssues();
 			return;
 		}
 
-		// Apply any preset extension data BEFORE the built-in source-switch below.
-		// When the reporter is opened programmatically (e.g. via the
-		// `workbench.action.openIssueReporter` command) with a preset `extensionId`
-		// plus extension `data`/`uri`, propagate that data onto the selected
-		// extension and the model so it shows up in the issue body. Doing this
-		// before the built-in early-return is important: extensions bundled with
-		// the dev build (Copilot, etc.) are flagged `isBuiltin`, which triggers
-		// the source switch to VSCode and returns — otherwise the preset data
-		// would be silently lost for every built-in caller. We guard on
-		// `!this.includeExtensionData` (rather than `!extension.data`) because
-		// `issueService` pre-populates `extension.data` on every enabled
-		// extension, so that field is not a reliable "already applied" signal —
-		// `includeExtensionData` is only flipped to `true` by
-		// `applyExtensionIssueData`.
-		const hasPresetData = !this.includeExtensionData && (this.data.data !== undefined || this.data.uri !== undefined || this.data.privateUri !== undefined);
+		// Apply preset data before the built-in source switch can return.
+		const hasPresetData = this.model.getData().extensionData === undefined && (this.data.data !== undefined || this.data.uri !== undefined || this.data.privateUri !== undefined);
 		if (!loadExtensionData && hasPresetData) {
 			this.applyExtensionIssueData(extension, this.data);
 		}
@@ -855,7 +1100,6 @@ export class IssueReporterOverlay {
 		}
 
 		this.updateTargetStatus();
-		this.searchSimilarIssues();
 	}
 
 	private applyExtensionIssueData(extension: IssueReporterExtensionData, issueData: IssueReporterData): void {
@@ -863,26 +1107,26 @@ export class IssueReporterOverlay {
 		extension.uri = issueData.uri;
 		extension.privateUri = issueData.privateUri;
 		this.data.data = issueData.data;
-		this.data.uri = issueData.uri;
-		this.data.privateUri = issueData.privateUri;
-		this.data.issueBody = issueData.issueBody ?? this.data.issueBody;
-		this.data.issueTitle = issueData.issueTitle ?? this.data.issueTitle;
-		if (issueData.issueTitle && !this.titleInput.value.trim()) {
-			this.titleInput.value = issueData.issueTitle;
-		}
-		if (issueData.issueBody && !this.descriptionTextarea.value.includes(issueData.issueBody)) {
-			this.descriptionTextarea.value = this.descriptionTextarea.value
-				? `${this.descriptionTextarea.value}\n${issueData.issueBody}`
-				: issueData.issueBody;
-		}
+		this.input.updateDefaultContent(() => {
+			if (issueData.issueTitle && !this.titleInput.value.trim()) {
+				this.titleInput.value = issueData.issueTitle;
+			}
+			if (issueData.issueBody && !this.descriptionInput.value.includes(issueData.issueBody)) {
+				this.insertDescriptionText(`${this.descriptionInput.value ? '\n' : ''}${issueData.issueBody}`, true);
+			}
+		});
 		if (issueData.data) {
 			extension.extensionData = issueData.data;
-			this.model.update({ extensionData: issueData.data, includeExtensionData: true });
-			this.includeExtensionData = true;
+			this.model.update({ extensionData: issueData.data });
+			this.model.update(this.getDiagnosticOptions());
 		}
+		this.updateDiagnostics();
+		this.updatePreviewButton();
 	}
 
 	private updateTargetStatus(): void {
+		this.updatePreviewButton();
+		this.repositoryPicker.clear();
 		this.targetStatus.textContent = '';
 		this.extensionStatus.textContent = '';
 		if (!this.selectedIssueSource) {
@@ -890,10 +1134,7 @@ export class IssueReporterOverlay {
 		}
 
 		if (this.selectedIssueSource !== IssueSource.Extension) {
-			const repo = this.getIssueTargetRepo();
-			this.targetStatus.textContent = repo
-				? localize('issueTargetRepo', "Issue will be created in {0}/{1}.", repo.owner, repo.repositoryName)
-				: '';
+			this.repositoryPicker.value = renderIssueReporterRepositoryPicker(this.targetStatus, this.data, product, this.contextMenuProvider, repository => this.setIssueRepository(repository));
 			return;
 		}
 
@@ -907,39 +1148,30 @@ export class IssueReporterOverlay {
 		} else if (!this.isGitHubUrl(issueUrl)) {
 			this.extensionStatus.textContent = localize('extensionExternalIssueUrl', "This extension uses an external issue reporter. Preview will open that issue reporter.");
 		} else {
-			const repo = this.getIssueTargetRepo();
-			this.extensionStatus.textContent = repo
-				? localize('issueTargetRepo', "Issue will be created in {0}/{1}.", repo.owner, repo.repositoryName)
-				: '';
+			this.extensionStatus.textContent = this.getIssueRepositoryLabel();
 		}
 	}
 
-	private getIssueTargetRepo(): { owner: string; repositoryName: string } | undefined {
-		const targetUrl = this.getIssueTargetUrl();
-		return targetUrl ? this.parseGitHubUrl(targetUrl) : undefined;
+	private getIssueRepositoryLabel(): string {
+		const target = resolveIssueReporterTarget(this.data, product);
+		if (!target) {
+			return localize('invalidIssueRepository', "Invalid issue destination");
+		}
+		const repository = target.repository;
+		const label = repository ? `${repository.owner}/${repository.repositoryName}` : target.url;
+		return label;
 	}
 
 	private getSelectedExtensionIssueUrl(): string | undefined {
-		const extension = this.selectedExtension;
-		if (!extension) {
-			return undefined;
-		}
-		if (extension.uri) {
-			return URI.revive(extension.uri).toString();
-		}
-		if (extension.bugsUrl && /^https?:\/\/github\.com\/([^\/]*)\/([^\/]*)\/?(\/issues)?\/?$/.test(extension.bugsUrl)) {
-			return `${normalizeGitHubUrl(extension.bugsUrl)}/issues/new`;
-		}
-		if (extension.repositoryUrl && /^https?:\/\/github\.com\/([^\/]*)\/([^\/]*)\/?$/.test(extension.repositoryUrl)) {
-			return `${normalizeGitHubUrl(extension.repositoryUrl)}/issues/new`;
-		}
-		return extension.bugsUrl || extension.repositoryUrl;
+		return resolveIssueReporterTarget({ ...this.data, issueSource: IssueSource.Extension }, product)?.url;
 	}
 
 	private getIssueSourceLabel(): string {
 		switch (this.selectedIssueSource) {
 			case IssueSource.VSCode:
 				return product.nameLong || localize('vscode', "Visual Studio Code");
+			case IssueSource.AgentsWindow:
+				return localize('agentsWindow', "Agents Window");
 			case IssueSource.Extension:
 				return this.selectedExtension?.displayName || this.selectedExtension?.name || localize('extensionSource', "A VS Code extension");
 			case IssueSource.Marketplace:
@@ -952,171 +1184,57 @@ export class IssueReporterOverlay {
 	}
 
 	private getIssueTargetUrl(): string | undefined {
-		if (this.selectedIssueSource === IssueSource.Extension) {
-			return this.getSelectedExtensionIssueUrl();
-		}
-		if (this.selectedIssueSource === IssueSource.Marketplace) {
-			return product.reportMarketplaceIssueUrl ?? product.reportIssueUrl;
-		}
-		if (this.data.uri) {
-			return URI.revive(this.data.uri).toString();
-		}
-		if (this.data.privateUri) {
-			return URI.revive(this.data.privateUri).toString();
-		}
-		return product.reportIssueUrl;
+		return resolveIssueReporterTarget(this.data, product)?.url;
 	}
 
 	private isGitHubUrl(url: string): boolean {
 		return /^https?:\/\/github\.com\//i.test(url);
 	}
 
-	private parseGitHubUrl(url: string): { owner: string; repositoryName: string } | undefined {
-		const match = /^https?:\/\/github\.com\/([^\/?#]+)\/([^\/?#]+).*/i.exec(url);
-		if (!match) {
-			return undefined;
-		}
-		return { owner: match[1], repositoryName: match[2] };
-	}
-
-	private searchSimilarIssues(): void {
-		if (this.currentStep !== WizardStep.Review || !this.similarIssuesContainer) {
-			return;
-		}
-		if (this.similarIssuesHandle) {
-			clearTimeout(this.similarIssuesHandle);
-		}
-		this.renderSimilarIssuesMessage(localize('searchingSimilarIssues', "Searching similar issues..."));
-		this.similarIssuesHandle = setTimeout(() => this.doSearchSimilarIssues(), 300);
-	}
-
-	private async doSearchSimilarIssues(): Promise<void> {
-		const title = this.titleInput.value.trim();
-		const request = ++this.similarIssuesRequest;
-		if (!title || !this.selectedIssueSource) {
-			this.renderSimilarIssuesMessage(localize('similarIssuesNeedsTitle', "Enter a title to search for similar issues."));
-			return;
-		}
-
-		this.renderSimilarIssuesMessage(localize('searchingSimilarIssues', "Searching similar issues..."));
-		try {
-			let results: ISimilarIssue[] = [];
-			if (this.selectedIssueSource === IssueSource.Extension) {
-				const extensionIssueUrl = this.getSelectedExtensionIssueUrl();
-				const repo = extensionIssueUrl && this.parseGitHubUrl(extensionIssueUrl);
-				results = repo ? await this.searchGitHubIssues(`${repo.owner}/${repo.repositoryName}`, title) : [];
-			} else if (this.selectedIssueSource === IssueSource.Marketplace) {
-				const marketplaceIssueUrl = product.reportMarketplaceIssueUrl ?? product.reportIssueUrl;
-				const repo = marketplaceIssueUrl && this.parseGitHubUrl(marketplaceIssueUrl);
-				results = repo ? await this.searchGitHubIssues(`${repo.owner}/${repo.repositoryName}`, title) : [];
-			} else {
-				results = await this.searchVSCodeSimilarIssues(title, this.descriptionTextarea.value.trim());
-			}
-			if (request === this.similarIssuesRequest) {
-				this.renderSimilarIssues(results);
-			}
-		} catch {
-			if (request === this.similarIssuesRequest) {
-				this.renderSimilarIssuesMessage(localize('similarIssuesSearchFailed', "Unable to search for similar issues."));
-			}
-		}
-	}
-
-	private async searchGitHubIssues(repo: string, title: string): Promise<ISimilarIssue[]> {
-		const query = `is:issue repo:${repo} ${title}`;
-		const response = await fetch(`https://api.github.com/search/issues?q=${encodeURIComponent(query)}`);
-		const result = await response.json();
-		return Array.isArray(result?.items) ? result.items : [];
-	}
-
-	private async searchVSCodeDuplicates(title: string, body: string): Promise<ISimilarIssue[]> {
-		const response = await fetch('https://vscode-probot.westus.cloudapp.azure.com:7890/duplicate_candidates', {
-			method: 'POST',
-			body: JSON.stringify({ title, body }),
-			headers: new Headers({ 'Content-Type': 'application/json' }),
-		});
-		const result = await response.json();
-		return Array.isArray(result?.candidates) ? result.candidates : [];
-	}
-
-	private async searchVSCodeSimilarIssues(title: string, body: string): Promise<ISimilarIssue[]> {
-		try {
-			const duplicates = await this.searchVSCodeDuplicates(title, body);
-			if (duplicates.length) {
-				return duplicates;
-			}
-		} catch {
-			// Fall back to GitHub search below.
-		}
-
-		const repo = this.getIssueTargetRepo();
-		return repo ? this.searchGitHubIssues(`${repo.owner}/${repo.repositoryName}`, title) : [];
-	}
-
-	private renderSimilarIssuesMessage(message: string): void {
-		this.resetSimilarIssuesContainer();
-		const status = append(this.similarIssuesContainer, $('div.wizard-similar-status'));
-		status.textContent = message;
-	}
-
-	private renderSimilarIssues(results: ISimilarIssue[]): void {
-		if (!results.length) {
-			this.renderSimilarIssuesMessage(localize('noSimilarIssues', "No similar issues found."));
-			return;
-		}
-
-		this.resetSimilarIssuesContainer();
-		const list = append(this.similarIssuesContainer, $('ul.wizard-similar-list'));
-		for (const issue of results.slice(0, MAX_SIMILAR_ISSUES)) {
-			const item = append(list, $('li.wizard-similar-item'));
-			const link = append(item, $('a.wizard-similar-link')) as HTMLAnchorElement;
-			link.href = issue.html_url;
-			link.textContent = issue.title;
-			link.title = issue.title;
-			this.similarIssuesDisposables.add(addDisposableListener(link, EventType.CLICK, e => {
-				e.preventDefault();
-				this.openExternalLink?.(issue.html_url);
-			}));
-			if (issue.state) {
-				const state = append(item, $('span.wizard-similar-state'));
-				state.textContent = issue.state;
-			}
-		}
-	}
-
-	/** Clear the similar-issues container and re-render the section heading. */
-	private resetSimilarIssuesContainer(): void {
-		this.similarIssuesDisposables.clear();
-		this.similarIssuesContainer.textContent = '';
-		const heading = append(this.similarIssuesContainer, $('div.wizard-similar-heading'));
-		heading.textContent = localize('similarIssues', "Similar Issues");
-	}
-
 	/** Update the guidance text above the description based on selected category */
 	private updateDescriptionGuidance(): void {
 		const markdownHint = localize('markdownSupported', "Markdown formatting is supported.");
+		const perfWikiUrl = 'https://github.com/microsoft/vscode/wiki/Performance-Issues';
+
+		// Reset before updating
+		this.descriptionGuidanceDisposables.clear();
+		this.descriptionGuidance.textContent = '';
+		this.descriptionGuidance.classList.remove('wizard-description-guidance-with-link');
+
+		const appendText = (text: string) => {
+			const targetDocument = getWindow(this.container).document;
+			this.descriptionGuidance.appendChild(targetDocument.createTextNode(text));
+		};
+
 		switch (this.selectedIssueType) {
 			case IssueType.Bug:
-				this.descriptionGuidance.textContent = `${localize('bugGuidance',
-					"Describe what happened, the steps to reproduce, what you expected, and what you observed instead.")}\n${markdownHint}`;
+				appendText(`${localize('bugGuidance', "Describe what happened, the steps to reproduce, what you expected, and what you observed instead.")}\n${markdownHint}`);
 				break;
 			case IssueType.FeatureRequest:
-				this.descriptionGuidance.textContent = `${localize('featureGuidance',
-					"Describe the feature you'd like to see, what problem it would solve, and any alternatives you've considered.")}\n${markdownHint}`;
+				appendText(`${localize('featureGuidance', "Describe the feature you'd like to see, what problem it would solve, and any alternatives you've considered.")}\n${markdownHint}`);
 				break;
-			case IssueType.PerformanceIssue:
-				this.descriptionGuidance.textContent = `${localize('perfGuidance',
-					"Describe what is slow, when it happens, whether it's consistent or intermittent, and any patterns you've noticed.")}\n${markdownHint}`;
+			case IssueType.PerformanceIssue: {
+				appendText(`${localize('perfGuidance', "Describe what is slow, when it happens, whether it's consistent or intermittent, and any patterns you've noticed.")} `);
+				const link = $('a.wizard-description-guidance-link') as HTMLAnchorElement;
+				link.href = perfWikiUrl;
+				link.textContent = localize('perfWikiLink', "See the performance issue reporting guide.");
+				this.descriptionGuidanceDisposables.add(addDisposableListener(link, EventType.CLICK, e => {
+					e.preventDefault();
+					this.openExternalLink?.(perfWikiUrl);
+				}));
+				this.descriptionGuidance.appendChild(link);
+				appendText(`\n${markdownHint}`);
+				this.descriptionGuidance.classList.add('wizard-description-guidance-with-link');
 				break;
+			}
 			default:
-				this.descriptionGuidance.textContent = `${localize('defaultGuidance',
-					"Select a category above, then describe your feedback in detail.")}\n${markdownHint}`;
+				appendText(`${localize('defaultGuidance', "Select a category above, then describe your feedback in detail.")}\n${markdownHint}`);
 				break;
 		}
 	}
 
 	private hasDescriptionContent(): boolean {
-		return !!this.descriptionTextarea.value.trim();
+		return !!this.descriptionInput.value.trim();
 	}
 
 	private updateGenerateTitleButtonState(): void {
@@ -1135,295 +1253,78 @@ export class IssueReporterOverlay {
 
 	private setFieldError(field: HTMLElement, error: HTMLElement, hasError: boolean): void {
 		field.classList.toggle('invalid-input', hasError);
+		field.setAttribute('aria-invalid', String(hasError));
+		if (field === this.descriptionContainer) {
+			this.descriptionInput.setAttribute('aria-invalid', String(hasError));
+			this.descriptionInput.setAttribute('aria-describedby', hasError ? `${this.descriptionGuidance.id} ${error.id}` : this.descriptionGuidance.id);
+		}
 		error.classList.toggle('hidden', !hasError);
 	}
 
-	// Step 2: Review & Submit
-	private createStep2Review(): void {
-		const page = append(this.stepContainer, $('div.wizard-step.wizard-step-review'));
-		this.stepPages.push(page);
-
-		const heading = append(page, $('h2.wizard-heading'));
-		heading.textContent = localize('reviewSubmit', "Review and submit");
-
-		// Review details (filled dynamically) with compact horizontal layout
-		append(page, $('div.wizard-review-details'));
+	private canSubmit(): boolean {
+		return !this.hasPendingOperations()
+			&& (this.selectedIssueType !== IssueType.PerformanceIssue || this.performanceInfoLoaded && !this.performanceInfoRefreshing);
 	}
 
-	private registerEventHandlers(): void {
-		// Back
-		this.disposables.add(this.backButton.onDidClick(() => this.goBack()));
-
-		// Next
-		this.disposables.add(this.nextButton.onDidClick(() => this.goNext()));
-	}
-
-	private goBack(): void {
-		if (this.currentStep > WizardStep.Attachments) {
-			this.setStep(this.currentStep - 1);
-		}
-	}
-
-	private goNext(): void {
-		if (this.currentStep === WizardStep.Describe) {
-			this.didAttemptDescribeSubmit = true;
-			const hasIssueSource = this.selectedIssueSource !== undefined;
-			const hasExtension = this.selectedIssueSource !== IssueSource.Extension || !!this.selectedExtension;
-			const hasExtensionIssueUrl = this.selectedIssueSource !== IssueSource.Extension || !this.selectedExtension || !!this.getSelectedExtensionIssueUrl();
-			const hasIssueType = this.selectedIssueType !== undefined;
-			const hasDescription = this.hasDescriptionContent();
-			const title = this.titleInput.value.trim();
-
-			this.setFieldError(this.sourceButtonGroup, this.sourceError, !hasIssueSource);
-			this.setFieldError(this.extensionField, this.extensionError, !hasExtension || !hasExtensionIssueUrl);
-			this.setFieldError(this.typeButtonGroup, this.typeError, !hasIssueType);
-			this.setFieldError(this.descriptionTextarea, this.descriptionError, !hasDescription);
-			this.setFieldError(this.titleInput.element, this.titleError, !title);
-
-			if (!hasIssueSource || !hasExtension || !hasExtensionIssueUrl || !hasIssueType || !hasDescription || !title) {
-				if (!hasIssueSource) {
-					this.issueSourceButtons.find(button => !button.element.classList.contains('hidden'))?.element.focus();
-				} else if (!hasExtension || !hasExtensionIssueUrl) {
-					this.extensionSelect.focus();
-				} else if (!hasIssueType) {
-					this.issueTypeButtons[0]?.element.focus();
-				} else if (!hasDescription) {
-					this.descriptionTextarea.focus();
-				} else {
-					this.titleInput.focus();
-				}
-				return;
-			}
-			this.updateIssueSourceFlags();
-			this.model.update({ issueDescription: this.descriptionTextarea.value.trim() });
-		}
-
-		if (this.currentStep === WizardStep.Review) {
-			// Defensive: if user managed to invoke goNext while diagnostics are
-			// still loading (e.g. via Cmd/Ctrl+Enter), block the submit. The
-			// Preview button is also visually disabled in this state.
-			if (this.selectedIssueType === IssueType.PerformanceIssue && (!this.performanceInfoLoaded || this.performanceInfoRefreshing)) {
-				return;
-			}
-			this.submit();
+	private updatePreviewButton(): void {
+		this.clearStaleAttachmentUploads();
+		if (!this.previewButton) {
 			return;
 		}
-
-		if (this.currentStep < WizardStep.Review) {
-			this.setStep(this.currentStep + 1);
-		}
-	}
-
-	private setStep(step: WizardStep): void {
-		const oldStep = this.currentStep;
-		this.currentStep = step;
-
-		const oldPage = this.stepPages[oldStep];
-		const newPage = this.stepPages[step];
-
-		// Immediate transition with no animation
-		oldPage.style.display = 'none';
-		newPage.style.display = 'flex';
-
-		this.updateStepUI();
-
-		if (step === WizardStep.Describe) {
-			this.descriptionTextarea.focus();
-		} else if (step === WizardStep.Review) {
-			this.updateReviewDetails();
-			this.searchSimilarIssues();
-			this.wizardPanel.focus();
-		} else {
-			// Attachments: focus the panel so keyboard shortcuts work
-			this.wizardPanel.focus();
-		}
-	}
-
-	private updateStepUI(): void {
-		const stepNum = this.currentStep + 1;
-		this.stepIndicator.textContent = localize('stepOf', "Step {0} of {1}", stepNum, STEP_COUNT);
-
-		const stepNames = [
-			localize('screenshots', "Attachments"),
-			localize('composeMessage', "Describe"),
-			localize('submit', "Review"),
-		];
-		this.stepLabel.textContent = stepNames[this.currentStep];
-
-		// Update progress dots
-		for (let i = 0; i < this.progressDots.length; i++) {
-			this.progressDots[i].classList.toggle('active', i === this.currentStep);
-			this.progressDots[i].classList.toggle('completed', i < this.currentStep);
-		}
-
-		// Show/hide pages
-		for (let i = 0; i < this.stepPages.length; i++) {
-			if (i === this.currentStep) {
-				this.stepPages[i].style.display = 'flex';
-			} else if (!this.stepPages[i].classList.contains('slide-out-left') && !this.stepPages[i].classList.contains('slide-out-right')) {
-				this.stepPages[i].style.display = 'none';
-			}
-		}
-
-		// Back button visibility
-		this.backButton.element.style.display = this.currentStep === WizardStep.Attachments ? 'none' : '';
-		if (this.closeButton) {
-			const currentDraftPreviewed = this.previewedDraftKey === this.getDraftKey();
-			this.closeButton.element.style.display = this.previewOpened && currentDraftPreviewed && this.currentStep === WizardStep.Review ? '' : 'none';
-		}
-
-		// Next button label
-		if (this.currentStep === WizardStep.Review) {
-			const externalExtensionUrl = this.selectedIssueSource === IssueSource.Extension && this.getIssueTargetUrl() && !this.isGitHubUrl(this.getIssueTargetUrl()!);
-			const waitingForData = this.selectedIssueType === IssueType.PerformanceIssue && (!this.performanceInfoLoaded || this.performanceInfoRefreshing);
-			if (waitingForData) {
-				this.nextButton.label = `$(loading~spin) ${localize('loadingDiagnostics', "Loading diagnostics...")}`;
-				this.nextButton.element.title = localize('waitingForDiagnostics', "Waiting for performance diagnostics to finish loading");
-				this.nextButton.enabled = false;
-			} else {
-				this.nextButton.label = externalExtensionUrl
-					? localize('openExternalIssueReporter', "Open External Issue Reporter")
+		const waitingForData = this.selectedIssueType === IssueType.PerformanceIssue && (!this.performanceInfoLoaded || this.performanceInfoRefreshing);
+		const external = resolveIssueReporterTarget(this.data, product)?.external;
+		this.previewButton.label = this.uploading ? localize('uploading', "Uploading...")
+			: waitingForData ? `$(loading~spin) ${localize('loadingDiagnostics', "Loading diagnostics...")}`
+				: external ? localize('openExternalIssueReporter', "Open External Issue Reporter")
 					: localize('previewOnGitHub', "Preview on GitHub");
-				this.nextButton.element.title = this.nextButton.label;
-				this.nextButton.enabled = true;
-			}
-		} else if (this.currentStep === WizardStep.Attachments) {
-			this.nextButton.label = this.getTotalAttachments() === 0
-				? localize('skip', "Skip")
-				: localize('next', "Next");
-			this.nextButton.element.title = this.nextButton.label;
-		} else {
-			this.nextButton.label = localize('next', "Next");
-			this.nextButton.element.title = localize('next', "Next");
+		this.previewConsent.textContent = external
+			? localize('externalReporterConsent', "Opens the extension's issue reporter without sending this report or its attachments.")
+			: localize('previewConsent', "Preview uploads attachments and opens your report on GitHub. You can review it there before submitting.");
+		this.previewButton.enabled = this.canSubmit();
+		this.previewButton.element.title = this.previewButton.enabled ? this.previewButton.label
+			: waitingForData ? localize('waitingForDiagnostics', "Waiting for performance diagnostics to finish loading")
+				: localize('waitingForAttachments', "Wait for attachments and captures to finish.");
+		if (this.closeButton) {
+			this.closeButton.element.style.display = this.previewOpened && this.previewedDraftKey === this.getDraftKey() && this.canSubmit() ? '' : 'none';
 		}
-
-		// Show/hide capture strip (only on attachments step)
-		this.updateCaptureStripVisibility();
-		// Reflect recording state on next button
-		this.updateNextButtonForRecording();
 	}
 
-	private updateReviewDetails(): void {
-		const page = this.stepPages[WizardStep.Review];
-		// eslint-disable-next-line no-restricted-syntax
-		const details = page.querySelector('.wizard-review-details');
-		if (!details) {
+	private getDiagnosticOptions(): Record<DiagnosticOption, boolean> {
+		return {
+			includeSystemInfo: true,
+			includeProcessInfo: true,
+			includeWorkspaceInfo: true,
+			includeExtensions: true,
+			includeExperiments: true,
+			includeExtensionData: !!this.model.getData().extensionData || this.selectedIssueSource === IssueSource.Extension || !!this.data.extensionId,
+			...this.diagnosticsState.included,
+		};
+	}
+
+	private updateDiagnostics(): void {
+		const diagContainer = this.diagnosticsContainer;
+		if (!diagContainer || this.disposed) {
 			return;
 		}
-		this.reviewRenderDisposables.clear();
-		details.textContent = '';
-
-		const similarSection = append(details as HTMLElement, $('div.review-section.wizard-review-similar-section'));
-		this.similarIssuesContainer = append(similarSection, $('div.wizard-similar-issues'));
-		this.similarIssuesContainer.setAttribute('aria-live', 'polite');
-		this.renderSimilarIssuesMessage(localize('searchingSimilarIssues', "Searching similar issues..."));
-
-		const sourceSection = append(details as HTMLElement, $('div.review-section'));
-		const sourceLabel = append(sourceSection, $('div.review-label'));
-		sourceLabel.textContent = localize('target', "Target");
-		const sourceValue = append(sourceSection, $('div.review-value'));
-		sourceValue.textContent = this.getIssueSourceLabel();
-
-		const catSection = append(details as HTMLElement, $('div.review-section'));
-		const catLabel = append(catSection, $('div.review-label'));
-		catLabel.textContent = localize('category', "Category");
-		const catValue = append(catSection, $('div.review-value'));
-		const typeLabels: Record<number, string> = {
-			[IssueType.Bug]: localize('bug', "Bug"),
-			[IssueType.FeatureRequest]: localize('featureRequest', "Feature Request"),
-			[IssueType.PerformanceIssue]: localize('performanceIssue', "Performance Issue"),
-		};
-		catValue.textContent = (this.selectedIssueType !== undefined ? typeLabels[this.selectedIssueType] : undefined) ?? localize('unknown', "Unknown");
-
-		const titleSection = append(details as HTMLElement, $('div.review-section'));
-		const titleLabel = append(titleSection, $('div.review-label'));
-		titleLabel.textContent = localize('issueTitle', "Title");
-		const titleValue = append(titleSection, $('div.review-value'));
-		titleValue.textContent = this.titleInput.value.trim() || localize('noTitle', "(no title)");
-
-		const descSection = append(details as HTMLElement, $('div.review-section'));
-		const descLabel = append(descSection, $('div.review-label'));
-		descLabel.textContent = localize('description', "Description");
-		const descValue = append(descSection, $('div.review-value.review-description'));
-		const description = this.descriptionTextarea.value.trim();
-		if (description && this.markdownRendererService) {
-			const renderedMarkdown = this.markdownRendererService.render(
-				new MarkdownString(description),
-				{ markedOptions: { breaks: true } },
-			);
-			append(descValue, renderedMarkdown.element);
-			this.reviewRenderDisposables.add(renderedMarkdown);
-		} else {
-			descValue.textContent = description || localize('noDescription', "(no description)");
-		}
-
-		// Attachments row with full-size clickable thumbnails
-		const totalAttachments = this.screenshots.length + this.recordings.length;
-		if (totalAttachments > 0) {
-			const attachSection = append(details as HTMLElement, $('div.review-section'));
-			const attachLabel = append(attachSection, $('div.review-label'));
-			attachLabel.textContent = localize('attachments', "Attachments ({0})", totalAttachments);
-			const thumbRow = append(attachSection, $('div.review-thumbnails'));
-			this.reviewThumbCards = [];
-
-			for (let i = 0; i < this.screenshots.length; i++) {
-				const s = this.screenshots[i];
-				const card = append(thumbRow, $('div.wizard-screenshot-card.review-attachment-card'));
-				const img = append(card, $('img')) as HTMLImageElement;
-				img.src = s.annotatedDataUrl ?? s.dataUrl;
-				img.alt = localize('screenshotAlt', "Screenshot {0}", i + 1);
-
-				// Progress overlay (hidden initially)
-				const progressOverlay = append(card, $('div.review-progress-overlay'));
-				append(progressOverlay, $('div.review-progress-ring'));
-
-				this.disposables.add(addDisposableListener(card, EventType.CLICK, () => {
-					if (!this.uploading) {
-						this._onDidRequestOpenScreenshot.fire(s);
-					}
-				}));
-				this.reviewThumbCards.push(card);
-			}
-
-			for (let i = 0; i < this.recordings.length; i++) {
-				const rec = this.recordings[i];
-				const card = this.renderRecordingCard(thumbRow, rec, i);
-				card.classList.add('review-attachment-card');
-
-				const progressOverlay = append(card, $('div.review-progress-overlay'));
-				append(progressOverlay, $('div.review-progress-ring'));
-
-				this.disposables.add(addDisposableListener(card, EventType.CLICK, () => {
-					if (!this.uploading) {
-						this._onDidRequestOpenRecording.fire(rec.filePath);
-					}
-				}));
-				this.reviewThumbCards.push(card);
+		const activeElement = getWindow(diagContainer).document.activeElement;
+		let focusedControl: { option: DiagnosticOption; control: 'include' | 'details' } | undefined;
+		for (const [option, controls] of this.diagnosticControls) {
+			if (activeElement === controls.include || activeElement === controls.details) {
+				focusedControl = { option, control: activeElement === controls.include ? 'include' : 'details' };
+				break;
 			}
 		}
-
-		// Diagnostic data sections with checkboxes and collapsible details
-		const diagContainer = append(details as HTMLElement, $('div.review-diagnostics'));
+		this.diagnosticsDisposables.clear();
+		this.diagnosticControls.clear();
+		diagContainer.textContent = '';
 
 		const modelData = this.model.getData();
-		let diagnosticSectionCount = 0;
-		const diagnosticSectionStates: (() => boolean)[] = [];
-		this.diagnosticBulkToggleButton = undefined;
-		this.diagnosticSectionStates = diagnosticSectionStates;
 
-		// System Info
-		if (modelData.versionInfo || modelData.systemInfo) {
-			diagnosticSectionCount++;
-			diagnosticSectionStates.push(() => this.includeSystemInfo);
-			this.createDiagSection(diagContainer, {
-				id: 'system-info',
-				label: localize('systemInformation', "System Information"),
-				checked: this.includeSystemInfo,
-				onToggle: (checked) => {
-					this.includeSystemInfo = checked;
-					this.model.update({ includeSystemInfo: checked });
-				},
-				renderContent: (container) => {
+		this.createDiagSection(diagContainer, {
+			option: 'includeSystemInfo',
+			label: localize('systemInformation', "System Information"),
+			renderContent: container => {
+				if (modelData.versionInfo || modelData.systemInfo) {
 					const sysTable = append(container, $('table.review-diag-table'));
 					if (modelData.versionInfo) {
 						this.addDiagRow(sysTable, 'VS Code', modelData.versionInfo.vscodeVersion);
@@ -1440,50 +1341,34 @@ export class IssueReporterOverlay {
 					if (modelData.restrictedMode) {
 						this.addDiagRow(sysTable, 'Mode', 'Restricted');
 					}
-				},
-			});
-		} else {
-			const loading = append(diagContainer, $('div.review-diag-loading'));
-			loading.textContent = localize('loadingSystemInfo', "Loading system information...");
-		}
+				} else {
+					append(container, $('div.review-diag-loading')).textContent = localize('loadingSystemInfo', "Loading system information...");
+				}
+			},
+		});
 
-		if (modelData.extensionData) {
-			// Match `buildIssueBody`, which only gates on `extensionData`. Gating
-			// here on `fileOnExtension` as well would hide the section in the
-			// review UI whenever the issue source was auto-switched away from
-			// Extension (e.g. built-in extensions are filed against VS Code),
-			// even though the extension data still ends up in the submitted body.
-			diagnosticSectionCount++;
-			diagnosticSectionStates.push(() => this.includeExtensionData);
+		if (modelData.extensionData || this.selectedIssueSource === IssueSource.Extension || this.data.extensionId) {
 			this.createDiagSection(diagContainer, {
-				id: 'extension-data',
+				option: 'includeExtensionData',
 				label: localize('extensionData', "Extension Data"),
-				checked: this.includeExtensionData,
-				onToggle: (checked) => {
-					this.includeExtensionData = checked;
-					this.model.update({ includeExtensionData: checked });
-				},
 				renderContent: (container) => {
 					const pre = append(container, $('pre.review-diag-pre'));
-					pre.textContent = modelData.extensionData!;
+					pre.textContent = modelData.extensionData ?? localize('extensionDataUnavailable', "No extension data is available yet.");
 				},
 			});
 		}
 
 		// Extensions (non-theme only)
 		const nonThemeExtensions = (modelData.allExtensions ?? []).filter(e => !e.isTheme && !e.isBuiltin);
-		if (!modelData.fileOnExtension && !modelData.fileOnMarketplace && nonThemeExtensions.length > 0) {
-			diagnosticSectionCount++;
-			diagnosticSectionStates.push(() => this.includeExtensions);
+		if (!modelData.fileOnExtension && !modelData.fileOnMarketplace) {
 			this.createDiagSection(diagContainer, {
-				id: 'extensions',
+				option: 'includeExtensions',
 				label: localize('extensions', "Extensions ({0})", nonThemeExtensions.length),
-				checked: this.includeExtensions,
-				onToggle: (checked) => {
-					this.includeExtensions = checked;
-					this.model.update({ includeExtensions: checked });
-				},
 				renderContent: (container) => {
+					if (nonThemeExtensions.length === 0) {
+						append(container, $('div.review-diag-loading')).textContent = localize('noDiagnosticExtensions', "No extensions are currently listed.");
+						return;
+					}
 					const extTable = append(container, $('table.review-diag-table.review-ext-table'));
 					const header = append(extTable, $('tr'));
 					for (const h of ['Name', 'Identifier', 'Author', 'Version']) {
@@ -1501,24 +1386,14 @@ export class IssueReporterOverlay {
 			});
 		}
 
-		// Experiments
-		if (modelData.experimentInfo) {
-			diagnosticSectionCount++;
-			diagnosticSectionStates.push(() => this.includeExperiments);
-			this.createDiagSection(diagContainer, {
-				id: 'experiments',
-				label: localize('abExperiments', "A/B Experiments"),
-				checked: this.includeExperiments,
-				onToggle: (checked) => {
-					this.includeExperiments = checked;
-					this.model.update({ includeExperiments: checked });
-				},
-				renderContent: (container) => {
-					const pre = append(container, $('pre.review-diag-pre'));
-					pre.textContent = modelData.experimentInfo!;
-				},
-			});
-		}
+		this.createDiagSection(diagContainer, {
+			option: 'includeExperiments',
+			label: localize('abExperiments', "A/B Experiments"),
+			renderContent: container => {
+				const pre = append(container, $('pre.review-diag-pre'));
+				pre.textContent = modelData.experimentInfo ?? localize('experimentDataUnavailable', "No experiment data is available yet.");
+			},
+		});
 
 		if (this.selectedIssueType === IssueType.PerformanceIssue && !modelData.fileOnMarketplace) {
 			const performanceContainer = append(diagContainer, $('div.review-performance-data'));
@@ -1529,208 +1404,121 @@ export class IssueReporterOverlay {
 			const performanceTitle = append(performanceTitleRow, $('div.review-performance-title'));
 			performanceTitle.textContent = localize('additionalPerformanceData', "Additional Performance Data");
 			if (this.refreshPerformanceInfo) {
-				const refreshBtn = this.disposables.add(new Button(performanceTitleRow, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
+				const refreshBtn = this.diagnosticsDisposables.add(new Button(performanceTitleRow, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
 				refreshBtn.element.classList.add('review-performance-refresh');
 				refreshBtn.label = `$(refresh) ${localize('refresh', "Refresh")}`;
 				refreshBtn.element.title = localize('refreshPerformanceData', "Reload running processes and workspace metadata");
 				refreshBtn.enabled = !this.performanceInfoRefreshing;
-				this.disposables.add(refreshBtn.onDidClick(async () => {
+				this.diagnosticsDisposables.add(refreshBtn.onDidClick(async () => {
 					if (!this.refreshPerformanceInfo || this.performanceInfoRefreshing) {
 						return;
 					}
 					this.performanceInfoRefreshing = true;
 					refreshBtn.enabled = false;
 					performanceContainer.classList.add('refreshing');
-					this.updateStepUI();
+					this.updatePreviewButton();
 					try {
 						await this.refreshPerformanceInfo();
 					} finally {
 						this.performanceInfoRefreshing = false;
-						// updateModel inside refreshPerformanceInfo already re-renders the
-						// review step, so the previous performanceContainer/refreshBtn may
-						// be stale by now. Re-rendering once more here ensures the
-						// "refreshing" class is cleared and the button is re-enabled even
-						// if the model didn't update (e.g. error path).
-						if (this.currentStep === WizardStep.Review) {
-							this.updateReviewDetails();
-						}
-						this.updateStepUI();
+						this.updateDiagnostics();
+						this.updatePreviewButton();
 					}
 				}));
 			}
 			const performanceDescription = append(performanceContainer, $('div.review-performance-description'));
 			performanceDescription.textContent = localize('additionalPerformanceDataDescription', "Optionally include currently running processes and workspace metadata to help diagnose performance issues.");
 
-			if (modelData.processInfo) {
-				diagnosticSectionCount++;
-				diagnosticSectionStates.push(() => this.includeProcessInfo);
-				this.createDiagSection(performanceContainer, {
-					id: 'process-info',
-					label: localize('runningProcesses', "Running Processes"),
-					checked: this.includeProcessInfo,
-					onToggle: (checked) => {
-						this.includeProcessInfo = checked;
-						this.model.update({ includeProcessInfo: checked });
-					},
-					renderContent: (container) => {
-						const pre = append(container, $('pre.review-diag-pre'));
-						pre.textContent = modelData.processInfo!;
-					},
-				});
-			} else if (!this.performanceInfoLoaded) {
-				const loading = append(performanceContainer, $('div.review-diag-loading'));
-				loading.textContent = localize('loadingProcessInfo', "Loading currently running processes...");
-			}
-
-			if (modelData.workspaceInfo) {
-				diagnosticSectionCount++;
-				diagnosticSectionStates.push(() => this.includeWorkspaceInfo);
-				this.createDiagSection(performanceContainer, {
-					id: 'workspace-info',
-					label: localize('workspaceMetadata', "Workspace Metadata"),
-					checked: this.includeWorkspaceInfo,
-					onToggle: (checked) => {
-						this.includeWorkspaceInfo = checked;
-						this.model.update({ includeWorkspaceInfo: checked });
-					},
-					renderContent: (container) => {
-						const pre = append(container, $('pre.review-diag-pre'));
-						pre.textContent = modelData.workspaceInfo!;
-					},
-				});
-			} else if (!this.performanceInfoLoaded) {
-				const loading = append(performanceContainer, $('div.review-diag-loading'));
-				loading.textContent = localize('loadingWorkspaceInfo', "Loading workspace metadata...");
-			}
+			this.createDiagSection(performanceContainer, {
+				option: 'includeProcessInfo',
+				label: localize('runningProcesses', "Running Processes"),
+				renderContent: container => {
+					const pre = append(container, $('pre.review-diag-pre'));
+					pre.textContent = modelData.processInfo ?? (this.performanceInfoLoaded
+						? localize('processDataUnavailable', "No process information is available.")
+						: localize('loadingProcessInfo', "Loading currently running processes..."));
+				},
+			});
+			this.createDiagSection(performanceContainer, {
+				option: 'includeWorkspaceInfo',
+				label: localize('workspaceMetadata', "Workspace Metadata"),
+				renderContent: container => {
+					const pre = append(container, $('pre.review-diag-pre'));
+					pre.textContent = modelData.workspaceInfo ?? (this.performanceInfoLoaded
+						? localize('workspaceDataUnavailable', "No workspace metadata is available.")
+						: localize('loadingWorkspaceInfo', "Loading workspace metadata..."));
+				},
+			});
 		}
 
-		if (diagnosticSectionCount > 0) {
-			const heading = document.createElement('div');
-			heading.className = 'review-diag-heading';
-			const title = append(heading, $('h3.review-diag-heading-title'));
-			title.textContent = localize('additionalInformation', "Additional Information");
-			if (diagnosticSectionCount > 1) {
-				const bulkActions = append(heading, $('div.review-diag-bulk-actions'));
-				const toggleAllButton = this.disposables.add(new Button(bulkActions, { ...defaultButtonStyles, secondary: true }));
-				toggleAllButton.element.classList.add('review-diag-toggle-all');
-				this.diagnosticBulkToggleButton = toggleAllButton;
-				this.updateDiagnosticBulkToggleButton();
-				this.disposables.add(toggleAllButton.onDidClick(() => {
-					this.setAllDiagnosticSectionsIncluded(!this.areAllVisibleDiagnosticSectionsIncluded());
-				}));
-			}
-			diagContainer.prepend(heading);
+		if (focusedControl) {
+			this.diagnosticControls.get(focusedControl.option)?.[focusedControl.control].focus();
 		}
-
-		// Align all title widths dynamically to the widest title
-		// eslint-disable-next-line no-restricted-syntax
-		const titles = diagContainer.querySelectorAll('.review-diag-title');
-		let maxWidth = 0;
-		for (const t of titles) {
-			(t as HTMLElement).style.minWidth = '';
-		}
-		for (const t of titles) {
-			maxWidth = Math.max(maxWidth, (t as HTMLElement).offsetWidth);
-		}
-		if (maxWidth > 0) {
-			for (const t of titles) {
-				(t as HTMLElement).style.minWidth = `${maxWidth}px`;
-			}
-		}
-
-		// Align all toggle button widths to the widest
-		// eslint-disable-next-line no-restricted-syntax
-		const toggles = diagContainer.querySelectorAll('.review-diag-toggle');
-		let maxToggleWidth = 0;
-		for (const t of toggles) {
-			(t as HTMLElement).style.minWidth = '';
-		}
-		for (const t of toggles) {
-			maxToggleWidth = Math.max(maxToggleWidth, (t as HTMLElement).offsetWidth);
-		}
-		if (maxToggleWidth > 0) {
-			for (const t of toggles) {
-				(t as HTMLElement).style.minWidth = `${maxToggleWidth}px`;
-			}
-		}
-	}
-
-	private areAllVisibleDiagnosticSectionsIncluded(): boolean {
-		return this.diagnosticSectionStates.length > 0 && this.diagnosticSectionStates.every(getState => getState());
-	}
-
-	private updateDiagnosticBulkToggleButton(): void {
-		if (!this.diagnosticBulkToggleButton) {
-			return;
-		}
-		const allChecked = this.areAllVisibleDiagnosticSectionsIncluded();
-		this.diagnosticBulkToggleButton.label = allChecked
-			? localize('excludeAllExtraAttachments', "Exclude All")
-			: localize('includeAllExtraAttachments', "Include All");
-		this.diagnosticBulkToggleButton.element.setAttribute('aria-label', allChecked
-			? localize('excludeAllExtraAttachmentsAria', "Exclude all additional issue data from this issue")
-			: localize('includeAllExtraAttachmentsAria', "Include all additional issue data in this issue"));
-	}
-
-	private setAllDiagnosticSectionsIncluded(included: boolean): void {
-		this.includeSystemInfo = included;
-		this.includeExtensionData = included;
-		this.includeExtensions = included;
-		this.includeExperiments = included;
-		this.includeProcessInfo = included;
-		this.includeWorkspaceInfo = included;
-		this.model.update({
-			includeSystemInfo: included,
-			includeExtensionData: included,
-			includeExtensions: included,
-			includeExperiments: included,
-			includeProcessInfo: included,
-			includeWorkspaceInfo: included,
-		});
-		this.updateReviewDetails();
 	}
 
 	private createDiagSection(parent: HTMLElement, opts: {
-		id: string;
+		option: DiagnosticOption;
 		label: string;
-		checked: boolean;
-		onToggle: (checked: boolean) => void;
 		renderContent: (container: HTMLElement) => void;
 	}): void {
+		const included = this.getDiagnosticOptions()[opts.option];
 		const group = append(parent, $('div.review-diag-group'));
+		group.dataset.diagnosticOption = opts.option;
+		group.classList.toggle('excluded', !included);
 
-		// Header: title | "Include in issue" checkbox | Minimize/Expand button
 		const header = append(group, $('div.review-diag-header'));
 
-		const title = append(header, $('span.review-diag-title'));
+		const checkWrap = append(header, $('div.review-diag-check-wrap'));
+		const checkbox = this.diagnosticsDisposables.add(new Checkbox(localize('includeDiagnostic', "Include {0}", opts.label), included, defaultCheckboxStyles));
+		checkbox.domNode.classList.add('review-diag-checkbox');
+		checkWrap.appendChild(checkbox.domNode);
+
+		const toggleArea = append(header, $('div.review-diag-toggle-area'));
+		toggleArea.setAttribute('role', 'button');
+		toggleArea.setAttribute('tabindex', '0');
+		toggleArea.setAttribute('aria-label', opts.label);
+
+		const chevron = append(toggleArea, $('span.review-diag-chevron'));
+		chevron.setAttribute('aria-hidden', 'true');
+
+		const title = append(toggleArea, $('span.review-diag-title'));
 		title.textContent = opts.label;
 
-		const checkWrap = append(header, $('div.review-diag-check-wrap'));
-		const checkbox = this.disposables.add(new Checkbox(localize('includeInIssue', "Include in issue"), opts.checked, defaultCheckboxStyles));
-		checkWrap.appendChild(checkbox.domNode);
-		const checkLabel = append(checkWrap, $('label.review-diag-check-label'));
-		checkLabel.textContent = localize('includeInIssue', "Include in issue");
-		this.disposables.add(checkbox.onChange(() => {
-			opts.onToggle(checkbox.checked);
-			this.updateDiagnosticBulkToggleButton();
-			this.updateStepUI();
-		}));
-
-		const toggleBtn = this.disposables.add(new Button(header, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
-		toggleBtn.label = `$(chevron-up) ${localize('minimize', "Minimize")}`;
-		toggleBtn.element.classList.add('review-diag-toggle');
-
-		// Content
 		const content = append(group, $('div.review-diag-content'));
+		content.id = generateUuid();
+		toggleArea.setAttribute('aria-controls', content.id);
 		opts.renderContent(content);
 
-		let expanded = true;
-		this.disposables.add(toggleBtn.onDidClick(() => {
-			expanded = !expanded;
-			content.style.display = expanded ? '' : 'none';
-			toggleBtn.label = expanded
-				? `$(chevron-up) ${localize('minimize', "Minimize")}`
-				: `$(chevron-down) ${localize('expand', "Expand")}`;
+		let expanded = this.diagnosticsState.expanded.has(opts.option);
+		const setExpanded = (next: boolean) => {
+			expanded = next;
+			if (expanded) {
+				this.diagnosticsState.expanded.add(opts.option);
+			} else {
+				this.diagnosticsState.expanded.delete(opts.option);
+			}
+			content.hidden = !expanded;
+			toggleArea.setAttribute('aria-expanded', String(expanded));
+			chevron.textContent = '';
+			chevron.appendChild(renderIcon(expanded ? Codicon.chevronDown : Codicon.chevronRight));
+		};
+		setExpanded(expanded);
+		this.diagnosticControls.set(opts.option, { include: checkbox.domNode, details: toggleArea });
+
+		this.diagnosticsDisposables.add(addDisposableListener(toggleArea, EventType.CLICK, () => setExpanded(!expanded)));
+		this.diagnosticsDisposables.add(addDisposableListener(toggleArea, EventType.KEY_DOWN, e => {
+			const event = new StandardKeyboardEvent(e);
+			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
+				e.preventDefault();
+				setExpanded(!expanded);
+			}
+		}));
+
+		this.diagnosticsDisposables.add(checkbox.onChange(() => {
+			this.diagnosticsState.included[opts.option] = checkbox.checked;
+			this.model.update({ [opts.option]: checkbox.checked });
+			group.classList.toggle('excluded', !checkbox.checked);
+			this.updatePreviewButton();
 		}));
 	}
 
@@ -1744,56 +1532,126 @@ export class IssueReporterOverlay {
 
 	/** Called by the form service to show upload progress */
 	setUploading(uploading: boolean): void {
+		if (this.disposed) {
+			return;
+		}
 		this.uploading = uploading;
+		this.wizardPanel.classList.toggle('uploading', uploading);
+		this.updateAttachmentButtons();
+	}
 
-		if (uploading) {
-			this.nextButton.element.classList.add('uploading');
-			this.nextButton.label = localize('uploading', "Uploading...");
-			this.nextButton.enabled = false;
-			this.backButton.element.style.display = 'none';
-		} else {
-			this.nextButton.element.classList.remove('uploading');
-			this.nextButton.enabled = true;
-			this.updateStepUI();
+	setAttachmentUploadError(message: string | undefined, details?: string): void {
+		if (this.disposed) {
+			return;
+		}
+		this.attachmentUploadError = message;
+		this.attachmentErrorDetails.hidden = !message || !details;
+		this.attachmentErrorDetails.open = false;
+		this.attachmentErrorDetailText.textContent = message ? details ?? '' : '';
+		this.updateAttachmentImportStatus();
+		if (message && this.visible && !this.disposed) {
+			this.attachmentStatus.scrollIntoView({ block: 'nearest' });
 		}
 	}
 
-	/** Mark a specific attachment as uploading / done */
-	setAttachmentUploadState(index: number, state: 'pending' | 'uploading' | 'done'): void {
-		if (index < 0 || index >= this.reviewThumbCards.length) {
+	setAttachmentUploadState(attachment: IssueReporterAttachment, upload: IIssueReporterAttachmentUpload): void {
+		const current = this.attachments.find(item => item.id === attachment.id);
+		if (this.disposed || current !== attachment || upload.destination !== this.getIssueTargetUrl()) {
 			return;
 		}
-		const card = this.reviewThumbCards[index];
-		card.classList.remove('upload-pending', 'upload-uploading', 'upload-done');
-		card.classList.add(`upload-${state}`);
+		attachment.upload = upload;
+		this.renderAttachmentUploadState(attachment);
+		this._onDidChangeAttachments.fire();
+	}
 
+	private clearStaleAttachmentUploads(): void {
+		const destination = this.getIssueTargetUrl();
+		let changed = false;
+		for (const attachment of this.getAttachments()) {
+			if (attachment.upload && attachment.upload.destination !== destination) {
+				attachment.upload = undefined;
+				this.renderAttachmentUploadState(attachment);
+				changed = true;
+			}
+		}
+		if (changed) {
+			this._onDidChangeAttachments.fire();
+		}
+	}
+
+	private renderAttachmentUploadState(attachment: IssueReporterAttachment): void {
+		const card = this.attachmentCards.get(attachment.id);
+		if (!card) {
+			return;
+		}
+		const state = attachment.upload && attachment.upload.destination === this.getIssueTargetUrl() ? attachment.upload.state : undefined;
+		card.classList.remove('upload-pending', 'upload-uploading', 'upload-done');
+		if (state) {
+			card.classList.add(`upload-${state}`);
+		}
 		// eslint-disable-next-line no-restricted-syntax
 		const overlay = card.querySelector('.review-progress-overlay') as HTMLElement | null;
 		if (!overlay) {
 			return;
 		}
 
+		overlay.textContent = '';
+		overlay.setAttribute('role', 'img');
+		overlay.setAttribute('aria-label', state === 'done' ? localize('attachmentUploaded', "Uploaded")
+			: state === 'uploading' ? localize('attachmentUploading', "Uploading")
+				: localize('attachmentPending', "Waiting to upload"));
 		if (state === 'done') {
-			// Replace ring with checkmark
-			overlay.textContent = '';
 			const check = $('span.review-progress-check');
-			check.appendChild(renderIcon(Codicon.check));
+			check.appendChild(renderIcon(Codicon.check)).setAttribute('aria-hidden', 'true');
 			overlay.appendChild(check);
+		} else if (state) {
+			append(overlay, $('div.review-progress-ring'));
 		}
 	}
 
 	private submit(): void {
+		if (!this.canSubmit()) {
+			return;
+		}
+		if (!resolveIssueReporterTarget(this.data, product)?.external) {
+			this.telemetryService.publicLog2<{}, {
+				owner: 'Giuspepe';
+				comment: 'Counts pointer and keyboard activations of Preview on GitHub in the new issue reporter, including validation failures. Does not indicate an issue was submitted and collects no report content.';
+			}>('issueReporter.previewClicked');
+		}
+		this.didAttemptSubmit = true;
+		const hasIssueSource = this.selectedIssueSource !== undefined;
+		const hasExtension = this.selectedIssueSource !== IssueSource.Extension || !!this.selectedExtension && !!this.getSelectedExtensionIssueUrl();
+		const hasIssueType = this.getIssueTypeOptions().some(option => option.type === this.selectedIssueType);
+		const hasDescription = this.hasDescriptionContent();
 		const title = this.titleInput.value.trim();
-		if (!title) {
-			// Should not happen: validated in goNext() on Describe step
+		this.setFieldError(this.sourceButtonGroup, this.sourceError, !hasIssueSource);
+		this.setFieldError(this.extensionField, this.extensionError, !hasExtension);
+		this.setFieldError(this.typeButtonGroup, this.typeError, !hasIssueType);
+		this.setFieldError(this.descriptionContainer, this.descriptionError, !hasDescription);
+		this.setFieldError(this.titleInput.element, this.titleError, !title);
+		if (!hasIssueSource || !hasExtension || !hasIssueType || !title || !hasDescription) {
+			if (!hasIssueSource) {
+				this.issueSourceButtons.find(button => !button.element.classList.contains('hidden'))?.element.focus();
+			} else if (!hasExtension) {
+				this.extensionSelect.focus();
+			} else if (!hasIssueType) {
+				this.issueTypeButtons[0]?.element.focus();
+			} else if (!title) {
+				this.titleInput.focus();
+			} else {
+				this.setDescriptionPreview(false);
+				this.descriptionInput.focus();
+			}
 			return;
 		}
 
-		const description = this.descriptionTextarea.value.trim();
+		const description = this.descriptionInput.value.trim();
 		this.updateIssueSourceFlags();
 		this.model.update({ issueDescription: description, issueTitle: title, ...(this.selectedIssueType !== undefined ? { issueType: this.selectedIssueType } : {}) });
 
 		const body = this.buildIssueBody();
+		this.submittedDraftKey = this.getDraftKey();
 		this._onDidSubmit.fire({ title, body });
 	}
 
@@ -1805,12 +1663,220 @@ export class IssueReporterOverlay {
 
 		this.wizardPanel.classList.add('open', 'wizard-embedded');
 		this.wizardPanel.style.maxHeight = 'none';
-		append(this.container, this.wizardPanel);
 		this.wizardPanel.focus();
 	}
 
 	private getTotalAttachments(): number {
-		return this.screenshots.length + this.recordings.length;
+		return this.getAttachments().length;
+	}
+
+	private getOccupiedAttachmentSlots(): number {
+		return this.attachments.length;
+	}
+
+	private get pendingAttachmentImports(): number {
+		return this.attachments.filter(attachment => attachment.kind === 'pending' && attachment.source === 'import').length;
+	}
+
+	private get recordingSlotReserved(): boolean {
+		return !!this.getPendingAttachment('recording');
+	}
+
+	private getPendingAttachment(source: PendingAttachment['source']): PendingAttachment | undefined {
+		return this.attachments.find((attachment): attachment is PendingAttachment => attachment.kind === 'pending' && attachment.source === source);
+	}
+
+	private reserveAttachment(source: PendingAttachment['source']): PendingAttachment | undefined {
+		if (this.disposed || this.uploading || this.getOccupiedAttachmentSlots() >= MAX_ATTACHMENTS) {
+			return undefined;
+		}
+		const reservation: PendingAttachment = { id: generateUuid(), kind: 'pending', source };
+		this.attachments.push(reservation);
+		return reservation;
+	}
+
+	private getAttachmentFiles(transfer: DataTransfer | null): File[] {
+		if (!transfer) {
+			return [];
+		}
+		if (transfer.files.length) {
+			return Array.from(transfer.files);
+		}
+		return Array.from(transfer.items).filter(item => item.kind === 'file').map(item => item.getAsFile()).filter((file): file is File => !!file);
+	}
+
+	private hasAttachmentFiles(transfer: DataTransfer | null): boolean {
+		return !!transfer && (transfer.types.includes('Files') || transfer.files.length > 0 || Array.from(transfer.items).some(item => item.kind === 'file'));
+	}
+
+	private isTextInputTarget(target: EventTarget | null): boolean {
+		return isHTMLElement(target) && (target.isContentEditable || !!target.closest('input, textarea, [role="textbox"]'));
+	}
+
+	private registerAttachmentInput(): void {
+		for (const target of [this.wizardPanel, this.descriptionContainer]) {
+			for (const type of [EventType.DRAG_ENTER, EventType.DRAG_OVER, EventType.DROP]) {
+				this.disposables.add(addDisposableListener(target, type, (event: DragEvent) => {
+					if (event.defaultPrevented) {
+						return;
+					}
+					const inDescription = isHTMLElement(event.target) && this.descriptionContainer.contains(event.target);
+					const hasText = event.dataTransfer?.types.includes('text/plain');
+					if (event.target === this.descriptionInput && hasText) {
+						event.stopPropagation();
+						if (type === EventType.DROP) {
+							this.screenshotContainer.classList.remove('drag-over');
+							const files = this.getAttachmentFiles(event.dataTransfer);
+							if (files.length) {
+								this.requestAddAttachments(files);
+							}
+						}
+						return;
+					}
+					if (!this.hasAttachmentFiles(event.dataTransfer)) {
+						return;
+					}
+					if (!inDescription && this.isTextInputTarget(event.target) && hasText) {
+						event.stopPropagation();
+						return;
+					}
+					event.preventDefault();
+					event.stopPropagation();
+					if (event.dataTransfer) {
+						event.dataTransfer.dropEffect = this.getOccupiedAttachmentSlots() < MAX_ATTACHMENTS && !this.uploading ? 'copy' : 'none';
+					}
+					this.screenshotContainer.classList.toggle('drag-over', type !== EventType.DROP);
+					if (type === EventType.DROP) {
+						this.requestAddAttachments(this.getAttachmentFiles(event.dataTransfer), event.dataTransfer?.getData('text/plain'));
+					}
+				}, target === this.descriptionContainer));
+			}
+		}
+		this.disposables.add(addDisposableListener(this.wizardPanel, EventType.PASTE, (event: ClipboardEvent) => {
+			if (event.defaultPrevented || this.isTextInputTarget(event.target)) {
+				return;
+			}
+			const files = this.getAttachmentFiles(event.clipboardData);
+			if (files.length) {
+				event.preventDefault();
+				event.stopPropagation();
+				this.requestAddAttachments(files, event.clipboardData?.getData('text/plain'));
+			}
+		}));
+		this.disposables.add(addDisposableListener(this.wizardPanel, EventType.DRAG_LEAVE, (event: DragEvent) => {
+			this.screenshotContainer.classList.remove('drag-over');
+			if (this.hasAttachmentFiles(event.dataTransfer)) {
+				event.stopPropagation();
+			}
+		}));
+		this.disposables.add(addDisposableListener(this.wizardPanel, EventType.DRAG_END, () => this.screenshotContainer.classList.remove('drag-over')));
+	}
+
+	private requestAddAttachments(files: readonly File[], text?: string): void {
+		if (this.disposed) {
+			return;
+		}
+		if (this.pendingAttachmentImports === 0) {
+			this.attachmentErrors.clear();
+		}
+		if (this.uploading) {
+			this.updateAttachmentImportStatus();
+			return;
+		}
+		if (text) {
+			this.insertDescriptionText(text);
+			status(localize('attachmentTextAdded', "Text added to the description."));
+		}
+		const accepted: IIssueReporterAttachmentImport[] = [];
+		for (const file of files) {
+			if (this.getOccupiedAttachmentSlots() >= MAX_ATTACHMENTS) {
+				break;
+			}
+			try {
+				validateIssueReporterMediaFile(file);
+				const reservation = this.reserveAttachment('import');
+				if (reservation) {
+					accepted.push({ id: reservation.id, file });
+				}
+			} catch (error) {
+				this.attachmentErrors.add(toErrorMessage(error));
+			}
+		}
+		this.updateAttachmentButtons();
+		this.updateAttachmentImportStatus();
+		if (accepted.length) {
+			this._onDidRequestAddAttachments.fire(accepted);
+		}
+	}
+
+	completeAttachmentImport(id: string, attachment?: IIssueReporterFileAttachment, error?: string): boolean {
+		const index = this.attachments.findIndex(item => item.id === id && item.kind === 'pending' && item.source === 'import');
+		if (this.disposed || index === -1) {
+			return false;
+		}
+		if (attachment) {
+			this.attachments[index] = { id, kind: 'file', file: attachment };
+		} else {
+			this.attachments.splice(index, 1);
+		}
+		if (error) {
+			this.attachmentErrors.add(error);
+		}
+		if (attachment) {
+			this.attachmentsChanged();
+			status(localize('attachmentImported', "Attachment added."));
+		} else {
+			this.updateAttachmentButtons();
+		}
+		return !!attachment;
+	}
+
+	private updateAttachmentImportStatus(): void {
+		const messages: string[] = [];
+		if (this.pendingAttachmentImports) {
+			messages.push(localize('attachmentsImporting', "Importing {0} file(s)...", this.pendingAttachmentImports));
+		}
+		if (this.getOccupiedAttachmentSlots() >= MAX_ATTACHMENTS) {
+			messages.push(localize('attachmentImportLimit', "Attachment limit reached. Remove a file to add another."));
+		}
+		if (this.uploading) {
+			messages.push(localize('attachmentsUploading', "Uploading attachments..."));
+		}
+		if (this.attachmentUploadError) {
+			messages.push(this.attachmentUploadError);
+		}
+		messages.push(...this.attachmentErrors);
+		this.attachmentStatus.textContent = messages.join('\n');
+		this.attachmentStatus.hidden = messages.length === 0;
+		this.attachmentStatus.classList.toggle('has-errors', this.attachmentErrors.size > 0 || !!this.attachmentUploadError);
+		this.screenshotContainer.setAttribute('aria-busy', String(this.pendingAttachmentImports > 0));
+	}
+
+	private requestScreenshot(reservation?: PendingAttachment): void {
+		if (this.uploading || this.screenshotCapturePending || this.delayedScreenshotPending) {
+			return;
+		}
+		reservation ??= this.reserveAttachment('screenshot');
+		if (!reservation || !this.attachments.includes(reservation)) {
+			return;
+		}
+		this.screenshotCapturePending = true;
+		this.updateAttachmentButtons();
+		this._onDidRequestScreenshot.fire(reservation.id);
+	}
+
+	completeScreenshotCapture(id = this.getPendingAttachment('screenshot')?.id): void {
+		const reservation = this.getPendingAttachment('screenshot');
+		if (reservation && reservation.id !== id) {
+			return;
+		}
+		if (reservation) {
+			this.attachments.splice(this.attachments.indexOf(reservation), 1);
+		}
+		this.screenshotCapturePending = false;
+		if (!this.disposed) {
+			this.updateAttachmentButtons();
+		}
 	}
 
 	private getScreenshotDelayOptions(): { label: string; value: number }[] {
@@ -1823,7 +1889,7 @@ export class IssueReporterOverlay {
 	}
 
 	private getFloatingBarButtonStyles(targetWindow: Window): typeof defaultButtonStyles {
-		const containerStyles = targetWindow.getComputedStyle(this.container);
+		const containerStyles = targetWindow.getComputedStyle(this.captureContainer);
 		const cssVar = (name: string, fallback: string): string => containerStyles.getPropertyValue(name).trim() || fallback;
 		return {
 			...defaultButtonStyles,
@@ -1834,28 +1900,22 @@ export class IssueReporterOverlay {
 		};
 	}
 
-	addScreenshot(screenshot: IScreenshot): void {
-		if (this.getTotalAttachments() >= MAX_ATTACHMENTS) {
+	addScreenshot(screenshot: IScreenshot, id = this.getPendingAttachment('screenshot')?.id): void {
+		const reservation = id ? this.attachments.find(item => item.id === id && item.kind === 'pending' && item.source === 'screenshot') : this.reserveAttachment('screenshot');
+		if (this.disposed || !reservation) {
 			return;
 		}
-		this.screenshots.push(screenshot);
-		this.updateAttachmentViews();
-		this.updateAttachmentButtons();
-		this.updateStepUI();
-
-		// Immediately open the annotation editor for the new screenshot
-		this.openAnnotationEditor(this.screenshots.length - 1);
+		const attachment: IssueReporterAttachment<IScreenshot> = { id: reservation.id, kind: 'screenshot', screenshot };
+		this.attachments[this.attachments.indexOf(reservation)] = attachment;
+		this.attachmentsChanged();
+		this.openAnnotationEditor(attachment.id);
 	}
 
 	private updateAttachmentButtons(): void {
-		const atMax = this.getTotalAttachments() >= MAX_ATTACHMENTS;
+		const atMax = this.getOccupiedAttachmentSlots() >= MAX_ATTACHMENTS || this.uploading;
 		const maxMsg = localize('maxAttachmentsReached', "Max attachments reached");
-		const wouldReachMax = this.getTotalAttachments() >= MAX_ATTACHMENTS - 1;
-
-		// Screenshot disabled when: at max, OR recording will fill the last slot, OR delayed screenshot pending
-		const screenshotDisabled = atMax || (wouldReachMax && this.currentRecordingState === RecordingState.Recording) || this.delayedScreenshotPending;
-		// Record disabled when: at max, OR delayed screenshot will fill the last slot
-		const recordDisabled = atMax || (wouldReachMax && this.delayedScreenshotPending);
+		const screenshotDisabled = atMax || this.delayedScreenshotPending || this.screenshotCapturePending;
+		const recordDisabled = atMax || this.recordingSlotReserved;
 
 		if (this.captureStripCaptureBtn) {
 			this.captureStripCaptureBtn.enabled = !screenshotDisabled;
@@ -1869,125 +1929,136 @@ export class IssueReporterOverlay {
 		if (this.captureStripRecordBtn) {
 			if (this.currentRecordingState !== RecordingState.Recording) {
 				this.captureStripRecordBtn.enabled = !recordDisabled;
-				this.captureStripRecordBtn.element.title = recordDisabled ? maxMsg : localize('recordVideo', "Record video");
+				this.captureStripRecordBtn.element.title = this.recordingSlotReserved
+					? localize('recordingPending', "Recording in progress")
+					: recordDisabled ? maxMsg : localize('recordVideo', "Record video");
+			} else {
+				this.captureStripRecordBtn.enabled = true;
 			}
 		}
+		this.screenshotAddCard?.classList.toggle('disabled', screenshotDisabled);
+		this.screenshotAddCard?.setAttribute('aria-disabled', String(screenshotDisabled));
 
-		// Disable "Preview on GitHub" while recording
-		this.updateNextButtonForRecording();
+		this.addFilesButton.enabled = !this.uploading && this.getOccupiedAttachmentSlots() < MAX_ATTACHMENTS;
+		this.updatePreviewButton();
+		this.updateAttachmentImportStatus();
 	}
 
-	private updateNextButtonForRecording(): void {
-		if (this.currentStep !== WizardStep.Review) {
-			return;
-		}
-		const recording = this.currentRecordingState === RecordingState.Recording;
-		this.nextButton.enabled = !recording;
-		this.nextButton.element.title = recording
-			? localize('recordingActive', "Recording active")
-			: localize('previewOnGitHub', "Preview on GitHub");
-	}
-
-	private renderRecordingCard(parent: HTMLElement, rec: { filePath: string; durationMs: number; thumbnailDataUrl?: string }, index: number): HTMLElement {
-		const card = append(parent, $('div.wizard-screenshot-card.wizard-recording-card'));
-
-		if (rec.thumbnailDataUrl) {
-			const thumbImg = append(card, $('img.wizard-screenshot-img')) as HTMLImageElement;
-			thumbImg.setAttribute('src', rec.thumbnailDataUrl);
-			thumbImg.alt = localize('recordingThumbnailAlt', "Recording {0}", index + 1);
+	private renderAttachmentCard(parent: HTMLElement, name: string, thumbnailDataUrl: string | undefined, isVideo: boolean, durationMs?: number): HTMLElement {
+		const card = append(parent, $('div.wizard-screenshot-card'));
+		const preview = append(card, $('div.wizard-attachment-preview'));
+		const fallback = append(preview, $('div.wizard-file-fallback'));
+		fallback.appendChild(renderIcon(isVideo ? Codicon.play : Codicon.file)).setAttribute('aria-hidden', 'true');
+		if (thumbnailDataUrl) {
+			const thumbImg = append(preview, $('img.wizard-screenshot-img')) as HTMLImageElement;
+			thumbImg.setAttribute('src', thumbnailDataUrl);
+			thumbImg.alt = '';
 			thumbImg.setAttribute('draggable', 'false');
+			fallback.hidden = true;
+			this.screenshotDisposables.add(addDisposableListener(thumbImg, 'error', () => {
+				thumbImg.remove();
+				fallback.hidden = false;
+				append(fallback, $('span')).textContent = localize('attachmentPreviewUnavailable', "Preview unavailable");
+				this.logService.warn('[IssueReporter] Attachment preview unavailable:', name);
+			}, { once: true }));
 		}
-
-		const playOverlay = append(card, $('div.wizard-recording-play'));
-		playOverlay.appendChild(renderIcon(Codicon.play));
-
-		const durSec = Math.floor(rec.durationMs / 1000);
-		const durLabel = append(card, $('div.wizard-recording-duration'));
-		durLabel.textContent = `${Math.floor(durSec / 60)}:${(durSec % 60).toString().padStart(2, '0')}`;
+		const filename = append(card, $('div.wizard-file-name'));
+		filename.textContent = name;
+		this.screenshotDisposables.add(this.hoverService.setupDelayedHover(filename, { content: name }));
+		if (durationMs !== undefined) {
+			const durLabel = append(preview, $('div.wizard-recording-duration'));
+			const durSec = Math.floor(durationMs / 1000);
+			durLabel.textContent = `${Math.floor(durSec / 60)}:${(durSec % 60).toString().padStart(2, '0')}`;
+		}
 
 		return card;
 	}
 
-	private updateScreenshotThumbnails(): void {
-		this.screenshotContainer.textContent = '';
-
-		for (let i = 0; i < this.screenshots.length; i++) {
-			const screenshot = this.screenshots[i];
-			const card = append(this.screenshotContainer, $('div.wizard-screenshot-card'));
-
-			const img = append(card, $('img')) as HTMLImageElement;
-			img.src = screenshot.annotatedDataUrl ?? screenshot.dataUrl;
-			img.alt = localize('screenshotAlt', "Screenshot {0}", i + 1);
-
-			card.setAttribute('role', 'button');
-			card.setAttribute('tabindex', '0');
-			card.title = localize('editScreenshot', "Click to edit screenshot");
-			const openEditor = () => this.openAnnotationEditor(i);
-			this.disposables.add(addDisposableListener(card, EventType.CLICK, openEditor));
-			this.disposables.add(addDisposableListener(card, EventType.KEY_DOWN, e => {
-				const event = new StandardKeyboardEvent(e);
-				if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
-					e.preventDefault();
-					openEditor();
+	private registerAttachmentAction(element: HTMLElement, label: string, action: () => void, disposables: DisposableStore): void {
+		element.setAttribute('role', 'button');
+		element.setAttribute('aria-label', label);
+		element.tabIndex = 0;
+		disposables.add(addDisposableListener(element, EventType.CLICK, event => {
+			event.stopPropagation();
+			if (!this.uploading) {
+				action();
+			}
+		}));
+		disposables.add(addDisposableListener(element, EventType.KEY_DOWN, event => {
+			if (event.target !== element) {
+				return;
+			}
+			const key = new StandardKeyboardEvent(event);
+			if (key.equals(KeyCode.Enter) || key.equals(KeyCode.Space)) {
+				event.preventDefault();
+				event.stopPropagation();
+				if (!this.uploading) {
+					action();
 				}
-			}));
+			}
+		}));
+	}
+
+	private updateScreenshotThumbnails(): void {
+		this.screenshotDisposables.clear();
+		this.screenshotContainer.textContent = '';
+		this.screenshotAddCard = undefined;
+		this.attachmentCards.clear();
+		let screenshotNumber = 0;
+		for (const attachment of this.getAttachments()) {
+			let card: HTMLElement;
+			let name: string;
+			if (attachment.kind === 'screenshot') {
+				screenshotNumber++;
+				const screenshot = getIssueReporterScreenshotFile(attachment.screenshot, screenshotNumber);
+				name = screenshot.name;
+				card = this.renderAttachmentCard(this.screenshotContainer, name, screenshot.dataUrl, false);
+				this.registerAttachmentAction(card, localize('editScreenshotLabel', "Edit {0}", name), () => this.openAnnotationEditor(attachment.id), this.screenshotDisposables);
+			} else {
+				name = attachment.file.name;
+				card = this.renderAttachmentCard(this.screenshotContainer, name, attachment.file.thumbnailDataUrl, attachment.file.mimeType.startsWith('video/'), attachment.file.durationMs);
+				card.classList.add('wizard-file-card');
+				this.registerAttachmentAction(card, localize('openAttachment', "Open {0}", name), () => {
+					this._onDidRequestOpenFile.fire(attachment.file.filePath);
+				}, this.screenshotDisposables);
+			}
+			this.attachmentCards.set(attachment.id, card);
 
 			const deleteBtn = append(card, $('div.wizard-screenshot-delete'));
-			deleteBtn.setAttribute('role', 'button');
-			deleteBtn.setAttribute('aria-label', localize('deleteScreenshot', "Delete screenshot"));
 			deleteBtn.appendChild(renderIcon(Codicon.close));
-			this.disposables.add(addDisposableListener(deleteBtn, EventType.CLICK, e => {
-				e.stopPropagation();
-				this.screenshots.splice(i, 1);
-				this.updateScreenshotThumbnails();
-				this.updateAttachmentButtons();
-				this.updateStepUI();
-			}));
-		}
-
-		// Recording thumbnails
-		for (let i = 0; i < this.recordings.length; i++) {
-			const rec = this.recordings[i];
-			const card = this.renderRecordingCard(this.screenshotContainer, rec, i);
-
-			// Click to open from OS
-			this.disposables.add(addDisposableListener(card, EventType.CLICK, () => {
-				this._onDidRequestOpenRecording.fire(rec.filePath);
-			}));
-
-			const deleteBtn = append(card, $('div.wizard-screenshot-delete'));
-			deleteBtn.setAttribute('role', 'button');
-			deleteBtn.setAttribute('aria-label', localize('deleteRecording', "Remove recording"));
-			deleteBtn.appendChild(renderIcon(Codicon.close));
-			this.disposables.add(addDisposableListener(deleteBtn, EventType.CLICK, e => {
-				e.stopPropagation();
-				this.recordings.splice(i, 1);
-				this.updateScreenshotThumbnails();
-				this.updateAttachmentButtons();
-				this.updateStepUI();
-			}));
+			this.registerAttachmentAction(deleteBtn, localize('removeAttachment', "Remove {0}", name), () => {
+				this.attachments.splice(this.attachments.indexOf(attachment), 1);
+				this.attachmentsChanged();
+				this.screenshotContainer.focus();
+			}, this.screenshotDisposables);
+			append(card, $('div.review-progress-overlay'));
+			this.renderAttachmentUploadState(attachment);
 		}
 
 		if (this.getTotalAttachments() < MAX_ATTACHMENTS) {
-			const wouldReachMax = this.getTotalAttachments() >= MAX_ATTACHMENTS - 1;
-			const addDisabled = wouldReachMax && (this.currentRecordingState === RecordingState.Recording || this.delayedScreenshotPending);
+			const addDisabled = this.uploading || this.screenshotCapturePending || this.getOccupiedAttachmentSlots() >= MAX_ATTACHMENTS;
 			const addCard = append(this.screenshotContainer, $('div.wizard-screenshot-card.wizard-screenshot-add'));
+			this.screenshotAddCard = addCard;
+			addCard.setAttribute('aria-disabled', String(addDisabled));
 			if (addDisabled) {
 				addCard.classList.add('disabled');
 				addCard.title = localize('maxAttachmentsReached', "Max attachments reached");
 			}
 			const plus = append(addCard, $('div.wizard-screenshot-plus'));
 			plus.appendChild(renderIcon(Codicon.add));
-			this.disposables.add(addDisposableListener(addCard, EventType.CLICK, () => {
+			plus.setAttribute('aria-hidden', 'true');
+			append(addCard, $('span')).textContent = localize('screenshot', "Screenshot");
+			this.registerAttachmentAction(addCard, localize('captureScreenshot', "Capture Screenshot"), () => {
 				if (!addCard.classList.contains('disabled')) {
-					this._onDidRequestScreenshot.fire();
+					this.requestScreenshot();
 				}
-			}));
+			}, this.screenshotDisposables);
 		}
 	}
 
-	private openAnnotationEditor(index: number): void {
-		if (index < 0 || index >= this.screenshots.length) {
+	private openAnnotationEditor(id: string): void {
+		const attachment = this.attachments.find(item => item.id === id);
+		if (attachment?.kind !== 'screenshot') {
 			return;
 		}
 
@@ -1997,40 +2068,61 @@ export class IssueReporterOverlay {
 		// user expects when taking multiple screenshots in a row — the topmost
 		// editor handles save/cancel, then the previous one becomes visible
 		// again.
-		const screenshot = this.screenshots[index];
-		const editor = new ScreenshotAnnotationEditor(screenshot, this.wizardPanel, screenshot.annotationState);
-		this.disposables.add(editor);
+		const screenshot = attachment.screenshot;
+		const editorDisposables = this.disposables.add(new DisposableStore());
+		const editor = editorDisposables.add(new ScreenshotAnnotationEditor(screenshot, this.wizardPanel, screenshot.annotationState));
 
-		this.disposables.add(editor.onDidSave(({ dataUrl, state }) => {
-			screenshot.annotatedDataUrl = dataUrl;
-			screenshot.annotationState = state;
-			this.updateAttachmentViews();
+		editorDisposables.add(editor.onDidSave(({ dataUrl, state }) => {
+			const index = this.attachments.findIndex(item => item.id === id);
+			if (index !== -1) {
+				this.attachments[index] = { id, kind: 'screenshot', screenshot: { ...screenshot, annotatedDataUrl: dataUrl, annotationState: state } };
+				this.attachmentsChanged();
+			}
+			this.disposables.delete(editorDisposables);
 		}));
 
-		this.disposables.add(editor.onDidCancel(() => {
-			// nothing to do, editor disposes itself
+		editorDisposables.add(editor.onDidCancel(() => {
+			this.disposables.delete(editorDisposables);
 		}));
+	}
+
+	getAttachments(): readonly IssueReporterAttachment<IScreenshot>[] {
+		return this.attachments.filter((attachment): attachment is IssueReporterAttachment<IScreenshot> => attachment.kind !== 'pending');
 	}
 
 	getScreenshots(): readonly IScreenshot[] {
-		return this.screenshots;
+		return this.getAttachments().flatMap(attachment => attachment.kind === 'screenshot' ? [attachment.screenshot] : []);
 	}
 
-	getRecordings(): readonly { filePath: string; durationMs: number; thumbnailDataUrl?: string }[] {
-		return this.recordings;
+	getFileAttachments(): readonly IIssueReporterFileAttachment[] {
+		return this.getAttachments().flatMap(attachment => attachment.kind === 'file' ? [attachment.file] : []);
+	}
+
+	/** Restore input-owned attachments without reporting a new change to their owner. */
+	restoreAttachments(attachments: readonly IssueReporterAttachment<IScreenshot>[]): void {
+		const restored = attachments.slice(0, MAX_ATTACHMENTS);
+		const current = this.getAttachments();
+		if (current.length !== restored.length || current.some((attachment, index) => attachment !== restored[index])) {
+			this.attachments.length = 0;
+			for (const attachment of restored) {
+				if (attachment.upload && attachment.upload.state !== 'done') {
+					attachment.upload = undefined;
+				}
+				this.attachments.push(attachment);
+			}
+		}
+		this.updateAttachmentViews();
+		this.updateAttachmentButtons();
+		this.updatePreviewButton();
 	}
 
 	private buildIssueBody(): string {
-		const description = this.descriptionTextarea.value.trim();
+		const description = this.descriptionInput.value.trim();
+		const diagnosticOptions = this.getDiagnosticOptions();
 		this.model.update({
 			issueDescription: description,
 			issueType: this.selectedIssueType ?? IssueType.Bug,
-			includeSystemInfo: this.includeSystemInfo,
-			includeProcessInfo: this.includeProcessInfo,
-			includeWorkspaceInfo: this.includeWorkspaceInfo,
-			includeExtensions: this.includeExtensions,
-			includeExperiments: this.includeExperiments,
-			includeExtensionData: this.includeExtensionData,
+			...diagnosticOptions,
 		});
 
 		const modelData = this.model.getData();
@@ -2039,27 +2131,27 @@ export class IssueReporterOverlay {
 			this.generateIssueDetailsMd(),
 		];
 
-		if (this.includeExtensionData && modelData.extensionData) {
-			sections.push(this.createDetails('Extension Data', this.createCodeBlock(modelData.extensionData)));
+		if (diagnosticOptions.includeExtensionData && modelData.extensionData) {
+			sections.push(this.createDetails('Extension Data', modelData.extensionData));
 		}
 
-		if (this.includeSystemInfo && (modelData.versionInfo || modelData.systemInfo || modelData.systemInfoWeb)) {
+		if (diagnosticOptions.includeSystemInfo && (modelData.versionInfo || modelData.systemInfo || modelData.systemInfoWeb)) {
 			sections.push(this.generateSystemInfoMd());
 		}
 
-		if (!modelData.fileOnExtension && !modelData.fileOnMarketplace && this.includeExtensions) {
+		if (!modelData.fileOnExtension && !modelData.fileOnMarketplace && diagnosticOptions.includeExtensions) {
 			sections.push(this.generateExtensionsMd());
 		}
 
-		if (this.includeExperiments && modelData.experimentInfo) {
+		if (diagnosticOptions.includeExperiments && modelData.experimentInfo) {
 			sections.push(this.createDetails('A/B Experiments', this.createCodeBlock(modelData.experimentInfo)));
 		}
 
 		if (this.selectedIssueType === IssueType.PerformanceIssue && !modelData.fileOnMarketplace) {
-			if (this.includeProcessInfo && modelData.processInfo) {
+			if (diagnosticOptions.includeProcessInfo && modelData.processInfo) {
 				sections.push(this.createDetails('Running Processes', this.createCodeBlock(modelData.processInfo)));
 			}
-			if (this.includeWorkspaceInfo && modelData.workspaceInfo) {
+			if (diagnosticOptions.includeWorkspaceInfo && modelData.workspaceInfo) {
 				sections.push(this.createDetails('Workspace Metadata', this.createCodeBlock(modelData.workspaceInfo)));
 			}
 		}
@@ -2074,6 +2166,7 @@ export class IssueReporterOverlay {
 		const rows: [string, string | undefined][] = [
 			['Issue Category', this.getIssueTypeTitle(this.selectedIssueType ?? IssueType.Bug)],
 			['Target', this.getIssueSourceLabel()],
+			['Repository', this.getIssueRepositoryLabel()],
 			['VS Code Version', modelData.versionInfo?.vscodeVersion ?? product.version],
 			['OS Version', modelData.versionInfo?.os ?? modelData.systemInfo?.os],
 		];
@@ -2204,7 +2297,7 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 	}
 
 	private escapeMarkdownTableCell(value: string): string {
-		return value.replace(/\r?\n/g, '<br>').replace(/\|/g, '\\|');
+		return value.replace(/[\\|]/g, '\\$&').replace(/\r?\n/g, '<br>');
 	}
 
 	setUpdateAvailable(showUpdateBanner: boolean): void {
@@ -2240,12 +2333,12 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 		return this._hideToolbarInScreenshots;
 	}
 
-	/** Re-parent the floating bar into the wizard's current window. */
+	/** Keep capture controls in the originating workbench window. */
 	reparentFloatingBar(): void {
 		if (!this.floatingBar) {
 			return;
 		}
-		const targetWindow = getWindow(this.container);
+		const targetWindow = getWindow(this.captureContainer);
 		// Mount inside .monaco-workbench so theme CSS vars cascade. Fall back to
 		// document.body when no workbench root is present (shouldn't happen in
 		// practice but keeps the bar visible regardless).
@@ -2269,61 +2362,59 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 			this.data.enabledExtensions = newData.allExtensions as IssueReporterExtensionData[];
 			this.updateExtensionOptions();
 			this.updateIssueSourceFlags();
+			this.updateIssueSourceButtons();
 		}
-		// Refresh review details if we're on the review step (async data may have arrived)
-		if (this.currentStep === WizardStep.Review) {
-			this.updateReviewDetails();
-		}
+		this.updateDiagnostics();
+		this.updatePreviewButton();
 	}
 
 	/** Called once performance info has resolved; suppresses "Loading…" placeholders. */
 	markPerformanceInfoLoaded(): void {
 		this.performanceInfoLoaded = true;
-		if (this.currentStep === WizardStep.Review) {
-			this.updateReviewDetails();
-			// Re-enable the Preview button now that diagnostics are ready.
-			this.updateStepUI();
-		}
+		this.updateDiagnostics();
+		this.updatePreviewButton();
 	}
 
 	hasUnsavedChanges(): boolean {
+		if (!this.hasUserInput()) {
+			return false;
+		}
+		if (this.hasPendingOperations()) {
+			return true;
+		}
 		if (this.previewOpened && this.previewedDraftKey === this.getDraftKey()) {
 			return false;
 		}
-		return this.hasUserInput();
+		return true;
+	}
+
+	hasPendingOperations(): boolean {
+		return this.uploading || this.pendingAttachmentImports > 0 || this.screenshotCapturePending || this.delayedScreenshotPending
+			|| this.recordingSlotReserved || this.currentRecordingState === RecordingState.Recording;
 	}
 
 	private hasUserInput(): boolean {
-		return !!(
-			this.hasDescriptionContent() ||
-			this.titleInput.value.trim() ||
-			this.selectedIssueType !== undefined ||
-			this.screenshots.length > 0 ||
-			this.recordings.length > 0
-		);
+		return this.input.hasContentChanges || this.getOccupiedAttachmentSlots() > 0;
 	}
 
 	markPreviewOpened(): void {
 		this.previewOpened = true;
-		this.previewedDraftKey = this.getDraftKey();
-		this.updateStepUI();
+		this.previewedDraftKey = this.submittedDraftKey ?? this.getDraftKey();
+		this.updatePreviewButton();
 	}
 
 	private getDraftKey(): string {
 		return JSON.stringify({
 			title: this.titleInput.value.trim(),
-			description: this.descriptionTextarea.value.trim(),
+			description: this.descriptionInput.value.trim(),
 			issueType: this.selectedIssueType,
 			issueSource: this.selectedIssueSource,
+			issueTarget: this.getIssueTargetUrl(),
 			extensionId: this.selectedExtension?.id,
-			includeSystemInfo: this.includeSystemInfo,
-			includeProcessInfo: this.includeProcessInfo,
-			includeWorkspaceInfo: this.includeWorkspaceInfo,
-			includeExtensions: this.includeExtensions,
-			includeExperiments: this.includeExperiments,
-			includeExtensionData: this.includeExtensionData,
-			screenshots: this.screenshots.map(screenshot => screenshot.annotatedDataUrl ?? screenshot.dataUrl),
-			recordings: this.recordings.map(recording => recording.filePath),
+			...this.getDiagnosticOptions(),
+			attachments: this.getAttachments().map(attachment => attachment.kind === 'screenshot'
+				? attachment.screenshot.annotatedDataUrl ?? attachment.screenshot.dataUrl
+				: attachment.file.filePath),
 		});
 	}
 
@@ -2346,7 +2437,7 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 	/** Show a "Close" button next to the submit button after successful submission */
 	showCloseButton(): void {
 		// Add close button next to the existing preview button
-		const nav = this.nextButton.element.parentElement;
+		const nav = this.previewButton.element.parentElement;
 		// eslint-disable-next-line no-restricted-syntax
 		if (nav && !nav.querySelector('.wizard-close-btn')) {
 			this.closeButton = this.disposables.add(new Button(nav, { ...defaultButtonStyles, secondary: true }));
@@ -2356,11 +2447,30 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 				this._onDidClose.fire();
 			}));
 		}
-		this.updateStepUI();
+		this.updatePreviewButton();
+	}
+
+	reserveRecordingSlot(): boolean {
+		if (this.disposed || this.uploading || this.recordingSlotReserved || this.currentRecordingState === RecordingState.Recording || this.getOccupiedAttachmentSlots() >= MAX_ATTACHMENTS) {
+			return false;
+		}
+		if (!this.reserveAttachment('recording')) {
+			return false;
+		}
+		this.updateAttachmentButtons();
+		return true;
 	}
 
 	setRecordingState(state: RecordingState): void {
 		this.currentRecordingState = state;
+		if (state === RecordingState.Recording && !this.recordingSlotReserved) {
+			this.reserveAttachment('recording');
+		} else if (state === RecordingState.Idle) {
+			const reservation = this.getPendingAttachment('recording');
+			if (reservation) {
+				this.attachments.splice(this.attachments.indexOf(reservation), 1);
+			}
+		}
 
 		if (state === RecordingState.Recording) {
 			this.recordingStartTime = Date.now();
@@ -2381,7 +2491,7 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 				this.captureStripRecordBtn.label = makeLabel();
 			}
 
-			this.recordingElapsedTimer = getWindow(this.container).setInterval(() => {
+			this.recordingElapsedTimer = getWindow(this.captureContainer).setInterval(() => {
 				if (this.captureStripRecordBtn) {
 					this.captureStripRecordBtn.label = makeLabel();
 				}
@@ -2389,7 +2499,7 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 		} else {
 			// Back to idle
 			if (this.recordingElapsedTimer !== undefined) {
-				getWindow(this.container).clearInterval(this.recordingElapsedTimer);
+				getWindow(this.captureContainer).clearInterval(this.recordingElapsedTimer);
 				this.recordingElapsedTimer = undefined;
 			}
 
@@ -2404,30 +2514,29 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 		this.updateAttachmentButtons();
 	}
 
-	addRecording(filePath: string, durationMs: number, thumbnailDataUrl?: string): void {
-		this.recordings.push({ filePath, durationMs, thumbnailDataUrl });
+	addRecording(attachment: IIssueReporterFileAttachment): boolean {
+		const reservation = this.getPendingAttachment('recording') ?? this.reserveAttachment('recording');
+		if (this.disposed || !reservation) {
+			return false;
+		}
+		this.attachments[this.attachments.indexOf(reservation)] = { id: reservation.id, kind: 'file', file: attachment };
+		this.attachmentsChanged();
+		return true;
+	}
+
+	private attachmentsChanged(): void {
+		this.setAttachmentUploadError(undefined);
 		this.updateAttachmentViews();
 		this.updateAttachmentButtons();
-		this.updateStepUI();
+		this.updatePreviewButton();
+		this._onDidChangeAttachments.fire();
 	}
 
 	private updateAttachmentViews(): void {
 		this.updateScreenshotThumbnails();
-		if (this.currentStep === WizardStep.Review) {
-			this.updateReviewDetails();
-		}
 	}
 
-	/**
-	 * Trigger a screenshot capture as if the user clicked the screenshot button
-	 * on the floating capture bar. The floating bar is mounted at the workbench
-	 * root and the button is enabled regardless of the current wizard step, so
-	 * the shortcut works from any step without changing it. The existing
-	 * capture flow opens the annotation editor and re-activates the issue
-	 * reporter editor when the screenshot is added.
-	 *
-	 * No-op when the capture button is disabled (e.g. at the attachment limit).
-	 */
+	/** Capture and annotate a screenshot when a slot is available. */
 	triggerCaptureScreenshot(): void {
 		const btn = this.captureStripCaptureBtn;
 		if (!btn?.enabled) {
@@ -2436,11 +2545,7 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 		btn.element.click();
 	}
 
-	/**
-	 * Toggle screen recording on/off as if the user clicked the record button.
-	 * Works from any step without changing it. No-op when recording isn't
-	 * supported or the record button is disabled.
-	 */
+	/** Toggle recording when supported and a slot is available. */
 	triggerToggleRecording(): void {
 		if (!this.recordingSupported) {
 			return;
@@ -2459,19 +2564,23 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 	}
 
 	dispose(): void {
+		this.disposed = true;
+		this.input.saveDescriptionScrollPosition(this.descriptionContainer);
+		this.attachments.splice(0, this.attachments.length, ...this.getAttachments());
+		this.attachmentCards.clear();
+		this.diagnosticControls.clear();
 		if (this.recordingElapsedTimer !== undefined) {
-			getWindow(this.container).clearInterval(this.recordingElapsedTimer);
+			getWindow(this.captureContainer).clearInterval(this.recordingElapsedTimer);
 		}
-		this.reviewRenderDisposables.dispose();
-		this.similarIssuesDisposables.dispose();
+		this.descriptionGuidanceDisposables.dispose();
 		this.disposables.dispose();
 		this._onDidClose.dispose();
 		this._onDidSubmit.dispose();
 		this._onDidRequestScreenshot.dispose();
 		this._onDidRequestStartRecording.dispose();
 		this._onDidRequestStopRecording.dispose();
-		this._onDidRequestOpenRecording.dispose();
-		this._onDidRequestOpenScreenshot.dispose();
+		this._onDidRequestOpenFile.dispose();
+		this._onDidChangeAttachments.dispose();
 		this._onDidRequestGenerateTitle.dispose();
 	}
 }

@@ -95,6 +95,7 @@ export class ToolGrouping implements IToolGrouping {
 		}
 
 		tool.isExpanded = true;
+		tool.lastUsedOnTurn = this._turnNo;
 		return new LanguageModelToolResult([
 			new LanguageModelTextPart(`Tools activated: ${[...tool.tools()].map(t => t.name).join(', ')}`),
 		]);

@@ -34,6 +34,7 @@ import type { IProgressState } from '@xterm/addon-progress';
 import type { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import type { TerminalEditorInput } from './terminalEditorInput.js';
 import type { MaybePromise } from '../../../../base/common/async.js';
+import type { IAction } from '../../../../base/common/actions.js';
 import { isNumber, type SingleOrMany } from '../../../../base/common/types.js';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
@@ -122,12 +123,41 @@ export interface IAhpTerminalCommandSource extends IDisposable {
 export interface IChatTerminalToolProgressPart {
 	readonly elementIndex: number;
 	readonly contentIndex: number;
+	readonly terminalToolSessionId: string | undefined;
+	/** Opens the complete output associated with this progress part, when available. */
+	readonly fullOutputAction?: IAction;
 	focusTerminal(): Promise<void>;
 	toggleOutputFromKeyboard(): Promise<void>;
 	toggleOutputFromAction(): Promise<void>;
 	continueInBackground(): void;
+	didRegisterOutputSource(terminalToolSessionId: string): void;
+	markContinuedInBackground(): void;
 	focusOutput(): void;
 	getCommandAndOutputAsText(): string | undefined;
+}
+
+/** Where the retained output of a {@link IChatTerminalOutputSource} sits in its stream. */
+export interface IChatTerminalOutputPosition {
+	/** Changes whenever the output is replaced rather than appended to. Sources never share one, so a renderer that switches sources starts over. */
+	readonly generation: number;
+	/** How many characters of the stream were dropped before the retained output. */
+	readonly start: number;
+}
+
+/** A read-only output stream rendered by chat without a workbench terminal instance. */
+export interface IChatTerminalOutputSource {
+	readonly onDidChange: Event<void>;
+	/** The retained output. Once the stream outgrows the retention limit, its oldest output is dropped. */
+	readonly output: string;
+	/** Lets a renderer that already shows earlier output write only what was appended since. */
+	readonly outputPosition: IChatTerminalOutputPosition;
+	/**
+	 * Whether the underlying command has finished. A command can exit without
+	 * reporting an {@link exitCode}, so completion must be read from here
+	 * rather than inferred from the code being present.
+	 */
+	readonly hasExited: boolean;
+	readonly exitCode: number | undefined;
 }
 
 export interface ITerminalChatService {
@@ -200,6 +230,9 @@ export interface ITerminalChatService {
 	 * @returns True if the terminal is a background terminal, false otherwise
 	 */
 	isBackgroundTerminal(terminalToolSessionId?: string): boolean;
+
+	registerOutputSource(terminalToolSessionId: string, source: IChatTerminalOutputSource): IDisposable;
+	getOutputSource(terminalToolSessionId: string | undefined): IChatTerminalOutputSource | undefined;
 
 	/**
 	 * Register a chat terminal tool progress part for tracking and focus management.
@@ -280,7 +313,7 @@ export interface ITerminalChatService {
 	 * @param source The AHP command source
 	 * @returns A disposable that unregisters the source when disposed
 	 */
-	registerAhpCommandSource(terminalToolSessionId: string, source: IAhpTerminalCommandSource): IDisposable;
+	registerAhpCommandSource(terminalToolSessionId: string, source: IAhpTerminalCommandSource, promisedTerminal: Promise<ITerminalInstance>): IDisposable;
 
 	/**
 	 * Retrieve the AHP command source for a given tool session.
@@ -404,6 +437,8 @@ export interface IDetachedXTermOptions {
 	readonly?: boolean;
 	processInfo: ITerminalProcessInfo;
 	disableOverviewRuler?: boolean;
+	/** The rows of scrollback to keep, overriding the `terminal.integrated.scrollback` setting. */
+	scrollback?: number;
 }
 
 /**
@@ -974,7 +1009,16 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	readonly onIconChanged: Event<{ instance: ITerminalInstance; userInitiated: boolean }>;
 
 	/**
-	 * An event that fires when the terminal instance is disposed.
+	 * An event that fires just before the terminal instance is disposed, while `xterm.js` and
+	 * other instance-owned resources are still alive. Subscribe here if you need to clean up
+	 * state that depends on those resources (e.g. xterm.js addons). For "the instance is gone"
+	 * notifications, use {@link onDisposed} instead.
+	 */
+	readonly onWillDispose: Event<ITerminalInstance>;
+
+	/**
+	 * An event that fires when the terminal instance is disposed, after `xterm.js` has been
+	 * disposed.
 	 */
 	readonly onDisposed: Event<ITerminalInstance>;
 
@@ -1317,7 +1361,8 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	/**
 	 * Sets or triggers a quick pick to change the icon of this terminal.
 	 */
-	changeIcon(icon?: TerminalIcon): Promise<TerminalIcon | undefined>;
+	/** `null` resets the icon; `undefined` opens the picker or reports cancellation. */
+	changeIcon(icon?: TerminalIcon | null): Promise<TerminalIcon | null | undefined>;
 
 	/**
 	 * Sets or triggers a quick pick to change the color of the associated terminal tab icon.

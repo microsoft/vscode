@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { mkdirSync } from 'fs';
+import * as l10n from '@vscode/l10n';
+import { mkdirSync, rmSync } from 'fs';
 import { DatabaseSync } from 'node:sqlite';
 import { dirname } from 'path';
-import type { CheckpointRow, FileRow, ISessionStore, RefRow, SearchResult, SessionRow, TurnRow } from '../common/sessionStore';
+import type { CheckpointRow, FileRow, ISessionStore, RefRow, SearchResult, SessionRow, SessionStoreOptions, TurnRow } from '../common/sessionStore';
 
 /**
  * SQLite authorizer action codes that are safe for read-only access.
@@ -34,8 +35,33 @@ const READ_ONLY_ACTION_CODES = new Set([
  */
 const DENIED_FUNCTIONS = new Set(['load_extension']);
 
+// The extension's Node typings predate the SQLite authorizer API.
+type DatabaseWithAuthorizer = DatabaseSync & {
+	setAuthorizer?: (callback: ((actionCode: number, arg1: string | null, arg2: string | null) => number) | null) => void;
+};
+
 /** Schema version — bump when altering tables so existing DBs get migrated. */
 const SCHEMA_VERSION = 3;
+
+/**
+ * Substrings (matched case-insensitively) that identify a corrupt or otherwise
+ * unusable database file. These typically appear on non-POSIX network
+ * filesystems (NFS/SMB/sshfs) used by SSH-Remote workspaces, where SQLite's
+ * locking protocol is not honoured and the file can become permanently
+ * malformed.
+ */
+const CORRUPTION_ERROR_MARKERS = [
+	'malformed',
+	'file is not a database',
+	'not a database',
+	'disk image',
+	'disk i/o error',
+];
+
+function errorMessageIncludes(err: unknown, markers: readonly string[]): boolean {
+	const message = (err instanceof Error ? err.message : String(err)).toLowerCase();
+	return markers.some(marker => message.includes(marker));
+}
 
 /**
  * Session store backed by SQLite + FTS5.
@@ -48,9 +74,15 @@ export class SessionStore implements ISessionStore {
 	declare readonly _serviceBrand: undefined;
 	private db: DatabaseSync | null = null;
 	private readonly dbPath: string;
+	private readonly remote: boolean;
 
-	constructor(dbPath: string) {
+	constructor(
+		dbPath: string,
+		options?: SessionStoreOptions,
+		private readonly createDatabase: (path: string) => DatabaseSync = path => new DatabaseSync(path, { allowExtension: false }),
+	) {
 		this.dbPath = dbPath;
+		this.remote = options?.remote ?? false;
 	}
 
 	/**
@@ -62,20 +94,52 @@ export class SessionStore implements ISessionStore {
 
 	/**
 	 * Lazily open (or create) the database and ensure the schema exists.
+	 *
+	 * On remote workspaces the database often lives on a network filesystem
+	 * (NFS/SMB/sshfs) that does not provide the POSIX locking guarantees WAL
+	 * mode relies on. If the file is detected to be corrupt it is deleted and
+	 * recreated once before giving up.
 	 */
 	private ensureDb(): DatabaseSync {
 		if (this.db) {
 			return this.db;
 		}
 
+		try {
+			return this.openDb();
+		} catch (err) {
+			// A corrupt on-disk database is unrecoverable in place. Delete it and
+			// the WAL/SHM sidecar files, then try once more with a fresh file.
+			if (this.dbPath !== ':memory:' && errorMessageIncludes(err, CORRUPTION_ERROR_MARKERS)) {
+				this.deleteDbFiles();
+				return this.openDb();
+			}
+			throw err;
+		}
+	}
+
+	/**
+	 * Open the database, configure pragmas and ensure the schema exists.
+	 */
+	private openDb(): DatabaseSync {
 		if (this.dbPath !== ':memory:') {
+			// eslint-disable-next-line local/code-no-sync-fs -- TODO: introduce awaited database initialization; ensureDb callers expect a usable DatabaseSync immediately and its parent directory must already exist.
 			mkdirSync(dirname(this.dbPath), { recursive: true });
 		}
 
-		const db = new DatabaseSync(this.dbPath);
+		const db = this.createDatabase(this.dbPath);
 		try {
-			db.exec('PRAGMA journal_mode = WAL');
-			db.exec('PRAGMA busy_timeout = 3000');
+			if (this.remote) {
+				// WAL requires shared-memory (-shm) plus POSIX byte-range locking,
+				// neither of which network filesystems reliably provide. A rollback
+				// journal with a longer busy timeout is far more robust there.
+				db.exec('PRAGMA journal_mode = DELETE');
+				db.exec('PRAGMA busy_timeout = 10000');
+				db.exec('PRAGMA synchronous = NORMAL');
+			} else {
+				db.exec('PRAGMA journal_mode = WAL');
+				db.exec('PRAGMA busy_timeout = 3000');
+			}
 			db.exec('PRAGMA foreign_keys = ON');
 			this.db = db;
 			this.ensureSchema();
@@ -85,6 +149,16 @@ export class SessionStore implements ISessionStore {
 			throw err;
 		}
 		return this.db;
+	}
+
+	/**
+	 * Best-effort deletion of the database file and its WAL/SHM sidecar files.
+	 */
+	private deleteDbFiles(): void {
+		for (const suffix of ['', '-wal', '-shm', '-journal']) {
+			// eslint-disable-next-line local/code-no-sync-fs -- TODO: introduce awaited corruption recovery; all database sidecars must be removed before the immediately following reopen attempt.
+			rmSync(this.dbPath + suffix, { force: true });
+		}
 	}
 
 	/**
@@ -463,38 +537,34 @@ export class SessionStore implements ISessionStore {
 
 	/**
 	 * Execute a read-only SQL query against the store.
-	 * When SQLite's authorizer API is available (Node.js 24.2+), installs a positive
-	 * action-code allowlist so the engine enforces read-only. When unavailable, runs the
-	 * prepared statement directly — callers MUST validate the SQL (allowlist + blocklist)
-	 * before calling this method.
+	 * Requires SQLite's authorizer API (Node.js 24.10+) and installs a positive
+	 * action-code allowlist before preparing SQL. Fails closed if enforcement is unavailable.
 	 */
 	executeReadOnly(sql: string): Record<string, unknown>[] {
-		const db = this.ensureDb();
+		const db: DatabaseWithAuthorizer = this.ensureDb();
 
-		const hasAuthorizer = typeof (db as DatabaseSync & { setAuthorizer?: unknown }).setAuthorizer === 'function';
-
-		if (hasAuthorizer) {
-			(db as DatabaseSync & { setAuthorizer: (cb: ((actionCode: number, p1: string | null) => number) | null) => void }).setAuthorizer((actionCode: number, p1: string | null) => {
-				if (actionCode === SQLITE_FUNCTION && p1 && DENIED_FUNCTIONS.has(p1.toLowerCase())) {
-					return SQLITE_DENY;
-				}
-				if (READ_ONLY_ACTION_CODES.has(actionCode)) {
-					return SQLITE_OK;
-				}
-				// FTS5 internally uses PRAGMA data_version to detect DB changes
-				if (actionCode === SQLITE_PRAGMA && p1 === 'data_version') {
-					return SQLITE_OK;
-				}
-				return SQLITE_DENY;
-			});
+		if (typeof db.setAuthorizer !== 'function') {
+			throw new Error(l10n.t('Local session SQL queries require SQLite authorizer support (Node.js 24.10+). Update the extension host runtime to query local session history.'));
 		}
+
+		db.setAuthorizer((actionCode, arg1, arg2) => {
+			if (actionCode === SQLITE_FUNCTION && arg2 && DENIED_FUNCTIONS.has(arg2.toLowerCase())) {
+				return SQLITE_DENY;
+			}
+			if (READ_ONLY_ACTION_CODES.has(actionCode)) {
+				return SQLITE_OK;
+			}
+			// FTS5 internally uses PRAGMA data_version to detect DB changes.
+			if (actionCode === SQLITE_PRAGMA && arg1?.toLowerCase() === 'data_version' && arg2 === null) {
+				return SQLITE_OK;
+			}
+			return SQLITE_DENY;
+		});
 
 		try {
 			return db.prepare(sql).all() as Record<string, unknown>[];
 		} finally {
-			if (hasAuthorizer) {
-				(db as DatabaseSync & { setAuthorizer: (cb: null) => void }).setAuthorizer(null);
-			}
+			db.setAuthorizer(null);
 		}
 	}
 
@@ -537,6 +607,10 @@ export class SessionStore implements ISessionStore {
 	 * Run a function inside a SQLite transaction (BEGIN/COMMIT/ROLLBACK).
 	 * All writes are batched into a single atomic commit, which is significantly
 	 * faster than auto-committing each individual INSERT.
+	 *
+	 * Transient lock contention is handled by SQLite's `busy_timeout` pragma; a
+	 * failed transaction propagates to the caller, which re-queues the writes for
+	 * the next flush rather than blocking here.
 	 */
 	runInTransaction(fn: () => void): void {
 		const db = this.ensureDb();
@@ -545,8 +619,20 @@ export class SessionStore implements ISessionStore {
 			fn();
 			db.exec('COMMIT');
 		} catch (err) {
-			db.exec('ROLLBACK');
+			this.rollbackQuietly(db);
 			throw err;
+		}
+	}
+
+	/**
+	 * Roll back the active transaction, swallowing the "no transaction is active"
+	 * error that occurs when the failure happened before BEGIN took effect.
+	 */
+	private rollbackQuietly(db: DatabaseSync): void {
+		try {
+			db.exec('ROLLBACK');
+		} catch {
+			// No active transaction to roll back — safe to ignore.
 		}
 	}
 

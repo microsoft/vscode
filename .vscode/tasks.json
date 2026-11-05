@@ -2,8 +2,120 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
-			"type": "npm",
-			"script": "watch-client-transpiled",
+			"label": "Install & Watch (Client)",
+			"detail": "Install dependencies, compile and watch VS Code core for fixing a bug or implementing a feature.",
+			"dependsOn": [
+				"Install Dependencies",
+				"Compile",
+				"Watch Client Transpile"
+			],
+			"dependsOrder": "sequence",
+			"problemMatcher": []
+		},
+		{
+			"label": "Run VS Code",
+			"detail": "Run VS Code with a user data directory inside the worktree.",
+			"type": "shell",
+			"command": "./scripts/code.sh",
+			"windows": {
+				"command": ".\\scripts\\code.bat"
+			},
+			"problemMatcher": []
+		},
+		{
+			"label": "Install & Watch (All)",
+			"detail": "Install dependencies and watch all of VS Code (core, extensions and copilot).",
+			"dependsOn": [
+				"Install Dependencies",
+				"Watch"
+			],
+			"dependsOrder": "sequence",
+			"problemMatcher": []
+		},
+		{
+			"label": "Install Dependencies",
+			"type": "shell",
+			"command": "pnpm install",
+			"windows": {
+				"command": "cmd /c \"pnpm install\""
+			},
+			"presentation": {
+				"reveal": "always",
+				"group": "session",
+				"close": false
+			},
+			"problemMatcher": []
+		},
+		{
+			"label": "Compile",
+			"type": "shell",
+			"command": "pnpm run compile",
+			"presentation": {
+				"reveal": "always",
+				"group": "session",
+				"close": false
+			},
+			"problemMatcher": "$tsc"
+		},
+		{
+			"label": "Build Fast",
+			"type": "shell",
+			"command": "pnpm run build-fast",
+			"windows": {
+				"command": "cmd /c \"pnpm run build-fast\""
+			},
+			"presentation": {
+				"reveal": "always",
+				"group": "session",
+				"close": false
+			},
+			"problemMatcher": []
+		},
+		{
+			"label": "Watch",
+			"type": "shell",
+			"command": "pnpm run watch",
+			"isBackground": true,
+			"presentation": {
+				"reveal": "always",
+				"group": "session",
+				"close": false
+			},
+			"problemMatcher": []
+		},
+		{
+			"label": "Watch Client Transpile",
+			"type": "shell",
+			"command": "pnpm run watch-client-transpile",
+			"isBackground": true,
+			"presentation": {
+				"reveal": "always",
+				"group": "session",
+				"close": false
+			},
+			"problemMatcher": {
+				"owner": "esbuild",
+				"applyTo": "closedDocuments",
+				"fileLocation": [
+					"relative",
+					"${workspaceFolder}/src"
+				],
+				"pattern": {
+					"regexp": "^(.+?):(\\d+):(\\d+): ERROR: (.+)$",
+					"file": 1,
+					"line": 2,
+					"column": 3,
+					"message": 4
+				},
+				"background": {
+					"beginsPattern": "Starting transpilation\\.\\.\\.",
+					"endsPattern": "Finished transpilation with"
+				}
+			}
+		},
+		{
+			"type": "shell",
+			"command": "pnpm run watch-client-transpiled",
 			"label": "Core - Transpile",
 			"isBackground": true,
 			"presentation": {
@@ -32,8 +144,8 @@
 			}
 		},
 		{
-			"type": "npm",
-			"script": "watch-clientd",
+			"type": "shell",
+			"command": "pnpm run watch-clientd",
 			"label": "Core - Typecheck",
 			"isBackground": true,
 			"presentation": {
@@ -63,8 +175,8 @@
 			}
 		},
 		{
-			"type": "npm",
-			"script": "watch-extensionsd",
+			"type": "shell",
+			"command": "pnpm run watch-extensionsd",
 			"label": "Ext - Build",
 			"isBackground": true,
 			"presentation": {
@@ -92,8 +204,8 @@
 			}
 		},
 		{
-			"type": "npm",
-			"script": "watch-copilotd",
+			"type": "shell",
+			"command": "pnpm run watch-copilotd",
 			"label": "Copilot - Build",
 			"isBackground": true,
 			"presentation": {
@@ -138,8 +250,8 @@
 			"problemMatcher": []
 		},
 		{
-			"type": "npm",
-			"script": "kill-watch-client-transpiled",
+			"type": "shell",
+			"command": "pnpm run kill-watch-client-transpiled",
 			"label": "Kill Core - Transpile",
 			"group": "build",
 			"presentation": {
@@ -150,8 +262,8 @@
 			"problemMatcher": "$tsc"
 		},
 		{
-			"type": "npm",
-			"script": "kill-watch-clientd",
+			"type": "shell",
+			"command": "pnpm run kill-watch-clientd",
 			"label": "Kill Core - Typecheck",
 			"group": "build",
 			"presentation": {
@@ -162,8 +274,8 @@
 			"problemMatcher": "$tsc"
 		},
 		{
-			"type": "npm",
-			"script": "kill-watch-extensionsd",
+			"type": "shell",
+			"command": "pnpm run kill-watch-extensionsd",
 			"label": "Kill Ext - Build",
 			"group": "build",
 			"presentation": {
@@ -174,8 +286,8 @@
 			"problemMatcher": "$tsc"
 		},
 		{
-			"type": "npm",
-			"script": "kill-watch-copilotd",
+			"type": "shell",
+			"command": "pnpm run kill-watch-copilotd",
 			"label": "Kill Copilot - Build",
 			"group": "build",
 			"presentation": {
@@ -207,10 +319,10 @@
 			"problemMatcher": []
 		},
 		{
-			"label": "Kill VS Code - Build, Npm, VS Code - Build",
+			"label": "Kill VS Code - Build, Install, VS Code - Build",
 			"dependsOn": [
 				"Kill VS Code - Build",
-				"npm: install",
+				"Install Dependencies",
 				"VS Code - Build"
 			],
 			"group": "build",
@@ -218,8 +330,8 @@
 			"problemMatcher": []
 		},
 		{
-			"type": "npm",
-			"script": "watch-webd",
+			"type": "shell",
+			"command": "pnpm run watch-webd",
 			"label": "Web Ext - Build",
 			"group": "build",
 			"isBackground": true,
@@ -245,8 +357,8 @@
 			}
 		},
 		{
-			"type": "npm",
-			"script": "kill-watch-webd",
+			"type": "shell",
+			"command": "pnpm run kill-watch-webd",
 			"label": "Kill Web Ext - Build",
 			"group": "build",
 			"presentation": {
@@ -268,57 +380,14 @@
 			}
 		},
 		{
-			"label": "Run Dev",
-			"type": "shell",
-			"command": "./scripts/code.sh",
-			"windows": {
-				"command": ".\\scripts\\code.bat"
-			},
-			"problemMatcher": []
-		},
-		{
-			"label": "Run Dev Agents",
-			"type": "shell",
-			"command": "./scripts/code.sh",
-			"windows": {
-				"command": ".\\scripts\\code.bat"
-			},
-			"args": [
-				"--agents",
-				"--user-data-dir=${userHome}/.vscode-oss-dev",
-				"--extensions-dir=${userHome}/.vscode-oss-dev/extensions"
-			],
-			"problemMatcher": []
-		},
-		{
 			"label": "Transpile Client",
-			"type": "npm",
-			"script": "transpile-client",
+			"type": "shell",
+			"command": "pnpm run transpile-client",
 			"problemMatcher": []
 		},
 		{
-			"label": "Run and Compile Agents - OSS",
-			"dependsOn": [
-				"Transpile Client",
-				"Run Dev Agents"
-			],
-			"dependsOrder": "sequence",
-			"inAgents": true,
-			"problemMatcher": []
-		},
-		{
-			"label": "Run and Compile Code - OSS",
-			"dependsOn": [
-				"Transpile Client",
-				"Run Dev"
-			],
-			"dependsOrder": "sequence",
-			"inAgents": true,
-			"problemMatcher": []
-		},
-		{
-			"type": "npm",
-			"script": "electron",
+			"type": "shell",
+			"command": "pnpm run electron",
 			"label": "Download electron"
 		},
 		{
@@ -382,8 +451,37 @@
 			}
 		},
 		{
-			"type": "npm",
-			"script": "eslint",
+			"label": "Run VS Code (Web)",
+			"detail": "Run the Agents window as a web client.",
+			"type": "shell",
+			"command": "./scripts/code-server.sh",
+			"windows": {
+				"command": ".\\scripts\\code-server.bat"
+			},
+			"args": [
+				"--connection-token",
+				"dev-token",
+				"--port",
+				"8080"
+			],
+			"isBackground": true,
+			"problemMatcher": {
+				"pattern": {
+					"regexp": ""
+				},
+				"background": {
+					"beginsPattern": ".*node .*",
+					"endsPattern": "Web UI available at .*"
+				}
+			},
+			"presentation": {
+				"reveal": "always"
+			}
+		},
+		{
+			"label": "eslint",
+			"type": "shell",
+			"command": "pnpm run eslint",
 			"problemMatcher": {
 				"source": "eslint",
 				"base": "$eslint-stylish"
@@ -399,8 +497,8 @@
 			}
 		},
 		{
-			"type": "npm",
-			"script": "tsec-compile-check",
+			"type": "shell",
+			"command": "pnpm run tsec-compile-check",
 			"problemMatcher": [
 				{
 					"base": "$tsc",
@@ -409,13 +507,13 @@
 				}
 			],
 			"group": "build",
-			"label": "npm: tsec-compile-check",
+			"label": "tsec-compile-check",
 			"detail": "node_modules/tsec/bin/tsec -p src/tsconfig.json --noEmit"
 		},
 		{
 			"label": "Launch Monaco Editor Vite",
 			"type": "shell",
-			"command": "npm run dev",
+			"command": "pnpm run dev",
 			"options": {
 				"cwd": "./build/vite/"
 			},
@@ -439,18 +537,108 @@
 			}
 		},
 		{
-			"label": "Launch MCP Server",
+			"label": "Run Code",
 			"type": "shell",
-			"command": "cd test/mcp && npm run compile && npm run start-http",
+			"command": "./scripts/code.sh",
+			"windows": {
+				"command": ".\\scripts\\code.bat"
+			},
+			"inAgents": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "Run Agents",
+			"type": "shell",
+			"command": "./scripts/code.sh",
+			"windows": {
+				"command": ".\\scripts\\code.bat"
+			},
+			"args": [
+				"--agents",
+				"--user-data-dir=${userHome}/.vscode-oss-dev",
+				"--extensions-dir=${userHome}/.vscode-oss-dev/extensions"
+			],
+			"inAgents": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "Build Fast & Run Code",
+			"dependsOn": [
+				"Build Fast",
+				"Run Code"
+			],
+			"dependsOrder": "sequence",
+			"problemMatcher": [],
+			"inAgents": true
+		},
+		{
+			"label": "Build Fast & Run Agents",
+			"dependsOn": [
+				"Build Fast",
+				"Run Agents"
+			],
+			"dependsOrder": "sequence",
+			"problemMatcher": [],
+			"inAgents": true
+		},
+		{
+			"label": "Install Dependencies & Build Fast",
+			"detail": "Install dependencies and build VS Code.",
+			"dependsOn": [
+				"Install Dependencies",
+				"Build Fast"
+			],
+			"dependsOrder": "sequence",
+			"inAgents": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "Install, Build Fast & Watch Client",
+			"detail": "Install dependencies, build VS Code, and watch client transpilation.",
+			"dependsOn": [
+				"Install Dependencies",
+				"Build Fast",
+				"Watch Client Transpile"
+			],
+			"dependsOrder": "sequence",
+			"inAgents": true,
+			"problemMatcher": []
+		},
+		{
+			"type": "shell",
+			"command": "pnpm run watch-client",
+			"label": "Watch Client",
 			"isBackground": true,
-			"problemMatcher": [
-				"$tsc"
-			]
+			"presentation": {
+				"reveal": "never",
+				"group": "buildWatchers",
+				"close": false
+			},
+			"problemMatcher": {
+				"owner": "typescript",
+				"applyTo": "closedDocuments",
+				"fileLocation": [
+					"relative",
+					"${workspaceFolder}"
+				],
+				"source": "ts",
+				"pattern": {
+					"regexp": "\\] (.+)\\(([\\d,]+)\\): error TS(\\d+): (.*)$",
+					"file": 1,
+					"location": 2,
+					"code": 3,
+					"message": 4
+				},
+				"background": {
+					"beginsPattern": "Starting compilation\\.\\.\\.",
+					"endsPattern": "Finished compilation with"
+				}
+			}
 		},
 		{
 			"label": "Component Explorer Server",
 			"type": "shell",
-			"command": "npx component-explorer serve -p ./test/componentFixtures/component-explorer.json -vv --kill-if-running",
+			"command": "pnpm exec component-explorer serve -p ./test/componentFixtures/component-explorer.json -vv --kill-if-running",
 			"isBackground": true,
 			"inAgents": true,
 			"problemMatcher": {
@@ -472,13 +660,9 @@
 		{
 			"label": "Install & Watch",
 			"type": "shell",
-			"command": "npm ci && npm run watch",
+			"command": "pnpm install && pnpm run watch-transpile",
 			"windows": {
-				"command": "cmd /c \"npm ci && npm run watch\""
-			},
-			"inAgents": true,
-			"runOptions": {
-				"runOn": "worktreeCreated"
+				"command": "cmd /c \"pnpm install && pnpm run watch-transpile\""
 			},
 			"presentation": {
 				"focus": false,
@@ -487,8 +671,8 @@
 		},
 		{
 			"label": "Serve Out (rspack)",
-			"type": "npm",
-			"script": "serve-out-rspack",
+			"type": "shell",
+			"command": "pnpm run serve-out-rspack",
 			"isBackground": true,
 			"problemMatcher": {
 				"owner": "rspack",

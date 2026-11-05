@@ -135,6 +135,7 @@ suite('RepoInfoTelemetry', () => {
 		// Properly mock the telemetry methods
 		(telemetryService as any).sendMSFTTelemetryEvent = vi.fn();
 		(telemetryService as any).sendInternalMSFTTelemetryEvent = vi.fn();
+		(telemetryService as any).sendEnhancedGHTelemetryEvent = vi.fn();
 	});
 
 	// ========================================
@@ -160,18 +161,7 @@ suite('RepoInfoTelemetry', () => {
 		mockGitExtensionWithUpstream('abc123');
 		mockGitDiffService([{ uri: '/test/repo/file.ts', diff: 'some diff' }]);
 
-		const repoTelemetry = new RepoInfoTelemetry(
-			'test-message-id',
-			telemetryService,
-			gitService,
-			gitDiffService,
-			gitExtensionService,
-			logService,
-			fileSystemService,
-			workspaceFileIndex,
-			configurationService,
-			copilotTokenStore
-		);
+		const repoTelemetry = createRepoInfoTelemetry();
 
 		await repoTelemetry.sendBeginTelemetryIfNeeded();
 		await repoTelemetry.sendEndTelemetry();
@@ -188,18 +178,7 @@ suite('RepoInfoTelemetry', () => {
 		mockGitExtensionWithUpstream('abc123');
 		mockGitDiffService([{ uri: '/test/repo/file.ts', diff: 'some diff' }]);
 
-		const repoTelemetry = new RepoInfoTelemetry(
-			'test-message-id',
-			telemetryService,
-			gitService,
-			gitDiffService,
-			gitExtensionService,
-			logService,
-			fileSystemService,
-			workspaceFileIndex,
-			configurationService,
-			copilotTokenStore
-		);
+		const repoTelemetry = createRepoInfoTelemetry();
 
 		await repoTelemetry.sendBeginTelemetryIfNeeded();
 
@@ -220,18 +199,7 @@ suite('RepoInfoTelemetry', () => {
 		mockGitExtensionWithUpstream('abc123');
 		mockGitDiffService([{ uri: '/test/repo/file.ts', diff: 'some diff' }]);
 
-		const repoTelemetry = new RepoInfoTelemetry(
-			'test-message-id',
-			telemetryService,
-			gitService,
-			gitDiffService,
-			gitExtensionService,
-			logService,
-			fileSystemService,
-			workspaceFileIndex,
-			configurationService,
-			copilotTokenStore
-		);
+		const repoTelemetry = createRepoInfoTelemetry();
 
 		await repoTelemetry.sendBeginTelemetryIfNeeded();
 		await repoTelemetry.sendBeginTelemetryIfNeeded();
@@ -247,18 +215,7 @@ suite('RepoInfoTelemetry', () => {
 		mockGitExtensionWithUpstream('abc123');
 		mockGitDiffService([{ uri: '/test/repo/file.ts', diff: 'some diff' }]);
 
-		const repoTelemetry = new RepoInfoTelemetry(
-			'test-message-id',
-			telemetryService,
-			gitService,
-			gitDiffService,
-			gitExtensionService,
-			logService,
-			fileSystemService,
-			workspaceFileIndex,
-			configurationService,
-			copilotTokenStore
-		);
+		const repoTelemetry = createRepoInfoTelemetry();
 
 		await repoTelemetry.sendBeginTelemetryIfNeeded();
 		await repoTelemetry.sendEndTelemetry();
@@ -279,18 +236,7 @@ suite('RepoInfoTelemetry', () => {
 		mockGitExtensionWithUpstream('abc123');
 		mockGitDiffService([{ uri: '/test/repo/file.ts', diff: 'some diff' }]);
 
-		const repoTelemetry = new RepoInfoTelemetry(
-			'test-message-id',
-			telemetryService,
-			gitService,
-			gitDiffService,
-			gitExtensionService,
-			logService,
-			fileSystemService,
-			workspaceFileIndex,
-			configurationService,
-			copilotTokenStore
-		);
+		const repoTelemetry = createRepoInfoTelemetry();
 
 		await repoTelemetry.sendBeginTelemetryIfNeeded();
 		await repoTelemetry.sendEndTelemetry();
@@ -313,18 +259,7 @@ suite('RepoInfoTelemetry', () => {
 		// Mock: no changes from upstream
 		vi.spyOn(gitService, 'diffWith').mockResolvedValue([]);
 
-		const repoTelemetry = new RepoInfoTelemetry(
-			'test-message-id',
-			telemetryService,
-			gitService,
-			gitDiffService,
-			gitExtensionService,
-			logService,
-			fileSystemService,
-			workspaceFileIndex,
-			configurationService,
-			copilotTokenStore
-		);
+		const repoTelemetry = createRepoInfoTelemetry();
 
 		await repoTelemetry.sendBeginTelemetryIfNeeded();
 		await repoTelemetry.sendEndTelemetry();
@@ -353,18 +288,7 @@ suite('RepoInfoTelemetry', () => {
 		}));
 		vi.spyOn(gitService, 'diffWith').mockResolvedValue(manyChanges as any);
 
-		const repoTelemetry = new RepoInfoTelemetry(
-			'test-message-id',
-			telemetryService,
-			gitService,
-			gitDiffService,
-			gitExtensionService,
-			logService,
-			fileSystemService,
-			workspaceFileIndex,
-			configurationService,
-			copilotTokenStore
-		);
+		const repoTelemetry = createRepoInfoTelemetry();
 
 		await repoTelemetry.sendBeginTelemetryIfNeeded();
 		await repoTelemetry.sendEndTelemetry();
@@ -386,18 +310,7 @@ suite('RepoInfoTelemetry', () => {
 		// Mock: no active repository
 		vi.spyOn(gitService.activeRepository, 'get').mockReturnValue(undefined);
 
-		const repoTelemetry = new RepoInfoTelemetry(
-			'test-message-id',
-			telemetryService,
-			gitService,
-			gitDiffService,
-			gitExtensionService,
-			logService,
-			fileSystemService,
-			workspaceFileIndex,
-			configurationService,
-			copilotTokenStore
-		);
+		const repoTelemetry = createRepoInfoTelemetry();
 
 		await repoTelemetry.sendBeginTelemetryIfNeeded();
 
@@ -413,18 +326,7 @@ suite('RepoInfoTelemetry', () => {
 		// Mock: no changes from upstream
 		vi.spyOn(gitService, 'diffWith').mockResolvedValue([]);
 
-		const repoTelemetry = new RepoInfoTelemetry(
-			'test-message-id',
-			telemetryService,
-			gitService,
-			gitDiffService,
-			gitExtensionService,
-			logService,
-			fileSystemService,
-			workspaceFileIndex,
-			configurationService,
-			copilotTokenStore
-		);
+		const repoTelemetry = createRepoInfoTelemetry();
 
 		await repoTelemetry.sendBeginTelemetryIfNeeded();
 
@@ -456,18 +358,7 @@ suite('RepoInfoTelemetry', () => {
 
 		mockGitExtensionWithUpstream('abc123', 'https://gitlab.com/user/repo.git');
 
-		const repoTelemetry = new RepoInfoTelemetry(
-			'test-message-id',
-			telemetryService,
-			gitService,
-			gitDiffService,
-			gitExtensionService,
-			logService,
-			fileSystemService,
-			workspaceFileIndex,
-			configurationService,
-			copilotTokenStore
-		);
+		const repoTelemetry = createRepoInfoTelemetry();
 
 		await repoTelemetry.sendBeginTelemetryIfNeeded();
 
@@ -504,18 +395,7 @@ suite('RepoInfoTelemetry', () => {
 		mockGitExtensionWithUpstream('abc123def456', 'https://dev.azure.com/myorg/myproject/_git/myrepo');
 		mockGitDiffService([{ uri: '/test/repo/file.ts', diff: 'some diff' }]);
 
-		const repoTelemetry = new RepoInfoTelemetry(
-			'test-message-id',
-			telemetryService,
-			gitService,
-			gitDiffService,
-			gitExtensionService,
-			logService,
-			fileSystemService,
-			workspaceFileIndex,
-			configurationService,
-			copilotTokenStore
-		);
+		const repoTelemetry = createRepoInfoTelemetry();
 
 		await repoTelemetry.sendBeginTelemetryIfNeeded();
 
@@ -559,18 +439,7 @@ suite('RepoInfoTelemetry', () => {
 		mockGitExtensionWithUpstream('abc123def456', sshUrl);
 		mockGitDiffService([{ uri: '/test/repo/file.ts', diff: 'some diff' }]);
 
-		const repoTelemetry = new RepoInfoTelemetry(
-			'test-message-id',
-			telemetryService,
-			gitService,
-			gitDiffService,
-			gitExtensionService,
-			logService,
-			fileSystemService,
-			workspaceFileIndex,
-			configurationService,
-			copilotTokenStore
-		);
+		const repoTelemetry = createRepoInfoTelemetry();
 
 		await repoTelemetry.sendBeginTelemetryIfNeeded();
 
@@ -588,18 +457,7 @@ suite('RepoInfoTelemetry', () => {
 		// Mock: no upstream commit
 		mockGitExtensionWithUpstream(undefined);
 
-		const repoTelemetry = new RepoInfoTelemetry(
-			'test-message-id',
-			telemetryService,
-			gitService,
-			gitDiffService,
-			gitExtensionService,
-			logService,
-			fileSystemService,
-			workspaceFileIndex,
-			configurationService,
-			copilotTokenStore
-		);
+		const repoTelemetry = createRepoInfoTelemetry();
 
 		await repoTelemetry.sendBeginTelemetryIfNeeded();
 
@@ -613,18 +471,7 @@ suite('RepoInfoTelemetry', () => {
 		mockGitExtensionWithUpstream('abc123def456');
 		mockGitDiffService([{ uri: '/test/repo/file.ts', diff: 'some diff' }]);
 
-		const repoTelemetry = new RepoInfoTelemetry(
-			'test-message-id',
-			telemetryService,
-			gitService,
-			gitDiffService,
-			gitExtensionService,
-			logService,
-			fileSystemService,
-			workspaceFileIndex,
-			configurationService,
-			copilotTokenStore
-		);
+		const repoTelemetry = createRepoInfoTelemetry();
 
 		await repoTelemetry.sendBeginTelemetryIfNeeded();
 
@@ -661,18 +508,7 @@ suite('RepoInfoTelemetry', () => {
 			}] as any;
 		});
 
-		const repoTelemetry = new RepoInfoTelemetry(
-			'test-message-id',
-			telemetryService,
-			gitService,
-			gitDiffService,
-			gitExtensionService,
-			logService,
-			fileSystemService,
-			workspaceFileIndex,
-			configurationService,
-			copilotTokenStore
-		);
+		const repoTelemetry = createRepoInfoTelemetry();
 
 		await repoTelemetry.sendBeginTelemetryIfNeeded();
 
@@ -703,18 +539,7 @@ suite('RepoInfoTelemetry', () => {
 			}] as any;
 		});
 
-		const repoTelemetry = new RepoInfoTelemetry(
-			'test-message-id',
-			telemetryService,
-			gitService,
-			gitDiffService,
-			gitExtensionService,
-			logService,
-			fileSystemService,
-			workspaceFileIndex,
-			configurationService,
-			copilotTokenStore
-		);
+		const repoTelemetry = createRepoInfoTelemetry();
 
 		await repoTelemetry.sendBeginTelemetryIfNeeded();
 
@@ -745,18 +570,7 @@ suite('RepoInfoTelemetry', () => {
 			}] as any;
 		});
 
-		const repoTelemetry = new RepoInfoTelemetry(
-			'test-message-id',
-			telemetryService,
-			gitService,
-			gitDiffService,
-			gitExtensionService,
-			logService,
-			fileSystemService,
-			workspaceFileIndex,
-			configurationService,
-			copilotTokenStore
-		);
+		const repoTelemetry = createRepoInfoTelemetry();
 
 		await repoTelemetry.sendBeginTelemetryIfNeeded();
 
@@ -792,18 +606,7 @@ suite('RepoInfoTelemetry', () => {
 			}];
 		});
 
-		const repoTelemetry = new RepoInfoTelemetry(
-			'test-message-id',
-			telemetryService,
-			gitService,
-			gitDiffService,
-			gitExtensionService,
-			logService,
-			fileSystemService,
-			workspaceFileIndex,
-			configurationService,
-			copilotTokenStore
-		);
+		const repoTelemetry = createRepoInfoTelemetry();
 
 		await repoTelemetry.sendBeginTelemetryIfNeeded();
 
@@ -820,18 +623,7 @@ suite('RepoInfoTelemetry', () => {
 		mockGitExtensionWithUpstream('abc123');
 		mockGitDiffService([]);
 
-		const repoTelemetry = new RepoInfoTelemetry(
-			'test-message-id',
-			telemetryService,
-			gitService,
-			gitDiffService,
-			gitExtensionService,
-			logService,
-			fileSystemService,
-			workspaceFileIndex,
-			configurationService,
-			copilotTokenStore
-		);
+		const repoTelemetry = createRepoInfoTelemetry();
 
 		await repoTelemetry.sendBeginTelemetryIfNeeded();
 
@@ -858,18 +650,7 @@ suite('RepoInfoTelemetry', () => {
 			return '';
 		});
 
-		const repoTelemetry = new RepoInfoTelemetry(
-			'test-message-id',
-			telemetryService,
-			gitService,
-			gitDiffService,
-			gitExtensionService,
-			logService,
-			fileSystemService,
-			workspaceFileIndex,
-			configurationService,
-			copilotTokenStore
-		);
+		const repoTelemetry = createRepoInfoTelemetry();
 
 		await repoTelemetry.sendBeginTelemetryIfNeeded();
 
@@ -896,18 +677,7 @@ suite('RepoInfoTelemetry', () => {
 			return '';
 		});
 
-		const repoTelemetry = new RepoInfoTelemetry(
-			'test-message-id',
-			telemetryService,
-			gitService,
-			gitDiffService,
-			gitExtensionService,
-			logService,
-			fileSystemService,
-			workspaceFileIndex,
-			configurationService,
-			copilotTokenStore
-		);
+		const repoTelemetry = createRepoInfoTelemetry();
 
 		await repoTelemetry.sendBeginTelemetryIfNeeded();
 
@@ -926,18 +696,7 @@ suite('RepoInfoTelemetry', () => {
 		const mockRepo = mockApi!.getRepository(URI.file('/test/repo'))!;
 		vi.spyOn(mockRepo, 'getConfig').mockRejectedValue(new Error('git config failed'));
 
-		const repoTelemetry = new RepoInfoTelemetry(
-			'test-message-id',
-			telemetryService,
-			gitService,
-			gitDiffService,
-			gitExtensionService,
-			logService,
-			fileSystemService,
-			workspaceFileIndex,
-			configurationService,
-			copilotTokenStore
-		);
+		const repoTelemetry = createRepoInfoTelemetry();
 
 		await repoTelemetry.sendBeginTelemetryIfNeeded();
 
@@ -963,18 +722,7 @@ suite('RepoInfoTelemetry', () => {
 			Array.from({ length: 30 }, (_, i) => ({ hash: `commit${i}`, message: `msg${i}` })) as any
 		);
 
-		const repoTelemetry = new RepoInfoTelemetry(
-			'test-message-id',
-			telemetryService,
-			gitService,
-			gitDiffService,
-			gitExtensionService,
-			logService,
-			fileSystemService,
-			workspaceFileIndex,
-			configurationService,
-			copilotTokenStore
-		);
+		const repoTelemetry = createRepoInfoTelemetry();
 
 		await repoTelemetry.sendBeginTelemetryIfNeeded();
 
@@ -998,18 +746,7 @@ suite('RepoInfoTelemetry', () => {
 			Array.from({ length: 5 }, (_, i) => ({ hash: `commit${i}`, message: `msg${i}` })) as any
 		);
 
-		const repoTelemetry = new RepoInfoTelemetry(
-			'test-message-id',
-			telemetryService,
-			gitService,
-			gitDiffService,
-			gitExtensionService,
-			logService,
-			fileSystemService,
-			workspaceFileIndex,
-			configurationService,
-			copilotTokenStore
-		);
+		const repoTelemetry = createRepoInfoTelemetry();
 
 		await repoTelemetry.sendBeginTelemetryIfNeeded();
 
@@ -1028,18 +765,7 @@ suite('RepoInfoTelemetry', () => {
 		const mockRepo = mockApi!.getRepository(URI.file('/test/repo'))!;
 		vi.spyOn(mockRepo, 'log').mockRejectedValue(new Error('git log failed'));
 
-		const repoTelemetry = new RepoInfoTelemetry(
-			'test-message-id',
-			telemetryService,
-			gitService,
-			gitDiffService,
-			gitExtensionService,
-			logService,
-			fileSystemService,
-			workspaceFileIndex,
-			configurationService,
-			copilotTokenStore
-		);
+		const repoTelemetry = createRepoInfoTelemetry();
 
 		await repoTelemetry.sendBeginTelemetryIfNeeded();
 
@@ -1068,18 +794,7 @@ suite('RepoInfoTelemetry', () => {
 
 		vi.spyOn(gitService, 'diffWith').mockResolvedValue(manyChanges as any);
 
-		const repoTelemetry = new RepoInfoTelemetry(
-			'test-message-id',
-			telemetryService,
-			gitService,
-			gitDiffService,
-			gitExtensionService,
-			logService,
-			fileSystemService,
-			workspaceFileIndex,
-			configurationService,
-			copilotTokenStore
-		);
+		const repoTelemetry = createRepoInfoTelemetry();
 
 		await repoTelemetry.sendBeginTelemetryIfNeeded();
 
@@ -1104,7 +819,7 @@ suite('RepoInfoTelemetry', () => {
 			status: Status.MODIFIED
 		}] as any);
 
-		// Create a diff that exceeds 900KB when serialized to JSON
+		// Create a diff that exceeds both the byte budget (900 KiB) and the character capacity (50 * 8192)
 		const largeDiff = 'x'.repeat(901 * 1024);
 		vi.spyOn(gitDiffService, 'getWorkingTreeDiffsFromRef').mockResolvedValue([{
 			uri: URI.file('/test/repo/file.ts'),
@@ -1114,18 +829,7 @@ suite('RepoInfoTelemetry', () => {
 			diff: largeDiff
 		}]);
 
-		const repoTelemetry = new RepoInfoTelemetry(
-			'test-message-id',
-			telemetryService,
-			gitService,
-			gitDiffService,
-			gitExtensionService,
-			logService,
-			fileSystemService,
-			workspaceFileIndex,
-			configurationService,
-			copilotTokenStore
-		);
+		const repoTelemetry = createRepoInfoTelemetry();
 
 		await repoTelemetry.sendBeginTelemetryIfNeeded();
 
@@ -1136,6 +840,120 @@ suite('RepoInfoTelemetry', () => {
 		assert.strictEqual(call[1].diffsJSON, undefined);
 		assert.strictEqual(call[1].remoteUrl, 'https://github.com/microsoft/vscode.git');
 		assert.strictEqual(call[1].headCommitHash, 'abc123');
+	});
+
+	test('should detect diffTooLarge via character capacity even when under the byte budget', async () => {
+		setupInternalUser();
+		mockGitServiceWithRepository();
+		mockGitExtensionWithUpstream('abc123');
+
+		vi.spyOn(gitService, 'diffWith').mockResolvedValue([{
+			uri: URI.file('/test/repo/file.ts'),
+			originalUri: URI.file('/test/repo/file.ts'),
+			renameUri: undefined,
+			status: Status.MODIFIED
+		}] as any);
+
+		// ASCII: ~500K chars = ~500KB bytes. Under the 900 KiB byte budget but over the 50 * 8192 (409600)
+		// character capacity, so it must still be rejected as diffTooLarge.
+		const largeDiff = 'x'.repeat(500 * 1024);
+		vi.spyOn(gitDiffService, 'getWorkingTreeDiffsFromRef').mockResolvedValue([{
+			uri: URI.file('/test/repo/file.ts'),
+			originalUri: URI.file('/test/repo/file.ts'),
+			renameUri: undefined,
+			status: Status.MODIFIED,
+			diff: largeDiff
+		}]);
+
+		const repoTelemetry = createRepoInfoTelemetry();
+
+		await repoTelemetry.sendBeginTelemetryIfNeeded();
+
+		const call = (telemetryService.sendInternalMSFTTelemetryEvent as any).mock.calls[0];
+		assert.strictEqual(call[1].result, 'diffTooLarge');
+		assert.strictEqual(call[1].diffsJSON, undefined);
+	});
+
+	test('should detect diffTooLarge via byte budget even when under the character capacity', async () => {
+		setupInternalUser();
+		mockGitServiceWithRepository();
+		mockGitExtensionWithUpstream('abc123');
+
+		vi.spyOn(gitService, 'diffWith').mockResolvedValue([{
+			uri: URI.file('/test/repo/file.ts'),
+			originalUri: URI.file('/test/repo/file.ts'),
+			renameUri: undefined,
+			status: Status.MODIFIED
+		}] as any);
+
+		// A 3-byte UTF-8 CJK character repeated ~350K times: ~1.05MB bytes (over the 900 KiB byte budget)
+		// but only ~350K characters (under the 50 * 8192 (409600) capacity), so it must be rejected via bytes.
+		const largeDiff = '\u4e2d'.repeat(350 * 1024);
+		vi.spyOn(gitDiffService, 'getWorkingTreeDiffsFromRef').mockResolvedValue([{
+			uri: URI.file('/test/repo/file.ts'),
+			originalUri: URI.file('/test/repo/file.ts'),
+			renameUri: undefined,
+			status: Status.MODIFIED,
+			diff: largeDiff
+		}]);
+
+		const repoTelemetry = createRepoInfoTelemetry();
+
+		await repoTelemetry.sendBeginTelemetryIfNeeded();
+
+		const call = (telemetryService.sendInternalMSFTTelemetryEvent as any).mock.calls[0];
+		assert.strictEqual(call[1].result, 'diffTooLarge');
+		assert.strictEqual(call[1].diffsJSON, undefined);
+	});
+
+	test('should chunk large diffs across multiple diffsJSON columns', async () => {
+		setupInternalUser();
+		mockGitServiceWithRepository();
+		mockGitExtensionWithUpstream('abc123');
+
+		vi.spyOn(gitService, 'diffWith').mockResolvedValue([{
+			uri: URI.file('/test/repo/file.ts'),
+			originalUri: URI.file('/test/repo/file.ts'),
+			renameUri: undefined,
+			status: Status.MODIFIED
+		}] as any);
+
+		// Create a diff whose serialized JSON spans several 8192-char chunks but stays within the cap.
+		const largeDiff = 'x'.repeat(30 * 1024);
+		vi.spyOn(gitDiffService, 'getWorkingTreeDiffsFromRef').mockResolvedValue([{
+			uri: URI.file('/test/repo/file.ts'),
+			originalUri: URI.file('/test/repo/file.ts'),
+			renameUri: undefined,
+			status: Status.MODIFIED,
+			diff: largeDiff
+		}]);
+
+		const repoTelemetry = createRepoInfoTelemetry();
+
+		await repoTelemetry.sendBeginTelemetryIfNeeded();
+
+		// Assert: success, and the diffs JSON is multiplexed (via multiplexProperties) across ordered
+		// columns (`diffsJSON`, `diffsJSON_02`, `diffsJSON_03`, ...) that each stay within the 8192-char
+		// per-property budget and losslessly reassemble to the original JSON.
+		const call = (telemetryService.sendEnhancedGHTelemetryEvent as any).mock.calls[0];
+		assert.strictEqual(call[1].result, 'success');
+
+		const chunkColumns: string[] = [];
+		for (let n = 1; ; n++) {
+			const key = n === 1 ? 'diffsJSON' : `diffsJSON_${n < 10 ? '0' : ''}${n}`;
+			const value = call[1][key];
+			if (value === undefined) {
+				break;
+			}
+			assert.ok(value.length <= 8192, `${key} exceeds 8192 characters`);
+			chunkColumns.push(value);
+		}
+
+		assert.ok(chunkColumns.length > 1, 'expected the diff to be split across multiple columns');
+
+		const diffs = JSON.parse(chunkColumns.join(''));
+		assert.strictEqual(diffs.length, 1);
+		assert.strictEqual(diffs[0].diff, largeDiff);
 	});
 
 	test('should send diff when within size limits', async () => {
@@ -1160,18 +978,7 @@ suite('RepoInfoTelemetry', () => {
 			diff: normalDiff
 		}]);
 
-		const repoTelemetry = new RepoInfoTelemetry(
-			'test-message-id',
-			telemetryService,
-			gitService,
-			gitDiffService,
-			gitExtensionService,
-			logService,
-			fileSystemService,
-			workspaceFileIndex,
-			configurationService,
-			copilotTokenStore
-		);
+		const repoTelemetry = createRepoInfoTelemetry();
 
 		await repoTelemetry.sendBeginTelemetryIfNeeded();
 
@@ -1236,18 +1043,7 @@ suite('RepoInfoTelemetry', () => {
 			}
 		]);
 
-		const repoTelemetry = new RepoInfoTelemetry(
-			'test-message-id',
-			telemetryService,
-			gitService,
-			gitDiffService,
-			gitExtensionService,
-			logService,
-			fileSystemService,
-			workspaceFileIndex,
-			configurationService,
-			copilotTokenStore
-		);
+		const repoTelemetry = createRepoInfoTelemetry();
 
 		await repoTelemetry.sendBeginTelemetryIfNeeded();
 
@@ -1283,18 +1079,7 @@ suite('RepoInfoTelemetry', () => {
 			diff: 'diff content'
 		}]);
 
-		const repoTelemetry = new RepoInfoTelemetry(
-			'test-message-id',
-			telemetryService,
-			gitService,
-			gitDiffService,
-			gitExtensionService,
-			logService,
-			fileSystemService,
-			workspaceFileIndex,
-			configurationService,
-			copilotTokenStore
-		);
+		const repoTelemetry = createRepoInfoTelemetry();
 
 		await repoTelemetry.sendBeginTelemetryIfNeeded();
 
@@ -1401,18 +1186,7 @@ suite('RepoInfoTelemetry', () => {
 			}
 		]);
 
-		const repoTelemetry = new RepoInfoTelemetry(
-			'test-message-id',
-			telemetryService,
-			gitService,
-			gitDiffService,
-			gitExtensionService,
-			logService,
-			fileSystemService,
-			workspaceFileIndex,
-			configurationService,
-			copilotTokenStore
-		);
+		const repoTelemetry = createRepoInfoTelemetry();
 
 		await repoTelemetry.sendBeginTelemetryIfNeeded();
 
@@ -1450,18 +1224,7 @@ suite('RepoInfoTelemetry', () => {
 		// Set a specific file count
 		(workspaceFileIndex as any).fileCount = 250;
 
-		const repoTelemetry = new RepoInfoTelemetry(
-			'test-message-id',
-			telemetryService,
-			gitService,
-			gitDiffService,
-			gitExtensionService,
-			logService,
-			fileSystemService,
-			workspaceFileIndex,
-			configurationService,
-			copilotTokenStore
-		);
+		const repoTelemetry = createRepoInfoTelemetry();
 
 		await repoTelemetry.sendBeginTelemetryIfNeeded();
 
@@ -1497,18 +1260,7 @@ suite('RepoInfoTelemetry', () => {
 			}))
 		);
 
-		const repoTelemetry = new RepoInfoTelemetry(
-			'test-message-id',
-			telemetryService,
-			gitService,
-			gitDiffService,
-			gitExtensionService,
-			logService,
-			fileSystemService,
-			workspaceFileIndex,
-			configurationService,
-			copilotTokenStore
-		);
+		const repoTelemetry = createRepoInfoTelemetry();
 
 		await repoTelemetry.sendBeginTelemetryIfNeeded();
 
@@ -1527,18 +1279,7 @@ suite('RepoInfoTelemetry', () => {
 		// Mock: no changes from upstream
 		vi.spyOn(gitService, 'diffWith').mockResolvedValue([]);
 
-		const repoTelemetry = new RepoInfoTelemetry(
-			'test-message-id',
-			telemetryService,
-			gitService,
-			gitDiffService,
-			gitExtensionService,
-			logService,
-			fileSystemService,
-			workspaceFileIndex,
-			configurationService,
-			copilotTokenStore
-		);
+		const repoTelemetry = createRepoInfoTelemetry();
 
 		await repoTelemetry.sendBeginTelemetryIfNeeded();
 
@@ -1557,18 +1298,7 @@ suite('RepoInfoTelemetry', () => {
 
 		(workspaceFileIndex as any).fileCount = 150;
 
-		const repoTelemetry = new RepoInfoTelemetry(
-			'test-message-id',
-			telemetryService,
-			gitService,
-			gitDiffService,
-			gitExtensionService,
-			logService,
-			fileSystemService,
-			workspaceFileIndex,
-			configurationService,
-			copilotTokenStore
-		);
+		const repoTelemetry = createRepoInfoTelemetry();
 
 		await repoTelemetry.sendBeginTelemetryIfNeeded();
 		await repoTelemetry.sendEndTelemetry();
@@ -1599,7 +1329,7 @@ suite('RepoInfoTelemetry', () => {
 			status: Status.MODIFIED
 		}] as any);
 
-		// Create a diff that exceeds 900KB when serialized to JSON
+		// Create a diff that exceeds both the byte budget (900 KiB) and the character capacity (50 * 8192)
 		const largeDiff = 'x'.repeat(901 * 1024);
 		vi.spyOn(gitDiffService, 'getWorkingTreeDiffsFromRef').mockResolvedValue([{
 			uri: URI.file('/test/repo/file.ts'),
@@ -1611,18 +1341,7 @@ suite('RepoInfoTelemetry', () => {
 
 		(workspaceFileIndex as any).fileCount = 200;
 
-		const repoTelemetry = new RepoInfoTelemetry(
-			'test-message-id',
-			telemetryService,
-			gitService,
-			gitDiffService,
-			gitExtensionService,
-			logService,
-			fileSystemService,
-			workspaceFileIndex,
-			configurationService,
-			copilotTokenStore
-		);
+		const repoTelemetry = createRepoInfoTelemetry();
 
 		await repoTelemetry.sendBeginTelemetryIfNeeded();
 
@@ -1652,18 +1371,7 @@ suite('RepoInfoTelemetry', () => {
 
 		(workspaceFileIndex as any).fileCount = 300;
 
-		const repoTelemetry = new RepoInfoTelemetry(
-			'test-message-id',
-			telemetryService,
-			gitService,
-			gitDiffService,
-			gitExtensionService,
-			logService,
-			fileSystemService,
-			workspaceFileIndex,
-			configurationService,
-			copilotTokenStore
-		);
+		const repoTelemetry = createRepoInfoTelemetry();
 
 		await repoTelemetry.sendBeginTelemetryIfNeeded();
 
@@ -1684,18 +1392,7 @@ suite('RepoInfoTelemetry', () => {
 		const testDiff = 'diff --git a/file.ts b/file.ts\n--- a/file.ts\n+++ b/file.ts\n@@ -1,1 +1,1 @@\n-old\n+new';
 		mockGitDiffService([{ uri: '/test/repo/file.ts', diff: testDiff }]);
 
-		const repoTelemetry = new RepoInfoTelemetry(
-			'test-message-id',
-			telemetryService,
-			gitService,
-			gitDiffService,
-			gitExtensionService,
-			logService,
-			fileSystemService,
-			workspaceFileIndex,
-			configurationService,
-			copilotTokenStore
-		);
+		const repoTelemetry = createRepoInfoTelemetry();
 
 		await repoTelemetry.sendBeginTelemetryIfNeeded();
 
@@ -1731,18 +1428,7 @@ suite('RepoInfoTelemetry', () => {
 		// Mock git diff to throw error
 		vi.spyOn(gitService, 'diffWith').mockRejectedValue(new Error('Git error'));
 
-		const repoTelemetry = new RepoInfoTelemetry(
-			'test-message-id',
-			telemetryService,
-			gitService,
-			gitDiffService,
-			gitExtensionService,
-			logService,
-			fileSystemService,
-			workspaceFileIndex,
-			configurationService,
-			copilotTokenStore
-		);
+		const repoTelemetry = createRepoInfoTelemetry();
 
 		// Should not throw
 		await repoTelemetry.sendBeginTelemetryIfNeeded();
@@ -1766,18 +1452,7 @@ suite('RepoInfoTelemetry', () => {
 		// Mock diff service to throw error
 		vi.spyOn(gitDiffService, 'getWorkingTreeDiffsFromRef').mockRejectedValue(new Error('Diff processing error'));
 
-		const repoTelemetry = new RepoInfoTelemetry(
-			'test-message-id',
-			telemetryService,
-			gitService,
-			gitDiffService,
-			gitExtensionService,
-			logService,
-			fileSystemService,
-			workspaceFileIndex,
-			configurationService,
-			copilotTokenStore
-		);
+		const repoTelemetry = createRepoInfoTelemetry();
 
 		// Should not throw
 		await repoTelemetry.sendBeginTelemetryIfNeeded();
@@ -1801,18 +1476,7 @@ suite('RepoInfoTelemetry', () => {
 			ConfigKey.TeamInternal.DisableRepoInfoTelemetry, true
 		);
 
-		const repoTelemetry = new RepoInfoTelemetry(
-			'test-message-id',
-			telemetryService,
-			gitService,
-			gitDiffService,
-			gitExtensionService,
-			logService,
-			fileSystemService,
-			workspaceFileIndex,
-			configurationService,
-			copilotTokenStore
-		);
+		const repoTelemetry = createRepoInfoTelemetry();
 
 		await repoTelemetry.sendBeginTelemetryIfNeeded();
 
@@ -1835,18 +1499,7 @@ suite('RepoInfoTelemetry', () => {
 			commitDate: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000), // 45 days ago
 		});
 
-		const repoTelemetry = new RepoInfoTelemetry(
-			'test-message-id',
-			telemetryService,
-			gitService,
-			gitDiffService,
-			gitExtensionService,
-			logService,
-			fileSystemService,
-			workspaceFileIndex,
-			configurationService,
-			copilotTokenStore
-		);
+		const repoTelemetry = createRepoInfoTelemetry();
 
 		await repoTelemetry.sendBeginTelemetryIfNeeded();
 
@@ -1865,18 +1518,7 @@ suite('RepoInfoTelemetry', () => {
 
 		// getCommit already returns a recent commit by default in the mock
 
-		const repoTelemetry = new RepoInfoTelemetry(
-			'test-message-id',
-			telemetryService,
-			gitService,
-			gitDiffService,
-			gitExtensionService,
-			logService,
-			fileSystemService,
-			workspaceFileIndex,
-			configurationService,
-			copilotTokenStore
-		);
+		const repoTelemetry = createRepoInfoTelemetry();
 
 		await repoTelemetry.sendBeginTelemetryIfNeeded();
 
@@ -1897,18 +1539,7 @@ suite('RepoInfoTelemetry', () => {
 		const mockRepo = mockApi!.getRepository(URI.file('/test/repo'))!;
 		(mockRepo as any).getCommit.mockRejectedValue(new Error('Failed to get commit'));
 
-		const repoTelemetry = new RepoInfoTelemetry(
-			'test-message-id',
-			telemetryService,
-			gitService,
-			gitDiffService,
-			gitExtensionService,
-			logService,
-			fileSystemService,
-			workspaceFileIndex,
-			configurationService,
-			copilotTokenStore
-		);
+		const repoTelemetry = createRepoInfoTelemetry();
 
 		await repoTelemetry.sendBeginTelemetryIfNeeded();
 
@@ -1933,18 +1564,7 @@ suite('RepoInfoTelemetry', () => {
 			commitDate: undefined,
 		});
 
-		const repoTelemetry = new RepoInfoTelemetry(
-			'test-message-id',
-			telemetryService,
-			gitService,
-			gitDiffService,
-			gitExtensionService,
-			logService,
-			fileSystemService,
-			workspaceFileIndex,
-			configurationService,
-			copilotTokenStore
-		);
+		const repoTelemetry = createRepoInfoTelemetry();
 
 		await repoTelemetry.sendBeginTelemetryIfNeeded();
 
@@ -1968,18 +1588,7 @@ suite('RepoInfoTelemetry', () => {
 			{ rootUri: repoBUri, remoteUrl: 'https://github.com/microsoft/typescript.git' },
 		], repoAUri);
 
-		const repoTelemetry = new RepoInfoTelemetry(
-			'test-message-id',
-			telemetryService,
-			gitService,
-			gitDiffService,
-			gitExtensionService,
-			logService,
-			fileSystemService,
-			workspaceFileIndex,
-			configurationService,
-			copilotTokenStore
-		);
+		const repoTelemetry = createRepoInfoTelemetry();
 
 		await repoTelemetry.sendBeginTelemetryIfNeeded();
 
@@ -2008,18 +1617,7 @@ suite('RepoInfoTelemetry', () => {
 		mockGitExtensionWithUpstream('abc123');
 		mockGitDiffService([{ uri: '/test/repo/file.ts', diff: 'some diff' }]);
 
-		const repoTelemetry = new RepoInfoTelemetry(
-			'test-message-id',
-			telemetryService,
-			gitService,
-			gitDiffService,
-			gitExtensionService,
-			logService,
-			fileSystemService,
-			workspaceFileIndex,
-			configurationService,
-			copilotTokenStore
-		);
+		const repoTelemetry = createRepoInfoTelemetry();
 
 		await repoTelemetry.sendBeginTelemetryIfNeeded();
 
@@ -2041,18 +1639,7 @@ suite('RepoInfoTelemetry', () => {
 			{ rootUri: repoBUri, remoteUrl: 'https://github.com/microsoft/typescript.git', changeCount: 101 },
 		], repoAUri);
 
-		const repoTelemetry = new RepoInfoTelemetry(
-			'test-message-id',
-			telemetryService,
-			gitService,
-			gitDiffService,
-			gitExtensionService,
-			logService,
-			fileSystemService,
-			workspaceFileIndex,
-			configurationService,
-			copilotTokenStore
-		);
+		const repoTelemetry = createRepoInfoTelemetry();
 
 		await repoTelemetry.sendBeginTelemetryIfNeeded();
 		await repoTelemetry.sendEndTelemetry();
@@ -2080,18 +1667,7 @@ suite('RepoInfoTelemetry', () => {
 		const activeRepoUri = repos[5].rootUri;
 		mockMultiRepoSetup(repos, activeRepoUri);
 
-		const repoTelemetry = new RepoInfoTelemetry(
-			'test-message-id',
-			telemetryService,
-			gitService,
-			gitDiffService,
-			gitExtensionService,
-			logService,
-			fileSystemService,
-			workspaceFileIndex,
-			configurationService,
-			copilotTokenStore
-		);
+		const repoTelemetry = createRepoInfoTelemetry();
 
 		await repoTelemetry.sendBeginTelemetryIfNeeded();
 
@@ -2113,6 +1689,21 @@ suite('RepoInfoTelemetry', () => {
 	// ========================================
 	// Helper Functions
 	// ========================================
+
+	function createRepoInfoTelemetry() {
+		return new RepoInfoTelemetry(
+			'test-message-id',
+			telemetryService,
+			gitService,
+			gitDiffService,
+			gitExtensionService,
+			logService,
+			fileSystemService,
+			workspaceFileIndex,
+			configurationService,
+			copilotTokenStore
+		);
+	}
 
 	function setupInternalUser() {
 		const internalToken = new CopilotToken(createTestExtendedTokenInfo({

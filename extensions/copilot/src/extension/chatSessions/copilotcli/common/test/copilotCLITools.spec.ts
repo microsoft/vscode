@@ -7,6 +7,8 @@ import { describe, expect, it } from 'vitest';
 import type { ChatPromptReference } from 'vscode';
 import { TestLogService } from '../../../../../platform/testing/common/testLogService';
 import { mock } from '../../../../../util/common/test/simpleMock';
+import { safeIntl } from '../../../../../util/vs/base/common/date';
+import { language } from '../../../../../util/vs/base/common/platform';
 import { URI } from '../../../../../util/vs/base/common/uri';
 import {
 	ChatRequestTurn2, ChatResponseMarkdownPart, ChatResponsePullRequestPart, ChatResponseThinkingProgressPart, ChatResponseTurn2, ChatToolInvocationPart, MarkdownString
@@ -111,6 +113,27 @@ describe('CopilotCLITools', () => {
 
 		it('formats fractional credits with one decimal place', () => {
 			expect(formatModelDetailsWithCredits('GPT 5.4', 16.31565)).toBe('GPT 5.4 \u2022 16.3 credits');
+		});
+
+		it('groups credit totals using the display language', () => {
+			const credits = [1000, 12268, 12268.4, 1234567.8];
+			const formatter = safeIntl.NumberFormat(language, { maximumFractionDigits: 1 }).value;
+			expect(credits.map(value => formatModelDetailsWithCredits('GPT 5.4', value))).toEqual(
+				credits.map(value => `GPT 5.4 \u2022 ${formatter.format(value)} credits`),
+			);
+		});
+
+		it('preserves fractional precision and pluralization with grouped credits', () => {
+			const integerFormatter = safeIntl.NumberFormat(language, { maximumFractionDigits: 0 }).value;
+			const fractionalFormatter = safeIntl.NumberFormat(language, { minimumFractionDigits: 1, maximumFractionDigits: 1 }).value;
+			expect([0, 1, 1.04, 2.55, 12268.04, 999.96].map(value => formatModelDetailsWithCredits('GPT 5.4', value))).toEqual([
+				`GPT 5.4 \u2022 ${integerFormatter.format(0)} credits`,
+				`GPT 5.4 \u2022 ${integerFormatter.format(1)} credit`,
+				`GPT 5.4 \u2022 ${fractionalFormatter.format(1)} credits`,
+				`GPT 5.4 \u2022 ${fractionalFormatter.format(2.5)} credits`,
+				`GPT 5.4 \u2022 ${fractionalFormatter.format(12268)} credits`,
+				`GPT 5.4 \u2022 ${fractionalFormatter.format(1000)} credits`,
+			]);
 		});
 	});
 

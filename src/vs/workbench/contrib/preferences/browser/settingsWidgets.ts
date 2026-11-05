@@ -457,10 +457,18 @@ export class ListSettingWidget<TListDataItem extends IListDataItem> extends Abst
 	private showAddButton: boolean = true;
 	private isEditable: boolean = true;
 
+	protected override get isReadOnly(): boolean {
+		return !this.isEditable;
+	}
+
 	override setValue(listData: TListDataItem[], options?: IListSetValueOptions) {
 		this.keyValueSuggester = options?.keySuggester;
 		this.isEditable = options?.isReadOnly === undefined ? true : !options.isReadOnly;
 		this.showAddButton = this.isEditable ? (options?.showAddButton ?? true) : false;
+		if (this.isReadOnly) {
+			this.model.setEditKey('none');
+			this.dragDetails = undefined;
+		}
 		super.setValue(listData);
 	}
 
@@ -534,6 +542,9 @@ export class ListSettingWidget<TListDataItem extends IListDataItem> extends Abst
 	}
 
 	protected addDragAndDrop(rowElement: HTMLElement, item: TListDataItem, idx: number) {
+		if (this.isReadOnly) {
+			return;
+		}
 		if (this.model.items.every(item => !item.editing)) {
 			rowElement.draggable = true;
 			rowElement.classList.add('draggable');
@@ -1417,7 +1428,7 @@ export class ObjectSettingCheckboxWidget extends AbstractListSettingWidget<IBool
 		const rowElementGroup = { rowElement, keyElement: valueElement, valueElement: checkbox.domNode };
 		this.addTooltipsToRow(rowElementGroup, item);
 
-		this._register(DOM.addDisposableListener(valueElement, DOM.EventType.MOUSE_DOWN, e => {
+		this.listDisposables.add(DOM.addDisposableListener(valueElement, DOM.EventType.MOUSE_DOWN, e => {
 			const targetElement = <HTMLElement>e.target;
 			if (targetElement.tagName.toLowerCase() !== 'a') {
 				checkbox.checked = !checkbox.checked;
@@ -1449,7 +1460,7 @@ export class ObjectSettingCheckboxWidget extends AbstractListSettingWidget<IBool
 		checkbox.domNode.classList.add('setting-value-checkbox');
 		wrapper.appendChild(checkbox.domNode);
 
-		this._register(DOM.addDisposableListener(wrapper, DOM.EventType.MOUSE_DOWN, e => {
+		this.listDisposables.add(DOM.addDisposableListener(wrapper, DOM.EventType.MOUSE_DOWN, e => {
 			checkbox.checked = !checkbox.checked;
 			onValueChange(checkbox.checked);
 

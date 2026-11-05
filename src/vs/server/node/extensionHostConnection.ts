@@ -40,12 +40,10 @@ export async function buildUserEnvironment(startParamsEnv: { [key: string]: stri
 	const env: IProcessEnvironment = {
 		...processEnv,
 		...userShellEnv,
-		...{
-			VSCODE_ESM_ENTRYPOINT: 'vs/workbench/api/node/extensionHostProcess',
-			VSCODE_HANDLES_UNCAUGHT_ERRORS: 'true',
-			VSCODE_NLS_CONFIG: JSON.stringify(nlsConfig)
-		},
-		...startParamsEnv
+		...startParamsEnv,
+		VSCODE_ESM_ENTRYPOINT: 'vs/workbench/api/node/extensionHostProcess',
+		VSCODE_HANDLES_UNCAUGHT_ERRORS: 'true',
+		VSCODE_NLS_CONFIG: JSON.stringify(nlsConfig)
 	};
 
 	const binFolder = environmentService.isBuilt ? join(environmentService.appRoot, 'bin') : join(environmentService.appRoot, 'resources', 'server', 'bin-dev');
@@ -257,6 +255,8 @@ export class ExtensionHostConnection extends Disposable {
 				];
 			}
 
+			this._log(`Starting extension host process...`);
+
 			const env = await buildUserEnvironment(startParams.env, true, startParams.language, this._environmentService, this._logService, this._configurationService);
 			removeDangerousEnvVariables(env);
 
@@ -329,10 +329,9 @@ export class ExtensionHostConnection extends Disposable {
 			}
 
 		} catch (error) {
-			console.error('ExtensionHostConnection errored');
-			if (error) {
-				console.error(error);
-			}
+			this._logError(`Failed to start extension host process`);
+			this._logService.error(error);
+			this._cleanResources();
 		}
 	}
 

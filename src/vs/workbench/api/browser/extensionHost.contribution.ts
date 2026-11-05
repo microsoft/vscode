@@ -16,10 +16,12 @@ import { StatusBarItemsExtensionPoint } from './statusBarExtensionPoint.js';
 import { CSSExtensionPoint } from '../../services/themes/browser/cssExtensionPoint.js';
 
 // --- mainThread participants
+import './mainThreadAgentEditorComments.js';
 import './mainThreadLocalization.js';
 import './mainThreadBulkEdits.js';
 import './mainThreadLanguageModels.js';
 import './mainThreadChatAgents2.js';
+import './mainThreadChatArtifactIntegrations.js';
 import './mainThreadChatCodeMapper.js';
 import './mainThreadLanguageModelTools.js';
 import './mainThreadEmbeddings.js';
@@ -48,6 +50,7 @@ import './mainThreadLanguages.js';
 import './mainThreadLogService.js';
 import './mainThreadMessageService.js';
 import './mainThreadManagedSockets.js';
+import './mainThreadBrowserTunnelProxy.js';
 import './mainThreadOutputService.js';
 import './mainThreadProgress.js';
 import './mainThreadQuickDiff.js';
@@ -71,6 +74,7 @@ import './mainThreadUrls.js';
 import './mainThreadUriOpeners.js';
 import './mainThreadWindow.js';
 import './mainThreadPower.js';
+import './mainThreadGitHub.js';
 import './mainThreadWebviewManager.js';
 import './mainThreadWorkspace.js';
 import './mainThreadComments.js';

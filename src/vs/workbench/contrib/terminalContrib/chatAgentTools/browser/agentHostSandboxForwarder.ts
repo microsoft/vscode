@@ -5,8 +5,8 @@
 
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { equals } from '../../../../../base/common/objects.js';
-import { IAgentConnection, IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
-import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { AgentHostSandboxConfigKey } from '../../../../../platform/agentHost/common/sandboxConfigSchema.js';
 import { ActionType } from '../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { ROOT_STATE_URI } from '../../../../../platform/agentHost/common/state/sessionState.js';
@@ -16,9 +16,8 @@ import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { readAgentHostSandboxValues, SANDBOX_SETTING_KEYS } from '../common/sandboxSettingsReader.js';
 
 /**
- * Forwards the workbench user's sandbox setting values into every connected
- * agent host (local + remote) via `RootConfigChanged` actions, so the
- * agent-host terminal sandbox engine can mirror the user's preferences.
+ * Forwards the workbench user's applicable sandbox setting values into every
+ * connected agent host (local + remote) via `RootConfigChanged` actions.
  *
  * The forwarder is deliberately one-directional: it pushes only when
  *  - a connection comes online (initial push, deferred until the host
@@ -45,8 +44,7 @@ export class AgentHostSandboxForwarder extends Disposable implements IWorkbenchC
 	private _desired: Record<string, unknown> | undefined;
 
 	constructor(
-		@IAgentHostService private readonly _localAgentHostService: IAgentHostService,
-		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
+		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILogService private readonly _logService: ILogService,
 	) {
@@ -59,7 +57,7 @@ export class AgentHostSandboxForwarder extends Disposable implements IWorkbenchC
 			}
 		}));
 
-		this._register(this._remoteAgentHostService.onDidChangeConnections(() => {
+		this._register(this._connectionsService.onDidChangeConnections(() => {
 			this._syncConnectionListeners();
 		}));
 		this._syncConnectionListeners();
@@ -67,17 +65,13 @@ export class AgentHostSandboxForwarder extends Disposable implements IWorkbenchC
 
 	private _syncConnectionListeners(): void {
 		const live = new Set<IAgentConnection>();
-		const ensureScheduled = (connection: IAgentConnection) => {
-			live.add(connection);
-			if (!this._scheduled.has(connection)) {
-				this._scheduleInitialPush(connection);
+		for (const info of this._connectionsService.connections) {
+			if (!info.connection) {
+				continue;
 			}
-		};
-		ensureScheduled(this._localAgentHostService);
-		for (const info of this._remoteAgentHostService.connections) {
-			const connection = this._remoteAgentHostService.getConnection(info.address);
-			if (connection) {
-				ensureScheduled(connection);
+			live.add(info.connection);
+			if (!this._scheduled.has(info.connection)) {
+				this._scheduleInitialPush(info.connection);
 			}
 		}
 		for (const [connection, listener] of this._scheduled) {
@@ -108,11 +102,9 @@ export class AgentHostSandboxForwarder extends Disposable implements IWorkbenchC
 	}
 
 	private _pushToAllConnections(): void {
-		this._tryPush(this._localAgentHostService);
-		for (const info of this._remoteAgentHostService.connections) {
-			const connection = this._remoteAgentHostService.getConnection(info.address);
-			if (connection) {
-				this._tryPush(connection);
+		for (const info of this._connectionsService.connections) {
+			if (info.connection) {
+				this._tryPush(info.connection);
 			}
 		}
 	}

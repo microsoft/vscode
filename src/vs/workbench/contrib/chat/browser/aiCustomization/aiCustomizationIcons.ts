@@ -70,6 +70,11 @@ export const extensionIcon = registerIcon('ai-customization-extension', Codicon.
 export const pluginIcon = registerIcon('ai-customization-plugin', Codicon.plug, localize('aiCustomizationPluginIcon', "Icon for plugin-contributed items."));
 
 /**
+ * Icon for the Tools section in the AI Customization Management Editor.
+ */
+export const toolsIcon = registerIcon('ai-customization-tools', Codicon.tools, localize('aiCustomizationToolsIcon', "Icon for the Tools section."));
+
+/**
  * Icon for built-in storage.
  */
 export const builtinIcon = registerIcon('ai-customization-builtin', Codicon.starFull, localize('aiCustomizationBuiltinIcon', "Icon for built-in items."));

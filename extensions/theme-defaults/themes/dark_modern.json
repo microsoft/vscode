@@ -35,6 +35,7 @@
 		"editor.foreground": "#CCCCCC",
 		"editorGroup.border": "#FFFFFF17",
 		"editorGroupHeader.tabsBackground": "#181818",
+		"editorGroupHeader.connectedTabsBackground": "#2B2B2B",
 		"editorGroupHeader.tabsBorder": "#2B2B2B",
 		"editorGutter.addedBackground": "#2EA043",
 		"editorGutter.deletedBackground": "#F85149",
@@ -87,6 +88,7 @@
 		"sideBarSectionHeader.foreground": "#CCCCCC",
 		"sideBarTitle.foreground": "#CCCCCC",
 		"statusBar.background": "#181818",
+		"statusBar.inactiveBackground": "#1F1F1F",
 		"statusBar.border": "#2B2B2B",
 		"statusBarItem.hoverBackground": "#F1F1F133",
 		"statusBarItem.hoverForeground": "#FFFFFF",
@@ -129,5 +131,8 @@
 		"welcomePage.tileBackground": "#2B2B2B",
 		"welcomePage.progress.foreground": "#0078D4",
 		"widget.border": "#313131",
+		"modernActivityBarItem.activeBackground": "#FFFFFF22",
+		"modernActivityBarItem.hoverBackground": "#FFFFFF11",
+		"modernActivityBar.border": "#252526"
 	},
 }

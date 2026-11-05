@@ -18,7 +18,7 @@ suite('gitDiffContent', () => {
 		const absolutePath = '/Users/me/repo/src/foo/bar.ts';
 		const built = buildGitBlobUri(sessionUri, sha, repoRelativePath, absolutePath);
 		const parsed = parseGitBlobUri(built);
-		assert.deepStrictEqual(parsed, { sessionUri, sha, repoRelativePath });
+		assert.deepStrictEqual(parsed, { sessionUri, sha, repoRelativePath, absolutePath });
 		assert.strictEqual(URI.parse(built).path, absolutePath);
 	});
 
@@ -29,7 +29,7 @@ suite('gitDiffContent', () => {
 		const absolutePath = '/Users/me/a repo/a folder/файл.txt';
 		const built = buildGitBlobUri(sessionUri, sha, repoRelativePath, absolutePath);
 		const parsed = parseGitBlobUri(built);
-		assert.deepStrictEqual(parsed, { sessionUri, sha, repoRelativePath });
+		assert.deepStrictEqual(parsed, { sessionUri, sha, repoRelativePath, absolutePath });
 		assert.strictEqual(URI.parse(built).path, absolutePath);
 	});
 
@@ -41,7 +41,7 @@ suite('gitDiffContent', () => {
 			parsed: parseGitBlobUri(built),
 		}, {
 			path: '/work/repo/src/app.ts',
-			parsed: { sessionUri: 'copilot:/abc', sha: 'cafe1234', repoRelativePath: 'src/app.ts' },
+			parsed: { sessionUri: 'copilot:/abc', sha: 'cafe1234', repoRelativePath: 'src/app.ts', absolutePath: '/work/repo/src/app.ts' },
 		});
 	});
 
@@ -60,5 +60,16 @@ suite('gitDiffContent', () => {
 		assert.strictEqual(parseGitBlobUri('file:///foo/bar.ts'), undefined);
 		assert.strictEqual(parseGitBlobUri('session-db://abc/def/before/x'), undefined);
 		assert.strictEqual(parseGitBlobUri('not a uri at all'), undefined);
+	});
+
+	test('surfaces an empty absolute path for legacy URIs that carry no path', () => {
+		// Older persisted git-blob URIs may lack a usable working-tree path; the
+		// resolver relies on `absolutePath` being empty to fall back to the
+		// session's primary directory.
+		const legacy = URI.from({
+			scheme: 'git-blob',
+			query: JSON.stringify({ sessionUri: 'copilot:/abc', sha: 'cafe1234', repoRelativePath: 'src/app.ts' }),
+		}).toString();
+		assert.deepStrictEqual(parseGitBlobUri(legacy), { sessionUri: 'copilot:/abc', sha: 'cafe1234', repoRelativePath: 'src/app.ts', absolutePath: '' });
 	});
 });

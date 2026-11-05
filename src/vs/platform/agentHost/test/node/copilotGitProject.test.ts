@@ -6,39 +6,20 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import type { IAgentHostGitService } from '../../node/agentHostGitService.js';
+import { tryResolvePrimaryWorktreeRoot } from '../../common/agentHostGitService.js';
+import { TestAgentHostGitService as BaseTestAgentHostGitService } from '../common/testAgentHostGitService.js';
 import { projectFromCopilotContext, projectFromRepository, resolveGitProject } from '../../node/copilot/copilotGitProject.js';
 
-class TestAgentHostGitService implements IAgentHostGitService {
-	declare readonly _serviceBrand: undefined;
-
-	insideWorkTree = true;
+class TestAgentHostGitService extends BaseTestAgentHostGitService {
 	repositoryRoot: URI | undefined;
 	worktreeRoots: URI[] = [];
+	worktreeRootCalls = 0;
 
-	async isInsideWorkTree(): Promise<boolean> { return this.insideWorkTree; }
-	async getCurrentBranch(): Promise<string | undefined> { return undefined; }
-	async getDefaultBranch(): Promise<string | undefined> { return undefined; }
-	async getBranches(): Promise<string[]> { return []; }
-	async getRepositoryRoot(): Promise<URI | undefined> { return this.repositoryRoot; }
-	async getWorktreeRoots(): Promise<URI[]> { return this.worktreeRoots; }
-	async addWorktree(): Promise<void> { }
-	async addExistingWorktree(): Promise<void> { }
-	async removeWorktree(): Promise<void> { }
-	async branchExists(): Promise<boolean> { return false; }
-	async hasUncommittedChanges(): Promise<boolean> { return false; }
-	async commitAll(): Promise<void> { }
-	async hasUpstream(): Promise<boolean> { return false; }
-	async pushBranch(): Promise<void> { }
-	async getSessionGitState(): Promise<undefined> { return undefined; }
-	async computeSessionFileDiffs(): Promise<undefined> { return undefined; }
-	async showBlob(): Promise<undefined> { return undefined; }
-	async captureWorkingTreeAsTree(): Promise<undefined> { return undefined; }
-	async commitTree(): Promise<undefined> { return undefined; }
-	async updateRef(): Promise<void> { }
-	async deleteRefs(): Promise<void> { }
-	async revParse(): Promise<undefined> { return undefined; }
-	async computeFileDiffsBetweenRefs(): Promise<undefined> { return undefined; }
+	override async getRepositoryRoot(): Promise<URI | undefined> { return this.repositoryRoot; }
+	override async getWorktreeRoots(): Promise<URI[]> {
+		this.worktreeRootCalls++;
+		return this.worktreeRoots;
+	}
 }
 
 suite('Copilot Git Project', () => {
@@ -51,6 +32,7 @@ suite('Copilot Git Project', () => {
 	});
 
 	test('resolves a repository project from a worktree working directory', async () => {
+		gitService.repositoryRoot = URI.file('/workspace/worktree-checkout');
 		gitService.worktreeRoots = [URI.file('/workspace/source-repo')];
 
 		const project = await resolveGitProject(URI.file('/workspace/worktree-checkout'), gitService);
@@ -78,15 +60,31 @@ suite('Copilot Git Project', () => {
 		});
 	});
 
-	test('returns undefined outside a git working tree', async () => {
-		gitService.insideWorkTree = false;
+	test('deduplicates concurrent resolution across linked worktrees', async () => {
+		const primaryRoot = URI.file('/workspace/source-repo');
+		const checkoutA = URI.file('/workspace/source-repo.worktrees/a');
+		const checkoutB = URI.file('/workspace/source-repo.worktrees/b');
+		gitService.worktreeRoots = [primaryRoot, checkoutA, checkoutB];
 
+		const roots = await Promise.all([
+			tryResolvePrimaryWorktreeRoot(gitService, checkoutA),
+			tryResolvePrimaryWorktreeRoot(gitService, checkoutB),
+		]);
+
+		assert.deepStrictEqual({
+			worktreeRootCalls: gitService.worktreeRootCalls,
+			roots: roots.map(root => root?.toString()),
+		}, {
+			worktreeRootCalls: 1,
+			roots: [primaryRoot.toString(), primaryRoot.toString()],
+		});
+	});
+
+	test('returns undefined outside a git working tree', async () => {
 		assert.strictEqual(await resolveGitProject(URI.file('/workspace/plain-folder'), gitService), undefined);
 	});
 
 	test('falls back to repository context when no git project is available', async () => {
-		gitService.insideWorkTree = false;
-
 		const project = await projectFromCopilotContext({ repository: 'microsoft/vscode' }, gitService);
 
 		assert.deepStrictEqual({

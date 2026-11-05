@@ -37,6 +37,10 @@ export class McpGalleryManifestService extends Disposable implements IMcpGallery
 	}
 
 	async getMcpGalleryManifest(): Promise<IMcpGalleryManifest | null> {
+		return this.getDefaultMcpGalleryManifest();
+	}
+
+	async getDefaultMcpGalleryManifest(): Promise<IMcpGalleryManifest | null> {
 		if (!this.productService.mcpGallery) {
 			return null;
 		}

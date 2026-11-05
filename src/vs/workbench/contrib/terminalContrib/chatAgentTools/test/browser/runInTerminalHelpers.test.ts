@@ -475,6 +475,7 @@ suite('generateAutoApproveActions', () => {
 		const subCommandAction = actions.find(action => action.label.includes('mvn -DskipIT test') && action.label.includes('Always Allow Command:'));
 		strictEqual(subCommandAction, undefined, 'Should not suggest approval for already approved commands');
 	});
+
 });
 
 suite('extractCdPrefix', () => {

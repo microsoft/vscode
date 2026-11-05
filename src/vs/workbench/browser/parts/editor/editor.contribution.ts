@@ -9,14 +9,16 @@ import { IEditorPaneRegistry, EditorPaneDescriptor } from '../../editor.js';
 import { IEditorFactoryRegistry, EditorExtensions } from '../../../common/editor.js';
 import {
 	TextCompareEditorActiveContext, ActiveEditorPinnedContext, EditorGroupEditorsCountContext, ActiveEditorStickyContext, ActiveEditorAvailableEditorIdsContext,
-	EditorPartMultipleEditorGroupsContext, ActiveEditorDirtyContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext,
+	EditorPartMultipleEditorGroupsContext, ActiveEditorDirtyContext, ActiveEditorGroupLockedContext, EditorGroupLockActionsHiddenContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext,
 	EditorTabsVisibleContext, ActiveEditorLastInGroupContext, EditorPartMaximizedEditorGroupContext, MultipleEditorGroupsContext, InEditorZenModeContext,
-	IsAuxiliaryWindowContext, ActiveCompareEditorCanSwapContext, MultipleEditorsSelectedInGroupContext, SplitEditorsVertically,
+	IsAuxiliaryWindowContext, LayoutModeContext, ActiveCompareEditorCanSwapContext, MultipleEditorsSelectedInGroupContext, SplitEditorsVertically, ActiveEditorCannotCloseContext,
 	IsSessionsWindowContext, ActiveCustomEditorDiffCanToggleLayoutContext, ActiveCustomEditorTextDiffContext, EditorPartModalContext
 } from '../../../common/contextkeys.js';
 import { SideBySideEditorInput, SideBySideEditorInputSerializer } from '../../../common/editor/sideBySideEditorInput.js';
 import { TextResourceEditor } from './textResourceEditor.js';
 import { SideBySideEditor } from './sideBySideEditor.js';
+import { ViewEditorPane } from './viewEditorPane.js';
+import { ViewEditorInput } from './viewEditorInput.js';
 import { DiffEditorInput, DiffEditorInputSerializer } from '../../../common/editor/diffEditorInput.js';
 import { UntitledTextEditorInput } from '../../../services/untitled/common/untitledTextEditorInput.js';
 import { TextResourceEditorInput } from '../../../common/editor/textResourceEditorInput.js';
@@ -55,7 +57,7 @@ import {
 	SPLIT_EDITOR, TOGGLE_MAXIMIZE_EDITOR_GROUP, MOVE_EDITOR_INTO_NEW_WINDOW_COMMAND_ID, COPY_EDITOR_INTO_NEW_WINDOW_COMMAND_ID, MOVE_EDITOR_GROUP_INTO_NEW_WINDOW_COMMAND_ID, COPY_EDITOR_GROUP_INTO_NEW_WINDOW_COMMAND_ID,
 	NEW_EMPTY_EDITOR_WINDOW_COMMAND_ID, MOVE_EDITOR_INTO_RIGHT_GROUP, MOVE_EDITOR_INTO_LEFT_GROUP, MOVE_EDITOR_INTO_ABOVE_GROUP, MOVE_EDITOR_INTO_BELOW_GROUP
 } from './editorCommands.js';
-import { GOTO_NEXT_CHANGE, GOTO_PREVIOUS_CHANGE, TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE, TOGGLE_DIFF_SIDE_BY_SIDE, DIFF_SWAP_SIDES } from './diffEditorCommands.js';
+import { DIFF_SWAP_SIDES, DIFF_VIEW_MODE_INLINE_TEMPORARY, GOTO_NEXT_CHANGE, GOTO_PREVIOUS_CHANGE, SET_DIFF_VIEW_MODE_AUTOMATIC, SET_DIFF_VIEW_MODE_INLINE, SET_DIFF_VIEW_MODE_SIDE_BY_SIDE, TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE, TOGGLE_DIFF_SIDE_BY_SIDE } from './diffEditorCommands.js';
 import { inQuickPickContext, getQuickNavigateHandler } from '../../quickaccess.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ContextKeyExpr, ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
@@ -73,6 +75,8 @@ import { ConfigureEditorAction, ConfigureEditorTabsAction, EditorActionsDefaultA
 import { ICommandAction } from '../../../../platform/action/common/action.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { getFontSnippets } from '../../../../base/browser/fonts.js';
+import { MoveEditorToPartAction } from './editorPartActions.js';
+import { MoveEditorIntoNewPartAboveAction, MoveEditorIntoNewPartBelowAction, MoveEditorIntoNewPartLeftAction, MoveEditorIntoNewPartRightAction, MovePartDownAction, MovePartLeftAction, MovePartRightAction, MovePartUpAction } from '../partGrid/partGridActions.js';
 import { registerEditorFontConfigurations } from '../../../../editor/common/config/editorConfigurationSchema.js';
 
 //#region Editor Registrations
@@ -119,6 +123,17 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	),
 	[
 		new SyncDescriptor(SideBySideEditorInput)
+	]
+);
+
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(
+		ViewEditorPane,
+		ViewEditorPane.ID,
+		localize('viewEditor', "View Editor")
+	),
+	[
+		new SyncDescriptor(ViewEditorInput)
 	]
 );
 
@@ -241,6 +256,15 @@ registerAction2(DuplicateGroupDownAction);
 
 registerAction2(MoveEditorToPreviousGroupAction);
 registerAction2(MoveEditorToNextGroupAction);
+registerAction2(MoveEditorToPartAction);
+registerAction2(MovePartLeftAction);
+registerAction2(MovePartRightAction);
+registerAction2(MovePartUpAction);
+registerAction2(MovePartDownAction);
+registerAction2(MoveEditorIntoNewPartLeftAction);
+registerAction2(MoveEditorIntoNewPartRightAction);
+registerAction2(MoveEditorIntoNewPartAboveAction);
+registerAction2(MoveEditorIntoNewPartBelowAction);
 registerAction2(MoveEditorToFirstGroupAction);
 registerAction2(MoveEditorToLastGroupAction);
 registerAction2(MoveEditorToLeftGroupAction);
@@ -351,9 +375,10 @@ if (isMacintosh) {
 }
 
 // Empty Editor Group Toolbar
-MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroup, { command: { id: LOCK_GROUP_COMMAND_ID, title: localize('lockGroupAction', "Lock Group"), icon: Codicon.unlock }, group: 'navigation', order: 10, when: ContextKeyExpr.and(IsAuxiliaryWindowContext, ActiveEditorGroupLockedContext.toNegated()) });
-MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroup, { command: { id: UNLOCK_GROUP_COMMAND_ID, title: localize('unlockGroupAction', "Unlock Group"), icon: Codicon.lock, toggled: ContextKeyExpr.true() }, group: 'navigation', order: 10, when: ActiveEditorGroupLockedContext });
-MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroup, { command: { id: CLOSE_EDITOR_GROUP_COMMAND_ID, title: localize('closeGroupAction', "Close Group"), icon: Codicon.close }, group: 'navigation', order: 20, when: ContextKeyExpr.or(IsAuxiliaryWindowContext, EditorPartMultipleEditorGroupsContext) });
+// An empty group of an auxiliary window offers to lock or close it, which closes the window, but not in a window with layout modes, which shows more than its editors.
+MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroup, { command: { id: LOCK_GROUP_COMMAND_ID, title: localize('lockGroupAction', "Lock Group"), icon: Codicon.unlock }, group: 'navigation', order: 10, when: ContextKeyExpr.and(IsAuxiliaryWindowContext, LayoutModeContext.toNegated(), ActiveEditorGroupLockedContext.toNegated(), EditorGroupLockActionsHiddenContext.toNegated()) });
+MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroup, { command: { id: UNLOCK_GROUP_COMMAND_ID, title: localize('unlockGroupAction', "Unlock Group"), icon: Codicon.lock, toggled: ContextKeyExpr.true() }, group: 'navigation', order: 10, when: ContextKeyExpr.and(ActiveEditorGroupLockedContext, EditorGroupLockActionsHiddenContext.toNegated()) });
+MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroup, { command: { id: CLOSE_EDITOR_GROUP_COMMAND_ID, title: localize('closeGroupAction', "Close Group"), icon: Codicon.close }, group: 'navigation', order: 20, when: ContextKeyExpr.or(ContextKeyExpr.and(IsAuxiliaryWindowContext, LayoutModeContext.toNegated()), EditorPartMultipleEditorGroupsContext) });
 
 // Empty Editor Group Context Menu
 MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroupContext, { command: { id: SPLIT_EDITOR_UP, title: localize('splitUp', "Split Up") }, group: '2_split', order: 10 });
@@ -391,7 +416,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorActionsPositionSubmenu, { command: { id
 MenuRegistry.appendMenuItem(MenuId.EditorTabsBarContext, { command: { id: ConfigureEditorTabsAction.ID, title: localize('configureTabs', "Configure Tabs") }, group: '9_configure', order: 10 });
 
 // Editor Title Context Menu
-MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: CLOSE_EDITOR_COMMAND_ID, title: localize('close', "Close") }, group: '1_close', order: 10 });
+MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: CLOSE_EDITOR_COMMAND_ID, title: localize('close', "Close") }, group: '1_close', order: 10, when: ActiveEditorCannotCloseContext.toNegated() });
 MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID, title: localize('closeOthers', "Close Others"), precondition: EditorGroupEditorsCountContext.notEqualsTo('1') }, group: '1_close', order: 20 });
 MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: CLOSE_EDITORS_TO_THE_RIGHT_COMMAND_ID, title: localize('closeRight', "Close to the Right"), precondition: ContextKeyExpr.and(ActiveEditorLastInGroupContext.toNegated(), MultipleEditorsSelectedInGroupContext.negate()) }, group: '1_close', order: 30, when: EditorTabsVisibleContext });
 MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: CLOSE_SAVED_EDITORS_COMMAND_ID, title: localize('closeAllSaved', "Close Saved") }, group: '1_close', order: 40 });
@@ -420,7 +445,70 @@ MenuRegistry.appendMenuItem(MenuId.EditorSplitMoveSubmenu, { command: { id: SPLI
 MenuRegistry.appendMenuItem(MenuId.EditorSplitMoveSubmenu, { command: { id: JOIN_EDITOR_IN_GROUP, title: localize('joinInGroup', "Join in Group"), precondition: MultipleEditorsSelectedInGroupContext.negate() }, group: '3_split_in_group', order: 10, when: SideBySideEditorActiveContext });
 
 // Editor Title Menu
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: TOGGLE_DIFF_SIDE_BY_SIDE, title: localize('inlineView', "Inline View"), toggled: ContextKeyExpr.equals('config.diffEditor.renderSideBySide', false) }, group: '1_diff', order: 10, when: ContextKeyExpr.or(ContextKeyExpr.has('isInDiffEditor'), ActiveCustomEditorDiffCanToggleLayoutContext) });
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+	submenu: MenuId.DiffEditorViewSubmenu,
+	title: localize('diffView', "Diff View"),
+	group: '1_diff',
+	order: 10,
+	when: ContextKeyExpr.and(ContextKeyExpr.has('isInDiffEditor'), IsSessionsWindowContext.toNegated()),
+});
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+	command: { id: TOGGLE_DIFF_SIDE_BY_SIDE, title: localize('inlineView', "Inline View"), toggled: ContextKeyExpr.equals('config.diffEditor.renderSideBySide', false) },
+	group: '1_diff',
+	order: 10,
+	when: ContextKeyExpr.and(ActiveCustomEditorDiffCanToggleLayoutContext, ContextKeyExpr.not('isInDiffEditor')),
+});
+MenuRegistry.appendMenuItem(MenuId.DiffEditorViewSubmenu, {
+	command: {
+		id: SET_DIFF_VIEW_MODE_INLINE,
+		title: localize('diffView.inline', "Inline"),
+		toggled: ContextKeyExpr.equals('config.diffEditor.renderSideBySide', false),
+	},
+	group: '1_view',
+	order: 1,
+});
+MenuRegistry.appendMenuItem(MenuId.DiffEditorViewSubmenu, {
+	command: {
+		id: SET_DIFF_VIEW_MODE_SIDE_BY_SIDE,
+		title: localize('diffView.sideBySide', "Side by Side"),
+		toggled: ContextKeyExpr.and(
+			ContextKeyExpr.equals('config.diffEditor.renderSideBySide', true),
+			ContextKeyExpr.equals('config.diffEditor.useInlineViewWhenSpaceIsLimited', false),
+		),
+	},
+	group: '1_view',
+	order: 2,
+});
+for (const [title, when] of [
+	[localize('diffView.automaticSideBySide', "Automatic (Currently Side by Side)"), EditorContextKeys.diffEditorAutomaticRenderSideBySide],
+	[localize('diffView.automaticInline', "Automatic (Currently Inline)"), EditorContextKeys.diffEditorAutomaticRenderSideBySide.toNegated()],
+] as const) {
+	MenuRegistry.appendMenuItem(MenuId.DiffEditorViewSubmenu, {
+		command: {
+			id: SET_DIFF_VIEW_MODE_AUTOMATIC,
+			title,
+			toggled: ContextKeyExpr.and(
+				ContextKeyExpr.equals('config.diffEditor.renderSideBySide', true),
+				ContextKeyExpr.equals('config.diffEditor.useInlineViewWhenSpaceIsLimited', true),
+				EditorContextKeys.diffEditorTemporaryInlineMode.toNegated(),
+			),
+		},
+		group: '1_view',
+		order: 3,
+		when,
+	});
+}
+MenuRegistry.appendMenuItem(MenuId.DiffEditorViewSubmenu, {
+	command: {
+		id: DIFF_VIEW_MODE_INLINE_TEMPORARY,
+		title: localize('diffView.inlineTemporary', "Inline (Temporary)"),
+		toggled: EditorContextKeys.diffEditorTemporaryInlineMode,
+		precondition: ContextKeyExpr.false(),
+	},
+	group: '1_view',
+	order: 4,
+	when: EditorContextKeys.diffEditorTemporaryInlineMode,
+});
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: SHOW_EDITORS_IN_GROUP, title: localize('showOpenedEditors', "Show Opened Editors") }, group: '3_open', order: 10, when: EditorPartModalContext.toNegated() /* not applicable to modal editor */ });
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: CLOSE_EDITORS_IN_GROUP_COMMAND_ID, title: localize('closeAll', "Close All") }, group: '5_close', order: 10, when: EditorPartModalContext.toNegated() /* not applicable to modal editor */ });
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: CLOSE_SAVED_EDITORS_COMMAND_ID, title: localize('closeAllSaved', "Close Saved") }, group: '5_close', order: 20, when: EditorPartModalContext.toNegated() /* not applicable to modal editor */ });
@@ -465,13 +553,15 @@ const SPLIT_ORDER = 100000;  // towards the end
 const CLOSE_ORDER = 1000000; // towards the far end
 
 // Editor Title Menu: Split Editor
+// In the agents window the split editor action is moved into the overflow (...)
+// menu (see below) rather than being shown as a primary toolbar icon.
 appendEditorToolItem(
 	{
 		id: SPLIT_EDITOR,
 		title: localize('splitEditorRight', "Split Editor Right"),
 		icon: Codicon.splitHorizontal
 	},
-	SplitEditorsVertically.negate(),
+	ContextKeyExpr.and(SplitEditorsVertically.negate(), IsSessionsWindowContext.toNegated()),
 	SPLIT_ORDER,
 	{
 		id: SPLIT_EDITOR_DOWN,
@@ -486,7 +576,7 @@ appendEditorToolItem(
 		title: localize('splitEditorDown', "Split Editor Down"),
 		icon: Codicon.splitVertical
 	},
-	SplitEditorsVertically,
+	ContextKeyExpr.and(SplitEditorsVertically, IsSessionsWindowContext.toNegated()),
 	SPLIT_ORDER,
 	{
 		id: SPLIT_EDITOR_RIGHT,
@@ -494,6 +584,30 @@ appendEditorToolItem(
 		icon: Codicon.splitHorizontal
 	}
 );
+
+// Agents window: show Split Editor in the editor title overflow (...) menu
+// instead of as a primary toolbar icon. Mirror the orientation handling of the
+// primary toolbar items so the label/icon match the configured split direction.
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+	command: {
+		id: SPLIT_EDITOR,
+		title: localize('splitEditorRight', "Split Editor Right"),
+		icon: Codicon.splitHorizontal
+	},
+	group: '4_split',
+	order: 10,
+	when: ContextKeyExpr.and(IsSessionsWindowContext, SplitEditorsVertically.negate())
+});
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+	command: {
+		id: SPLIT_EDITOR,
+		title: localize('splitEditorDown', "Split Editor Down"),
+		icon: Codicon.splitVertical
+	},
+	group: '4_split',
+	order: 10,
+	when: ContextKeyExpr.and(IsSessionsWindowContext, SplitEditorsVertically)
+});
 
 // Side by side: layout
 appendEditorToolItem(
@@ -513,7 +627,7 @@ appendEditorToolItem(
 		title: localize('close', "Close"),
 		icon: Codicon.close
 	},
-	ContextKeyExpr.and(EditorTabsVisibleContext.toNegated(), ActiveEditorDirtyContext.toNegated(), ActiveEditorStickyContext.toNegated()),
+	ContextKeyExpr.and(EditorTabsVisibleContext.toNegated(), ActiveEditorDirtyContext.toNegated(), ActiveEditorStickyContext.toNegated(), ActiveEditorCannotCloseContext.toNegated()),
 	CLOSE_ORDER,
 	{
 		id: CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
@@ -529,7 +643,7 @@ appendEditorToolItem(
 		title: localize('close', "Close"),
 		icon: Codicon.closeDirty
 	},
-	ContextKeyExpr.and(EditorTabsVisibleContext.toNegated(), ActiveEditorDirtyContext, ActiveEditorStickyContext.toNegated()),
+	ContextKeyExpr.and(EditorTabsVisibleContext.toNegated(), ActiveEditorDirtyContext, ActiveEditorStickyContext.toNegated(), ActiveEditorCannotCloseContext.toNegated()),
 	CLOSE_ORDER,
 	{
 		id: CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
@@ -577,7 +691,7 @@ appendEditorToolItem(
 		title: localize('lockEditorGroup', "Lock Group"),
 		icon: Codicon.unlock
 	},
-	ContextKeyExpr.and(IsAuxiliaryWindowContext, ActiveEditorGroupLockedContext.toNegated()),
+	ContextKeyExpr.and(IsAuxiliaryWindowContext, ActiveEditorGroupLockedContext.toNegated(), EditorGroupLockActionsHiddenContext.toNegated()),
 	CLOSE_ORDER - 1, // immediately to the left of close action
 );
 
@@ -589,7 +703,7 @@ appendEditorToolItem(
 		icon: Codicon.lock,
 		toggled: ContextKeyExpr.true()
 	},
-	ActiveEditorGroupLockedContext,
+	ContextKeyExpr.and(ActiveEditorGroupLockedContext, EditorGroupLockActionsHiddenContext.toNegated()),
 	CLOSE_ORDER - 1, // immediately to the left of close action
 );
 

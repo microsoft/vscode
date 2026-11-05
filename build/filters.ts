@@ -25,9 +25,12 @@ export const all = Object.freeze<string[]>([
 	'!cli/**/*',
 	'!out*/**',
 	'!extensions/**/out*/**',
+	'!extensions/**/*-out/**',
 	'!test/**/out/**',
+	'!build/ripple/target/**',
 	'!**/node_modules/**',
 	'!**/*.js.map',
+	'!**/*.tsbuildinfo',
 ]);
 
 export const unicodeFilter = Object.freeze<string[]>([
@@ -39,7 +42,7 @@ export const unicodeFilter = Object.freeze<string[]>([
 	'!LICENSES.chromium.html',
 	'!**/LICENSE',
 
-	'!**/*.{dll,exe,png,bmp,jpg,scpt,cur,ttf,woff,eot,template,ico,icns,opus,wasm}',
+	'!**/*.{dll,exe,png,bmp,jpg,gif,webp,scpt,cur,ttf,woff,eot,template,ico,icns,opus,wasm}',
 	'!**/test/**',
 	'!**/*.test.ts',
 	'!**/*.{d.ts,json,md}',
@@ -49,6 +52,7 @@ export const unicodeFilter = Object.freeze<string[]>([
 
 	'!build/win32/**',
 	'!extensions/markdown-language-features/notebook-out/*.js',
+	'!extensions/markdown-language-features/markdown-editor-out/*.js',
 	'!extensions/markdown-math/notebook-out/**',
 	'!extensions/mermaid-markdown-features/chat-webview-out/**',
 	'!extensions/ipynb/notebook-out/**',
@@ -70,6 +74,9 @@ export const unicodeFilter = Object.freeze<string[]>([
 	'!src/vs/base/browser/dompurify/**',
 	'!src/vs/workbench/services/keybinding/browser/keyboardLayouts/**',
 	'!src/vs/workbench/contrib/terminal/common/scripts/psreadline/**',
+
+	// Files with licences
+	'!src/vs/platform/endpoint/common/licenseAgreement.ts',
 ]);
 
 export const indentationFilter = Object.freeze<string[]>([
@@ -83,6 +90,8 @@ export const indentationFilter = Object.freeze<string[]>([
 	'!**/LICENSE',
 	'!**/*.mp3',
 	'!src/vs/base/browser/dompurify/*',
+	'!src/vs/base/common/lit-html/**',
+	'!src/vs/base/common/signals-core/**',
 	'!src/vs/base/common/marked/marked.js',
 	'!src/vs/base/common/semver/semver.js',
 	'!src/vs/base/node/terminateProcess.sh',
@@ -93,8 +102,9 @@ export const indentationFilter = Object.freeze<string[]>([
 	'!resources/linux/snap/electron-launch',
 	'!build/ext.js',
 	'!build/darwin/patch-dmg.py',
-	'!build/npm/gyp/patches/gyp_spectre_mitigation_support.patch',
+	'!build/npm/patches/*.patch',
 	'!product.overrides.json',
+	'!src/vs/platform/endpoint/common/licenseAgreement.ts',
 
 	// except specific folders
 	'!test/automation/out/**',
@@ -118,6 +128,7 @@ export const indentationFilter = Object.freeze<string[]>([
 	// except multiple specific files
 	'!**/package.json',
 	'!**/package-lock.json',
+	'!**/Cargo.lock',
 
 	// except multiple specific folders
 	'!**/codicon/**',
@@ -137,12 +148,12 @@ export const indentationFilter = Object.freeze<string[]>([
 	'!src/vs/*/**/*.d.ts',
 	'!src/typings/**/*.d.ts',
 	'!extensions/**/*.d.ts',
-	'!**/*.{svg,exe,png,bmp,jpg,scpt,bat,cmd,cur,ttf,woff,eot,md,ps1,psm1,template,yaml,yml,d.ts.recipe,ico,icns,plist,opus,admx,adml,wasm}',
+	'!**/*.{svg,exe,png,bmp,jpg,gif,webp,scpt,bat,cmd,cur,ttf,woff,eot,md,ps1,psm1,template,yaml,yml,d.ts.recipe,ico,icns,plist,opus,admx,adml,wasm}',
 	'!build/{lib,download,linux,darwin}/**/*.js',
 	'!build/**/*.sh',
 	'!build/azure-pipelines/**/*.js',
 	'!build/azure-pipelines/**/*.config',
-	'!build/npm/gyp/custom-headers/**',
+	'!build/npm/headers/**',
 	'!**/Dockerfile',
 	'!**/Dockerfile.*',
 	'!**/*.Dockerfile',
@@ -154,6 +165,7 @@ export const indentationFilter = Object.freeze<string[]>([
 	'!extensions/mermaid-markdown-features/markdown-preview-out/*.js',
 	'!extensions/mermaid-markdown-features/notebook-out/*.js',
 	'!extensions/markdown-language-features/media/*.js',
+	'!extensions/markdown-language-features/markdown-editor-out/*.js',
 	'!extensions/markdown-language-features/notebook-out/*.js',
 	'!extensions/markdown-math/notebook-out/*.js',
 	'!extensions/ipynb/notebook-out/**',
@@ -173,6 +185,8 @@ export const copyrightFilter = Object.freeze<string[]>([
 	'!**/*.bat',
 	'!**/*.cmd',
 	'!**/*.ico',
+	'!**/*.gif',
+	'!**/*.webp',
 	'!**/*.opus',
 	'!**/*.mp3',
 	'!**/*.icns',
@@ -189,10 +203,12 @@ export const copyrightFilter = Object.freeze<string[]>([
 	'!**/*.wasm',
 	'!**/*.tiff',
 	'!**/*.provisionprofile',
+	'!**/*.toml',
+	'!**/Cargo.lock',
 	'!build/**/*.init',
 	'!build/darwin/patch-dmg.py',
 	'!build/linux/libcxx-fetcher.*',
-	'!build/npm/gyp/custom-headers/**',
+	'!build/npm/headers/**',
 	'!resources/linux/snap/snapcraft.yaml',
 	'!resources/win32/bin/code.js',
 	'!resources/completions/**',
@@ -210,6 +226,10 @@ export const copyrightFilter = Object.freeze<string[]>([
 	'!extensions/mermaid-markdown-features/chat-webview-out/**',
 	'!extensions/mermaid-markdown-features/markdown-preview-out/**',
 	'!extensions/mermaid-markdown-features/notebook-out/**',
+
+	// vendored third-party libraries
+	'!src/vs/base/common/lit-html/**',
+	'!src/vs/base/common/signals-core/**',
 
 	// extensions/copilot has its own code style
 	'!extensions/copilot/**',
@@ -251,5 +271,10 @@ export const eslintFilter = Object.freeze<string[]>([
 ]);
 
 export const stylelintFilter = Object.freeze<string[]>([
-	'src/**/*.css'
+	'src/**/*.css',
+	'extensions/**/*.css',
+	'!extensions/**/node_modules/**',
+	'!extensions/**/test/**',
+	'!extensions/**/test-data/**',
+	'!extensions/**/testData/**',
 ]);

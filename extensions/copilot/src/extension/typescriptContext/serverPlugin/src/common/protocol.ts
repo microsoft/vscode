@@ -45,6 +45,33 @@ export type Range = {
 	end: Position;
 };
 
+export type LineRange = {
+	start: number;
+	end: number;
+};
+
+export interface Region {
+	kind: string;
+	name?: string;
+	range: LineRange;
+}
+
+export namespace Region {
+	export function getSpan(region: Region): number {
+		return region.range.end - region.range.start;
+	}
+}
+
+export type PathInfo = {
+	smallest: number[];
+	largest?: number[];
+};
+
+export type RegionResult = {
+	regions: Region[];
+	paths: PathInfo;
+};
+
 export type WithinRangeCacheScope = {
 	kind: CacheScopeKind.WithinRange;
 	range: Range;
@@ -438,6 +465,37 @@ export namespace CustomResponse {
 		return response.type === 'response' && (response.body as Failed).error !== undefined;
 	}
 }
+
+export interface RegionContextRequestArgs extends tt.server.protocol.FileLocationRequestArgs {
+	ranges: readonly Range[];
+	requested?: LineRange;
+}
+
+export interface RegionContextRequest extends tt.server.protocol.Request {
+	arguments?: RegionContextRequestArgs;
+}
+
+export namespace RegionContextResponse {
+	export type OK = RegionResult;
+
+	export type Failed = CustomResponse.Failed;
+
+	export function isOk(response: RegionContextResponse | undefined): response is Omit<tt.server.protocol.Response, 'body'> & { body: OK } {
+		if (response?.type !== 'response') {
+			return false;
+		}
+		const body = response.body as OK | undefined;
+		return Array.isArray(body?.regions) && Array.isArray(body?.paths?.smallest);
+	}
+
+	export function isError(response: RegionContextResponse | undefined): response is Omit<tt.server.protocol.Response, 'body'> & { body: Failed } {
+		return response?.type === 'response' && CustomResponse.isError(response);
+	}
+}
+
+export type RegionContextResponse = (tt.server.protocol.Response & {
+	body: RegionContextResponse.OK | RegionContextResponse.Failed;
+}) | { type: 'cancelled' };
 
 export namespace ComputeContextResponse {
 

@@ -62,7 +62,15 @@ export interface DocumentInfoWithOffset extends DocumentInfo {
 /**
  * Information about a similar file.
  */
-export type SimilarFileInfo = Omit<DocumentInfo, 'languageId'>;
+export type SimilarFileInfo = Omit<DocumentInfo, 'languageId'> & {
+	/**
+	 * Whether this file was suggested by a language service / semantic code context
+	 * (a "related" file) rather than an open tab or a cursor/workspace heuristic.
+	 * Snippets derived from this file inherit the flag, so consumers can tell a
+	 * snippet's provenance apart without re-deriving it from URIs.
+	 */
+	isFromRelatedFile?: boolean;
+};
 
 export type PromptOptions = {
 	/** The maximum prompt length in tokens */

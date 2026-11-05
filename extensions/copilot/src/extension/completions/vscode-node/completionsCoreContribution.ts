@@ -15,7 +15,7 @@ import { unificationStateObservable } from './completionsUnificationContribution
 
 export class CompletionsCoreContribution extends Disposable {
 
-	private readonly _copilotToken = observableFromEvent(this, this.authenticationService.onDidAuthenticationChange, () => this.authenticationService.copilotToken);
+	private readonly _copilotToken = observableFromEvent(this, this.authenticationService.onDidCopilotTokenChange, () => this.authenticationService.copilotToken);
 
 	constructor(
 		@ICopilotInlineCompletionItemProviderService _copilotInlineCompletionItemProviderService: ICopilotInlineCompletionItemProviderService,

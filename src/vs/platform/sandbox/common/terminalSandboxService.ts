@@ -12,6 +12,11 @@ import { TerminalCapability } from '../../terminal/common/capabilities/capabilit
 
 export const ITerminalSandboxService = createDecorator<ITerminalSandboxService>('terminalSandboxService');
 
+export function getSandboxTempDir(userHome: URI, dataFolderName: string, windowId?: number): URI {
+	const sandboxRoot = URI.joinPath(userHome, dataFolderName, 'tmp');
+	return typeof windowId === 'number' ? URI.joinPath(sandboxRoot, `tmp_vscode_${windowId}`) : sandboxRoot;
+}
+
 export interface ITerminalSandboxResolvedNetworkDomains {
 	allowedDomains: string[];
 	deniedDomains: string[];
@@ -20,6 +25,11 @@ export interface ITerminalSandboxResolvedNetworkDomains {
 export const enum TerminalSandboxPrerequisiteCheck {
 	Config = 'config',
 	Dependencies = 'dependencies',
+	Bubblewrap = 'bubblewrap',
+}
+
+export const enum TerminalSandboxPreCheckRemediation {
+	DisableUnprivilagedusernamespaceRestriction = 'disableUserNamespaceRestriction',
 }
 
 export interface ITerminalSandboxPrerequisiteCheckResult {
@@ -27,6 +37,9 @@ export interface ITerminalSandboxPrerequisiteCheckResult {
 	sandboxConfigPath: string | undefined;
 	failedCheck: TerminalSandboxPrerequisiteCheck | undefined;
 	missingDependencies?: string[];
+	canInstallMissingDependencies?: boolean;
+	remediations?: readonly TerminalSandboxPreCheckRemediation[];
+	detail?: string;
 }
 
 export interface ITerminalSandboxWrapResult {
@@ -38,11 +51,11 @@ export interface ITerminalSandboxWrapResult {
 	requiresAllowNetworkConfirmation?: boolean;
 }
 
-export interface ITerminalSandboxPrecheckInputs {
-	/**
-	 * Whether the current caller is using the default approval permission flow.
-	 */
-	readonly isDefaultApprovalPermissionEnabled?: boolean;
+export type TerminalSandboxFileAccessPermission = 'read' | 'write';
+
+export interface ITerminalSandboxFileAccessCheckResult {
+	allowed: boolean;
+	denied: string[];
 }
 
 export interface ITerminalSandboxPrecheckInputs {
@@ -110,12 +123,15 @@ export interface ITerminalSandboxService {
 	 * retains sandbox execution while using a network-unrestricted config.
 	 */
 	wrapCommand(command: string, requestUnsandboxedExecution?: boolean, shell?: string, cwd?: URI, commandDetails?: readonly ITerminalSandboxCommand[], requestAllowNetwork?: boolean): Promise<ITerminalSandboxWrapResult>;
+	checkFileAccess(permission: TerminalSandboxFileAccessPermission, paths: readonly string[], precheckInputs?: ITerminalSandboxPrecheckInputs): Promise<ITerminalSandboxFileAccessCheckResult>;
 	getSandboxConfigPath(forceRefresh?: boolean, precheckInputs?: ITerminalSandboxPrecheckInputs): Promise<string | undefined>;
 	getTempDir(): URI | undefined;
 	setNeedsForceUpdateConfigFile(): void;
+	/** Returns canonical allow/deny patterns, or a deny-all policy if a configured pattern cannot be normalized. */
 	getResolvedNetworkDomains(): ITerminalSandboxResolvedNetworkDomains;
 	getMissingSandboxDependencies(): Promise<string[]>;
 	installMissingSandboxDependencies(missingDependencies: string[], sessionResource: URI | undefined, token: CancellationToken, options: ISandboxDependencyInstallOptions): Promise<ISandboxDependencyInstallResult>;
+	runSandboxRemediation(remediation: TerminalSandboxPreCheckRemediation, sessionResource: URI | undefined, token: CancellationToken, options: ISandboxDependencyInstallOptions): Promise<ISandboxDependencyInstallResult>;
 }
 
 export class NullTerminalSandboxService implements ITerminalSandboxService {
@@ -141,6 +157,10 @@ export class NullTerminalSandboxService implements ITerminalSandboxService {
 		return { command, isSandboxWrapped: false };
 	}
 
+	async checkFileAccess(): Promise<ITerminalSandboxFileAccessCheckResult> {
+		return { allowed: true, denied: [] };
+	}
+
 	async getSandboxConfigPath(): Promise<string | undefined> {
 		return undefined;
 	}
@@ -162,6 +182,10 @@ export class NullTerminalSandboxService implements ITerminalSandboxService {
 	}
 
 	async installMissingSandboxDependencies(): Promise<ISandboxDependencyInstallResult> {
+		return { exitCode: undefined };
+	}
+
+	async runSandboxRemediation(): Promise<ISandboxDependencyInstallResult> {
 		return { exitCode: undefined };
 	}
 }

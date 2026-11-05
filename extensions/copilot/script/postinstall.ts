@@ -7,6 +7,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { compressTikToken } from './build/compressTikToken';
 import { copyStaticAssets } from './build/copyStaticAssets';
+import { copyFileReplacing, writeFileReplacing } from './build/replaceFile';
 
 export interface ITreeSitterGrammar {
 	name: string;
@@ -60,54 +61,158 @@ const treeSitterGrammars: ITreeSitterGrammar[] = [
 ];
 
 const REPO_ROOT = path.join(__dirname, '..');
+const COPILOT_PACKAGE_DIR = path.join(REPO_ROOT, 'node_modules', '@github', 'copilot');
+const COPILOT_CLI_TOP_LEVEL_DIRS = [
+	'worker',
+	'definitions',
+	'builtin-skills',
+	'builtin',
+	'tgrep',
+	'queries',
+	'prebuilds',
+	'ripgrep',
+	'foundry-local-sdk',
+	'pvrecorder',
+	'mxc-bin',
+	'clipboard',
+	'copilot-sdk',
+	'schemas',
+	'preloads',
+];
 
-async function removeCopilotCLIShim() {
-	const shimsPath = path.join(REPO_ROOT, 'node_modules', '@github', 'copilot', 'shims.txt');
-	await fs.promises.rm(shimsPath, { force: true }).catch(() => { /* ignore */ });
+interface ICopilotPackageJson {
+	exports?: Record<string, unknown>;
+}
+
+function isLinuxMuslRuntime(): boolean {
+	if (process.platform !== 'linux') {
+		return false;
+	}
+
+	const report = process.report?.getReport() as { header?: { glibcVersionRuntime?: string } } | undefined;
+	return !report?.header?.glibcVersionRuntime;
+}
+
+function getCopilotPlatformPackageCandidates(): string[] {
+	const arch = process.arch;
+
+	if (process.platform === 'linux') {
+		const linuxCandidates = [`linux-${arch}`, `linuxmusl-${arch}`];
+		return isLinuxMuslRuntime() ? linuxCandidates.reverse() : linuxCandidates;
+	}
+
+	return [`${process.platform}-${arch}`];
 }
 
 /**
- * @github/copilot/sdk/index.js depends on @github/copilot/worker/*.js files.
- * We need to copy these files into the sdk directory to ensure they are available at runtime.
+ * Returns the folders that may hold the platform packages of `@github/copilot`: the `@github`
+ * folder of `node_modules`, where a flat `node_modules` puts them, and the folder that holds the
+ * real path of `@github/copilot`, where a symlinked `node_modules` (pnpm's isolated layout) puts
+ * the optional dependencies of that package.
  */
-async function copyCopilotCliWorkerFiles() {
-	const sourceDir = path.join(REPO_ROOT, 'node_modules', '@github', 'copilot', 'worker');
-	const targetDir = path.join(REPO_ROOT, 'node_modules', '@github', 'copilot', 'sdk', 'worker');
+function getCopilotScopeCandidates(): string[] {
+	const scopeDir = path.dirname(COPILOT_PACKAGE_DIR);
+	const realScopeDir = path.dirname(fs.realpathSync(COPILOT_PACKAGE_DIR));
+	return realScopeDir === fs.realpathSync(scopeDir) ? [scopeDir] : [scopeDir, realScopeDir];
+}
+
+async function resolveCopilotCliSourceDir(): Promise<string> {
+	const tried: string[] = [];
+	for (const scopeDir of getCopilotScopeCandidates()) {
+		for (const platformPackage of getCopilotPlatformPackageCandidates()) {
+			const sourceDir = path.join(scopeDir, `copilot-${platformPackage}`);
+			tried.push(sourceDir);
+			if (fs.existsSync(path.join(sourceDir, 'sdk', 'index.js'))) {
+				return sourceDir;
+			}
+		}
+	}
+
+	if (fs.existsSync(path.join(COPILOT_PACKAGE_DIR, 'sdk', 'index.js'))) {
+		return COPILOT_PACKAGE_DIR;
+	}
+
+	throw new Error(`Could not find @github/copilot SDK files. Tried: ${[COPILOT_PACKAGE_DIR, ...tried].join(', ')}`);
+}
+
+async function ensureCopilotSdkExport() {
+	const packageJsonPath = path.join(COPILOT_PACKAGE_DIR, 'package.json');
+	const packageJson = JSON.parse(await fs.promises.readFile(packageJsonPath, 'utf8')) as ICopilotPackageJson;
+	packageJson.exports = {
+		...(packageJson.exports ?? {}),
+		'./sdk': {
+			types: './sdk/index.d.ts',
+			import: './sdk/index.js'
+		}
+	};
+
+	await writeFileReplacing(packageJsonPath, `${JSON.stringify(packageJson, undefined, 2)}\n`);
+}
+
+async function materializeCopilotCliSdkLayout(): Promise<string> {
+	const sourceDir = await resolveCopilotCliSourceDir();
+
+	if (sourceDir !== COPILOT_PACKAGE_DIR) {
+		await copyCopilotCLIFolders(path.join(sourceDir, 'sdk'), path.join(COPILOT_PACKAGE_DIR, 'sdk'));
+		for (const dir of COPILOT_CLI_TOP_LEVEL_DIRS) {
+			const sourcePath = path.join(sourceDir, dir);
+			if (fs.existsSync(sourcePath)) {
+				await copyCopilotCLIFolders(sourcePath, path.join(COPILOT_PACKAGE_DIR, dir));
+			}
+		}
+
+		for (const entry of await fs.promises.readdir(sourceDir)) {
+			if (entry.startsWith('tree-sitter') && entry.endsWith('.wasm')) {
+				await copyFileReplacing(path.join(sourceDir, entry), path.join(COPILOT_PACKAGE_DIR, entry));
+			}
+		}
+	}
+
+	await ensureCopilotSdkExport();
+	return sourceDir;
+}
+
+async function removeCopilotCLIShim() {
+	const shimsPath = path.join(COPILOT_PACKAGE_DIR, 'shims.txt');
+	await fs.promises.rm(shimsPath, { force: true }).catch(() => { /* ignore */ });
+}
+
+async function removeCopilotCliWorkerFiles() {
+	const targetDir = path.join(COPILOT_PACKAGE_DIR, 'sdk', 'worker');
+	await fs.promises.rm(targetDir, { recursive: true, force: true });
+}
+
+async function copyCopilotCliTGrepFiles(copilotCliSourceDir: string) {
+	const sourceDir = path.join(copilotCliSourceDir, 'tgrep');
+	const targetDir = path.join(COPILOT_PACKAGE_DIR, 'sdk', 'tgrep');
 
 	await copyCopilotCLIFolders(sourceDir, targetDir);
 }
 
-async function copyCopilotCliSharpFiles() {
-	const sourceDir = path.join(REPO_ROOT, 'node_modules', '@github', 'copilot', 'sharp');
-	const targetDir = path.join(REPO_ROOT, 'node_modules', '@github', 'copilot', 'sdk', 'sharp');
+async function copyCopilotCliDefinitionFiles(copilotCliSourceDir: string) {
+	const sourceDir = path.join(copilotCliSourceDir, 'definitions');
+	const targetDir = path.join(COPILOT_PACKAGE_DIR, 'sdk', 'definitions');
 
 	await copyCopilotCLIFolders(sourceDir, targetDir);
 }
 
-async function copyCopilotCliDefinitionFiles() {
-	const sourceDir = path.join(REPO_ROOT, 'node_modules', '@github', 'copilot', 'definitions');
-	const targetDir = path.join(REPO_ROOT, 'node_modules', '@github', 'copilot', 'sdk', 'definitions');
+async function copyCopilotCliSkillsFiles(copilotCliSourceDir: string) {
+	const sourceDir = path.join(copilotCliSourceDir, 'builtin-skills');
+	const targetDir = path.join(COPILOT_PACKAGE_DIR, 'sdk', 'builtin-skills');
 
 	await copyCopilotCLIFolders(sourceDir, targetDir);
 }
 
-async function copyCopilotCliSkillsFiles() {
-	const sourceDir = path.join(REPO_ROOT, 'node_modules', '@github', 'copilot', 'builtin-skills');
-	const targetDir = path.join(REPO_ROOT, 'node_modules', '@github', 'copilot', 'sdk', 'builtin-skills');
+async function copyCopilotCliQueryFiles(copilotCliSourceDir: string) {
+	const sourceDir = path.join(copilotCliSourceDir, 'queries');
+	const targetDir = path.join(COPILOT_PACKAGE_DIR, 'sdk', 'queries');
 
 	await copyCopilotCLIFolders(sourceDir, targetDir);
 }
 
-async function copyCopilotCliQueryFiles() {
-	const sourceDir = path.join(REPO_ROOT, 'node_modules', '@github', 'copilot', 'queries');
-	const targetDir = path.join(REPO_ROOT, 'node_modules', '@github', 'copilot', 'sdk', 'queries');
-
-	await copyCopilotCLIFolders(sourceDir, targetDir);
-}
-
-async function copyCopilotCliPrebuildFiles() {
-	const sourceDir = path.join(REPO_ROOT, 'node_modules', '@github', 'copilot', 'prebuilds');
-	const targetDir = path.join(REPO_ROOT, 'node_modules', '@github', 'copilot', 'sdk', 'prebuilds');
+async function copyCopilotCliPrebuildFiles(copilotCliSourceDir: string) {
+	const sourceDir = path.join(copilotCliSourceDir, 'prebuilds');
+	const targetDir = path.join(COPILOT_PACKAGE_DIR, 'sdk', 'prebuilds');
 	await fs.promises.rm(targetDir, { recursive: true, force: true });
 	await fs.promises.mkdir(targetDir, { recursive: true });
 	await fs.promises.cp(sourceDir, targetDir, {
@@ -115,9 +220,6 @@ async function copyCopilotCliPrebuildFiles() {
 			try {
 				if (fs.statSync(src).isFile()) {
 					const normalizedSrc = src.split(path.sep).join(path.posix.sep);
-					if (normalizedSrc.includes('/prebuilds/linuxmusl-')) {
-						return false;
-					}
 					return src.endsWith('computer.node')
 						|| src.endsWith('runtime.node')
 						|| src.endsWith('cli-native.node')
@@ -191,13 +293,14 @@ async function main() {
 		'node_modules/@github/blackbird-external-ingest-utils/pkg/nodejs/external_ingest_utils_bg.wasm',
 	], 'dist');
 
+	const copilotCliSourceDir = await materializeCopilotCliSdkLayout();
 	await removeCopilotCLIShim();
-	await copyCopilotCliWorkerFiles();
-	await copyCopilotCliSharpFiles();
-	await copyCopilotCliDefinitionFiles();
-	await copyCopilotCliSkillsFiles();
-	await copyCopilotCliQueryFiles();
-	await copyCopilotCliPrebuildFiles();
+	await removeCopilotCliWorkerFiles();
+	await copyCopilotCliDefinitionFiles(copilotCliSourceDir);
+	await copyCopilotCliSkillsFiles(copilotCliSourceDir);
+	await copyCopilotCliTGrepFiles(copilotCliSourceDir);
+	await copyCopilotCliQueryFiles(copilotCliSourceDir);
+	await copyCopilotCliPrebuildFiles(copilotCliSourceDir);
 
 	// Check if the base cache file exists (dev-only sanity check, non-fatal in CI)
 	const baseCachePath = path.join('test', 'simulation', 'cache', 'base.sqlite');
@@ -205,9 +308,6 @@ async function main() {
 		console.warn(`Warning: Base cache file does not exist at ${baseCachePath}. Please ensure that you have git lfs installed and initialized before the repository is cloned.`);
 	}
 
-	await copyStaticAssets([
-		`node_modules/@anthropic-ai/claude-agent-sdk/cli.js`,
-	], 'dist');
 }
 
 main();

@@ -2765,6 +2765,40 @@ suite('PromptFilesLocator', () => {
 			);
 		});
 
+		testT('stops at a submodule .git file', async () => {
+			setWorkspaceFoldersForRoots(['/repos/superproject/submodule']);
+			await mockFiles(fileService, [
+				{ path: '/repos/superproject/.git/HEAD', contents: ['ref: refs/heads/main'] },
+				{ path: '/repos/superproject/submodule/.git', contents: ['gitdir: ../.git/modules/submodule'] },
+				{ path: '/repos/superproject/submodule/src/index.ts', contents: ['export {};'] },
+			]);
+
+			workspaceTrustService.setTrustedUris([URI.file('/repos/superproject/submodule')]);
+
+			const roots = await locator.getWorkspaceFolderRoots(true);
+			assert.deepStrictEqual(roots.map(r => r.path), ['/repos/superproject/submodule']);
+		});
+
+		testT('stops at a git worktree .git file', async () => {
+			setWorkspaceFoldersForRoots(['/repos/repo.worktrees/feature/src']);
+			await mockFiles(fileService, [
+				{ path: '/repos/repo.worktrees/feature/.git', contents: ['gitdir: ../../repo/.git/worktrees/feature'] },
+				{ path: '/repos/repo.worktrees/feature/src/index.ts', contents: ['export {};'] },
+			]);
+
+			workspaceTrustService.setTrustedUris([URI.file('/repos/repo.worktrees/feature')]);
+
+			const roots = await locator.getWorkspaceFolderRoots(true);
+			assert.deepStrictEqual(
+				roots.map(r => r.path).sort(),
+				[
+					'/repos/repo.worktrees/feature',
+					'/repos/repo.worktrees/feature/src',
+				].sort(),
+				'Should include the workspace folder and its worktree root',
+			);
+		});
+
 		testT('does not walk up when includeParents is false', async () => {
 			setWorkspaceFoldersForRoots(['/repos/monorepo/packages/my-app']);
 			await mockFiles(fileService, [

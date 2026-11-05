@@ -1,0 +1,49 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Call create_session exactly once with relationship "currentSession", workspace "${workdir}/replacement", worktree false, prompt "/rename Directory Peer", and title "Directory Peer". Then reply exactly "created".
+    response:
+      content:
+        - type: text
+          text: Creating the requested session now.
+        - type: tool_use
+          id: toolcall_0
+          name: create_session
+          input:
+            relationship: currentSession
+            workspace: ${workdir}/replacement
+            worktree: false
+            prompt: /rename Directory Peer
+            title: Directory Peer
+      stopReason: tool_use
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Call create_session exactly once with relationship "currentSession", workspace "${workdir}/replacement", worktree false, prompt "/rename Directory Peer", and title "Directory Peer". Then reply exactly "created".
+        - role: assistant
+          content: Creating the requested session now.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: create_session
+              input:
+                relationship: currentSession
+                workspace: ${workdir}/replacement
+                worktree: false
+                prompt: /rename Directory Peer
+                title: Directory Peer
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: Chat created in the current session (agent-host-session://codex/${uuid_0}?chat=${uuid_1}).
+    response:
+      content: created
+      stopReason: end_turn

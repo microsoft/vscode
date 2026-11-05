@@ -23,7 +23,7 @@ import { IInstantiationService } from '../../../../util/vs/platform/instantiatio
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
 import { TestChatRequest } from '../../../test/node/testHelpers';
 import { ToolName } from '../../../tools/common/toolNames';
-import { AgentIntentInvocation, getAgentTools, isBackgroundTodoAgentEnabled, isTodoToolExplicitlyEnabled } from '../agentIntent';
+import { AgentIntent, AgentIntentInvocation, getAgentTools, isBackgroundTodoAgentEnabled, isTodoToolExplicitlyEnabled } from '../agentIntent';
 
 // ─── isTodoToolExplicitlyEnabled unit tests ──────────────────────
 
@@ -276,3 +276,70 @@ describe('AgentIntentInvocation._maybeStartBackgroundTodoAgentPass subagent guar
 		expect(processorLookups).toBe(0);
 	});
 });
+
+// ─── AgentIntent._runFinalBackgroundTodoPass model-eligibility guard ───
+
+// The final review pass reuses a previously-created processor, so a mid-session
+// switch to a BYOK (non-CAPI) model must not fire it. Like the subagent-guard
+// tests above, we invoke the private method directly against a minimal stub.
+
+describe('AgentIntent._runFinalBackgroundTodoPass model-eligibility guard', () => {
+
+	const capiEndpoint = { urlOrRequestMetadata: { type: RequestType.ChatCompletions }, modelProvider: 'copilot' } as unknown as IChatEndpoint;
+	const byokEndpoint = { urlOrRequestMetadata: 'https://api.example.com/v1/chat', modelProvider: 'custom' } as unknown as IChatEndpoint;
+	const paidToken = new CopilotToken(createTestExtendedTokenInfo({ sku: 'copilot_individual', copilot_plan: 'individual' }));
+
+	function getMethod(): (this: unknown, conversation: unknown, request: unknown) => Promise<void> {
+		return (AgentIntent.prototype as unknown as { _runFinalBackgroundTodoPass: (this: unknown, conversation: unknown, request: unknown) => Promise<void> })._runFinalBackgroundTodoPass;
+	}
+
+	function makeStub(endpoint: IChatEndpoint | undefined, processor: unknown) {
+		return {
+			_backgroundTodoProcessors: { get: (_id: string) => processor },
+			endpointProvider: { getChatEndpoint: async () => endpoint },
+			configurationService: { getExperimentBasedConfig: () => true },
+			expService: {},
+			_authenticationService: { copilotToken: paidToken },
+		};
+	}
+
+	const conversation = { sessionId: 'sess-1', getLatestTurn: () => ({ id: 'turn-1' }) };
+
+	function makeProcessor() {
+		let endTurnCalls = 0;
+		return {
+			get endTurnCalls() { return endTurnCalls; },
+			endTurn: async () => { endTurnCalls++; },
+			cancel: () => { },
+		};
+	}
+
+	test('runs the final pass on a CAPI endpoint with paid auth and experiment on', async () => {
+		const processor = makeProcessor();
+		const request = new TestChatRequest('fix the bug');
+		await getMethod().call(makeStub(capiEndpoint, processor), conversation, request);
+		expect(processor.endTurnCalls).toBe(1);
+	});
+
+	test('does not run the final pass when the model switched to a BYOK (non-CAPI) endpoint', async () => {
+		const processor = makeProcessor();
+		const request = new TestChatRequest('fix the bug');
+		await getMethod().call(makeStub(byokEndpoint, processor), conversation, request);
+		expect(processor.endTurnCalls).toBe(0);
+	});
+
+	test('does not run the final pass for a subagent request', async () => {
+		const processor = makeProcessor();
+		const request = new TestChatRequest('fix the bug');
+		(request as unknown as { subAgentInvocationId: string }).subAgentInvocationId = 'subagent-uuid-1';
+		await getMethod().call(makeStub(capiEndpoint, processor), conversation, request);
+		expect(processor.endTurnCalls).toBe(0);
+	});
+
+	test('does nothing when there is no processor for the session', async () => {
+		const request = new TestChatRequest('fix the bug');
+		await getMethod().call(makeStub(capiEndpoint, undefined), conversation, request);
+		// No throw and nothing to assert beyond reaching here.
+	});
+});
+

@@ -5,6 +5,7 @@
 
 import { raceCancellationError } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../base/common/errors.js';
 import { Emitter } from '../../../base/common/event.js';
 import { IMarkdownString, MarkdownString, markdownStringEqual } from '../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableResourceMap, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
@@ -21,23 +22,15 @@ import { IInstantiationService } from '../../../platform/instantiation/common/in
 import { ILogService } from '../../../platform/log/common/log.js';
 import { hasValidDiff, IAgentSession } from '../../contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../contrib/chat/browser/agentSessions/agentSessionsService.js';
-import { IChatWidgetService, isIChatViewViewContext } from '../../contrib/chat/browser/chat.js';
+import { commitChatSession } from '../../contrib/chat/browser/chatSessions/chatSessionCommit.js';
 import { getInProgressSessionDescription } from '../../contrib/chat/browser/chatSessions/chatSessionDescription.js';
 import { getSessionStatusForModel } from '../../contrib/chat/browser/chatSessions/chatSessions.contribution.js';
-import { IChatEditorOptions } from '../../contrib/chat/browser/widgetHosts/editor/chatEditor.js';
-import { ChatEditorInput } from '../../contrib/chat/browser/widgetHosts/editor/chatEditorInput.js';
 import { IChatRequestVariableEntry } from '../../contrib/chat/common/attachments/chatVariableEntries.js';
-import { IChatDebugService } from '../../contrib/chat/common/chatDebugService.js';
 import { IChatContentInlineReference, IChatDetail, IChatProgress, IChatService, IChatSessionTiming } from '../../contrib/chat/common/chatService/chatService.js';
 import { ChatSessionOptionsMap, ChatSessionStatus, IChatNewSessionRequest, IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionRequestHistoryItem, IChatSessionsService, ReadonlyChatSessionOptionsMap } from '../../contrib/chat/common/chatSessionsService.js';
-import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { IChatModel } from '../../contrib/chat/common/model/chatModel.js';
 import { getChatSessionType } from '../../contrib/chat/common/model/chatUri.js';
 import { IChatAgentRequest } from '../../contrib/chat/common/participants/chatAgents.js';
-import { IChatArtifactsService } from '../../contrib/chat/common/tools/chatArtifactsService.js';
-import { IChatTodoListService } from '../../contrib/chat/common/tools/chatTodoListService.js';
-import { IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
-import { IEditorService } from '../../services/editor/common/editorService.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
 import { ChatSessionContentContextDto, ExtHostChatSessionsShape, ExtHostContext, IChatProgressDto, IChatSessionHistoryItemDto, IChatSessionItemsChange, IChatSessionRequestHistoryItemDto, MainContext, MainThreadChatSessionsShape } from '../common/extHost.protocol.js';
@@ -75,6 +68,19 @@ export class ObservableChatSession extends Disposable implements IChatSession {
 	private _isInitialized = false;
 	private _interruptionWasCanceled = false;
 	private _disposalPending = false;
+
+	/**
+	 * Number of currently in-flight `requestHandler` invocations. Used to
+	 * defer `$disposeChatSessionContent` when the workbench wants to release
+	 * this session while a request is mid-flight on a `requestHandler`-style
+	 * session (e.g. Copilot CLI). Without this guard, the proxy dispose
+	 * synchronously cancels the ext-host `disposeCts` and tears down the
+	 * underlying SDK session (which calls `sdkSession.abort()`), so the
+	 * in-flight request is lost. The `activeResponseCallback`-style sessions
+	 * have their own deferral via {@link interruptActiveResponseCallback};
+	 * this counter is the equivalent for `requestHandler`-style sessions.
+	 */
+	private _inFlightRequestCount = 0;
 
 	private _initializationPromise?: Promise<void>;
 
@@ -215,6 +221,7 @@ export class ObservableChatSession extends Disposable implements IChatSession {
 					history: any[],
 					token: CancellationToken
 				) => {
+					this._inFlightRequestCount++;
 					// Clear previous progress and mark as active
 					this._progressObservable.set([], undefined);
 					this._isCompleteObservable.set(false, undefined);
@@ -256,6 +263,15 @@ export class ObservableChatSession extends Disposable implements IChatSession {
 					} finally {
 						// Ensure progress observation is cleaned up
 						progressDisposable.dispose();
+						this._inFlightRequestCount--;
+						// If a dispose was requested while this request was in flight,
+						// fire the proxy disposal now that the last request has settled.
+						// Guarded by `!this.interruptActiveResponseCallback` so we don't
+						// trample the existing interruption-confirmation flow.
+						if (this._disposalPending && this._inFlightRequestCount === 0 && !this.interruptActiveResponseCallback) {
+							this._disposalPending = false;
+							this._proxy.$disposeChatSessionContent(this._providerHandle, this.sessionResource);
+						}
 					}
 				};
 			}
@@ -358,6 +374,12 @@ export class ObservableChatSession extends Disposable implements IChatSession {
 		if (this.interruptActiveResponseCallback && !this._interruptionWasCanceled) {
 			this._disposalPending = true;
 			// The actual disposal will happen in the interruption callback based on user's choice
+		} else if (this._inFlightRequestCount > 0) {
+			// Defense in depth for `requestHandler`-style sessions (e.g. Copilot CLI):
+			// defer the ext-host disposal until any in-flight request settles so the
+			// SDK session isn't aborted mid-request. The deferred call fires from
+			// the `requestHandler`'s `finally` block when the counter reaches zero.
+			this._disposalPending = true;
 		} else {
 			// No active response callback or user already canceled interruption - dispose immediately
 			this._proxy.$disposeChatSessionContent(this._providerHandle, this.sessionResource);
@@ -673,14 +695,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		private readonly _extHostContext: IExtHostContext,
 		@IAgentSessionsService private readonly _agentSessionsService: IAgentSessionsService,
 		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
-		@IChatService private readonly _chatService: IChatService,
-		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
-		@IChatTodoListService private readonly _chatTodoListService: IChatTodoListService,
-		@IChatArtifactsService private readonly _chatArtifactsService: IChatArtifactsService,
-		@IChatDebugService private readonly _chatDebugService: IChatDebugService,
 		@IDialogService private readonly _dialogService: IDialogService,
-		@IEditorService private readonly _editorService: IEditorService,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
@@ -796,101 +811,9 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 			this._logService.error(`No chat session type found for provider handle ${handle}`);
 			return;
 		}
-
-		const originalEditor = this._editorService.editors.find(editor => editor.resource?.toString() === originalResource.toString());
-		const originalModel = this._chatService.acquireExistingSession(originalResource);
-		const contribution = this._chatSessionsService.getAllChatSessionContributions().find(c => c.type === chatSessionType);
-
-		try {
-
-			// Migrate todos from old session to new session
-			this._chatTodoListService.migrateTodos(originalResource, modifiedResource);
-
-			// Migrate artifacts from old session to new session
-			this._chatArtifactsService.getArtifacts(originalResource).migrate(this._chatArtifactsService.getArtifacts(modifiedResource));
-
-			// Eagerly invoke debug providers for Copilot CLI sessions so the real
-			// session appears in the debug panel immediately after the untitled →
-			// real swap. Without this, the untitled session is filtered out (it
-			// only has a "Load Hooks" event) and the real session has no events
-			// until someone navigates to it — which can't happen because it's
-			// not listed.
-			if (chatSessionType === 'copilotcli') {
-				// Fire-and-forget: don't block the editor swap. Errors are
-				// handled internally by invokeProviders via onUnexpectedError.
-				this._chatDebugService.invokeProviders(modifiedResource).catch(() => { /* handled internally */ });
-			}
-
-			// Find the group containing the original editor
-			const originalGroup =
-				this.editorGroupService.groups.find(group => group.editors.some(editor => isEqual(editor.resource, originalResource)))
-				?? this.editorGroupService.activeGroup;
-
-			const options: IChatEditorOptions = {
-				title: {
-					preferred: originalEditor?.getName() || undefined,
-					fallback: localize('chatEditorContributionName', "{0}", contribution?.displayName),
-				}
-			};
-
-			// Prefetch the chat session content to make the subsequent editor swap quick
-			const newSession = await this._chatSessionsService.getOrCreateChatSession(
-				URI.revive(modifiedResource),
-				CancellationToken.None,
-			);
-
-			if (originalEditor) {
-				newSession.transferredState = originalEditor instanceof ChatEditorInput
-					? { editingSession: originalEditor.transferOutEditingSession(), inputState: originalModel?.object?.inputModel.toJSON() }
-					: undefined;
-
-				await this._editorService.replaceEditors([{
-					editor: originalEditor,
-					replacement: {
-						resource: modifiedResource,
-						options,
-					},
-				}], originalGroup);
-
-				// Re-send queued requests from the original session on the committed session
-				this._resendPendingRequests(originalResource, modifiedResource);
-				return;
-			}
-
-			// If chat editor is in the side panel, then those are not listed as editors.
-			// In that case we need to transfer editing session using the original model.
-			if (originalModel) {
-				newSession.transferredState = {
-					editingSession: originalModel.object.editingSession,
-					inputState: originalModel.object.inputModel.toJSON()
-				};
-			}
-
-			const chatViewWidget = this._chatWidgetService.getWidgetBySessionResource(originalResource);
-			if (chatViewWidget && isIChatViewViewContext(chatViewWidget.viewContext)) {
-				await this._chatWidgetService.openSession(modifiedResource, undefined, { preserveFocus: true });
-			} else {
-				// Loading the session to ensure the session is created and editing session is transferred.
-				const ref = await this._chatService.acquireOrLoadSession(modifiedResource, ChatAgentLocation.Chat, CancellationToken.None);
-				ref?.dispose();
-			}
-
-			// Re-send queued requests from the original session on the committed session
-			this._resendPendingRequests(originalResource, modifiedResource);
-
-			// Notify listeners that the session has been committed
-			this._chatSessionsService.fireSessionCommitted(originalResource, modifiedResource);
-		} finally {
-			originalModel?.dispose();
-		}
+		await this._instantiationService.invokeFunction(commitChatSession, chatSessionType, originalResource, modifiedResource);
 	}
 
-	/**
-	 * Re-sends pending and in-flight requests from the original session on the committed session.
-	 */
-	private _resendPendingRequests(originalResource: URI, modifiedResource: URI): void {
-		this._chatService.migrateRequests(originalResource, modifiedResource);
-	}
 
 	private async _provideChatSessionContent(providerHandle: number, sessionResource: URI, token: CancellationToken): Promise<IChatSession> {
 		const t0 = Date.now();
@@ -1034,7 +957,11 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 			if (options?.optionGroups && options.optionGroups.length) {
 				this._chatSessionsService.setOptionGroupsForSessionType(chatSessionScheme, handle, [...options.optionGroups]);
 			}
-		}).catch(err => this._logService.error('Error fetching chat session options', err));
+		}).catch(err => {
+			if (!isCancellationError(err)) {
+				this._logService.error('Error fetching chat session options', err);
+			}
+		});
 	}
 
 	override dispose(): void {

@@ -5,149 +5,378 @@
 
 import { ipcRenderer } from '../../../../base/parts/sandbox/electron-browser/globals.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../base/common/observable.js';
-import { timeout } from '../../../../base/common/async.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { raceCancellation, Sequencer } from '../../../../base/common/async.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { localize } from '../../../../nls.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IAgentHostByokLmHandler } from '../../../../platform/agentHost/common/agentHostByokLm.js';
+import { IAgentHostConnectionsService } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { buildExternalOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkTurnId, parseOpenSessionLinkUri } from '../../../../platform/agentHost/common/openSessionLink.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { AgentHostByokLmHandler } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostByokLmHandler.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsViewService } from '../../../browser/sessionsViewService.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { SessionsView, SessionsViewId as SessionsListViewId } from '../../sessions/browser/views/sessionsView.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { ISessionsSetUpService } from '../../../browser/sessionsSetUpService.js';
-import { ISessionsPartService } from '../../../browser/parts/sessionsPartService.js';
-import { SessionStatus } from '../../../services/sessions/common/session.js';
-import { writeStoredSessionTypePref } from '../browser/sessionTypePicker.js';
+import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
+import { SessionsCopilotConfigSlashSubmitHandlerContribution } from '../browser/copilotConfigSlashSubmitHandler.js';
+import { AgentsWindowOpenSource, IAgentsWindowDraft, isAgentsWindowDraft, isAgentsWindowOpenSource } from '../../../../platform/window/common/window.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
+import { AgentsWindowUsage } from '../../../../workbench/contrib/chat/common/agentsWindowUsage.js';
+import { ISessionsWindowOpenContext, ISessionsWindowOpenViewState, SessionsWindowOpenTelemetry, SessionsWindowSessionStartTelemetry } from '../../sessions/browser/sessionsWindowOpenTelemetry.js';
+import { getNonArchivedSessionListCount } from '../../../common/sessionsTelemetry.js';
+import { INewSessionComposerService, NewSessionWorkspacePreselectionSource } from '../browser/newSessionComposerService.js';
+import { getAgentsWindowWorkspaceArgumentKind, getAgentsWindowWorkspaceArgumentRemoteKind, resolveAgentsWindowFolderIntent } from '../browser/agentsWindowOpenIntent.js';
+import { findSessionForOpenSessionLink } from '../browser/openSessionLinkOpener.contribution.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { AgentsWindowWorkspaceHandoff } from '../browser/agentsWindowWorkspaceHandoff.js';
+import { SessionsWorkspaceSelectionTelemetry } from '../../sessions/browser/sessionsWorkspaceSelectionTelemetry.js';
+import { AgentsWindowInvitationOnboarding } from '../../onboardingTours/browser/agentsWindowInvitationOnboarding.js';
+import { isAgentsWindowInvitationSource } from '../../../../workbench/contrib/chat/common/agentsWindowInvitation.js';
+import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { isAgentHostTarget } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
+import '../../../../workbench/contrib/chat/browser/aiCustomization/copilotCanvases.contribution.js';
+import './chatBackgroundTool.contribution.js';
+import { ScreenshotWindowToolContribution } from '../browser/screenshotWindowTool.js';
+import { ISession } from '../../../services/sessions/common/session.js';
 
-class SelectAgentsFolderContribution extends Disposable implements IWorkbenchContribution {
+/** Revokes editor request ownership when the next request is submitted here. */
+export class AgentsWindowRequestActivity extends Disposable implements IWorkbenchContribution {
+	static readonly ID = 'sessions.agentHostRequestActivity';
+
+	constructor(
+		@IChatService chatService: IChatService,
+		@INativeHostService nativeHostService: INativeHostService,
+		@ILifecycleService lifecycleService: ILifecycleService,
+		@ILogService logService: ILogService,
+	) {
+		super();
+		const updates = new Sequencer();
+		let pending = Promise.resolve();
+		this._register(chatService.onDidAcceptRequest(event => {
+			if (isAgentHostTarget(getChatSessionType(event.chatSessionResource))) {
+				pending = updates.queue(() => nativeHostService.updateAgentHostEditorState({
+					kind: 'request', resource: event.chatSessionResource.toJSON(), isNewSession: event.isNewSession,
+				}));
+				void pending.catch(error => logService.error('[AgentsWindowRequestActivity] Failed to update request origin', error));
+			}
+		}));
+		this._register(lifecycleService.onWillShutdown(event => event.join(pending, {
+			id: AgentsWindowRequestActivity.ID,
+			label: localize('savingAgentsWindowRequestActivity', "Saving Agent Host request activity"),
+		})));
+	}
+}
+
+export class SelectAgentsFolderContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'sessions.selectAgentsFolder';
+	private readonly _windowOpenTelemetry = this._register(new MutableDisposable<SessionsWindowOpenTelemetry>());
+	private readonly _workspaceSelectionTelemetry = this._register(new MutableDisposable<SessionsWorkspaceSelectionTelemetry>());
+	private readonly _openIntent = this._register(new MutableDisposable());
+	private readonly _workspaceHandoff: AgentsWindowWorkspaceHandoff;
+	private readonly _invitationOnboarding: AgentsWindowInvitationOnboarding;
+	private _didHandleInitialWindowOpen = false;
 
 	constructor(
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
-		@ISessionsViewService private readonly sessionsViewService: ISessionsViewService,
+		@ISessionsService private readonly sessionsService: ISessionsService,
+		@IFocusedSessionHostService private readonly _focusedSessionHostService: IFocusedSessionHostService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
-		@IViewsService private readonly viewsService: IViewsService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@ISessionsSetUpService private readonly sessionsSetUpService: ISessionsSetUpService,
 		@ILogService private readonly logService: ILogService,
 		@ISessionsPartService private readonly sessionsPartService: ISessionsPartService,
 		@IStorageService private readonly storageService: IStorageService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@INewSessionComposerService private readonly newSessionComposerService: INewSessionComposerService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IAgentHostConnectionsService private readonly agentHostConnectionsService: IAgentHostConnectionsService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IProductService private readonly productService: IProductService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
+		this._workspaceHandoff = this._register(instantiationService.createInstance(AgentsWindowWorkspaceHandoff));
+		this._invitationOnboarding = this._register(instantiationService.createInstance(AgentsWindowInvitationOnboarding));
 		const handleSelectAgentsFolder = (_: unknown, ...args: unknown[]) => {
-			const folderUri = args[0] ? URI.revive(args[0] as UriComponents) : undefined;
-			const initialQuery = typeof args[1] === 'string' ? args[1] : undefined;
-			const sessionResource = args[2] ? URI.revive(args[2] as UriComponents) : undefined;
-			const rawPref = args[3] && typeof args[3] === 'object' ? args[3] as Record<string, unknown> : undefined;
-			const preferredSessionType = rawPref && typeof rawPref.sessionTypeId === 'string'
-				? { sessionTypeId: rawPref.sessionTypeId, providerId: typeof rawPref.providerId === 'string' ? rawPref.providerId : undefined }
-				: undefined;
-			this.logService.info(`[AgentsHandoff] IPC received: folderUri=${folderUri?.toString() ?? '(none)'} initialQuery=${initialQuery ? 'yes' : 'no'} sessionResource=${sessionResource?.toString() ?? '(none)'} preferredSessionType=${preferredSessionType?.sessionTypeId ?? '(none)'}`);
-
-			// Pre-seed the session-type picker before any UI consults it.
-			// The picker re-reads from storage on its own onDidChangeValue
-			// listener once the active session is cleared.
-			if (preferredSessionType) {
-				writeStoredSessionTypePref(this.storageService, preferredSessionType);
+			this._workspaceHandoff.cancel();
+			const cancellation = new CancellationTokenSource();
+			this._openIntent.value = toDisposable(() => cancellation.dispose(true));
+			const workspaceUri = args[0] ? URI.revive(args[0] as UriComponents) : undefined;
+			const showNewSession = args[1] === 'new';
+			const sessionResource = args[1] && !showNewSession ? URI.revive(args[1] as UriComponents) : undefined;
+			const source = isAgentsWindowOpenSource(args[2]) ? args[2] : AgentsWindowOpenSource.Unknown;
+			const onboardingSessionResource = isAgentsWindowInvitationSource(source) && args[5] ? URI.revive(args[5] as UriComponents) : undefined;
+			const workspaceArgumentIsDefault = args[3] === true;
+			const draftPayload = showNewSession || source === AgentsWindowOpenSource.Link ? args[4] : undefined;
+			if (draftPayload !== undefined && !isAgentsWindowDraft(draftPayload)) {
+				this.logService.error('[AgentsHandoff] Invalid draft payload');
+				this.notificationService.warn(localize('agentsHandoff.invalidDraft', "The draft could not be copied. Your prompt and attachments are still in the editor."));
+				return;
 			}
+			const draft = draftPayload;
+			const noWorkspace = source === AgentsWindowOpenSource.Link && draft !== undefined && workspaceUri === undefined;
+			this.logService.info(`[AgentsHandoff] IPC received: folderUri=${workspaceUri?.toString() ?? '(none)'} sessionResource=${sessionResource?.toString() ?? '(none)'}`);
+			const telemetry = this._startWindowOpenTelemetry(source, {
+				workspaceArgumentKind: getAgentsWindowWorkspaceArgumentKind(workspaceUri),
+				workspaceArgumentRemoteKind: getAgentsWindowWorkspaceArgumentRemoteKind(workspaceUri),
+				hasSessionArgument: sessionResource !== undefined,
+				workspaceArgumentIsDefault,
+			});
 
-			// Empty / new-session handoff: a folderUri may still come along (we
-			// always pass the source workspace's folder) but as long as no real
-			// session or initial query is being restored, our seed wins.
-			const preferredOnly = !!preferredSessionType && !sessionResource && !initialQuery;
-
-			this.handleOpenIntent(folderUri, initialQuery, sessionResource)
-				.catch(err => this.logService.error('[AgentsHandoff] handleOpenIntent failed', err));
-
-			if (preferredOnly) {
-				// Wait for the workbench's own restoreVisibleSessions to
-				// finish (which would otherwise overwrite our pick by
-				// reactivating a prior session), then drop the active session
-				// so the session-type picker re-reads the freshly stored
-				// preference from storage.
-				this.lifecycleService.when(LifecyclePhase.Eventually)
-					.then(() => this.sessionsViewService.unsetNewSession())
-					.catch(err => this.logService.error('[AgentsHandoff] preferred-only unsetNewSession failed', err));
-			}
+			const handoff = () => this._handleOpenIntentAndCaptureInitialState(workspaceUri, sessionResource, workspaceArgumentIsDefault, cancellation.token, telemetry, draft, noWorkspace, showNewSession);
+			const opening = onboardingSessionResource && (!sessionResource || isEqual(onboardingSessionResource, sessionResource))
+				? this._invitationOnboarding.runWithHandoff(handoff, async () => {
+					const available = await this.waitForSessionAvailable(onboardingSessionResource, cancellation.token);
+					return available ? this.getSessionForResource(onboardingSessionResource) : undefined;
+				}, cancellation.token, sessionResource !== undefined)
+				: handoff();
+			opening.catch(err => this.logService.error('[AgentsHandoff] handleOpenIntent failed', err));
 		};
 		ipcRenderer.on('vscode:selectAgentsFolder', handleSelectAgentsFolder);
 		this._register({ dispose: () => ipcRenderer.removeListener('vscode:selectAgentsFolder', handleSelectAgentsFolder) });
 	}
 
-	private async handleOpenIntent(folderUri: URI | undefined, initialQuery: string | undefined, sessionResource: URI | undefined): Promise<void> {
-		if (folderUri) {
-			await this.selectFolder(folderUri);
-		}
-		if (sessionResource) {
-			await this.openExistingSession(sessionResource);
+	private _startWindowOpenTelemetry(source: AgentsWindowOpenSource, context: ISessionsWindowOpenContext): SessionsWindowOpenTelemetry | undefined {
+		if (this._didHandleInitialWindowOpen) {
 			return;
 		}
-		if (initialQuery) {
-			await this.submitInitialQuery(initialQuery);
+		this._didHandleInitialWindowOpen = true;
+		const hasPreviouslyStartedSession = new AgentsWindowUsage(this.storageService).createdSessionCount !== 0;
+		new SessionsWindowSessionStartTelemetry(source, hasPreviouslyStartedSession, this.telemetryService);
+		if (hasPreviouslyStartedSession) {
+			return;
+		}
+
+		this._windowOpenTelemetry.value = new SessionsWindowOpenTelemetry(
+			source,
+			context,
+			() => this.sessionsSetUpService.initialSignInDialogShown,
+			() => this._getWindowOpenViewState(),
+			() => getNonArchivedSessionListCount(this.sessionsManagementService.getSessions()),
+			this.telemetryService,
+			this.lifecycleService,
+			this.storageService,
+		);
+		if (!context.hasSessionArgument) {
+			this._workspaceSelectionTelemetry.value = this.instantiationService.createInstance(SessionsWorkspaceSelectionTelemetry, source, context);
+		}
+		return this._windowOpenTelemetry.value;
+	}
+
+	private async _captureInitialWindowViewState(telemetry: SessionsWindowOpenTelemetry | undefined): Promise<void> {
+		await this.lifecycleService.when(LifecyclePhase.Eventually);
+		telemetry?.captureInitialViewState();
+	}
+
+	private async _handleOpenIntentAndCaptureInitialState(workspaceUri: URI | undefined, sessionResource: URI | undefined, isDefault: boolean, token: CancellationToken, telemetry: SessionsWindowOpenTelemetry | undefined, draft?: IAgentsWindowDraft, noWorkspace = false, showNewSession = false): Promise<void> {
+		try {
+			await this.handleOpenIntent(workspaceUri, sessionResource, isDefault, token, telemetry, draft, noWorkspace, showNewSession);
+		} catch (error) {
+			telemetry?.recordWorkspaceHandoffState('error');
+			throw error;
+		} finally {
+			await this._captureInitialWindowViewState(telemetry);
 		}
 	}
 
-	private async openExistingSession(sessionResource: URI): Promise<void> {
+	private _getWindowOpenViewState(): ISessionsWindowOpenViewState {
+		const activeSession = this._focusedSessionHostService.focusedHost.get().session.get();
+		const isNewSessionView = !activeSession || !activeSession.isCreated.get();
+		if (!isNewSessionView) {
+			return {
+				workspacePreselected: undefined,
+				workspacePreselectionSource: undefined,
+				viewKind: 'createdSession',
+			};
+		}
+		const composer = this.newSessionComposerService.activeComposer.get();
+		const composerSource = composer?.workspacePreselectionSource;
+		const workspacePreselected = activeSession?.workspace.get() !== undefined
+			|| (composerSource !== undefined && composerSource !== NewSessionWorkspacePreselectionSource.None);
+		return {
+			workspacePreselected,
+			workspacePreselectionSource: composerSource
+				?? (workspacePreselected ? NewSessionWorkspacePreselectionSource.Unknown : NewSessionWorkspacePreselectionSource.None),
+			viewKind: composer ? 'newSession' : 'noComposer',
+			workspaceSelection: composer?.workspaceSelection,
+		};
+	}
+
+	private async handleOpenIntent(workspaceUri: URI | undefined, sessionResource: URI | undefined, isDefault: boolean, token: CancellationToken, telemetry: SessionsWindowOpenTelemetry | undefined, draft?: IAgentsWindowDraft, noWorkspace = false, showNewSession = false): Promise<void> {
+		// Opening an existing session establishes its own workspace context, so
+		// the folder selection is only needed for the folder-only handoff (no
+		// session to restore).
+		if (sessionResource) {
+			await this.openExistingSession(sessionResource, token);
+			return;
+		}
+		const resolved = resolveAgentsWindowFolderIntent(workspaceUri, this.configurationService);
+		const folderUri = resolved.folderUri ?? (draft ? workspaceUri : undefined);
+		if (showNewSession && !folderUri && !draft && !resolved.remote) {
+			await raceCancellation(this.lifecycleService.when(LifecyclePhase.Restored), token);
+			if (!token.isCancellationRequested) {
+				this.newSessionComposerService.notifyUserNavigation();
+				await this.sessionsService.openNewSession({ cancelRestore: true }, token);
+			}
+			return;
+		}
+		if (folderUri || draft || resolved.remote) {
+			if (showNewSession) {
+				this.newSessionComposerService.notifyUserNavigation();
+			}
+			await this._workspaceHandoff.selectWorkspace({
+				folderUri, ...(resolved.remote ? { remote: resolved.remote } : {}), preferDevContainer: resolved.preferDevContainer, isDefault, draft, noWorkspace, revealNewSession: showNewSession,
+			}, state => telemetry?.recordWorkspaceHandoffState(state));
+		}
+	}
+
+	private async openExistingSession(sessionResource: URI, token: CancellationToken): Promise<void> {
 		this.logService.info(`[AgentsHandoff] openExistingSession: target=${sessionResource.toString()}`);
 
-		// Wait for the workbench to be ready so the session list / providers
-		// have populated. Otherwise openSession can't find the session.
-		await this.lifecycleService.when(LifecyclePhase.Eventually);
-		this.logService.info('[AgentsHandoff] reached LifecyclePhase.Eventually');
+		// Wait until initial restore has started so opening the target can cancel it,
+		// without delaying the handoff until the intentionally deferred Eventually phase.
+		await raceCancellation(this.lifecycleService.when(LifecyclePhase.Restored), token);
+		if (token.isCancellationRequested) {
+			return;
+		}
+		this.logService.info('[AgentsHandoff] reached LifecyclePhase.Restored');
+
+		const backendSession = parseOpenSessionLinkUri(sessionResource);
+		if (backendSession) {
+			await this.sessionsPartService.getProgressIndicator().showWhile(this.resolveAndOpenSessionLink(sessionResource, backendSession, token));
+			return;
+		}
 
 		// Fast path — already on the target session.
-		const current = this.sessionsManagementService.activeSession.get();
+		const current = this._focusedSessionHostService.focusedHost.get().session.get();
 		if (current && current.resource.toString() === sessionResource.toString()) {
 			this.logService.info('[AgentsHandoff] already on target session');
 			return;
 		}
 
+		// Show the sessions part's progress bar while we wait for the session to
+		// appear in the providers and open it, so the window doesn't just sit on
+		// its restored state until the target session pops in.
+		await this.sessionsPartService.getProgressIndicator().showWhile(this.resolveAndOpenSession(sessionResource, token));
+	}
+
+	private async resolveAndOpenSessionLink(sessionLink: URI, backendSession: URI, token: CancellationToken): Promise<void> {
+		const authority = parseOpenSessionLinkConnectionAuthority(sessionLink);
+		const session = await this.waitForSessionLinkAvailable(backendSession, token, undefined, authority);
+		if (token.isCancellationRequested) {
+			return;
+		}
+		if (!session) {
+			this.logService.warn('[AgentsHandoff] linked session never appeared in providers; aborting');
+			const externalLink = buildExternalOpenSessionLinkUri(
+				this.productService.urlProtocol,
+				backendSession,
+				parseOpenSessionLinkChatId(sessionLink),
+				parseOpenSessionLinkTurnId(sessionLink),
+				authority,
+			);
+			this.notificationService.error(localize('agentsHandoff.sessionNotFound', "The linked session could not be found: {0}", externalLink));
+			return;
+		}
+
+		const provider = this.sessionsProvidersService.getProvider(session.providerId);
+		if (provider && isAgentHostProvider(provider) && provider.connect && !this.agentHostConnectionsService.resolveSessionResource(session.resource)) {
+			try {
+				await provider.connect();
+			} catch (error) {
+				// Still reveal the seeded session so its connection recovery UI can surface the failure.
+				this.logService.warn('[AgentsHandoff] linked session provider failed to connect on demand', error);
+			}
+		}
+
+		const chatId = parseOpenSessionLinkChatId(sessionLink);
+		const chatResource = chatId ? session.resource.with({ fragment: chatId }) : session.mainChat.get().resource;
+		if (token.isCancellationRequested) {
+			return;
+		}
+		this.logService.info(`[AgentsHandoff] linked session available; opening ${chatResource.toString()}`);
+		await this.sessionsService.openChat(session, chatResource, { source: 'link' });
+	}
+
+	private waitForSessionLinkAvailable(backendSession: URI, token: CancellationToken, timeoutMs = 15_000, connectionAuthority?: string): Promise<ReturnType<typeof findSessionForOpenSessionLink>> {
+		if (token.isCancellationRequested) {
+			return Promise.resolve(undefined);
+		}
+		const findSession = () => findSessionForOpenSessionLink(backendSession, this.sessionsManagementService, this.agentHostConnectionsService, connectionAuthority);
+		const existing = findSession();
+		if (existing) {
+			return Promise.resolve(existing);
+		}
+
+		return new Promise(resolve => {
+			const store = new DisposableStore();
+			const done = (session: ReturnType<typeof findSession>) => {
+				store.dispose();
+				resolve(session);
+			};
+			const tryFind = () => {
+				const session = findSession();
+				if (session) {
+					done(session);
+				}
+			};
+			const timer = setTimeout(() => done(findSession()), timeoutMs);
+			store.add({ dispose: () => clearTimeout(timer) });
+			store.add(this.sessionsManagementService.onDidChangeSessions(tryFind));
+			store.add(this.agentHostConnectionsService.onDidChangeSessionResolution(tryFind));
+			store.add(token.onCancellationRequested(() => done(undefined)));
+			tryFind();
+		});
+	}
+
+	private async resolveAndOpenSession(sessionResource: URI, token: CancellationToken): Promise<void> {
 		// The Copilot Chat Sessions Provider lists sessions asynchronously
 		// via an RPC; the target session may not yet be in the providers'
 		// `getSessions()` map. Poll until it shows up.
-		const found = await this.waitForSessionAvailable(sessionResource);
+		const found = await this.waitForSessionAvailable(sessionResource, token);
+		if (token.isCancellationRequested) {
+			return;
+		}
 		if (!found) {
 			this.logService.warn(`[AgentsHandoff] target session never appeared in providers; aborting`);
 			return;
 		}
 		this.logService.info('[AgentsHandoff] target session available; opening');
 
-		// Retry on cancellation / not-found — the agents window may still be
-		// resolving its own restore, which can cancel our token. `openSession`
-		// also returns without throwing when its load is cancelled mid-flight,
-		// so verify the active session matches the target afterwards and
-		// retry if it doesn't.
-		const targetKey = sessionResource.toString();
-		for (let attempt = 0; attempt < 6; attempt++) {
-			try {
-				await this.sessionsViewService.openSession(sessionResource);
-				const active = this.sessionsManagementService.activeSession.get();
-				if (active && active.resource.toString() === targetKey) {
-					this.logService.info('[AgentsHandoff] openSession succeeded');
-					return;
-				}
-				this.logService.warn(`[AgentsHandoff] openSession attempt ${attempt} resolved but active session is ${active?.resource.toString() ?? '(none)'}; retrying`);
-			} catch (err) {
-				const message = err instanceof Error ? err.message : String(err);
-				this.logService.warn(`[AgentsHandoff] openSession attempt ${attempt} failed: ${message}`);
-				const retryable = /canceled/i.test(message) || /not found/i.test(message);
-				if (!retryable) {
-					return;
-				}
-			}
-			if (attempt < 5) {
-				await timeout(500 + attempt * 500);
-			}
+		// `openChat` cancels any in-flight restore before activating the
+		// target, so a single call wins the race — no retry/verify needed.
+		const session = this.getSessionForResource(sessionResource);
+		if (!session) {
+			this.logService.warn('[AgentsHandoff] target session disappeared before opening; aborting');
+			return;
 		}
-		this.logService.warn('[AgentsHandoff] gave up after retries');
+		await this.sessionsService.openChat(session, sessionResource, { source: 'chat' });
 	}
 
-	private async waitForSessionAvailable(sessionResource: URI, timeoutMs = 15_000): Promise<boolean> {
-		if (this.sessionsManagementService.getSession(sessionResource)) {
+	private getSessionForResource(chatResource: URI): ISession | undefined {
+		return this.sessionsManagementService.getSessionForChatResource(chatResource)?.session
+			?? this.sessionsManagementService.getSession(chatResource);
+	}
+
+	private async waitForSessionAvailable(sessionResource: URI, token: CancellationToken, timeoutMs = 15_000): Promise<boolean> {
+		if (token.isCancellationRequested) {
+			return false;
+		}
+		if (this.getSessionForResource(sessionResource)) {
 			return true;
 		}
 
@@ -158,133 +387,30 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 				store.dispose();
 				resolve(result);
 			};
-			const timer = setTimeout(() => done(!!this.sessionsManagementService.getSession(sessionResource)), timeoutMs);
+			const timer = setTimeout(() => done(!!this.getSessionForResource(sessionResource)), timeoutMs);
 			store.add({ dispose: () => clearTimeout(timer) });
 			store.add(this.sessionsManagementService.onDidChangeSessions(() => {
-				if (this.sessionsManagementService.getSession(sessionResource)) {
+				if (this.getSessionForResource(sessionResource)) {
 					done(true);
 				}
 			}));
+			store.add(token.onCancellationRequested(() => done(false)));
 		});
 	}
 
-	private async submitInitialQuery(query: string): Promise<void> {
-		// Wait for the workbench to be fully past Restored. The chat view
-		// container, copilot CLI agent, and provider registrations are all
-		// async; submitting too early leads to `_sendFirstChat` failing with
-		// "Failed to open chat widget" because the regular ChatView isn't
-		// resolvable yet.
-		await this.lifecycleService.when(LifecyclePhase.Eventually);
-
-		const activeSession = this.sessionsManagementService.activeSession.get();
-		const view = this.sessionsPartService.getSessionView(activeSession?.sessionId);
-		if (!view) {
-			return;
-		}
-
-		// Prefill immediately so the user can see the staged prompt and click
-		// send themselves if our auto-submit doesn't fire (e.g. on a slow
-		// machine where startup races overrun our wait window).
-		view.prefillInput(query);
-
-		// The Agents window's startup churns the active session several times.
-		// Wait for it to stop changing before submitting; a fresh untitled CLI
-		// session needs to settle before _sendFirstChat can open its chat view.
-		const stableSession = await this.waitForStableActiveSession();
-		if (!stableSession) {
-			return;
-		}
-
-		// Even after the session settles, the chat view registry needs a beat
-		// to finish wiring up the regular ChatView pane (it's gated by a
-		// `when` clause that flips on submit). Give it a generous breather.
-		await timeout(3000);
-
-		const settledView = this.sessionsPartService.getSessionView(this.sessionsManagementService.activeSession.get()?.sessionId);
-		settledView?.sendQuery(query);
-	}
-
-	private waitForStableActiveSession(timeoutMs = 20_000, stableMs = 2_500): Promise<boolean> {
-		return new Promise<boolean>(resolve => {
-			const start = Date.now();
-			let lastSeenId: string | undefined = this.sessionsManagementService.activeSession.get()?.sessionId;
-			let lastChange = Date.now();
-			let settled = false;
-
-			const store = new DisposableStore();
-			store.add(autorun(reader => {
-				const id = this.sessionsManagementService.activeSession.read(reader)?.sessionId;
-				if (id !== lastSeenId) {
-					lastSeenId = id;
-					lastChange = Date.now();
-				}
-			}));
-
-			const tick = async () => {
-				while (!settled) {
-					const now = Date.now();
-					const current = this.sessionsManagementService.activeSession.get();
-					if (current && now - lastChange >= stableMs) {
-						settled = true;
-						store.dispose();
-						resolve(true);
-						return;
-					}
-					if (now - start >= timeoutMs) {
-						settled = true;
-						store.dispose();
-						resolve(!!current);
-						return;
-					}
-					await timeout(200);
-				}
-			};
-			tick();
-		});
-	}
-
-	private async selectFolder(folderUri: URI): Promise<void> {
-		// Wait for the welcome/setup flow to complete before selecting the folder
-		await this.sessionsSetUpService.whenWelcomeDone();
-
-		this.sessionsViewService.openNewSession();
-
-		// Tell the sessions list this folder is the open-window source folder
-		// so it ranks the matching folder section first. Get the view if it
-		// already exists — do not open it just for this side-effect.
-		const sessionsView = this.viewsService.getViewWithId<SessionsView>(SessionsListViewId);
-		sessionsView?.sessionsControl?.setOpenWindowSourceFolder(folderUri);
-
-		if (this.tryResolveAndSelect(folderUri)) {
-			return;
-		}
-
-		// Provider not registered yet — wait for it. Block the caller so any
-		// follow-up step (e.g. opening an existing session in this folder)
-		// doesn't race the provider becoming available.
-		await new Promise<void>(resolve => {
-			const store = new DisposableStore();
-			const done = () => { store.dispose(); resolve(); };
-			store.add(this.sessionsProvidersService.onDidChangeProviders(() => {
-				if (this.tryResolveAndSelect(folderUri)) {
-					done();
-				}
-			}));
-			this.lifecycleService.when(LifecyclePhase.Eventually).then(done);
-		});
-	}
-
-	private tryResolveAndSelect(folderUri: URI): boolean {
-		const resolved = this.sessionsManagementService.resolveWorkspace(folderUri);
-		if (!resolved) {
-			return false;
-		}
-		const activeSession = this.sessionsManagementService.activeSession.get();
-		if (activeSession === undefined || activeSession.status.get() === SessionStatus.Untitled) {
-			this.sessionsPartService.getSessionView(activeSession?.sessionId)?.selectWorkspace(folderUri, resolved.providerId);
-		}
-		return true;
-	}
 }
 
 registerWorkbenchContribution2(SelectAgentsFolderContribution.ID, SelectAgentsFolderContribution, WorkbenchPhase.BlockStartup);
+registerWorkbenchContribution2(AgentsWindowRequestActivity.ID, AgentsWindowRequestActivity, WorkbenchPhase.BlockStartup);
+registerWorkbenchContribution2(SessionsCopilotConfigSlashSubmitHandlerContribution.ID, SessionsCopilotConfigSlashSubmitHandlerContribution, WorkbenchPhase.AfterRestored);
+// Desktop only: in browsers, capturing the window asks the user to pick a screen.
+registerWorkbenchContribution2(ScreenshotWindowToolContribution.ID, ScreenshotWindowToolContribution, WorkbenchPhase.Eventually);
+
+// Renderer-side BYOK language-model handler that backs the node agent host's
+// OpenAI proxy, mirroring the registration in the workbench's
+// `contrib/chat/electron-browser/chat.contribution`. The Agents app runs a full
+// extension host whose LM API holds the user's BYOK models, so registering the
+// handler here lets the Agents window serve BYOK too — necessary when it is the
+// only window connected to the node host. Lazily instantiated when the node host
+// resolves it via `AgentHostClientByokLmChannel`.
+registerSingleton(IAgentHostByokLmHandler, AgentHostByokLmHandler, InstantiationType.Delayed);

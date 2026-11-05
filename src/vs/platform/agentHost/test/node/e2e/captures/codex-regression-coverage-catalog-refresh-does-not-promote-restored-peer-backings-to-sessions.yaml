@@ -1,0 +1,34 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "CATALOG_READY".
+    response:
+      content: CATALOG_READY
+      stopReason: end_turn
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember CATALOG_PEER_ONLY. Reply exactly "PEER_READY".
+    response:
+      content: PEER_READY
+      stopReason: end_turn
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember CATALOG_PEER_ONLY. Reply exactly "PEER_READY".
+        - role: assistant
+          content: PEER_READY
+        - role: user
+          content: Reply exactly "PEER_CONTINUED". Do not use tools.
+    response:
+      content: PEER_CONTINUED
+      stopReason: end_turn

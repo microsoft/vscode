@@ -7,6 +7,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { EditorOptions, WrappingIndent } from '../../../common/config/editorOptions.js';
 import { FontInfo } from '../../../common/config/fontInfo.js';
 import { ILineBreaksComputerContext, ILineBreaksComputerFactory, ModelLineProjectionData } from '../../../common/modelLineProjectionData.js';
+import { LineInjectedText } from '../../../common/textModelEvents.js';
 import { MonospaceLineBreaksComputerFactory } from '../../../common/viewModel/monospaceLineBreaksComputer.js';
 
 function parseAnnotatedText(annotatedText: string): { text: string; indices: number[] } {
@@ -44,7 +45,7 @@ function toAnnotatedText(text: string, lineBreakData: ModelLineProjectionData | 
 	return actualAnnotatedText;
 }
 
-function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, breakAfter: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', wrapOnEscapedLineFeeds: boolean, text: string, previousLineBreakData: ModelLineProjectionData | null): ModelLineProjectionData | null {
+function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, breakAfter: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', wrapOnEscapedLineFeeds: boolean, text: string, previousLineBreakData: ModelLineProjectionData | null, injectedText: LineInjectedText[] | null = null, useTwoCellFullwidthCharacters: boolean = false): ModelLineProjectionData | null {
 	const fontInfo = new FontInfo({
 		pixelRatio: 1,
 		fontFamily: 'testFontFamily',
@@ -68,10 +69,10 @@ function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, 
 			return text;
 		},
 		getLineInjectedText(lineNumber) {
-			return null;
+			return injectedText;
 		}
 	};
-	const lineBreaksComputer = factory.createLineBreaksComputer(context, fontInfo, tabSize, breakAfter, wrappingIndent, wordBreak, wrapOnEscapedLineFeeds);
+	const lineBreaksComputer = factory.createLineBreaksComputer(context, fontInfo, tabSize, breakAfter, wrappingIndent, wordBreak, wrapOnEscapedLineFeeds, useTwoCellFullwidthCharacters);
 	const previousLineBreakDataClone = previousLineBreakData ? new ModelLineProjectionData(null, null, previousLineBreakData.breakOffsets.slice(0), previousLineBreakData.breakOffsetsVisibleColumn.slice(0), previousLineBreakData.wrappedTextIndentLength) : null;
 	lineBreaksComputer.addRequest(1, previousLineBreakDataClone);
 	return lineBreaksComputer.finalize()[0];
@@ -134,6 +135,211 @@ suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
 		assertLineBreaks(factory, 4, 5, 'aa.|(.).|aaa');
 	});
 
+	test('accounts for fixed injected text width when wrapping', () => {
+		const factory = new MonospaceLineBreaksComputerFactory('', '');
+		const lineBreakData = getLineBreakData(factory, 4, 5, 2, WrappingIndent.None, 'normal', false, 'abcdef', null, [
+			new LineInjectedText(0, 1, 5, { content: '\xa0', widthInEm: 1 }, 0)
+		]);
+
+		assert.deepStrictEqual({
+			breakOffsets: lineBreakData?.breakOffsets,
+			breakOffsetsVisibleColumn: lineBreakData?.breakOffsetsVisibleColumn
+		}, {
+			breakOffsets: [4, 7],
+			breakOffsetsVisibleColumn: [4, 7]
+		});
+	});
+
+	test('treats multi-character fixed-width injected text as an atomic span', () => {
+		const factory = new MonospaceLineBreaksComputerFactory('', '');
+		const lineBreakData = getLineBreakData(factory, 4, 5, 2, WrappingIndent.None, 'normal', false, 'abcdef', null, [
+			new LineInjectedText(0, 1, 4, { content: 'hello', widthInEm: 1 }, 0)
+		]);
+
+		assert.deepStrictEqual({
+			breakOffsets: lineBreakData?.breakOffsets,
+			breakOffsetsVisibleColumn: lineBreakData?.breakOffsetsVisibleColumn
+		}, {
+			breakOffsets: [8, 11],
+			breakOffsetsVisibleColumn: [8, 11]
+		});
+	});
+
+	test('wraps after an escaped line feed followed by fixed-width injected text', () => {
+		const factory = new MonospaceLineBreaksComputerFactory('', '');
+		const lineBreakData = getLineBreakData(factory, 4, 100, 2, WrappingIndent.None, 'normal', true, '"a\\nb"', null, [
+			new LineInjectedText(0, 1, 5, { content: 'hint', widthInEm: 1 }, 0)
+		]);
+
+		assert.deepStrictEqual(lineBreakData?.breakOffsets, [4, 10]);
+	});
+
+	test('treats adjacent fixed-width injected texts as separate atomic spans', () => {
+		const factory = new MonospaceLineBreaksComputerFactory('', '');
+		const lineBreakData = getLineBreakData(factory, 4, 5, 2, WrappingIndent.None, 'normal', false, 'abcdef', null, [
+			new LineInjectedText(0, 1, 4, { content: 'x', widthInEm: 0.5 }, 0),
+			new LineInjectedText(0, 1, 4, { content: 'y', widthInEm: 1 }, 1)
+		]);
+
+		assert.deepStrictEqual({
+			breakOffsets: lineBreakData?.breakOffsets,
+			breakOffsetsVisibleColumn: lineBreakData?.breakOffsetsVisibleColumn
+		}, {
+			breakOffsets: [4, 8],
+			breakOffsetsVisibleColumn: [4, 8]
+		});
+	});
+
+	test('keeps fixed-width injected text wider than the wrap column atomic', () => {
+		const factory = new MonospaceLineBreaksComputerFactory('', '');
+		const lineBreakData = getLineBreakData(factory, 4, 5, 2, WrappingIndent.None, 'normal', false, 'abcdef', null, [
+			new LineInjectedText(0, 1, 4, { content: 'x', widthInEm: 3 }, 0)
+		]);
+
+		assert.deepStrictEqual({
+			breakOffsets: lineBreakData?.breakOffsets,
+			breakOffsetsVisibleColumn: lineBreakData?.breakOffsetsVisibleColumn
+		}, {
+			breakOffsets: [3, 4, 7],
+			breakOffsetsVisibleColumn: [3, 4, 7]
+		});
+	});
+
+	test('wraps before a tab that no longer fits after fixed-width injected text', () => {
+		const factory = new MonospaceLineBreaksComputerFactory('', '');
+		const lineBreakData = getLineBreakData(factory, 4, 4, 2, WrappingIndent.None, 'normal', false, 'ab\tcd', null, [
+			new LineInjectedText(0, 1, 3, { content: '\xa0', widthInEm: 0.75 }, 0)
+		]);
+
+		// `ab` plus a 0.75em wide injection fills 2.75 columns worth of pixels, so the tab (which
+		// expands from character column 3 to character column 4) no longer fits and the line wraps
+		// right before it.
+		assert.deepStrictEqual({
+			breakOffsets: lineBreakData?.breakOffsets,
+			breakOffsetsVisibleColumn: lineBreakData?.breakOffsetsVisibleColumn
+		}, {
+			breakOffsets: [3, 6],
+			breakOffsetsVisibleColumn: [3, 6]
+		});
+	});
+
+	test('expands a tab following fixed-width injected text from the character column', () => {
+		const factory = new MonospaceLineBreaksComputerFactory('', '');
+		const lineBreakData = getLineBreakData(factory, 4, 10, 2, WrappingIndent.None, 'normal', false, 'ab\tcdefgh', null, [
+			new LineInjectedText(0, 1, 3, { content: '\xa0', widthInEm: 1.5 }, 0)
+		]);
+
+		// The injection counts as a single character column, so the tab at character column 3 expands
+		// to character column 4 and the whole line spans 10 columns. Its 1.5em is spent on the wrapping
+		// decision alone, which runs out of room at `g`. Were that width to leak into the column
+		// accumulator, the injection would count as 3 columns, the tab would expand to character
+		// column 8, and the line would already run out of room at `e`.
+		assert.deepStrictEqual({
+			breakOffsets: lineBreakData?.breakOffsets,
+			breakOffsetsVisibleColumn: lineBreakData?.breakOffsetsVisibleColumn
+		}, {
+			breakOffsets: [8, 10],
+			breakOffsetsVisibleColumn: [8, 10]
+		});
+	});
+
+	test('reserves width for a spacing-only injection at the beginning of a line', () => {
+		const factory = new MonospaceLineBreaksComputerFactory('', '');
+		const lineBreakData = getLineBreakData(factory, 4, 6, 2, WrappingIndent.None, 'normal', false, 'abcdef', null, [
+			new LineInjectedText(0, 1, 1, { content: '', widthInEm: 1 }, 0)
+		]);
+
+		// 1em is two columns wide here, so the spacer pushes the last two characters onto a second
+		// line. It consumes no character, so the offsets still refer to the original text.
+		assert.deepStrictEqual({
+			breakOffsets: lineBreakData?.breakOffsets,
+			breakOffsetsVisibleColumn: lineBreakData?.breakOffsetsVisibleColumn
+		}, {
+			breakOffsets: [4, 6],
+			breakOffsetsVisibleColumn: [4, 6]
+		});
+	});
+
+	test('does not create empty lines for oversized spacing-only injected text', () => {
+		const factory = new MonospaceLineBreaksComputerFactory('', '');
+		const lineBreakData = getLineBreakData(factory, 4, 2, 2, WrappingIndent.None, 'normal', false, 'abc', null, [
+			new LineInjectedText(0, 1, 1, { content: '', widthInEm: 2 }, 0)
+		]);
+
+		// The spacer alone already overflows the wrap width, but there is no character before it to
+		// wrap, so it must share the first line with `a` rather than emit an empty leading line.
+		assert.deepStrictEqual(lineBreakData?.breakOffsets, [1, 3]);
+	});
+
+	test('lets a spacing-only injection in the middle of a line inherit surrounding break opportunities', () => {
+		const factory = new MonospaceLineBreaksComputerFactory('', ' ');
+		const lineBreakData = getLineBreakData(factory, 4, 8, 2, WrappingIndent.None, 'normal', false, 'ab cdef', null, [
+			new LineInjectedText(0, 1, 4, { content: '', widthInEm: 1 }, 0)
+		]);
+
+		// The spacer is transparent for break opportunities: it neither creates nor suppresses one, so
+		// the break after the space is still recorded even though the spacer sits on top of it, and the
+		// line breaks there rather than at `f` where it runs out of room. Its 1em is what makes the line
+		// run out of room at all: without it the seven characters fit in the eight available columns.
+		assert.deepStrictEqual({
+			breakOffsets: lineBreakData?.breakOffsets,
+			breakOffsetsVisibleColumn: lineBreakData?.breakOffsetsVisibleColumn
+		}, {
+			breakOffsets: [3, 7],
+			breakOffsetsVisibleColumn: [3, 7]
+		});
+	});
+
+	test('ignores a spacing-only injection at the end of a line', () => {
+		const factory = new MonospaceLineBreaksComputerFactory('', '');
+		const lineBreakData = getLineBreakData(factory, 4, 6, 2, WrappingIndent.None, 'normal', false, 'abcdef', null, [
+			new LineInjectedText(0, 1, 7, { content: '', widthInEm: 1 }, 0)
+		]);
+
+		// The line is exactly full, and there is no character after the spacer that could be moved to a
+		// following line, so the spacer cannot introduce a break.
+		assert.deepStrictEqual({
+			breakOffsets: lineBreakData?.breakOffsets,
+			breakOffsetsVisibleColumn: lineBreakData?.breakOffsetsVisibleColumn
+		}, {
+			breakOffsets: [6],
+			breakOffsetsVisibleColumn: [6]
+		});
+	});
+
+	test('expands a tab following a spacing-only injection from the character column', () => {
+		const factory = new MonospaceLineBreaksComputerFactory('', '');
+		const lineBreakData = getLineBreakData(factory, 4, 6, 2, WrappingIndent.None, 'normal', false, 'ab\tcd', null, [
+			new LineInjectedText(0, 1, 3, { content: '', widthInEm: 1 }, 0)
+		]);
+
+		// The spacer occupies no character column, so the tab still expands from character column 2 to
+		// character column 4. Were its 1em width to leak into the column accumulator, the tab would
+		// start at character column 4 and expand to character column 8 instead.
+		assert.deepStrictEqual({
+			breakOffsets: lineBreakData?.breakOffsets,
+			breakOffsetsVisibleColumn: lineBreakData?.breakOffsetsVisibleColumn
+		}, {
+			breakOffsets: [3, 5],
+			breakOffsetsVisibleColumn: [4, 6]
+		});
+	});
+
+	test('does not use fixed-width injected whitespace as continuation indentation', () => {
+		const factory = new MonospaceLineBreaksComputerFactory('', '');
+		const lineBreakData = getLineBreakData(factory, 4, 5, 2, WrappingIndent.Same, 'normal', false, 'abcdef', null, [
+			new LineInjectedText(0, 1, 1, { content: ' ', widthInEm: 0.75 }, 0)
+		]);
+
+		assert.deepStrictEqual({
+			breakOffsets: lineBreakData?.breakOffsets,
+			wrappedTextIndentLength: lineBreakData?.wrappedTextIndentLength
+		}, {
+			breakOffsets: [4, 7],
+			wrappedTextIndentLength: 0
+		});
+	});
+
 	function assertLineBreakDataEqual(a: ModelLineProjectionData | null, b: ModelLineProjectionData | null): void {
 		if (!a || !b) {
 			assert.deepStrictEqual(a, b);
@@ -142,31 +348,31 @@ suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
 		assert.deepStrictEqual(a.breakOffsets, b.breakOffsets);
 		assert.deepStrictEqual(a.wrappedTextIndentLength, b.wrappedTextIndentLength);
 		for (let i = 0; i < a.breakOffsetsVisibleColumn.length; i++) {
-			const diff = a.breakOffsetsVisibleColumn[i] - b.breakOffsetsVisibleColumn[i];
+			const diff = Math.abs(a.breakOffsetsVisibleColumn[i] - b.breakOffsetsVisibleColumn[i]);
 			assert.ok(diff < 0.001);
 		}
 	}
 
-	function assertIncrementalLineBreaks(factory: ILineBreaksComputerFactory, text: string, tabSize: number, breakAfter1: number, annotatedText1: string, breakAfter2: number, annotatedText2: string, wrappingIndent = WrappingIndent.None, columnsForFullWidthChar: number = 2): void {
+	function assertIncrementalLineBreaks(factory: ILineBreaksComputerFactory, text: string, tabSize: number, breakAfter1: number, annotatedText1: string, breakAfter2: number, annotatedText2: string, wrappingIndent = WrappingIndent.None, columnsForFullWidthChar: number = 2, useTwoCellFullwidthCharacters: boolean = false): void {
 		// sanity check the test
 		assert.strictEqual(text, parseAnnotatedText(annotatedText1).text);
 		assert.strictEqual(text, parseAnnotatedText(annotatedText2).text);
 
 		// check that the direct mapping is ok for 1
-		const directLineBreakData1 = getLineBreakData(factory, tabSize, breakAfter1, columnsForFullWidthChar, wrappingIndent, 'normal', false, text, null);
+		const directLineBreakData1 = getLineBreakData(factory, tabSize, breakAfter1, columnsForFullWidthChar, wrappingIndent, 'normal', false, text, null, null, useTwoCellFullwidthCharacters);
 		assert.strictEqual(toAnnotatedText(text, directLineBreakData1), annotatedText1);
 
 		// check that the direct mapping is ok for 2
-		const directLineBreakData2 = getLineBreakData(factory, tabSize, breakAfter2, columnsForFullWidthChar, wrappingIndent, 'normal', false, text, null);
+		const directLineBreakData2 = getLineBreakData(factory, tabSize, breakAfter2, columnsForFullWidthChar, wrappingIndent, 'normal', false, text, null, null, useTwoCellFullwidthCharacters);
 		assert.strictEqual(toAnnotatedText(text, directLineBreakData2), annotatedText2);
 
 		// check that going from 1 to 2 is ok
-		const lineBreakData2from1 = getLineBreakData(factory, tabSize, breakAfter2, columnsForFullWidthChar, wrappingIndent, 'normal', false, text, directLineBreakData1);
+		const lineBreakData2from1 = getLineBreakData(factory, tabSize, breakAfter2, columnsForFullWidthChar, wrappingIndent, 'normal', false, text, directLineBreakData1, null, useTwoCellFullwidthCharacters);
 		assert.strictEqual(toAnnotatedText(text, lineBreakData2from1), annotatedText2);
 		assertLineBreakDataEqual(lineBreakData2from1, directLineBreakData2);
 
 		// check that going from 2 to 1 is ok
-		const lineBreakData1from2 = getLineBreakData(factory, tabSize, breakAfter1, columnsForFullWidthChar, wrappingIndent, 'normal', false, text, directLineBreakData2);
+		const lineBreakData1from2 = getLineBreakData(factory, tabSize, breakAfter1, columnsForFullWidthChar, wrappingIndent, 'normal', false, text, directLineBreakData2, null, useTwoCellFullwidthCharacters);
 		assert.strictEqual(toAnnotatedText(text, lineBreakData1from2), annotatedText1);
 		assertLineBreakDataEqual(lineBreakData1from2, directLineBreakData1);
 	}
@@ -262,6 +468,125 @@ suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
 		assertLineBreaks(factory, 4, 5, 'aa |\u5b89)\u5b89|\u5b89');
 		assertLineBreaks(factory, 4, 5, 'aa \u3042|\u5b89\u3042)|\u5b89');
 		assertLineBreaks(factory, 4, 5, 'aa |(\u5b89aa|\u5b89');
+	});
+
+	test('MonospaceLineBreaksComputer - two-cell full-width character width', () => {
+		const factory = new MonospaceLineBreaksComputerFactory('(', '\t)');
+		const text = '\u3042\u3042\u3042\u3042';
+		const wrapWith = (columnsForFullWidthChar: number, useTwoCellFullwidthCharacters: boolean) => toAnnotatedText(text, getLineBreakData(factory, 4, 5, columnsForFullWidthChar, WrappingIndent.None, 'normal', false, text, null, null, useTwoCellFullwidthCharacters));
+
+		assert.deepStrictEqual({
+			lyingFont: wrapWith(3, false),
+			lyingFontTwoCells: wrapWith(3, true),
+			gridAlignedFont: wrapWith(2, false)
+		}, {
+			lyingFont: '\u3042|\u3042|\u3042|\u3042',
+			lyingFontTwoCells: '\u3042\u3042|\u3042\u3042',
+			gridAlignedFont: '\u3042\u3042|\u3042\u3042'
+		});
+	});
+
+	test('MonospaceLineBreaksComputer - two-cell width determines whether continuation indentation fits', () => {
+		const factory = new MonospaceLineBreaksComputerFactory('(', '\t)');
+		const text = '    \u3042\u3042\u3042';
+		const wrappedIndentWith = (lineText: string, breakAfter: number, columnsForFullWidthChar: number, useTwoCellFullwidthCharacters: boolean) =>
+			getLineBreakData(factory, 4, breakAfter, columnsForFullWidthChar, WrappingIndent.Same, 'normal', false, lineText, null, null, useTwoCellFullwidthCharacters)?.wrappedTextIndentLength;
+
+		assert.deepStrictEqual({
+			wideNatural: wrappedIndentWith(text, 6, 3, false),
+			wideTwoCells: wrappedIndentWith(text, 6, 3, true),
+			narrowNatural: wrappedIndentWith(text, 5, 1, false),
+			narrowTwoCells: wrappedIndentWith(text, 5, 1, true),
+		}, {
+			wideNatural: 0,
+			wideTwoCells: 4,
+			narrowNatural: 4,
+			narrowTwoCells: 0,
+		});
+	});
+
+	test('MonospaceLineBreaksComputer - two-cell width uses shared full-width classification', () => {
+		const factory = new MonospaceLineBreaksComputerFactory('(', '\t)');
+		const wrapWith = (text: string, useTwoCellFullwidthCharacters: boolean) => toAnnotatedText(text, getLineBreakData(factory, 4, 5, 3, WrappingIndent.None, 'normal', false, text, null, null, useTwoCellFullwidthCharacters));
+		const fullwidthAscii = '\uFF21'.repeat(4);
+		const vaiSyllables = '\uA500'.repeat(4);
+
+		assert.deepStrictEqual({
+			fullwidthAsciiNatural: wrapWith(fullwidthAscii, false),
+			fullwidthAsciiTwoCells: wrapWith(fullwidthAscii, true),
+			vaiNatural: wrapWith(vaiSyllables, false),
+			vaiTwoCells: wrapWith(vaiSyllables, true),
+		}, {
+			fullwidthAsciiNatural: '\uFF21|\uFF21|\uFF21|\uFF21',
+			fullwidthAsciiTwoCells: '\uFF21\uFF21|\uFF21\uFF21',
+			vaiNatural: '\uA500|\uA500|\uA500|\uA500',
+			vaiTwoCells: '\uA500\uA500|\uA500\uA500',
+		});
+	});
+
+	test('MonospaceLineBreaksComputer - two-cell width preserves natural control-character metrics', () => {
+		const factory = new MonospaceLineBreaksComputerFactory('(', '\t)');
+		const wrapWith = (text: string, useTwoCellFullwidthCharacters: boolean) => toAnnotatedText(text, getLineBreakData(factory, 4, 4, 3, WrappingIndent.None, 'normal', false, text, null, null, useTwoCellFullwidthCharacters));
+		const controlCharacters = '\u0001\u0001';
+		const controlCharacterWithTab = '\u0001\t';
+
+		assert.deepStrictEqual({
+			controlNatural: wrapWith(controlCharacters, false),
+			controlTwoCells: wrapWith(controlCharacters, true),
+			controlWithTabNaturalColumns: getLineBreakData(factory, 4, 3, 3, WrappingIndent.None, 'normal', false, controlCharacterWithTab, null, null, false)?.breakOffsetsVisibleColumn,
+			controlWithTabTwoCellsColumns: getLineBreakData(factory, 4, 3, 3, WrappingIndent.None, 'normal', false, controlCharacterWithTab, null, null, true)?.breakOffsetsVisibleColumn,
+		}, {
+			controlNatural: '\u0001|\u0001',
+			controlTwoCells: '\u0001|\u0001',
+			controlWithTabNaturalColumns: [3, 4],
+			controlWithTabTwoCellsColumns: [3, 4],
+		});
+	});
+
+	test('MonospaceLineBreaksComputer - two-cell width treats combining marks independently', () => {
+		const factory = new MonospaceLineBreaksComputerFactory('(', '\t)');
+		const wrapWith = (text: string, useTwoCellFullwidthCharacters: boolean) => toAnnotatedText(text, getLineBreakData(factory, 4, 4, 3, WrappingIndent.None, 'normal', false, text, null, null, useTwoCellFullwidthCharacters));
+		const combinedCharacter = '\u3042\u0301aa';
+
+		assert.deepStrictEqual({
+			combinedNatural: wrapWith(combinedCharacter, false),
+			combinedTwoCells: wrapWith(combinedCharacter, true),
+		}, {
+			combinedNatural: '\u3042|\u0301aa',
+			combinedTwoCells: '\u3042|\u0301aa',
+		});
+	});
+
+	test('MonospaceLineBreaksComputer - two-cell width supports incremental line breaks', () => {
+		const factory = new MonospaceLineBreaksComputerFactory(EditorOptions.wordWrapBreakBeforeCharacters.defaultValue, EditorOptions.wordWrapBreakAfterCharacters.defaultValue);
+
+		// A font that lies about its full-width ratio: each ideograph still occupies exactly two cells.
+		assertIncrementalLineBreaks(
+			factory, 'ああああああ', 4,
+			5, 'ああ|ああ|ああ',
+			7, 'あああ|あああ',
+			WrappingIndent.None,
+			3,
+			true
+		);
+
+		assertIncrementalLineBreaks(
+			factory, '    ああああ', 4,
+			8, '    ああ|ああ',
+			10, '    あああ|あ',
+			WrappingIndent.Same,
+			3,
+			true
+		);
+
+		assertIncrementalLineBreaks(
+			factory, '你好 **hello** **hello** **hello-world** hey there!', 4,
+			15, '你好 **hello** |**hello** |**hello-world**| hey there!',
+			1, '你|好| |*|*|h|e|l|l|o|*|*| |*|*|h|e|l|l|o|*|*| |*|*|h|e|l|l|o|-|w|o|r|l|d|*|*| |h|e|y| |t|h|e|r|e|!',
+			WrappingIndent.Same,
+			1.6605405405405405,
+			true
+		);
 	});
 
 	test('MonospaceLineBreaksComputer - WrappingIndent.Same', () => {
