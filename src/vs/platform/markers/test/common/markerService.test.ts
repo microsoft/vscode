@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { ResourceMap } from '../../../../base/common/map.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IMarkerData, MarkerSeverity } from '../../common/markers.js';
@@ -29,6 +30,58 @@ suite('Marker Service', () => {
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('releases empty marker resource and owner maps', () => {
+		service = new markerService.MarkerService();
+		const resource = URI.parse('file:///markers/closed.ts');
+		const data = Reflect.get(service, '_data') as { _byResource: ResourceMap<Map<string, object>>; _byOwner: Map<string, ResourceMap<object>> };
+		service.changeOne('owner', resource, [randomMarkerData()]);
+		assert.strictEqual(data._byResource.size, 1);
+		assert.strictEqual(data._byOwner.size, 1);
+
+		service.changeOne('owner', resource, []);
+
+		assert.strictEqual(service.read().length, 0);
+		assert.strictEqual(data._byResource.size, 0);
+		assert.strictEqual(data._byOwner.size, 0);
+	});
+
+	test('clears empty marker maps while replacing all owner markers', () => {
+		service = new markerService.MarkerService();
+		const first = URI.parse('file:///markers/first.ts');
+		const second = URI.parse('file:///markers/second.ts');
+		const data = Reflect.get(service, '_data') as { _byResource: ResourceMap<Map<string, object>>; _byOwner: Map<string, ResourceMap<object>> };
+		service.changeAll('owner', [{ resource: first, marker: randomMarkerData() }, { resource: second, marker: randomMarkerData() }]);
+
+		service.changeAll('owner', []);
+
+		assert.strictEqual(service.read().length, 0);
+		assert.strictEqual(data._byResource.size, 0);
+		assert.strictEqual(data._byOwner.size, 0);
+	});
+
+	test('preserves remaining marker owners and resources when pruning empty maps', () => {
+		service = new markerService.MarkerService();
+		const first = URI.parse('file:///markers/first.ts');
+		const second = URI.parse('file:///markers/second.ts');
+		const data = Reflect.get(service, '_data') as { _byResource: ResourceMap<Map<string, object>>; _byOwner: Map<string, ResourceMap<object>> };
+		service.changeOne('firstOwner', first, [randomMarkerData()]);
+		service.changeOne('secondOwner', first, [randomMarkerData()]);
+		service.changeOne('firstOwner', second, [randomMarkerData()]);
+
+		service.changeOne('firstOwner', first, []);
+
+		assert.strictEqual(service.read().length, 2);
+		assert.strictEqual(data._byResource.get(first)?.size, 1);
+		assert.strictEqual(data._byOwner.get('firstOwner')?.size, 1);
+		service.changeAll('secondOwner', []);
+		assert.strictEqual(data._byResource.has(first), false);
+		assert.strictEqual(data._byResource.has(second), true);
+		assert.strictEqual(data._byOwner.has('secondOwner'), false);
+		service.changeOne('secondOwner', first, [randomMarkerData()]);
+		assert.strictEqual(service.read().length, 2);
+		assert.strictEqual(data._byOwner.get('secondOwner')?.has(first), true);
+	});
 
 	test('query', () => {
 
