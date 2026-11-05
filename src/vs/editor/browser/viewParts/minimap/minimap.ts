@@ -1858,19 +1858,18 @@ class InnerMinimap extends Disposable {
 		const fitWidth = InnerMinimap._fitSectionHeader.bind(null, canvasContext,
 			canvasInnerWidth - MINIMAP_GUTTER_WIDTH);
 
-		let previousLabelBottom = Number.NEGATIVE_INFINITY;
+		// Headers on nearby lines (e.g. nested regions) would get labels drawn on top of each other.
+		// Stack such labels below one another instead, so that every header stays readable.
+		let nextLabelY = Number.NEGATIVE_INFINITY;
 		for (const decoration of decorations) {
-			const y = layout.getYForLineNumber(decoration.range.startLineNumber, minimapLineHeight) + sectionHeaderFontSize;
-			const backgroundFillY = y - sectionHeaderFontSize;
-			const separatorY = backgroundFillY + 2;
 			const headerText = this._model.getSectionHeaderText(decoration, fitWidth);
+			const lineY = layout.getYForLineNumber(decoration.range.startLineNumber, minimapLineHeight);
+			const backgroundFillY = headerText ? Math.max(lineY, nextLabelY) : lineY;
+			const y = backgroundFillY + sectionHeaderFontSize;
+			const separatorY = backgroundFillY + 2;
 
 			if (headerText) {
-				if (backgroundFillY < previousLabelBottom) {
-					// Skip labels that would be drawn on top of the previous label, e.g. for nested regions on adjacent lines
-					continue;
-				}
-				previousLabelBottom = backgroundFillY + backgroundFillHeight;
+				nextLabelY = backgroundFillY + backgroundFillHeight;
 			}
 
 			InnerMinimap._renderSectionLabel(
