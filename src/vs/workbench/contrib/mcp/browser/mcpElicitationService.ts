@@ -15,6 +15,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { NotificationText } from '../../../../platform/notification/common/notificationMessage.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IQuickInputService, IQuickPick, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { ChatElicitationRequestPart } from '../../chat/common/model/chatProgressTypes/chatElicitationRequestPart.js';
@@ -125,7 +126,7 @@ export class McpElicitationService implements IMcpElicitationService {
 
 			// Fallback: no chat session → notification + quickpick
 			const handle = this._notificationService.notify({
-				message: elicitation.message,
+				message: NotificationText.concat(elicitation.message),
 				source: localize('mcp.elicit.source', 'MCP Server ({0})', server.definition.label),
 				severity: Severity.Info,
 				actions: {
@@ -192,7 +193,7 @@ export class McpElicitationService implements IMcpElicitationService {
 				}
 			} else {
 				const handle = this._notificationService.notify({
-					message: elicitation.message + ' ' + localize('mcp.elicit.url.instruction2', 'This will open {0}', elicitation.url),
+					message: NotificationText.concat(elicitation.message, ' ', localize('mcp.elicit.url.instruction2', 'This will open {0}', elicitation.url)),
 					source: localize('mcp.elicit.source', 'MCP Server ({0})', server.definition.label),
 					severity: Severity.Info,
 					actions: {
