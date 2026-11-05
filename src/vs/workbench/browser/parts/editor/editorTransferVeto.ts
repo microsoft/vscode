@@ -8,7 +8,7 @@ import { localize } from '../../../../nls.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { EditorInputCapabilities, GroupIdentifier } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
-import { IAuxiliaryEditorPart, IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
+import { GroupsOrder, IAuxiliaryEditorPart, IEditorGroup, IEditorPart } from '../../../services/editor/common/editorGroupsService.js';
 
 /** Why an editor cannot move or copy to another group, as the editor says (see {@link EditorInput.canMove}). */
 export interface IEditorTransferVeto {
@@ -52,6 +52,21 @@ export function getEditorsTransferVeto(editors: readonly EditorInput[], source: 
 /** Why the editors of `group` cannot move or copy to `target` with the group; `undefined` when they can. */
 export function getGroupTransferVeto(group: IEditorGroup, target: EditorTransferTarget, options?: IEditorTransferOptions): IEditorTransferVeto | undefined {
 	return getEditorsTransferVeto(group.editors, group.id, target, options);
+}
+
+/**
+ * Why the editors of the modal editor part `modalPart` cannot all move into the window of `mainPart`, as Open Modal
+ * Editor in Main Window moves them; `undefined` when they can. Any group of `mainPart` stands for its window.
+ */
+export function getModalToMainTransferVeto(modalPart: IEditorPart, mainPart: IEditorPart): IEditorTransferVeto | undefined {
+	for (const group of modalPart.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
+		const veto = getGroupTransferVeto(group, mainPart.activeGroup.id);
+		if (veto) {
+			return veto;
+		}
+	}
+
+	return undefined;
 }
 
 /** The detail shown with a veto: only an editor with unsaved changes may move once they are saved or reverted. */

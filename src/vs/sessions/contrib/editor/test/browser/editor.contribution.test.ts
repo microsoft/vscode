@@ -31,7 +31,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { ContextKeyExpression, ContextKeyValue, IContext, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { MockContextKeyService, MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { MockContextKeyService, MockKeybindingService, MockScopableContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { USLayoutResolvedKeybinding } from '../../../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -44,14 +44,14 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { editorBackground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { Extensions as ThemeServiceExtensions, IThemingRegistry } from '../../../../../platform/theme/common/themeService.js';
-import { EditorInputCapabilities, EditorsOrder, ITextDiffEditorPane } from '../../../../../workbench/common/editor.js';
+import { EditorExtensions, EditorInputCapabilities, EditorsOrder, IEditorFactoryRegistry, ITextDiffEditorPane, IVisibleEditorPane } from '../../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { TAB_ACTIVE_BACKGROUND } from '../../../../../workbench/common/theme.js';
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, LayoutSettings, ModernUIEditorTabStyle, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAuxiliaryWindow, IAuxiliaryWindowService } from '../../../../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
-import { IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
+import { IEditorGroup, IEditorGroupsService, IEditorPart, IModalEditorPart } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { generateColorThemeCSS } from '../../../../../workbench/services/themes/browser/colorThemeCss.js';
 import { ColorThemeData } from '../../../../../workbench/services/themes/common/colorThemeData.js';
 import { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
@@ -64,24 +64,31 @@ import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { NEW_FILE_TAB_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
-import { ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionFileChange, ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionChangesService } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesService.js';
 import { SessionChangesEditorInput } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesEditorInput.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID, MoveModalEditorToMainWindowAction } from '../../../../../workbench/browser/parts/editor/editorCommands.js';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { SideBySideEditorInput } from '../../../../../workbench/common/editor/sideBySideEditorInput.js';
+import { IView } from '../../../../../workbench/common/views.js';
+import { IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
+import { ChangesViewPane } from '../../../../../workbench/contrib/sessions/browser/changes/changesView.js';
 import { NEW_BROWSER_TAB_COMMAND_ID, NEW_CHANGES_TAB_COMMAND_ID, NEW_SEARCH_TAB_COMMAND_ID, NewBrowserTabAction, NewChangesTabAction, NewFileTabAction, NewSearchTabAction, OPEN_BROWSER_COMMAND_ID, OpenBrowserAction, registerSessionActivityBarTabEntries } from '../../browser/addTabActions.js';
 import { EmptyFileEditor, EmptyFileEditorFocusedContext, OPEN_FILE_IN_EMPTY_EDITOR_COMMAND_ID } from '../../browser/emptyFileEditor.js';
 import '../../browser/emptyFileEditor.contribution.js';
 import { EmptyFileEditorSearch, EmptyFileEditorSearchPickerFocusedContext } from '../../browser/emptyFileEditorSearch.js';
 import { EmptyFileEditorInput, EmptyFileEditorSerializer } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
 import { ActiveEditorContext, AuxiliaryBarVisibleContext, EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
-import { TestEnvironmentService, TestLayoutService, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { createEditorParts, registerTestEditor, TestEnvironmentService, TestFileEditorInput, TestLayoutService, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { createFileStat } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { IsQuickChatSessionContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { DesktopChangesTabAvailableContext, DesktopChangesTabMissingContext, DesktopFilesTabAvailableContext, DesktopFilesTabMissingContext } from '../../../../common/agentsWindowContextKeys.js';
 
 // Import editor contribution to trigger action registration.
-import { SessionsTabStyleContribution } from '../../browser/editor.contribution.js';
+import { OpenModalEditorInEditorAction, SessionsTabStyleContribution } from '../../browser/editor.contribution.js';
 import '../../../../../workbench/contrib/search/browser/searchQuickAccess.contribution.js';
 import '../../../../browser/media/workbench.css';
 import '../../../../../workbench/contrib/sessions/browser/parts/media/chatCompositeBar.css';
@@ -2072,5 +2079,139 @@ suite('Sessions - Editor Contribution', () => {
 		assert.deepStrictEqual(layoutService.shownParts, []);
 		assert.deepStrictEqual(layoutService.maximizedStates, [true, false]);
 		assert.strictEqual(layoutService.panelVisible, true);
+	});
+
+	suite('Open in Editor Area of a modal editor', () => {
+
+		const VETO = 'Cannot leave its window';
+
+		/** Records what the action changes around the move: the setting, the layout, the changes it reopens and the dialogs it shows. */
+		function stubServices(instantiationService: TestInstantiationService, log: string[], changesView?: ChangesViewPane): void {
+			instantiationService.stub(IConfigurationService, new class extends mock<IConfigurationService>() {
+				override async updateValue(key: string, value: unknown): Promise<void> { log.push(`set ${key} ${value}`); }
+			}());
+			instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() {
+				override setPartHidden(hidden: boolean, part: Parts): void { log.push(`${hidden ? 'hide' : 'show'} ${part}`); }
+				override setEditorMaximized(maximized: boolean): void { log.push(`maximized ${maximized}`); }
+			}());
+			instantiationService.stub(IDialogService, new class extends mock<IDialogService>() {
+				override async error(message: string): Promise<void> { log.push(`veto: ${message}`); }
+			}());
+			instantiationService.stub(IViewsService, new class extends mock<IViewsService>() {
+				override getViewWithId<T extends IView>(): T | null { return changesView ? changesView as IView as T : null; }
+			}());
+			instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
+				override readonly activeSessionChangesObs = constObservable([upcastPartial<ISessionFileChange>({ modifiedUri: URI.file('/changed') })]);
+			}());
+		}
+
+		test('with a later editor that cannot go, changes nothing: no editor, setting, layout, focus or group event, and one dialog', async () => {
+			const disposables = store.add(new DisposableStore());
+			disposables.add(registerTestEditor('modalEditorInEditorAreaEditor', [new SyncDescriptor(TestFileEditorInput), new SyncDescriptor(SideBySideEditorInput)], 'modalEditorInEditorAreaInput'));
+			const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+			instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+			const parts = await createEditorParts(instantiationService, disposables);
+			instantiationService.stub(IEditorGroupsService, parts);
+			const modal = await parts.createModalEditorPart();
+			const later = disposables.add(new TestFileEditorInput(URI.file('/later'), 'modalEditorInEditorAreaInput'));
+			later.setMoveDisabled(VETO);
+			await modal.activeGroup.openEditors([{ editor: disposables.add(new TestFileEditorInput(URI.file('/ordinary'), 'modalEditorInEditorAreaInput')), options: { pinned: true } }, { editor: later, options: { pinned: true, inactive: true } }]);
+
+			// Once the parts exist with the services they use, the action records what it changes around them
+			const log: string[] = [];
+			stubServices(instantiationService, log);
+			instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+				override async executeCommand<R>(id: string): Promise<R> {
+					log.push(`run ${id}`);
+					return instantiationService.invokeFunction(accessor => new MoveModalEditorToMainWindowAction().run(accessor)) as Promise<R>;
+				}
+			}());
+			const events: string[] = [];
+			for (const part of [modal, parts.mainPart]) {
+				disposables.add(part.onDidAddGroup(() => events.push('add')));
+				disposables.add(part.onDidRemoveGroup(() => events.push('remove')));
+				disposables.add(part.onDidActivateGroup(() => events.push('activate')));
+				disposables.add(part.onDidChangeGroupIndex(() => events.push('index')));
+			}
+			const activeElement = mainWindow.document.activeElement;
+
+			await instantiationService.invokeFunction(accessor => new OpenModalEditorInEditorAction().run(accessor));
+
+			const editorsOf = (group: IEditorGroup) => group.getEditors(EditorsOrder.SEQUENTIAL).map(editor => editor.resource?.path);
+			assert.deepStrictEqual({
+				log,
+				modalOpen: parts.activeModalEditorPart === modal,
+				modalEditors: editorsOf(modal.activeGroup),
+				modalActive: modal.activeGroup.activeEditor?.resource?.path,
+				mainEditors: editorsOf(parts.mainPart.activeGroup),
+				focusUnchanged: mainWindow.document.activeElement === activeElement,
+				events,
+			}, {
+				log: [`veto: ${VETO}`],
+				modalOpen: true,
+				modalEditors: ['/ordinary', '/later'],
+				modalActive: '/ordinary',
+				mainEditors: [],
+				focusUnchanged: true,
+				events: [],
+			});
+
+			await modal.close();
+		});
+
+		/** Runs the action on a modal editor whose editors can go, with the move command answering `moved`, recording what the action does. */
+		async function runAllowed(options: { navigation?: boolean; moved: boolean }): Promise<string[]> {
+			const log: string[] = [];
+			const modalGroup = new class extends mock<IEditorGroup>() {
+				override readonly id = 2;
+				override readonly editors = [store.add(new TestFileEditorInput(URI.file('/ordinary'), 'modalEditorInEditorAreaInput'))];
+				override readonly activeEditor = this.editors[0];
+				override readonly activeEditorPane = options.navigation ? new class extends mock<IVisibleEditorPane>() {
+					override readonly options = { modal: { navigation: { total: 1, current: 0, navigate: () => { } } } };
+				}() : undefined;
+				override async closeEditor(): Promise<boolean> { log.push('close first editor'); return true; }
+			}();
+			const modalPart = new class extends mock<IModalEditorPart>() {
+				override readonly activeGroup = modalGroup;
+				override readonly maximized = true;
+				override getGroups() { return [modalGroup]; }
+			}();
+			const mainGroup = new class extends mock<IEditorGroup>() {
+				override readonly id = 1;
+				override focus(): void { log.push('focus'); }
+			}();
+			const mainPart = new class extends mock<IEditorPart>() {
+				override readonly activeGroup = mainGroup;
+			}();
+			const instantiationService = store.add(new TestInstantiationService());
+			instantiationService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
+				override readonly activeModalEditorPart = modalPart;
+				override readonly mainPart = mainPart;
+				override get activeGroup() { return mainGroup; }
+			}());
+			instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+				override async executeCommand<R>(id: string): Promise<R> {
+					log.push(`run ${id}`);
+					return options.moved as R;
+				}
+			}());
+			stubServices(instantiationService, log, upcastPartial<ChangesViewPane>({ openChanges: async resource => { log.push(`open changes ${resource?.path}`); } }));
+
+			await instantiationService.invokeFunction(accessor => new OpenModalEditorInEditorAction().run(accessor));
+
+			return log;
+		}
+
+		test('with editors that can go, opens them in the editor area, maximized as the modal editor was, and focused', async () => {
+			assert.deepStrictEqual(await runAllowed({ moved: true }), ['set workbench.editor.useModal some', `show ${Parts.EDITOR_PART}`, `run ${MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID}`, 'maximized true', 'focus']);
+		});
+
+		test('with navigation through changes, reopens the changes editor at the current change, as before', async () => {
+			assert.deepStrictEqual(await runAllowed({ navigation: true, moved: true }), ['set workbench.editor.useModal some', `show ${Parts.EDITOR_PART}`, 'open changes /changed', 'close first editor', `run ${MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID}`, 'maximized true', 'focus']);
+		});
+
+		test('neither maximizes nor focuses when the move command refuses after all', async () => {
+			assert.deepStrictEqual(await runAllowed({ moved: false }), ['set workbench.editor.useModal some', `show ${Parts.EDITOR_PART}`, `run ${MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID}`]);
+		});
 	});
 });

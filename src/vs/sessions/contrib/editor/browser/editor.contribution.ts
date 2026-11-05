@@ -43,6 +43,8 @@ import { CONNECTED_EDITOR_TABS_CLASS } from '../../../../workbench/browser/parts
 import { IWorkbenchLayoutService, LayoutSettings, ModernUIEditorTabStyle, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IAuxiliaryWindowService } from '../../../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID } from '../../../../workbench/browser/parts/editor/editorCommands.js';
+import { getModalToMainTransferVeto, showEditorTransferVeto } from '../../../../workbench/browser/parts/editor/editorTransferVeto.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { TERMINAL_VIEW_ID } from '../../../../workbench/contrib/terminal/common/terminal.js';
 import { TEXT_FILE_EDITOR_ID } from '../../../../workbench/contrib/files/common/files.js';
 import { ISessionsPartService } from '../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
@@ -289,7 +291,7 @@ class ShowMainEditorPartAction extends Action2 {
 
 registerAction2(ShowMainEditorPartAction);
 
-class OpenModalEditorInEditorAction extends Action2 {
+export class OpenModalEditorInEditorAction extends Action2 {
 	static readonly ID = 'workbench.action.agentSessions.openModalEditorInEditor';
 
 	constructor() {
@@ -319,6 +321,7 @@ class OpenModalEditorInEditorAction extends Action2 {
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
 		const changesViewService = accessor.get(IChangesViewService);
+		const dialogService = accessor.get(IDialogService);
 
 		const activeEditorPart = editorGroupsService.activeModalEditorPart;
 		const activeGroup = activeEditorPart?.activeGroup;
@@ -326,6 +329,13 @@ class OpenModalEditorInEditorAction extends Action2 {
 			return;
 		}
 		if (!canMoveModalEditorToEditorArea(activeGroup.activeEditor)) {
+			return;
+		}
+
+		// Before anything changes: its editors all go into the main window, or none
+		const veto = getModalToMainTransferVeto(activeEditorPart, editorGroupsService.mainPart);
+		if (veto) {
+			showEditorTransferVeto(dialogService, veto);
 			return;
 		}
 
@@ -355,7 +365,10 @@ class OpenModalEditorInEditorAction extends Action2 {
 		}
 
 		// Move all remaining editors to the main editor part
-		await commandService.executeCommand(MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID);
+		const moved = await commandService.executeCommand<boolean>(MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID);
+		if (!moved) {
+			return; // they did not move, such as for an editor that could not go meanwhile
+		}
 
 		// Maximize
 		if (isMaximized) {

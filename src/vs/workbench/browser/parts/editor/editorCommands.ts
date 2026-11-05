@@ -48,7 +48,7 @@ import { DIFF_FOCUS_OTHER_SIDE, DIFF_FOCUS_PRIMARY_SIDE, DIFF_FOCUS_SECONDARY_SI
 import { IResolvedEditorCommandsContext, resolveCommandsContext } from './editorCommandsContext.js';
 import { fillActiveEditorSelection, prepareMoveCopyEditors } from './editor.js';
 import { IRange } from '../../../../editor/common/core/range.js';
-import { getGroupTransferVeto, showEditorTransferVeto, transferToNewWindow } from './editorTransferVeto.js';
+import { getGroupTransferVeto, getModalToMainTransferVeto, showEditorTransferVeto, transferToNewWindow } from './editorTransferVeto.js';
 
 export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
@@ -1466,7 +1466,7 @@ function registerOtherEditorCommands(): void {
 
 /**
  * Opens the editors of the modal editor part in the main window: an explicit transfer, so all its editors go, or none
- * when one cannot (see `EditorInput.canMove`).
+ * when one cannot (see `EditorInput.canMove`). Resolves to whether they went.
  */
 export class MoveModalEditorToMainWindowAction extends Action2 {
 	constructor() {
@@ -1486,29 +1486,28 @@ export class MoveModalEditorToMainWindowAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
+	async run(accessor: ServicesAccessor): Promise<boolean> {
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 		const dialogService = accessor.get(IDialogService);
 
 		for (const part of editorGroupsService.parts) {
 			if (isModalEditorPart(part)) {
 				if (!canMoveModalEditorToEditorArea(part.activeGroup.activeEditor)) {
-					return;
+					return false;
 				}
 
 				// Before anything moves: closing the part merges back what can go, one editor after another
-				for (const group of part.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
-					const veto = getGroupTransferVeto(group, editorGroupsService.mainPart.activeGroup.id);
-					if (veto) {
-						showEditorTransferVeto(dialogService, veto);
-						return;
-					}
+				const veto = getModalToMainTransferVeto(part, editorGroupsService.mainPart);
+				if (veto) {
+					showEditorTransferVeto(dialogService, veto);
+					return false;
 				}
 
-				await part.close({ mergeAllEditorsToMainPart: true });
-				break;
+				return part.close({ mergeAllEditorsToMainPart: true });
 			}
 		}
+
+		return false;
 	}
 }
 

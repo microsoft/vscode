@@ -536,9 +536,10 @@ suite('Editor transfer vetoes', () => {
 			const events = recordEvents(modal, parts.mainPart);
 			const mainGroupCount = parts.mainPart.count;
 
-			await instantiationService.invokeFunction(accessor => new MoveModalEditorToMainWindowAction().run(accessor));
+			const moved = await instantiationService.invokeFunction(accessor => new MoveModalEditorToMainWindowAction().run(accessor));
 
 			assert.deepStrictEqual({
+				moved,
 				modalOpen: !isClosed(),
 				modalEditors: editorsOf(modal.activeGroup),
 				modalActive: modal.activeGroup.activeEditor?.resource?.path,
@@ -548,6 +549,7 @@ suite('Editor transfer vetoes', () => {
 				events,
 				dialogs: dialogs.errors,
 			}, {
+				moved: false,
 				modalOpen: true,
 				modalEditors: ['/ordinary', '/later'],
 				modalActive: '/ordinary',
@@ -565,10 +567,10 @@ suite('Editor transfer vetoes', () => {
 			const { parts, dialogs, instantiationService, isClosed } = await openModal(false);
 			const mainGroup = parts.mainPart.activeGroup;
 
-			await instantiationService.invokeFunction(accessor => new MoveModalEditorToMainWindowAction().run(accessor));
+			const moved = await instantiationService.invokeFunction(accessor => new MoveModalEditorToMainWindowAction().run(accessor));
 
-			assert.deepStrictEqual({ modalOpen: !isClosed(), mainEditors: editorsOf(mainGroup), dialogs: dialogs.errors }, {
-				modalOpen: false, mainEditors: ['/ordinary', '/later'], dialogs: []
+			assert.deepStrictEqual({ moved, modalOpen: !isClosed(), mainEditors: editorsOf(mainGroup), dialogs: dialogs.errors }, {
+				moved: true, modalOpen: false, mainEditors: ['/ordinary', '/later'], dialogs: []
 			});
 		});
 	});
