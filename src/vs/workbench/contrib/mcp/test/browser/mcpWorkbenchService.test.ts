@@ -33,7 +33,7 @@ import { AllowedMcpServersService } from '../../../../../platform/mcp/common/all
 import { COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_CONFIG } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { IMcpGalleryManifest, IMcpGalleryManifestService, McpGalleryManifestStatus } from '../../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { McpGalleryServerUrlError } from '../../../../../platform/mcp/common/mcpGalleryService.js';
-import { IMcpServerConfiguration, McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { IMcpServerConfiguration, McpServerType, McpServerVariableType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { McpResourceScannerService } from '../../../../../platform/mcp/common/mcpResourceScannerService.js';
 import { McpResourceFormat } from '../../../../../platform/mcp/common/mcpWorkspaceConfiguration.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
@@ -505,6 +505,125 @@ suite('McpWorkbenchService', () => {
 			},
 		});
 	});
+
+	test('rejects extra input properties from MCP install URIs', async () => {
+		const { service, openedEditors, warnings } = await createFixture([]);
+		const uri = URI.parse(`vscode:mcp/install?${encodeURIComponent(JSON.stringify({
+			name: 'remote-server',
+			type: McpServerType.REMOTE,
+			url: 'https://example.com/mcp',
+			headers: { Authorization: 'Bearer ${input:token}' },
+			inputs: [
+				{ id: 'token', type: McpServerVariableType.PROMPT, description: 'API token', password: true, default: 'secret', ignored: true },
+				{ id: 'region', type: McpServerVariableType.PICK, description: 'Region', options: ['us', { value: 'eu', label: 'Europe' }], default: 'us' },
+			],
+		}))}`);
+
+		const handled = await service.handleURL(uri);
+
+		assert.deepStrictEqual({
+			handled,
+			opened: openedEditors.length,
+			inputs: openedEditors[0]?.mcpServer.installable?.inputs,
+			warnings,
+		}, {
+			handled: true,
+			opened: 0,
+			inputs: undefined,
+			warnings: ['This MCP install link is invalid or contains unsupported options.'],
+		});
+	});
+
+	test('accepts and normalizes supported inputs from MCP install URIs', async () => {
+		const { service, openedEditors } = await createFixture([]);
+		const uri = URI.parse(`vscode:mcp/install?${encodeURIComponent(JSON.stringify({
+			name: 'remote-server',
+			type: McpServerType.REMOTE,
+			url: 'https://example.com/mcp',
+			headers: { Authorization: 'Bearer ${input:token}' },
+			inputs: [
+				{ id: 'token', type: McpServerVariableType.PROMPT, description: 'API token', password: true, default: 'secret' },
+				{ id: 'region', type: McpServerVariableType.PICK, description: 'Region', options: ['us', { value: 'eu', label: 'Europe' }], default: 'us' },
+			],
+		}))}`);
+
+		const handled = await service.handleURL(uri);
+
+		assert.deepStrictEqual({
+			handled,
+			inputs: openedEditors[0].mcpServer.installable?.inputs,
+		}, {
+			handled: true,
+			inputs: [
+				{ id: 'token', type: McpServerVariableType.PROMPT, description: 'API token', password: true, default: 'secret' },
+				{ id: 'region', type: McpServerVariableType.PICK, description: 'Region', password: false, default: 'us', options: ['us', { value: 'eu', label: 'Europe' }] },
+			],
+		});
+	});
+
+	for (const [name, inputs] of [
+		['non-array inputs', {}],
+		['command inputs', [{ id: 'run', type: 'command', command: 'workbench.action.terminal.newWithCwd' }]],
+		['unknown input types', [{ id: 'token', type: 'unknown', description: 'Token' }]],
+		['malformed inputs', [null]],
+		['duplicate input IDs', [
+			{ id: 'token', type: McpServerVariableType.PROMPT, description: 'Token' },
+			{ id: 'token', type: McpServerVariableType.PROMPT, description: 'Other token' },
+		]],
+		['missing pick options', [{ id: 'region', type: McpServerVariableType.PICK, description: 'Region' }]],
+		['malformed pick options', [{ id: 'region', type: McpServerVariableType.PICK, description: 'Region', options: [{}] }]],
+	] as const) {
+		test(`rejects ${name} from MCP install URIs`, async () => {
+			const { service, openedEditors, warnings } = await createFixture([]);
+			const uri = URI.parse(`vscode:mcp/install?${encodeURIComponent(JSON.stringify({
+				name: 'remote-server',
+				type: McpServerType.REMOTE,
+				url: 'https://example.com/mcp',
+				inputs,
+			}))}`);
+
+			const handled = await service.handleURL(uri);
+
+			assert.deepStrictEqual({ handled, opened: openedEditors.length, warnings }, {
+				handled: true,
+				opened: 0,
+				warnings: ['This MCP install link is invalid or contains unsupported options.'],
+			});
+		});
+	}
+
+	for (const [name, payload] of [
+		['command variables in server configuration', {
+			type: McpServerType.REMOTE,
+			url: 'https://example.com/mcp',
+			headers: { Authorization: '${command:workbench.action.terminal.newWithCwd}' },
+		}],
+		['command variables in input defaults', {
+			type: McpServerType.REMOTE,
+			url: 'https://example.com/mcp',
+			headers: { Authorization: '${input:token}' },
+			inputs: [{ id: 'token', type: McpServerVariableType.PROMPT, description: 'Token', default: '${command:workbench.action.terminal.newWithCwd}' }],
+		}],
+		['command variables in input options', {
+			type: McpServerType.REMOTE,
+			url: 'https://example.com/mcp',
+			headers: { Authorization: '${input:token}' },
+			inputs: [{ id: 'token', type: McpServerVariableType.PICK, description: 'Token', options: ['${command:workbench.action.terminal.newWithCwd}'] }],
+		}],
+	] as const) {
+		test(`rejects ${name} from MCP install URIs`, async () => {
+			const { service, openedEditors, warnings } = await createFixture([]);
+			const uri = URI.parse(`vscode:mcp/install?${encodeURIComponent(JSON.stringify({ name: 'remote-server', ...payload }))}`);
+
+			const handled = await service.handleURL(uri);
+
+			assert.deepStrictEqual({ handled, opened: openedEditors.length, warnings }, {
+				handled: true,
+				opened: 0,
+				warnings: ['This MCP install link is invalid or contains unsupported options.'],
+			});
+		});
+	}
 
 	test('enables only manually configured servers found in the registry', async () => {
 		const foundLocal = createLocal('found');
