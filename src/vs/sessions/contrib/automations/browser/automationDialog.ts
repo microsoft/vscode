@@ -22,7 +22,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { getErrorMessage, isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, disposableObservableValue, IObservable, IReader, observableSignalFromEvent, observableValue, transaction, waitForState } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, IReader, observableSignalFromEvent, observableValue, transaction, waitForState } from '../../../../base/common/observable.js';
 import { extUriIgnorePathCase, getComparisonKey, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isStringArray } from '../../../../base/common/types.js';
@@ -83,9 +83,8 @@ import { AutomationCronInput } from './automationCronInput.js';
 import { NewChatModelPickerService, INewChatModelPickerService } from '../../../../workbench/contrib/sessions/browser/chat/newChatModelPicker.js';
 import { createNewSessionControlToolbar } from '../../chat/browser/newSessionConfigToolbars.js';
 import { ISessionModelSelection, SessionModelSelection } from '../../../../workbench/contrib/sessions/browser/chat/sessionModelSelection.js';
-import { ActiveSessionHost, createSessionHostServices, getMainWindowHost, ISessionHostService, sessionChatSourceOf, SessionHostKind } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
-import { VisibleSession } from '../../../../workbench/contrib/sessions/browser/visibleSessions.js';
-import { setActiveSessionContextKeys } from '../../../../workbench/contrib/sessions/common/sessionContextKeys.js';
+import { createSessionHostServices, getMainWindowHost, ISessionHostService, SessionHost, SessionHostKind } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { setHostSessionContextKeys } from '../../../../workbench/contrib/sessions/common/sessionContextKeys.js';
 import { SessionUsesCombinedConfigPickerContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
@@ -1747,22 +1746,20 @@ export function renderForm(
 	const promptHost = DOM.append(promptRow, $('.automation-form-prompt-host.interactive-session'));
 	const editorOverflowWidgetsDomNode = layoutService.getContainer(DOM.getWindow(promptHost)).appendChild($('.chat-editor-overflow.automation-dialog-editor-overflow.monaco-editor'));
 	disposables.add(toDisposable(() => editorOverflowWidgetsDomNode.remove()));
-	const activeAutomationSession = disposables.add(disposableObservableValue<VisibleSession | undefined>(form, undefined));
-	disposables.add(autorun(reader => {
-		const session = sessionsManagementService.automationSession.read(reader);
-		activeAutomationSession.set(session ? new VisibleSession(session, session.mainChat.read(reader)) : undefined, undefined);
-	}));
+	// The dialog's draft: the provider's session, which the dialog observes but does not own.
+	const activeAutomationSession = sessionsManagementService.automationSession;
+	const activeAutomationChat = derived(reader => activeAutomationSession.read(reader)?.mainChat.read(reader));
 	const scopedContextKeyService = disposables.add(contextKeyService.createScoped(sessionSection));
 	ChatContextKeys.location.bindTo(scopedContextKeyService).set(ChatAgentLocation.Chat);
 	ChatContextKeys.inChatSession.bindTo(scopedContextKeyService).set(true);
 	ChatContextKeys.inAutomationsDialog.bindTo(scopedContextKeyService).set(true);
 	const newChatModelPickerService = new NewChatModelPickerService();
-	const sessionModelSelection = disposables.add(instantiationService.createInstance(SessionModelSelection, sessionChatSourceOf(activeAutomationSession), { modelConfiguration: true }));
+	const sessionModelSelection = disposables.add(instantiationService.createInstance(SessionModelSelection, { session: activeAutomationSession, chat: activeAutomationChat }, { modelConfiguration: true }));
 	// The dialog drafts in the host of the window it shows in: the window of its form.
 	const automationHost = instantiationService.invokeFunction(accessor => {
 		const sessionHostService = accessor.get(ISessionHostService);
 		const parent = sessionHostService.getHostOfWindow(DOM.getWindow(form).vscodeWindowId) ?? getMainWindowHost(sessionHostService);
-		return new ActiveSessionHost({ kind: SessionHostKind.AutomationDialog, parent, session: activeAutomationSession, contextKeyService: scopedContextKeyService });
+		return new SessionHost({ kind: SessionHostKind.AutomationDialog, parent, session: activeAutomationSession, chat: activeAutomationChat, contextKeyService: scopedContextKeyService });
 	});
 	disposables.add(instantiationService.invokeFunction(accessor => accessor.get(ISessionHostService).registerHost(automationHost)));
 	const services = createSessionHostServices(scopedContextKeyService, automationHost);
@@ -1773,7 +1770,8 @@ export function renderForm(
 	disposables.add(autorun(reader => {
 		sessionTypesChanged.read(reader);
 		const session = activeAutomationSession.read(reader);
-		setActiveSessionContextKeys(session, scopedContextKeyService, reader);
+		// A dialog's draft shows in no pane: it is not pinned and shows no tab strip.
+		setHostSessionContextKeys(session, activeAutomationChat.read(reader), undefined, scopedContextKeyService, reader);
 		usesCombinedConfigPicker.set(!!session && sessionsManagementService.usesCombinedNewSessionConfigPicker(session));
 	}));
 

@@ -102,6 +102,8 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 	private _isLeafVisible = true;
 
 	private readonly _sessionObs = observableValue<IActiveSession | undefined>(this, undefined);
+	/** The chat the pane it shows shows: its active chat. */
+	private readonly _paneChat = derived(this, reader => this._sessionObs.read(reader)?.activeChat.read(reader));
 	/** The content of the pane it shows: the provider's session, its chat and the pane's state. */
 	private readonly _contentObs = observableValue<ISessionPaneContent | undefined>(this, undefined);
 	/** The host of what this view shows, nested in the host of its window. */
@@ -239,7 +241,7 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 		if (this._hasOpenedSession && this._currentSession === session) {
 			return;
 		}
-		options = { ...options, hostVisible: this._isVisibleObs, session: this._sessionObs };
+		options = { ...options, hostVisible: this._isVisibleObs, session: this._sessionObs, chat: this._paneChat };
 		this._hasOpenedSession = true;
 		this._currentSession = session;
 		// Closing closes this view's pane of the grid, while the view still shows this content: a content kept past a rebind,

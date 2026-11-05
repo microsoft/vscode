@@ -10,9 +10,8 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ChatCustomizationMigrationNotice, IChatCustomizationMigrationNoticeContext } from '../../../chat/browser/aiCustomization/chatCustomizationMigrationNotice.js';
 import { IAICustomizationWorkspaceService } from '../../../chat/common/aiCustomizationWorkspaceService.js';
 import { isAgentHostSessionResource } from '../../../chat/common/chatSessionsService.js';
-import { IActiveSession } from '../../common/sessionsManagement.js';
 import { NewSessionBannerPriority, NewSessionBanners } from '../../common/newSessionBanners.js';
-import { isSessionCreated } from '../../common/session.js';
+import { ISession, isSessionCreated } from '../../common/session.js';
 
 export class NewChatMigrationNotice extends Disposable {
 	readonly element: HTMLElement;
@@ -20,7 +19,7 @@ export class NewChatMigrationNotice extends Disposable {
 	constructor(
 		container: HTMLElement,
 		banners: NewSessionBanners,
-		session: IObservable<IActiveSession | undefined>,
+		session: IObservable<ISession | undefined>,
 		focusInput: () => void,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IAICustomizationWorkspaceService workspaceService: IAICustomizationWorkspaceService,

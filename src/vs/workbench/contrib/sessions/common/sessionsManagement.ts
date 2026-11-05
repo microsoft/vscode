@@ -9,7 +9,7 @@ import type { IAgentHostManagedWorktree, IAgentHostWorktreeCleanupStatus } from 
 import { IDisposable, IReference } from '../../../../base/common/lifecycle.js';
 import { IChatSessionItemArchiveState } from '../../chat/common/chatSessionsService.js';
 import { IArtifactModel } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
-import { IObservable } from '../../../../base/common/observable.js';
+import { derived, IObservable, IReader } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -244,6 +244,25 @@ export interface ISessionPaneContent {
 	 * detached panes, and the pane of another surface, such as a chat editor's, closes there.
 	 */
 	close(): void;
+}
+
+/**
+ * The chat a surface shows of `session`: `chat`, else the active chat of a view of a session, else the session's main chat.
+ *
+ * @deprecated Transitional: surfaces pass their chat explicitly; the fallback to a view's active chat serves its last users
+ * until views of sessions are removed.
+ */
+export function shownChatOf(session: IObservable<ISession | undefined>, chat: IObservable<IChat | undefined> | undefined): IObservable<IChat | undefined> {
+	return derived(reader => chat?.read(reader) ?? readShownChat(session.read(reader), reader));
+}
+
+/**
+ * The chat a surface that gives no chat shows of `session`: the active chat of a view of a session, else its main chat.
+ *
+ * @deprecated Transitional; see {@link shownChatOf}.
+ */
+export function readShownChat(session: ISession | undefined, reader: IReader | undefined): IChat | undefined {
+	return session && ((session as Partial<IActiveSession>).activeChat?.read(reader) ?? session.mainChat.read(reader));
 }
 
 /**

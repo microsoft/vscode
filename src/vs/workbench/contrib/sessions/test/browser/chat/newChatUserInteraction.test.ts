@@ -23,7 +23,7 @@ import { ToolInvocationPresentation } from '../../../../chat/common/tools/langua
 import { createChatUserInteractionTestHarness } from '../../../../chat/test/browser/chatUserInteractionTestUtils.js';
 import { ISessionsService } from '../../../browser/sessionsService.js';
 import { IChat, ISession, SessionStatus } from '../../../common/session.js';
-import { IActiveSession, ISendRequestOptions, ISessionsManagementService } from '../../../common/sessionsManagement.js';
+import { IActiveSession, ISendRequestOptions, ISessionsManagementService, shownChatOf } from '../../../common/sessionsManagement.js';
 import { SharedChatInputComposer } from '../../../browser/chat/sharedChatInputComposer.js';
 import { INewChatInputSendRequest } from '../../../browser/chat/newChatComposerInput.js';
 import { NewChatInSessionWidget } from '../../../browser/chat/newChatInSessionWidget.js';
@@ -115,6 +115,7 @@ suite('Sessions - New chat user-perceived TTFP', () => {
 			send: Reflect.get(newSession ? NewChatWidget.prototype : NewChatInSessionWidget.prototype, '_send') as Send,
 			_session: constObservable(h.session),
 			_chat: constObservable(undefined),
+			_paneChat: shownChatOf(constObservable(h.session), undefined),
 			_feedbackItems: constObservable([]),
 			_isQuickChatComposer: constObservable(false),
 			_workspaceSupport: constObservable(undefined),

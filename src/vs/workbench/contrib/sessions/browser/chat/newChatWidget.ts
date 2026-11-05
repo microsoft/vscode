@@ -31,12 +31,11 @@ import { IDefaultAccountService } from '../../../../../platform/defaultAccount/c
 import { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { getSessionWorkspaceProperties } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { localize } from '../../../../../nls.js';
-import { IActiveSession, ICreateNewSessionOptions, ISendRequestOptions, ISessionsManagementService, WorkspaceNotTrustedError } from '../../common/sessionsManagement.js';
+import { ICreateNewSessionOptions, ISendRequestOptions, ISessionsManagementService, WorkspaceNotTrustedError } from '../../common/sessionsManagement.js';
 import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, isSessionCreated, SESSION_WORKSPACE_GROUP_GITHUB } from '../../common/session.js';
 import { IOpenNewSessionResult, ISessionsService } from '../sessionsService.js';
 import { getMainWindowHost, ISessionHostService } from '../sessionHost.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
-import { VisibleSession } from '../visibleSessions.js';
 import { ISessionsProvider } from '../../common/sessionsProvider.js';
 import { getNoWorkspaceDescription, getQuickChatProviderLabel, getRemoteQuickChatSelectedLabel } from './noWorkspaceChoice.js';
 import { shouldShowGitHubWorkspaceGroupSignIn } from '../sessionsAuthGate.js';
@@ -193,8 +192,9 @@ export class NewChatWidget extends Disposable {
 	private _welcomePetPlatform: HTMLElement | undefined;
 	private readonly _onDidChangeChatPetPlatform = this._register(new Emitter<void>());
 
-	private readonly _session: IObservable<IActiveSession | undefined>;
-	private readonly _paneSession: IObservable<IActiveSession | undefined>;
+	/** The draft the composer shows: the provider's session, which it does not own. */
+	private readonly _session: IObservable<ISession | undefined>;
+	private readonly _paneSession: IObservable<ISession | undefined>;
 
 	/** Whether the active draft is a workspace-less quick chat. */
 	private readonly _isQuickChatComposer: IObservable<boolean>;
@@ -269,10 +269,7 @@ export class NewChatWidget extends Disposable {
 
 		// The session of the pane that hosts the composer, which shows its draft.
 		this._paneSession = options.session ?? constObservable(undefined);
-		this._session = this._preserveCustomView ? derived(this, reader => {
-			const draft = this.sessionsManagementService.newSession.read(reader);
-			return draft ? reader.store.add(new VisibleSession(draft, draft.mainChat.read(reader))) : undefined;
-		}) : this._paneSession;
+		this._session = this._preserveCustomView ? this.sessionsManagementService.newSession : this._paneSession;
 
 		// A quick chat is workspace-less; the composer hides the workspace picker
 		// (nothing to pick) and surfaces the session-type picker in the controls.
@@ -1198,7 +1195,7 @@ export class NewChatWidget extends Disposable {
 		return true;
 	}
 
-	private _syncWorkspacePickerDevContainerMode(activeSession: IActiveSession, persist: boolean, origin: WorkspaceSelectionOrigin): URI | undefined {
+	private _syncWorkspacePickerDevContainerMode(activeSession: ISession, persist: boolean, origin: WorkspaceSelectionOrigin): URI | undefined {
 		const folderUri = activeSession.workspace.get()?.folders[0]?.root;
 		if (!folderUri || (origin === WorkspaceSelectionOrigin.SessionSync
 			&& !this.uriIdentityService.extUri.isEqual(folderUri, this._workspacePicker.selectedFolderUri))) {
@@ -1221,7 +1218,7 @@ export class NewChatWidget extends Disposable {
 	 * means the folder's providers haven't reported yet (a late-connecting agent
 	 * host), so the draft is left alone.
 	 */
-	private _replaceDraftOnUnservableHarness(folderUri: URI, draft: IActiveSession): void {
+	private _replaceDraftOnUnservableHarness(folderUri: URI, draft: ISession): void {
 		if (isSessionCreated(draft)) {
 			return;
 		}
@@ -1393,7 +1390,7 @@ export class NewChatWidget extends Disposable {
 		void this._createNewSession(folderUri, userPick);
 	}
 
-	selectNoWorkspace(options?: ICreateNewSessionOptions, selectionOptions?: ISelectNoWorkspaceOptions): IActiveSession | undefined {
+	selectNoWorkspace(options?: ICreateNewSessionOptions, selectionOptions?: ISelectNoWorkspaceOptions): ISession | undefined {
 		this._pendingPreferredUpgrade.clear();
 		this._newSessionCreation.clear();
 		this._workspacePicker.selectNoWorkspace(selectionOptions?.userSelection !== false);
@@ -1407,7 +1404,7 @@ export class NewChatWidget extends Disposable {
 		return session;
 	}
 
-	private _openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation?: boolean): IActiveSession | undefined {
+	private _openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation?: boolean): ISession | undefined {
 		const environment = this._environment.get();
 		if (!options && environment) {
 			options = this._workspaceOptOutTarget.get();
@@ -1419,7 +1416,7 @@ export class NewChatWidget extends Disposable {
 		return this._createQuickChat(options, preserveNavigation);
 	}
 
-	private _createQuickChat(options?: ICreateNewSessionOptions, preserveNavigation?: boolean): IActiveSession | undefined {
+	private _createQuickChat(options?: ICreateNewSessionOptions, preserveNavigation?: boolean): ISession | undefined {
 		if (this._preserveCustomView) {
 			try {
 				this.sessionsManagementService.createQuickChat(options);
@@ -1884,7 +1881,7 @@ export class NewChatWidget extends Disposable {
 
 	// --- Send ---
 
-	private async _sendComparison(session: IActiveSession, request: string, requestContext: ReadonlyMap<string, IChatRequestVariableEntry>): Promise<boolean> {
+	private async _sendComparison(session: ISession, request: string, requestContext: ReadonlyMap<string, IChatRequestVariableEntry>): Promise<boolean> {
 		try {
 			const provider = this.sessionsProvidersService.getProvider(session.providerId);
 			if (this._environment.get()?.kind === 'container' || provider && isAgentHostProvider(provider) && provider.isDevContainerRequested?.(session.sessionId)) {
@@ -2070,7 +2067,7 @@ export class NewChatWidget extends Disposable {
 		}
 
 		try {
-			userInteraction?.handoff(session, session.activeChat.get());
+			userInteraction?.handoff(session, session.mainChat.get());
 			this.newSessionComposerService.notifyWillSendRequest(sendOptions, wasQuickChat ? undefined : this._workspacePicker.selectionSnapshot);
 			await this.sessionsManagementService.sendNewChatRequest(session, sendOptions);
 		} catch (e) {

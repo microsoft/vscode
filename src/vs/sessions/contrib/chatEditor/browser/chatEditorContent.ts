@@ -5,7 +5,7 @@
 
 import { $, size } from '../../../../base/browser/dom.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, constObservable, IObservable, observableValue } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -36,6 +36,7 @@ export class ChatEditorContent extends Disposable {
 	/** The services of its own scope, which what it shows is created with: disposed after it, see {@link dispose}. */
 	private readonly _scopedServices = new DisposableStore();
 	private readonly _session = observableValue<IActiveSession | undefined>(this, undefined);
+	private readonly _chat = derived(this, reader => this._session.read(reader)?.activeChat.read(reader));
 	private readonly _showHeader: boolean;
 	private _lastLayout: { readonly width: number; readonly height: number; readonly top: number; readonly left: number } | undefined;
 	private _visible = true;
@@ -122,7 +123,7 @@ export class ChatEditorContent extends Disposable {
 			session,
 			isDetached: content.state.isDetached,
 			closePane: () => content.close(),
-			options: { session: this._session },
+			options: { session: this._session, chat: this._chat },
 			chats: constObservable([chat]),
 			activeChatResource: constObservable(chat.resource.toString()),
 			mainChatResource: session.mainChat.map(main => main.resource.toString()),
