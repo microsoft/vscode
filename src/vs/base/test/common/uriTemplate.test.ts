@@ -111,6 +111,19 @@ suite('UriTemplate', () => {
 		testResolution('{x}', { x: '\r' }, '%0D');
 	});
 
+	test('non-ASCII values are percent-encoded as UTF-8', () => {
+		testResolution('resource://docs/{name}', { name: 'caf\u00e9' }, 'resource://docs/caf%C3%A9');
+		testResolution('{/name}', { name: '\u4e2d\u6587' }, '/%E4%B8%AD%E6%96%87');
+		testResolution('{?name}', { name: '\u{1f680}' }, '?name=%F0%9F%9A%80');
+		testResolution('{name}', { name: '\u00e9!\'()*' }, '%C3%A9%21%27%28%29%2A');
+	});
+
+	test('prefix lengths count Unicode code points', () => {
+		testResolution('{name:1}', { name: '\u{1f680}mission' }, '%F0%9F%9A%80');
+		testResolution('{+name:1}', { name: '\u{1f680}/mission' }, '%F0%9F%9A%80');
+		testResolution('{name:2}', { name: 'a\u{1f680}mission' }, 'a%F0%9F%9A%80');
+	});
+
 	test('Level 2 - Reserved expansion', () => {
 		// Test cases from RFC 6570 Section 1.2
 		const variables = {

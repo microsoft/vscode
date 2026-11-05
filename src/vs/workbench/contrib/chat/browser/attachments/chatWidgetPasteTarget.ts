@@ -9,7 +9,7 @@ import { IChatRequestVariableEntry } from '../../common/attachments/chatVariable
 import { IDynamicVariable, toAttachedContextDynamicVariable } from '../../common/attachments/chatVariables.js';
 import { IChatPasteTarget, IChatWidget } from '../chat.js';
 import { ChatDynamicVariableModel } from './chatDynamicVariables.js';
-import { getDynamicVariablesForWidget } from './chatVariables.js';
+import { getInputDynamicVariablesForWidget } from './chatVariables.js';
 
 /** Exposes a {@link IChatWidget} to the shared chat paste pipeline. */
 export class ChatWidgetPasteTarget implements IChatPasteTarget {
@@ -27,7 +27,12 @@ export class ChatWidgetPasteTarget implements IChatPasteTarget {
 	}
 
 	get inlineReferences(): readonly IDynamicVariable[] {
-		return getDynamicVariablesForWidget(this.widget);
+		// Copied references are pasted at their ranges in the input editor.
+		return getInputDynamicVariablesForWidget(this.widget);
+	}
+
+	getCopiedInlinePrompt(ranges: readonly IRange[]): { readonly text: string; readonly references: readonly IDynamicVariable[]; readonly excludedAttachmentIds: ReadonlySet<string> } | undefined {
+		return this.widget.input.inlineAttachments?.getCopiedPrompt(ranges, getInputDynamicVariablesForWidget(this.widget));
 	}
 
 	addAttachments(entries: readonly IChatRequestVariableEntry[]): void {

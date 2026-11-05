@@ -32,7 +32,7 @@ export interface IAgentHostEnablementService {
 	/**
 	 * Whether an enterprise has mandated the Copilot SDK sandbox floor through managed settings
 	 * (`sandbox.enabled`). The runtime owns composing and enforcing that floor; VS Code reads it
-	 * to display sandbox state. Together with any managed permission setting, this floor requires
+	 * to display sandbox state. Like non-empty managed permission deny rules, this floor requires
 	 * Copilot Agent Host for new requests; existing Local history remains readable.
 	 * A user- or workspace-level sandbox opt-in does not set this.
 	 */
@@ -71,9 +71,7 @@ configurationRegistry.registerConfiguration({
 		'chat.editor.preferCopilotHarness': {
 			type: 'boolean',
 			description: nls.localize('chat.editor.preferCopilotHarness', "When enabled, uses the Agent Host Copilot SDK whenever the local harness would otherwise be selected for a new editor chat session. Claude and Codex selections are unaffected."),
-			default: false,
-			tags: ['experimental'],
-			experiment: { mode: 'startup' },
+			default: true,
 			policy: {
 				name: 'ChatEditorPreferCopilotHarness',
 				category: PolicyCategory.InteractiveSession,
@@ -89,9 +87,7 @@ configurationRegistry.registerConfiguration({
 		'chat.defaultToCopilotHarness': {
 			type: 'boolean',
 			description: nls.localize('chat.defaultToCopilotHarness', "When enabled, new editor and panel chat sessions default to the Agent Host Copilot SDK instead of the local harness."),
-			default: false,
-			tags: ['experimental'],
-			experiment: { mode: 'startup' },
+			default: true,
 		},
 		'chat.editor.localAgent.enabled': {
 			type: 'boolean',

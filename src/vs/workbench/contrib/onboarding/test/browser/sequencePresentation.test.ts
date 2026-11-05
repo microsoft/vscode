@@ -170,18 +170,23 @@ suite('OnboardingSequencePresentation', () => {
 		disposables.add(onboardingSequenceStepPresentationRegistry.register(visual));
 		disposables.add(onboardingSequenceStepPresentationRegistry.register(new RunOnboardingStepPresentation()));
 		const presentation = disposables.add(new OnboardingSequencePresentation());
+		let impressions = 0;
 
 		const result = await presentation.run(createScenario([
 			{ id: 'skipped', kind: visualKind, payload: undefined },
+			{ id: 'hidden', kind: RUN_ONBOARDING_STEP_KIND, payload: { run: () => ({ shown: false }) } },
 			{ id: 'script', kind: RUN_ONBOARDING_STEP_KIND, payload: { run: () => ({ shown: true }) } },
-		]), context());
+		]), { ...context(), onDidShow: () => impressions++ });
 
-		assert.deepStrictEqual(result, {
-			outcome: OnboardingOutcome.Completed,
-			shown: true,
-			dismissReason: OnboardingDismissReason.Completed,
-			lastStepIndex: 1,
-			stepCount: 2,
+		assert.deepStrictEqual({ impressions, result }, {
+			impressions: 1,
+			result: {
+				outcome: OnboardingOutcome.Completed,
+				shown: true,
+				dismissReason: OnboardingDismissReason.Completed,
+				lastStepIndex: 2,
+				stepCount: 3,
+			},
 		});
 	});
 

@@ -120,6 +120,20 @@ export const enum ActivityBarPosition {
 	HIDDEN = 'hidden'
 }
 
+/**
+ * Whether the compact menu is owned by the title bar rather than the activity bar.
+ * This is the case when the activity bar is at the top or bottom, because the activity
+ * bar then lives in the side bar and disappears with the side bar. The title bar
+ * only owns the menu while the custom title bar is shown in the main window; otherwise
+ * the activity bar keeps it so that the menu remains reachable.
+ */
+export function isCompactMenuInTitlebar(configurationService: IConfigurationService): boolean {
+	const activityBarLocation = configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
+	return getMenuBarVisibility(configurationService) === 'compact'
+		&& (activityBarLocation === ActivityBarPosition.TOP || activityBarLocation === ActivityBarPosition.BOTTOM)
+		&& shouldShowCustomTitleBar(configurationService, mainWindow);
+}
+
 export const enum EditorTabsMode {
 	MULTIPLE = 'multiple',
 	SINGLE = 'single',

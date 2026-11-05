@@ -23,7 +23,7 @@ concurrency:
 jobs:
   playwright:
     name: Playwright Fixture Tests
-    runs-on: ubuntu-latest
+    runs-on: vscode-large-runners-ubuntu-8-core
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -31,9 +31,12 @@ jobs:
           fetch-depth: 1
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
+
+      - name: Setup pnpm
+        uses: ./.github/actions/setup-pnpm
 
       - name: Restore node_modules cache
         id: cache-node-modules
@@ -42,51 +45,58 @@ jobs:
           key-prefix: node_modules-component-fixtures
           key-args: "compile $(node -p process.arch)"
 
+      # Only the dependencies of the root project and the Playwright fixture tests, without the
+      # root install scripts that install every other install root. Both jobs share this cache, so
+      # both install the same projects.
       - name: Install dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: npm ci --ignore-scripts
+        run: pnpm install --frozen-lockfile --ignore-scripts --filter . --filter ./test/componentFixtures/playwright
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-
+      # build/rspack is a member of the build workspace. pnpm also installs the build project's own
+      # dependencies, so skip their install scripts (native modules): rspack doesn't need them.
       - name: Install rspack dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: npm ci
+        run: pnpm install --frozen-lockfile --ignore-scripts --filter .
         working-directory: build/rspack
 
       - name: Copy codicons
         run: cp node_modules/@vscode/codicons/dist/codicon.ttf src/vs/base/browser/ui/codicons/codicon/codicon.ttf
 
       - name: Build component explorer
-        run: npx rspack build --config rspack.serve-out.config.mts
+        run: pnpm exec rspack build --config rspack.serve-out.config.mts
         working-directory: build/rspack
         env:
           COMPONENT_EXPLORER_STATIC_BUILD: 1
 
-      - name: Install Playwright test dependencies
-        run: npm ci
-        working-directory: test/componentFixtures/playwright
+      # Pushes to main save this cache, so pull requests don't download the browsers.
+      - name: Restore Playwright browsers
+        uses: ./.github/actions/restore-playwright
+        with:
+          browsers: chromium
+          save-cache: ${{ github.event_name != 'pull_request' }}
 
       - name: Install Playwright Chromium
-        run: npx playwright install chromium
+        run: pnpm exec playwright install chromium
         working-directory: test/componentFixtures/playwright
 
       - name: Run Playwright fixture tests
-        run: npx playwright test
+        run: pnpm exec playwright test
         working-directory: test/componentFixtures/playwright
 
       - name: Upload Playwright test results
         if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: playwright-test-results
           path: test/componentFixtures/playwright/test-results/
 
   screenshots:
     name: Screenshots
-    runs-on: ubuntu-latest
+    runs-on: vscode-large-runners-ubuntu-8-core
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -97,9 +107,12 @@ jobs:
           fetch-depth: 150
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
+
+      - name: Setup pnpm
+        uses: ./.github/actions/setup-pnpm
 
       - name: Restore node_modules cache
         id: cache-node-modules
@@ -108,23 +121,22 @@ jobs:
           key-prefix: node_modules-component-fixtures
           key-args: "compile $(node -p process.arch)"
 
+      # Only the dependencies of the root project and the Playwright fixture tests, without the
+      # root install scripts that install every other install root. Both jobs share this cache, so
+      # both install the same projects.
       - name: Install dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: npm ci --ignore-scripts
+        run: pnpm install --frozen-lockfile --ignore-scripts --filter . --filter ./test/componentFixtures/playwright
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # Also installs build/rspack, a member of the build workspace.
       - name: Install build dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: npm ci
+        run: pnpm install --frozen-lockfile
         working-directory: build
-
-      - name: Install rspack dependencies
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: npm ci
-        working-directory: build/rspack
 
       - name: Save node_modules cache
         # Only seed the cache on branch pushes — PR-scoped caches are not shared with other refs.
@@ -135,19 +147,26 @@ jobs:
         run: cp node_modules/@vscode/codicons/dist/codicon.ttf src/vs/base/browser/ui/codicons/codicon/codicon.ttf
 
       - name: Build component explorer
-        run: npx rspack build --config rspack.serve-out.config.mts
+        run: pnpm exec rspack build --config rspack.serve-out.config.mts
         working-directory: build/rspack
         env:
           COMPONENT_EXPLORER_STATIC_BUILD: 1
 
       - name: Upload component explorer
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: component-explorer
           path: .build/rspack-serve-out/
 
+      # Pushes to main save this cache, so pull requests don't download the browsers.
+      - name: Restore Playwright browsers
+        uses: ./.github/actions/restore-playwright
+        with:
+          browsers: chromium
+          save-cache: ${{ github.event_name != 'pull_request' }}
+
       - name: Install Playwright Chromium
-        run: npx playwright install chromium
+        run: pnpm exec playwright install chromium
 
       - name: Capture screenshots
         run: ./node_modules/.bin/component-explorer render --project ./test/componentFixtures/component-explorer.json --fixture-id-regex '/Light$'
@@ -213,7 +232,7 @@ jobs:
             }
 
       - name: Upload screenshots as artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: screenshots
@@ -478,7 +497,7 @@ jobs:
     needs:
       - playwright
       - screenshots
-    runs-on: ubuntu-latest
+    runs-on: vscode-large-runners-ubuntu-8-core
     steps:
       - name: Verify fixture test results
         run: |

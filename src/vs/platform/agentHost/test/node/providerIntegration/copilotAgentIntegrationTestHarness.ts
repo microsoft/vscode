@@ -36,6 +36,13 @@ class TestEnvironmentService extends AbstractNativeEnvironmentService { }
 
 /** Tracks disposal without replacing SDK session creation. */
 class ObservedCopilotClient extends CopilotClient {
+	onStarted: (() => void) | undefined;
+
+	override async start(): Promise<void> {
+		await super.start();
+		this.onStarted?.();
+	}
+
 	stopCount = 0;
 	stopErrorCount = 0;
 
@@ -52,6 +59,7 @@ class LocalEndpointCopilotAgent extends CopilotAgent {
 	home = '';
 	configuration: IAgentConfigurationService | undefined;
 	readonly clients: { options: CopilotClientOptions; client: ObservedCopilotClient }[] = [];
+	onClientStarted: ((client: CopilotClient, options: CopilotClientOptions) => void) | undefined;
 
 	protected override _createCopilotClient(options: CopilotClientOptions): CopilotClient {
 		for (const [key, value] of Object.entries(options.env ?? {})) {
@@ -78,6 +86,7 @@ class LocalEndpointCopilotAgent extends CopilotAgent {
 			},
 			client,
 		});
+		client.onStarted = () => this.onClientStarted?.(client, options);
 		return client;
 	}
 }

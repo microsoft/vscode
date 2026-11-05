@@ -126,7 +126,7 @@ export class AgentHostSessionListContribution extends Disposable implements IWor
 				const store = new DisposableStore();
 				this._historyRegistrations.set(provider, store);
 				const sessionType = `agent-host-${provider}`;
-				const controller = store.add(this._instantiationService.createInstance(AgentHostSessionListController, sessionType, provider, sessionListStore, undefined, 'local'));
+				const controller = store.add(this._instantiationService.createInstance(AgentHostSessionListController, sessionType, provider, sessionListStore, undefined, 'local', false));
 				store.add(this._chatSessionsService.registerChatSessionItemController(sessionType, {
 					onDidChangeChatSessionItems: controller.onDidChangeChatSessionItems,
 					get items() { return controller.items; },
@@ -150,7 +150,7 @@ export class AgentHostSessionListContribution extends Disposable implements IWor
 		this._agentRegistrations.set(agent.provider, store);
 
 		const sessionType = `agent-host-${agent.provider}`;
-		const listController = store.add(this._instantiationService.createInstance(AgentHostSessionListController, sessionType, agent.provider, sessionListStore, undefined, 'local'));
+		const listController = store.add(this._instantiationService.createInstance(AgentHostSessionListController, sessionType, agent.provider, sessionListStore, undefined, 'local', false));
 
 		store.add(this._chatSessionsService.registerChatSessionItemController(sessionType, listController));
 		store.add(listController.onDidMoveChat(({ from, to }) => this._movedChatEditors.retarget(from.chat, to.chat).catch(onUnexpectedError)));

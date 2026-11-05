@@ -63,9 +63,10 @@ const fs = require('fs');
 const { ipcRenderer } = require('electron');
 const assert = require('assert');
 const path = require('path');
-const glob = require('glob');
 const util = require('util');
 const coverage = require('../coverage');
+const { trackTestFiles, distributeTestFiles } = require('../parallel.ts');
+const { findTestFiles } = require('./testFiles.ts');
 const { pathToFileURL } = require('url');
 
 // Disabled custom inspect. See #38847
@@ -87,7 +88,6 @@ Object.assign(globalThis, {
 });
 
 const IS_CI = !!process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || !!process.env.GITHUB_WORKSPACE;
-const _tests_glob = '**/test/**/*.test.js';
 
 
 /**
@@ -154,8 +154,6 @@ async function loadModules(modules) {
 	}
 }
 
-const globAsync = util.promisify(glob);
-
 async function loadTestModules(opts) {
 
 	if (opts.run) {
@@ -167,11 +165,10 @@ async function loadTestModules(opts) {
 		return loadModules(modules);
 	}
 
-	const pattern = opts.runGlob || _tests_glob;
-	let files = await globAsync(pattern, { cwd: loadFn._out });
-	if (opts.excludeRunGlob) {
-		const excludedFiles = new Set(await globAsync(opts.excludeRunGlob, { cwd: loadFn._out }));
-		files = files.filter(file => !excludedFiles.has(file));
+	const { files, listed } = await findTestFiles(opts, loadFn._out);
+	// the process that starts the workers reports the listed files they run
+	if (listed !== undefined && !opts.workerDir) {
+		console.log(`Running the ${files.length} test files of the ${listed} files listed in ${opts.runList}`);
 	}
 	let modules = files.map(file => file.replace(/\.js$/, ''));
 	if (opts.testSplit) {
@@ -279,6 +276,13 @@ async function loadTests(opts) {
 	//#endregion
 
 	const { assertCleanState } = await loadFn('vs/workbench/test/common/utils');
+	const { installRegistryLeakCheck } = await loadFn('vs/platform/actions/test/common/registryLeakCheck');
+	installRegistryLeakCheck(mocha.suite);
+	const { installIsolationCheck, defaultIsolationDetectors, animationFrameQueueDetector } = await loadFn('vs/base/test/browser/isolationCheck');
+	const { menuChangeListenerDetector } = await loadFn('vs/platform/actions/test/common/menuChangeListenerDetector');
+	// The animation frame probe changes when queued runners run, so only reporting runs use it.
+	const isolationProbes = process.env.VSCODE_TEST_ISOLATION_REPORT ? [animationFrameQueueDetector] : [];
+	installIsolationCheck(mocha.suite, [...defaultIsolationDetectors, menuChangeListenerDetector, ...isolationProbes]);
 
 	suite('Tests are using suiteSetup and setup correctly', () => {
 		test('assertCleanState - check that registries are clean at the start of test running', () => {
@@ -290,23 +294,38 @@ async function loadTests(opts) {
 		await perTestCoverage?.startTest();
 	});
 
-	teardown(async () => {
+	teardown(async function () {
 		await perTestCoverage?.finishTest(currentTest.file, currentTest.fullTitle());
+
+		const failures = [];
 
 		// should not have unexpected output
 		if (_testsWithUnexpectedOutput && !opts.dev) {
-			assert.ok(false, 'Error: Unexpected console output in test run. Please ensure no console.[log|error|info|warn] usage in tests or runtime errors.');
+			failures.push('Error: Unexpected console output in test run. Please ensure no console.[log|error|info|warn] usage in tests or runtime errors.');
 		}
 
 		// should not have unexpected errors
 		const errors = _unexpectedErrors.concat(_loaderErrors);
 		if (errors.length) {
-			const msg = [];
 			for (const error of errors) {
 				console.error(`Error: Test run should not have unexpected errors:\n${error}`);
-				msg.push(String(error));
 			}
-			assert.ok(false, `Error: Test run should not have unexpected errors:\n${msg.join('\n')}`);
+			failures.push(`Error: Test run should not have unexpected errors:\n${errors.map(String).join('\n')}`);
+		}
+
+		// judge the next test on its own,
+		// including the console.error calls
+		// above
+		_testsWithUnexpectedOutput = false;
+		_unexpectedErrors.length = 0;
+		_loaderErrors.length = 0;
+
+		if (failures.length) {
+			// there are no actual and expected values to diff
+			const error = Object.assign(new assert.AssertionError({ message: failures.join('\n') }), { showDiff: false });
+
+			// fail the test that just ran instead of this hook: when a root-level hook fails, mocha skips every remaining test
+			/** @type {Mocha.Hook} */ (this.test).error(error);
 		}
 	});
 
@@ -342,7 +361,14 @@ function serializeRunnable(runnable) {
 		async: runnable.async,
 		slow: runnable.slow(),
 		speed: runnable.speed,
-		duration: runnable.duration
+		duration: runnable.duration,
+		// the test file (module path) for the main process to rerun. Root-level hooks
+		// have none on purpose: their failure stops the whole run, so rerunning a single
+		// file would not cover the tests that never ran
+		file: runnable.file,
+		// a failed test is rerun by itself, a failed hook with the rest of its suite
+		type: runnable.type,
+		parentTitle: runnable.parent?.fullTitle()
 	};
 }
 
@@ -386,6 +412,32 @@ function isObject(obj) {
 		&& !Array.isArray(obj)
 		&& !(obj instanceof RegExp)
 		&& !(obj instanceof Date);
+}
+
+/**
+ * Appends what the isolation checks found (see isolationCheck.ts) to the JSON lines file in
+ * VSCODE_TEST_ISOLATION_REPORT, one line per finding, so the findings of several windows end up in one file.
+ */
+async function writeIsolationFindings() {
+	const reportPath = process.env.VSCODE_TEST_ISOLATION_REPORT;
+	if (!reportPath) {
+		return;
+	}
+	try {
+		// Settles checks that only a later suite would have settled, see flushIsolationChecks in isolationCheck.ts.
+		await globalThis.__vscodeTestIsolationFlush?.();
+	} catch (error) {
+		console.error(`Failed to flush isolation checks: ${error}`);
+	}
+	const findings = globalThis.__vscodeTestIsolationFindings;
+	if (findings?.length) {
+		try {
+			fs.appendFileSync(reportPath, findings.map(finding => JSON.stringify({ runner: 'electron', ...finding }) + '\n').join(''));
+		} catch (error) {
+			// The report is optional: never keep the run from finishing.
+			console.error(`Failed to write isolation findings to ${reportPath}: ${error}`);
+		}
+	}
 }
 
 class IPCReporter {
@@ -443,6 +495,41 @@ const setTimeout0 = (() => {
 	return (callback) => setTimeout(callback);
 })();
 
+/**
+ * Keeps every <n>th of the loaded tests, starting with the <i>th (--testShard <i>/<n>), so that the tests
+ * of one file can run in several processes. Taking every <n>th test, rather than a contiguous part, spreads
+ * the slow tests that files group together across the processes. Mocha skips the suites left without
+ * tests, hooks included. Tests selected with .only() are rejected: Mocha would restore them in every
+ * shard.
+ * @param {Mocha.Suite} rootSuite
+ * @param {string} testShard
+ */
+function shardTests(rootSuite, testShard) {
+	const match = /^(?<index>\d+)\/(?<total>\d+)$/.exec(testShard);
+	const index = Number(match?.groups?.index);
+	const total = Number(match?.groups?.total);
+	if (!match || index < 1 || index > total) {
+		throw new Error(`Invalid --testShard ${testShard}: expected <index>/<total> with 1 <= index <= total, for example 1/2`);
+	}
+	// @ts-expect-error hasOnly() is missing from the Mocha types
+	if (rootSuite.hasOnly()) {
+		throw new Error(`--testShard ${testShard} cannot run tests selected with .only(), which every shard would run. Remove the .only() or --testShard.`);
+	}
+	/** @type {Mocha.Test[]} */
+	const tests = [];
+	const collect = (/** @type {Mocha.Suite} */ suite) => {
+		tests.push(...suite.tests);
+		suite.suites.forEach(collect);
+	};
+	collect(rootSuite);
+	const kept = new Set(tests.filter((_test, position) => position % total === index - 1));
+	const filter = (/** @type {Mocha.Suite} */ suite) => {
+		suite.tests = suite.tests.filter(test => kept.has(test));
+		suite.suites.forEach(filter);
+	};
+	filter(rootSuite);
+}
+
 async function runTests(opts) {
 	// @ts-expect-error
 	Mocha.Runner.immediately = setTimeout0;
@@ -461,10 +548,22 @@ async function runTests(opts) {
 		mocha.timeout(opts.timeout);
 	}
 
+	// a worker process of a parallel run (see parallel.ts) only runs the test files it claims
+	const testFiles = opts.workerDir ? trackTestFiles(mocha.suite) : undefined;
+
 	await loadTests(opts);
+
+	if (opts.testShard) {
+		shardTests(mocha.suite, opts.testShard);
+	}
+
+	if (testFiles) {
+		distributeTestFiles(mocha.suite, testFiles, { workerId: opts.worker, workerDir: opts.workerDir });
+	}
 
 	const runner = mocha.run(async () => {
 		await createCoverageReport(opts);
+		await writeIsolationFindings();
 		ipcRenderer.send('all done');
 	});
 
@@ -487,7 +586,9 @@ ipcRenderer.on('run', async (_e, opts) => {
 	try {
 		await runTests(opts);
 	} catch (err) {
-		if (typeof err !== 'string') {
+		if (err instanceof Error) {
+			err = err.stack ?? err.message;
+		} else if (typeof err !== 'string') {
 			err = JSON.stringify(err);
 		}
 		console.error(err);

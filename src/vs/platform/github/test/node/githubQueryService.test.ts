@@ -427,16 +427,16 @@ suite('GitHubQueryService', () => {
 			const { account, clock, service } = setup(server);
 			const repositoryA = service.subscribeRepository({ ...account, owner: 'octo', repo: 'repo' }, { priority: 'visible' });
 			const repositoryB = service.subscribeRepository({ ...account, owner: 'OCTO', repo: 'REPO' }, { priority: 'background' });
+			assert.strictEqual(repositoryA.resource, repositoryB.resource);
+			clock.flushDue();
+			await waitForState(repositoryA.resource.state, state => state.status === 'ready', state => state.error);
+
+			// The server answers requests in arrival order, so poll the issue only once the repository has loaded.
 			const issueA = service.subscribeIssue({ ...account, owner: 'octo', repo: 'repo', number: 7 }, { priority: 'visible' });
 			const issueB = service.subscribeIssue({ ...account, owner: 'OCTO', repo: 'REPO', number: 7 }, { priority: 'background' });
-
-			assert.strictEqual(repositoryA.resource, repositoryB.resource);
 			assert.strictEqual(issueA.resource, issueB.resource);
 			clock.flushDue();
-			await Promise.all([
-				waitForState(repositoryA.resource.state, state => state.status === 'ready', state => state.error),
-				issueA.refresh(),
-			]);
+			await issueA.refresh();
 			const canonical = service.subscribeRepository({ ...account, owner: 'new-owner', repo: 'new-repo' }, { priority: 'background' });
 
 			assert.deepStrictEqual({

@@ -403,6 +403,11 @@ export interface IEditorOptions {
 	 */
 	hover?: IEditorHoverOptions;
 	/**
+	 * Controls which remote images Markdown rendered by the editor may load,
+	 * for example in hovers, suggestion details and parameter hints.
+	 */
+	markdownImages?: IEditorMarkdownImagesOptions;
+	/**
 	 * Enable detecting links and making them clickable.
 	 * Defaults to true.
 	 */
@@ -2463,6 +2468,81 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 			above: boolean(input.above, this.defaultValue.above),
 			showLongLineWarning: boolean(input.showLongLineWarning, this.defaultValue.showLongLineWarning),
 		};
+	}
+}
+
+//#endregion
+
+//#region markdownImages
+
+/**
+ * Configuration options for images in Markdown rendered by the editor
+ */
+export interface IEditorMarkdownImagesOptions {
+	/**
+	 * Origins from which remote images may be loaded, for example `['https://img.shields.io']`,
+	 * or `true` to allow images from all origins. An origin consists of scheme, host and port.
+	 * `data:` images are always allowed.
+	 * Defaults to `true`, except in the standalone editor, where it defaults to `[]`.
+	 */
+	allowedOrigins?: true | string[];
+}
+
+/**
+ * The `allowedOrigins` are `true` or normalized origins (see {@link getUrlOrigin}).
+ * @internal
+ */
+export type EditorMarkdownImagesOptions = Readonly<Required<IEditorMarkdownImagesOptions>>;
+
+/**
+ * Returns the origin of an absolute URL, or `undefined` if it has none (for example `data:` URLs).
+ * @internal
+ */
+export function getUrlOrigin(url: string): string | undefined {
+	try {
+		const origin = new URL(url).origin;
+		return origin === 'null' ? undefined : origin;
+	} catch {
+		return undefined;
+	}
+}
+
+/**
+ * @internal
+ */
+export function isMarkdownImageAllowed(options: EditorMarkdownImagesOptions, url: string): boolean {
+	if (options.allowedOrigins === true) {
+		return true;
+	}
+	const origin = getUrlOrigin(url);
+	return origin !== undefined && options.allowedOrigins.includes(origin);
+}
+
+class EditorMarkdownImages extends BaseEditorOption<EditorOption.markdownImages, IEditorMarkdownImagesOptions, EditorMarkdownImagesOptions> {
+
+	constructor() {
+		super(EditorOption.markdownImages, 'markdownImages', { allowedOrigins: true });
+	}
+
+	public validate(_input: unknown): EditorMarkdownImagesOptions {
+		if (!_input || typeof _input !== 'object') {
+			return this.defaultValue;
+		}
+		const input = _input as Unknown<IEditorMarkdownImagesOptions>;
+		if (input.allowedOrigins === true) {
+			return { allowedOrigins: true };
+		}
+		if (!Array.isArray(input.allowedOrigins)) {
+			return this.defaultValue;
+		}
+		const allowedOrigins: string[] = [];
+		for (const value of input.allowedOrigins) {
+			const origin = typeof value === 'string' ? getUrlOrigin(value) : undefined;
+			if (origin !== undefined && !allowedOrigins.includes(origin)) {
+				allowedOrigins.push(origin);
+			}
+		}
+		return { allowedOrigins };
 	}
 }
 
@@ -5924,6 +6004,7 @@ export const enum EditorOption {
 	lineNumbersMinChars,
 	linkedEditing,
 	links,
+	markdownImages,
 	matchBrackets,
 	minimap,
 	mouseStyle,
@@ -6479,6 +6560,7 @@ export const EditorOptions = {
 		EditorOption.links, 'links', true,
 		{ description: nls.localize('links', "Controls whether the editor should detect links and make them clickable.") }
 	)),
+	markdownImages: register(new EditorMarkdownImages()),
 	matchBrackets: register(new EditorStringEnumOption(
 		EditorOption.matchBrackets, 'matchBrackets',
 		'always' as 'never' | 'near' | 'always',

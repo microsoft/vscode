@@ -5,7 +5,6 @@
 
 import { isLocalAgentHostProviderDisabledByPolicy } from '../../../../platform/agentHost/common/agentService.js';
 import './media/chatView.css';
-import './media/voiceChatView.css';
 import { $, isHTMLElement, size } from '../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { disposableTimeout } from '../../../../base/common/async.js';
@@ -15,7 +14,10 @@ import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { IKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
-import { autorun, constObservable, derived, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import * as aria from '../../../../base/browser/ui/aria/aria.js';
+import { autorun, constObservable, derived, derivedOpts, IObservable, IReader, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -37,31 +39,36 @@ import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../../workbench/common/th
 import { ChatContentMarkdownRenderer } from '../../../../workbench/contrib/chat/browser/widget/chatContentMarkdownRenderer.js';
 import { chatPersistentContentVisibleClass, ChatWidget } from '../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
 import { SESSIONS_CHAT_CONTENT_HORIZONTAL_PADDING } from '../../../../workbench/contrib/chat/browser/widget/chatOptions.js';
-import { isResponseSelectionSupported, setModelPreservingInputTypedWhileLoading } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { IChatRespondent, isResponseSelectionSupported, setModelPreservingInputTypedWhileLoading } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatOpen, IChatOpenDiagnosticsService } from '../../../../workbench/contrib/chat/common/chatOpenDiagnosticsService.js';
-import { IChatModelReference, IChatService, ResponseModelState } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { ChatSendResult, ElicitationState, IChatModelReference, IChatService, IChatToolInvocation, ResponseModelState } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { isChatTranscriptContextVariableEntry, IChatRequestTranscriptContextVariableEntry, IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
-import { ChatModel, IChatModel, IInputModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { ChatModel, IChatModel, IChatProgressResponseContent, IInputModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { isCarouselToolConfirmation } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/toolInvocationParts/chatToolPartUtilities.js';
 import { isInConversationModelChoice } from '../../../../workbench/contrib/chat/common/modelSelection.js';
 import { ChatRequestTextPart } from '../../../../workbench/contrib/chat/common/requestParser/chatParserTypes.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISendRequestOptions } from '../../../services/sessions/common/sessionsProvider.js';
-import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
-import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
+import { getHarnessPresentationOrDefault, ISendRequestOptions, ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
+import { ISessionsProvidersService, observeSessionSandboxToggle } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
+import { getChatSessionType, getNewChatSessionResource } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { IChatSessionsService, localChatSessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatSessionHistoryStatus } from '../../../../platform/chat/common/chatSessionHistory.js';
 import { isPhoneLayout } from '../../../browser/parts/mobile/mobileLayout.js';
-import { AbstractChatView, ChatViewKind, IChatViewOptions, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../browser/parts/chatView.js';
+import { AbstractChatView, ChatViewKind, IChatViewOptions, IChatViewRequestOutcome, IChatViewRequestSubmission, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../browser/parts/chatView.js';
 import { IsPhoneLayoutContext, SessionUsesExperimentalComposerLayoutContext } from '../../../common/contextkeys.js';
-import { ChatInteractivity, getSessionStatusMessage, IChat, isActiveSessionStatus, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
+import { ChatInteractivity, getChatHarness, getSessionStatusMessage, IChat, isActiveSessionStatus, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
+import { SessionStatusIcon } from '../../../browser/sessionStatusIcon.js';
 import { IChatViewFactory } from '../../../services/chatView/browser/chatViewFactory.js';
-import { isExperimentalSessionComposerLayoutEnabled, NewChatWidget } from './newChatWidget.js';
+import { NewChatWidget } from './newChatWidget.js';
 import { NewChatInSessionWidget } from './newChatInSessionWidget.js';
 import { SessionInputBanners } from '../../sessionInputBanners/browser/sessionInputBanners.js';
 import { SESSION_CHAT_INPUT_TOOLBAR_HEIGHT, SessionChatInputToolbar } from './sessionChatInputToolbar.js';
-import { ResponseSelectionSideChatController } from './responseSelectionSideChatController.js';
+import { ResponseSelectionSideChatController } from '../../../../workbench/contrib/chat/browser/responseSelectionSideChatController.js';
+import { logResponseSelectionWidgetAction } from '../../../common/sessionsTelemetry.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { ISessionChatPillsDebugService } from './sessionChatInputToolbarDebug.js';
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
 import { activeSessionViewBackground, activeSessionViewForeground, agentsPanelBackground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../../common/theme.js';
@@ -70,15 +77,16 @@ import { INewChatVoiceTargetService } from './newChatVoice.js';
 import { ISessionsChatViewStateService } from './chatViewStateService.js';
 import { ExternalSessionBanner } from './externalSessionBanner.js';
 import { ISessionOpenTelemetryService } from '../../../services/sessions/browser/sessionOpenTelemetryService.js';
-import { SessionArchiveNudge } from './sessionArchiveNudge.js';
+import { ISessionArchiveNudgeTarget, SessionArchiveNudge } from './sessionArchiveNudge.js';
 import { SessionsChatBackgroundReplica } from '../../../services/chatBackground/browser/chatBackgroundRenderer.js';
+import { SESSIONS_CHAT_SURFACE_CLASS } from '../../../services/chatBackground/browser/sessionsChatSurface.js';
 import { ISessionsChatBackgroundService } from '../../../services/chatBackground/browser/chatBackgroundService.js';
 import { SessionComparisonResult } from './sessionComparisonResult.js';
 import { ISessionPickerVisibility, noSessionPickerVisibility } from '../../../services/sessions/common/sessionPickerVisibility.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../services/sessions/common/sessionComparison.js';
 import { IAgentsWindowDraft } from '../../../../platform/window/common/window.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../../common/layoutConstants.js';
-import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
+import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING } from '../common/constants.js';
 
 const SESSION_CHAT_RESPONSE_INTERNAL_HORIZONTAL_PADDING = 12;
 // 14px icon + 6px padding + 4px gap + breathing room. The percentage label expands over the editor on hover.
@@ -96,19 +104,16 @@ export function shouldShowSessionChatTip(sessionStatus: SessionStatus | undefine
 	return sessionStatus === undefined || !isActiveSessionStatus(sessionStatus);
 }
 
-export function isExperimentalRunningSessionComposerLayoutEnabled(configurationService: IConfigurationService, layoutService: IWorkbenchLayoutService): boolean {
-	return isExperimentalSessionComposerLayoutEnabled(configurationService) && !isPhoneLayout(layoutService);
-}
-
 export function shouldRenderRunningSessionSecondaryToolbar(usesExperimentalComposerLayout: boolean): boolean {
 	return !usesExperimentalComposerLayout;
 }
 
 export function getSessionComparisonRequestSummary(comparisons: readonly ISessionComparison[], sessionResource: URI | undefined, chatResource: URI | undefined, mainChatResource: URI | undefined): string | undefined {
-	if (!sessionResource || !chatResource || !isEqual(chatResource, mainChatResource)) {
+	if (!sessionResource || !chatResource) {
 		return undefined;
 	}
-	const participant = comparisons.flatMap(comparison => comparison.participants).find(participant => isEqual(participant.sessionResource, sessionResource));
+	const participant = comparisons.flatMap(comparison => comparison.participants).find(participant => isEqual(participant.sessionResource, sessionResource)
+		&& isEqual(participant.chatResource ?? mainChatResource, chatResource));
 	switch (participant?.role) {
 		case SessionComparisonParticipantRole.Judge:
 			return localize('sessionComparison.judgeInstructions', "Judge Instructions");
@@ -127,6 +132,17 @@ export function isFocusChatPillsKeyDown(event: Pick<IKeyboardEvent, 'keyCode' | 
 	return event.keyCode === KeyCode.Tab && event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey;
 }
 
+export async function getChatRequestOutcome(result: ChatSendResult): Promise<IChatViewRequestOutcome> {
+	while (ChatSendResult.isQueued(result)) {
+		result = await result.deferred;
+	}
+	if (ChatSendResult.isRejected(result)) {
+		return { error: result.reason };
+	}
+	const [response] = await Promise.all([result.data.responseCreatedPromise, result.data.responseCompletePromise]);
+	return { error: response.result?.errorDetails?.message, canceled: response.isCanceled };
+}
+
 /**
  * A session view that hosts a {@link NewChatWidget} — the "new session" UI
  * shown before a session has been created. This is the default view that
@@ -134,6 +150,40 @@ export function isFocusChatPillsKeyDown(event: Pick<IKeyboardEvent, 'keyCode' | 
  */
 export interface INewChatViewOptions extends IChatViewOptions {
 	readonly initialAttachments?: readonly IChatRequestVariableEntry[];
+}
+
+const providerModelSignals = new WeakMap<ISessionsProvider, IObservable<void>>();
+
+/** Signals when a provider's models or harnesses may have changed; one per provider, alive while observed. */
+function readProviderModelsChanged(provider: ISessionsProvider, reader: IReader | undefined): void {
+	let signal = providerModelSignals.get(provider);
+	if (!signal) {
+		signal = observableSignalFromEvent(provider, Event.any(provider.onDidChangeModels, provider.onDidChangeSessionTypes));
+		providerModelSignals.set(provider, signal);
+	}
+	signal.read(reader);
+}
+
+/**
+ * The respondent of a chat whose harness differs from its session's: its harness's presentation
+ * (with the provider's generic fallback while unknown) and the session type its models come from,
+ * `undefined` until the provider resolves that agent's models apart from the session's.
+ */
+export function getChatRespondent(session: ISession, chatResource: URI, sessionsProvidersService: ISessionsProvidersService, reader: IReader | undefined): IChatRespondent | undefined {
+	const chat = session.chats.read(reader).find(candidate => isEqual(candidate.resource, chatResource));
+	const harness = chat && getChatHarness(session, chat);
+	if (!chat || !harness || harness === session.harness) {
+		return undefined;
+	}
+	const provider = sessionsProvidersService.getProvider(session.providerId);
+	if (provider) {
+		readProviderModelsChanged(provider, reader);
+	}
+	const modelTarget = provider?.getModelsSnapshot(session.sessionId, undefined, chat.resource).modelTarget;
+	// The session's own target is never this chat's: it means the chat's agent is not resolved yet.
+	const modelSessionType = modelTarget && modelTarget !== getChatSessionType(session.resource) ? modelTarget : undefined;
+	const presentation = getHarnessPresentationOrDefault(provider, harness, reader);
+	return { label: presentation.label, icon: presentation.icon, modelSessionType };
 }
 
 export class NewChatView extends AbstractChatView {
@@ -167,8 +217,22 @@ export class NewChatView extends AbstractChatView {
 		return { type: NewChatView.TYPE };
 	}
 
+	override setChat(chat: IChat): void {
+		if (this._widget instanceof NewChatInSessionWidget) {
+			this._widget.setChat(chat);
+		}
+	}
+
+	override get preserveOnSessionClear(): boolean {
+		return this._widget instanceof NewChatWidget && this._widget.preserveOnSessionClear;
+	}
+
+	override get inputContentElement(): HTMLElement | undefined {
+		return this._widget instanceof NewChatWidget ? this._widget.inputContentElement : undefined;
+	}
+
 	protected override doLayout(width: number, height: number, _top: number, _left: number): void {
-		this._widget.layout(height, Math.max(0, width - 2 * this.contentInset));
+		this._widget.layout(height, width);
 	}
 
 	override focus(): void {
@@ -184,6 +248,36 @@ export class NewChatView extends AbstractChatView {
 	override focusHarnessPicker(): void {
 		if (this._widget instanceof NewChatWidget) {
 			this._widget.focusHarnessPicker();
+		}
+	}
+
+	override focusEnvironmentPicker(): void {
+		if (this._widget instanceof NewChatWidget) {
+			this._widget.focusEnvironmentPicker();
+		}
+	}
+
+	override focusBranchPicker(): void {
+		if (this._widget instanceof NewChatWidget) {
+			this._widget.focusBranchPicker();
+		}
+	}
+
+	override focusWorktreePicker(): void {
+		if (this._widget instanceof NewChatWidget) {
+			this._widget.focusWorktreePicker();
+		}
+	}
+
+	override focusSyncAction(): void {
+		if (this._widget instanceof NewChatWidget) {
+			this._widget.focusSyncAction();
+		}
+	}
+
+	override openModelComparison(): void {
+		if (this._widget instanceof NewChatWidget) {
+			this._widget.openModelComparison();
 		}
 	}
 
@@ -246,8 +340,36 @@ export class ChatView extends AbstractChatView {
 
 	override readonly kind: ChatViewKind = 'chat';
 
+	override get activityBarActions() {
+		return this._chatPills.activityBarActions;
+	}
+
 	private readonly _widget: ChatWidget;
+	override readonly onDidSubmitRequest: Event<IChatViewRequestSubmission>;
 	private readonly _widgetContainer: HTMLElement;
+	/** The most the input, with what is shown above it, may grow to while only the input is shown; `undefined` until enabled. */
+	private _inputOnlyMaxHeight: number | undefined;
+	private readonly _inputOnly = observableValue(this, false);
+	override readonly inputOnly: IObservable<boolean> = this._inputOnly;
+	private readonly _inputOnlyEnabled = observableValue(this, false);
+	/** The last height the input measured that it can have; see {@link inputOnlyHeight}. */
+	private _inputOnlyInputHeight = 0;
+	override readonly inputOnlyHeight: IObservable<number>;
+	override readonly canShowInputOnly: IObservable<boolean>;
+	private readonly _inputOnlyStatus: IObservable<IInputOnlyStatus>;
+	private readonly _inputOnlyStatusElement: HTMLElement;
+	private readonly _inputOnlyRequestElement: HTMLElement;
+	private readonly _inputOnlyResponseElement: HTMLElement;
+	private readonly _inputOnlyResponseIconElement: HTMLElement;
+	private readonly _inputOnlyResponseText: HTMLElement;
+	private _inputOnlyStatusShown = false;
+	/** What {@link _renderInputOnlyStatus} rendered last, to skip rendering it again. */
+	private _inputOnlyRendered: { readonly shown: boolean; readonly status: IInputOnlyStatus } | undefined;
+	/** The state of the latest message's response last rendered, to announce only when it changes. */
+	private _inputOnlyAnnouncedState: { readonly requestId: string | undefined; readonly state: InputOnlyResponseState } | undefined;
+	private readonly _inputOnlyRequestText: HTMLElement;
+	private readonly _inputOnlyRequestIconElement: HTMLElement;
+	private readonly _inputOnlyRequestIcon: SessionStatusIcon;
 	private readonly _externalSessionBanner: ExternalSessionBanner;
 
 	/** Session banners (CI failures, created comments) shown above the chat input. */
@@ -256,13 +378,17 @@ export class ChatView extends AbstractChatView {
 	private readonly _comparisonResult: SessionComparisonResult;
 	/** Floating status pills (changes, preview, background activity) above the input. */
 	private readonly _chatPills: SessionChatInputToolbar;
+	private readonly _showPills: boolean;
 
 	/** Keeps selected transcript text stable and offers supported selection actions. */
 	private readonly _selectionSideChatController: ResponseSelectionSideChatController;
 
 	/** Reference to the loaded chat model; disposing releases the model. */
 	private readonly _modelRef = this._register(new MutableDisposable<IChatModelReference>());
+	/** Keeps the bound chat presented as answered by its own harness while it differs from its session's. */
+	private readonly _respondentBinding = this._register(new MutableDisposable());
 	private readonly _preparationModel = this._register(new MutableDisposable<ChatModel>());
+	private readonly _transcriptDisposables = this._register(new DisposableStore());
 
 	/** Cancels any in-flight model load when a new session is set or the view disposes. */
 	private readonly _loadCts = this._register(new MutableDisposable<CancellationTokenSource>());
@@ -310,6 +436,7 @@ export class ChatView extends AbstractChatView {
 	private readonly _isVisibleObs = observableValue(this, false);
 	private _lastLayout: { width: number; height: number } | undefined;
 	private _chatItemHorizontalPadding: number;
+	private readonly _composerOnly: boolean;
 
 	/**
 	 * Per-view mirror of `agentsVoiceInitiatedHere`, scoped above the chat widget.
@@ -318,6 +445,7 @@ export class ChatView extends AbstractChatView {
 	private readonly _voiceInitiatedHereKey: IContextKey<boolean>;
 
 	constructor(
+		options: IChatViewOptions = {},
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatService private readonly chatService: IChatService,
@@ -339,9 +467,12 @@ export class ChatView extends AbstractChatView {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@ISessionComparisonService private readonly comparisonService: ISessionComparisonService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super();
+		this._composerOnly = options.inputOnly === true;
 		this._register(toDisposable(() => this._reportModelUnbound()));
 		this._chatItemHorizontalPadding = getSessionChatItemHorizontalPadding(!!this.chatBackgroundService.getBackground());
 
@@ -351,7 +482,7 @@ export class ChatView extends AbstractChatView {
 
 		const scopedContextKeyService = this._register(contextKeyService.createScoped(this.element));
 		const usesExperimentalComposerLayout = SessionUsesExperimentalComposerLayoutContext.bindTo(scopedContextKeyService);
-		const initiallyUsesExperimentalComposerLayout = isExperimentalRunningSessionComposerLayoutEnabled(this.configurationService, this.layoutService);
+		const initiallyUsesExperimentalComposerLayout = !isPhoneLayout(this.layoutService);
 		usesExperimentalComposerLayout.set(initiallyUsesExperimentalComposerLayout);
 		this.element.classList.toggle('experimental-session-composer', initiallyUsesExperimentalComposerLayout);
 		const scopedInstantiationService = this._register(instantiationService.createChild(
@@ -366,6 +497,8 @@ export class ChatView extends AbstractChatView {
 			ChatAgentLocation.Chat,
 			undefined,
 			{
+				renderChatPet: options.renderChatPet,
+				filter: options.inputOnly ? () => false : undefined,
 				autoScroll: mode => mode !== ChatModeKind.Ask,
 				renderFollowups: true,
 				firstRequestSummary: derived(this, reader => {
@@ -379,6 +512,7 @@ export class ChatView extends AbstractChatView {
 				}),
 				supportsFileReferences: true,
 				rendererOptions: {
+					renderInputRequests: options.inputOnly ? false : undefined,
 					referencesExpandedWhenEmptyResponse: false,
 					progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask,
 					contentHorizontalPadding: this._chatItemHorizontalPadding,
@@ -386,20 +520,31 @@ export class ChatView extends AbstractChatView {
 				enableImplicitContext: true,
 				enableWorkingSet: 'implicit',
 				supportsChangingModes: true,
+				supportsSideChat: derived(this, reader => {
+					const session = this._currentSessionObs.read(reader);
+					return !!session && session.status.read(reader) !== SessionStatus.Untitled
+						&& !session.isArchived.read(reader) && !!session.capabilities.read(reader).supportsSideChat;
+				}),
 				renderSecondaryToolbar: shouldRenderRunningSessionSecondaryToolbar(initiallyUsesExperimentalComposerLayout),
-				inputEditorMinLines: 2,
+				inputEditorMinLines: options.input?.minLines ?? 2,
+				inputPlaceholder: options.input?.placeholder,
+				inputEditorOptions: options.inputEditorOptions,
 				isSessionsWindow: true,
+				sandboxToggleChecked: observeSessionSandboxToggle(this._currentSessionObs, this._currentChatResourceObs, this.sessionsProvidersService),
 				transcriptTabIndex: -1,
 				enableFind: true,
-				persistentContentHeight: SESSION_CHAT_INPUT_TOOLBAR_HEIGHT,
+				persistentContentHeight: this.chatBackgroundService.getBackground() ? 0 : SESSION_CHAT_INPUT_TOOLBAR_HEIGHT,
 				renderGettingStartedTip: () => shouldShowSessionChatTip(this._currentSessionObs.get()?.status.get()),
 			},
 			this._buildStyles(this._isActive)
 		));
+		this.onDidSubmitRequest = Event.map(this._widget.onDidAcceptRequest, ({ sessionResource, result }) => ({
+			sessionResource, completion: getChatRequestOutcome(result),
+		}));
 		this._widget.setMaximumWidth(AGENTS_CENTERED_CONTENT_MAX_WIDTH);
 		this._widget.render(this._widgetContainer, undefined, this._isActiveObs);
 		const updateExperimentalComposerLayout = () => {
-			const enabled = isExperimentalRunningSessionComposerLayoutEnabled(this.configurationService, this.layoutService);
+			const enabled = !isPhoneLayout(this.layoutService);
 			usesExperimentalComposerLayout.set(enabled);
 			this.element.classList.toggle('experimental-session-composer', enabled);
 			this._widget.inputPart.placeContextUsageWidget(enabled ? this._widget.inputPart.inputContainerElement : undefined);
@@ -429,6 +574,50 @@ export class ChatView extends AbstractChatView {
 			}
 		}));
 		const chatModel = observableFromEvent(this, this._widget.onDidChangeViewModel, () => this._widget.viewModel?.model);
+		// The message, with an icon for how its response ended or that it waits for the user, as chats show in the sessions list.
+		this._inputOnlyRequestIconElement = $('span.chat-view-input-only-request-icon', { role: 'img' });
+		this._inputOnlyRequestIcon = this._register(instantiationService.createInstance(SessionStatusIcon, this._inputOnlyRequestIconElement));
+		this._inputOnlyRequestText = $('span.chat-view-input-only-request-text');
+		this._inputOnlyRequestElement = $('span.chat-view-input-only-request', undefined, this._inputOnlyRequestIconElement, this._inputOnlyRequestText);
+		// The response's answer, or what it does while it works, with the spinner chats show in the sessions list.
+		this._inputOnlyResponseIconElement = $('span.chat-view-input-only-response-icon', { 'aria-hidden': 'true' });
+		this._register(instantiationService.createInstance(SessionStatusIcon, this._inputOnlyResponseIconElement)).setStatus(SessionStatus.InProgress, true, false);
+		this._inputOnlyResponseText = $('span.chat-view-input-only-response-text');
+		// Not a live region: progress changes too often to announce; state changes are announced once instead.
+		this._inputOnlyResponseElement = $('span.chat-view-input-only-response', undefined, this._inputOnlyResponseIconElement, this._inputOnlyResponseText);
+		// The message, then its response below it, as in the conversation.
+		this._inputOnlyStatusElement = $('.chat-view-input-only-status.hidden', undefined,
+			$('.chat-view-input-only-request-row', undefined, this._inputOnlyRequestElement),
+			$('.chat-view-input-only-response-row', undefined, this._inputOnlyResponseElement),
+		);
+		this.element.insertBefore(this._inputOnlyStatusElement, this._widgetContainer);
+		this._inputOnlyStatus = this._createInputOnlyStatus(chatModel);
+		// Once the chat has a message, the rows keep their room, so the input does not move as the chat works.
+		this.inputOnlyHeight = derived(this, reader => {
+			if (!this._inputOnlyEnabled.read(reader)) {
+				return 0;
+			}
+			// Laid out before it knows its width, the input measures far taller than it can grow; that is not its height.
+			const inputHeight = this._widget.input.height.read(reader);
+			if (inputHeight > 0 && inputHeight <= (this._inputOnlyMaxHeight ?? Number.POSITIVE_INFINITY)) {
+				this._inputOnlyInputHeight = inputHeight;
+			}
+			return this._inputOnlyInputHeight === 0 ? 0 : INPUT_ONLY_TOP_PADDING + this._inputOnlyInputHeight + (this._inputOnlyStatus.read(reader).request ? INPUT_ONLY_STATUS_HEIGHT : 0);
+		});
+		const needsConversation = derived(this, reader => this._inputOnlyEnabled.read(reader)
+			&& needsConversationForInput(chatModel.read(reader), this.configurationService.getValue<boolean>(ChatConfiguration.ToolConfirmationCarousel), reader));
+		this.canShowInputOnly = derived(this, reader => this._inputOnlyEnabled.read(reader) && !needsConversation.read(reader));
+		this._register(autorun(reader => {
+			this._inputOnly.read(reader);
+			this._inputOnlyStatus.read(reader);
+			this._renderInputOnlyStatus();
+		}));
+		this._register(autorun(reader => {
+			if (needsConversation.read(reader) && this._inputOnly.read(undefined)) {
+				// Only the conversation can show what the chat waits for.
+				this.setInputOnly(false);
+			}
+		}));
 		this.isInputBlocked = derived(this, reader => {
 			const model = chatModel.read(reader);
 			return isEqual(model?.sessionResource, this._currentChatResourceObs.read(reader)) && (model?.isInputBlocked.read(reader) ?? false);
@@ -455,7 +644,10 @@ export class ChatView extends AbstractChatView {
 		this._setupTranscriptPreparationProgress(chatModel);
 		this._setupInitialTranscriptContext(chatModel);
 
-		this._selectionSideChatController = this._register(scopedInstantiationService.createInstance(ResponseSelectionSideChatController, this._widget, isResponseSelectionSupported()));
+		this._selectionSideChatController = this._register(scopedInstantiationService.createInstance(ResponseSelectionSideChatController, this._widget, isResponseSelectionSupported(), {
+			useActionMenu: () => configurationService.getValue<boolean>(AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING),
+			onAction: (variant, action) => logResponseSelectionWidgetAction(telemetryService, variant, action),
+		}));
 
 		// Mount the session banners directly above the chat input.
 		this._banners = this._register(instantiationService.createInstance(SessionInputBanners));
@@ -465,19 +657,24 @@ export class ChatView extends AbstractChatView {
 			this._currentSessionObs,
 			() => this._layoutChatWidget(),
 			scopedInstantiationService.createInstance(ChatContentMarkdownRenderer),
+			this._currentChatResourceObs,
 		));
 
-		const archiveNudge = this._register(instantiationService.createInstance(SessionArchiveNudge, derived(this, reader => {
+		const archiveNudge = this._register(instantiationService.createInstance(SessionArchiveNudge, derivedOpts<ISessionArchiveNudgeTarget | undefined>({
+			owner: this,
+			equalsFn: (a, b) => a?.session === b?.session && a?.chat === b?.chat,
+		}, reader => {
 			if (!this._isVisibleObs.read(reader) || !this._isPrimaryObs.read(reader) || this.isLoadingTranscript.read(reader)) {
 				return undefined;
 			}
 			const session = this._currentSessionObs.read(reader);
 			const resource = this._currentChatResourceObs.read(reader);
-			if (!isEqual(chatModel.read(reader)?.sessionResource, resource)) {
+			if (!session || !isEqual(chatModel.read(reader)?.sessionResource, resource)) {
 				return undefined;
 			}
-			const chat = session?.chats.read(reader).find(chat => isEqual(chat.resource, resource));
-			return chat?.interactivity.read(reader) === ChatInteractivity.Full ? session : undefined;
+			// The suggestion covers the pull requests of the chat it appears in.
+			const chat = session.chats.read(reader).find(chat => isEqual(chat.resource, resource));
+			return chat?.interactivity.read(reader) === ChatInteractivity.Full ? { session, chat } : undefined;
 		})));
 		this._register(autorun(reader => {
 			const options = archiveNudge.options.read(reader);
@@ -488,18 +685,17 @@ export class ChatView extends AbstractChatView {
 		}));
 
 		// Floating status pills above the input.
-		this._chatPills = this._register(instantiationService.createInstance(SessionChatInputToolbar, false, () => this._widget.focusInput()));
+		this._chatPills = this._register(instantiationService.createInstance(SessionChatInputToolbar, false, () => this._widget.focusInput(), options.session));
+		this._register(this._widget.registerBackgroundActivityPillSections(this._chatPills.backgroundActivityPillSections));
 		this._register(this._widget.inputEditor.onKeyDown(event => {
 			if (isFocusChatPillsKeyDown(event) && this._chatPills.focusFirst()) {
 				event.preventDefault();
 				event.stopPropagation();
 			}
 		}));
-		const updateChatPillsVisibility = (visible: boolean) => {
-			this._widget.inputPart.persistentContentContainerElement.classList.toggle(chatPersistentContentVisibleClass, visible);
-		};
-		this._register(this._chatPills.onDidChangeVisibility(updateChatPillsVisibility));
-		updateChatPillsVisibility(this._chatPills.visible);
+		this._showPills = options.input?.showPills ?? true;
+		this._register(this._chatPills.onDidChangeVisibility(() => this._updateChatPillsVisibility()));
+		this._updateChatPillsVisibility();
 		this._register(this._widget.inputPart.registerChatPetHorizontalPlatformProvider({
 			onDidChange: this._chatPills.onDidChangeChatPetPlatform,
 			getElements: () => this._chatPills.getChatPetPlatformElements(),
@@ -516,10 +712,6 @@ export class ChatView extends AbstractChatView {
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING)) {
 				this._applyHistoryKey();
-			}
-			if (e.affectsConfiguration(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING)
-				|| e.affectsConfiguration(UNIFIED_WORKSPACE_PICKER_SETTING)) {
-				updateExperimentalComposerLayout();
 			}
 		}));
 
@@ -550,7 +742,7 @@ export class ChatView extends AbstractChatView {
 		});
 		let lastPreparationMessage: string | undefined;
 		let lastPreparationModel: ChatModel | undefined;
-		this._register(autorun(reader => {
+		this._transcriptDisposables.add(autorun(reader => {
 			const resource = this._currentChatResourceObs.read(reader);
 			const session = this._currentSessionObs.read(reader);
 			const preparation = session?.preparationProgress?.read(reader);
@@ -608,7 +800,7 @@ export class ChatView extends AbstractChatView {
 
 	private _setupInitialTranscriptContext(chatModel: IObservable<IChatModel | undefined>): void {
 		let currentEntryId: string | undefined;
-		this._register(autorun(reader => {
+		this._transcriptDisposables.add(autorun(reader => {
 			const model = chatModel.read(reader);
 			model?.lastRequestObs.read(reader);
 			const requests = model?.getRequests() ?? [];
@@ -624,6 +816,7 @@ export class ChatView extends AbstractChatView {
 	}
 
 	override dispose(): void {
+		this._transcriptDisposables.dispose();
 		this._saveCurrentViewState();
 		this._loadCts.value?.cancel();
 		super.dispose();
@@ -645,6 +838,10 @@ export class ChatView extends AbstractChatView {
 		return this._widget;
 	}
 
+	override get inputContentElement(): HTMLElement {
+		return this._widget.input.element;
+	}
+
 	override setChat(chat: IChat, historyKey?: string, session?: ISession, onInput?: () => void): void {
 		this.chatPillsDebugService.clear(this._chatPills);
 		const previousSession = this._currentSessionObs.get();
@@ -661,9 +858,17 @@ export class ChatView extends AbstractChatView {
 		this._historyKey = historyKey;
 		this._applyHistoryKey();
 
+		// A reused view still renders the previous transcript. Release it before the updates below read
+		// layout: laying out a large transcript that is about to be replaced blocks the switch.
+		const preparationInput = chatChanged && session?.preparationProgress?.get() && this.sessionsManagementService.getInFlightNewSessionRequest(session.resource);
+		if (chatChanged && !preparationInput && previousChatResource) {
+			this._loadCts.value?.cancel();
+			this._clearCurrentChat(previousSession, previousChatResource);
+		}
+
 		// Reflect this chat's last-turn changes, status, and background activity.
 		this._chatPills.setChat(chat);
-		this._selectionSideChatController.setChat(chat);
+		this._selectionSideChatController.setChat(chat.resource, derived(this, reader => chat.interactivity.read(reader) !== ChatInteractivity.Full || this._modelReadOnly.read(reader)));
 		this._banners.setDebugData(undefined);
 
 		// Reflect read-only (non-interactive) chats: hide the composer and gate
@@ -678,7 +883,9 @@ export class ChatView extends AbstractChatView {
 			const draftLoaded = isEqual(this._loadedChatResource.read(reader), resource);
 			const failure = this._loadFailure.read(reader);
 			const loadStatus = failure && isEqual(failure.resource, resource) ? failure.status : undefined;
-			this._widget.setReadOnly(interactivity !== ChatInteractivity.Full || loading || modelReadOnly || !!loadStatus, !loadStatus && interactivity !== ChatInteractivity.ReadOnly && !modelReadOnly && (((draftOnly || loading) && draftLoaded) || this.isInputBlocked.read(reader)), loadStatus);
+			const keepInputVisible = !loadStatus && interactivity !== ChatInteractivity.ReadOnly
+				&& (this.isInputBlocked.read(reader) || (!modelReadOnly && (draftOnly || loading) && draftLoaded));
+			this._widget.setReadOnly(interactivity !== ChatInteractivity.Full || loading || modelReadOnly || !!loadStatus, keepInputVisible, loadStatus);
 		});
 
 		// Skip loading if we're already showing this chat
@@ -697,15 +904,14 @@ export class ChatView extends AbstractChatView {
 		this._currentChatResourceObs.set(resource, undefined);
 		this.logService.trace(`[ChatView] setChat start uri=${resource.toString()} session=${session?.resource.toString()}`);
 
-		const preparationInput = session?.preparationProgress?.get() && this.sessionsManagementService.getInFlightNewSessionRequest(session.resource);
-		if (preparationInput) {
+		if (session && preparationInput) {
 			this._loadCts.value?.cancel();
-			this._showPreparationInput(preparationInput);
+			this._showPreparationInput(preparationInput, session);
 			this._setLoading(false);
 			this._layoutChatWidget();
 		} else {
 			this._preparationModel.clear();
-			this._loadChat(resource, session, { previousChatResource, previousSession });
+			this._loadChat(resource, session);
 		}
 	}
 
@@ -716,15 +922,20 @@ export class ChatView extends AbstractChatView {
 			: Promise.resolve();
 	}
 
-	private _showPreparationInput(input: Pick<ISendRequestOptions, 'query' | 'attachedContext'>): void {
-		// This view owns the model; do not register or persist it as a chat session.
+	private _showPreparationInput(input: Pick<ISendRequestOptions, 'query' | 'attachedContext'>, session: ISession): void {
+		const snapshot = this.sessionsProvidersService.getProvider(session.providerId)?.getModelsSnapshot(session.sessionId, session.modelId.get());
+		// Keep this view-owned model in the draft's pool without registering it or reusing the backend resource.
 		const model = this.instantiationService.createInstance(ChatModel, undefined, {
 			initialLocation: ChatAgentLocation.Chat,
+			resource: snapshot?.modelTarget ? getNewChatSessionResource(snapshot.modelTarget) : undefined,
 			canUseTools: false,
 			disableBackgroundKeepAlive: true,
 			isReadOnly: constObservable(true),
 		});
 		this._preparationModel.value = model;
+		if (snapshot?.desiredModelResolution.kind === 'available') {
+			model.inputModel.setState({ selectedModel: snapshot.desiredModelResolution.model });
+		}
 		const lines = input.query.split('\n');
 		model.addRequest({
 			text: input.query,
@@ -829,15 +1040,12 @@ export class ChatView extends AbstractChatView {
 		this.isLoadingTranscript.set(isLoading, undefined);
 	}
 
-	private _loadChat(resource: URI, session: ISession | undefined, options?: { previousChatResource?: URI; previousSession?: ISession; inputModelToPreserve?: IInputModel }): Promise<void> {
+	private _loadChat(resource: URI, session: ISession | undefined, options?: { inputModelToPreserve?: IInputModel }): Promise<void> {
 		this._loadFailure.set(undefined, undefined);
 		// A fresh load binds to whichever provider serves the chat now.
 		this._chatWithUnregisteredProvider = undefined;
 		// Cancel any in-flight load for the previous chat and start a fresh one.
 		this._loadCts.value?.cancel();
-		if (options?.previousChatResource) {
-			this._clearCurrentChat(options.previousSession, options.previousChatResource);
-		}
 		const cts = new CancellationTokenSource();
 		this._loadCts.value = cts;
 		const token = cts.token;
@@ -923,12 +1131,14 @@ export class ChatView extends AbstractChatView {
 			this._pendingLoadInput = undefined;
 			this._modelRef.value = ref;
 			this._updateWidgetLockState(getChatSessionType(ref.object.sessionResource));
+			// Bound ahead of the model so a chat answered by another agent never validates against its session's models.
+			this._respondentBinding.value = session ? autorun(reader => this._widget.setRespondent(getChatRespondent(session, resource, this.sessionsProvidersService, reader), resource)) : undefined;
 			if (inputState) {
 				this._widget.setModel(ref.object);
 			} else {
 				setModelPreservingInputTypedWhileLoading(this._widget, input.inputBeforeLoad, () => this._widget.setModel(ref.object));
 			}
-			const widgetViewState = this.viewStateService.get(resource);
+			const widgetViewState = this._composerOnly ? undefined : this.viewStateService.get(resource);
 			if (widgetViewState) {
 				this._widget.restoreViewState(widgetViewState);
 			}
@@ -972,7 +1182,7 @@ export class ChatView extends AbstractChatView {
 	}
 
 	private _saveCurrentViewState(): void {
-		if (this._preparationModel.value) {
+		if (this._composerOnly || this._preparationModel.value) {
 			return;
 		}
 		const resource = this._widget.viewModel?.sessionResource;
@@ -986,7 +1196,9 @@ export class ChatView extends AbstractChatView {
 			this.sessionOpenTelemetryService.modelUnbound(previousSession.resource, previousChatResource);
 		}
 		this._widget.clear().catch(err => this.logService.error('[ChatView] Failed to clear chat widget', err));
+		this._respondentBinding.clear();
 		this._widget.setModel(undefined);
+		this._selectionSideChatController.setChat(undefined, constObservable(true));
 		this._modelRef.clear();
 		// Clear the bound-resource attribute while the rebind is in flight so
 		// test automation can wait for the next `setChat` cycle to finish
@@ -1038,23 +1250,149 @@ export class ChatView extends AbstractChatView {
 			return;
 		}
 		const { width, height } = this._lastLayout;
-		// Only the external-session banner precedes the widget in normal flow.
-		const widgetTop = this._externalSessionBanner.domNode.classList.contains('hidden') ? 0 : this._widgetContainer.offsetTop;
+		// Only the external-session banner, and the input-only padding and progress, precede the widget in normal flow.
+		const widgetTop = this._externalSessionBanner.domNode.classList.contains('hidden') && !this._inputOnly.get() ? 0 : this._widgetContainer.offsetTop;
 		const widgetHeight = Math.max(0, height - widgetTop);
 		const progressContainer = Array.from(this.element.children).find(element => element.classList.contains('monaco-progress-container'));
 		if (isHTMLElement(progressContainer)) {
 			progressContainer.style.top = `${widgetTop}px`;
 		}
-		const contentWidth = Math.max(0, width - 2 * this.contentInset);
-		this._comparisonResult.layout(contentWidth);
+		this._comparisonResult.layout(width);
 		size(this._widgetContainer, width, widgetHeight);
-		// Widget layout sizes embedded editors; its DOM viewport stays full-width for the scrollbar.
-		this._widget.layout(widgetHeight, contentWidth);
+		if (this._composerOnly) {
+			// A content-sized host must not cap its own input to its previous height.
+			// The editor retains its normal intrinsic maximum height.
+			this._widget.setInputPartMaxHeightOverride(Number.POSITIVE_INFINITY);
+		}
+		// Showing only the input, the widget is laid out with the room the input may grow into, not the room it has,
+		// which its host sizes to the input.
+		const inputOnlyMaxHeight = this._inputOnly.get() ? this._inputOnlyMaxHeight : undefined;
+		this._widget.layout(inputOnlyMaxHeight !== undefined ? Math.max(0, inputOnlyMaxHeight - widgetTop) : widgetHeight, width);
 		this._layoutStickyScrollBackground();
+	}
+
+	override enableInputOnly(options: { readonly maxHeight: number; readonly inputOnly?: boolean }): void {
+		this._inputOnlyMaxHeight = options.maxHeight;
+		this._inputOnlyEnabled.set(true, undefined);
+		this.setInputOnly(options.inputOnly ?? true);
+	}
+
+	override disableInputOnly(): void {
+		this.setInputOnly(false);
+		this._inputOnlyMaxHeight = undefined;
+		this._inputOnlyEnabled.set(false, undefined);
+	}
+
+	override saveViewState(): void {
+		this._saveCurrentViewState();
+	}
+
+	override setInputOnly(inputOnly: boolean): void {
+		if (this._inputOnlyMaxHeight === undefined || (inputOnly && !this.canShowInputOnly.get())) {
+			return;
+		}
+		this._inputOnly.set(inputOnly, undefined);
+		this.element.classList.toggle('input-only', inputOnly);
+		// Showing only the input, the input stays one line tall; longer text scrolls in it.
+		this._widget.inputPart.setSingleLine(inputOnly);
+		this._updateChatPillsVisibility();
+		this._renderInputOnlyStatus();
+		this._layoutChatWidget();
+	}
+
+	private _createInputOnlyStatus(chatModel: IObservable<IChatModel | undefined>): IObservable<IInputOnlyStatus> {
+		// Until input-only is enabled, nothing is read from the chat, so streaming responses cost nothing here.
+		const lastRequest = derived(this, reader => {
+			if (!this._inputOnlyEnabled.read(reader)) {
+				return undefined;
+			}
+			const model = chatModel.read(reader);
+			model?.lastRequestObs.read(reader);
+			const request = model?.getRequests().findLast(request => !request.isRequestHiddenFromTranscript);
+			return request ? { request, onDidChange: request.response ? observableSignalFromEvent(this, request.response.onDidChange) : undefined } : undefined;
+		});
+		return derived(this, reader => {
+			const last = lastRequest.read(reader);
+			if (!last) {
+				return NO_INPUT_ONLY_STATUS;
+			}
+			last.onDidChange?.read(reader);
+			const { request } = last;
+			const response = request.response;
+			const state = response ? getInputOnlyResponseState(response.isIncomplete.read(reader), !!response.isPendingConfirmation.read(reader), response.state) : undefined;
+			return {
+				requestId: request.id,
+				request: request.message.text.replace(/\s+/g, ' ').trim() || undefined,
+				state,
+				response: !response ? undefined : state === 'working'
+					? getInputOnlyProgressMessage(response.response.value, reader)
+					: getInputOnlyResponseText(response.response.getFinalResponse()),
+			};
+		});
+	}
+
+	private _renderInputOnlyStatus(): void {
+		const inputOnlyStatus = this._inputOnlyStatus.get();
+		const { requestId, request, state = 'succeeded', response } = inputOnlyStatus;
+		// Nothing is shown before the first message, so an empty chat has just its input.
+		const shown = this._inputOnly.get() && !!request;
+		this._announceInputOnlyStateChange(shown, requestId, state);
+		const previous = this._inputOnlyRendered;
+		if (previous?.shown === shown && (!shown || (previous.status.request === request && previous.status.state === inputOnlyStatus.state && previous.status.response === response))) {
+			return;
+		}
+		this._inputOnlyRendered = { shown, status: inputOnlyStatus };
+		this._inputOnlyStatusElement.classList.toggle('hidden', !shown);
+		if (!shown) {
+			this._updateInputOnlyStatusShown(false);
+			return;
+		}
+		this._inputOnlyRequestText.textContent = request ?? '';
+		this._inputOnlyRequestElement.title = request ?? '';
+		const { status, completedIcon, label } = INPUT_ONLY_REQUEST_STATES[state];
+		// A message whose response works or is done needs no icon: the response below it shows that.
+		this._inputOnlyRequestIconElement.classList.toggle('hidden', status === undefined);
+		if (status !== undefined) {
+			this._inputOnlyRequestIcon.setStatus(status, true, false, completedIcon);
+		}
+		this._inputOnlyRequestIconElement.setAttribute('aria-label', label);
+		this._inputOnlyRequestIconElement.dataset.state = state;
+		this._inputOnlyResponseText.textContent = response ?? '';
+		this._inputOnlyResponseElement.title = response ?? '';
+		this._inputOnlyResponseIconElement.classList.toggle('hidden', state !== 'working');
+		this._updateInputOnlyStatusShown(true);
+	}
+
+	private _updateInputOnlyStatusShown(shown: boolean): void {
+		if (shown !== this._inputOnlyStatusShown) {
+			this._inputOnlyStatusShown = shown;
+			this._layoutChatWidget();
+		}
+	}
+
+	/**
+	 * Announces once when the response to the shown message, while only the input is shown, comes to wait for the user,
+	 * fails or is canceled. Its start and its answer are announced by chat already, its progress is not announced.
+	 */
+	private _announceInputOnlyStateChange(shown: boolean, requestId: string | undefined, state: InputOnlyResponseState): void {
+		const previous = this._inputOnlyAnnouncedState;
+		this._inputOnlyAnnouncedState = { requestId, state };
+		const message = INPUT_ONLY_STATE_ANNOUNCEMENTS[state];
+		if (shown && message && requestId !== undefined && previous?.requestId === requestId && previous.state !== state) {
+			this._announce(message);
+		}
+	}
+
+	private _announce(message: string): void {
+		if (this.accessibilityService.isScreenReaderOptimized()) {
+			aria.status(message);
+		}
 	}
 
 	private _updateChatBackground(): void {
 		const background = this.chatBackgroundService.getBackground();
+		// Wallpaper cannot hide transcript content beneath floating controls.
+		this._widget.setPersistentContentHeight(background ? 0 : SESSION_CHAT_INPUT_TOOLBAR_HEIGHT);
 		this._updateChatItemHorizontalPadding(!!background);
 		this._stickyScrollBackgroundReplica.value?.setBackground(background);
 	}
@@ -1082,8 +1420,8 @@ export class ChatView extends AbstractChatView {
 
 		let replica = this._stickyScrollBackgroundReplica.value;
 		if (!replica) {
-			const sessionsPart = this.element.closest('.part.sessionspart');
-			const source = sessionsPart ? Array.from(sessionsPart.children).find(element => element.classList.contains('sessions-chat-background')) : undefined;
+			const surface = this.element.closest(`.${SESSIONS_CHAT_SURFACE_CLASS}`);
+			const source = surface ? Array.from(surface.children).find(element => element.classList.contains('sessions-chat-background')) : undefined;
 			if (!isHTMLElement(source)) {
 				return;
 			}
@@ -1097,6 +1435,13 @@ export class ChatView extends AbstractChatView {
 		}
 	}
 
+	/** Shows the status pills above the input, unless they are off for this view, or it shows only its input. */
+	private _updateChatPillsVisibility(): void {
+		const shown = this._showPills && !this._inputOnly.get();
+		this._chatPills.element.style.display = shown ? '' : 'none';
+		this._widget.inputPart.persistentContentContainerElement.classList.toggle(chatPersistentContentVisibleClass, shown && this._chatPills.visible);
+	}
+
 	/**
 	 * Mounts the status pills and session banners above the chat input.
 	 */
@@ -1104,10 +1449,12 @@ export class ChatView extends AbstractChatView {
 		const inputPartElement = this._widget.inputPart.element;
 		const persistentContentContainer = this._widget.inputPart.persistentContentContainerElement;
 		const pillsNode = this._chatPills.element;
+		this._chatPills.setInputElement(this._widget.inputPart.inputContainerElement);
+		this._updateChatPillsVisibility();
 		const bannersNode = this._banners.domNode;
 		const comparisonResultNode = this._comparisonResult.domNode;
-		if (persistentContentContainer.firstChild !== pillsNode) {
-			persistentContentContainer.insertBefore(pillsNode, persistentContentContainer.firstChild);
+		if (pillsNode.parentElement !== persistentContentContainer) {
+			persistentContentContainer.appendChild(pillsNode);
 		}
 		if (persistentContentContainer.nextSibling !== bannersNode) {
 			inputPartElement.insertBefore(bannersNode, persistentContentContainer.nextSibling);
@@ -1139,7 +1486,7 @@ export class ChatView extends AbstractChatView {
 		}, {
 			inputContainer: inputContainerEl,
 			isActive: this._isActiveObs,
-			getCurrentResource: () => this._currentChatResource,
+			getCurrentResource: reader => this._currentChatResourceObs.read(reader),
 			currentVoiceInputResource: this.newChatVoiceTargetService.currentVoiceInputResource,
 		}));
 	}
@@ -1193,6 +1540,119 @@ export class ChatView extends AbstractChatView {
 	}
 }
 
+/** Height of the message and response rows shown above the input while only the input is shown. */
+const INPUT_ONLY_STATUS_HEIGHT = 60;
+
+/** Room above what a chat view showing only its input shows, matching the `.input-only` padding in chatView.css. */
+const INPUT_ONLY_TOP_PADDING = 12;
+
+/** What a chat view showing only its input shows above it: the latest message sent, and its response. */
+export interface IInputOnlyStatus {
+	readonly requestId?: string;
+	readonly request?: string;
+	readonly state?: InputOnlyResponseState;
+	/** The response's answer as one line, or what it does while it works. */
+	readonly response?: string;
+}
+
+/** What a chat view shows above its input while input-only is not enabled: nothing. */
+const NO_INPUT_ONLY_STATUS: IInputOnlyStatus = {};
+
+/** Whether a response works, waits for the user, or how it ended. */
+export type InputOnlyResponseState = 'working' | 'waiting' | 'succeeded' | 'failed' | 'canceled';
+
+/**
+ * How the message shows the state of its response: like a chat in the sessions list, except that while it works the
+ * response shows the progress instead.
+ */
+const INPUT_ONLY_REQUEST_STATES: Record<InputOnlyResponseState, { readonly status?: SessionStatus; readonly completedIcon?: ThemeIcon; readonly label: string }> = {
+	working: { label: localize('inputOnly.working', "Working") },
+	waiting: { status: SessionStatus.NeedsInput, label: localize('inputOnly.waiting', "Waiting for your input") },
+	succeeded: { label: localize('inputOnly.succeeded', "Done") },
+	failed: { status: SessionStatus.Error, label: localize('inputOnly.failed', "Failed") },
+	canceled: { status: SessionStatus.Completed, completedIcon: Codicon.circleSlash, label: localize('inputOnly.canceled', "Canceled") },
+};
+
+/** What is announced when the response to the message shown above the input comes to a state; see `_announceInputOnlyStateChange`. */
+const INPUT_ONLY_STATE_ANNOUNCEMENTS: Partial<Record<InputOnlyResponseState, string>> = {
+	waiting: localize('inputOnly.announce.waiting', "Chat is waiting for your input"),
+	failed: localize('inputOnly.announce.failed', "Chat response failed"),
+	canceled: localize('inputOnly.announce.canceled', "Chat response canceled"),
+};
+
+/**
+ * The state of a response, shown with the message above the input while only the input is shown: whether it works,
+ * waits for the user, which the input's approvals or the conversation show, or how it ended.
+ */
+export function getInputOnlyResponseState(isIncomplete: boolean, isPendingConfirmation: boolean, state: ResponseModelState): InputOnlyResponseState | undefined {
+	if (isPendingConfirmation) {
+		return 'waiting';
+	}
+	if (isIncomplete) {
+		return 'working';
+	}
+	switch (state) {
+		case ResponseModelState.Complete:
+			return 'succeeded';
+		case ResponseModelState.Failed:
+			return 'failed';
+		case ResponseModelState.Cancelled:
+			return 'canceled';
+		default:
+			return undefined;
+	}
+}
+
+/** What a working response does: its latest progress message or running tool. */
+export function getInputOnlyProgressMessage(parts: readonly IChatProgressResponseContent[], reader: IReader | undefined): string {
+	for (let i = parts.length - 1; i >= 0; i--) {
+		const part = parts[i];
+		if (part.kind === 'progressMessage') {
+			return renderAsPlaintext(part.content);
+		}
+		if (part.kind === 'toolInvocation' && !IChatToolInvocation.isComplete(part, reader)) {
+			const message = part.invocationMessage;
+			return typeof message === 'string' ? message : renderAsPlaintext(message);
+		}
+	}
+	return localize('inputOnly.workingMessage', "Working...");
+}
+
+/** Longest response text turned into the one line shown above the input; the line is trimmed to fit anyway. */
+const INPUT_ONLY_RESPONSE_MAX_LENGTH = 1000;
+
+/** The response's answer, its final text after any tool calls, as the one line shown above the input. */
+export function getInputOnlyResponseText(finalResponse: string): string | undefined {
+	const markdown = new MarkdownString(finalResponse.slice(0, INPUT_ONLY_RESPONSE_MAX_LENGTH));
+	return renderAsPlaintext(markdown, { omitMarkdownSyntax: true }).replace(/\s+/g, ' ').trim() || undefined;
+}
+
+/**
+ * Whether the chat waits for input that only its conversation shows. The input shows questions, and tool approvals in
+ * its confirmation carousel when that is enabled; other approvals, confirmations, plan reviews and elicitations show
+ * only in the conversation.
+ */
+export function needsConversationForInput(model: IChatModel | undefined, confirmationCarouselEnabled: boolean, reader: IReader | undefined): boolean {
+	const response = model?.lastRequestObs.read(reader)?.response;
+	if (!response?.isPendingConfirmation.read(reader)) {
+		return false;
+	}
+	if (response.pendingToolInvocations.read(reader).some(tool => !confirmationCarouselEnabled || !isCarouselToolConfirmation(tool, tool.state.read(reader)))) {
+		return true;
+	}
+	return response.response.value.some(part => {
+		switch (part.kind) {
+			case 'confirmation':
+			case 'planReview':
+				return !part.isUsed;
+			case 'elicitation2':
+				return part.state.read(reader) === ElicitationState.Pending;
+			default:
+				return false;
+		}
+	});
+}
+
 export function shouldShowTranscriptPreparationProgress(requestCount: number, visibleRequestCount: number, hiddenRequestIncomplete: boolean | undefined): boolean {
 	return requestCount === 0 || (visibleRequestCount === 0 && hiddenRequestIncomplete !== false);
 }
@@ -1233,16 +1693,17 @@ export function findInitialTranscriptContextEntry(requests: readonly { readonly 
 export class ChatViewFactory implements IChatViewFactory {
 
 	declare readonly _serviceBrand: undefined;
+	protected readonly viewOptions: IChatViewOptions = {};
 
-	constructor(
-		@IInstantiationService private readonly instantiationService: IInstantiationService
-	) { }
-
-	createNewChatView(isNewChatInSession: boolean, options: IChatViewOptions, instantiationService = this.instantiationService): AbstractChatView {
-		return instantiationService.createInstance(NewChatView, isNewChatInSession, options);
+	get inputEditorOptions(): IChatViewOptions['inputEditorOptions'] {
+		return this.viewOptions.inputEditorOptions;
 	}
 
-	createChatView(instantiationService = this.instantiationService): AbstractChatView {
-		return instantiationService.createInstance(ChatView);
+	createNewChatView(isNewChatInSession: boolean, options: IChatViewOptions, instantiationService: IInstantiationService): AbstractChatView {
+		return instantiationService.createInstance(NewChatView, isNewChatInSession, { ...this.viewOptions, ...options });
+	}
+
+	createChatView(instantiationService: IInstantiationService, options: IChatViewOptions = {}): AbstractChatView {
+		return instantiationService.createInstance(ChatView, { ...this.viewOptions, ...options });
 	}
 }

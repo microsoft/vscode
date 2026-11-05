@@ -6,12 +6,44 @@
 import { printBanner, spawnCodesignProcess, streamProcessOutputAndCheckResult } from '../common/codesign.ts';
 import { e } from '../common/publish.ts';
 
+const NOTARIZE_ATTEMPTS = 2;
+const NOTARIZE_RETRY_DELAY_MS = 3 * 60 * 1000;
+
+/**
+ * ESRP intermittently fails a notarization with `MacSignFailed`, while
+ * notarizing the same file again a few minutes later succeeds. Notarization
+ * submits the already signed file to Apple, so it is safe to repeat, and a file
+ * that is not properly signed fails again. Any other failure is final.
+ */
+async function notarize(esrpCliDLLPath: string, name: string, folder: string, glob: string): Promise<void> {
+	for (let attempt = 1; ; attempt++) {
+		printBanner(attempt === 1 ? `Notarize ${name}` : `Notarize ${name} (attempt ${attempt})`);
+
+		const notarization = spawnCodesignProcess(esrpCliDLLPath, 'notarize-darwin', folder, glob).nothrow();
+		notarization.pipe(process.stdout);
+		const result = await notarization;
+
+		if (result.ok) {
+			console.log(`\nNotarize ${name} completed successfully. Duration: ${result.duration} ms`);
+			return;
+		}
+
+		// stdout is streamed above; stderr is only captured, so check and surface both
+		if (attempt >= NOTARIZE_ATTEMPTS || !/"code"\s*:\s*"MacSignFailed"/.test(`${result.stdout}\n${result.stderr}`)) {
+			throw new Error(`Notarize ${name} failed: ${result.stderr}`);
+		}
+
+		console.log(`\nNotarize ${name} failed with MacSignFailed: ${result.stderr}`);
+		console.log(`Retrying in ${NOTARIZE_RETRY_DELAY_MS / 1000} seconds...`);
+		await new Promise(c => setTimeout(c, NOTARIZE_RETRY_DELAY_MS));
+	}
+}
+
 async function codesignAndNotarize(esrpCliDLLPath: string, name: string, folder: string, glob: string): Promise<void> {
 	printBanner(`Codesign ${name}`);
 	await streamProcessOutputAndCheckResult(`Codesign ${name}`, spawnCodesignProcess(esrpCliDLLPath, 'sign-darwin', folder, glob));
 
-	printBanner(`Notarize ${name}`);
-	await streamProcessOutputAndCheckResult(`Notarize ${name}`, spawnCodesignProcess(esrpCliDLLPath, 'notarize-darwin', folder, glob));
+	await notarize(esrpCliDLLPath, name, folder, glob);
 }
 
 async function main() {

@@ -499,11 +499,17 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 		const chatUri = defaultChatChannel(sessionUri);
 		const turnId = 'turn-cancel-input';
 		dispatchTurn(context.client, sessionUri, turnId, interactiveInputPrompt, clientSeq);
-		await context.client.waitForNotification(n =>
+		const inputRequested = await context.client.waitForNotification(n =>
 			isActionNotification(n, 'chat/inputRequested')
 			&& getActionEnvelope(n).channel === chatUri,
 			90_000,
 		);
+		const input = getActionEnvelope(inputRequested).action as ChatInputRequestedAction;
+		const paused = await fetchSessionWithChat(context.client, sessionUri);
+		assert.deepStrictEqual({
+			activeTurn: paused.activeTurn?.id,
+			requests: paused.activeTurn?.responseParts.flatMap(part => part.kind === ResponsePartKind.InputRequest ? [part.request.id] : []),
+		}, { activeTurn: turnId, requests: [input.request.id] });
 		context.client.dispatch({
 			channel: chatUri,
 			clientSeq: clientSeq + 1,
@@ -529,15 +535,24 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 		const state = await fetchSessionWithChat(context.client, sessionUri);
 		assert.deepStrictEqual({
 			response: replacement.responseText.trim(),
+			cancelledTurn: state.turns.find(turn => turn.id === turnId)?.state,
+			sawInputRequest: replacement.sawInputRequest,
+			sawPendingConfirmation: replacement.sawPendingConfirmation,
 			replacementTurns: state.turns.filter(turn => turn.id === 'turn-after-input-cancel').map(turn => ({
 				message: turn.message.text,
 				state: turn.state,
+				response: turn.responseParts.flatMap(part => part.kind === ResponsePartKind.Markdown ? [part.content] : []).join('').trim(),
 			})),
+			errors: context.client.receivedNotifications(n => isActionNotification(n, 'chat/error') && getActionEnvelope(n).channel === chatUri),
 			activeTurn: state.activeTurn,
 			inputNeeded: state.inputNeeded,
 		}, {
 			response: 'replacement',
-			replacementTurns: [{ message: 'Reply exactly "replacement".', state: TurnState.Complete }],
+			cancelledTurn: TurnState.Cancelled,
+			sawInputRequest: false,
+			sawPendingConfirmation: false,
+			replacementTurns: [{ message: 'Reply exactly "replacement".', state: TurnState.Complete, response: 'replacement' }],
+			errors: [],
 			activeTurn: undefined,
 			inputNeeded: undefined,
 		});
@@ -786,12 +801,21 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 				30,
 			);
 			const state = await context.client.call<SubscribeResult>('subscribe', { channel: chatUri });
+			const modelHistory = observedModelRequest(context.observedModelRequestBodies.at(-1)).messages
+				.filter(message => message.role === 'user')
+				.map(message => modelContentText(message.content));
 
 			assert.deepStrictEqual({
 				response: result.responseText.trim(),
+				retainsFirst: modelHistory.some(message => message.includes('Remember ALPHA. Reply exactly "ready".')),
+				retainsRemoved: modelHistory.some(message => message.includes('Now remember BETA too. Reply exactly "ready".')),
+				includesContinuation: modelHistory.some(message => message.includes('Reply with exactly "ALPHA only".')),
 				messages: (state.snapshot!.state as { readonly turns: readonly { readonly message: { readonly text: string } }[] }).turns.map(turn => turn.message.text),
 			}, {
 				response: 'ALPHA only',
+				retainsFirst: true,
+				retainsRemoved: false,
+				includesContinuation: true,
 				messages: [
 					'Remember ALPHA. Reply exactly "ready".',
 					'Reply with exactly "ALPHA only".',

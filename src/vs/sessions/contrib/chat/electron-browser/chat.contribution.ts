@@ -19,6 +19,7 @@ import { AgentHostByokLmHandler } from '../../../../workbench/contrib/chat/brows
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -46,6 +47,9 @@ import { isAgentsWindowInvitationSource } from '../../../../workbench/contrib/ch
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { isAgentHostTarget } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
+import '../../../../workbench/contrib/chat/browser/aiCustomization/copilotCanvases.contribution.js';
+import './chatBackgroundTool.contribution.js';
+import { ScreenshotWindowToolContribution } from '../browser/screenshotWindowTool.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 
 /** Revokes editor request ownership when the next request is submitted here. */
@@ -89,6 +93,7 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 	constructor(
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
+		@IFocusedSessionHostService private readonly _focusedSessionHostService: IFocusedSessionHostService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@ISessionsSetUpService private readonly sessionsSetUpService: ISessionsSetUpService,
@@ -188,7 +193,7 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 	}
 
 	private _getWindowOpenViewState(): ISessionsWindowOpenViewState {
-		const activeSession = this.sessionsService.activeSession.get();
+		const activeSession = this._focusedSessionHostService.focusedHost.get().session.get();
 		const isNewSessionView = !activeSession || !activeSession.isCreated.get();
 		if (!isNewSessionView) {
 			return {
@@ -254,7 +259,7 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 		}
 
 		// Fast path — already on the target session.
-		const current = this.sessionsService.activeSession.get();
+		const current = this._focusedSessionHostService.focusedHost.get().session.get();
 		if (current && current.resource.toString() === sessionResource.toString()) {
 			this.logService.info('[AgentsHandoff] already on target session');
 			return;
@@ -395,6 +400,8 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 registerWorkbenchContribution2(SelectAgentsFolderContribution.ID, SelectAgentsFolderContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(AgentsWindowRequestActivity.ID, AgentsWindowRequestActivity, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(SessionsCopilotConfigSlashSubmitHandlerContribution.ID, SessionsCopilotConfigSlashSubmitHandlerContribution, WorkbenchPhase.AfterRestored);
+// Desktop only: in browsers, capturing the window asks the user to pick a screen.
+registerWorkbenchContribution2(ScreenshotWindowToolContribution.ID, ScreenshotWindowToolContribution, WorkbenchPhase.Eventually);
 
 // Renderer-side BYOK language-model handler that backs the node agent host's
 // OpenAI proxy, mirroring the registration in the workbench's

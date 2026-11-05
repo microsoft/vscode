@@ -11,7 +11,7 @@ import { AgentHostProtocolClient } from '../../../../../platform/agentHost/brows
 import { agentsWindowAgentHostClientInfo } from '../../../../../platform/agentHost/common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind } from '../../../../../platform/agentHost/common/agentHostTelemetry.js';
 import { ReconnectingTransport, type IEstablishedTransport } from '../../../../../platform/agentHost/common/reconnectingTransport.js';
-import { NonReconnectableTransportError, type IProtocolTransport } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
+import { NonReconnectableTransportError, parseProtocolMessage, type IProtocolTransport } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { RemoteAgentHostEntryType, IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId, getEntryAddress, type IRemoteAgentHostConnectOptions, type IRemoteAgentHostConnectionFactory, type IRemoteAgentHostCreatedConnection, type IRemoteAgentHostEntry } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import type { ProtocolMessage, AhpServerNotification, JsonRpcResponse } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { MALFORMED_FRAMES_FORCE_CLOSE_THRESHOLD, MALFORMED_FRAMES_LOG_CAP } from '../../../../../platform/agentHost/common/transportConstants.js';
@@ -405,7 +405,7 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
  * The connection is already established by the time this adapter is created,
  * so there is no `connect()` method — the protocol client skips that step.
  */
-class TunnelConnectionTransport extends Disposable implements IProtocolTransport {
+export class TunnelConnectionTransport extends Disposable implements IProtocolTransport {
 	readonly clientConnectionKind = AgentHostClientConnectionKind.DevTunnel;
 
 	private readonly _onMessage = this._register(new Emitter<ProtocolMessage>());
@@ -429,7 +429,7 @@ class TunnelConnectionTransport extends Disposable implements IProtocolTransport
 			this._lastMessageAt = Date.now();
 			let message: ProtocolMessage;
 			try {
-				message = JSON.parse(data) as ProtocolMessage;
+				message = parseProtocolMessage(data);
 			} catch (err) {
 				this._malformedFrames++;
 				if (this._malformedFrames <= MALFORMED_FRAMES_LOG_CAP) {

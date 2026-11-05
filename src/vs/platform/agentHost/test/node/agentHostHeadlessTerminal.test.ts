@@ -14,10 +14,8 @@ type XtermTerminal = pkg.Terminal;
 const { Terminal: XtermTerminal } = pkg;
 
 suite('AgentHostHeadlessTerminal', () => {
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function createTerminal(cols = 80, rows = 24): AgentHostHeadlessTerminal {
 		return disposables.add(new AgentHostHeadlessTerminal({

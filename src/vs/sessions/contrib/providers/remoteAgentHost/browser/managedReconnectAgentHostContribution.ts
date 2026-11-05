@@ -8,6 +8,7 @@ import { Disposable, DisposableMap, MutableDisposable } from '../../../../../bas
 import { type IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { hasExhaustedReconnectAttempts, type IRemoteAgentHostReconnectPolicy } from '../../../../../platform/agentHost/common/reconnectPolicy.js';
 import { getAgentHostSupportedProtocolVersions } from '../../../../../platform/agentHost/common/agentHostProtocolCompatibility.js';
+import { AgentHostTransportFailureReason } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { type IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { type IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { type ILogService } from '../../../../../platform/log/common/log.js';
@@ -212,9 +213,6 @@ export abstract class ManagedReconnectAgentHostContribution extends EntryDrivenP
 					return;
 				}
 				this._logService.error(`[RemoteAgentHost] ${opts.kind} reconnect failed for ${opts.key}`, err);
-				// Surface protocol-version mismatches on the provider so the
-				// workspace picker can show the host's message. Other errors
-				// stay as the existing disconnected state.
 				const incompatible = RemoteAgentHostConnectionStatus.fromConnectError(err, getAgentHostSupportedProtocolVersions());
 				if (incompatible) {
 					provider?.setConnectionStatus(incompatible);
@@ -223,6 +221,9 @@ export abstract class ManagedReconnectAgentHostContribution extends EntryDrivenP
 					this._reconnectStates.deleteAndDispose(opts.key);
 					return;
 				}
+				const failed = this._remoteAgentHostService.connections.find(connection => connection.address === opts.address)?.status;
+				provider?.setConnectionStatus(RemoteAgentHostConnectionStatus.disconnectedBecause(
+					failed?.kind === 'disconnected' ? failed.reason : AgentHostTransportFailureReason.Unknown));
 				// Host is unreachable — unpublish any cached sessions we were
 				// showing so the UI doesn't list stale entries for a host we
 				// cannot currently reach.

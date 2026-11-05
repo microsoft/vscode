@@ -101,6 +101,24 @@ The UI should read like a person talking. Prefer a word to a mystery glyph; writ
 
 *Carried out by:* [words & casing](#words-casing).
 
+##### Make unavailable features understandable
+
+Users look for features they have seen in release notes, documentation, or promotion. Silently removing an otherwise relevant option when policy, account entitlement, setup, or version requirements prevent its use makes the product feel broken. Prefer keeping it discoverable but disabled, with a concise, truthful reason and a useful next step.
+
+- Distinguish **blocked by organization policy**, **requires sign-in/upgrade/update**, **not supported here**, and **still loading** using authoritative state; absence from a list alone is not evidence of policy.
+- Reuse existing disabled-row styling and the briefcase indicator for managed policy. Provide a visible reason or independently actionable **Learn why** link; do not make hover the only way to discover the explanation.
+- Presentation must not grant access: block pointer, keyboard, and stale-menu activation while keeping explanatory links operable. Follow the [accessibility guidance](../accessibility/SKILL.md#explaining-unavailable-options).
+- This is not a blanket rule to expose everything. Preserve explicit feature-hiding choices (including disabled AI), unsupported provider capabilities, and unreleased feature gates. Explain unavailable features where they are relevant without inventing support or exposing sensitive policy values.
+
+Reuse these patterns rather than copying entire implementations:
+
+| Surface | Example |
+|---|---|
+| Settings | [Managed-setting indicator and accessible policy text](../../../src/vs/workbench/contrib/preferences/browser/settingsEditorSettingIndicators.ts) |
+| Model picker | [Unavailable models with distinct admin, upgrade, and update explanations](../../../src/vs/workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerItemPrimitives.ts) |
+| Harness picker | [Availability descriptions and policy help links](../../../src/vs/workbench/contrib/chat/browser/agentSessions/sessionTypeAvailability.ts) |
+| Permissions picker | [Shared permission-level policy presentation](../../../src/vs/workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.ts) and [picker integration](../../../src/vs/workbench/contrib/chat/browser/agentSessions/agentHost/agentHostChatInputPicker.ts), with [runtime policy boundaries](../policy-and-managed-settings/sdk-runtime-policy.md) |
+
 > **Worked example - a boxed-in toolbar**
 > - **See:** a toolbar sits on a solid filled bar, separator lines between every button, the buttons pushed up against each other.
 > - **Feeling:** not *Calm* - busy and boxed-in.

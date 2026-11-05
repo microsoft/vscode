@@ -120,6 +120,20 @@ export interface CreateChatParams extends BaseParams {
 	 * {@link AgentCapabilities.multipleWorkingDirectories}.
 	 */
 	workingDirectories?: URI[];
+	/** Client-selected initial display title for the new chat. */
+	title?: string;
+	/**
+	 * Agent provider ID for the new chat. Absent means the session's provider.
+	 *
+	 * Requires {@link InitializeResult.multipleChatProviders}. Hosts reject with
+	 * `InvalidParams` a provider that is not in the root state's `agents` or
+	 * whose agent does not advertise `multipleChats`. Forks and side chats
+	 * (`source` present) continue the source chat's history, so they always use
+	 * the source chat's agent: absent means that agent, and a different value is
+	 * rejected. Agent capability checks for this request use the chat's agent.
+	 * @stability 1.0
+	 */
+	provider?: string;
 }
 
 // ─── moveChat ────────────────────────────────────────────────────────────────
@@ -188,6 +202,19 @@ export type ChatMoveDestination =
  * optional anchor MUST resolve; and the source MUST NOT anchor itself.
  * Rejection leaves ownership, catalog order, chat state, and root summaries
  * unchanged.
+ *
+ * A moved chat keeps its agent. After the move the host reports
+ * {@link ChatState.provider | `provider`} on the chat whenever it differs from
+ * the destination session's provider, including when the chat had none
+ * because it matched its old session. Hosts MAY refuse, as an unsupported
+ * destination, a move they cannot support, such as one that changes whether
+ * the chat's agent matches its session's.
+ *
+ * A moved chat's `config.values` move with it unchanged. If a move changes
+ * whether the chat needs its own `config.schema`, the host sets or clears it,
+ * or refuses the move as an unsupported destination. After a cross-session
+ * move the host dispatches `chat/moved` on the chat's channel with its new
+ * session, `provider` and `config.schema`.
  *
  * On success every moved chat keeps its URI, state, and immutable
  * `ChatOrigin`. The host commits ownership and catalog order before publishing
