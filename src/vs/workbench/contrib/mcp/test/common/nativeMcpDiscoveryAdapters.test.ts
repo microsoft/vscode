@@ -282,6 +282,35 @@ suite('MCP Discovery - nativeMcpDiscoveryAdapters', () => {
 		});
 	});
 
+	test('native discovery adapters keep the home directory as a URI-backed default cwd', async () => {
+		const contents = VSBuffer.fromString(JSON.stringify({
+			mcpServers: {
+				local: { command: '/home/test/.local/bin/server' },
+				remote: { url: 'https://example.com/mcp' },
+			},
+		}));
+		// The home directory of a remote Linux host, as seen by a (possibly Windows) client.
+		const homedir = URI.parse('vscode-remote://wsl+opensuse/home/test');
+		const details: INativeMcpDiscoveryData = { platform: Platform.Linux, homedir };
+		const adapters = [
+			new ClaudeDesktopMpcDiscoveryAdapter('wsl+opensuse'),
+			new CopilotMpcDiscoveryAdapter('wsl+opensuse'),
+			new CursorDesktopMpcDiscoveryAdapter('wsl+opensuse'),
+			new WindsurfDesktopMpcDiscoveryAdapter('wsl+opensuse'),
+		];
+		const legacyDefs = await claudeConfigToServerDefinition('legacy', contents, { cwd: homedir });
+		const definitions = await Promise.all(adapters.map(adapter => adapter.adaptFile(contents, details)));
+
+		assert.deepStrictEqual(definitions.map(defs => defs?.map(definition => ({
+			cwd: definition.launch.type === McpServerTransportType.Stdio ? definition.launch.cwd : null,
+			defaultCwd: definition.defaultCwd?.toString(),
+			preservesTrustedNonce: definition.cacheNonce === legacyDefs?.find(legacy => legacy.label === definition.label)?.cacheNonce,
+		}))), adapters.map(() => [
+			{ cwd: undefined, defaultCwd: homedir.toString(), preservesTrustedNonce: true },
+			{ cwd: null, defaultCwd: undefined, preservesTrustedNonce: true },
+		]));
+	});
+
 	test('expands environment variables only from the Copilot user configuration', async () => {
 		const contents = VSBuffer.fromString(JSON.stringify({
 			mcpServers: {

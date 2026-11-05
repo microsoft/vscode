@@ -126,7 +126,7 @@ import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js'
 import { buildCopilotSystemNotification, getCopilotSubagentDisplayNames } from '../../node/copilot/copilotSystemNotification.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { AgentHostAssistedApprovalInstructionsConfigKey, AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpSkillsEnabledConfigKey, AgentHostMcpSamplingAllowedServersConfigKey, AgentHostMcpSkillsServerApprovalsConfigKey, AgentHostMcpToolRoutingEnabledConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostAssistedApprovalInstructionsConfigKey, AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostExtensionPermissionApprovalsConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpSkillsEnabledConfigKey, AgentHostMcpSamplingAllowedServersConfigKey, AgentHostMcpSkillsServerApprovalsConfigKey, AgentHostMcpToolRoutingEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, AgentHostCopilotProgressUpdatesPromptSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey } from '../../common/copilotCliConfig.js';
 import { setAdvertisedAutoModeTiers } from '../../common/autoModeTiers.js';
 import { TestExperimentTriggerTelemetryService } from '../../../telemetry/test/common/experimentTriggerTestUtils.js';
@@ -1328,7 +1328,7 @@ type TestPermissionRequest = TestPermissionRequestBase & ({
 	readonly toolTitle: string;
 	readonly readOnly?: boolean;
 	readonly permissionRecommendation?: Extract<PermissionRequest, { kind: 'mcp' }>['permissionRecommendation'];
-} | Extract<PermissionRequest, { kind: 'hook' }>);
+} | Extract<PermissionRequest, { kind: 'hook' | 'extension-permission-access' }>);
 
 function toPermissionRequest(request: TestPermissionRequest): PermissionRequest {
 	switch (request.kind) {
@@ -1352,6 +1352,7 @@ function toPermissionRequest(request: TestPermissionRequest): PermissionRequest 
 		case 'mcp':
 			return { readOnly: false, ...request };
 		case 'hook':
+		case 'extension-permission-access':
 			return request;
 	}
 }
@@ -18406,6 +18407,154 @@ Use the attached image as context.
 			});
 		});
 
+		suite('extension permission consent', () => {
+			const request: Extract<PermissionRequest, { kind: 'extension-permission-access' }> = {
+				kind: 'extension-permission-access', extensionName: 'plugin:grove-agent-monitor:grove-agent-monitor', capabilities: ['register hooks'],
+			};
+			const identity = 'plugin:grove-agent-monitor:grove-agent-monitor (register hooks)';
+
+			function consentReady(signals: AgentSignal[]): ChatToolCallReadyAction {
+				const ready = getActions(signals).findLast((action): action is ChatToolCallReadyAction => action.type === ActionType.ChatToolCallReady);
+				assert.ok(ready);
+				return ready;
+			}
+
+			test('defers until turn preflight, holds the turn open and persists Always Allow across sessions', async () => {
+				const { session, runtime, mockSession, signals, rootConfigUpdates, waitForSignal } = await createAgentSession(disposables);
+				const response = runtime.handleAttributedPermissionRequest(request);
+				await timeout(0);
+				const beforeTurn = getActions(signals);
+				session.resetTurnState('turn-consent');
+				await timeout(0);
+				const beforeReady = getActions(signals);
+				await session.send('Hello', undefined, 'turn-consent');
+				const ready = consentReady(signals);
+				mockSession.fire('session.idle', {});
+				await timeout(0);
+				const pendingActions = getActions(signals).map(action => hasKey(action, { toolCallId: true }) ? { ...action, toolCallId: '<consent-id>' } : action);
+				session.respondToPermissionRequest(ready.toolCallId, true, { selectedOptionId: 'allow-extension-always', decisionSource: 'human_response' });
+				const answer = await response;
+				await waitForSignal(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatTurnComplete);
+				const completed = getActions(signals).find(action => action.type === ActionType.ChatToolCallComplete);
+				const next = await createAgentSession(disposables, { rootValues: rootConfigUpdates[0] });
+				assert.deepStrictEqual({
+					beforeTurn, beforeReady, pendingActions, answer,
+					completed: completed && { ...completed, toolCallId: '<consent-id>' }, rootConfigUpdates,
+					nextAnswer: await next.runtime.handlePermissionRequest(request), nextActions: getActions(next.signals),
+				}, {
+					beforeTurn: [], beforeReady: [],
+					pendingActions: [
+						chatToolCallStart('turn-consent', '<consent-id>', 'extension_permission_consent', 'Extensions'),
+						{
+							type: ActionType.ChatToolCallReady, turnId: 'turn-consent', toolCallId: '<consent-id>',
+							invocationMessage: `Extension 'grove-agent-monitor' wants to load with these permissions: register hooks.`,
+							confirmationTitle: 'Allow Extension grove-agent-monitor?',
+							options: [
+								{ id: 'allow-once', label: 'Allow Once', kind: 'approve' },
+								{ id: 'allow-extension-always', label: 'Always Allow', kind: 'approve', group: 1 },
+								{ id: 'not-now', label: 'Not Now', kind: 'deny', group: 2 },
+								{ id: 'deny-extension-always', label: 'Never', kind: 'deny', group: 2 },
+							],
+						},
+					],
+					answer: { kind: 'attributed', result: { kind: 'approve-once' }, decisionContext: { source: 'human_response', surface: 'sdk', outcome: 'prompted_user', responseCapability: 'interactive' } },
+					completed: { type: ActionType.ChatToolCallComplete, turnId: 'turn-consent', toolCallId: '<consent-id>', result: { success: true, pastTenseMessage: 'Allowed extension grove-agent-monitor' } },
+					rootConfigUpdates: [{ [AgentHostExtensionPermissionApprovalsConfigKey]: { [identity]: 'allow' } }],
+					nextAnswer: { kind: 'approve-once' }, nextActions: [],
+				});
+			});
+
+			test('shows a queued request in a provider-initiated turn', async () => {
+				const { session, runtime, mockSession, signals } = await createAgentSession(disposables);
+				const response = runtime.handlePermissionRequest(request);
+				await timeout(0);
+				const beforeTurn = getActions(signals).length;
+				mockSession.fire('user.message', {
+					content: 'Run the extension command.',
+					messageId: 'provider-message',
+					turnId: 'provider-sdk-turn',
+				} as SessionEventPayload<'user.message'>['data']);
+				await timeout(0);
+				const ready = consentReady(signals);
+				session.respondToPermissionRequest(ready.toolCallId, true, { selectedOptionId: 'allow-once' });
+				const started = getActions(signals).find(action => action.type === ActionType.ChatTurnStarted);
+				assert.deepStrictEqual({ beforeTurn, sameTurn: ready.turnId === started?.turnId, answer: await response }, { beforeTurn: 0, sameTurn: true, answer: { kind: 'approve-once' } });
+			});
+
+			test('stored denial is silent and Allow Once covers repeated session requests without writing settings', async () => {
+				const denied = await createAgentSession(disposables, { rootValues: { [AgentHostExtensionPermissionApprovalsConfigKey]: { [identity]: 'deny' } } });
+				const deniedAnswer = await denied.runtime.handlePermissionRequest(request);
+				const { session, runtime, signals, rootConfigUpdates } = await createAgentSession(disposables);
+				await session.send('Hello', undefined, 'turn-consent');
+				const response = runtime.handlePermissionRequest(request);
+				session.respondToPermissionRequest(consentReady(signals).toolCallId, true, { selectedOptionId: 'allow-once' });
+				const answer = await response;
+				signals.length = 0;
+				assert.deepStrictEqual({ deniedAnswer, deniedActions: getActions(denied.signals), answer, repeated: await runtime.handlePermissionRequest({ ...request, toolCallId: 'extension-tool' }), repeatedActions: getActions(signals), rootConfigUpdates }, {
+					deniedAnswer: { kind: 'reject' }, deniedActions: [], answer: { kind: 'approve-once' }, repeated: { kind: 'approve-once' }, repeatedActions: [], rootConfigUpdates: [],
+				});
+			});
+
+			test('capability widening prompts again and Never persists a sorted identity', async () => {
+				const { session, runtime, signals, rootConfigUpdates } = await createAgentSession(disposables, { rootValues: { [AgentHostExtensionPermissionApprovalsConfigKey]: { [identity]: 'allow' } } });
+				await session.send('Hello', undefined, 'turn-consent');
+				const widerRequest = { ...request, capabilities: ['register hooks', 'read environment'] };
+				const response = runtime.handlePermissionRequest(widerRequest);
+				session.respondToPermissionRequest(consentReady(signals).toolCallId, false, { selectedOptionId: 'deny-extension-always' });
+				const answer = await response;
+				signals.length = 0;
+				assert.deepStrictEqual({ answer, reordered: await runtime.handlePermissionRequest({ ...widerRequest, capabilities: [...widerRequest.capabilities].reverse() }), actions: getActions(signals), rootConfigUpdates }, {
+					answer: { kind: 'reject' }, reordered: { kind: 'reject' }, actions: [],
+					rootConfigUpdates: [{ [AgentHostExtensionPermissionApprovalsConfigKey]: { [identity]: 'allow', 'plugin:grove-agent-monitor:grove-agent-monitor (read environment, register hooks)': 'deny' } }],
+				});
+			});
+
+			test('queued requests survive aborts until the next turn, while disposal and confirmation aborts reject', async () => {
+				const results = [];
+				for (const state of ['dispose', 'dispose-confirmation', 'abort-confirmation', 'abort', 'already-aborted'] as const) {
+					const { session, runtime, signals, rootConfigUpdates } = await createAgentSession(disposables);
+					if (state === 'already-aborted') {
+						await session.send('Earlier', undefined, 'turn-before-abort');
+						await session.abort();
+						signals.length = 0;
+					}
+					let settled = false;
+					const response = runtime.handleAttributedPermissionRequest(request).then(answer => {
+						settled = true;
+						return answer;
+					});
+					if (state === 'dispose-confirmation' || state === 'abort-confirmation') {
+						await session.send('Hello', undefined, 'turn-consent');
+					}
+					const pendingActions = getActions(signals).map(action => action.type);
+					if (state === 'dispose' || state === 'dispose-confirmation') {
+						session.dispose();
+					} else if (state !== 'already-aborted') {
+						await session.abort();
+					}
+					await timeout(0);
+					const settledBeforeNextTurn = settled;
+					if (state === 'abort' || state === 'already-aborted') {
+						await session.send('Hello', undefined, 'turn-after-abort');
+						session.respondToPermissionRequest(consentReady(signals).toolCallId, true, { selectedOptionId: 'allow-once' });
+					}
+					const answer = await response;
+					results.push({ answer, settledBeforeNextTurn, pendingActions, rootConfigUpdates, extraActions: getActions(signals).slice(pendingActions.length).map(action => action.type) });
+				}
+				const denied = { kind: 'attributed', result: { kind: 'reject' }, decisionContext: { source: 'unattended_fallback', surface: 'sdk', outcome: 'autopilot_denied' } };
+				const allowed = { kind: 'attributed', result: { kind: 'approve-once' }, decisionContext: { source: 'human_response', surface: 'sdk', outcome: 'prompted_user', responseCapability: 'interactive' } };
+				const confirmation = [ActionType.ChatToolCallStart, ActionType.ChatToolCallReady];
+				const completed = [...confirmation, ActionType.ChatToolCallComplete];
+				assert.deepStrictEqual(results, [
+					{ answer: denied, settledBeforeNextTurn: true, pendingActions: [], rootConfigUpdates: [], extraActions: [] },
+					{ answer: denied, settledBeforeNextTurn: true, pendingActions: confirmation, rootConfigUpdates: [], extraActions: [] },
+					{ answer: denied, settledBeforeNextTurn: true, pendingActions: confirmation, rootConfigUpdates: [], extraActions: [] },
+					{ answer: allowed, settledBeforeNextTurn: false, pendingActions: [], rootConfigUpdates: [], extraActions: completed },
+					{ answer: allowed, settledBeforeNextTurn: false, pendingActions: [], rootConfigUpdates: [], extraActions: completed },
+				]);
+			});
+		});
+
 		suite('MCP sampling', () => {
 			const samplingData = {
 				requestId: 'sampling-1',
@@ -28175,7 +28324,6 @@ Use the attached image as context.
 				activeClientToolSet,
 				modelId: 'claude-opus-4.8',
 				...(autoApprove ? { configValues: { [SessionConfigKey.AutoApprove]: 'autoApprove' } } : {}),
-				rootValues: { [CopilotCliConfigKey.ToolSearchEnabled]: true },
 			});
 			if (autoApprove) {
 				await created.session.syncPermissionMode('turn-start');
@@ -28220,7 +28368,6 @@ Use the attached image as context.
 					}),
 				}),
 				rootValues: {
-					[CopilotCliConfigKey.ToolSearchEnabled]: true,
 					...(routingEnabled ? { [AgentHostMcpToolRoutingEnabledConfigKey]: true } : {}),
 				},
 				configureMockSession: mock => {
@@ -28629,7 +28776,6 @@ Use the attached image as context.
 				activeClientToolSet,
 				modelId: 'claude-opus-4.8',
 				rootValues: {
-					[CopilotCliConfigKey.ToolSearchEnabled]: true,
 					[AgentHostMcpToolRoutingEnabledConfigKey]: options.routingEnabled !== false,
 					[AgentHostMcpConnectorsEnabledConfigKey]: true,
 				},
@@ -29520,7 +29666,6 @@ Use the attached image as context.
 				clientSnapshot: toolSearchSnapshot,
 				activeClientToolSet,
 				modelId: 'claude-opus-4.8',
-				rootValues: { [CopilotCliConfigKey.ToolSearchEnabled]: true },
 			});
 			const override = runtime.createClientSdkTools(true).find(tool => tool.name === 'tool_search_tool')!;
 			activeClientToolSet.delete('tool-search-client');
@@ -29586,7 +29731,6 @@ Use the attached image as context.
 				clientSnapshot: toolSearchSnapshot,
 				activeClientToolSet,
 				modelId: 'claude-opus-4.8',
-				rootValues: { [CopilotCliConfigKey.ToolSearchEnabled]: true },
 			});
 			const override = runtime.createClientSdkTools(true).find(tool => tool.name === 'tool_search_tool')!;
 			const availableTools = [
@@ -29656,12 +29800,13 @@ Use the attached image as context.
 				clientSnapshot: toolSearchSnapshot,
 			});
 
+			const withDefer = (tools: readonly { name: string; defer?: string }[]) => tools.map(({ name, defer }) => ({ name, defer }));
 			assert.deepStrictEqual({
-				inactive: runtime.createClientSdkTools(false).map(tool => tool.name),
-				active: runtime.createClientSdkTools(true).map(tool => tool.name),
+				inactive: withDefer(runtime.createClientSdkTools(false)),
+				active: withDefer(runtime.createClientSdkTools(true)),
 			}, {
-				inactive: ['my_tool'],
-				active: ['tool_search_tool', 'my_tool'],
+				inactive: [{ name: 'my_tool', defer: undefined }],
+				active: [{ name: 'tool_search_tool', defer: 'never' }, { name: 'my_tool', defer: 'auto' }],
 			});
 		});
 

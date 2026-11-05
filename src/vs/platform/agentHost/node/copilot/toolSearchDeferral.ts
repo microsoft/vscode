@@ -15,6 +15,9 @@ export { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from
  */
 export const NON_DEFERRED_CLIENT_TOOL_NAMES: ReadonlySet<string> = new Set<string>([]);
 
+/** Tool count above which MCP and external tools are deferred behind tool search, so any extra tool defers. */
+export const TOOL_SEARCH_DEFER_THRESHOLD = 1;
+
 export interface IHostToolSearchResult {
 	readonly toolNames: readonly string[];
 	readonly textResultForLlm: string;

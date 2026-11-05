@@ -11,6 +11,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
+import { AgentHostClientConnectionKind } from '../../../../platform/agentHost/common/agentHostTelemetry.js';
 import { IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
 import { IRemoteAgentHostService } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -363,6 +364,7 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 					},
 					name,
 					hostLabel: this._getHostLabel(connection),
+					isRemotePty: connection.clientConnectionKind !== AgentHostClientConnectionKind.Local,
 					isFeatureTerminal: false,
 				},
 				location: options?.location,
@@ -427,6 +429,7 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 				},
 				icon: ThemeIcon.fromId(Codicon.chatSparkle.id),
 				hostLabel: this._getHostLabel(connection),
+				isRemotePty: connection.clientConnectionKind !== AgentHostClientConnectionKind.Local,
 				isFeatureTerminal: true,
 				hideFromUser: true,
 			},
