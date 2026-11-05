@@ -16,7 +16,7 @@ import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { getToolCallDurationMs, readToolCallMeta, toToolCallMeta, type IToolCallUiMeta, type ToolKind } from '../../common/meta/agentToolCallMeta.js';
 import { IFileEditRecord, ISessionDatabase, IToolResultResource, MAX_TOOL_RESULT_RESOURCE_BYTES } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, type ContentRef, type MessageAttachment } from '../../common/state/protocol/state.js';
-import { createErrorResponsePart, MessageKind, ResponsePartKind, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type AgentSelection, type ErrorInfo, type Message, type ModelSelection, type ResponsePart, type StringOrMarkdown, type TerminalCommandResult, type ToolCallCompletedState, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
+import { createErrorResponsePart, MessageKind, ResponsePartKind, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type AgentSelection, type ErrorInfo, type Message, type ModelSelection, type ResponsePart, type StringOrMarkdown, type TerminalCommandResult, type ToolCallCompletedState, type ToolResultContent, type ToolResultSubagentContent, type ToolResultTerminalContent, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { copilotSdkPathToUri, resolveCopilotSdkPath, type ICopilotSdkPathMapper } from './copilotWorkspace.js';
 import { CopilotToolName, getInvocationMessage, getPastTenseMessage, getSdkImageGenerationMetadata, getToolIntention, getShellLanguage, getSubagentMetadata, getPhaseTaskCompleteMarkdown, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolSummaryInputContract, isEditTool, isHiddenTool, isTaskCompleteTool, synthesizeSkillToolCall, type SkillToolCallResolver, type TaskCompletionReview, type ToolAgentNameResolver } from './copilotToolDisplay.js';
 import { imageGenerationToolMetaKey } from '../../common/meta/agentImageGenerationMeta.js';
@@ -1366,7 +1366,7 @@ function linkFusionPhaseChats(turns: Turn[], phaseTurns: ReadonlyMap<string, Tur
 	}));
 }
 
-/** Restores a tool call's recorded outcome, or marks it skipped when no completion was recorded. */
+/** Restores recorded outcomes; incomplete calls are skipped unless a recorded child proves execution started. */
 function makeToolCallPart(
 	toolCallId: string,
 	d: ToolExecutionCompleteData | undefined,
@@ -1418,10 +1418,24 @@ function makeToolCallPart(
 			ui: mcpUi,
 		}),
 	} satisfies Omit<ToolCallCompletedState, 'status' | 'success' | 'pastTenseMessage' | 'confirmed'>;
+	const subagentContent: ToolResultSubagentContent | undefined = subagent ? {
+		type: ToolResultContentType.Subagent,
+		resource: buildSubagentSessionUri(sessionUriStr, toolCallId),
+		title: subagent.agentDisplayName,
+		agentName: subagent.agentName,
+		description: subagent.agentDescription,
+	} : undefined;
 	if (!d) {
 		return {
 			kind: ResponsePartKind.ToolCall,
-			toolCall: { ...base, status: ToolCallStatus.Cancelled, reason: ToolCallCancellationReason.Skipped },
+			toolCall: subagentContent ? {
+				...base,
+				status: ToolCallStatus.Completed,
+				success: false,
+				pastTenseMessage: getPastTenseMessage(info.toolName, info.displayName, info.parameters, false),
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+				content: [subagentContent],
+			} : { ...base, status: ToolCallStatus.Cancelled, reason: ToolCallCancellationReason.Skipped },
 		};
 	}
 	const toolOutput = d.error?.message ?? d.result?.content;
@@ -1500,14 +1514,8 @@ function makeToolCallPart(
 		}
 	}
 
-	if (subagent) {
-		content.push({
-			type: ToolResultContentType.Subagent,
-			resource: buildSubagentSessionUri(sessionUriStr, d.toolCallId),
-			title: subagent.agentDisplayName,
-			agentName: subagent.agentName,
-			description: subagent.agentDescription,
-		});
+	if (subagentContent) {
+		content.push(subagentContent);
 	}
 
 	const tc: ToolCallCompletedState = {

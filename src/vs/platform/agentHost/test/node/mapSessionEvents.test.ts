@@ -2833,6 +2833,42 @@ suite('mapSessionEvents — subagent routing', () => {
 		return parts.map(p => p.kind === ResponsePartKind.Markdown ? { kind: p.kind, content: p.content } : { kind: p.kind });
 	}
 
+	test('retains interrupted subagent discovery and partial history without a tool completion', async () => {
+		const { turns, subagentTurnsByToolCallId } = await mapSessionEvents(session, undefined, toSessionEvents([
+			{ type: 'user.message', data: { content: 'Inspect the implementation' } },
+			{ type: 'assistant.message', data: { content: '', toolRequests: [{ toolCallId: 'task', name: 'task', arguments: { description: 'Inspect the implementation', agent_type: 'explore' } }] } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'task', toolName: 'task' } },
+			{ type: 'subagent.started', agentId: 'worker', data: { toolCallId: 'task', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explores' } },
+			{ type: 'user.message', agentId: 'worker', data: { content: 'Inspect the implementation' } },
+			{ type: 'assistant.message', agentId: 'worker', data: { content: 'Partial findings' } },
+			{ type: 'abort', data: { reason: 'user_initiated' } },
+		]));
+		assert.deepStrictEqual({
+			parentState: turns[0].state,
+			calls: turns.flatMap(turn => turn.responseParts.flatMap(part =>
+				part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed ? [{
+					status: part.toolCall.status,
+					success: part.toolCall.success,
+					content: part.toolCall.content,
+				}] : [])),
+			child: subagentTurnsByToolCallId.get('task')?.map(turn => ({ message: turn.message.text, parts: partKinds(turn.responseParts) })),
+		}, {
+			parentState: TurnState.Cancelled,
+			calls: [{
+				status: ToolCallStatus.Completed,
+				success: false,
+				content: [{
+					type: ToolResultContentType.Subagent,
+					resource: 'copilot:/test-session/subagent/task',
+					title: 'Explore',
+					agentName: 'explore',
+					description: 'Explores',
+				}],
+			}],
+			child: [{ message: 'Inspect the implementation', parts: [{ kind: ResponsePartKind.Markdown, content: 'Partial findings' }] }],
+		});
+	});
+
 	// The SDK migrated subagent correlation from the deprecated
 	// `data.parentToolCallId` to an envelope-level `agentId`. Newer session
 	// logs only carry `agentId`, so the replay path must route those events
