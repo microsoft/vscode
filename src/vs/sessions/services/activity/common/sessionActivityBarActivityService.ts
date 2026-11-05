@@ -5,7 +5,6 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IActivity } from '../../../../workbench/services/activity/common/activity.js';
 
@@ -65,5 +64,3 @@ export class SessionActivityBarActivityService extends Disposable implements ISe
 		return this._activities.get(commandId) ?? [];
 	}
 }
-
-registerSingleton(ISessionActivityBarActivityService, SessionActivityBarActivityService, InstantiationType.Delayed);

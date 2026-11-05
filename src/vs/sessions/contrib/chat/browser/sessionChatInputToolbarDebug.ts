@@ -15,7 +15,6 @@ import { Categories } from '../../../../platform/action/common/actionCommonCateg
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
-import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { createDecorator, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
@@ -80,7 +79,7 @@ export function isNonNegativeIntegerInput(raw: string): boolean {
 	return Number.isInteger(parsed) && parsed >= 0;
 }
 
-class SessionChatPillsDebugService extends Disposable implements ISessionChatPillsDebugService {
+export class SessionChatPillsDebugService extends Disposable implements ISessionChatPillsDebugService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -341,5 +340,3 @@ class SessionChatPillsDebugService extends Disposable implements ISessionChatPil
 		this._availableContext.set(!!toolbar);
 	}
 }
-
-registerSingleton(ISessionChatPillsDebugService, SessionChatPillsDebugService, InstantiationType.Delayed);

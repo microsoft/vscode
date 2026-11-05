@@ -5,7 +5,6 @@
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { derived, IObservable, observableSignalFromEvent } from '../../../../base/common/observable.js';
-import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IAgentHostCustomizationService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { getEffectiveMcpServerCount } from '../../../../workbench/contrib/chat/browser/aiCustomization/mcpServerCount.js';
@@ -46,5 +45,3 @@ export class AICustomizationMcpServerCountService extends Disposable implements 
 		});
 	}
 }
-
-registerSingleton(IAICustomizationMcpServerCountService, AICustomizationMcpServerCountService, InstantiationType.Delayed);

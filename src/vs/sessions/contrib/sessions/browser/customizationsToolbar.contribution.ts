@@ -33,7 +33,8 @@ import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat
 import { ISession } from '../../../../workbench/contrib/sessions/common/session.js';
 import { IFocusedSessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { SessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { IAICustomizationMcpServerCountService } from './customizationMcpServerCount.js';
+import { AICustomizationMcpServerCountService, IAICustomizationMcpServerCountService } from './customizationMcpServerCount.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IOpenAICustomizationsCommandOptions, OPEN_AI_CUSTOMIZATIONS_COMMAND_ID } from './customizationsConstants.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { getExtensionSuggestionsBadgeDescription, IAgentsWindowExtensionSuggestionsService } from '../../extensions/browser/agentsWindowExtensionSuggestions.js';
@@ -330,6 +331,8 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 		}
 	}
 }
+
+registerSingleton(IAICustomizationMcpServerCountService, AICustomizationMcpServerCountService, InstantiationType.Delayed);
 
 registerWorkbenchContribution2(CustomizationsToolbarContribution.ID, CustomizationsToolbarContribution, WorkbenchPhase.AfterRestored);
 

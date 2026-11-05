@@ -13,7 +13,6 @@ import { CompletionItem, CompletionItemKind, CompletionList } from '../../../../
 import { ITextModel } from '../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
 import { localize } from '../../../../nls.js';
-import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { IChatWidget } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { ChatDynamicVariableModel } from '../../../../workbench/contrib/chat/browser/attachments/chatDynamicVariables.js';
 import { getCopilotCliSessionRawId } from '../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
@@ -28,16 +27,17 @@ const SESSION_TOKEN = 'session';
 const VARIABLE_WORD_PATTERN = /#[^\s]*/g;
 
 /** Run when a `#session` completion is accepted: adds the inline reference to the input. */
-const ADD_SESSION_REFERENCE_COMMAND = 'sessions.chat.addSessionReference';
+export const ADD_SESSION_REFERENCE_COMMAND = 'sessions.chat.addSessionReference';
 
-interface IAddSessionReferenceArgs {
+export interface IAddSessionReferenceArgs {
 	readonly widget: IChatWidget;
 	readonly reference: IDynamicVariable;
 }
 
-CommandsRegistry.registerCommand(ADD_SESSION_REFERENCE_COMMAND, (_accessor, args: IAddSessionReferenceArgs) => {
+/** Handles {@link ADD_SESSION_REFERENCE_COMMAND}: adds the accepted inline reference to the input. */
+export function addSessionReference(args: IAddSessionReferenceArgs): void {
 	args.widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.addReference(args.reference);
-});
+}
 
 /**
  * Provides `#session` completions in an Agents window composer: one item per

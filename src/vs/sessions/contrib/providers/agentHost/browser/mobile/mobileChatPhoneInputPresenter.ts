@@ -13,7 +13,7 @@ import { IContextKeyService } from '../../../../../../platform/contextkey/common
 import { observableContextKey } from '../../../../../../platform/observable/common/platformObservableUtils.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../../workbench/common/contributions.js';
+import { IWorkbenchContribution } from '../../../../../../workbench/common/contributions.js';
 import { IToggleChatModeArgs, ToggleAgentModeActionId } from '../../../../../../workbench/contrib/chat/browser/actions/chatExecuteActions.js';
 import { ChatPetAchievementIds, didExplicitlyEnableChatPetAutopilot } from '../../../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
 import { IChatPetService } from '../../../../../../workbench/contrib/chat/browser/chatPetService.js';
@@ -278,7 +278,7 @@ class MobileChatPhoneInputPresenter extends Disposable implements IChatPhonePres
 	}
 }
 
-class MobileChatPhoneInputPresenterContribution extends Disposable implements IWorkbenchContribution {
+export class MobileChatPhoneInputPresenterContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'sessions.contrib.mobileChatPhoneInputPresenter';
 
@@ -299,9 +299,3 @@ class MobileChatPhoneInputPresenterContribution extends Disposable implements IW
 		this._registration.value = presenter.setImpl(impl);
 	}
 }
-
-registerWorkbenchContribution2(
-	MobileChatPhoneInputPresenterContribution.ID,
-	MobileChatPhoneInputPresenterContribution,
-	WorkbenchPhase.AfterRestored,
-);

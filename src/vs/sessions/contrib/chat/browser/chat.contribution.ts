@@ -13,7 +13,8 @@ import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../plat
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -38,7 +39,7 @@ import './agentHostDelegation.js';
 import './newSessionFolderQuickPickAction.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { INewSessionComposerService, NewSessionComposerService } from '../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
-import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ISessionsTasksService, SessionsTasksService } from './sessionsTasksService.js';
 import { ISessionTaskRunnerRegistry, SessionTaskRunnerRegistry } from './sessionTaskRunner.js';
 import { RegisterDefaultSessionTaskRunnersContribution } from './registerDefaultSessionTaskRunners.js';
@@ -86,6 +87,10 @@ import { sessionStorageCleanupSuggestionConfigurationMigration } from '../../ses
 import { AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING, ISessionWorktreeCleanupService, MANAGE_AGENT_SESSION_WORKTREES_COMMAND_ID, SessionWorktreeCleanupService } from '../../sessionInputBanners/browser/sessionWorktreeCleanupService.js';
 import { SessionWorktreeCleanupEditorInput } from '../../sessionInputBanners/browser/sessionWorktreeCleanupEditorInput.js';
 import { SessionWorktreeCleanupEditor } from '../../sessionInputBanners/browser/sessionWorktreeCleanupEditor.js';
+import { INewChatVoiceTargetService, NewChatVoiceTargetService } from './newChatVoice.js';
+import { ISessionChatPillsDebugService, SessionChatPillsDebugService } from './sessionChatInputToolbarDebug.js';
+import { ADD_SESSION_REFERENCE_COMMAND, addSessionReference, IAddSessionReferenceArgs } from './sessionReferenceCompletions.js';
+import { PromptTemplatePlaceholderFocused, REPLACE_PROMPT_TEMPLATE_PLACEHOLDER_COMMAND_ID, replaceActivePromptTemplatePlaceholder } from './promptTemplatePlaceholder.js';
 
 const CHANGE_AGENT_SESSIONS_CHAT_BACKGROUND_COMMAND_ID = 'workbench.action.chat.changeAgentSessionsBackground';
 const CHANGE_AGENT_SESSIONS_CHAT_BACKGROUND_LAYOUT_COMMAND_ID = 'workbench.action.chat.changeAgentSessionsBackgroundLayout';
@@ -689,6 +694,18 @@ registerWorkbenchContribution2(AgentHostSandboxNotifications.ID, AgentHostSandbo
 registerSingleton(IPromptsService, AgenticPromptsService, InstantiationType.Delayed);
 registerSingleton(ISessionTaskRunnerRegistry, SessionTaskRunnerRegistry, InstantiationType.Delayed);
 registerSingleton(ISessionsTasksService, SessionsTasksService, InstantiationType.Delayed);
+registerSingleton(INewChatVoiceTargetService, NewChatVoiceTargetService, InstantiationType.Delayed);
+registerSingleton(ISessionChatPillsDebugService, SessionChatPillsDebugService, InstantiationType.Delayed);
+
+CommandsRegistry.registerCommand(ADD_SESSION_REFERENCE_COMMAND, (_accessor, args: IAddSessionReferenceArgs) => addSessionReference(args));
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: REPLACE_PROMPT_TEMPLATE_PLACEHOLDER_COMMAND_ID,
+	weight: KeybindingWeight.WorkbenchContrib + 2,
+	when: PromptTemplatePlaceholderFocused,
+	primary: KeyCode.Enter,
+	handler: () => replaceActivePromptTemplatePlaceholder(),
+});
 registerSingleton(IAICustomizationWorkspaceService, SessionsAICustomizationWorkspaceService, InstantiationType.Delayed);
 registerSingleton(ICustomizationHarnessService, SessionsCustomizationHarnessService, InstantiationType.Delayed);
 registerSingleton(IChatViewFactory, ChatViewFactory, InstantiationType.Delayed);

@@ -11,13 +11,13 @@ import { Disposable, DisposableMap, DisposableStore } from '../../../../../../ba
 import { autorun, IObservable, observableSignalFromEvent } from '../../../../../../base/common/observable.js';
 import { localize, localize2 } from '../../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../../platform/actions/browser/actionViewItemService.js';
-import { Action2, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
+import { Action2 } from '../../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../../workbench/common/contributions.js';
+import { IWorkbenchContribution } from '../../../../../../workbench/common/contributions.js';
 import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { type ILanguageModelChatMetadataAndIdentifier } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IChatPhoneInputPresenter } from '../../../../../../workbench/contrib/chat/browser/widget/input/chatPhoneInputPresenter.js';
@@ -349,7 +349,7 @@ class MobileChatInputConfigPicker extends Disposable {
  * Order matches the existing desktop mode picker (0) so the button lands
  * in the same toolbar slot.
  */
-registerAction2(class extends Action2 {
+export class MobileChatInputConfigPickerAction extends Action2 {
 	constructor() {
 		super({
 			id: MOBILE_CHAT_INPUT_CONFIG_PICKER_ID,
@@ -369,7 +369,7 @@ registerAction2(class extends Action2 {
 		});
 	}
 	override async run(): Promise<void> { }
-});
+}
 
 /**
  * Workbench contribution that wires the {@link MobileChatInputConfigPicker}
@@ -379,7 +379,7 @@ registerAction2(class extends Action2 {
  * desktop, the existing mode and sessions-core model picker registrations
  * provide the toolbar items as before.
  */
-class MobileChatInputConfigPickerContribution extends Disposable implements IWorkbenchContribution {
+export class MobileChatInputConfigPickerContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'sessions.contrib.mobileChatInputConfigPicker';
 
@@ -433,5 +433,3 @@ class MobileChatInputConfigPickerActionViewItem extends BaseActionViewItem {
 		super.dispose();
 	}
 }
-
-registerWorkbenchContribution2(MobileChatInputConfigPickerContribution.ID, MobileChatInputConfigPickerContribution, WorkbenchPhase.AfterRestored);

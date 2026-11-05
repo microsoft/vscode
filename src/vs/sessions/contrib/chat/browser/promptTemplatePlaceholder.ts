@@ -4,26 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { ICodeEditor, MouseTargetType } from '../../../../editor/browser/editorBrowser.js';
 import { Position } from '../../../../editor/common/core/position.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
 import { IEditorDecorationsCollection } from '../../../../editor/common/editorCommon.js';
 import { localize } from '../../../../nls.js';
 import { IContextKey, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 
 export const REPLACE_PROMPT_TEMPLATE_PLACEHOLDER_COMMAND_ID = 'sessions.chat.replacePromptTemplatePlaceholder';
-const PromptTemplatePlaceholderFocused = new RawContextKey<boolean>('sessionsPromptTemplatePlaceholderFocused', false, localize('sessionsPromptTemplatePlaceholderFocused', "Whether the caret is inside an editable prompt template placeholder."));
+export const PromptTemplatePlaceholderFocused = new RawContextKey<boolean>('sessionsPromptTemplatePlaceholderFocused', false, localize('sessionsPromptTemplatePlaceholderFocused', "Whether the caret is inside an editable prompt template placeholder."));
 let activePromptTemplatePlaceholderController: PromptTemplatePlaceholderController | undefined;
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: REPLACE_PROMPT_TEMPLATE_PLACEHOLDER_COMMAND_ID,
-	weight: KeybindingWeight.WorkbenchContrib + 2,
-	when: PromptTemplatePlaceholderFocused,
-	primary: KeyCode.Enter,
-	handler: () => activePromptTemplatePlaceholderController?.replaceAtCursor(),
-});
+/** Replaces the placeholder under the caret of the focused prompt template editor, if any. */
+export function replaceActivePromptTemplatePlaceholder(): void {
+	activePromptTemplatePlaceholderController?.replaceAtCursor();
+}
 
 /** Highlights and replaces the editable task placeholder in an onboarding prompt. */
 export class PromptTemplatePlaceholderController extends Disposable {

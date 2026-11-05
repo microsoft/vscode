@@ -5,7 +5,6 @@
 
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { derived, IObservable, ITransaction, observableValue } from '../../../../base/common/observable.js';
-import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ICustomViewDescriptor, ICustomViewService, ICustomViewOpenRequest } from '../../../../workbench/contrib/sessions/browser/customView.js';
@@ -78,5 +77,3 @@ export class CustomViewService extends Disposable implements ICustomViewService 
 		this._activeCustomViewOpen.set(undefined, tx);
 	}
 }
-
-registerSingleton(ICustomViewService, CustomViewService, InstantiationType.Delayed);

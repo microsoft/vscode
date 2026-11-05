@@ -12,7 +12,7 @@ import { IActionViewItemService } from '../../../../../platform/actions/browser/
 import { MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { getAgentHostChatId, isAhpChatChannel, parseSubagentSessionUri } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
+import { IWorkbenchContribution } from '../../../../../workbench/common/contributions.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { IOpenSubagentChatContext, OpenSubagentChatActionViewItem, shouldShowSubagentModel, subagentChatOpenerRegistry } from '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatSubagentOpenChat.js';
 import { fillSessionChatDragData } from '../../../../browser/dnd.js';
@@ -172,5 +172,3 @@ export class OpenSubagentChatActionViewItemContribution extends Disposable imple
 		onDidRegister.fire();
 	}
 }
-
-registerWorkbenchContribution2(OpenSubagentChatActionViewItemContribution.ID, OpenSubagentChatActionViewItemContribution, WorkbenchPhase.BlockStartup);

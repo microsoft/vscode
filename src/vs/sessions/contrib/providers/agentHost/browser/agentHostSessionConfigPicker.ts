@@ -24,7 +24,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { IActionViewItemService, type IActionViewItemFactory } from '../../../../../platform/actions/browser/actionViewItemService.js';
-import { Action2, MenuId, MenuItemAction, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, MenuItemAction, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -45,7 +45,7 @@ import { ChatConfiguration, ChatPermissionLevel, isChatPermissionLevel } from '.
 import { maybeConfirmElevatedPermissionLevel } from '../../../../../workbench/contrib/chat/common/chatPermissionWarnings.js';
 import { ChatContextKeyExprs, ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { markOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
-import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
+import { IWorkbenchContribution } from '../../../../../workbench/common/contributions.js';
 import { type IChatInputPickerOptions } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
 import { IChatInputPickerResponsiveState } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerResponsiveLayout.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
@@ -2266,7 +2266,7 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 
 const NEW_SESSION_APPROVE_PICKER_ID = 'sessions.agentHost.newSessionApprovePicker';
 
-registerAction2(class extends Action2 {
+export class NewSessionApprovePickerAction extends Action2 {
 	constructor() {
 		super({
 			id: NEW_SESSION_APPROVE_PICKER_ID,
@@ -2282,11 +2282,11 @@ registerAction2(class extends Action2 {
 	}
 
 	override async run(): Promise<void> { }
-});
+}
 
 const NEW_SESSION_PERMISSION_MODE_PICKER_ID = 'sessions.agentHost.newSessionPermissionModePicker';
 
-registerAction2(class extends Action2 {
+export class NewSessionPermissionModePickerAction extends Action2 {
 	constructor() {
 		super({
 			id: NEW_SESSION_PERMISSION_MODE_PICKER_ID,
@@ -2302,7 +2302,7 @@ registerAction2(class extends Action2 {
 	}
 
 	override async run(): Promise<void> { }
-});
+}
 
 // ---- New session Codex approvals picker (NewSessionControl) ----
 // Codex-specific "Approvals" chip. Shares the NewSessionControl navigation
@@ -2312,7 +2312,7 @@ registerAction2(class extends Action2 {
 
 const NEW_SESSION_CODEX_APPROVALS_PICKER_ID = 'sessions.agentHost.newSessionCodexApprovalsPicker';
 
-registerAction2(class extends Action2 {
+export class NewSessionCodexApprovalsPickerAction extends Action2 {
 	constructor() {
 		super({
 			id: NEW_SESSION_CODEX_APPROVALS_PICKER_ID,
@@ -2328,13 +2328,13 @@ registerAction2(class extends Action2 {
 	}
 
 	override async run(): Promise<void> { }
-});
+}
 
 // ---- New session mode picker (NewSessionControl) ----
 
 const NEW_SESSION_MODE_PICKER_ID = 'sessions.agentHost.newSessionModePicker';
 
-registerAction2(class extends Action2 {
+export class NewSessionModePickerAction extends Action2 {
 	constructor() {
 		super({
 			id: NEW_SESSION_MODE_PICKER_ID,
@@ -2356,14 +2356,14 @@ registerAction2(class extends Action2 {
 	}
 
 	override async run(): Promise<void> { }
-});
+}
 
 
 // ---- Running session config picker ----
 
 const RUNNING_SESSION_CONFIG_PICKER_ID = 'sessions.agentHost.runningSessionConfigPicker';
 
-registerAction2(class extends Action2 {
+export class RunningSessionConfigPickerAction extends Action2 {
 	constructor() {
 		super({
 			id: RUNNING_SESSION_CONFIG_PICKER_ID,
@@ -2384,11 +2384,11 @@ registerAction2(class extends Action2 {
 	}
 
 	override async run(): Promise<void> { }
-});
+}
 
 const RUNNING_SESSION_PERMISSION_MODE_PICKER_ID = 'sessions.agentHost.runningSessionPermissionModePicker';
 
-registerAction2(class extends Action2 {
+export class RunningSessionPermissionModePickerAction extends Action2 {
 	constructor() {
 		super({
 			id: RUNNING_SESSION_PERMISSION_MODE_PICKER_ID,
@@ -2409,7 +2409,7 @@ registerAction2(class extends Action2 {
 	}
 
 	override async run(): Promise<void> { }
-});
+}
 
 // ---- Running session Codex approvals picker ----
 // Codex-specific "Approvals" chip for a running session. Mutually exclusive
@@ -2418,7 +2418,7 @@ registerAction2(class extends Action2 {
 
 const RUNNING_SESSION_CODEX_APPROVALS_PICKER_ID = 'sessions.agentHost.runningSessionCodexApprovalsPicker';
 
-registerAction2(class extends Action2 {
+export class RunningSessionCodexApprovalsPickerAction extends Action2 {
 	constructor() {
 		super({
 			id: RUNNING_SESSION_CODEX_APPROVALS_PICKER_ID,
@@ -2439,14 +2439,14 @@ registerAction2(class extends Action2 {
 	}
 
 	override async run(): Promise<void> { }
-});
+}
 
 
 // ---- Running session mode picker (before approvals) ----
 
 const RUNNING_SESSION_MODE_PICKER_ID = 'sessions.agentHost.runningSessionModePicker';
 
-registerAction2(class extends Action2 {
+export class RunningSessionModePickerAction extends Action2 {
 	constructor() {
 		super({
 			id: RUNNING_SESSION_MODE_PICKER_ID,
@@ -2480,7 +2480,5 @@ registerAction2(class extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		showActiveSessionModePicker(accessor);
 	}
-});
+}
 
-
-registerWorkbenchContribution2(AgentHostSessionConfigPickerContribution.ID, AgentHostSessionConfigPickerContribution, WorkbenchPhase.AfterRestored);
