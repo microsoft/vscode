@@ -15,7 +15,7 @@
 //   group-name           = "user." <uid> "." "env." <eid> "." lane
 //   per-client-lane      = "client." <cid> "." direction
 //   direction            = "broadcast" | "to-host" | "to-client"
-//   per-environment-lane = "root" | "events" | "lifecycle" | "control" | "ingest-ack"
+//   per-environment-lane = "root" | "events" | "lifecycle" | "control" | "ingest-ack" | "clients"
 //
 // Identifier segments are opaque and restricted to ASCII letters, digits,
 // underscores, and hyphens. The total group name must fit in
@@ -25,7 +25,7 @@
 export const MAX_GROUP_NAME_BYTES = 256;
 
 /** Per-environment lane suffixes — the complete lane catalogue for env lanes. */
-export type EnvLane = 'root' | 'events' | 'lifecycle' | 'control' | 'ingest-ack';
+export type EnvLane = 'root' | 'events' | 'lifecycle' | 'control' | 'ingest-ack' | 'clients';
 
 /** Per-client lane discriminator. */
 export type ClientLaneKind = 'broadcast' | 'to-host' | 'to-client';
@@ -147,7 +147,8 @@ export function parseGroupName(name: string, options: ParseGroupNameOptions = {}
 		envLane !== 'events' &&
 		envLane !== 'lifecycle' &&
 		envLane !== 'control' &&
-		envLane !== 'ingest-ack'
+		envLane !== 'ingest-ack' &&
+		envLane !== 'clients'
 	) {
 		throw new GroupNameError(`unknown env lane '${envLane}'`);
 	}

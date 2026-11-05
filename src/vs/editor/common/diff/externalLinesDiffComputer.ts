@@ -15,8 +15,6 @@ import { lineRangeMappingFromRangeMappings, LineRangeMapping, RangeMapping } fro
 type ExternalDiffModule = { createDiffComputer: typeof createExternalDiffComputer };
 
 let externalModulePromise: Promise<ExternalDiffModule> | undefined;
-let externalDiffComputerPromise: Promise<IExternalDiffComputer> | undefined;
-let externalWasmDiffComputerPromise: Promise<IExternalDiffComputer> | undefined;
 
 function loadExternalModule(): Promise<ExternalDiffModule> {
 	if (!externalModulePromise) {
@@ -27,24 +25,24 @@ function loadExternalModule(): Promise<ExternalDiffModule> {
 	return externalModulePromise;
 }
 
-function loadExternalComputer(useWasm: boolean): Promise<IExternalDiffComputer> {
-	if (useWasm) {
-		if (!externalWasmDiffComputerPromise) {
-			externalWasmDiffComputerPromise = loadExternalModule().then(m => m.createDiffComputer({ useWasm: true }));
-		}
-		return externalWasmDiffComputerPromise;
+const externalComputers = new Map<boolean, Promise<ILinesDiffComputer>>();
+
+export function getExternalLinesDiffComputer(useWasm: boolean): Promise<ILinesDiffComputer> {
+	let computer = externalComputers.get(useWasm);
+	if (!computer) {
+		computer = loadExternalModule().then(m => createExternalLinesDiffComputer(m, useWasm));
+		externalComputers.set(useWasm, computer);
 	}
-	if (!externalDiffComputerPromise) {
-		externalDiffComputerPromise = loadExternalModule().then(m => m.createDiffComputer({ useWasm: false }));
-	}
-	return externalDiffComputerPromise;
+	return computer;
 }
 
-export async function getExternalLinesDiffComputer(useWasm: boolean): Promise<ILinesDiffComputer> {
-	const computer = await loadExternalComputer(useWasm);
-	return new ExternalLinesDiffComputer(computer);
+export async function createExternalLinesDiffComputer(externalModule: ExternalDiffModule, useWasm: boolean): Promise<ILinesDiffComputer> {
+	return new ExternalLinesDiffComputer(await externalModule.createDiffComputer({ useWasm }));
 }
 
+/**
+ * Adapts the offset-based string edit of `@vscode/diff` to line range mappings.
+ */
 class ExternalLinesDiffComputer implements ILinesDiffComputer {
 	constructor(private readonly _computer: IExternalDiffComputer) { }
 
@@ -54,12 +52,10 @@ class ExternalLinesDiffComputer implements ILinesDiffComputer {
 		const originalText = new StringText(originalLines.join('\n'));
 		const modifiedText = new StringText(modifiedLines.join('\n'));
 
+		// The edit always contains whitespace changes, so it reproduces the modified text.
+		// Ignoring trim whitespace only hides the replacements annotated as such.
 		const result = this._computer.computeDiff(originalText.value, modifiedText.value, {
-			// TODO: this currently throws
-			ignoreTrimWhitespace: true,
-			// ignoreTrimWhitespace: options.ignoreTrimWhitespace,
-			// TODO: support this. Currently throws with "Time is not implemented in this environment."
-			// maxComputationTimeMs: options.maxComputationTimeMs,
+			maxComputationTimeMs: options.maxComputationTimeMs,
 			computeMoves: options.computeMoves,
 			extendToSubwords: options.extendToSubwords,
 		});
@@ -70,12 +66,14 @@ class ExternalLinesDiffComputer implements ILinesDiffComputer {
 		const rangeMappings: RangeMapping[] = [];
 		let delta = 0;
 		for (const r of result.edits.replacements) {
-			const modifiedStart = r.range.start + delta;
-			const modifiedEndExclusive = modifiedStart + r.newText.length;
-			const originalRange = originalTransformer.getRange(new OffsetRange(r.range.start, r.range.endExclusive));
-			const modifiedRange = modifiedTransformer.getRange(new OffsetRange(modifiedStart, modifiedEndExclusive));
-			rangeMappings.push(new RangeMapping(originalRange, modifiedRange));
-			delta += r.newText.length - (r.range.endExclusive - r.range.start);
+			const originalRange = new OffsetRange(r.range.start, r.range.endExclusive);
+			const modifiedRange = new OffsetRange(r.range.start + delta, r.range.start + delta + r.newText.length);
+			delta += r.newText.length - originalRange.length;
+
+			if (options.ignoreTrimWhitespace && r.data.isTrimWhitespaceChange) {
+				continue;
+			}
+			rangeMappings.push(new RangeMapping(originalTransformer.getRange(originalRange), modifiedTransformer.getRange(modifiedRange)));
 		}
 
 		const changes = lineRangeMappingFromRangeMappings(rangeMappings, originalText, modifiedText);

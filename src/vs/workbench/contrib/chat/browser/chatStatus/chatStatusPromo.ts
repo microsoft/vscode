@@ -8,20 +8,27 @@ import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { equals } from '../../../../../base/common/objects.js';
+import { autorun } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
+import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { isCopilotAgentHostSessionType } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService, isConfigured } from '../../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IManagedSettingsService, requiresCopilotAgentHost } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
+import { IAccountPolicyGateService, whenAccountPolicySettled } from '../../../../services/policies/common/accountPolicyService.js';
 import { ITooltipWithCommands } from '../../../../services/statusbar/browser/statusbar.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { localChatSessionType } from '../../common/chatSessionsService.js';
-import { ChatClosedPromoNotification, ChatConfiguration } from '../../common/constants.js';
+import { IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
+import { CHAT_USER_SELECTED_SESSION_TYPE_STORAGE_KEY } from '../../common/chatSessionTypePreference.js';
+import { ChatClosedPromoNotification, ChatConfiguration, getDefaultNewChatSessionTypeAndReasonFromServices } from '../../common/constants.js';
 import { COPILOT_VENDOR_ID, ILanguageModelChatMetadata, ILanguageModelsService } from '../../common/languageModels.js';
-import { getChatSessionType } from '../../common/model/chatUri.js';
+import { getChatSessionType, getNewChatSessionResource } from '../../common/model/chatUri.js';
 import { ChatViewId, IChatWidgetService, isIChatViewViewContext } from '../chat.js';
 import { DISMISSED_PROMOS_STORAGE_KEY, SEEN_PROMOS_STORAGE_KEY } from '../chatPromoNotification.js';
 import { addDismissedNotificationId, readDismissedNotificationIds } from '../widget/input/chatInputNotificationService.js';
@@ -30,6 +37,11 @@ import type { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
 
 const TRY_MODEL_COMMAND_ID = '_chat.tryPromoModel';
 const TREATMENT = `config.${ChatConfiguration.ChatClosedPromoNotification}`;
+
+function isCopilotPromoVendor(metadata: ILanguageModelChatMetadata): boolean {
+	return !metadata.vendor || metadata.vendor === COPILOT_VENDOR_ID
+		|| (metadata.vendor === metadata.targetChatSessionType && isCopilotAgentHostSessionType(metadata.vendor));
+}
 
 type PromoTelemetry = { promoId: string };
 type PromoClassification = {
@@ -44,7 +56,7 @@ type PromoActionClassification = PromoClassification & {
 
 interface IPromo {
 	readonly id: string;
-	readonly modelIdentifier: string;
+	readonly modelId: string;
 	readonly modelName: string;
 	readonly message: string;
 	readonly description: string | undefined;
@@ -62,6 +74,7 @@ export class ChatStatusPromo extends Disposable {
 	private promo: IPromo | undefined;
 	private tooltip: ITooltipWithCommands | undefined;
 	private readonly shownPromos = new Set<string>();
+	private readonly armedPromos = new Set<string>();
 
 	constructor(
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
@@ -73,12 +86,23 @@ export class ChatStatusPromo extends Disposable {
 		@ILogService private readonly logService: ILogService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IAgentHostEnablementService private readonly agentHostEnablementService: IAgentHostEnablementService,
+		@IManagedSettingsService private readonly managedSettingsService: IManagedSettingsService,
+		@IAccountPolicyGateService private readonly accountPolicyGateService: IAccountPolicyGateService,
 	) {
 		super();
 		this._register(this.languageModelsService.onDidChangeLanguageModels(() => this._onDidChange.fire()));
 		for (const key of [DISMISSED_PROMOS_STORAGE_KEY, SEEN_PROMOS_STORAGE_KEY]) {
 			this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, key, this._store)(() => this._onDidChange.fire()));
 		}
+		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, CHAT_USER_SELECTED_SESSION_TYPE_STORAGE_KEY, this._store)(() => this._onDidChange.fire()));
+		this._register(autorun(reader => {
+			this.agentHostEnablementService.enabled.read(reader);
+			this.agentHostEnablementService.managedSandboxEnforced.read(reader);
+			this._onDidChange.fire();
+		}));
 		this._register(this.viewsService.onDidChangeViewVisibility(e => {
 			if (e.id === ChatViewId) {
 				this._onDidChange.fire();
@@ -87,17 +111,18 @@ export class ChatStatusPromo extends Disposable {
 		this._register(Event.any(this.chatWidgetService.onDidAddWidget, this.chatWidgetService.onDidRemoveWidget)(() => this.trackChatView()));
 		this.trackChatView();
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.ChatClosedPromoNotification)) {
+			if (e.affectsConfiguration(ChatConfiguration.ChatClosedPromoNotification) || e.affectsConfiguration('chat')) {
 				this._onDidChange.fire();
 			}
 		}));
+		this._register(this.managedSettingsService.onDidChangeManagedSettings(() => this._onDidChange.fire()));
 		this._register(this.assignmentService.onDidRefetchAssignments(() => {
 			this.generation++;
 			this.pending = false;
 			this.treatment = undefined;
 			this._onDidChange.fire();
 		}));
-		this._register(CommandsRegistry.registerCommand(TRY_MODEL_COMMAND_ID, async (_accessor, modelIdentifier: string, promoId: string) => {
+		this._register(CommandsRegistry.registerCommand(TRY_MODEL_COMMAND_ID, async (_accessor, modelId: string, promoId: string) => {
 			this.telemetryService.publicLog2<PromoActionTelemetry, PromoActionClassification>('chatPromoWidgetAction', { promoId, action: 'tryModel' });
 			// Close the offer first; otherwise the pinned hover re-renders with the dashboard once the offer is withdrawn.
 			this.hoverService.hideHover(true);
@@ -106,11 +131,29 @@ export class ChatStatusPromo extends Disposable {
 				throw new Error(localize('chat.promo.openFailed', "Unable to open Chat to try this model."));
 			}
 			await view.whenSessionRestored();
-			const resource = view.widget.viewModel?.sessionResource;
-			if (!resource || getChatSessionType(resource) !== localChatSessionType) {
-				await view.startNewLocalSession();
+			await whenAccountPolicySettled(this.accountPolicyGateService);
+			if (this._store.isDisposed) {
+				return;
 			}
-			if (!view.widget.input.switchModelByIdentifier(modelIdentifier, true, true) && !await view.widget.input.requestModelByIdentifier(modelIdentifier)) {
+			const resource = view.widget.viewModel?.sessionResource;
+			const currentType = resource && getChatSessionType(resource);
+			const managedRequiresAgentHost = requiresCopilotAgentHost(this.managedSettingsService, this.configurationService);
+			let modelIdentifier = currentType && !(managedRequiresAgentHost && currentType === localChatSessionType)
+				? this.findPromoModel(currentType, modelId, promoId) : undefined;
+			if (!modelIdentifier) {
+				const { sessionType, selectionReason } = this.resolveDefaultSessionType();
+				if (!this.findPromoModel(sessionType, modelId, promoId)) {
+					throw new Error(localize('chat.promo.modelUnavailable', "The promoted model is no longer available."));
+				}
+				await view.loadSession(getNewChatSessionResource(sessionType), selectionReason);
+				if (this._store.isDisposed) {
+					return;
+				}
+				const shownResource = view.widget.viewModel?.sessionResource;
+				modelIdentifier = shownResource && getChatSessionType(shownResource) === sessionType
+					? this.findPromoModel(sessionType, modelId, promoId) : undefined;
+			}
+			if (!modelIdentifier || (!view.widget.input.switchModelByIdentifier(modelIdentifier, true, true) && !await view.widget.input.requestModelByIdentifier(modelIdentifier))) {
 				throw new Error(localize('chat.promo.modelUnavailable', "The promoted model is no longer available."));
 			}
 			addDismissedNotificationId(this.storageService, DISMISSED_PROMOS_STORAGE_KEY, promoId);
@@ -143,7 +186,7 @@ export class ChatStatusPromo extends Disposable {
 						return content;
 					},
 				},
-				commands: [{ id: TRY_MODEL_COMMAND_ID, title: localize('chat.promo.tryModel', "Try {0}", promo.modelName), arguments: [promo.modelIdentifier, promo.id] }],
+				commands: [{ id: TRY_MODEL_COMMAND_ID, title: localize('chat.promo.tryModel', "Try {0}", promo.modelName), arguments: [promo.modelId, promo.id] }],
 				onDidShow: () => {
 					if (!this.shownPromos.has(promo.id)) {
 						this.shownPromos.add(promo.id);
@@ -153,8 +196,13 @@ export class ChatStatusPromo extends Disposable {
 				},
 			};
 		}
+		const showPip = !this.shownPromos.has(promo.id);
+		if (showPip && !this.armedPromos.has(promo.id)) {
+			this.armedPromos.add(promo.id);
+			this.telemetryService.publicLog2<PromoTelemetry, PromoClassification>('chatPromoWidgetArmed', { promoId: promo.id });
+		}
 		return {
-			showPip: !this.shownPromos.has(promo.id),
+			showPip,
 			ariaLabel: localize('chat.promo.pipAria', "{0}. Open the sale offer.", promo.message),
 			tooltip: this.tooltip,
 		};
@@ -167,9 +215,10 @@ export class ChatStatusPromo extends Disposable {
 	}
 
 	private getOpportunity(): IPromo | undefined {
+		const sessionType = this.resolveDefaultSessionType().sessionType;
 		if (this.viewsService.isViewVisible(ChatViewId)) {
 			const resource = this.viewsService.getViewWithId<ChatViewPane>(ChatViewId)?.widget?.viewModel?.sessionResource;
-			if (!resource || getChatSessionType(resource) === localChatSessionType) {
+			if (!resource || getChatSessionType(resource) === sessionType) {
 				return undefined;
 			}
 		}
@@ -178,14 +227,14 @@ export class ChatStatusPromo extends Disposable {
 		for (const identifier of this.languageModelsService.getLanguageModelIds()) {
 			const metadata = this.languageModelsService.lookupLanguageModel(identifier);
 			if (!metadata || !ILanguageModelChatMetadata.hasPromoBanner(metadata) || !ILanguageModelChatMetadata.hasPromoDiscount(metadata)
-				|| (metadata.targetChatSessionType ?? localChatSessionType) !== localChatSessionType
-				|| (metadata.vendor && metadata.vendor !== COPILOT_VENDOR_ID) || dismissed.has(metadata.promo.id)
+				|| (metadata.targetChatSessionType ?? localChatSessionType) !== sessionType
+				|| !isCopilotPromoVendor(metadata) || dismissed.has(metadata.promo.id)
 				|| (seen.has(metadata.promo.id) && !this.shownPromos.has(metadata.promo.id))) {
 				continue;
 			}
 			return {
 				id: metadata.promo.id,
-				modelIdentifier: identifier,
+				modelId: metadata.id,
 				modelName: metadata.name,
 				message: metadata.promo.message,
 				description: ILanguageModelChatMetadata.getPromoEndsAtLabel(metadata.promo.endsAt),
@@ -193,6 +242,23 @@ export class ChatStatusPromo extends Disposable {
 			};
 		}
 		return undefined;
+	}
+
+	private resolveDefaultSessionType() {
+		return getDefaultNewChatSessionTypeAndReasonFromServices(
+			this.configurationService, this.chatSessionsService, this.storageService, this.workspaceContextService.getWorkspace(),
+			this.agentHostEnablementService.enabled.get(), undefined, this.agentHostEnablementService.managedSandboxEnforced.get(),
+			requiresCopilotAgentHost(this.managedSettingsService, this.configurationService));
+	}
+
+	private findPromoModel(sessionType: string, modelId: string, promoId: string): string | undefined {
+		return this.languageModelsService.getLanguageModelIds().find(identifier => {
+			const metadata = this.languageModelsService.lookupLanguageModel(identifier);
+			return metadata?.id === modelId && (metadata.targetChatSessionType ?? localChatSessionType) === sessionType
+				&& isCopilotPromoVendor(metadata)
+				&& ILanguageModelChatMetadata.hasPromoBanner(metadata) && ILanguageModelChatMetadata.hasPromoDiscount(metadata)
+				&& metadata.promo.id === promoId;
+		});
 	}
 
 	private resolveTreatment(): boolean | undefined {

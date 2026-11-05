@@ -31,6 +31,7 @@ import { IConfigurationResolverService } from '../../../services/configurationRe
 import { ConfigurationResolverExpression, IResolvedValue } from '../../../services/configurationResolver/common/configurationResolverExpression.js';
 import { AUX_WINDOW_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
 import { IMcpDevModeDebugging } from './mcpDevMode.js';
+import { launchHasEnvironmentVariableReferences } from './mcpEnvironmentVariableExpansion.js';
 import { McpRegistryInputStorage } from './mcpRegistryInputStorage.js';
 import { IMcpHostDelegate, IMcpRegistry, IMcpResolveConnectionOptions } from './mcpRegistryTypes.js';
 import { IMcpSandboxService } from './mcpSandboxService.js';
@@ -541,6 +542,9 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 
 		try {
 			launch = await this._replaceVariablesInLaunch(delegate, definition, launch, opts.errorOnUserInteraction);
+			if (definition.environmentVariableExpansion && launchHasEnvironmentVariableReferences(launch, definition.environmentVariableExpansion)) {
+				launch = await delegate.expandEnvironmentVariables(definition, launch);
+			}
 
 			if (definition.devMode && debug) {
 				launch = await this._instantiationService.invokeFunction(accessor => accessor.get(IMcpDevModeDebugging).transform(definition, launch!));

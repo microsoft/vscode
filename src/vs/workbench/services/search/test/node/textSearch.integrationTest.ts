@@ -4,14 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as fs from 'fs';
+import { tmpdir } from 'os';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import * as glob from '../../../../../base/common/glob.js';
 import { FileAccess } from '../../../../../base/common/network.js';
 import * as path from '../../../../../base/common/path.js';
+import { isLinux, isWindows } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { flakySuite } from '../../../../../base/test/node/testUtils.js';
+import { flakySuite, getRandomTestPath } from '../../../../../base/test/node/testUtils.js';
 import { deserializeSearchError, IFolderQuery, ISearchRange, ISerializedFileMatch, ITextQuery, ITextSearchContext, ITextSearchMatch, QueryType, SearchErrorCode } from '../../common/search.js';
+import { TextSearchCompleteMessageType } from '../../common/searchExtTypes.js';
 import { TextSearchEngineAdapter } from '../../node/textSearchAdapter.js';
+import { createCrossLinkedFolders } from './symlinkLoopFixture.js';
 
 const TEST_FIXTURES = path.normalize(FileAccess.asFileUri('vs/workbench/services/search/test/node/fixtures').fsPath);
 const EXAMPLES_FIXTURES = path.join(TEST_FIXTURES, 'examples');
@@ -167,6 +172,103 @@ flakySuite('TextSearch-integration', function () {
 		};
 
 		return doSearchTest(config, 391);
+	});
+
+	test('Text: e (with exclude exception)', () => {
+		const config: any = {
+			folderQueries: ROOT_FOLDER_QUERY,
+			contentPattern: { pattern: 'e' },
+			excludePattern: { '**/examples': true, '!examples/small.js': true }
+		};
+
+		return doSearchTest(config, 414);
+	});
+
+	test('Text: exclude exception results only include paths that the exception matches', () => {
+		// ripgrep matches `**.js` at any depth, VS Code only at the top level
+		return doSearchTest({
+			type: QueryType.Text,
+			folderQueries: ROOT_FOLDER_QUERY,
+			contentPattern: { pattern: 'e' },
+			excludePattern: { 'examples': true, '!**.js': true }
+		}, 391);
+	});
+
+	test('Text: exclude exception results skip folders of the query that are inside the folder', () => {
+		return doSearchTest({
+			type: QueryType.Text,
+			folderQueries: [TEST_ROOT_FOLDER, { folder: URI.file(EXAMPLES_FIXTURES) }],
+			contentPattern: { pattern: 'e' },
+			excludePattern: { 'examples': true, '!**/small.js': true }
+		}, 785);
+	});
+
+	(isLinux ? test.skip : test)('Text: exclude exception results skip folders of the query that are inside the folder with different casing', () => {
+		return doSearchTest({
+			type: QueryType.Text,
+			folderQueries: [{ folder: URI.file(path.join(path.dirname(TEST_FIXTURES), 'Fixtures')) }, { folder: URI.file(EXAMPLES_FIXTURES) }],
+			contentPattern: { pattern: 'e' },
+			ignoreGlobCase: true,
+			excludePattern: { 'examples': true, '!**/small.js': true }
+		}, 785);
+	});
+
+	test('Text: exclude exception results that are filtered out do not use up the result limit', () => {
+		const config: ITextQuery = {
+			type: QueryType.Text,
+			folderQueries: ROOT_FOLDER_QUERY,
+			contentPattern: { pattern: 'e' },
+			includePattern: { 'examples/employee.js': true },
+			excludePattern: { 'examples': true, '!examples': true },
+			maxResults: 1
+		};
+
+		return doSearchTest(config, 1);
+	});
+
+	test('Text: exclude exception re-includes gitignored and excluded files once', async () => {
+		const root = getRandomTestPath(tmpdir(), 'vsctests', 'textsearch-exclude-exceptions');
+		try {
+			await fs.promises.mkdir(path.join(root, 'build'), { recursive: true });
+			await fs.promises.mkdir(path.join(root, 'node_modules', '@types'), { recursive: true });
+			await fs.promises.writeFile(path.join(root, '.gitignore'), 'build/\n');
+			await fs.promises.writeFile(path.join(root, 'build', 'keep.txt'), 'needle');
+			await fs.promises.writeFile(path.join(root, 'build', 'drop.txt'), 'needle');
+			await fs.promises.writeFile(path.join(root, 'node_modules', '@types', 'index.d.ts'), 'needle');
+			await fs.promises.writeFile(path.join(root, 'node_modules', 'other.txt'), 'needle');
+			await fs.promises.writeFile(path.join(root, 'a.txt'), 'needle');
+
+			const results = await doSearchTest({
+				type: QueryType.Text,
+				folderQueries: [{ folder: URI.file(root), disregardIgnoreFiles: false }],
+				contentPattern: { pattern: 'needle' },
+				excludePattern: { 'node_modules': true, '!node_modules/@types': true, '!build/keep.txt': true, '!a.txt': true }
+			}, 3);
+
+			assert.deepStrictEqual(results.map(result => path.relative(root, result.path!).replace(/\\/g, '/')).sort(), ['a.txt', 'build/keep.txt', 'node_modules/@types/index.d.ts']);
+		} finally {
+			await fs.promises.rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('Text: exclude exception with a parent folder segment does not search outside the folder', async () => {
+		const root = getRandomTestPath(tmpdir(), 'vsctests', 'textsearch-exclude-exception-parent');
+		try {
+			await fs.promises.mkdir(path.join(root, 'folder'), { recursive: true });
+			await fs.promises.writeFile(path.join(root, 'folder', 'a.txt'), 'needle');
+			await fs.promises.writeFile(path.join(root, 'secret.txt'), 'needle');
+
+			const results = await doSearchTest({
+				type: QueryType.Text,
+				folderQueries: [{ folder: URI.file(path.join(root, 'folder')) }],
+				contentPattern: { pattern: 'needle' },
+				excludePattern: { '!../secret.txt': true }
+			}, 1);
+
+			assert.deepStrictEqual(results.map(result => path.relative(root, result.path!).replace(/\\/g, '/')), ['folder/a.txt']);
+		} finally {
+			await fs.promises.rm(root, { recursive: true, force: true });
+		}
 	});
 
 	test('Text: e (with includes)', () => {
@@ -352,6 +454,34 @@ flakySuite('TextSearch-integration', function () {
 			assert.strictEqual((<ITextSearchContext>results[0].results![2]).lineNumber, 26);
 			assert.strictEqual((<ITextSearchContext>results[0].results![2]).text, '        compiler.emit();');
 		});
+	});
+
+	// Creating symbolic links requires elevated privileges on Windows
+	(isWindows ? test.skip : test)('Text: stops following symbolic links that form too many loops #143060', async () => {
+		const root = getRandomTestPath(tmpdir(), 'vsctests', 'textsearch-symlink-loops');
+		try {
+			const files = await createCrossLinkedFolders(root, 8, 'needle');
+			const engine = new TextSearchEngineAdapter({
+				type: QueryType.Text,
+				folderQueries: [{ folder: URI.file(root) }],
+				contentPattern: { pattern: 'needle' }
+			});
+
+			const paths: string[] = [];
+			const complete = await engine.search(new CancellationTokenSource().token, matches => paths.push(...matches.map(match => match.path!)), () => { });
+
+			assert.deepStrictEqual({
+				hasDuplicates: new Set(paths).size !== paths.length,
+				missingFiles: files.filter(file => !paths.includes(file)),
+				messageTypes: complete.messages.map(message => message.type)
+			}, {
+				hasDuplicates: false,
+				missingFiles: [],
+				messageTypes: [TextSearchCompleteMessageType.Warning]
+			});
+		} finally {
+			await fs.promises.rm(root, { recursive: true, force: true });
+		}
 	});
 
 	suite('error messages', () => {

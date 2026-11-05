@@ -11,11 +11,13 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { safeIntl } from '../../../../base/common/date.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { language } from '../../../../base/common/platform.js';
-import { themeColorFromId, ThemeIcon } from '../../../../base/common/themables.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { localize } from '../../../../nls.js';
 import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
 import { computePullRequestIcon } from '../../../common/chatPullRequest.js';
+import { computeIssueIcon } from '../../../common/chatIssue.js';
+import { createChatPillHoverElement, type IChatPillHoverContent } from '../../../browser/chatPillHover.js';
 
 const MAX_DESCRIPTION_LENGTH = 200;
 const MAX_TITLE_LENGTH = 80;
@@ -57,9 +59,9 @@ interface IGitHubResourceHoverData {
 	readonly onDidClickReference?: () => void;
 }
 
-export interface IGitHubResourceHover {
-	readonly element: HTMLElement;
-	readonly tabbableElements: readonly HTMLElement[];
+export interface IGitHubResourceHover extends IChatPillHoverContent {
+	readonly statusRow?: HTMLElement;
+	readonly refreshStatus?: HTMLElement;
 }
 
 export interface IIssueResourceHoverData extends IGitHubResourceHoverData {
@@ -87,8 +89,7 @@ export interface ICommitResourceHoverData extends IGitHubResourceHoverData {
 }
 
 export function createIssueResourceHover(data: IIssueResourceHoverData): IGitHubResourceHover {
-	const hoverElement = $('.sessions-issue-hover');
-	hoverElement.classList.toggle('compact', data.density === 'compact');
+	const hoverElement = createChatPillHoverElement('sessions-issue-hover', data.density);
 
 	const header = append(hoverElement, $('.sessions-issue-hover-header'));
 	const repositoryLink = appendHoverLink(header, 'sessions-issue-hover-repository', data.repositoryHref, `${data.owner}/${data.repo}`, data.onDidClickRepository);
@@ -107,25 +108,28 @@ export function createIssueResourceHover(data: IIssueResourceHoverData): IGitHub
 	titleElement.title = title;
 
 	const statusRow = append(hoverElement, $('.sessions-issue-hover-status-row'));
+	statusRow.setAttribute('aria-live', 'polite');
+	statusRow.setAttribute('aria-atomic', 'true');
 	const status = getIssueResourceStatus(data.issue);
 	const statusElement = append(statusRow, $('span.sessions-issue-hover-status'));
 	statusElement.dataset.state = status.kind;
-	const statusIcon = getIssueIcon(status.kind);
+	const statusIcon = computeIssueIcon(data.issue.state, data.issue.stateReason);
 	const statusIconElement = append(statusElement, renderIcon(statusIcon));
 	statusIconElement.setAttribute('aria-hidden', 'true');
 	if (statusIcon.color) {
 		statusIconElement.style.color = asCssVariable(statusIcon.color.id);
 	}
 	append(statusElement, $('span.sessions-issue-hover-status-label', undefined, status.label));
+	const refreshStatus = append(statusRow, $('span.github-reference-refresh-status'));
+	refreshStatus.hidden = true;
 
 	appendDescription(hoverElement, 'sessions-issue-hover', data.issue.body, localize('github.issueHover.bodyFallback', "No description provided."));
 	append(hoverElement, $('.sessions-issue-hover-author', undefined, localize('github.issueHover.author', "@{0} opened this issue", data.issue.author.login)));
-	return { element: hoverElement, tabbableElements: [repositoryLink, referenceLink] };
+	return { element: hoverElement, tabbableElements: [repositoryLink, referenceLink], statusRow, refreshStatus, liveElements: [statusRow] };
 }
 
 export function createPullRequestResourceHover(data: IPullRequestResourceHoverData): IGitHubResourceHover {
-	const hoverElement = $('.sessions-pr-hover');
-	hoverElement.classList.toggle('compact', data.density === 'compact');
+	const hoverElement = createChatPillHoverElement('sessions-pr-hover', data.density);
 
 	const header = append(hoverElement, $('.sessions-pr-hover-header'));
 	const repositoryLink = appendHoverLink(header, 'sessions-pr-hover-repository', data.repositoryHref, `${data.owner}/${data.repo}`, data.onDidClickRepository);
@@ -144,10 +148,12 @@ export function createPullRequestResourceHover(data: IPullRequestResourceHoverDa
 	titleElement.title = title;
 
 	const statusRow = append(hoverElement, $('.sessions-pr-hover-status-row'));
+	statusRow.setAttribute('aria-live', 'polite');
+	statusRow.setAttribute('aria-atomic', 'true');
 	const status = getPullRequestResourceStatus(data.pullRequest);
 	const statusElement = append(statusRow, $('span.sessions-pr-hover-status'));
 	statusElement.dataset.state = status.kind;
-	const statusIcon = computePullRequestIcon(status.kind);
+	const statusIcon = computePullRequestIcon(status.kind, { hasFailingChecks: data.checksStatus === 'failure' });
 	const statusIconElement = append(statusElement, renderIcon(statusIcon));
 	statusIconElement.setAttribute('aria-hidden', 'true');
 	if (statusIcon.color) {
@@ -155,6 +161,8 @@ export function createPullRequestResourceHover(data: IPullRequestResourceHoverDa
 	}
 	append(statusElement, $('span.sessions-pr-hover-status-label', undefined, status.label));
 	appendChecksStatus(statusRow, data.pullRequest, data.checksStatus);
+	const refreshStatus = append(statusRow, $('span.github-reference-refresh-status'));
+	refreshStatus.hidden = true;
 
 	appendDescription(hoverElement, 'sessions-pr-hover', data.pullRequest.body, localize('github.pullRequestHover.bodyFallback', "No description provided."));
 	const branchRow = append(hoverElement, $('.sessions-pr-hover-branches'));
@@ -167,12 +175,14 @@ export function createPullRequestResourceHover(data: IPullRequestResourceHoverDa
 	return {
 		element: hoverElement,
 		tabbableElements: [repositoryLink, referenceLink, ...(baseBranch ? [baseBranch] : []), ...(headBranch ? [headBranch] : [])],
+		statusRow,
+		refreshStatus,
+		liveElements: [statusRow],
 	};
 }
 
 export function createCommitResourceHover(data: ICommitResourceHoverData): IGitHubResourceHover {
-	const hoverElement = $('.sessions-commit-hover');
-	hoverElement.classList.toggle('compact', data.density === 'compact');
+	const hoverElement = createChatPillHoverElement('sessions-commit-hover', data.density);
 
 	const header = append(hoverElement, $('.sessions-commit-hover-header'));
 	const repositoryLink = appendHoverLink(header, 'sessions-commit-hover-repository', data.repositoryHref, `${data.owner}/${data.repo}`, data.onDidClickRepository);
@@ -292,16 +302,6 @@ function appendHoverLink(container: HTMLElement, className: string, href: string
 	}
 	append(container, link);
 	return link;
-}
-
-function getIssueIcon(status: ReturnType<typeof getIssueResourceStatus>['kind']): ThemeIcon {
-	if (status === 'open') {
-		return { ...Codicon.issueOpened, color: themeColorFromId('charts.green') };
-	}
-	if (status === 'notPlanned' || status === 'duplicate') {
-		return { ...Codicon.issueClosed, color: themeColorFromId('descriptionForeground') };
-	}
-	return { ...Codicon.issueClosed, color: themeColorFromId('charts.purple') };
 }
 
 function appendDescription(container: HTMLElement, classPrefix: string, body: string, fallback: string): void {

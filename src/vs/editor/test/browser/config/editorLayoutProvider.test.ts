@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ComputedEditorOptions } from '../../../browser/config/editorConfiguration.js';
-import { EditorLayoutInfo, EditorLayoutInfoComputer, EditorMinimapOptions, EditorOption, EditorOptions, InternalEditorRenderLineNumbersOptions, InternalEditorScrollbarOptions, RenderLineNumbersType, RenderMinimap } from '../../../common/config/editorOptions.js';
+import { EditorLayoutInfo, EditorLayoutInfoComputer, EditorMinimapLayoutInfo, EditorMinimapOptions, EditorOption, EditorOptions, InternalEditorRenderLineNumbersOptions, InternalEditorScrollbarOptions, RenderLineNumbersType, RenderMinimap } from '../../../common/config/editorOptions.js';
 
 interface IEditorLayoutProviderOpts {
 	readonly outerWidth: number;
@@ -122,1255 +122,546 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 		assert.deepStrictEqual(computeLayoutInfo(input), expected);
 	}
 
-	test('EditorLayoutProvider 1', () => {
-		doTest({
+	const noMinimapInput = {
+		showGlyphMargin: false,
+		lineHeight: 16,
+		lineDecorationsWidth: 10,
+		minimap: false,
+		minimapSide: 'right',
+		minimapRenderCharacters: true,
+		minimapMaxColumn: 150,
+		pixelRatio: 1,
+	} satisfies Partial<IEditorLayoutProviderOpts>;
+
+	const noMinimapExpected = {
+		glyphMarginLeft: 0,
+		glyphMarginWidth: 0,
+		glyphMarginDecorationLaneCount: 1,
+		lineNumbersLeft: 0,
+		decorationsWidth: 10,
+		isWordWrapMinified: false,
+		isViewportWrapping: false,
+		wrappingColumn: -1,
+	} satisfies Partial<EditorLayoutInfo>;
+
+	const noMinimapLayout = {
+		renderMinimap: RenderMinimap.None,
+		minimapLeft: 0,
+		minimapWidth: 0,
+		minimapHeightIsEditorHeight: false,
+		minimapIsSampling: false,
+		minimapScale: 1,
+		minimapLineHeight: 1,
+		minimapCanvasInnerWidth: 0,
+		minimapCanvasOuterWidth: 0,
+	} satisfies Partial<EditorMinimapLayoutInfo>;
+
+	const noMinimapCases: [name: string, input: Omit<IEditorLayoutProviderOpts, keyof typeof noMinimapInput>, expected: Omit<EditorLayoutInfo, keyof typeof noMinimapExpected>][] = [
+		['EditorLayoutProvider 1', {
 			outerWidth: 1000,
 			outerHeight: 800,
-			showGlyphMargin: false,
-			lineHeight: 16,
 			showLineNumbers: false,
 			lineNumbersMinChars: 0,
 			lineNumbersDigitCount: 1,
-			lineDecorationsWidth: 10,
 			typicalHalfwidthCharacterWidth: 10,
 			maxDigitWidth: 10,
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
 			scrollbarArrowSize: 0,
 			verticalScrollbarHasArrows: false,
-			minimap: false,
-			minimapSide: 'right',
-			minimapRenderCharacters: true,
-			minimapMaxColumn: 150,
-			pixelRatio: 1,
 		}, {
-			width: 1000,
-			height: 800,
-
-			glyphMarginLeft: 0,
-			glyphMarginWidth: 0,
-			glyphMarginDecorationLaneCount: 1,
-
-			lineNumbersLeft: 0,
-			lineNumbersWidth: 0,
-
-			decorationsLeft: 0,
-			decorationsWidth: 10,
-
-			contentLeft: 10,
-			contentWidth: 990,
-
-			minimap: {
-				renderMinimap: RenderMinimap.None,
-				minimapLeft: 0,
-				minimapWidth: 0,
-				minimapHeightIsEditorHeight: false,
-				minimapIsSampling: false,
-				minimapScale: 1,
-				minimapLineHeight: 1,
-				minimapCanvasInnerWidth: 0,
-				minimapCanvasInnerHeight: 800,
-				minimapCanvasOuterWidth: 0,
-				minimapCanvasOuterHeight: 800,
-			},
-
-			viewportColumn: 98,
-			isWordWrapMinified: false,
-			isViewportWrapping: false,
-			wrappingColumn: -1,
-
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
-
-			overviewRuler: {
-				top: 0,
-				width: 0,
+				width: 1000,
 				height: 800,
-				right: 0
-			}
-		});
-	});
-
-	test('EditorLayoutProvider 1.1', () => {
-		doTest({
+				lineNumbersWidth: 0,
+				decorationsLeft: 0,
+				contentLeft: 10,
+				contentWidth: 990,
+				minimap: { ...noMinimapLayout, minimapCanvasInnerHeight: 800, minimapCanvasOuterHeight: 800 },
+				viewportColumn: 98,
+				verticalScrollbarWidth: 0,
+				horizontalScrollbarHeight: 0,
+				overviewRuler: { top: 0, width: 0, height: 800, right: 0 },
+			}],
+		['EditorLayoutProvider 1.1', {
 			outerWidth: 1000,
 			outerHeight: 800,
-			showGlyphMargin: false,
-			lineHeight: 16,
 			showLineNumbers: false,
 			lineNumbersMinChars: 0,
 			lineNumbersDigitCount: 1,
-			lineDecorationsWidth: 10,
 			typicalHalfwidthCharacterWidth: 10,
 			maxDigitWidth: 10,
 			verticalScrollbarWidth: 11,
 			horizontalScrollbarHeight: 12,
 			scrollbarArrowSize: 13,
 			verticalScrollbarHasArrows: true,
-			minimap: false,
-			minimapSide: 'right',
-			minimapRenderCharacters: true,
-			minimapMaxColumn: 150,
-			pixelRatio: 1,
 		}, {
-			width: 1000,
-			height: 800,
-
-			glyphMarginLeft: 0,
-			glyphMarginWidth: 0,
-			glyphMarginDecorationLaneCount: 1,
-
-			lineNumbersLeft: 0,
-			lineNumbersWidth: 0,
-
-			decorationsLeft: 0,
-			decorationsWidth: 10,
-
-			contentLeft: 10,
-			contentWidth: 990,
-
-			minimap: {
-				renderMinimap: RenderMinimap.None,
-				minimapLeft: 0,
-				minimapWidth: 0,
-				minimapHeightIsEditorHeight: false,
-				minimapIsSampling: false,
-				minimapScale: 1,
-				minimapLineHeight: 1,
-				minimapCanvasInnerWidth: 0,
-				minimapCanvasInnerHeight: 800,
-				minimapCanvasOuterWidth: 0,
-				minimapCanvasOuterHeight: 800,
-			},
-
-			viewportColumn: 97,
-			isWordWrapMinified: false,
-			isViewportWrapping: false,
-			wrappingColumn: -1,
-
-			verticalScrollbarWidth: 11,
-			horizontalScrollbarHeight: 12,
-
-			overviewRuler: {
-				top: 13,
-				width: 11,
-				height: (800 - 2 * 13),
-				right: 0
-			}
-		});
-	});
-
-	test('EditorLayoutProvider 2', () => {
-		doTest({
+				width: 1000,
+				height: 800,
+				lineNumbersWidth: 0,
+				decorationsLeft: 0,
+				contentLeft: 10,
+				contentWidth: 990,
+				minimap: { ...noMinimapLayout, minimapCanvasInnerHeight: 800, minimapCanvasOuterHeight: 800 },
+				viewportColumn: 97,
+				verticalScrollbarWidth: 11,
+				horizontalScrollbarHeight: 12,
+				overviewRuler: { top: 13, width: 11, height: (800 - 2 * 13), right: 0 },
+			}],
+		['EditorLayoutProvider 2', {
 			outerWidth: 900,
 			outerHeight: 800,
-			showGlyphMargin: false,
-			lineHeight: 16,
 			showLineNumbers: false,
 			lineNumbersMinChars: 0,
 			lineNumbersDigitCount: 1,
-			lineDecorationsWidth: 10,
 			typicalHalfwidthCharacterWidth: 10,
 			maxDigitWidth: 10,
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
 			scrollbarArrowSize: 0,
 			verticalScrollbarHasArrows: false,
-			minimap: false,
-			minimapSide: 'right',
-			minimapRenderCharacters: true,
-			minimapMaxColumn: 150,
-			pixelRatio: 1,
 		}, {
-			width: 900,
-			height: 800,
-
-			glyphMarginLeft: 0,
-			glyphMarginWidth: 0,
-			glyphMarginDecorationLaneCount: 1,
-
-			lineNumbersLeft: 0,
-			lineNumbersWidth: 0,
-
-			decorationsLeft: 0,
-			decorationsWidth: 10,
-
-			contentLeft: 10,
-			contentWidth: 890,
-
-			minimap: {
-				renderMinimap: RenderMinimap.None,
-				minimapLeft: 0,
-				minimapWidth: 0,
-				minimapHeightIsEditorHeight: false,
-				minimapIsSampling: false,
-				minimapScale: 1,
-				minimapLineHeight: 1,
-				minimapCanvasInnerWidth: 0,
-				minimapCanvasInnerHeight: 800,
-				minimapCanvasOuterWidth: 0,
-				minimapCanvasOuterHeight: 800,
-			},
-
-			viewportColumn: 88,
-			isWordWrapMinified: false,
-			isViewportWrapping: false,
-			wrappingColumn: -1,
-
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
-
-			overviewRuler: {
-				top: 0,
-				width: 0,
+				width: 900,
 				height: 800,
-				right: 0
-			}
-		});
-	});
-
-	test('EditorLayoutProvider 3', () => {
-		doTest({
+				lineNumbersWidth: 0,
+				decorationsLeft: 0,
+				contentLeft: 10,
+				contentWidth: 890,
+				minimap: { ...noMinimapLayout, minimapCanvasInnerHeight: 800, minimapCanvasOuterHeight: 800 },
+				viewportColumn: 88,
+				verticalScrollbarWidth: 0,
+				horizontalScrollbarHeight: 0,
+				overviewRuler: { top: 0, width: 0, height: 800, right: 0 },
+			}],
+		['EditorLayoutProvider 3', {
 			outerWidth: 900,
 			outerHeight: 900,
-			showGlyphMargin: false,
-			lineHeight: 16,
 			showLineNumbers: false,
 			lineNumbersMinChars: 0,
 			lineNumbersDigitCount: 1,
-			lineDecorationsWidth: 10,
 			typicalHalfwidthCharacterWidth: 10,
 			maxDigitWidth: 10,
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
 			scrollbarArrowSize: 0,
 			verticalScrollbarHasArrows: false,
-			minimap: false,
-			minimapSide: 'right',
-			minimapRenderCharacters: true,
-			minimapMaxColumn: 150,
-			pixelRatio: 1,
 		}, {
-			width: 900,
-			height: 900,
-
-			glyphMarginLeft: 0,
-			glyphMarginWidth: 0,
-			glyphMarginDecorationLaneCount: 1,
-
-			lineNumbersLeft: 0,
-			lineNumbersWidth: 0,
-
-			decorationsLeft: 0,
-			decorationsWidth: 10,
-
-			contentLeft: 10,
-			contentWidth: 890,
-
-			minimap: {
-				renderMinimap: RenderMinimap.None,
-				minimapLeft: 0,
-				minimapWidth: 0,
-				minimapHeightIsEditorHeight: false,
-				minimapIsSampling: false,
-				minimapScale: 1,
-				minimapLineHeight: 1,
-				minimapCanvasInnerWidth: 0,
-				minimapCanvasInnerHeight: 900,
-				minimapCanvasOuterWidth: 0,
-				minimapCanvasOuterHeight: 900,
-			},
-
-			viewportColumn: 88,
-			isWordWrapMinified: false,
-			isViewportWrapping: false,
-			wrappingColumn: -1,
-
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
-
-			overviewRuler: {
-				top: 0,
-				width: 0,
+				width: 900,
 				height: 900,
-				right: 0
-			}
-		});
-	});
-
-	test('EditorLayoutProvider 4', () => {
-		doTest({
+				lineNumbersWidth: 0,
+				decorationsLeft: 0,
+				contentLeft: 10,
+				contentWidth: 890,
+				minimap: { ...noMinimapLayout, minimapCanvasInnerHeight: 900, minimapCanvasOuterHeight: 900 },
+				viewportColumn: 88,
+				verticalScrollbarWidth: 0,
+				horizontalScrollbarHeight: 0,
+				overviewRuler: { top: 0, width: 0, height: 900, right: 0 },
+			}],
+		['EditorLayoutProvider 4', {
 			outerWidth: 900,
 			outerHeight: 900,
-			showGlyphMargin: false,
-			lineHeight: 16,
 			showLineNumbers: false,
 			lineNumbersMinChars: 5,
 			lineNumbersDigitCount: 1,
-			lineDecorationsWidth: 10,
 			typicalHalfwidthCharacterWidth: 10,
 			maxDigitWidth: 10,
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
 			scrollbarArrowSize: 0,
 			verticalScrollbarHasArrows: false,
-			minimap: false,
-			minimapSide: 'right',
-			minimapRenderCharacters: true,
-			minimapMaxColumn: 150,
-			pixelRatio: 1,
 		}, {
-			width: 900,
-			height: 900,
-
-			glyphMarginLeft: 0,
-			glyphMarginWidth: 0,
-			glyphMarginDecorationLaneCount: 1,
-
-			lineNumbersLeft: 0,
-			lineNumbersWidth: 0,
-
-			decorationsLeft: 0,
-			decorationsWidth: 10,
-
-			contentLeft: 10,
-			contentWidth: 890,
-
-			minimap: {
-				renderMinimap: RenderMinimap.None,
-				minimapLeft: 0,
-				minimapWidth: 0,
-				minimapHeightIsEditorHeight: false,
-				minimapIsSampling: false,
-				minimapScale: 1,
-				minimapLineHeight: 1,
-				minimapCanvasInnerWidth: 0,
-				minimapCanvasInnerHeight: 900,
-				minimapCanvasOuterWidth: 0,
-				minimapCanvasOuterHeight: 900,
-			},
-
-			viewportColumn: 88,
-			isWordWrapMinified: false,
-			isViewportWrapping: false,
-			wrappingColumn: -1,
-
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
-
-			overviewRuler: {
-				top: 0,
-				width: 0,
+				width: 900,
 				height: 900,
-				right: 0
-			}
-		});
-	});
-
-	test('EditorLayoutProvider 5', () => {
-		doTest({
+				lineNumbersWidth: 0,
+				decorationsLeft: 0,
+				contentLeft: 10,
+				contentWidth: 890,
+				minimap: { ...noMinimapLayout, minimapCanvasInnerHeight: 900, minimapCanvasOuterHeight: 900 },
+				viewportColumn: 88,
+				verticalScrollbarWidth: 0,
+				horizontalScrollbarHeight: 0,
+				overviewRuler: { top: 0, width: 0, height: 900, right: 0 },
+			}],
+		['EditorLayoutProvider 5', {
 			outerWidth: 900,
 			outerHeight: 900,
-			showGlyphMargin: false,
-			lineHeight: 16,
 			showLineNumbers: true,
 			lineNumbersMinChars: 5,
 			lineNumbersDigitCount: 1,
-			lineDecorationsWidth: 10,
 			typicalHalfwidthCharacterWidth: 10,
 			maxDigitWidth: 10,
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
 			scrollbarArrowSize: 0,
 			verticalScrollbarHasArrows: false,
-			minimap: false,
-			minimapSide: 'right',
-			minimapRenderCharacters: true,
-			minimapMaxColumn: 150,
-			pixelRatio: 1,
 		}, {
-			width: 900,
-			height: 900,
-
-			glyphMarginLeft: 0,
-			glyphMarginWidth: 0,
-			glyphMarginDecorationLaneCount: 1,
-
-			lineNumbersLeft: 0,
-			lineNumbersWidth: 50,
-
-			decorationsLeft: 50,
-			decorationsWidth: 10,
-
-			contentLeft: 60,
-			contentWidth: 840,
-
-			minimap: {
-				renderMinimap: RenderMinimap.None,
-				minimapLeft: 0,
-				minimapWidth: 0,
-				minimapHeightIsEditorHeight: false,
-				minimapIsSampling: false,
-				minimapScale: 1,
-				minimapLineHeight: 1,
-				minimapCanvasInnerWidth: 0,
-				minimapCanvasInnerHeight: 900,
-				minimapCanvasOuterWidth: 0,
-				minimapCanvasOuterHeight: 900,
-			},
-
-			viewportColumn: 83,
-			isWordWrapMinified: false,
-			isViewportWrapping: false,
-			wrappingColumn: -1,
-
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
-
-			overviewRuler: {
-				top: 0,
-				width: 0,
+				width: 900,
 				height: 900,
-				right: 0
-			}
-		});
-	});
-
-	test('EditorLayoutProvider 6', () => {
-		doTest({
+				lineNumbersWidth: 50,
+				decorationsLeft: 50,
+				contentLeft: 60,
+				contentWidth: 840,
+				minimap: { ...noMinimapLayout, minimapCanvasInnerHeight: 900, minimapCanvasOuterHeight: 900 },
+				viewportColumn: 83,
+				verticalScrollbarWidth: 0,
+				horizontalScrollbarHeight: 0,
+				overviewRuler: { top: 0, width: 0, height: 900, right: 0 },
+			}],
+		['EditorLayoutProvider 6', {
 			outerWidth: 900,
 			outerHeight: 900,
-			showGlyphMargin: false,
-			lineHeight: 16,
 			showLineNumbers: true,
 			lineNumbersMinChars: 5,
 			lineNumbersDigitCount: 5,
-			lineDecorationsWidth: 10,
 			typicalHalfwidthCharacterWidth: 10,
 			maxDigitWidth: 10,
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
 			scrollbarArrowSize: 0,
 			verticalScrollbarHasArrows: false,
-			minimap: false,
-			minimapSide: 'right',
-			minimapRenderCharacters: true,
-			minimapMaxColumn: 150,
-			pixelRatio: 1,
 		}, {
-			width: 900,
-			height: 900,
-
-			glyphMarginLeft: 0,
-			glyphMarginWidth: 0,
-			glyphMarginDecorationLaneCount: 1,
-
-			lineNumbersLeft: 0,
-			lineNumbersWidth: 50,
-
-			decorationsLeft: 50,
-			decorationsWidth: 10,
-
-			contentLeft: 60,
-			contentWidth: 840,
-
-			minimap: {
-				renderMinimap: RenderMinimap.None,
-				minimapLeft: 0,
-				minimapWidth: 0,
-				minimapHeightIsEditorHeight: false,
-				minimapIsSampling: false,
-				minimapScale: 1,
-				minimapLineHeight: 1,
-				minimapCanvasInnerWidth: 0,
-				minimapCanvasInnerHeight: 900,
-				minimapCanvasOuterWidth: 0,
-				minimapCanvasOuterHeight: 900,
-			},
-
-			viewportColumn: 83,
-			isWordWrapMinified: false,
-			isViewportWrapping: false,
-			wrappingColumn: -1,
-
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
-
-			overviewRuler: {
-				top: 0,
-				width: 0,
+				width: 900,
 				height: 900,
-				right: 0
-			}
-		});
-	});
-
-	test('EditorLayoutProvider 7', () => {
-		doTest({
+				lineNumbersWidth: 50,
+				decorationsLeft: 50,
+				contentLeft: 60,
+				contentWidth: 840,
+				minimap: { ...noMinimapLayout, minimapCanvasInnerHeight: 900, minimapCanvasOuterHeight: 900 },
+				viewportColumn: 83,
+				verticalScrollbarWidth: 0,
+				horizontalScrollbarHeight: 0,
+				overviewRuler: { top: 0, width: 0, height: 900, right: 0 },
+			}],
+		['EditorLayoutProvider 7', {
 			outerWidth: 900,
 			outerHeight: 900,
-			showGlyphMargin: false,
-			lineHeight: 16,
 			showLineNumbers: true,
 			lineNumbersMinChars: 5,
 			lineNumbersDigitCount: 6,
-			lineDecorationsWidth: 10,
 			typicalHalfwidthCharacterWidth: 10,
 			maxDigitWidth: 10,
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
 			scrollbarArrowSize: 0,
 			verticalScrollbarHasArrows: false,
-			minimap: false,
-			minimapSide: 'right',
-			minimapRenderCharacters: true,
-			minimapMaxColumn: 150,
-			pixelRatio: 1,
 		}, {
-			width: 900,
-			height: 900,
-
-			glyphMarginLeft: 0,
-			glyphMarginWidth: 0,
-			glyphMarginDecorationLaneCount: 1,
-
-			lineNumbersLeft: 0,
-			lineNumbersWidth: 60,
-
-			decorationsLeft: 60,
-			decorationsWidth: 10,
-
-			contentLeft: 70,
-			contentWidth: 830,
-
-			minimap: {
-				renderMinimap: RenderMinimap.None,
-				minimapLeft: 0,
-				minimapWidth: 0,
-				minimapHeightIsEditorHeight: false,
-				minimapIsSampling: false,
-				minimapScale: 1,
-				minimapLineHeight: 1,
-				minimapCanvasInnerWidth: 0,
-				minimapCanvasInnerHeight: 900,
-				minimapCanvasOuterWidth: 0,
-				minimapCanvasOuterHeight: 900,
-			},
-
-			viewportColumn: 82,
-			isWordWrapMinified: false,
-			isViewportWrapping: false,
-			wrappingColumn: -1,
-
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
-
-			overviewRuler: {
-				top: 0,
-				width: 0,
+				width: 900,
 				height: 900,
-				right: 0
-			}
-		});
-	});
-
-	test('EditorLayoutProvider 8', () => {
-		doTest({
+				lineNumbersWidth: 60,
+				decorationsLeft: 60,
+				contentLeft: 70,
+				contentWidth: 830,
+				minimap: { ...noMinimapLayout, minimapCanvasInnerHeight: 900, minimapCanvasOuterHeight: 900 },
+				viewportColumn: 82,
+				verticalScrollbarWidth: 0,
+				horizontalScrollbarHeight: 0,
+				overviewRuler: { top: 0, width: 0, height: 900, right: 0 },
+			}],
+		['EditorLayoutProvider 8', {
 			outerWidth: 900,
 			outerHeight: 900,
-			showGlyphMargin: false,
-			lineHeight: 16,
 			showLineNumbers: true,
 			lineNumbersMinChars: 5,
 			lineNumbersDigitCount: 6,
-			lineDecorationsWidth: 10,
 			typicalHalfwidthCharacterWidth: 5,
 			maxDigitWidth: 5,
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
 			scrollbarArrowSize: 0,
 			verticalScrollbarHasArrows: false,
-			minimap: false,
-			minimapSide: 'right',
-			minimapRenderCharacters: true,
-			minimapMaxColumn: 150,
-			pixelRatio: 1,
 		}, {
-			width: 900,
-			height: 900,
-
-			glyphMarginLeft: 0,
-			glyphMarginWidth: 0,
-			glyphMarginDecorationLaneCount: 1,
-
-			lineNumbersLeft: 0,
-			lineNumbersWidth: 30,
-
-			decorationsLeft: 30,
-			decorationsWidth: 10,
-
-			contentLeft: 40,
-			contentWidth: 860,
-
-			minimap: {
-				renderMinimap: RenderMinimap.None,
-				minimapLeft: 0,
-				minimapWidth: 0,
-				minimapHeightIsEditorHeight: false,
-				minimapIsSampling: false,
-				minimapScale: 1,
-				minimapLineHeight: 1,
-				minimapCanvasInnerWidth: 0,
-				minimapCanvasInnerHeight: 900,
-				minimapCanvasOuterWidth: 0,
-				minimapCanvasOuterHeight: 900,
-			},
-
-			viewportColumn: 171,
-			isWordWrapMinified: false,
-			isViewportWrapping: false,
-			wrappingColumn: -1,
-
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
-
-			overviewRuler: {
-				top: 0,
-				width: 0,
+				width: 900,
 				height: 900,
-				right: 0
-			}
-		});
-	});
-
-	test('EditorLayoutProvider 8 - rounds floats', () => {
-		doTest({
+				lineNumbersWidth: 30,
+				decorationsLeft: 30,
+				contentLeft: 40,
+				contentWidth: 860,
+				minimap: { ...noMinimapLayout, minimapCanvasInnerHeight: 900, minimapCanvasOuterHeight: 900 },
+				viewportColumn: 171,
+				verticalScrollbarWidth: 0,
+				horizontalScrollbarHeight: 0,
+				overviewRuler: { top: 0, width: 0, height: 900, right: 0 },
+			}],
+		['EditorLayoutProvider 8 - rounds floats', {
 			outerWidth: 900,
 			outerHeight: 900,
-			showGlyphMargin: false,
-			lineHeight: 16,
 			showLineNumbers: true,
 			lineNumbersMinChars: 5,
 			lineNumbersDigitCount: 6,
-			lineDecorationsWidth: 10,
 			typicalHalfwidthCharacterWidth: 5.05,
 			maxDigitWidth: 5.05,
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
 			scrollbarArrowSize: 0,
 			verticalScrollbarHasArrows: false,
-			minimap: false,
-			minimapSide: 'right',
-			minimapRenderCharacters: true,
-			minimapMaxColumn: 150,
-			pixelRatio: 1,
 		}, {
-			width: 900,
-			height: 900,
-
-			glyphMarginLeft: 0,
-			glyphMarginWidth: 0,
-			glyphMarginDecorationLaneCount: 1,
-
-			lineNumbersLeft: 0,
-			lineNumbersWidth: 30,
-
-			decorationsLeft: 30,
-			decorationsWidth: 10,
-
-			contentLeft: 40,
-			contentWidth: 860,
-
-			minimap: {
-				renderMinimap: RenderMinimap.None,
-				minimapLeft: 0,
-				minimapWidth: 0,
-				minimapHeightIsEditorHeight: false,
-				minimapIsSampling: false,
-				minimapScale: 1,
-				minimapLineHeight: 1,
-				minimapCanvasInnerWidth: 0,
-				minimapCanvasInnerHeight: 900,
-				minimapCanvasOuterWidth: 0,
-				minimapCanvasOuterHeight: 900,
-			},
-
-			viewportColumn: 169,
-			isWordWrapMinified: false,
-			isViewportWrapping: false,
-			wrappingColumn: -1,
-
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
-
-			overviewRuler: {
-				top: 0,
-				width: 0,
+				width: 900,
 				height: 900,
-				right: 0
-			}
-		});
-	});
+				lineNumbersWidth: 30,
+				decorationsLeft: 30,
+				contentLeft: 40,
+				contentWidth: 860,
+				minimap: { ...noMinimapLayout, minimapCanvasInnerHeight: 900, minimapCanvasOuterHeight: 900 },
+				viewportColumn: 169,
+				verticalScrollbarWidth: 0,
+				horizontalScrollbarHeight: 0,
+				overviewRuler: { top: 0, width: 0, height: 900, right: 0 },
+			}],
+	];
 
-	test('EditorLayoutProvider 9 - render minimap', () => {
-		doTest({
-			outerWidth: 1000,
-			outerHeight: 800,
-			showGlyphMargin: false,
-			lineHeight: 16,
-			showLineNumbers: false,
-			lineNumbersMinChars: 0,
+	for (const [name, input, expected] of noMinimapCases) {
+		test(name, () => {
+			doTest({ ...noMinimapInput, ...input }, { ...noMinimapExpected, ...expected });
+		});
+	}
+
+	const minimapInput = {
+		outerWidth: 1000,
+		outerHeight: 800,
+		showGlyphMargin: false,
+		lineHeight: 16,
+		showLineNumbers: false,
+		lineNumbersMinChars: 0,
+		lineDecorationsWidth: 10,
+		typicalHalfwidthCharacterWidth: 10,
+		maxDigitWidth: 10,
+		verticalScrollbarWidth: 0,
+		horizontalScrollbarHeight: 0,
+		scrollbarArrowSize: 0,
+		verticalScrollbarHasArrows: false,
+		minimap: true,
+		minimapRenderCharacters: true,
+		minimapMaxColumn: 150,
+	} satisfies Partial<IEditorLayoutProviderOpts>;
+
+	const minimapExpected = {
+		width: 1000,
+		height: 800,
+		glyphMarginWidth: 0,
+		glyphMarginDecorationLaneCount: 1,
+		lineNumbersWidth: 0,
+		decorationsWidth: 10,
+		isWordWrapMinified: false,
+		isViewportWrapping: false,
+		wrappingColumn: -1,
+		verticalScrollbarWidth: 0,
+		horizontalScrollbarHeight: 0,
+		overviewRuler: { top: 0, width: 0, height: 800, right: 0 },
+	} satisfies Partial<EditorLayoutInfo>;
+
+	const minimapLayout = {
+		renderMinimap: RenderMinimap.Text,
+		minimapCanvasOuterHeight: 800,
+	} satisfies Partial<EditorMinimapLayoutInfo>;
+
+	const minimapCases: [name: string, input: Omit<IEditorLayoutProviderOpts, keyof typeof minimapInput>, expected: Omit<EditorLayoutInfo, keyof typeof minimapExpected>][] = [
+		['EditorLayoutProvider 9 - render minimap', {
 			lineNumbersDigitCount: 1,
-			lineDecorationsWidth: 10,
-			typicalHalfwidthCharacterWidth: 10,
-			maxDigitWidth: 10,
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
-			scrollbarArrowSize: 0,
-			verticalScrollbarHasArrows: false,
-			minimap: true,
 			minimapSide: 'right',
-			minimapRenderCharacters: true,
-			minimapMaxColumn: 150,
 			pixelRatio: 1,
 		}, {
-			width: 1000,
-			height: 800,
-
-			glyphMarginLeft: 0,
-			glyphMarginWidth: 0,
-			glyphMarginDecorationLaneCount: 1,
-
-			lineNumbersLeft: 0,
-			lineNumbersWidth: 0,
-
-			decorationsLeft: 0,
-			decorationsWidth: 10,
-
-			contentLeft: 10,
-			contentWidth: 893,
-
-			minimap: {
-				renderMinimap: RenderMinimap.Text,
-				minimapLeft: 903,
-				minimapWidth: 97,
-				minimapHeightIsEditorHeight: false,
-				minimapIsSampling: false,
-				minimapScale: 1,
-				minimapLineHeight: 2,
-				minimapCanvasInnerWidth: 97,
-				minimapCanvasInnerHeight: 800,
-				minimapCanvasOuterWidth: 97,
-				minimapCanvasOuterHeight: 800,
-			},
-
-			viewportColumn: 89,
-			isWordWrapMinified: false,
-			isViewportWrapping: false,
-			wrappingColumn: -1,
-
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
-
-			overviewRuler: {
-				top: 0,
-				width: 0,
-				height: 800,
-				right: 0
-			}
-		});
-	});
-
-	test('EditorLayoutProvider 9 - render minimap with pixelRatio = 2', () => {
-		doTest({
-			outerWidth: 1000,
-			outerHeight: 800,
-			showGlyphMargin: false,
-			lineHeight: 16,
-			showLineNumbers: false,
-			lineNumbersMinChars: 0,
+				glyphMarginLeft: 0,
+				lineNumbersLeft: 0,
+				decorationsLeft: 0,
+				contentLeft: 10,
+				contentWidth: 893,
+				minimap: {
+					...minimapLayout,
+					minimapLeft: 903,
+					minimapWidth: 97,
+					minimapHeightIsEditorHeight: false,
+					minimapIsSampling: false,
+					minimapScale: 1,
+					minimapLineHeight: 2,
+					minimapCanvasInnerWidth: 97,
+					minimapCanvasInnerHeight: 800,
+					minimapCanvasOuterWidth: 97,
+				},
+				viewportColumn: 89,
+			}],
+		['EditorLayoutProvider 9 - render minimap with pixelRatio = 2', {
 			lineNumbersDigitCount: 1,
-			lineDecorationsWidth: 10,
-			typicalHalfwidthCharacterWidth: 10,
-			maxDigitWidth: 10,
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
-			scrollbarArrowSize: 0,
-			verticalScrollbarHasArrows: false,
-			minimap: true,
 			minimapSide: 'right',
-			minimapRenderCharacters: true,
-			minimapMaxColumn: 150,
 			pixelRatio: 2,
 		}, {
-			width: 1000,
-			height: 800,
-
-			glyphMarginLeft: 0,
-			glyphMarginWidth: 0,
-			glyphMarginDecorationLaneCount: 1,
-
-			lineNumbersLeft: 0,
-			lineNumbersWidth: 0,
-
-			decorationsLeft: 0,
-			decorationsWidth: 10,
-
-			contentLeft: 10,
-			contentWidth: 893,
-
-			minimap: {
-				renderMinimap: RenderMinimap.Text,
-				minimapLeft: 903,
-				minimapWidth: 97,
-				minimapHeightIsEditorHeight: false,
-				minimapIsSampling: false,
-				minimapScale: 2,
-				minimapLineHeight: 4,
-				minimapCanvasInnerWidth: 194,
-				minimapCanvasInnerHeight: 1600,
-				minimapCanvasOuterWidth: 97,
-				minimapCanvasOuterHeight: 800,
-			},
-
-			viewportColumn: 89,
-			isWordWrapMinified: false,
-			isViewportWrapping: false,
-			wrappingColumn: -1,
-
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
-
-			overviewRuler: {
-				top: 0,
-				width: 0,
-				height: 800,
-				right: 0
-			}
-		});
-	});
-
-	test('EditorLayoutProvider 9 - render minimap with pixelRatio = 4', () => {
-		doTest({
-			outerWidth: 1000,
-			outerHeight: 800,
-			showGlyphMargin: false,
-			lineHeight: 16,
-			showLineNumbers: false,
-			lineNumbersMinChars: 0,
+				glyphMarginLeft: 0,
+				lineNumbersLeft: 0,
+				decorationsLeft: 0,
+				contentLeft: 10,
+				contentWidth: 893,
+				minimap: {
+					...minimapLayout,
+					minimapLeft: 903,
+					minimapWidth: 97,
+					minimapHeightIsEditorHeight: false,
+					minimapIsSampling: false,
+					minimapScale: 2,
+					minimapLineHeight: 4,
+					minimapCanvasInnerWidth: 194,
+					minimapCanvasInnerHeight: 1600,
+					minimapCanvasOuterWidth: 97,
+				},
+				viewportColumn: 89,
+			}],
+		['EditorLayoutProvider 9 - render minimap with pixelRatio = 4', {
 			lineNumbersDigitCount: 1,
-			lineDecorationsWidth: 10,
-			typicalHalfwidthCharacterWidth: 10,
-			maxDigitWidth: 10,
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
-			scrollbarArrowSize: 0,
-			verticalScrollbarHasArrows: false,
-			minimap: true,
 			minimapSide: 'right',
-			minimapRenderCharacters: true,
-			minimapMaxColumn: 150,
 			pixelRatio: 4,
 		}, {
-			width: 1000,
-			height: 800,
-
-			glyphMarginLeft: 0,
-			glyphMarginWidth: 0,
-			glyphMarginDecorationLaneCount: 1,
-
-			lineNumbersLeft: 0,
-			lineNumbersWidth: 0,
-
-			decorationsLeft: 0,
-			decorationsWidth: 10,
-
-			contentLeft: 10,
-			contentWidth: 935,
-
-			minimap: {
-				renderMinimap: RenderMinimap.Text,
-				minimapLeft: 945,
-				minimapWidth: 55,
-				minimapHeightIsEditorHeight: false,
-				minimapIsSampling: false,
-				minimapScale: 2,
-				minimapLineHeight: 4,
-				minimapCanvasInnerWidth: 220,
-				minimapCanvasInnerHeight: 3200,
-				minimapCanvasOuterWidth: 55,
-				minimapCanvasOuterHeight: 800,
-			},
-
-			viewportColumn: 93,
-			isWordWrapMinified: false,
-			isViewportWrapping: false,
-			wrappingColumn: -1,
-
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
-
-			overviewRuler: {
-				top: 0,
-				width: 0,
-				height: 800,
-				right: 0
-			}
-		});
-	});
-
-	test('EditorLayoutProvider 10 - render minimap to left', () => {
-		doTest({
-			outerWidth: 1000,
-			outerHeight: 800,
-			showGlyphMargin: false,
-			lineHeight: 16,
-			showLineNumbers: false,
-			lineNumbersMinChars: 0,
+				glyphMarginLeft: 0,
+				lineNumbersLeft: 0,
+				decorationsLeft: 0,
+				contentLeft: 10,
+				contentWidth: 935,
+				minimap: {
+					...minimapLayout,
+					minimapLeft: 945,
+					minimapWidth: 55,
+					minimapHeightIsEditorHeight: false,
+					minimapIsSampling: false,
+					minimapScale: 2,
+					minimapLineHeight: 4,
+					minimapCanvasInnerWidth: 220,
+					minimapCanvasInnerHeight: 3200,
+					minimapCanvasOuterWidth: 55,
+				},
+				viewportColumn: 93,
+			}],
+		['EditorLayoutProvider 10 - render minimap to left', {
 			lineNumbersDigitCount: 1,
-			lineDecorationsWidth: 10,
-			typicalHalfwidthCharacterWidth: 10,
-			maxDigitWidth: 10,
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
-			scrollbarArrowSize: 0,
-			verticalScrollbarHasArrows: false,
-			minimap: true,
 			minimapSide: 'left',
-			minimapRenderCharacters: true,
-			minimapMaxColumn: 150,
 			pixelRatio: 4,
 		}, {
-			width: 1000,
-			height: 800,
-
-			glyphMarginLeft: 55,
-			glyphMarginWidth: 0,
-			glyphMarginDecorationLaneCount: 1,
-
-			lineNumbersLeft: 55,
-			lineNumbersWidth: 0,
-
-			decorationsLeft: 55,
-			decorationsWidth: 10,
-
-			contentLeft: 65,
-			contentWidth: 935,
-
-			minimap: {
-				renderMinimap: RenderMinimap.Text,
-				minimapLeft: 0,
-				minimapWidth: 55,
-				minimapHeightIsEditorHeight: false,
-				minimapIsSampling: false,
-				minimapScale: 2,
-				minimapLineHeight: 4,
-				minimapCanvasInnerWidth: 220,
-				minimapCanvasInnerHeight: 3200,
-				minimapCanvasOuterWidth: 55,
-				minimapCanvasOuterHeight: 800,
-			},
-
-			viewportColumn: 93,
-			isWordWrapMinified: false,
-			isViewportWrapping: false,
-			wrappingColumn: -1,
-
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
-
-			overviewRuler: {
-				top: 0,
-				width: 0,
-				height: 800,
-				right: 0
-			}
-		});
-	});
-
-	test('EditorLayoutProvider 11 - minimap mode cover without sampling', () => {
-		doTest({
-			outerWidth: 1000,
-			outerHeight: 800,
-			showGlyphMargin: false,
-			lineHeight: 16,
-			showLineNumbers: false,
-			lineNumbersMinChars: 0,
+				glyphMarginLeft: 55,
+				lineNumbersLeft: 55,
+				decorationsLeft: 55,
+				contentLeft: 65,
+				contentWidth: 935,
+				minimap: {
+					...minimapLayout,
+					minimapLeft: 0,
+					minimapWidth: 55,
+					minimapHeightIsEditorHeight: false,
+					minimapIsSampling: false,
+					minimapScale: 2,
+					minimapLineHeight: 4,
+					minimapCanvasInnerWidth: 220,
+					minimapCanvasInnerHeight: 3200,
+					minimapCanvasOuterWidth: 55,
+				},
+				viewportColumn: 93,
+			}],
+		['EditorLayoutProvider 11 - minimap mode cover without sampling', {
 			lineNumbersDigitCount: 3,
 			maxLineNumber: 120,
-			lineDecorationsWidth: 10,
-			typicalHalfwidthCharacterWidth: 10,
-			maxDigitWidth: 10,
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
-			scrollbarArrowSize: 0,
-			verticalScrollbarHasArrows: false,
-			minimap: true,
 			minimapSide: 'right',
-			minimapRenderCharacters: true,
-			minimapMaxColumn: 150,
 			minimapSize: 'fill',
 			pixelRatio: 2,
 		}, {
-			width: 1000,
-			height: 800,
-
-			glyphMarginLeft: 0,
-			glyphMarginWidth: 0,
-			glyphMarginDecorationLaneCount: 1,
-
-			lineNumbersLeft: 0,
-			lineNumbersWidth: 0,
-
-			decorationsLeft: 0,
-			decorationsWidth: 10,
-
-			contentLeft: 10,
-			contentWidth: 893,
-
-			minimap: {
-				renderMinimap: RenderMinimap.Text,
-				minimapLeft: 903,
-				minimapWidth: 97,
-				minimapHeightIsEditorHeight: true,
-				minimapIsSampling: false,
-				minimapScale: 3,
-				minimapLineHeight: 13,
-				minimapCanvasInnerWidth: 291,
-				minimapCanvasInnerHeight: 1560,
-				minimapCanvasOuterWidth: 97,
-				minimapCanvasOuterHeight: 800,
-			},
-
-			viewportColumn: 89,
-			isWordWrapMinified: false,
-			isViewportWrapping: false,
-			wrappingColumn: -1,
-
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
-
-			overviewRuler: {
-				top: 0,
-				width: 0,
-				height: 800,
-				right: 0
-			}
-		});
-	});
-
-	test('EditorLayoutProvider 12 - minimap mode cover with sampling', () => {
-		doTest({
-			outerWidth: 1000,
-			outerHeight: 800,
-			showGlyphMargin: false,
-			lineHeight: 16,
-			showLineNumbers: false,
-			lineNumbersMinChars: 0,
+				glyphMarginLeft: 0,
+				lineNumbersLeft: 0,
+				decorationsLeft: 0,
+				contentLeft: 10,
+				contentWidth: 893,
+				minimap: {
+					...minimapLayout,
+					minimapLeft: 903,
+					minimapWidth: 97,
+					minimapHeightIsEditorHeight: true,
+					minimapIsSampling: false,
+					minimapScale: 3,
+					minimapLineHeight: 13,
+					minimapCanvasInnerWidth: 291,
+					minimapCanvasInnerHeight: 1560,
+					minimapCanvasOuterWidth: 97,
+				},
+				viewportColumn: 89,
+			}],
+		['EditorLayoutProvider 12 - minimap mode cover with sampling', {
 			lineNumbersDigitCount: 4,
 			maxLineNumber: 2500,
-			lineDecorationsWidth: 10,
-			typicalHalfwidthCharacterWidth: 10,
-			maxDigitWidth: 10,
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
-			scrollbarArrowSize: 0,
-			verticalScrollbarHasArrows: false,
-			minimap: true,
 			minimapSide: 'right',
-			minimapRenderCharacters: true,
-			minimapMaxColumn: 150,
 			minimapSize: 'fill',
 			pixelRatio: 2,
 		}, {
-			width: 1000,
-			height: 800,
-
-			glyphMarginLeft: 0,
-			glyphMarginWidth: 0,
-			glyphMarginDecorationLaneCount: 1,
-
-			lineNumbersLeft: 0,
-			lineNumbersWidth: 0,
-
-			decorationsLeft: 0,
-			decorationsWidth: 10,
-
-			contentLeft: 10,
-			contentWidth: 935,
-
-			minimap: {
-				renderMinimap: RenderMinimap.Text,
-				minimapLeft: 945,
-				minimapWidth: 55,
-				minimapHeightIsEditorHeight: true,
-				minimapIsSampling: true,
-				minimapScale: 1,
-				minimapLineHeight: 1,
-				minimapCanvasInnerWidth: 110,
-				minimapCanvasInnerHeight: 1600,
-				minimapCanvasOuterWidth: 55,
-				minimapCanvasOuterHeight: 800,
-			},
-
-			viewportColumn: 93,
-			isWordWrapMinified: false,
-			isViewportWrapping: false,
-			wrappingColumn: -1,
-
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
-
-			overviewRuler: {
-				top: 0,
-				width: 0,
-				height: 800,
-				right: 0
-			}
-		});
-	});
-
-	test('EditorLayoutProvider 13 - minimap mode contain without sampling', () => {
-		doTest({
-			outerWidth: 1000,
-			outerHeight: 800,
-			showGlyphMargin: false,
-			lineHeight: 16,
-			showLineNumbers: false,
-			lineNumbersMinChars: 0,
+				glyphMarginLeft: 0,
+				lineNumbersLeft: 0,
+				decorationsLeft: 0,
+				contentLeft: 10,
+				contentWidth: 935,
+				minimap: {
+					...minimapLayout,
+					minimapLeft: 945,
+					minimapWidth: 55,
+					minimapHeightIsEditorHeight: true,
+					minimapIsSampling: true,
+					minimapScale: 1,
+					minimapLineHeight: 1,
+					minimapCanvasInnerWidth: 110,
+					minimapCanvasInnerHeight: 1600,
+					minimapCanvasOuterWidth: 55,
+				},
+				viewportColumn: 93,
+			}],
+		['EditorLayoutProvider 13 - minimap mode contain without sampling', {
 			lineNumbersDigitCount: 3,
 			maxLineNumber: 120,
-			lineDecorationsWidth: 10,
-			typicalHalfwidthCharacterWidth: 10,
-			maxDigitWidth: 10,
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
-			scrollbarArrowSize: 0,
-			verticalScrollbarHasArrows: false,
-			minimap: true,
 			minimapSide: 'right',
-			minimapRenderCharacters: true,
-			minimapMaxColumn: 150,
 			minimapSize: 'fit',
 			pixelRatio: 2,
 		}, {
-			width: 1000,
-			height: 800,
-
-			glyphMarginLeft: 0,
-			glyphMarginWidth: 0,
-			glyphMarginDecorationLaneCount: 1,
-
-			lineNumbersLeft: 0,
-			lineNumbersWidth: 0,
-
-			decorationsLeft: 0,
-			decorationsWidth: 10,
-
-			contentLeft: 10,
-			contentWidth: 893,
-
-			minimap: {
-				renderMinimap: RenderMinimap.Text,
-				minimapLeft: 903,
-				minimapWidth: 97,
-				minimapHeightIsEditorHeight: false,
-				minimapIsSampling: false,
-				minimapScale: 2,
-				minimapLineHeight: 4,
-				minimapCanvasInnerWidth: 194,
-				minimapCanvasInnerHeight: 1600,
-				minimapCanvasOuterWidth: 97,
-				minimapCanvasOuterHeight: 800,
-			},
-
-			viewportColumn: 89,
-			isWordWrapMinified: false,
-			isViewportWrapping: false,
-			wrappingColumn: -1,
-
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
-
-			overviewRuler: {
-				top: 0,
-				width: 0,
-				height: 800,
-				right: 0
-			}
-		});
-	});
-
-	test('EditorLayoutProvider 14 - minimap mode contain with sampling', () => {
-		doTest({
-			outerWidth: 1000,
-			outerHeight: 800,
-			showGlyphMargin: false,
-			lineHeight: 16,
-			showLineNumbers: false,
-			lineNumbersMinChars: 0,
+				glyphMarginLeft: 0,
+				lineNumbersLeft: 0,
+				decorationsLeft: 0,
+				contentLeft: 10,
+				contentWidth: 893,
+				minimap: {
+					...minimapLayout,
+					minimapLeft: 903,
+					minimapWidth: 97,
+					minimapHeightIsEditorHeight: false,
+					minimapIsSampling: false,
+					minimapScale: 2,
+					minimapLineHeight: 4,
+					minimapCanvasInnerWidth: 194,
+					minimapCanvasInnerHeight: 1600,
+					minimapCanvasOuterWidth: 97,
+				},
+				viewportColumn: 89,
+			}],
+		['EditorLayoutProvider 14 - minimap mode contain with sampling', {
 			lineNumbersDigitCount: 4,
 			maxLineNumber: 2500,
-			lineDecorationsWidth: 10,
-			typicalHalfwidthCharacterWidth: 10,
-			maxDigitWidth: 10,
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
-			scrollbarArrowSize: 0,
-			verticalScrollbarHasArrows: false,
-			minimap: true,
 			minimapSide: 'right',
-			minimapRenderCharacters: true,
-			minimapMaxColumn: 150,
 			minimapSize: 'fit',
 			pixelRatio: 2,
 		}, {
-			width: 1000,
-			height: 800,
+				glyphMarginLeft: 0,
+				lineNumbersLeft: 0,
+				decorationsLeft: 0,
+				contentLeft: 10,
+				contentWidth: 935,
+				minimap: {
+					...minimapLayout,
+					minimapLeft: 945,
+					minimapWidth: 55,
+					minimapHeightIsEditorHeight: true,
+					minimapIsSampling: true,
+					minimapScale: 1,
+					minimapLineHeight: 1,
+					minimapCanvasInnerWidth: 110,
+					minimapCanvasInnerHeight: 1600,
+					minimapCanvasOuterWidth: 55,
+				},
+				viewportColumn: 93,
+			}],
+	];
 
-			glyphMarginLeft: 0,
-			glyphMarginWidth: 0,
-			glyphMarginDecorationLaneCount: 1,
-
-			lineNumbersLeft: 0,
-			lineNumbersWidth: 0,
-
-			decorationsLeft: 0,
-			decorationsWidth: 10,
-
-			contentLeft: 10,
-			contentWidth: 935,
-
-			minimap: {
-				renderMinimap: RenderMinimap.Text,
-				minimapLeft: 945,
-				minimapWidth: 55,
-				minimapHeightIsEditorHeight: true,
-				minimapIsSampling: true,
-				minimapScale: 1,
-				minimapLineHeight: 1,
-				minimapCanvasInnerWidth: 110,
-				minimapCanvasInnerHeight: 1600,
-				minimapCanvasOuterWidth: 55,
-				minimapCanvasOuterHeight: 800,
-			},
-
-			viewportColumn: 93,
-			isWordWrapMinified: false,
-			isViewportWrapping: false,
-			wrappingColumn: -1,
-
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
-
-			overviewRuler: {
-				top: 0,
-				width: 0,
-				height: 800,
-				right: 0
-			}
+	for (const [name, input, expected] of minimapCases) {
+		test(name, () => {
+			doTest({ ...minimapInput, ...input }, { ...minimapExpected, ...expected });
 		});
-	});
+	}
 
 	test('issue #31312: When wrapping, leave 2px for the cursor', () => {
 		doTest({

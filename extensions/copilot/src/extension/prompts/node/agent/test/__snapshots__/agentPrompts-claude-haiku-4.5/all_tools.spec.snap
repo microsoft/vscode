@@ -218,17 +218,14 @@ Available deferred tools (must be loaded with tool_search before use):
 copilot_getNotebookSummary
 create_directory
 create_new_jupyter_notebook
-create_new_workspace
 edit_notebook_file
 get_vscode_api
 github_repo
 github_text_search
-install_extension
 read_notebook_cell_output
 read_project_structure
 resolve_memory_file_uri
 run_notebook_cell
-run_vscode_command
 search_workspace_symbols
 test_search
 </availableDeferredTools>

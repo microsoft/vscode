@@ -12,6 +12,14 @@ export interface WebviewRemoteInfo {
 	readonly authority: string | undefined;
 }
 
+/** Reports webview activity without generating pointer input. */
+export const webviewMouseActivityEvent = 'vscode-webview-mouse-activity';
+
+export interface WebviewMouseActivity {
+	readonly screenX: number;
+	readonly screenY: number;
+}
+
 /**
  * Root from which resources in webviews are loaded.
  *

@@ -11,6 +11,11 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { IViewDescriptorService } from '../../../../common/views.js';
 
+/**
+ * Total horizontal padding reserved around chat content in the Agents window.
+ */
+export const SESSIONS_CHAT_CONTENT_HORIZONTAL_PADDING = 48;
+
 export interface IChatConfiguration {
 	editor: {
 		readonly fontSize: number;

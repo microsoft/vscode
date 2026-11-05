@@ -27,6 +27,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { handleVetos } from '../../../../platform/lifecycle/common/lifecycle.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { NotificationTelemetryId, NotificationActionTelemetryId } from '../../../../platform/notification/common/notificationTelemetry.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IRemoteAuthorityResolverService, RemoteAuthorityResolverError, RemoteAuthorityResolverErrorCode, ResolverResult, getRemoteAuthorityPrefix } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
@@ -321,6 +322,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		toRemove = toRemove.concat(result.removedDueToLooping);
 		if (result.removedDueToLooping.length > 0) {
 			this._notificationService.notify({
+				telemetry: NotificationTelemetryId.ExtensionDependencyLoop,
 				severity: Severity.Error,
 				message: nls.localize('looping', "The following extensions contain dependency loops and have been disabled: {0}", result.removedDueToLooping.map(e => `'${e.identifier.value}'`).join(', '))
 			});
@@ -570,6 +572,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		const result = this._registry.deltaExtensions(lock, toAdd, []);
 		if (result.removedDueToLooping.length > 0) {
 			this._notificationService.notify({
+				telemetry: NotificationTelemetryId.ExtensionDependencyLoop,
 				severity: Severity.Error,
 				message: nls.localize('looping', "The following extensions contain dependency loops and have been disabled: {0}", result.removedDueToLooping.map(e => `'${e.identifier.value}'`).join(', '))
 			});
@@ -649,7 +652,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 		for (let attempt = 1; ; attempt++) {
 			try {
-				return this._resolveAuthorityWithLogging(remoteAuthority);
+				return await this._resolveAuthorityWithLogging(remoteAuthority);
 			} catch (err) {
 				if (RemoteAuthorityResolverError.isNoResolverFound(err)) {
 					// There is no point in retrying if there is no resolver found
@@ -925,11 +928,12 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			} else {
 				this._notificationService.prompt(Severity.Error, nls.localize('extensionService.crash', "Remote Extension host terminated unexpectedly 3 times within the last 5 minutes."),
 					[{
+						telemetryId: NotificationActionTelemetryId.RestartExtensionHost,
 						label: nls.localize('restart', "Restart Remote Extension Host"),
 						run: () => {
 							this._startExtensionHostsIfNecessary(false, Array.from(this._allRequestedActivateEvents.keys()));
 						}
-					}]
+					}], { telemetry: NotificationTelemetryId.RemoteExtensionHostCrashRepeated }
 				);
 			}
 		} catch (err) {

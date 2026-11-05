@@ -45,7 +45,7 @@ export interface IMcpAppCallTransport extends IDisposable {
 	readonly onNotification: Event<{ readonly method: string; readonly params?: unknown }>;
 
 	loadResource(token: CancellationToken): Promise<IMcpAppResourceContent>;
-	callTool(name: string, params: Record<string, unknown>, token: CancellationToken): Promise<MCP.CallToolResult>;
+	callTool(params: MCP.CallToolRequestParams, token: CancellationToken): Promise<MCP.CallToolResult>;
 	readResource(uri: string, token: CancellationToken): Promise<MCP.ReadResourceResult>;
 	sampling(params: MCP.CreateMessageRequest['params'], token: CancellationToken): Promise<MCP.CreateMessageResult>;
 	log(params: MCP.LoggingMessageNotificationParams): Promise<void>;
@@ -118,7 +118,7 @@ class LocalMcpAppCallTransport extends Disposable implements IMcpAppCallTranspor
 		return readResourceContentToHtml(resourceResult.contents);
 	}
 
-	async callTool(name: string, params: Record<string, unknown>, token: CancellationToken): Promise<MCP.CallToolResult> {
+	async callTool(params: MCP.CallToolRequestParams, token: CancellationToken): Promise<MCP.CallToolResult> {
 		const server = await this._getServer(token);
 		if (!server) {
 			throw new Error('MCP server not found for tool call');
@@ -126,12 +126,12 @@ class LocalMcpAppCallTransport extends Disposable implements IMcpAppCallTranspor
 
 		await startServerAndWaitForLiveTools(server, undefined, token);
 
-		const tool = server.tools.get().find(t => t.definition.name === name);
+		const tool = server.tools.get().find(t => t.definition.name === params.name);
 		if (!tool || !(tool.visibility & McpToolVisibility.App)) {
-			throw new Error(`Tool not found on server: ${name}`);
+			throw new Error(`Tool not found on server: ${params.name}`);
 		}
 
-		const res = await tool.call(params, undefined, token);
+		const res = await tool.call(params.arguments || {}, undefined, token, params._meta);
 		return {
 			content: res.content,
 			isError: res.isError,
@@ -225,8 +225,8 @@ class AhpMcpAppCallTransport extends Disposable implements IMcpAppCallTransport 
 		return readResourceContentToHtml(result.contents);
 	}
 
-	async callTool(name: string, params: Record<string, unknown>, _token: CancellationToken): Promise<MCP.CallToolResult> {
-		const result = await this._getConnection().handleMcpRequest(this._channel, 'tools/call', { name, arguments: params }) as MCP.CallToolResult;
+	async callTool(params: MCP.CallToolRequestParams, _token: CancellationToken): Promise<MCP.CallToolResult> {
+		const result = await this._getConnection().handleMcpRequest(this._channel, 'tools/call', { ...params, arguments: params.arguments || {} }) as MCP.CallToolResult;
 		return result;
 	}
 
@@ -415,14 +415,10 @@ export class McpToolCallUI extends Disposable {
 	}
 
 	/**
-	 * Calls a tool on the MCP server.
-	 * @param name Tool name
-	 * @param params Tool parameters
-	 * @param token Cancellation token
-	 * @returns The tool call result
+	 * Calls a tool on the MCP server, preserving request metadata separately from tool arguments.
 	 */
-	public callTool(name: string, params: Record<string, unknown>, token: CancellationToken): Promise<MCP.CallToolResult> {
-		return this._transport.callTool(name, params, token);
+	public callTool(params: MCP.CallToolRequestParams, token: CancellationToken): Promise<MCP.CallToolResult> {
+		return this._transport.callTool(params, token);
 	}
 
 	/**

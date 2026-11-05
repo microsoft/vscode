@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { timeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -16,10 +16,8 @@ import { AgentHostFileMonitorService } from '../../node/agentHostFileMonitorServ
 
 suite('AgentHostFileMonitorService', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function acquire(monitor: AgentHostFileMonitorService, folder: URI, callback: () => void, options?: { readonly excludes?: readonly string[]; readonly debounceMs?: number }): IDisposable {
 		const registration = monitor.acquire(folder, callback, options);

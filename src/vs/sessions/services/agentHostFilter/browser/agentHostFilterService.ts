@@ -77,6 +77,7 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 	 */
 	private _selectionIsAutomatic = false;
 	private _hosts: readonly IAgentHostFilterEntry[] = [];
+	private _pickerHosts: readonly IAgentHostFilterEntry[] = [];
 
 	/**
 	 * Discovery handlers contributed by host providers (e.g. dev tunnels).
@@ -137,7 +138,7 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 	}
 
 	get hosts(): readonly IAgentHostFilterEntry[] {
-		return this._hosts;
+		return this._pickerHosts;
 	}
 
 	get isDiscovering(): boolean {
@@ -179,7 +180,7 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 	}
 
 	setSelectedHostId(hostId: string): void {
-		if (!this._hosts.some(h => h.id === hostId)) {
+		if (!this._pickerHosts.some(h => h.id === hostId)) {
 			return;
 		}
 		// Picking the entry the fallback already landed on still makes it the
@@ -226,11 +227,7 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 		}));
 	}
 
-	/**
-	 * Resolve a selection against the live entry list. A selection made by the
-	 * fallback is provisional and is replaced once a connectable entry shows
-	 * up; an explicit user choice is always kept.
-	 */
+	/** Replace automatic selections only when a better-ranked entry appears; preserve explicit choices. */
 	private _validate(hostId: string | undefined): { readonly id: string | undefined; readonly automatic: boolean } {
 		const preferred = this._hosts.find(h => h.id === this._preferredHostId);
 		if (preferred) {
@@ -240,11 +237,20 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 			return { id: undefined, automatic: false };
 		}
 		const current = hostId === undefined ? undefined : this._hosts.find(h => h.id === hostId);
-		if (current && (!this._selectionIsAutomatic || current.connectable)) {
-			return { id: current.id, automatic: this._selectionIsAutomatic };
+		if (current && !this._selectionIsAutomatic) {
+			return { id: current.id, automatic: false };
 		}
-		const connectable = this._hosts.find(h => h.connectable);
-		return { id: (connectable ?? current ?? this._hosts[0]).id, automatic: true };
+		const bestRank = Math.min(...this._pickerHosts.map(host => this.automaticSelectionRank(host)));
+		if (current && this.automaticSelectionRank(current) <= bestRank) {
+			return { id: current.id, automatic: true };
+		}
+		const fallback = this._pickerHosts.find(host => this.automaticSelectionRank(host) === bestRank) ?? current;
+		return { id: fallback?.id, automatic: fallback !== undefined };
+	}
+
+	/** Entries may customize automatic preference without changing explicit selection or persistence. */
+	protected automaticSelectionRank(entry: IAgentHostFilterEntry): number {
+		return entry.connectable ? 0 : 1;
 	}
 
 	/**
@@ -257,7 +263,7 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 	private _rewatchProviders(): void {
 		this._providerWatchers.clear();
 
-		const providers = this._sessionsProvidersService.getProviders().filter(isRemoteAgentHostProvider);
+		const providers = this._sessionsProvidersService.getProviders({ includeSessionBackends: true }).filter(isRemoteAgentHostProvider);
 		const providerLabelsChanged = observableSignalFromEvent(this, Event.any(...providers.map(provider => provider.onDidChangeSessionTypes ?? Event.None)));
 
 		this._providerWatchers.add(autorun(reader => {
@@ -266,6 +272,7 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 				id: string;
 				providerIds: string[];
 				label: string;
+				description?: string;
 				grouped: boolean;
 				address: string | undefined;
 				icon: ThemeIcon;
@@ -307,7 +314,11 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 				groupEntry(group);
 			}
 
+			const hiddenProviderIds = new Set<string>();
 			for (const provider of providers) {
+				if (provider.isVisibleInEnvironmentPicker?.read(reader) === false) {
+					hiddenProviderIds.add(provider.id);
+				}
 				const status = mapStatus(provider.connectionStatus!.read(reader));
 				const group = provider.hostGroup;
 				if (!group) {
@@ -315,6 +326,7 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 						id: provider.id,
 						providerIds: [provider.id],
 						label: provider.label,
+						description: provider.hostDescription?.read(reader),
 						grouped: false,
 						address: provider.remoteAddress,
 						icon: provider.icon,
@@ -346,14 +358,18 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 
 			entries.sort((a, b) => a.order - b.order || a.label.localeCompare(b.label));
 
-			this._applyHosts(entries.map(({ order, ...entry }) => entry));
+			this._applyHosts(entries.map(({ order, ...entry }) => entry), hiddenProviderIds);
 		}));
 	}
 
-	private _applyHosts(hosts: readonly IAgentHostFilterEntry[]): void {
-		const changed = hosts.length !== this._hosts.length
+	private _applyHosts(hosts: readonly IAgentHostFilterEntry[], hiddenProviderIds: ReadonlySet<string>): void {
+		const pickerHosts = hosts.filter(host => !hiddenProviderIds.has(host.id));
+		const changed = pickerHosts.length !== this._pickerHosts.length
+			|| pickerHosts.some((host, i) => host.id !== this._pickerHosts[i].id)
+			|| hosts.length !== this._hosts.length
 			|| hosts.some((h, i) => h.id !== this._hosts[i].id
 				|| h.label !== this._hosts[i].label
+				|| h.description !== this._hosts[i].description
 				|| h.address !== this._hosts[i].address
 				|| h.status !== this._hosts[i].status
 				|| h.sessionCreationProviderId !== this._hosts[i].sessionCreationProviderId
@@ -361,6 +377,7 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 				|| h.providerIds.some((p, j) => p !== this._hosts[i].providerIds[j]));
 
 		this._hosts = hosts;
+		this._pickerHosts = pickerHosts;
 
 		const validated = isWeb ? this._validate(this._selectedHostId) : { id: undefined, automatic: false };
 		const selectionChanged = validated.id !== this._selectedHostId;

@@ -83,6 +83,7 @@ export interface IAgentFeedback {
 	readonly kind: AgentFeedbackKind;
 	/** When this feedback was converted from a PR review comment, the original thread ID. */
 	readonly sourcePRReviewCommentId?: string;
+	readonly sourcePRReviewCommentAuthor?: string;
 	/** Pull request that originated this PR review comment. */
 	readonly sourcePullRequest?: IFeedbackPullRequest;
 	/**

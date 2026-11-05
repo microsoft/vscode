@@ -10,7 +10,7 @@ import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import * as path from '../../../util/vs/base/common/path';
 import { IVSCodeExtensionContext } from '../../extContext/common/extensionContext';
 import { ITerminalService } from '../common/terminalService';
-import { getActiveTerminalBuffer, getActiveTerminalLastCommand, getActiveTerminalSelection, getActiveTerminalShellType, getBufferForTerminal, getLastCommandForTerminal, installTerminalBufferListeners } from './terminalBufferListener';
+import { getActiveTerminalLastCommand, getActiveTerminalSelection, getActiveTerminalShellType, getBufferForTerminal, getLastCommandForTerminal, installTerminalBufferListeners } from './terminalBufferListener';
 
 export class TerminalServiceImpl extends Disposable implements ITerminalService {
 
@@ -85,10 +85,6 @@ export class TerminalServiceImpl extends Disposable implements ITerminalService 
 
 	getLastCommandForTerminal(terminal: Terminal): TerminalExecutedCommand | undefined {
 		return getLastCommandForTerminal(terminal);
-	}
-
-	get terminalBuffer(): string {
-		return getActiveTerminalBuffer();
 	}
 
 	get terminalLastCommand(): TerminalExecutedCommand | undefined {

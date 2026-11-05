@@ -46,7 +46,7 @@ export function diffToChange(file: ChangesetFile, mapUri?: AgentHostUriMapper, u
 	}
 
 	const map = (uri: URI): URI => mapUri ? mapUri(uri) : uri;
-	const mapContent = (uri: URI): URI => mapUri ? mapUri(uri, { contentRef: true }) : uri;
+	const mapContent = (uri: URI, fileUri: URI | undefined): URI => mapUri ? mapUri(uri, { contentRef: true, fileUri }) : uri;
 
 	const uri = map(normalized.resource);
 
@@ -54,13 +54,13 @@ export function diffToChange(file: ChangesetFile, mapUri?: AgentHostUriMapper, u
 	// renderer treats the entry as a deletion and doesn't try to open the
 	// (now-missing) file as the "modified" side of the diff editor.
 	const modifiedUri = useModifiedSnapshot && normalized.afterContentUri
-		? mapContent(normalized.afterContentUri)
+		? mapContent(normalized.afterContentUri, normalized.afterUri)
 		: normalized.afterUri ? map(normalized.afterUri) : undefined;
 
 	// Use the before-content reference URI so the diff editor can
 	// fetch the snapshot of the file *before* the session's edits.
 	const originalUri = normalized.beforeContentUri
-		? mapContent(normalized.beforeContentUri)
+		? mapContent(normalized.beforeContentUri, normalized.beforeUri)
 		: undefined;
 
 	// Extract reviewed status from meta. We

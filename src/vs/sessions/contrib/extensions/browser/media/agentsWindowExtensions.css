@@ -1,0 +1,293 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.agents-window-extensions {
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+}
+
+.agents-window-extensions > .agents-window-extensions-header,
+.agents-window-extensions > .agents-window-extensions-search,
+.agents-window-extensions > .agents-window-extensions-tree,
+.agents-window-extensions > .agents-window-extensions-empty {
+	width: min(calc(100% - var(--vscode-spacing-size400) - var(--vscode-spacing-size400)), 840px);
+	margin-inline: auto;
+	box-sizing: border-box;
+}
+
+.agents-window-extensions-header {
+	flex-shrink: 0;
+}
+
+.agents-window-extensions-title-row {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	min-height: var(--vscode-spacing-size240);
+	margin-bottom: var(--vscode-spacing-size60);
+}
+
+.agents-window-extensions-title {
+	flex: 1;
+	min-width: 0;
+	margin: 0;
+	font-size: var(--vscode-fontSize-heading2);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	color: var(--vscode-foreground);
+}
+
+.agents-window-extensions-title-row > .monaco-button,
+.agents-window-extension-row > .agents-window-extension-runtime-action {
+	width: auto;
+	height: var(--vscode-spacing-size240);
+	flex-shrink: 0;
+	font-size: var(--vscode-fontSize-label1);
+}
+
+/* An icon button, like the More Actions buttons of other Customizations sections. */
+.agents-window-extension-row > .agents-window-extension-more-actions.monaco-button {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	width: var(--vscode-spacing-size240);
+	min-width: var(--vscode-spacing-size240);
+	height: var(--vscode-spacing-size240);
+	padding: 0;
+	border-color: transparent;
+	border-radius: var(--vscode-cornerRadius-small);
+	background: transparent;
+	color: var(--vscode-foreground);
+	cursor: pointer;
+}
+
+.agents-window-extension-row > .agents-window-extension-more-actions.monaco-button:hover {
+	border-color: transparent;
+	background: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-foreground);
+}
+
+.agents-window-extensions-description {
+	margin: 0 0 var(--vscode-spacing-size80);
+	font-size: var(--vscode-fontSize-body1);
+	line-height: 1.45;
+	color: var(--vscode-descriptionForeground);
+}
+
+/* A row, like the search boxes of other Customizations sections, so WebKit doesn't stretch the input box's percentage height to the whole section. */
+.agents-window-extensions-search {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	margin-block: var(--vscode-spacing-size80) var(--vscode-spacing-size160);
+}
+
+.agents-window-extensions-search > .monaco-inputbox {
+	flex: 1;
+}
+
+.agents-window-extensions-tree {
+	flex: 1;
+	min-height: 0;
+	overflow: hidden;
+}
+
+.agents-window-extension-row {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size120);
+	height: 100%;
+	padding-inline: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+	box-sizing: border-box;
+	overflow: hidden;
+}
+
+.agents-window-extension-icon {
+	display: flex;
+	flex-shrink: 0;
+}
+
+.agents-window-extension-icon .extension-icon .icon {
+	margin-right: 0;
+}
+
+.agents-window-extension-icon .extension-icon .codicon {
+	padding-right: 0;
+}
+
+.agents-window-extension-details {
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+	min-width: 0;
+	gap: var(--vscode-spacing-size20);
+	container: agents-window-extension-details / inline-size;
+}
+
+.agents-window-extension-name-row {
+	display: flex;
+	align-items: baseline;
+	gap: var(--vscode-spacing-size60);
+	min-width: 0;
+}
+
+.agents-window-extension-name {
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	line-height: 18px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.agents-window-extension-publisher,
+.agents-window-extension-description {
+	font-size: var(--vscode-fontSize-body2);
+	line-height: 16px;
+	color: var(--vscode-descriptionForeground);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.agents-window-extension-publisher {
+	flex-shrink: 0;
+	max-width: 40%;
+}
+
+.agents-window-extension-row.disabled .agents-window-extension-icon,
+.agents-window-extension-row.disabled .agents-window-extension-name,
+.agents-window-extension-row.disabled .agents-window-extension-publisher,
+.agents-window-extension-row.disabled .agents-window-extension-description {
+	opacity: 0.6;
+}
+
+/* Marks extensions that contribute things the Agents window doesn't support. Not dimmed with disabled rows, as it matters most before enabling them. Outranks the workbench's generic codicon size and color. */
+.agents-window-extension-row .agents-window-extension-name-row > .agents-window-extension-warning.codicon {
+	flex-shrink: 0;
+	align-self: center;
+	font-size: var(--vscode-codiconFontSize-compact);
+	color: var(--vscode-list-warningForeground, var(--vscode-editorWarning-foreground));
+}
+
+/* What suggested extensions contribute, which is why users might enable them. Not dimmed with disabled rows either. */
+.agents-window-extension-contributions {
+	display: flex;
+	align-self: center;
+	gap: var(--vscode-spacing-size40);
+	min-width: 0;
+	overflow: hidden;
+}
+
+/* Rows reuse the Extensions view's publisher, install count, and rating widgets, sized like the rest of the row. */
+.agents-window-extension-row .agents-window-extension-publisher > .publisher {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size20);
+	min-width: 0;
+}
+
+.agents-window-extension-row .agents-window-extension-publisher .publisher-name {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.agents-window-extension-row .agents-window-extension-name-row > .agents-window-extension-install-count,
+.agents-window-extension-row .agents-window-extension-name-row > .agents-window-extension-rating {
+	display: flex;
+	flex-shrink: 0;
+	align-self: center;
+	align-items: center;
+	gap: var(--vscode-spacing-size20);
+	font-size: var(--vscode-fontSize-body2);
+	line-height: 16px;
+	color: var(--vscode-descriptionForeground);
+}
+
+/* Outranks the workbench's generic codicon size. */
+.agents-window-extension-row .agents-window-extension-name-row .verified-publisher .codicon,
+.agents-window-extension-row .agents-window-extension-name-row > .agents-window-extension-install-count > .codicon,
+.agents-window-extension-row .agents-window-extension-name-row > .agents-window-extension-rating > .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+/* Extensions without Marketplace statistics don't leave a gap where they would be. */
+.agents-window-extension-row .agents-window-extension-name-row > .agents-window-extension-install-count:empty,
+.agents-window-extension-row .agents-window-extension-name-row > .agents-window-extension-rating:empty {
+	display: none;
+}
+
+/* Narrow rows, such as those with a restart button in a narrow editor, leave the space to the extension's name. */
+@container agents-window-extension-details (max-width: 200px) {
+	.agents-window-extension-row .agents-window-extension-name-row > .agents-window-extension-install-count,
+	.agents-window-extension-row .agents-window-extension-name-row > .agents-window-extension-rating {
+		display: none;
+	}
+}
+
+.agents-window-extension-marketplace-actions {
+	flex-shrink: 0;
+}
+
+/* Sizes the Extensions view's Install action like the section's other row actions. Leaves `display` to its `hide` rules. */
+.agents-window-extension-marketplace-actions .monaco-action-bar .action-item .action-label.extension-action.label {
+	box-sizing: border-box;
+	height: var(--vscode-spacing-size240);
+	padding-inline: var(--vscode-spacing-size80);
+	font-size: var(--vscode-fontSize-label1);
+	line-height: 22px;
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+/* Joins the Install button and its menu of other versions into one control, like the Extensions view. */
+.agents-window-extension-marketplace-actions .monaco-action-bar .action-item.action-dropdown-item:not(.empty) > .action-label.extension-action.label {
+	border-start-end-radius: 0;
+	border-end-end-radius: 0;
+}
+
+.agents-window-extension-marketplace-actions .monaco-action-bar .action-item.action-dropdown-item > .monaco-dropdown .action-label.extension-action.label {
+	padding-inline: var(--vscode-spacing-size20);
+	border-start-start-radius: 0;
+	border-end-start-radius: 0;
+}
+
+.agents-window-extension-marketplace-actions .monaco-action-bar .action-item.action-dropdown-item > .action-dropdown-item-separator {
+	box-sizing: border-box;
+	height: var(--vscode-spacing-size240);
+}
+
+.agents-window-marketplace-message {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	height: 100%;
+	padding-inline: var(--vscode-spacing-size40);
+	font-size: var(--vscode-fontSize-body2);
+	color: var(--vscode-descriptionForeground);
+}
+
+.agents-window-extensions-empty {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: var(--vscode-spacing-size80);
+	padding: var(--vscode-spacing-size400) var(--vscode-spacing-size240);
+	text-align: center;
+}
+
+.agents-window-extensions-empty-text {
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	color: var(--vscode-foreground);
+}
+
+.agents-window-extensions-empty-subtext {
+	font-size: var(--vscode-fontSize-body1);
+	color: var(--vscode-descriptionForeground);
+}

@@ -54,17 +54,21 @@ suite('effectiveChatInteractivity', () => {
 	test('archived sessions force interactive chats read-only, preserve hidden, and leave active chats unchanged', () => {
 		const actual = {
 			archivedFull: effectiveChatInteractivity(true, ChatInteractivity.Full),
+			archivedDraft: effectiveChatInteractivity(true, ChatInteractivity.DraftOnly),
 			archivedReadOnly: effectiveChatInteractivity(true, ChatInteractivity.ReadOnly),
 			archivedHidden: effectiveChatInteractivity(true, ChatInteractivity.Hidden),
 			activeFull: effectiveChatInteractivity(false, ChatInteractivity.Full),
+			activeDraft: effectiveChatInteractivity(false, ChatInteractivity.DraftOnly),
 			activeReadOnly: effectiveChatInteractivity(false, ChatInteractivity.ReadOnly),
 			activeHidden: effectiveChatInteractivity(false, ChatInteractivity.Hidden),
 		};
 		assert.deepStrictEqual(actual, {
 			archivedFull: ChatInteractivity.ReadOnly,
+			archivedDraft: ChatInteractivity.ReadOnly,
 			archivedReadOnly: ChatInteractivity.ReadOnly,
 			archivedHidden: ChatInteractivity.Hidden,
 			activeFull: ChatInteractivity.Full,
+			activeDraft: ChatInteractivity.DraftOnly,
 			activeReadOnly: ChatInteractivity.ReadOnly,
 			activeHidden: ChatInteractivity.Hidden,
 		});

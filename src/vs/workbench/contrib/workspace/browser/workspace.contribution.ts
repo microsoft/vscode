@@ -13,6 +13,7 @@ import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { Severity } from '../../../../platform/notification/common/notification.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
+import { AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, WorkspaceTrustUriResponse } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
@@ -175,9 +176,22 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 				`\`${this.labelService.getUriLabel(options.uri)}\``
 			];
 
-			const sessionsTrustNote = getSessionsWindowTrustNote(this.environmentService, this.productService, false);
-			if (sessionsTrustNote) {
-				markdownDetails.push(sessionsTrustNote);
+			if (options.remoteHostLabel) {
+				const remoteHostLabel = `\`${options.remoteHostLabel.replace(/`/g, '').replace(/\s+/g, ' ').trim()}\``;
+				markdownDetails.push(
+					localize('resourcesTrustRemoteEnvironment', "This folder is hosted on the remote agent environment {0}.", remoteHostLabel),
+					localize('resourcesTrustRemoteScope', "Your decision is saved in {0} on this computer and lets agent sessions read, modify, and run commands in this folder on {1}. It does not change any trust settings on the remote environment.", this.productService.nameLong, remoteHostLabel)
+				);
+			} else if (options.uri.scheme === AGENT_HOST_SCHEME) {
+				markdownDetails.push(
+					localize('resourcesTrustUnnamedRemoteEnvironment', "This folder is hosted on a remote agent environment."),
+					localize('resourcesTrustUnnamedRemoteScope', "Your decision is saved in {0} on this computer and lets agent sessions read, modify, and run commands in this folder. It does not change any trust settings on the remote environment.", this.productService.nameLong)
+				);
+			} else {
+				const sessionsTrustNote = getSessionsWindowTrustNote(this.environmentService, this.productService, false);
+				if (sessionsTrustNote) {
+					markdownDetails.push(sessionsTrustNote);
+				}
 			}
 
 			// Dialog

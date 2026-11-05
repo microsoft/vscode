@@ -5,7 +5,7 @@
 
 import type { SessionEventPayload, SessionEventType } from '@github/copilot-sdk';
 
-const phase = { fusionId: 'fusion-1', phaseId: 'phase-1', phaseKind: 'primary', role: 'solver', conversationScope: 'root', model: 'model-a' } as const;
+const phase = { fusionId: 'fusion-1', phaseId: 'phase-1', phaseKind: 'repair', role: 'solver', conversationScope: 'root', model: 'model-a' } as const;
 const usage = { requestCount: 1, inputTokens: 10, outputTokens: 4, cachedTokens: 0, totalNanoAiu: 100 };
 
 export const fusionTestData = {
@@ -39,6 +39,11 @@ export const fusionTestData = {
 		outcome: 'completed', finalSourcePhaseId: 'phase-1', finalSourceModel: 'model-a', followUpModel: 'model-a',
 		degradedReason: null, phaseCount: 1, durationMs: 2300, ...usage,
 	} satisfies SessionEventPayload<'session.fusion_completed'>['data'],
+};
+
+export const fusionMainPassTestData = {
+	started: { ...fusionTestData.started, phaseKind: 'primary' } satisfies SessionEventPayload<'assistant.fusion_phase_started'>['data'],
+	phaseCompleted: { ...fusionTestData.phaseCompleted, phaseKind: 'primary' } satisfies SessionEventPayload<'assistant.fusion_phase_completed'>['data'],
 };
 
 export function fusionTestEvent<K extends SessionEventType>(type: K, data: SessionEventPayload<K>['data'], overrides?: Partial<Omit<SessionEventPayload<K>, 'type' | 'data'>>): SessionEventPayload<K> {

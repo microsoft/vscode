@@ -12,7 +12,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { AgentsWindowOpenSource } from '../../../../platform/window/common/window.js';
 import { ILifecycleService, ShutdownReason } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { IWorkspaceSelectionSnapshot, WorkspaceSelectionOrigin } from '../../../common/workspaceSelection.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISendRequestOptions } from '../../../services/sessions/common/sessionsProvider.js';
 import { INewSessionComposerService } from '../../chat/browser/newSessionComposerService.js';
@@ -80,7 +80,7 @@ export class SessionsWorkspaceSelectionTelemetry extends Disposable {
 		private readonly source: AgentsWindowOpenSource,
 		private readonly context: ISessionsWindowOpenContext,
 		@INewSessionComposerService private readonly composerService: INewSessionComposerService,
-		@ISessionsService sessionsService: ISessionsService,
+		@IFocusedSessionHostService focusedSessionHostService: IFocusedSessionHostService,
 		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -91,7 +91,7 @@ export class SessionsWorkspaceSelectionTelemetry extends Disposable {
 		this._observation.add(autorun(reader => {
 			const version = composerService.userWorkspaceSelectionVersion.read(reader);
 			const selection = composerService.workspaceSelection.read(reader);
-			const session = sessionsService.activeSession.read(reader);
+			const session = focusedSessionHostService.focusedHost.read(reader).session.read(reader);
 			const created = session?.isCreated.read(reader);
 			const loading = session?.loading.read(reader);
 			const folderUri = session?.workspace.read(reader)?.folders[0]?.root;

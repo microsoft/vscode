@@ -6,6 +6,12 @@
 import { URI } from '../../../base/common/uri.js';
 import { deriveGitHubEndpoints } from './githubEndpoints.js';
 
+/** Parses a github.com repository name or clone URL into owner/repository. */
+export function getGitHubRepositoryId(repository: string): string | undefined {
+	const match = /^(?:(?:https?|ssh|git):\/\/(?:git@)?github\.com\/|git@github\.com:)?(?<owner>[^/:\s]+)\/(?<repo>[^/\s]+?)(?:\.git)?\/?$/i.exec(repository);
+	return match?.groups ? `${match.groups.owner}/${match.groups.repo}` : undefined;
+}
+
 /** Normalized key for comparing pull request URLs irrespective of case and trailing slashes. */
 export function getPullRequestUrlKey(url: string): string {
 	return url.trim().replace(/\/+$/, '').toLowerCase();

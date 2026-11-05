@@ -29,8 +29,9 @@ export interface IAgentHostSessionLifecycleAccessor {
 	readonly getAutoArchivedAt: (session: URI) => Promise<number | undefined>;
 	readonly setAutoArchivedAt: (session: URI, timestamp: number) => Promise<void>;
 	readonly archiveSession: (session: URI) => void;
+	/** Whether deleting keeps the session's work: each of its worktrees is gone or has its branch synced. */
 	readonly canDeleteSession: (session: URI) => Promise<boolean>;
-	readonly cleanupWorktree: (session: URI, sessionId: string) => Promise<void>;
+	/** Deletes the session; its worktrees are removed later, and only while synced. */
 	readonly deleteSession: (session: URI, validate: () => Promise<boolean>, canCommit: () => boolean) => Promise<boolean>;
 }
 
@@ -185,11 +186,8 @@ export class AgentHostSessionLifecycle extends Disposable {
 						return false;
 					}
 					if (!await this._accessor.canDeleteSession(session)) {
-						await this._accessor.cleanupWorktree(session, sessionKey);
-						if (!await this._accessor.canDeleteSession(session)) {
-							this._logService.info(`[AgentHostSessionLifecycle] Skipping permanent deletion because the archived session still has a worktree: session=${sessionKey}`);
-							return false;
-						}
+						this._logService.info(`[AgentHostSessionLifecycle] Skipping permanent deletion because the archived session still has a worktree with unsynced work: session=${sessionKey}`);
+						return false;
 					}
 					const finalDeleteAfterDays = this._settings.deleteAfterDays;
 					const finalCandidate = finalDeleteAfterDays > 0

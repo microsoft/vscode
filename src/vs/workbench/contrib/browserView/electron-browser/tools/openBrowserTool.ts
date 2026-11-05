@@ -24,9 +24,10 @@ import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation,
 import { BrowserViewSharingState, IBrowserViewWorkbenchService } from '../../common/browserView.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
 import { BrowserChatToolReferenceName } from '../../../../../platform/browserView/common/browserChatToolReferenceNames.js';
-import { createBrowserPageLink, errorResult, findExistingPagesByHost, getBrowserNetworkPolicyError, getExistingPagesResult, getExternalTunnelNetworkPolicyError, getSessionId, remoteUrlRewriteNotice, rewriteRemoteLocalhostUrl } from './browserToolHelpers.js';
+import { createBrowserPageLink, errorResult, findExistingPagesByHost, getBrowserNetworkPolicyError, getExistingPagesResult, getExternalTunnelNetworkPolicyError, getSessionId, localNetworkFallbackNotice, remoteUrlRewriteNotice, rewriteRemoteLocalhostUrl } from './browserToolHelpers.js';
 import { IRemoteExplorerService } from '../../../../services/remote/common/remoteExplorerService.js';
 import { getAgentBrowserViewCreationDefaults } from '../../../../../platform/browserView/common/browserView.js';
+import { ISandboxNetworkRestrictions } from '../../../../../platform/sandbox/common/sandboxSettingsResolutionHelper.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 
 export const OpenPageToolId = 'open_browser_page';
@@ -84,6 +85,9 @@ export class OpenBrowserTool implements IToolImpl {
 		const params = context.parameters as IOpenBrowserToolParams;
 
 		if (!params.url) {
+			if (context.sandboxNetworkRestrictions?.sandboxEnabled) {
+				throw new Error(localize('browser.sandbox.requiresUrl', "Sandboxed Copilot sessions must open a URL in an isolated browser page instead of sharing a user-owned page."));
+			}
 			return {
 				invocationMessage: localize('browser.open.prompt.invocation', "Prompting user to share a browser tab"),
 				pastTenseMessage: localize('browser.open.prompt.past', "Prompted user to share a browser tab"),
@@ -117,6 +121,23 @@ export class OpenBrowserTool implements IToolImpl {
 		const params = invocation.parameters as IOpenBrowserToolParams;
 		const sessionId = getSessionId(invocation);
 		const activeSessionId = invocation.context?.sessionResource.toString();
+		const restrictions = invocation.context?.sandboxNetworkRestrictions;
+		if (restrictions?.sandboxEnabled) {
+			if (!params.url) {
+				return errorResult(localize('browser.sandbox.requiresUrl', "Sandboxed Copilot sessions must open a URL in an isolated browser page instead of sharing a user-owned page."));
+			}
+			const policyError = getBrowserNetworkPolicyError(params.url, this.agentNetworkFilterService);
+			if (policyError) {
+				return errorResult(policyError);
+			}
+			const rewrite = rewriteRemoteLocalhostUrl(params.url, this.remoteExplorerService, !!this.browserViewService.resolveNetwork({ type: 'agent', sessionId }));
+			const tunnelError = getExternalTunnelNetworkPolicyError(rewrite, this.agentNetworkFilterService);
+			if (tunnelError) {
+				return errorResult(tunnelError);
+			}
+			const result = await this._openNewPage(sessionId, rewrite.url, restrictions);
+			return rewrite.rewritten ? { ...result, content: [remoteUrlRewriteNotice(params.url, rewrite.url), ...result.content] } : result;
+		}
 
 		// If no URL is specified, prompt the user for a page to share.
 		if (!params.url) {
@@ -137,7 +158,8 @@ export class OpenBrowserTool implements IToolImpl {
 		// runs locally and cannot reach the remote's localhost directly. Rewrite to
 		// the forwarded local address (if any) so the page can be reached.
 		const logicalUrl = params.url;
-		const rewrite = rewriteRemoteLocalhostUrl(logicalUrl, this.browserViewService, this.remoteExplorerService);
+		const network = this.browserViewService.resolveNetwork({ type: 'agent', sessionId });
+		const rewrite = rewriteRemoteLocalhostUrl(logicalUrl, this.remoteExplorerService, !!network);
 		const rewriteNotice = rewrite.rewritten ? remoteUrlRewriteNotice(logicalUrl, rewrite.url) : undefined;
 		params.url = rewrite.url;
 
@@ -151,25 +173,31 @@ export class OpenBrowserTool implements IToolImpl {
 		}
 
 		if (!params.forceNew) {
+			// Existing pages are reused only on the network a new page would use.
+			const pageNetwork = network && this.browserViewService.getNetworkStatus(network).proxySupported === false ? undefined : network;
+			const fallbackNotice = localNetworkFallbackNotice(network, pageNetwork);
+			const withReuseNotice = (result: IToolResult): IToolResult =>
+				withNotice(fallbackNotice ? { ...result, content: [fallbackNotice, ...result.content] } : result);
+
 			// If there are already-shared pages, tell the model to reuse them
-			const shared = findExistingPagesByHost(this.browserViewService, params.url, { includeBlank: true, sharingState: BrowserViewSharingState.Shared, activeSessionId });
+			const shared = findExistingPagesByHost(this.browserViewService, params.url, pageNetwork, { includeBlank: true, sharingState: BrowserViewSharingState.Shared, activeSessionId });
 			const alreadyShared = await getExistingPagesResult(this.editorService, shared, { agentNetworkFilterService: this.agentNetworkFilterService });
 			if (alreadyShared) {
-				return withNotice(alreadyShared);
+				return withReuseNotice(alreadyShared);
 			}
 
 			// If there are unshared pages on the same host, prompt user to share one
-			const unshared = findExistingPagesByHost(this.browserViewService, params.url, { includeBlank: false, activeSessionId })
+			const unshared = findExistingPagesByHost(this.browserViewService, params.url, pageNetwork, { includeBlank: false, activeSessionId })
 				.filter(editor => editor.model?.sharingState === BrowserViewSharingState.Available);
 			if (unshared.length > 0) {
 				const shareResult = await this._promptForUnsharedPages(invocation, unshared, params, token);
 				if (shareResult) {
-					return withNotice(shareResult);
+					return withReuseNotice(shareResult);
 				}
 			}
 		}
 
-		return withNotice(await this._openNewPage(sessionId, params.url));
+		return withNotice(await this._openNewPage(sessionId, params.url, restrictions));
 	}
 
 	/**
@@ -305,14 +333,18 @@ export class OpenBrowserTool implements IToolImpl {
 		return undefined;
 	}
 
-	private async _openNewPage(sessionId: string, url: string): Promise<IToolResult> {
+	private async _openNewPage(sessionId: string, url: string, restrictions?: ISandboxNetworkRestrictions): Promise<IToolResult> {
 		const input = await this.browserViewService.createBrowserView({
-			...getAgentBrowserViewCreationDefaults(sessionId, this.environmentService.isSessionsWindow ? sessionId : undefined),
+			...getAgentBrowserViewCreationDefaults(sessionId, restrictions || this.environmentService.isSessionsWindow ? sessionId : undefined, this.browserViewService.resolveNetwork({ type: 'agent', sessionId })),
+			...(restrictions?.sandboxEnabled ? { initialAudiences: [{ type: 'agent' as const, sessionId }] } : {}),
+			...(restrictions ? { sandboxNetworkRestrictions: restrictions } : {}),
 			initialUrl: url,
 			openSource: 'cdpCreated'
 		}, { preserveFocus: true });
 		const summary = await this.playwrightService.waitForPageAndGetSummary(sessionId, input.id, url, OPEN_PAGE_READY_TIMEOUT_MS);
-		return this._pageResult(input.id, summary, localize('browser.open.result', "Opened {0}", createBrowserPageLink(input.id)));
+		const result = this._pageResult(input.id, summary, localize('browser.open.result', "Opened {0}", createBrowserPageLink(input.id)));
+		const notice = localNetworkFallbackNotice(input.network, input.model?.network);
+		return notice ? { ...result, content: [notice, ...result.content] } : result;
 	}
 
 	private async _shareExistingPage(sessionId: string, editor: BrowserEditorInput): Promise<IToolResult> {

@@ -9,9 +9,9 @@ import { IChatPetService } from '../../../../contrib/chat/browser/chatPetService
 // eslint-disable-next-line local/code-import-patterns
 import { SessionsChatPetAchievementBadges } from '../../../../../sessions/contrib/accountMenu/browser/chatPetAchievementBadges.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
-import { configureChatPetFixtureFileRoot, FixtureChatPetService, IChatPetFixtureOptions } from '../chat/chatPetFixtureUtils.js';
+import { configureChatPetFixtureFileRoot, FixtureChatPetService, IChatPetFixtureOptions, waitForChatPetAchievementPreviews } from '../chat/chatPetFixtureUtils.js';
 
-function renderAchievementBadges(context: ComponentFixtureContext, options: IChatPetFixtureOptions): void {
+async function renderAchievementBadges(context: ComponentFixtureContext, options: IChatPetFixtureOptions): Promise<void> {
 	context.container.classList.add('agent-sessions-workbench');
 	context.container.style.width = '400px';
 	configureChatPetFixtureFileRoot(context.disposableStore);
@@ -29,6 +29,7 @@ function renderAchievementBadges(context: ComponentFixtureContext, options: ICha
 	if (widget.element.classList.contains('hidden') !== !options.enabled) {
 		throw new Error('Pet achievement badges fixture visibility did not match pet enablement.');
 	}
+	await waitForChatPetAchievementPreviews(context.container, chatPetAchievements.length);
 }
 
 export default defineThemedFixtureGroup({ path: 'sessions/accountMenu/petAchievementBadges/' }, {

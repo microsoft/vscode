@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { IObservable } from '../../../../base/common/observable.js';
+import { IObservable, IReader } from '../../../../base/common/observable.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { localize } from '../../../../nls.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { getReasoningEffortLabel, isReasoningEffortLevel, ReasoningEffortConfigKey } from '../../../../platform/agentHost/common/reasoningEffort.js';
+import { IChat, ISession } from './session.js';
 
 export const enum SessionComparisonParticipantRole {
 	Coordinator = 'coordinator',
@@ -70,6 +72,8 @@ export interface ISessionComparisonParticipant {
 	readonly role: SessionComparisonParticipantRole;
 	readonly harness: ISessionComparisonHarness;
 	readonly sessionResource?: URI;
+	/** Exact participant chat; absent in comparisons created before nested participants. */
+	readonly chatResource?: URI;
 	readonly launchError?: string;
 	readonly missingSession?: boolean;
 	readonly completion?: {
@@ -112,8 +116,10 @@ export interface ISessionComparisonVerdict {
 export const SESSION_COMPARISON_MANIFEST_TEXT_MAX_LENGTH = 1000;
 export const SESSION_COMPARISON_MANIFEST_LIST_MAX_ITEMS = 32;
 export const SESSION_COMPARISON_SYNTHESIS_INSTRUCTIONS_MAX_LENGTH = 4000;
+export const SESSION_COMPARISON_MIN_ATTEMPTS = 2;
 export const SESSION_COMPARISON_MAX_ATTEMPTS = 10;
 export const COMPARE_AGENTS_ENABLED_SETTING = 'sessions.chat.compareAgents.enabled';
+export const COMPARE_AGENTS_TOOLS_ENABLED_SETTING = 'sessions.chat.compareAgents.tools.enabled';
 
 export function getBoundedSessionComparisonManifestText(value: string): string {
 	return value.length <= SESSION_COMPARISON_MANIFEST_TEXT_MAX_LENGTH ? value : value.slice(0, SESSION_COMPARISON_MANIFEST_TEXT_MAX_LENGTH);
@@ -130,9 +136,11 @@ export interface ISessionComparisonSynthesisPlan {
 export interface ISessionComparison {
 	readonly id: string;
 	readonly groupId: string;
+	/** The first attempt's session, containing the other participants as nested chats. */
+	readonly sessionResource?: URI;
 	readonly title: string;
 	readonly createdAt: number;
-	readonly workspace: URI;
+	readonly workspace?: URI;
 	readonly prompt: string;
 	/** Transient while the initial attempt sessions are still being created. */
 	readonly launching?: boolean;
@@ -151,7 +159,7 @@ export interface ISessionComparison {
 }
 
 export interface IStartSessionComparisonOptions {
-	readonly workspace: URI;
+	readonly workspace?: URI;
 	readonly prompt: string;
 	readonly attachedContext?: readonly IChatRequestVariableEntry[];
 	readonly attempts: readonly ISessionComparisonAttemptConfiguration[];
@@ -161,6 +169,13 @@ export interface IStartSessionComparisonOptions {
 	readonly branch?: string;
 }
 
+export class SessionComparisonLaunchError extends Error {
+	constructor(message: string, readonly participants: readonly ISessionComparisonParticipant[]) {
+		super(message);
+		this.name = 'SessionComparisonLaunchError';
+	}
+}
+
 export interface ISessionComparisonService {
 	readonly _serviceBrand: undefined;
 	readonly comparisons: IObservable<readonly ISessionComparison[]>;
@@ -168,6 +183,8 @@ export interface ISessionComparisonService {
 	startComparison(options: IStartSessionComparisonOptions, token?: CancellationToken): Promise<ISessionComparison>;
 	getComparison(comparisonId: string): ISessionComparison | undefined;
 	getComparisonForSession(resource: URI): ISessionComparison | undefined;
+	/** Resolves an exact participant chat, including the live request model retained across its move. */
+	getParticipantForChat(comparisonId: string, resource: URI): ISessionComparisonParticipant | undefined;
 	cancelComparison(comparisonId: string): void;
 	archiveComparison(comparisonId: string): void;
 	/** Restores an automatically removed comparison group for bulk archive Undo and returns its group ID. */
@@ -182,35 +199,49 @@ export interface ISessionComparisonService {
 
 export const ISessionComparisonService = createDecorator<ISessionComparisonService>('sessionComparisonService');
 
-export function getSessionComparisonWorkspaceError(branch: string | undefined, hasGitRemote: boolean | undefined): string | undefined {
+export function getSessionComparisonChat(participant: ISessionComparisonParticipant, session: ISession | undefined, reader?: IReader): IChat | undefined {
+	return participant.chatResource
+		? session?.chats.read(reader).find(chat => isEqual(chat.resource, participant.chatResource))
+		: session?.mainChat.read(reader);
+}
+
+export function getSessionComparisonWorkspaceError(branch: string | undefined): string | undefined {
 	if (!branch) {
-		return localize('sessionComparison.gitRepositoryRequired', "Comparisons require a Git repository with at least one commit.");
-	}
-	if (hasGitRemote !== true) {
-		return localize('sessionComparison.gitRemoteRequired', "Comparisons require a Git remote.");
+		return localize('sessionComparison.gitBranchRequired', "Comparisons require a Git repository with branch information.");
 	}
 	return undefined;
 }
 
-export function getSessionComparisonHarnessLabel(participant: ISessionComparisonParticipant): string {
-	return getSessionComparisonHarnessDisplayLabel(participant.harness);
+export function getSessionComparisonHarnessLabel(participant: ISessionComparisonParticipant, includeHarness = true): string {
+	return getSessionComparisonHarnessDisplayLabel(participant.harness, includeHarness);
 }
 
 export function getSessionComparisonAttemptLabel(participant: ISessionComparisonParticipant, attemptNumber: number): string {
 	return localize('sessionComparison.attemptLabel', "Attempt {0} ({1})", attemptNumber, getSessionComparisonHarnessLabel(participant));
 }
 
-export function getSessionComparisonHarnessDisplayLabel(harness: ISessionComparisonHarness): string {
+export function getSessionComparisonHarnessDisplayLabel(harness: ISessionComparisonHarness, includeHarness = true): string {
+	const configurationLabel = getSessionComparisonHarnessConfigurationLabel(harness);
+	if (!includeHarness) {
+		if (harness.modelLabel && configurationLabel) {
+			return localize('sessionComparison.modelAndConfiguration', "{0} · {1}", harness.modelLabel, configurationLabel);
+		}
+		return harness.modelLabel || configurationLabel || harness.label;
+	}
 	const harnessLabel = harness.modelLabel
 		? localize('sessionComparison.harnessAndModel', "{0} · {1}", harness.label, harness.modelLabel)
 		: harness.label;
-	const reasoningEffort = harness.modelConfiguration?.[ReasoningEffortConfigKey];
-	const configurationLabel = typeof reasoningEffort === 'string' && isReasoningEffortLevel(reasoningEffort)
-		? getReasoningEffortLabel(reasoningEffort)
-		: harness.modelConfigurationLabel;
 	return configurationLabel
 		? localize('sessionComparison.harnessModelAndConfiguration', "{0} · {1}", harnessLabel, configurationLabel)
 		: harnessLabel;
+}
+
+/** The reasoning effort or other model configuration of a harness, such as "High". */
+export function getSessionComparisonHarnessConfigurationLabel(harness: ISessionComparisonHarness): string | undefined {
+	const reasoningEffort = harness.modelConfiguration?.[ReasoningEffortConfigKey];
+	return typeof reasoningEffort === 'string' && isReasoningEffortLevel(reasoningEffort)
+		? getReasoningEffortLabel(reasoningEffort)
+		: harness.modelConfigurationLabel;
 }
 
 export function getSessionComparisonParticipantsInDisplayOrder(participants: readonly ISessionComparisonParticipant[]): readonly ISessionComparisonParticipant[] {
