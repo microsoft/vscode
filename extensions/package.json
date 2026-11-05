@@ -12,7 +12,6 @@
     "esbuild": "0.28.1",
     "minimatch": "^3.1.5",
     "path-browserify": "^1.0.1",
-    "tslib": "^2.6.3",
     "vscode-grammar-updater": "^1.1.0"
   }
 }

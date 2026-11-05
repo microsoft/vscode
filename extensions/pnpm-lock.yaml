@@ -35,9 +35,6 @@ importers:
       path-browserify:
         specifier: ^1.0.1
         version: 1.0.1
-      tslib:
-        specifier: ^2.6.3
-        version: 2.8.1
       vscode-grammar-updater:
         specifier: ^1.1.0
         version: 1.1.0
@@ -206,6 +203,9 @@ importers:
       sinon:
         specifier: ^12.0.1
         version: 12.0.1
+      tslib:
+        specifier: ^2.6.3
+        version: 2.8.1
 
   git-base:
     devDependencies:
@@ -246,6 +246,9 @@ importers:
       mocha:
         specifier: ^10.8.2
         version: 10.8.2
+      tslib:
+        specifier: ^2.6.3
+        version: 2.8.1
 
   github-authentication:
     dependencies:
@@ -268,6 +271,9 @@ importers:
       sinon:
         specifier: ^12.0.1
         version: 12.0.1
+      tslib:
+        specifier: ^2.6.3
+        version: 2.8.1
 
   grunt:
     devDependencies:
@@ -296,6 +302,9 @@ importers:
       '@types/node':
         specifier: 24.x
         version: 24.12.4
+      tslib:
+        specifier: ^2.6.3
+        version: 2.8.1
 
   html-language-features/server:
     dependencies:
@@ -392,6 +401,9 @@ importers:
       mocha:
         specifier: ^10.8.2
         version: 10.8.2
+      tslib:
+        specifier: ^2.6.3
+        version: 2.8.1
 
   json-language-features/server:
     dependencies:
@@ -502,6 +514,9 @@ importers:
       playwright:
         specifier: ^1.61.1
         version: 1.61.1
+      tslib:
+        specifier: ^2.6.3
+        version: 2.8.1
       vscode-languageserver-types:
         specifier: ^3.17.2
         version: 3.17.5
@@ -550,6 +565,9 @@ importers:
       '@types/node':
         specifier: 24.x
         version: 24.12.4
+      tslib:
+        specifier: ^2.6.3
+        version: 2.8.1
 
   mermaid-markdown-features:
     dependencies:
@@ -627,6 +645,9 @@ importers:
       sinon:
         specifier: ^12.0.1
         version: 12.0.1
+      tslib:
+        specifier: ^2.6.3
+        version: 2.8.1
 
   notebook-renderers:
     devDependencies:
@@ -813,6 +834,9 @@ importers:
       sinon:
         specifier: ^12.0.1
         version: 12.0.1
+      tslib:
+        specifier: ^2.6.3
+        version: 2.8.1
 
   vscode-api-tests:
     devDependencies:
