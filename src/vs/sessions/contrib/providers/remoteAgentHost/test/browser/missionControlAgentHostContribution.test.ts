@@ -33,6 +33,7 @@ import { ISessionsProvidersService, SessionsProvidersService } from '../../../..
 import { TestLifecycleService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
 import { IEntryDrivenProviderOptions } from '../../browser/entryDrivenProviderContribution.js';
 import { MissionControlAgentHostContribution } from '../../browser/missionControlAgentHostContribution.js';
+import '../../browser/missionControlAgentHost.contribution.js';
 import { RemoteAgentHostSessionsProvider } from '../../browser/remoteAgentHostSessionsProvider.js';
 import { IUserDataProfileService } from '../../../../../../workbench/services/userDataProfile/common/userDataProfile.js';
 import { IUserDataProfile } from '../../../../../../platform/userDataProfile/common/userDataProfile.js';

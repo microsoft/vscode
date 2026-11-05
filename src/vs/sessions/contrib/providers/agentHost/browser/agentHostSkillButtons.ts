@@ -13,7 +13,7 @@ import { Action2, MenuId, registerAction2 } from '../../../../../platform/action
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
-import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
+import { IWorkbenchContribution } from '../../../../../workbench/common/contributions.js';
 import { ChatSendResult, IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
@@ -43,8 +43,6 @@ export class IsAgentHostSessionContextContribution extends Disposable implements
 	}
 }
 
-registerWorkbenchContribution2(IsAgentHostSessionContextContribution.ID, IsAgentHostSessionContextContribution, WorkbenchPhase.AfterRestored);
-
 /**
  * Toolbar buttons in the changes view that drive the built-in agent-host skills
  * (`merge` / `create-pr` / `create-draft-pr` / `update-pr`) for any
@@ -69,7 +67,7 @@ interface IAgentHostSkillButtonSpec {
 
 const AGENT_HOST_SKILL_BUTTON_ID_PREFIX = 'workbench.action.agentSessions.runSkill.';
 
-const AGENT_HOST_SKILL_BUTTONS: readonly IAgentHostSkillButtonSpec[] = [
+export const AGENT_HOST_SKILL_BUTTONS: readonly IAgentHostSkillButtonSpec[] = [
 	{
 		id: `${AGENT_HOST_SKILL_BUTTON_ID_PREFIX}merge`,
 		title: localize2('agentSessions.runSkill.merge', "Merge Changes"),
@@ -152,7 +150,7 @@ export function isAgentHostSkillButtonId(actionId: string): boolean {
 	return actionId.startsWith(AGENT_HOST_SKILL_BUTTON_ID_PREFIX);
 }
 
-function registerAgentHostSkillButton(spec: IAgentHostSkillButtonSpec): void {
+export function registerAgentHostSkillButton(spec: IAgentHostSkillButtonSpec): void {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
@@ -208,8 +206,4 @@ function registerAgentHostSkillButton(spec: IAgentHostSkillButtonSpec): void {
 			}
 		}
 	});
-}
-
-for (const spec of AGENT_HOST_SKILL_BUTTONS) {
-	registerAgentHostSkillButton(spec);
 }

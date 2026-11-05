@@ -486,7 +486,7 @@ import './contrib/chatWindow/browser/chatWindow.contribution.js';
 import './contrib/sessionComparison/browser/sessionComparison.contribution.js';
 import './contrib/providers/agentHost/browser/exportDebugLogsAction.js';
 import './contrib/providers/agentHost/browser/agentHostSessionConfigPicker.js';
-import './contrib/providers/agentHost/browser/agentHostPolicyContinuationPresenter.js';
+import './contrib/providers/agentHost/browser/agentHostPolicyContinuationPresenter.contribution.js';
 import './contrib/providers/agentHost/browser/agentHostForkActions.js';
 import './contrib/chat/browser/customizationsDebugLog.contribution.js';
 import './contrib/providers/copilotChatSessions/browser/copilotChatSessions.contribution.js';

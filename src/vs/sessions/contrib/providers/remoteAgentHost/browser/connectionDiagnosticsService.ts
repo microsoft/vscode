@@ -15,7 +15,6 @@ import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostAutoConnectSet
 import { ITunnelAgentHostService, ITunnelInfo, TUNNEL_ADDRESS_PREFIX } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
-import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
 import { IAgentHostFilterService } from '../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
@@ -417,5 +416,3 @@ export class ConnectionDiagnosticsService extends Disposable implements IConnect
 function safeAddress(value: string): string {
 	return value.replace(/[\r\n\t]/g, ' ').split(/[?#]/, 1)[0].replace(/(^|\/\/)[^/]*@/, '$1').slice(0, 512);
 }
-
-registerSingleton(IConnectionDiagnosticsService, ConnectionDiagnosticsService, InstantiationType.Delayed);

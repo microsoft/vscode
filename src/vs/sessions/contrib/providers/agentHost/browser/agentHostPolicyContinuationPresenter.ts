@@ -7,7 +7,6 @@ import { CancellationError } from '../../../../../base/common/errors.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { IAgentHostPolicyContinuationPresenter } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostPolicyContinuation.js';
 import { IChatWidget } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
@@ -47,6 +46,3 @@ export class SessionsAgentHostPolicyContinuationPresenter implements IAgentHostP
 		await this._sessions.openSession(session.resource);
 	}
 }
-
-// The shared chat widget requires this presenter even when no local agent host is available.
-registerSingleton(IAgentHostPolicyContinuationPresenter, SessionsAgentHostPolicyContinuationPresenter, InstantiationType.Delayed);

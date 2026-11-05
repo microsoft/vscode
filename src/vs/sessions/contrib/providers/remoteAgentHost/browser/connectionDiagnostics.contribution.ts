@@ -26,7 +26,8 @@ import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/service
 import { IMobileContentSheetApi } from '../../../../browser/parts/mobile/mobilePickerSheet.js';
 import { isPhoneLayout } from '../../../../../workbench/contrib/sessions/browser/mobileLayout.js';
 import { IConnectionDiagnosticsService, IConnectionDiagnosticsSnapshot, ShowConnectionDiagnosticsCommandId } from './connectionDiagnostics.js';
-import './connectionDiagnosticsService.js';
+import { ConnectionDiagnosticsService } from './connectionDiagnosticsService.js';
+import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { ConnectionDiagnosticsReport, showConnectionDiagnosticsSheet } from './connectionDiagnosticsReport.js';
 
 const connectionDiagnosticsFocused = new RawContextKey<boolean>('connectionDiagnosticsFocused', false);
@@ -228,3 +229,5 @@ for (const type of [AccessibleViewType.Help, AccessibleViewType.View]) {
 		getProvider: () => getWorkbenchContribution<ConnectionDiagnosticsContribution>(ConnectionDiagnosticsContribution.ID).getAccessibleProvider(type),
 	});
 }
+
+registerSingleton(IConnectionDiagnosticsService, ConnectionDiagnosticsService, InstantiationType.Delayed);

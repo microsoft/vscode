@@ -20,6 +20,7 @@ import { ISessionsService } from '../../../../../../workbench/contrib/sessions/b
 import { IChat, ISession } from '../../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { SessionsAgentHostPolicyContinuationPresenter } from '../../browser/agentHostPolicyContinuationPresenter.js';
+import '../../browser/agentHostPolicyContinuationPresenter.contribution.js';
 import { LocalAgentHostSessionsProvider } from '../../browser/localAgentHostSessionsProvider.js';
 import { ITestSessionsService, stubFocusedSessionHostFromSessionsService } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
