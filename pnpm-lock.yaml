@@ -88,8 +88,8 @@ importers:
         specifier: ^1.7.0
         version: 1.7.0
       '@vscode/proxy-agent':
-        specifier: ^0.45.0
-        version: 0.45.0
+        specifier: ^0.46.0
+        version: 0.46.0
       '@vscode/ripgrep-universal':
         specifier: ^1.18.0
         version: 1.18.0
@@ -1930,8 +1930,8 @@ packages:
     resolution: {integrity: sha512-l6N5iJnPoAQpRVm1TPP7fOHO9TrT2W/cbn/SwFT0yfXwoE8veq9waFwblxcmfqJCzUNSEYouMWhuMhnc67kkPA==}
     engines: {node: '>=22'}
 
-  '@vscode/proxy-agent@0.45.0':
-    resolution: {integrity: sha512-rSR81pniNECvd3Zr1sq0VqYL7H+02dT723sEexpoweWi9mMklwLoapHTkwK6nAtxhjXNagRkT7l2GWuripXD7Q==}
+  '@vscode/proxy-agent@0.46.0':
+    resolution: {integrity: sha512-d0xcQk+gYcZtkdKz3FL4XLdVEA1VPa2XsHvRFtChx5rSPHY0OGajwhrbhZw2gp0+KhUvyD6dRNvDyge6FUVSrg==}
     engines: {node: '>=22.15.0'}
 
   '@vscode/ripgrep-universal@1.18.0':
@@ -8226,7 +8226,7 @@ snapshots:
       bindings: 1.5.0
       node-addon-api: 8.9.2
 
-  '@vscode/proxy-agent@0.45.0':
+  '@vscode/proxy-agent@0.46.0':
     dependencies:
       '@tootallnate/once': 3.0.1
       agent-base: 7.1.4
