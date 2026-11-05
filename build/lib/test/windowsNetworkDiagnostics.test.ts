@@ -26,7 +26,15 @@ interface DiagnosticSection {
 		processes?: { processId: number; startedAt: string }[];
 		endpoints?: { address: string; port: number; processId: number }[];
 		listeners?: { address: string; port: number; processId: number }[];
-		events?: { eventId: number; clientProcessId?: string; queryStatus?: string; processId?: string; exceptionCode?: string }[];
+		events?: {
+			eventId: number;
+			emitterProcessId?: string | null;
+			clientProcessId?: string | null;
+			queryType?: string | null;
+			queryStatus?: string | null;
+			processId?: string;
+			exceptionCode?: string;
+		}[];
 		files?: { name: string; bytes: number }[];
 		contentsCollected?: boolean;
 	};
@@ -77,17 +85,29 @@ function Get-WinEvent {
 	if ($env:DIAGNOSTIC_SCENARIO -eq 'empty') {
 		Write-Error -ErrorId NoMatchingEventsFound -Category ObjectNotFound -Message 'No matching events' -ErrorAction Stop
 	}
+	$version = 0
 	if ($LogName -eq 'Application') {
 		if (-not $FilterXPath.Contains("Data[@Name='AppName']='EtwNetworkEventListener.exe'")) { throw 'Missing listener filter' }
 		$id = 1000
 		$data = '<Data Name="AppName">EtwNetworkEventListener.exe</Data><Data Name="ProcessId">0x1f7d</Data><Data Name="ExceptionCode">c0000005</Data>'
 	} else {
 		if (-not $FilterXPath.Contains("Data[@Name='QueryName']='vsblob.dev.azure.com'")) { throw 'Missing DNS filter' }
-		$id = if ($LogName -eq 'System') { 1014 } else { 3008 }
-		$data = '<Data Name="QueryName">vsblob.dev.azure.com</Data><Data Name="ClientPID">90</Data><Data Name="QueryType">1</Data><Data Name="QueryStatus">11001</Data>'
+		if ($LogName -eq 'System') {
+			$id = 1014
+			$data = '<Data Name="QueryName">vsblob.dev.azure.com</Data><Data Name="AddressLength">16</Data><Data Name="Address">020000350A00040A0000000000000000</Data>'
+			if ($env:DIAGNOSTIC_SCENARIO -ne 'dns-timeout-v0') {
+				$version = 1
+				$data += '<Data Name="ClientPID">90</Data>'
+			}
+		} else {
+			$id = 3008
+			$data = '<Data Name="QueryName">vsblob.dev.azure.com</Data><Data Name="QueryType">1</Data><Data Name="QueryOptions">0</Data><Data Name="QueryStatus">11001</Data><Data Name="QueryResults">' + $env:AZURE_DEVOPS_EXT_PAT + '</Data>'
+		}
 	}
-	$xml = '<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event"><EventData>' + $data + '<Data Name="QueryResults">' + $env:AZURE_DEVOPS_EXT_PAT + '</Data></EventData></Event>'
-	[pscustomobject]@{ Id = $id; RecordId = 123; TimeCreated = [DateTime]'2026-08-24T08:26:13Z'; Xml = $xml; Message = $env:AZURE_DEVOPS_EXT_PAT } |
+	$emitterProcessId = if ($env:DIAGNOSTIC_SCENARIO -eq 'missing-emitter-pid') { $null } else { 4321 }
+	$execution = if ($null -eq $emitterProcessId) { '<Execution/>' } else { '<Execution ProcessID="' + $emitterProcessId + '" ThreadID="7"/>' }
+	$xml = '<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event"><System><EventID>' + $id + '</EventID><Version>' + $version + '</Version>' + $execution + '</System><EventData>' + $data + '</EventData></Event>'
+	[pscustomobject]@{ Id = $id; Version = $version; ProcessId = $emitterProcessId; RecordId = 123; TimeCreated = [DateTime]'2026-08-24T08:26:13Z'; Xml = $xml; Message = $env:AZURE_DEVOPS_EXT_PAT } |
 		Add-Member -MemberType ScriptMethod -Name ToXml -Value { $this.Xml } -PassThru
 }
 `;
@@ -135,7 +155,8 @@ suite('Windows network failure diagnostics', { skip: process.platform !== 'win32
 				udp: f.section('dns-udp-endpoints').data.endpoints,
 				tcp: f.section('dns-tcp-listeners').data.listeners,
 				crash: f.section('listener-crashes').data.events?.map(event => [event.eventId, event.processId, event.exceptionCode]),
-				dns: f.section('dns-query-results').data.events?.map(event => [event.eventId, event.clientProcessId, event.queryStatus]),
+				timeouts: f.section('dns-timeouts').data.events?.map(event => [event.eventId, event.emitterProcessId, event.clientProcessId, event.queryType, event.queryStatus]),
+				dns: f.section('dns-query-results').data.events?.map(event => [event.eventId, event.emitterProcessId, event.clientProcessId, event.queryType, event.queryStatus]),
 				copiedLogs: f.section('listener-log-inventory').data.contentsCollected,
 			}, {
 				completed: true,
@@ -145,7 +166,8 @@ suite('Windows network failure diagnostics', { skip: process.platform !== 'win32
 				udp: [{ address: '127.0.0.1', port: 53, processId: 8061 }],
 				tcp: [{ address: '::1', port: 53, processId: 8061 }],
 				crash: [[1000, '0x1f7d', 'c0000005']],
-				dns: [[3008, '90', '11001']],
+				timeouts: [[1014, '4321', '90', null, null]],
+				dns: [[3008, '4321', null, '1', '11001']],
 				copiedLogs: false,
 			});
 			const contents = readdirSync(f.output).map(file => readFileSync(path.join(f.output, file), 'utf8')).join('\n');
@@ -154,6 +176,33 @@ suite('Windows network failure diagnostics', { skip: process.platform !== 'win32
 				'capture.json', 'dns-query-results.json', 'dns-servers.json', 'dns-tcp-listeners.json', 'dns-timeouts.json',
 				'dns-udp-endpoints.json', 'listener-crashes.json', 'listener-log-inventory.json', 'listener.json',
 			]);
+		} finally {
+			f.dispose();
+		}
+	});
+
+	test('does not substitute the emitter PID for the missing client PID in event 1014/v0', () => {
+		const f = fixture('dns-timeout-v0');
+		try {
+			const result = f.run();
+			assert.deepStrictEqual({
+				status: result.status,
+				timeouts: f.section('dns-timeouts').data.events?.map(event => [event.eventId, event.emitterProcessId, event.clientProcessId]),
+			}, { status: 0, timeouts: [[1014, '4321', null]] });
+		} finally {
+			f.dispose();
+		}
+	});
+
+	test('preserves a nullable header PID independently of the payload client PID', () => {
+		const f = fixture('missing-emitter-pid');
+		try {
+			const result = f.run();
+			assert.deepStrictEqual({
+				status: result.status,
+				timeouts: f.section('dns-timeouts').data.events?.map(event => [event.eventId, event.emitterProcessId, event.clientProcessId]),
+				dns: f.section('dns-query-results').data.events?.map(event => [event.eventId, event.emitterProcessId, event.clientProcessId]),
+			}, { status: 0, timeouts: [[1014, null, '90']], dns: [[3008, null, null]] });
 		} finally {
 			f.dispose();
 		}
