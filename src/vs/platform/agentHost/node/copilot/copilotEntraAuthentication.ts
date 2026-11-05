@@ -11,7 +11,7 @@ import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '..
 import { derived, observableValue, transaction, type IReader } from '../../../../base/common/observable.js';
 import type { AuthenticateParams } from '../../common/agent.js';
 import { copilotEntraAuthorizationServer, copilotEntraClientId, copilotEntraDiscoveryResource, copilotEntraResources } from '../../common/copilotEntraAuthentication.js';
-import { readAuthenticationAccount } from '../../common/meta/agentAuthenticationAccount.js';
+import { readAuthenticationAccount, type IAgentAuthenticationAccount } from '../../common/meta/agentAuthenticationAccount.js';
 import { AuthRequiredReason, type AuthRequiredParams } from '../../common/state/sessionActions.js';
 import { AhpErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 import type { ProtectedResourceMetadata } from '../../common/state/protocol/state.js';
@@ -19,6 +19,7 @@ import { IAgentHostClientConnectionService } from '../agentHostClientConnectionS
 
 interface IEntraAuthority {
 	readonly accountId: string;
+	readonly username?: string;
 	readonly connection: CancellationToken;
 }
 
@@ -100,28 +101,29 @@ export class CopilotEntraAuthentication extends Disposable {
 		const authority = this._authority.get();
 		const isDiscovery = params.resource === copilotEntraDiscoveryResource;
 		const resource = isDiscovery ? discoveryResource : pending?.resource;
-		const accountId = validateEntraCredential(params, resource);
-		validateEntraAccount(accountId, pending?.request.accountId ?? authority?.accountId);
+		const account = validateEntraCredential(params, resource);
+		validateEntraAccount(account.accountId, pending?.request.accountId ?? authority?.accountId);
 		if (isDiscovery && authority && pending?.request.kind !== 'identity') {
 			return true;
 		}
 		if (!pending || pending.completed.isSettled) {
 			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Microsoft credential does not satisfy the pending acquisition.');
 		}
-		this.completeAcquisition(pending, accountId, params.token, connection);
+		this.completeAcquisition(pending, account, params.token, connection);
 		return true;
 	}
 
-	private completeAcquisition(pending: IEntraAcquisition, accountId: string, accessToken: string, connection: CancellationToken): void {
+	private completeAcquisition(pending: IEntraAcquisition, account: IAgentAuthenticationAccount, accessToken: string, connection: CancellationToken): void {
+		const { accountId, label } = account;
 		if (pending.request.kind === 'identity') {
-			const authority: IEntraAuthority = { accountId, connection };
+			const authority: IEntraAuthority = { accountId, connection, ...(label !== undefined ? { username: label } : {}) };
 			this._authority.set(authority, undefined);
 			this._connectionListener.value = connection.onCancellationRequested(() => {
 				if (this._authority.get() === authority) {
 					this.revoke();
 				}
 			});
-			pending.completed.complete({ kind: 'identity', accountId });
+			pending.completed.complete({ kind: 'identity', accountId, ...(label !== undefined ? { username: label } : {}) });
 		} else {
 			const authority = this._authority.get();
 			if (!authority || authority.connection.isCancellationRequested) {
@@ -200,7 +202,7 @@ function isEntraCredentialResource(resource: string): boolean {
 	return resource === copilotEntraDiscoveryResource || [...copilotEntraResources.values()].includes(resource);
 }
 
-function validateEntraCredential(params: AuthenticateParams, resource: ProtectedResourceMetadata | undefined): string {
+function validateEntraCredential(params: AuthenticateParams, resource: ProtectedResourceMetadata | undefined): IAgentAuthenticationAccount {
 	if (!resource || resource.resource !== params.resource) {
 		throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Microsoft credential does not satisfy the pending acquisition.');
 	}
@@ -212,7 +214,7 @@ function validateEntraCredential(params: AuthenticateParams, resource: Protected
 		throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Microsoft credential does not satisfy the pending acquisition.');
 	}
 	validateEntraCredentialExpiry(params.expiresIn);
-	return account.accountId;
+	return account;
 }
 
 function validateEntraCredentialExpiry(expiresIn: number | undefined): void {
@@ -235,7 +237,7 @@ function resolveEntraIdentity(request: EntraTokenProviderArgs, authority: IEntra
 		return { kind: 'unavailable' };
 	}
 	if (request.kind === 'identity' && request.reason !== 'forceInteractive') {
-		return { kind: 'identity', accountId: authority.accountId };
+		return { kind: 'identity', accountId: authority.accountId, ...(authority.username !== undefined ? { username: authority.username } : {}) };
 	}
 	return undefined;
 }

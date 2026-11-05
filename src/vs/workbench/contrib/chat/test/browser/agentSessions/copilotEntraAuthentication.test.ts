@@ -97,7 +97,7 @@ suite('Agent Host Microsoft credential acquisition', () => {
 				['microsoft', undefined, { silent: true, clientId: copilotEntraClientId }, true],
 				['microsoft', ['User.Read'], { account: selected.account, authorizationServer: URI.parse(copilotEntraAuthorizationServer), clientId: copilotEntraClientId, silent: true }, true],
 			],
-			credential: { resource: resource.resource, scopes: ['User.Read'], token: selected.accessToken, _meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: selected.account.id }) },
+			credential: { resource: resource.resource, scopes: ['User.Read'], token: selected.accessToken, _meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: selected.account.id, label: selected.account.label }) },
 		});
 	});
 
@@ -169,7 +169,7 @@ suite('Agent Host Microsoft credential acquisition', () => {
 		}, {
 			signedIn: true,
 			created: [['microsoft', ['User.Read'], { account: selected.account, authorizationServer: URI.parse(copilotEntraAuthorizationServer), clientId: copilotEntraClientId }]],
-			forwarded: [{ resource: resource.resource, scopes: ['User.Read'], token: selected.accessToken, _meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: selected.account.id }) }],
+			forwarded: [{ resource: resource.resource, scopes: ['User.Read'], token: selected.accessToken, _meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: selected.account.id, label: selected.account.label }) }],
 		});
 	});
 
@@ -204,7 +204,7 @@ suite('Agent Host Microsoft credential acquisition', () => {
 		const f = fixture();
 		f.authentication.sessions = [{ ...selected, account: { ...selected.account, id: 'opaque-account' } }];
 		const result = await f.resolve();
-		assert.deepStrictEqual(result?._meta, authenticationAccountMeta({ providerId: 'microsoft', accountId: 'opaque-account' }));
+		assert.deepStrictEqual(result?._meta, authenticationAccountMeta({ providerId: 'microsoft', accountId: 'opaque-account', label: selected.account.label }));
 	});
 
 	test('same-token deduplication retains the replacement session identity for sign-out', async () => {
