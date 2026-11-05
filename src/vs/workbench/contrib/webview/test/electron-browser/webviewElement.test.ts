@@ -4,22 +4,37 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import { ensureCodeWindow, mainWindow } from '../../../../../base/browser/window.js';
-import { timeout } from '../../../../../base/common/async.js';
-import { Event } from '../../../../../base/common/event.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { basename, dirname, isEqual, joinPath } from '../../../../../base/common/resources.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ProxyChannel } from '../../../../../base/parts/ipc/common/ipc.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { FileService } from '../../../../../platform/files/common/fileService.js';
+import { FileOperation, IFileService } from '../../../../../platform/files/common/files.js';
+import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IMainProcessService } from '../../../../../platform/ipc/common/mainProcessService.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { INativeHostService } from '../../../../../platform/native/common/native.js';
+import { INotificationService, NoOpNotification, NotificationMessage } from '../../../../../platform/notification/common/notification.js';
 import { IRemoteAuthorityResolverService } from '../../../../../platform/remote/common/remoteAuthorityResolver.js';
 import { ITunnelService } from '../../../../../platform/tunnel/common/tunnel.js';
-import { IWebviewManagerService } from '../../../../../platform/webview/common/webviewManagerService.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService.js';
+import { IWebviewManagerService, WebviewResourceDownload } from '../../../../../platform/webview/common/webviewManagerService.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { WebviewThemeDataProvider } from '../../browser/themeing.js';
 import { ElectronWebviewElement } from '../../electron-browser/webviewElement.js';
+import { asWebviewUri } from '../../common/webview.js';
 
 class TestElectronWebviewElement extends ElectronWebviewElement {
 	public override get element(): HTMLIFrameElement | undefined { return super.element; }
@@ -29,15 +44,19 @@ class TestElectronWebviewElement extends ElectronWebviewElement {
 suite('ElectronWebviewElement', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createWebview() {
+	teardown(() => sinon.restore());
+
+	function createWebview(configure?: (instantiationService: TestInstantiationService) => void) {
 		const calls: { command: string; args: unknown }[] = [];
+		const downloads = store.add(new Emitter<WebviewResourceDownload>());
 		const instantiationService = workbenchInstantiationService(undefined, store);
-		const service: IWebviewManagerService = {
-			_serviceBrand: undefined,
-			onFoundInFrame: Event.None,
-			setIgnoreMenuShortcuts: async () => { },
-			findInFrame: async (...args) => { calls.push({ command: 'findInFrame', args }); },
-			stopFindInFrame: async (...args) => { calls.push({ command: 'stopFindInFrame', args }); },
+		const service = new class implements IWebviewManagerService {
+			declare readonly _serviceBrand: undefined;
+			readonly onFoundInFrame = Event.None;
+			onDynamicDidDownloadResource() { return downloads.event; }
+			async setIgnoreMenuShortcuts() { }
+			async findInFrame(...args: Parameters<IWebviewManagerService['findInFrame']>) { calls.push({ command: 'findInFrame', args }); }
+			async stopFindInFrame(...args: Parameters<IWebviewManagerService['stopFindInFrame']>) { calls.push({ command: 'stopFindInFrame', args }); }
 		};
 		const channel = ProxyChannel.fromService(service, store.add(new DisposableStore()));
 		instantiationService.stub(IMainProcessService, {
@@ -53,13 +72,14 @@ suite('ElectronWebviewElement', () => {
 			onThemeDataChanged: Event.None,
 			getWebviewThemeData: () => ({ styles: {}, activeTheme: 'vscode-dark', themeLabel: '', themeId: '' }),
 		});
+		configure?.(instantiationService);
 		const webview = store.add(instantiationService.createInstance(TestElectronWebviewElement, {
 			title: undefined,
 			options: { enableFindWidget: true },
 			contentOptions: {},
 			extension: undefined,
 		}, themeProvider));
-		return { webview, calls };
+		return { webview, calls, downloads };
 	}
 
 	function createAuxiliaryDocument() {
@@ -201,4 +221,145 @@ suite('ElectronWebviewElement', () => {
 			{ command: 'findInFrame', args: [{ windowId: 42 }, webview.frameName, 'second', { forward: true, findNext: true, matchCase: false }] },
 		]);
 	}));
+
+	suite('resource downloads', () => {
+		const directory = URI.file('/downloads');
+		const target = joinPath(directory, 'saved.mp4');
+		const bytes = VSBuffer.wrap(new Uint8Array([0, 1, 2, 255]));
+		const origin = 'vscode-webview://test-origin';
+
+		async function createDownloadWebview(source: URI) {
+			const fileService = store.add(new FileService(store.add(new NullLogService())));
+			for (const scheme of new Set([Schemas.file, source.scheme])) {
+				store.add(fileService.registerProvider(scheme, store.add(new InMemoryFileSystemProvider())));
+			}
+			await fileService.createFolder(dirname(source));
+			await fileService.createFolder(directory);
+			await fileService.writeFile(source, bytes);
+
+			const complete = new DeferredPromise<void>();
+			store.add(fileService.onDidRunOperation(e => {
+				if (e.operation === FileOperation.WRITE) {
+					void complete.complete();
+				}
+			}));
+			const error = new DeferredPromise<NotificationMessage | NotificationMessage[]>();
+			const read = sinon.stub(fileService, 'readFileStream').callThrough();
+			const write = sinon.stub(fileService, 'writeFile').callThrough();
+			const showSaveDialog = sinon.stub().resolves(target);
+			const result = createWebview(instantiationService => {
+				instantiationService.stub(IFileService, fileService);
+				instantiationService.stub(IUriIdentityService, store.add(new UriIdentityService(fileService)));
+				instantiationService.stub(IFileDialogService, { defaultFilePath: async () => directory, showSaveDialog });
+				sinon.stub(instantiationService.get(INotificationService), 'error').callsFake(message => {
+					void error.complete(message);
+					return new NoOpNotification();
+				});
+			});
+			result.webview.localResourcesRoot = [dirname(source).with({ query: '', fragment: '' })];
+			result.webview.element!.src = `${origin}/index.html?id=${result.webview.frameName}`;
+			const download = (downloadOrigin = origin) => result.downloads.fire({ url: asWebviewUri(source).toString(), origin: downloadOrigin });
+			return { ...result, download, fileService, complete, error, read, write, showSaveDialog };
+		}
+
+		for (const source of [
+			URI.file('/media/my # video%.mp4').with({ query: 'version=1' }),
+			URI.from({ scheme: 'test-remote', authority: 'host+name:123', path: '/media/my # video%.mp4', query: 'revision=%2F&value=1' }),
+		]) {
+			test(`saves the original bytes of ${source.scheme} resources through the file service`, async () => {
+				const { download, complete, read, write, showSaveDialog, fileService } = await createDownloadWebview(source);
+				download();
+				await complete.p;
+
+				assert.deepStrictEqual({
+					readsOriginalResource: isEqual(read.firstCall.args[0], source),
+					destination: write.firstCall.args[0],
+					saved: (await fileService.readFile(target)).value,
+					dialog: showSaveDialog.firstCall.args[0],
+				}, {
+					readsOriginalResource: true,
+					destination: target,
+					saved: bytes,
+					dialog: {
+						defaultUri: joinPath(directory, basename(source)),
+						availableFileSystems: [Schemas.file],
+						saveLabel: 'Download',
+						title: 'Download',
+					},
+				});
+			});
+		}
+
+		test('cancelling the dialog does not read or write the resource', async () => {
+			const source = URI.file('/media/video.mp4');
+			const { download, read, write, showSaveDialog } = await createDownloadWebview(source);
+			showSaveDialog.resolves(undefined);
+			download();
+			await timeout(0);
+
+			assert.deepStrictEqual({ dialogs: showSaveDialog.callCount, reads: read.callCount, writes: write.callCount }, { dialogs: 1, reads: 0, writes: 0 });
+		});
+
+		test('saving over the original file ignores the webview cache-busting query', async () => {
+			const source = URI.file('/media/video.mp4').with({ query: 'version=1' });
+			const { download, read, write, showSaveDialog, fileService } = await createDownloadWebview(source);
+			showSaveDialog.resolves(source.with({ query: '' }));
+			download();
+			await timeout(0);
+
+			assert.deepStrictEqual({ reads: read.callCount, writes: write.callCount, content: (await fileService.readFile(source)).value }, {
+				reads: 0,
+				writes: 0,
+				content: bytes,
+			});
+		});
+
+		test('rejects resources outside the current local resource roots before prompting', async () => {
+			const source = URI.file('/media/video.mp4');
+			const { webview, download, error, read, write, showSaveDialog } = await createDownloadWebview(source);
+			webview.localResourcesRoot = [URI.file('/other')];
+			download();
+			await error.p;
+
+			assert.deepStrictEqual({ dialogs: showSaveDialog.callCount, reads: read.callCount, writes: write.callCount }, { dialogs: 0, reads: 0, writes: 0 });
+		});
+
+		test('rejects a different webview origin even when the requested resource is permitted', async () => {
+			const { download, error, read, write, showSaveDialog } = await createDownloadWebview(URI.file('/media/video.mp4'));
+			download('vscode-webview://other-origin');
+			await error.p;
+
+			assert.deepStrictEqual({ dialogs: showSaveDialog.callCount, reads: read.callCount, writes: write.callCount }, { dialogs: 0, reads: 0, writes: 0 });
+		});
+
+		test('rechecks resource roots after the save dialog closes', async () => {
+			const source = URI.file('/media/video.mp4');
+			const { webview, download, error, read, write, showSaveDialog } = await createDownloadWebview(source);
+			const shown = new DeferredPromise<void>();
+			const selection = new DeferredPromise<URI | undefined>();
+			showSaveDialog.callsFake(() => {
+				void shown.complete();
+				return selection.p;
+			});
+			download();
+			await shown.p;
+			webview.localResourcesRoot = [];
+			await selection.complete(target);
+			await error.p;
+
+			assert.deepStrictEqual({ reads: read.callCount, writes: write.callCount }, { reads: 0, writes: 0 });
+		});
+
+		for (const operation of ['read', 'write'] as const) {
+			test(`reports ${operation} failures instead of silently abandoning the download`, async () => {
+				const source = URI.file('/media/video.mp4');
+				const result = await createDownloadWebview(source);
+				const failure = new Error(`${operation} failed`);
+				result[operation].rejects(failure);
+				result.download();
+
+				assert.strictEqual(await result.error.p, failure);
+			});
+		}
+	});
 });
