@@ -24,8 +24,8 @@ import { ISessionsProvidersService } from '../../../services/sessions/browser/se
 import { ISessionsRecentWorkspacesService } from '../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { getMainWindowHost, ISessionHostService } from '../../../services/sessions/browser/sessionHost.js';
-import { ICustomViewService } from '../../../services/customView/browser/customViewService.js';
-import { IWindowCanvasService, WindowCanvasInput } from '../../../services/canvas/browser/windowCanvasService.js';
+import { ICustomViewService } from '../../../services/customView/browser/customView.js';
+import { WindowCanvasInput, IWindowCanvasService } from '../../../services/canvas/browser/windowCanvas.js';
 import { inheritableSessionTarget, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { NEW_SESSION_ACTION_ID } from '../common/constants.js';
 import { INewSessionComposerService } from './newSessionComposerService.js';

@@ -64,8 +64,7 @@ import { ISessionsManagementService } from '../../../../../workbench/contrib/ses
 import { ISession, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { SessionStatusIcon } from '../../../../browser/sessionStatusIcon.js';
 
-import { AbstractCustomView } from '../../../../services/customView/browser/customView.js';
-import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
+import { AbstractCustomView, ICustomViewService } from '../../../../services/customView/browser/customView.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { Menus } from '../../../../browser/menus.js';
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';

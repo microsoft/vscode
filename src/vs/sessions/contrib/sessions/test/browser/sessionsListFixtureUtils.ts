@@ -66,7 +66,7 @@ import { IsPhoneLayoutContext, SessionsListRearrangeContext } from '../../../../
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { ISessionsListPresentation } from '../../../../services/presentation/browser/sessionsListPresentation.js';
 import { DefaultSessionsListPresentation } from '../../../../services/presentation/browser/defaultSessionsListPresentation.js';
-import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
+import { ICustomViewService } from '../../../../services/customView/browser/customView.js';
 import { getSessionGroupSectionId, ISessionGroupsService, SessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionsListModelService, SessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';

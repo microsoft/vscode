@@ -11,7 +11,7 @@ import { IWorkbenchContribution } from '../../../../workbench/common/contributio
 import { MOUSE_BACK_FORWARD_NAVIGATION_SETTING } from '../../../../workbench/services/history/common/history.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { IWindowCanvasService } from '../../../services/canvas/browser/windowCanvasService.js';
+import { IWindowCanvasService } from '../../../services/canvas/browser/windowCanvas.js';
 
 export class SessionsMouseNavigationContribution extends Disposable implements IWorkbenchContribution {
 

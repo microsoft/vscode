@@ -25,7 +25,7 @@ import { IEditorService } from '../../../../../workbench/services/editor/common/
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { WorkspaceHistoryLoadState } from '../../../../../workbench/contrib/sessions/common/workspaceSelection.js';
-import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
+import { ICustomViewService } from '../../../../services/customView/browser/customView.js';
 import { IRecentWorkspace, ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { IOpenNewSessionResult, ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISession, ISessionChangesSummary } from '../../../../../workbench/contrib/sessions/common/session.js';

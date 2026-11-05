@@ -43,8 +43,7 @@ import { TestNotificationService } from '../../../../../platform/notification/te
 import { SessionCanvasContextService } from '../../electron-browser/sessionCanvasService.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatWindow, IChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
-import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
-import { ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
+import { ICustomViewService, ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
 import { IPinnedCanvas, IPinnedCanvasService, PINNED_CANVAS_PAGE_ID } from '../../browser/pinnedCanvases.js';
 import { focusedSessionHostServiceOf, sessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionHost, ISessionHostService, SessionHostKind } from '../../../../services/sessions/browser/sessionHost.js';

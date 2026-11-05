@@ -15,7 +15,7 @@ import { MOUSE_BACK_FORWARD_NAVIGATION_SETTING } from '../../../../../workbench/
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { TestLayoutService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IWindowCanvasService } from '../../../../services/canvas/browser/windowCanvasService.js';
+import { IWindowCanvasService } from '../../../../services/canvas/browser/windowCanvas.js';
 import { SessionsMouseNavigationContribution } from '../../browser/sessionsMouseNavigation.js';
 
 class TestSessionsLayoutService extends TestLayoutService {

@@ -23,7 +23,7 @@ import { Parts } from '../../../../../workbench/services/layout/browser/layoutSe
 import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionFileChange, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { CanvasInput } from '../../../../../workbench/contrib/canvases/common/canvas.js';
-import { IWindowCanvas, WindowCanvasInput } from '../../../../services/canvas/browser/windowCanvasService.js';
+import { WindowCanvasInput, IWindowCanvas } from '../../../../services/canvas/browser/windowCanvas.js';
 import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
 import { SESSIONS_FILES_CONTAINER_ID } from '../../../files/browser/files.contribution.js';
 import { DesktopDetailPanelCoordinator } from '../../browser/desktop/desktopDetailPanelCoordinator.js';

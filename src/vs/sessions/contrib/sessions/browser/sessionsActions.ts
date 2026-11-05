@@ -47,7 +47,7 @@ import { getWindowHost, IFocusedSessionHostService, SessionHostKind } from '../.
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatHostOpenerService } from '../../../services/sessions/browser/chatHostOpener.js';
 import { resolveGridCommandView, resolveSessionCommandTarget } from '../../../services/sessions/browser/sessionCommandTarget.js';
-import { WindowCanvasInput } from '../../../services/canvas/browser/windowCanvasService.js';
+import { WindowCanvasInput } from '../../../services/canvas/browser/windowCanvas.js';
 import { ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionPresentationWorkspace, getSessionWorkspaceKind, getUntitledSessionTitle, IChat, isSideChatOf, ISession, SessionStatus, SessionWorkspaceKind } from '../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsListModelService } from '../../../services/sessions/browser/sessionsListModelService.js';

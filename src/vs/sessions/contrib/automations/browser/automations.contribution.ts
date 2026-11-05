@@ -35,7 +35,7 @@ import { ProviderAutomationService } from './providerAutomationService.js';
 import { AutomationToolsContribution } from './automationTools.js';
 import { AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY } from '../../../../platform/agentHost/common/automationConfig.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { ICustomViewService } from '../../../services/customView/browser/customViewService.js';
+import { ICustomViewService } from '../../../services/customView/browser/customView.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../sessions/browser/automationsConstants.js';
 

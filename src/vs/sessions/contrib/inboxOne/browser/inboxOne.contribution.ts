@@ -22,7 +22,7 @@ import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribu
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { IWindowCanvasService } from '../../../services/canvas/browser/windowCanvasService.js';
+import { IWindowCanvasService } from '../../../services/canvas/browser/windowCanvas.js';
 import { InboxNotificationsView } from './inboxNotificationsView.js';
 import { InboxNotificationsService } from './inboxNotificationsService.js';
 import { IInboxCanvasHostService, UnsupportedInboxCanvasHostService } from './inboxCanvasHost.js';

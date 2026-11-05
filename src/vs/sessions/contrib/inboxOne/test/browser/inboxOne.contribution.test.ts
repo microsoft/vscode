@@ -11,7 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IChatEntitlementService, IChatSentiment } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { IWindowCanvasDescriptor, IWindowCanvasService } from '../../../../services/canvas/browser/windowCanvasService.js';
+import { IWindowCanvasDescriptor, IWindowCanvasService } from '../../../../services/canvas/browser/windowCanvas.js';
 import { CHAT_INBOX_ENABLED_SETTING, INBOX_CANVAS_ID } from '../../browser/inboxNotificationsConstants.js';
 import { InboxNotificationsCanvasContribution } from '../../browser/inboxOne.contribution.js';
 

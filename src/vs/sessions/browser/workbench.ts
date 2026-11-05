@@ -81,9 +81,8 @@ import { getMobileViewportDimension, IMobileVisualViewport } from './parts/mobil
 import { autorun, derived, IObservable } from '../../base/common/observable.js';
 import { ISessionsService } from '../services/sessions/browser/sessionsService.js';
 import { ISessionsPartService } from '../services/sessions/browser/sessionsPartService.js';
-import { ICustomViewService } from '../services/customView/browser/customViewService.js';
+import { ICustomViewService, ICustomViewDescriptor } from '../services/customView/browser/customView.js';
 import { ICustomViewGridPartService } from '../services/customView/browser/customViewGridPartService.js';
-import { ICustomViewDescriptor } from '../services/customView/browser/customView.js';
 import { ISessionsSetUpService } from './sessionsSetUpService.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../common/layoutConstants.js';
 import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';

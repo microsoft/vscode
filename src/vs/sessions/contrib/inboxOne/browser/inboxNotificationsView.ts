@@ -69,7 +69,7 @@ import { ChatPlanReviewData } from '../../../../workbench/contrib/chat/common/mo
 import { ConfirmationOptionKind } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../platform/chat/common/sessionArchiveActions.js';
 import { isAgentHostProviderId } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
-import { IWindowCanvas } from '../../../services/canvas/browser/windowCanvasService.js';
+import { IWindowCanvas } from '../../../services/canvas/browser/windowCanvas.js';
 import { AbstractChatView, IChatViewRequestOutcome } from '../../../browser/parts/chatView.js';
 import { IChatViewFactory } from '../../../services/chatView/browser/chatViewFactory.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';

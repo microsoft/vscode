@@ -75,9 +75,8 @@ import { IFocusedSessionHostService, ISessionHost, ISessionHostService, SessionH
 import { ChatHostOpenerService, IChatHostOpenerService } from '../../../../services/sessions/browser/chatHostOpener.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { resolveOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
-import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
-import { ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
-import { IWindowCanvasService, WindowCanvasInput } from '../../../../services/canvas/browser/windowCanvasService.js';
+import { ICustomViewService, ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
+import { WindowCanvasInput, IWindowCanvasService } from '../../../../services/canvas/browser/windowCanvas.js';
 import { ITestSessionsService, stubMissingSessionHostsFromSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Sessions - Actions', () => {

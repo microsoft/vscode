@@ -26,7 +26,7 @@ import { IOnboardingScenarioService } from '../../../../workbench/contrib/onboar
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
-import { ICustomViewService } from '../../../services/customView/browser/customViewService.js';
+import { ICustomViewService } from '../../../services/customView/browser/customView.js';
 import { ISessionsRecentWorkspacesService } from '../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';

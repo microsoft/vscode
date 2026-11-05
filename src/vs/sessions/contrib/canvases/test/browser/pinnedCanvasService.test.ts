@@ -24,8 +24,8 @@ import { TestNotificationService } from '../../../../../platform/notification/te
 import { InMemoryStorageService, IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { getCanvasInputResource, ICanvas, ICanvasReference } from '../../../../../workbench/contrib/canvases/common/canvas.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { AbstractCustomView } from '../../../../services/customView/browser/customView.js';
-import { CustomViewService, ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
+import { AbstractCustomView, ICustomViewService } from '../../../../services/customView/browser/customView.js';
+import { CustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IChat, ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession, IChatDeletedEvent, ISessionCanvasClosedEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';

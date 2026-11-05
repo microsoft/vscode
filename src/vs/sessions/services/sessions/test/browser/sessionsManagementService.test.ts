@@ -62,9 +62,9 @@ import { ISessionsService, SessionsService } from '../../browser/sessionsService
 import { ISessionGridState } from '../../browser/sessionGridState.js';
 import { ISessionOpenTelemetryService, SessionOpenTelemetryService } from '../../browser/sessionOpenTelemetryService.js';
 import { ISessionGridSlot, ISessionsPartService, SessionGridRequest } from '../../browser/sessionsPartService.js';
-import { AbstractCustomView } from '../../../customView/browser/customView.js';
-import { CustomViewService, ICustomViewService } from '../../../customView/browser/customViewService.js';
-import { IWindowCanvasDescriptor, IWindowCanvasService } from '../../../canvas/browser/windowCanvasService.js';
+import { AbstractCustomView, ICustomViewService } from '../../../customView/browser/customView.js';
+import { CustomViewService } from '../../../customView/browser/customViewService.js';
+import { IWindowCanvasDescriptor, IWindowCanvasService } from '../../../canvas/browser/windowCanvas.js';
 import { TestWindowCanvasService } from '../../../canvas/test/browser/testWindowCanvasService.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService, SessionsProvidersService } from '../../browser/sessionsProvidersService.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';

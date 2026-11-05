@@ -14,8 +14,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { CanvasView, ICanvasViewInput } from '../../../../workbench/contrib/canvases/electron-browser/canvasView.js';
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
-import { AbstractCustomView } from '../../../services/customView/browser/customView.js';
-import { ICustomViewService } from '../../../services/customView/browser/customViewService.js';
+import { AbstractCustomView, ICustomViewService } from '../../../services/customView/browser/customView.js';
 import { IPinnedCanvasService, PINNED_CANVAS_PAGE_ID, PinnedCanvasConnectedContext, PinnedCanvasState } from '../browser/pinnedCanvases.js';
 
 /** Shows the selected pinned canvas full-bleed in place of the sessions grid. */

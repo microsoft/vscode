@@ -8,102 +8,21 @@ import { CancellationTokenSource } from '../../../../base/common/cancellation.js
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { derived, IObservable, ITransaction, observableFromEvent, observableValue, runOnChange, subtransaction, transaction, waitForState } from '../../../../base/common/observable.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
-import { Schemas } from '../../../../base/common/network.js';
-import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { EditorActivation } from '../../../../platform/editor/common/editor.js';
-import { EditorCloseContext, EditorInputCapabilities, GroupIdentifier, IEditorPane, IUntypedEditorInput } from '../../../../workbench/common/editor.js';
-import { EditorInput } from '../../../../workbench/common/editor/editorInput.js';
+import { EditorCloseContext, IEditorPane } from '../../../../workbench/common/editor.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { ILifecycleService } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { ICanvasWorkingSets } from '../../../../workbench/contrib/canvases/common/canvas.js';
-import { ICustomViewService } from '../../customView/browser/customViewService.js';
+import { ICustomViewService } from '../../customView/browser/customView.js';
 import { createMainWindowInstantiationService } from '../../sessions/browser/sessionHost.js';
-
-export interface IWindowCanvas extends IDisposable {
-	render(container: HTMLElement): void;
-	layout(width: number, height: number): void;
-	focus(): void;
-	setVisible(visible: boolean): void;
-	openNewSession?(): Promise<void>;
-}
-
-export interface IWindowCanvasDescriptor {
-	readonly id: string;
-	readonly title: string;
-	readonly icon: ThemeIcon;
-	readonly ctor: SyncDescriptor<IWindowCanvas>;
-	/** Retain this canvas's focused control across background working-set replacement. Defaults to false. */
-	readonly retainFocusOnRestore?: boolean;
-}
-
-export interface IWindowCanvasPresentation {
-	readonly element: HTMLElement;
-	readonly content: IWindowCanvas;
-}
-
-export interface IWindowCanvasOpenRequest {
-	readonly id: string;
-	readonly source: 'explicit' | 'history';
-}
-
-export const IWindowCanvasService = createDecorator<IWindowCanvasService>('windowCanvasService');
-
-/** Native canvases belong to the window, not to an agent, session, or chat. */
-export interface IWindowCanvasService {
-	readonly _serviceBrand: undefined;
-	readonly canvases: IObservable<readonly IWindowCanvasDescriptor[]>;
-	readonly activeCanvasId: IObservable<string | undefined>;
-	/** Foreground navigation intent; background restoration does not publish a request. */
-	readonly navigationRequest: IObservable<IWindowCanvasOpenRequest | undefined>;
-	/** The committed canvas destination, independent of which editor remains visible beside a session. */
-	readonly activeCanvasOpen: IObservable<IWindowCanvasOpenRequest | undefined>;
-	registerCanvas(descriptor: IWindowCanvasDescriptor): IDisposable;
-	openCanvas(id: string, options?: { readonly source?: 'history' }): Promise<void>;
-	cancelPendingOpen(): void;
-	/** Leave canvas navigation without closing its tab or disposing its retained content. */
-	deactivateCanvas(tx?: ITransaction): void;
-	closeCanvas(id: string): Promise<void>;
-	getPresentation(input: WindowCanvasInput): IWindowCanvasPresentation;
-	openNewSession(): Promise<void> | undefined;
-	connectWorkingSets(workingSets: ICanvasWorkingSets): IDisposable;
-}
-
-export class WindowCanvasInput extends EditorInput {
-	static readonly ID = 'sessions.editorInput.windowCanvas';
-	static readonly EDITOR_ID = 'sessions.editor.windowCanvas';
-	readonly resource: URI;
-
-	constructor(
-		readonly descriptor: IWindowCanvasDescriptor,
-		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
-	) {
-		super();
-		this.resource = URI.from({ scheme: Schemas.vscodeWindowCanvas, path: `/${descriptor.id}` });
-	}
-
-	override get typeId(): string { return WindowCanvasInput.ID; }
-	override get editorId(): string { return WindowCanvasInput.EDITOR_ID; }
-	override get capabilities(): EditorInputCapabilities { return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton | EditorInputCapabilities.ForceReveal; }
-	override getName(): string { return this.descriptor.title; }
-	override getIcon(): ThemeIcon { return this.descriptor.icon; }
-	override canMove(_source: GroupIdentifier, target: GroupIdentifier): true | string {
-		return this.editorGroupsService.getGroup(target)?.windowId === this.editorGroupsService.mainPart.windowId
-			? true
-			: localize('windowCanvas.mainWindowOnly', "This canvas can only be shown in the main window.");
-	}
-	override matches(other: EditorInput | IUntypedEditorInput): boolean {
-		return other instanceof WindowCanvasInput ? other.descriptor.id === this.descriptor.id : super.matches(other);
-	}
-}
+import { IWindowCanvas, IWindowCanvasDescriptor, IWindowCanvasPresentation, IWindowCanvasOpenRequest, IWindowCanvasService, WindowCanvasInput } from './windowCanvas.js';
 
 interface ICanvasEntry {
 	input: WindowCanvasInput;

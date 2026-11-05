@@ -24,8 +24,9 @@ import { ICanvasWorkingSetState } from '../../../../../workbench/contrib/canvase
 import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService, isPreferredGroup } from '../../../../../workbench/services/editor/common/editorService.js';
 import { ILifecycleService } from '../../../../../workbench/services/lifecycle/common/lifecycle.js';
-import { ICustomViewService } from '../../../customView/browser/customViewService.js';
-import { IWindowCanvas, IWindowCanvasDescriptor, WindowCanvasInput, WindowCanvasService } from '../../browser/windowCanvasService.js';
+import { ICustomViewService } from '../../../customView/browser/customView.js';
+import { WindowCanvasService } from '../../browser/windowCanvasService.js';
+import { WindowCanvasInput, IWindowCanvas, IWindowCanvasDescriptor } from '../../browser/windowCanvas.js';
 
 class TestCanvas extends Disposable implements IWindowCanvas {
 	draft = '';
