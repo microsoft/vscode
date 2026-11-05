@@ -11,12 +11,14 @@ import { hasKey } from '../../../../base/common/types.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../log/common/log.js';
+import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { COMPUTER_USE_REQUEST_KEY, COMPUTER_USE_STATUS_KEY, computerUsePermissions, isComputerUseRequest, type ComputerUsePermission, type ComputerUsePermissionState, type ComputerUseSetupState, type IComputerUseErrorV1, type IComputerUseSetupActionV1, type IComputerUseStatusV1 } from '../../common/computerUse.js';
 import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { withComputerUseSetupCard } from '../../common/meta/computerUse.js';
 import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputResponseKind, type ChatInputAnswer, type ChatInputRequest } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostMacAccessibilityTrustService } from '../agentHostMacAccessibilityTrustService.js';
+import { reportComputerUseSetup, type ComputerUseSetupResult } from './copilotComputerUseTelemetry.js';
 
 // #region The plugin's permission prompt
 
@@ -233,6 +235,10 @@ interface IPendingPrompt {
 interface ISetup {
 	readonly id: string;
 	readonly chat: ICopilotComputerUseSetupChat;
+	/** When the plugin first asked, for telemetry. */
+	readonly startedAt: number;
+	/** The permissions the plugin first asked for, for telemetry. */
+	readonly missingAtStart: ReadonlySet<ComputerUsePermission>;
 	state: ComputerUseSetupState;
 	round: number;
 	/** The open chat input request; `undefined` once a client or the host completed it. */
@@ -265,8 +271,8 @@ interface IQueuedAction {
 	readonly automatic?: boolean;
 }
 
-/** Why a setup ended without becoming ready. Only logged: ended setups carry no error. */
-type SetupEndReason = 'decline' | 'cancel' | 'notWaiting' | 'unconfirmed' | 'unsupportedPrompt';
+/** Why a setup ended without becoming ready; see {@link ComputerUseSetupResult}. Logged and reported: ended setups carry no error. */
+type SetupEndReason = Exclude<ComputerUseSetupResult, 'ready'>;
 
 const MAX_REMEMBERED_NONCES = 128;
 const MAX_QUEUED_ACTIONS = 16;
@@ -313,6 +319,7 @@ export class CopilotComputerUsePermissionSetup extends Disposable {
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostMacAccessibilityTrustService accessibilityTrust: IAgentHostMacAccessibilityTrustService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 		this._discardStaleRequest();
@@ -327,6 +334,10 @@ export class CopilotComputerUsePermissionSetup extends Disposable {
 		}));
 		this._register(toDisposable(() => {
 			for (const setup of this._setups.values()) {
+				// Turning Computer Use off, or shutting down, ends the setups that still wait.
+				if (setup.state === 'needsPermissions' || setup.state === 'working') {
+					this._report(setup, 'notWaiting');
+				}
 				setup.prompt?.result.complete({ action: 'cancel' });
 			}
 			this._setups.clear();
@@ -354,7 +365,7 @@ export class CopilotComputerUsePermissionSetup extends Disposable {
 		// still open in the chat was abandoned; the new prompt replaces it in the same setup.
 		let setup = this._working?.chat === chat ? this._working : this._activeSetups(chat)[0];
 		if (!setup) {
-			setup = { id: generateUuid(), chat, state: 'needsPermissions', round: 0, cardId: undefined, prompt: undefined, sent: undefined, sentAutomatically: false, openSettingsNext: undefined, error: undefined };
+			setup = { id: generateUuid(), chat, startedAt: Date.now(), missingAtStart: offered.missing, state: 'needsPermissions', round: 0, cardId: undefined, prompt: undefined, sent: undefined, sentAutomatically: false, openSettingsNext: undefined, error: undefined };
 			this._setups.set(setup.id, setup);
 		}
 		setup.prompt?.result.complete({ action: 'cancel' });
@@ -537,6 +548,7 @@ export class CopilotComputerUsePermissionSetup extends Disposable {
 		setup.sent = undefined;
 		setup.openSettingsNext = undefined;
 		setup.error = undefined;
+		this._report(setup, 'ready');
 		this._finish(setup, ChatInputResponseKind.Accept);
 		// The permissions are machine-wide, so the setups that still wait can continue too.
 		for (const other of this._setups.values()) {
@@ -559,8 +571,19 @@ export class CopilotComputerUsePermissionSetup extends Disposable {
 		setup.sent = undefined;
 		setup.openSettingsNext = undefined;
 		setup.error = undefined;
+		this._report(setup, reason);
 		this._finish(setup, declined ? ChatInputResponseKind.Decline : ChatInputResponseKind.Cancel);
 		prompt?.result.complete({ action: declined ? 'decline' : 'cancel' });
+	}
+
+	private _report(setup: ISetup, result: ComputerUseSetupResult): void {
+		reportComputerUseSetup(this._telemetryService, {
+			result,
+			missingAtStart: setup.missingAtStart,
+			missingAtEnd: new Set(computerUsePermissions.filter(permission => this._permissions[permission] === 'notGranted')),
+			rounds: setup.round,
+			durationMs: Date.now() - setup.startedAt,
+		});
 	}
 
 	private _finish(setup: ISetup, response: ChatInputResponseKind): void {

@@ -655,7 +655,7 @@ suite('Sessions - Session Activity Bar', () => {
 		assert.deepStrictEqual(ran, ['workbench.action.chatWindow.toggleEditor', 'test.terminal']);
 	});
 
-	test('in a window with layout modes, such as a chat window, the entries run with the window they are in, which the window that has focus may not be yet', async () => {
+	test('the entries run with the window they are in, which the window that has focus may not be yet: a chat window, or the main window, such as while a chat window has focus', async () => {
 		const files: ITestEntry = { id: 'test.files', title: 'Files', icon: Codicon.files, group: SessionActivityBarGroup.SidePanel, checked: true };
 		const terminal: ITestEntry = { id: 'test.terminal', title: 'Terminal', icon: Codicon.terminal, group: SessionActivityBarGroup.Panel };
 		for (const entry of [files, terminal]) {
@@ -673,7 +673,7 @@ suite('Sessions - Session Activity Bar', () => {
 
 		const context: IWindowCommandContext = { windowId: mainWindow.vscodeWindowId };
 		assert.deepStrictEqual(ranWith, [
-			{ id: 'test.terminal', args: [undefined] },
+			{ id: 'test.terminal', args: [context] },
 			{ id: 'test.terminal', args: [context] },
 			{ id: 'workbench.action.chatWindow.toggleEditor', args: [context] },
 		]);

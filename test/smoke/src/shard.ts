@@ -14,54 +14,34 @@ export interface Shard {
 }
 
 /**
- * Approximate CI durations (in seconds) of the slowest top-level suites, used
+ * Approximate durations (in seconds) of the slowest top-level suites in the
+ * pull request workflows, as printed at the end of each smoke test run, used
  * only to balance the shards. Stale entries make shards uneven but never skip
  * a suite. Unlisted suites count as about one app launch.
  */
 const suiteDurations = new Map<string, number>([
-	['Data Loss (insiders -> insiders)', 210],
-	['Terminal', 150],
-	['Agents Window (Dev Container AgentHost)', process.platform === 'linux' ? 115 : 5], // skips itself without Docker
-	['Chat Sessions', 85],
-	['Agents Window (SSH Dev Container AgentHost)', 75],
-	['Agents Window (Codex)', 65],
-	['Integrated Browser', 65],
-	['Agents Window (local AgentHost)', 60],
-	['Extension Host Restart', 55],
-	['Agents Window (local AgentHost, SDK sandbox)', 55],
-	[`Chat Sandbox (${process.platform})`, 50],
-	['Chat Model Configuration', 40],
-	['Task', 35],
-	['Accessibility', 35],
-]);
-
-/**
- * The durations that differ on the Windows runners of the pull request workflows, where several suites
- * take much less time than on Linux and macOS.
- */
-const win32SuiteDurations = new Map<string, number>([
-	// Windows only. Also counts the ~110s WSL setup step before the first shard and the ~50s WSL Kerberos
-	// proxy run after it, which only the first shard runs (see pr-win32-test.yml).
-	['Agents Window (WSL Dev Container AgentHost)', 250],
-	['Terminal', 140],
-	['Data Loss (insiders -> insiders)', 125],
-	['Chat Sessions', 75],
+	['Terminal', process.platform === 'linux' ? 10 : 135],
+	['Data Loss (insiders -> insiders)', 100],
+	// Windows only. Also counts the ~50s WSL Kerberos proxy run after the first shard, which only that
+	// shard runs. The WSL setup runs in the background while that shard installs and builds (see pr-win32-test.yml).
+	['Agents Window (WSL Dev Container AgentHost)', 150],
+	['Agents Window (Dev Container AgentHost)', process.platform === 'linux' ? 70 : 15], // skips itself without Docker
+	['Agents Window (SSH Dev Container AgentHost)', 50],
 	['Agents Window (Codex)', 45],
-	['Integrated Browser', 45],
-	['Agents Window (local AgentHost)', 35],
+	['Integrated Browser', 40],
+	[`Chat Sandbox (${process.platform})`, 35],
+	['Agents Window (local AgentHost)', 30],
 	['Extension Host Restart', 30],
-	['Chat Model Configuration', 30],
+	['Chat Model Configuration', 25],
+	['Chat Sessions', 25],
 	['Task', 25],
-	['Accessibility', 20],
-	['Agents Window (local AgentHost, SDK sandbox)', 15],
 ]);
-const platformSuiteDurations = process.platform === 'win32' ? new Map([...suiteDurations, ...win32SuiteDurations]) : suiteDurations;
 const defaultSuiteDuration = 20;
 
 // Coupled to the PR workflows: pr-win32-test.yml only provisions WSL in the first
 // shard, and pr-darwin-test.yml runs the PAC proxy suites after the last shard.
 const firstShardSuite = 'Agents Window (WSL Dev Container AgentHost)';
-const lastShardExtraDuration = process.platform === 'darwin' ? 270 : 0;
+const lastShardExtraDuration = process.platform === 'darwin' ? 210 : 0;
 
 /**
  * Parses a `--shard` value of the form `<index>/<total>`, e.g. `1/2`.
@@ -82,7 +62,7 @@ function hasRunnableTests(suite: Suite): boolean {
 }
 
 function estimateDuration(suite: Suite): number {
-	return hasRunnableTests(suite) ? platformSuiteDurations.get(suite.title) ?? defaultSuiteDuration : 0;
+	return hasRunnableTests(suite) ? suiteDurations.get(suite.title) ?? defaultSuiteDuration : 0;
 }
 
 /**

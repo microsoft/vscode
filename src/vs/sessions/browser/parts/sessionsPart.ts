@@ -17,6 +17,7 @@ import { Part } from '../../../workbench/browser/part.js';
 import { ActiveSessionsContext, MultipleSessionsVisibleContext, SessionsFocusContext } from '../../common/contextkeys.js';
 import { $, addDisposableGenericMouseDownListener, addDisposableListener, EventType, isAncestor, isAncestorOfActiveElement, isHTMLElement, trackFocus } from '../../../base/browser/dom.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
+import { ISession } from '../../services/sessions/common/session.js';
 import { SessionView } from './sessionView.js';
 import { DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { autorun, derived, observableSignal } from '../../../base/common/observable.js';
@@ -70,6 +71,7 @@ export class SessionsPart extends Part {
 
 	/** Stable model slots in depth-first grid order, including the empty composer. */
 	private readonly _slots: IGridSlot[] = [];
+	private _activeSlot: IGridSlot | undefined;
 	private readonly _slotsChanged = observableSignal(this);
 	readonly shownChatCount = derived(this, reader => {
 		this._slotsChanged.read(reader);
@@ -216,6 +218,7 @@ export class SessionsPart extends Part {
 		const activeSlot = this._slots.find(slot => slot.session === active)
 			?? this._slots.find(slot => slot.boundSessionId === activeId)
 			?? (this._slots.length === 1 ? this._slots[0] : undefined);
+		this._activeSlot = activeSlot;
 		for (const slot of this._slots) {
 			const isActive = slot === activeSlot;
 			slot.view.element.classList.toggle('is-active', isActive);
@@ -335,6 +338,11 @@ export class SessionsPart extends Part {
 		return this._findSessionSlot(sessionId)?.view;
 	}
 
+	/** The view of exactly `session`, of those it shows, such as one of a chat it shows in a pane of its own. */
+	getViewOfSession(session: ISession): SessionView | undefined {
+		return this._slots.find(slot => slot.session === session)?.view;
+	}
+
 	private _findSessionSlot(sessionId: string | undefined): IGridSlot | undefined {
 		return this._slots.find(slot => slot.boundSessionId === sessionId && slot.view.element.classList.contains('is-active'))
 			?? this._slots.find(slot => slot.boundSessionId === sessionId && !slot.session?.scopedChatResource);
@@ -344,6 +352,10 @@ export class SessionsPart extends Part {
 		return this._slots.find(slot => isAncestorOfActiveElement(slot.view.element))?.view;
 	}
 
+	getActiveSessionView(): SessionView | undefined {
+		return this._activeSlot && this._slots.includes(this._activeSlot) ? this._activeSlot.view : undefined;
+	}
+
 	/**
 	 * Moves keyboard focus into the session view hosting the given session id (or
 	 * the placeholder view when `sessionId` is `undefined`), first revealing it in
@@ -351,6 +363,16 @@ export class SessionsPart extends Part {
 	 */
 	focusSession(sessionId: string | undefined, chatResource?: URI): void {
 		const slot = this._slots.find(s => s.boundSessionId === sessionId && s.session?.scopedChatResource?.toString() === chatResource?.toString());
+		if (!slot) {
+			return;
+		}
+		this._revealView(slot.view);
+		slot.view.focus();
+	}
+
+	/** Moves keyboard focus into the view of exactly `session`, of those the grid shows, first revealing it like {@link focusSession}. */
+	focusSessionView(session: ISession): void {
+		const slot = this._slots.find(candidate => candidate.session === session);
 		if (!slot) {
 			return;
 		}

@@ -410,7 +410,6 @@ suite('Model picker destinations', () => {
 		const sections = buildModelPickerSections({
 			models: [gpt, claude, gemini],
 			selectedModelId: 'copilot/gpt-5-5',
-			recentModelIds: ['copilot/gemini-3-1-pro'],
 			pinnedModelIds: ['copilot/claude-sonnet-5'],
 			controlModels,
 			showSuggested: true,
@@ -434,7 +433,6 @@ suite('Model picker destinations', () => {
 		const sections = buildModelPickerSections({
 			models: [createModel('example-5.5', 'Example 5.5'), createModel('example-5.6', 'Example 5.6'), claude],
 			selectedModelId: undefined,
-			recentModelIds: [],
 			pinnedModelIds: [],
 			controlModels: {},
 			showSuggested: true,
@@ -456,7 +454,6 @@ suite('Model picker destinations', () => {
 		const sections = buildModelPickerSections({
 			models: [alpha, claude, gemini],
 			selectedModelId: undefined,
-			recentModelIds: [],
 			pinnedModelIds: [],
 			controlModels: {
 				'alpha': { label: 'Alpha', exists: true, demoted: true },
@@ -475,7 +472,6 @@ suite('Model picker destinations', () => {
 		const sections = buildModelPickerSections({
 			models: [llama],
 			selectedModelId: undefined,
-			recentModelIds: [],
 			pinnedModelIds: [],
 			controlModels: { 'llama-3': { label: 'Llama 3', featured: true, exists: true } },
 			showSuggested: false,
@@ -490,7 +486,6 @@ suite('Model picker destinations', () => {
 		const sections = buildModelPickerSections({
 			models: [llama, mistral],
 			selectedModelId: 'ollama/llama-3',
-			recentModelIds: ['openai/mistral'],
 			pinnedModelIds: [],
 			controlModels: {},
 			showSuggested: false,
@@ -555,7 +550,6 @@ suite('Model picker destinations', () => {
 		const sections = (codexModel: ILanguageModelChatMetadataAndIdentifier) => buildModelPickerSections({
 			models: [sol, codexModel],
 			selectedModelId: undefined,
-			recentModelIds: [],
 			pinnedModelIds: [],
 			// Codex is the newest of its own line, so only a name can move it down.
 			controlModels: { 'example-5.3-codex': { label: 'Example 5.3 Codex', exists: true, demoted: true } },
@@ -584,7 +578,6 @@ suite('Model picker destinations', () => {
 		const sections = buildModelPickerSections({
 			models: [gpt, claude],
 			selectedModelId: undefined,
-			recentModelIds: [],
 			pinnedModelIds: [],
 			controlModels: {
 				'gpt-5-5': { label: 'GPT-5.5', exists: true, demoted: true },
@@ -607,7 +600,6 @@ suite('Model picker destinations', () => {
 		const sections = buildModelPickerSections({
 			models: [gpt, createModel('example-3-eap', 'Example 3 EAP'), createModel('example-4-experimental', 'Example 4')],
 			selectedModelId: undefined,
-			recentModelIds: [],
 			pinnedModelIds: [],
 			// No entry for either: the id says enough, so a new one needs no config.
 			controlModels: {},
@@ -633,7 +625,6 @@ suite('Model picker destinations', () => {
 		const shortlist = (models: readonly ILanguageModelChatMetadataAndIdentifier[]) => buildModelPickerSections({
 			models,
 			selectedModelId: undefined,
-			recentModelIds: [],
 			pinnedModelIds: [],
 			controlModels: {
 				'example-5.5': { label: 'Example 5.5', exists: true, demoted: true },
@@ -723,7 +714,6 @@ suite('Model picker destinations', () => {
 		const sections = buildModelPickerSections({
 			models: [gpt, standard, fast],
 			selectedModelId: fast.identifier,
-			recentModelIds: [],
 			pinnedModelIds: [standard.identifier, fast.identifier],
 			controlModels: {},
 			showSuggested: true,
@@ -747,7 +737,6 @@ suite('Model picker destinations', () => {
 			const sections = buildModelPickerSections({
 				models,
 				selectedModelId: fast.identifier,
-				recentModelIds: [],
 				pinnedModelIds: [],
 				controlModels: {
 					[standard.metadata.id]: { label: standard.metadata.name, featured: true, exists: false },
@@ -810,7 +799,6 @@ suite('Model picker destinations', () => {
 		const sections = buildModelPickerSections({
 			models: [gpt],
 			selectedModelId: undefined,
-			recentModelIds: [],
 			pinnedModelIds: [],
 			controlModels,
 			showSuggested: true,
@@ -837,7 +825,6 @@ suite('Model picker destinations', () => {
 		const sections = buildModelPickerSections({
 			models: [gatedPromo, gpt],
 			selectedModelId: undefined,
-			recentModelIds: [],
 			pinnedModelIds: [],
 			controlModels: { 'gpt-6': { label: 'GPT-6', featured: true, exists: true, minVSCodeVersion: '99.0.0' } },
 			showSuggested: true,
@@ -862,7 +849,6 @@ suite('Model picker destinations', () => {
 		const sections = buildModelPickerSections({
 			models: [gpt, claude],
 			selectedModelId: 'copilot/gpt-5-5',
-			recentModelIds: ['copilot/gpt-5-5'],
 			pinnedModelIds: ['copilot/gpt-5-5'],
 			controlModels: { ...controlModels, 'claude-sonnet-5': { label: 'Claude Sonnet 5', exists: true, demoted: true } },
 			showSuggested: true,
@@ -889,7 +875,6 @@ suite('Model picker destinations', () => {
 		const sections = buildModelPickerSections({
 			models: [gpt],
 			selectedModelId: undefined,
-			recentModelIds: [],
 			pinnedModelIds: [],
 			controlModels: { 'example-opus-5': { label: 'Claude Opus 5', featured: true, exists: false } },
 			showSuggested: true,

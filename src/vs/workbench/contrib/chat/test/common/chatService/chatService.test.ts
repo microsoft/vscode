@@ -4451,6 +4451,7 @@ suite('ChatService', () => {
 			readonly onDidChangeHistory?: Event<readonly IChatSessionHistoryItem[]>;
 			readonly history?: readonly IChatSessionHistoryItem[];
 			readonly preserveHistoryItemIdentity?: boolean;
+			readonly transferredState?: IChatSession['transferredState'];
 			readonly onDidDisposeSession?: () => void;
 		}
 
@@ -4481,6 +4482,7 @@ suite('ChatService', () => {
 				// Like the agent host provider, update the history before announcing the change.
 				onDidChangeHistory: onDidChangeHistory && Event.map(onDidChangeHistory, next => history = next, testDisposables),
 				preserveHistoryItemIdentity: opts.preserveHistoryItemIdentity,
+				transferredState: opts.transferredState,
 				dispose: () => opts.onDidDisposeSession?.(),
 			};
 			testDisposables.add(mockSessionsService.registerChatSessionContentProvider(remoteScheme, {
@@ -5176,7 +5178,7 @@ suite('ChatService', () => {
 			assert.deepStrictEqual(ref.object.getRequests().map(request => [request.id, request.response?.response.toString()]), [[requestId, 'Refreshed']]);
 		});
 
-		test('times live reasoning but not reasoning replayed from history', async () => {
+		test('does not infer timing for live reasoning or reasoning replayed from history', async () => {
 			const progress = observableValue<IChatProgress[]>('progress', []);
 			const isComplete = observableValue('isComplete', false);
 			const { resource } = setupRemoteProvider({
@@ -5210,7 +5212,7 @@ suite('ChatService', () => {
 				? [{ id: part.id, startedAt: part.reasoningStartedAt, durationMs: part.reasoningDurationMs }]
 				: [])), [
 				[{ id: 'restored', startedAt: undefined, durationMs: undefined }],
-				[{ id: 'live', startedAt: 5000, durationMs: 1500 }],
+				[{ id: 'live', startedAt: undefined, durationMs: undefined }],
 			]);
 		});
 
@@ -5250,7 +5252,7 @@ suite('ChatService', () => {
 			}, {
 				reasoning: [
 					{ id: 'underway', startedAt: undefined, durationMs: undefined },
-					{ id: 'live', startedAt: 5000, durationMs: 1500 },
+					{ id: 'live', startedAt: undefined, durationMs: undefined },
 				],
 				runningToolStartedAt: undefined,
 			});
@@ -6460,6 +6462,79 @@ suite('ChatService', () => {
 				elapsedMs: 2_500,
 				completedAt,
 				completionTimestamp: completedAt,
+			});
+		});
+
+		test('restores cancelled remote turns as cancelled at their recorded time', async () => {
+			const timestamp = 1_752_012_321_000;
+			const response = (completedAt: number | undefined, isCanceled: boolean): IChatSessionHistoryItem => ({ type: 'response', parts: [], participant: remoteScheme, completedAt, ...(isCanceled ? { isCanceled } : {}) });
+			const { resource } = setupRemoteProvider({
+				history: [
+					{ type: 'request', prompt: 'cancelled', participant: remoteScheme, timestamp },
+					response(timestamp + 1_000, true),
+					{ type: 'request', prompt: 'completed', participant: remoteScheme, timestamp: timestamp + 2_000 },
+					response(timestamp + 3_000, false),
+					{ type: 'request', prompt: 'cancelled without time', participant: remoteScheme, timestamp: timestamp + 4_000 },
+					response(undefined, true),
+				],
+			});
+
+			const testService = createChatService();
+			const ref = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+
+			assert.deepStrictEqual(ref.object.getRequests().map(request => ({
+				prompt: request.message.text,
+				canceled: request.response?.isCanceled,
+				completionTimestamp: request.response?.completionTimestamp,
+			})), [
+				{ prompt: 'cancelled', canceled: true, completionTimestamp: timestamp + 1_000 },
+				{ prompt: 'completed', canceled: false, completionTimestamp: timestamp + 3_000 },
+				{ prompt: 'cancelled without time', canceled: true, completionTimestamp: undefined },
+			]);
+		});
+
+		test('restores a streamed session\'s last turn as cancelled when its history records that', async () => {
+			const completedAt = 1_752_012_324_000;
+			const { resource } = setupRemoteProvider({
+				history: [
+					{ type: 'request', prompt: 'hello', participant: remoteScheme, timestamp: completedAt - 1_000 },
+					{ type: 'response', parts: [], participant: remoteScheme, completedAt, isCanceled: true },
+				],
+				progressObs: observableValue<IChatProgress[]>('progress', []),
+				isCompleteObs: observableValue<boolean>('isComplete', true),
+				interruptActiveResponseCallback: async () => true,
+			});
+
+			const testService = createChatService();
+			const ref = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+
+			const response = ref.object.getRequests()[0].response;
+			assert.deepStrictEqual({ canceled: response?.isCanceled, completionTimestamp: response?.completionTimestamp }, { canceled: true, completionTimestamp: completedAt });
+		});
+
+		test('a cold restore waits for the transferred draft\'s model, not the history\'s last one', async () => {
+			const draftModelId = 'agent-host-copilotcli:gpt-5.3-codex';
+			const { resource } = setupRemoteProvider({
+				history: [{ type: 'request', prompt: 'hello', participant: remoteScheme, modelId: 'agent-host-copilotcli:claude-opus-5.5' }],
+				// The live catalog is not loaded, so the draft arrives without its model's metadata.
+				transferredState: { editingSession: undefined, inputState: { attachments: [], contrib: {}, inputText: '', mode: { id: 'agent', kind: ChatModeKind.Agent }, selectedModel: undefined, selections: [] }, selectedModelId: draftModelId },
+			});
+
+			const testService = createChatService();
+			const ref = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+
+			assert.deepStrictEqual({
+				intended: ref.object.inputModel.intendedModel,
+				selected: ref.object.inputModel.state.get()?.selectedModel?.identifier,
+			}, {
+				intended: { modelId: draftModelId, reason: ModelSelectionReason.SessionRestore },
+				selected: undefined,
 			});
 		});
 

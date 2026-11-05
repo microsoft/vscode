@@ -126,12 +126,38 @@ jobs:
         if: ${{ env.ELECTRON_TESTS == 'true' && env.SMOKE_TESTS == 'true' && env.SMOKE_SHARD_INDEX == '1' }}
         uses: ./.github/actions/restore-wsl-installer
 
-      - name: Prepare WSL Dev Container smoke tests
-        id: wsl-dev-container
+      # The WSL setup takes 2 to 4 minutes, mostly downloads and package installs, so it runs in the background
+      # while the steps below install and build, and "Wait for the WSL Dev Container smoke test setup" waits for
+      # it before the smoke tests. The setup writes its step outputs, log and exit code to files. Start-Process
+      # without redirection doesn't pass the output handles of this step to the setup, so the step ends at once.
+      - name: Start the WSL Dev Container smoke test setup
+        id: wsl-dev-container-start
         if: ${{ env.ELECTRON_TESTS == 'true' && env.SMOKE_TESTS == 'true' && env.SMOKE_SHARD_INDEX == '1' }}
-        timeout-minutes: 15
         shell: pwsh
-        run: .\test\smoke\wslDevContainer.ps1
+        run: |
+          $state = Join-Path $env:RUNNER_TEMP 'wsl-dev-container'
+          $logDirectory = Join-Path $env:GITHUB_WORKSPACE '.build\logs\wsl-dev-container'
+          New-Item -ItemType Directory -Force -Path $state, $logDirectory | Out-Null
+          $env:GITHUB_OUTPUT = Join-Path $state 'outputs.txt'
+          $env:WSL_SMOKE_SETUP_LOG = Join-Path $logDirectory 'setup.log'
+          $env:WSL_SMOKE_SETUP_EXIT_CODE = Join-Path $state 'exit-code.txt'
+          New-Item -ItemType File -Force -Path $env:GITHUB_OUTPUT | Out-Null
+          Set-Content -LiteralPath (Join-Path $state 'setup.ps1') -Value @'
+          $ErrorActionPreference = 'Stop'
+          $code = 1
+          try {
+            & "$env:GITHUB_WORKSPACE\test\smoke\wslDevContainer.ps1" *> $env:WSL_SMOKE_SETUP_LOG
+            $code = if (Test-Path variable:\LASTEXITCODE) { $LASTEXITCODE } else { 0 }
+          } catch {
+            $_ | Out-String | Add-Content -LiteralPath $env:WSL_SMOKE_SETUP_LOG
+          } finally {
+            Set-Content -LiteralPath $env:WSL_SMOKE_SETUP_EXIT_CODE -Value $code
+          }
+          '@
+          $process = Start-Process pwsh -ArgumentList '-NoProfile', '-NonInteractive', '-File', (Join-Path $state 'setup.ps1') -WorkingDirectory $env:GITHUB_WORKSPACE -WindowStyle Hidden -PassThru
+          # The start time tells the setup apart from a later process with the same ID.
+          Set-Content -LiteralPath (Join-Path $state 'process.txt') -Value "$($process.Id) $($process.StartTime.ToFileTimeUtc())"
+          Set-Content -LiteralPath (Join-Path $state 'deadline.txt') -Value ([DateTime]::UtcNow.AddMinutes(15).ToString('o'))
         env:
           WSL_INSTALLER_CACHE_DIR: ${{ github.workspace }}\.build\wsl-installer
 
@@ -159,7 +185,7 @@ jobs:
 
           # Run preinstall script before root dependencies are installed
           # so that Electron/v8 headers are patched correctly for native modules.
-          exec { node build/npm/preinstall.ts }
+          exec { pnpm run preinstall }
 
           for ($i = 1; $i -le 5; $i++) {
             try {
@@ -330,7 +356,7 @@ jobs:
         if: ${{ env.ELECTRON_TESTS == 'true' && env.AGENT_HOST_E2E_TESTS == 'true' }}
         timeout-minutes: 30
         shell: pwsh
-        run: .\scripts\test-agent-host-e2e.bat --tfs "Integration Tests" --rerun-failed-files 2${{ env.AGENT_HOST_E2E_SHARD_TOTAL > 1 && format(' --shard {0}/{1}', env.AGENT_HOST_E2E_SHARD_INDEX, env.AGENT_HOST_E2E_SHARD_TOTAL) || '' }} ${{ hashFiles('.build/test-plan/integration.txt') != '' && '--runList .build/test-plan/integration.txt' || '' }}
+        run: .\scripts\test-agent-host-e2e.bat --rerun-failed-files 2${{ env.AGENT_HOST_E2E_SHARD_TOTAL > 1 && format(' --shard {0}/{1}', env.AGENT_HOST_E2E_SHARD_INDEX, env.AGENT_HOST_E2E_SHARD_TOTAL) || '' }} --tfs "Integration Tests" ${{ hashFiles('.build/test-plan/integration.txt') != '' && '--runList .build/test-plan/integration.txt' || '' }}
         env:
           AGENT_HOST_TEST_PROFILE: ${{ inputs.agent_host_test_profile }}
           AGENT_HOST_TEST_PROFILE_REASON: ${{ inputs.agent_host_test_profile_reason }}
@@ -343,7 +369,7 @@ jobs:
         if: ${{ env.ELECTRON_TESTS == 'true' && env.INTEGRATION_TESTS == 'true' && env.INTEGRATION_TEST_SUITE != 'extension-host' && !cancelled() && (success() || steps.agent-host-e2e.outcome == 'failure') }}
         timeout-minutes: 25
         shell: pwsh
-        run: .\scripts\test-integration.bat --only-node-tests --tfs "Integration Tests" --rerun-failed-files 2 ${{ hashFiles('.build/test-plan/integration.txt') != '' && '--runList .build/test-plan/integration.txt' || '' }}
+        run: .\scripts\test-integration.bat --only-node-tests --rerun-failed-files 2 --tfs "Integration Tests" ${{ hashFiles('.build/test-plan/integration.txt') != '' && '--runList .build/test-plan/integration.txt' || '' }}
         env:
           AGENT_HOST_TEST_PROFILE: ${{ inputs.agent_host_test_profile }}
           AGENT_HOST_TEST_PROFILE_REASON: ${{ inputs.agent_host_test_profile_reason }}
@@ -398,6 +424,44 @@ jobs:
         working-directory: extensions/copilot
         run: pnpm run compile
 
+      # Reports the outputs of the setup as its own, which the WSL steps below read. The setup has 15 minutes
+      # from its start, as when it ran in the foreground.
+      - name: Wait for the WSL Dev Container smoke test setup
+        id: wsl-dev-container
+        if: ${{ steps.wsl-dev-container-start.outcome == 'success' }}
+        timeout-minutes: 15
+        shell: pwsh
+        run: |
+          $state = Join-Path $env:RUNNER_TEMP 'wsl-dev-container'
+          $exitCodeFile = Join-Path $state 'exit-code.txt'
+          $id, $startTime = (Get-Content -LiteralPath (Join-Path $state 'process.txt')) -split ' '
+          $deadline = [DateTime]::Parse((Get-Content -LiteralPath (Join-Path $state 'deadline.txt')), $null, 'RoundtripKind')
+          $timedOut = $false
+          while (-not (Test-Path -LiteralPath $exitCodeFile)) {
+            $process = Get-Process -Id $id -ErrorAction SilentlyContinue
+            if (-not $process -or $process.StartTime.ToFileTimeUtc() -ne $startTime) {
+              break
+            }
+            if ([DateTime]::UtcNow -gt $deadline) {
+              taskkill /PID $id /T /F | Out-Host
+              $timedOut = $true
+              break
+            }
+            Start-Sleep -Seconds 2
+          }
+          Get-Content -LiteralPath (Join-Path $env:GITHUB_WORKSPACE '.build\logs\wsl-dev-container\setup.log') -ErrorAction SilentlyContinue
+          Get-Content -LiteralPath (Join-Path $state 'outputs.txt') | Add-Content -LiteralPath $env:GITHUB_OUTPUT
+          if ($timedOut) {
+            throw 'The WSL Dev Container smoke test setup did not finish within 15 minutes.'
+          }
+          if (-not (Test-Path -LiteralPath $exitCodeFile)) {
+            throw 'The WSL Dev Container smoke test setup stopped without reporting its result.'
+          }
+          $code = [int](Get-Content -LiteralPath $exitCodeFile)
+          if ($code -ne 0) {
+            throw "The WSL Dev Container smoke test setup failed with exit code $code. See its log above."
+          }
+
       - name: Diagnostics before smoke test run
         if: ${{ env.SMOKE_TESTS == 'true' && always() }}
         shell: pwsh
@@ -427,14 +491,27 @@ jobs:
           WSL_SMOKE_DISTRO: ${{ steps.wsl-dev-container.outputs.distro }}
           WSL_SMOKE_SERVER_PATH: ${{ steps.wsl-dev-container.outputs.serverPath }}
 
+      # Reads the outputs of the setup from its file, as the wait step doesn't run when a step before it fails,
+      # and first stops the setup if it is still running.
       - name: Clean up WSL Dev Container smoke tests
-        if: ${{ always() && steps.wsl-dev-container.outputs.root != '' }}
+        if: ${{ always() && steps.wsl-dev-container-start.outcome == 'success' }}
         timeout-minutes: 5
         shell: pwsh
-        env:
-          WSL_SMOKE_DISTRO: ${{ steps.wsl-dev-container.outputs.distro }}
-          WSL_SMOKE_ROOT: ${{ steps.wsl-dev-container.outputs.root }}
-        run: .\test\smoke\wslDevContainer.ps1 -Operation Cleanup -Distribution $env:WSL_SMOKE_DISTRO -Root $env:WSL_SMOKE_ROOT
+        run: |
+          $state = Join-Path $env:RUNNER_TEMP 'wsl-dev-container'
+          $id, $startTime = (Get-Content -LiteralPath (Join-Path $state 'process.txt')) -split ' '
+          $process = Get-Process -Id $id -ErrorAction SilentlyContinue
+          if ($process -and $process.StartTime.ToFileTimeUtc() -eq $startTime) {
+            taskkill /PID $id /T /F | Out-Host
+          }
+          $outputs = @{}
+          foreach ($line in Get-Content -LiteralPath (Join-Path $state 'outputs.txt')) {
+            $name, $value = $line -split '=', 2
+            $outputs[$name] = $value
+          }
+          if ($outputs.root) {
+            .\test\smoke\wslDevContainer.ps1 -Operation Cleanup -Distribution $outputs.distro -Root $outputs.root
+          }
 
       - name: 🧪 Run smoke tests (Browser, Chromium)
         if: ${{ env.BROWSER_TESTS == 'true' && env.SMOKE_TESTS == 'true' }}

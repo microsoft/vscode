@@ -9,8 +9,7 @@ import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, IReader, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ChatModelHold, closeChatWindowsOfGoneChats, followReplacedWindowSessions, IChatWindowChatSession, IGoneChatWindow, IReplaceableChatWindow, isChatWindowChatGone } from '../../browser/chatWindowOpening.js';
+import { ChatModelHold, IChatWindowChatSession, isChatWindowChatGone } from '../../browser/chatWindowOpening.js';
 
 suite('Chat window opening (sessions)', () => {
 
@@ -98,59 +97,5 @@ suite('Chat window opening (sessions)', () => {
 		states.push(gone());
 
 		assert.deepStrictEqual(states, [false, true, false, true]);
-	});
-
-	test('a window opened after the tracking started closes when its chat is deleted or archived', () => {
-		const windows = observableValue<readonly IGoneChatWindow[]>('windows', []);
-		const closed: string[] = [];
-		const createWindow = (name: string) => {
-			const chat = { resource: URI.parse(`test:/session/${name}`), isArchived: observableValue('archived', false) };
-			const chats = observableValue('chats', [chat]);
-			const session = { chats, loading: observableValue('loading', false), scopedChatResource: chat.resource };
-			const window: IGoneChatWindow = { session: observableValue('session', session as unknown as IChatWindowChatSession & { scopedChatResource: URI }), close: () => { closed.push(name); windows.set(windows.get().filter(candidate => candidate !== window), undefined); } };
-			return { window, chat, chats };
-		};
-		disposables.add(closeChatWindowsOfGoneChats(windows));
-
-		const deleted = createWindow('deleted');
-		const archived = createWindow('archived');
-		const kept = createWindow('kept');
-		windows.set([deleted.window, archived.window, kept.window], undefined);
-		deleted.chats.set([], undefined);
-		archived.chat.isArchived.set(true, undefined);
-
-		assert.deepStrictEqual({ closed, remaining: windows.get().length }, { closed: ['deleted', 'archived'], remaining: 1 });
-	});
-
-	test('a window whose session its provider replaces shows the replacement and knows it by its resource; it closes when its session no longer shows', () => {
-		const session = (name: string, chat: string) => ({ resource: URI.parse(`test:/${name}`), scopedChatResource: URI.parse(`test:/chat/${chat}`) }) as IActiveSession;
-		const replaced = session('replaced', 'one');
-		const closing = session('closing', 'two');
-		const windowSessions = observableValue<readonly IActiveSession[]>('windowSessions', [replaced, closing]);
-		const shown: string[] = [];
-		const createWindow = (initial: IActiveSession) => {
-			const windowSession = observableValue<IActiveSession | undefined>('session', initial);
-			const window: IReplaceableChatWindow = {
-				session: windowSession,
-				setSession: value => {
-					shown.push(value.resource.path);
-					windowSession.set(value, undefined);
-				},
-				close: () => shown.push(`closed ${initial.resource.path}`),
-			};
-			return window;
-		};
-		const windows = observableValue<readonly IReplaceableChatWindow[]>('windows', [createWindow(replaced), createWindow(closing)]);
-		disposables.add(followReplacedWindowSessions(windows, windowSessions));
-
-		const replacement = session('replacement', 'one');
-		windowSessions.set([replacement], undefined);
-
-		const [first] = windows.get();
-		assert.deepStrictEqual({ shown, session: first.session.get()?.resource.path, chat: first.session.get()?.scopedChatResource?.path }, {
-			shown: ['/replacement', 'closed /closing'],
-			session: '/replacement',
-			chat: '/chat/one',
-		});
 	});
 });

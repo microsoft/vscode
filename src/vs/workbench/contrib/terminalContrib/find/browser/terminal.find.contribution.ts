@@ -52,17 +52,17 @@ class TerminalFindContribution extends Disposable implements ITerminalContributi
 			const findWidget = instantiationService.createInstance(TerminalFindWidget, ctx.instance);
 
 			// Track focus and set state so we can force the scroll bar to be visible
-			findWidget.focusTracker.onDidFocus(() => {
+			this._register(findWidget.focusTracker.onDidFocus(() => {
 				TerminalFindContribution.activeFindWidget = this;
 				ctx.instance.forceScrollbarVisibility();
 				if (!isDetachedTerminalInstance(ctx.instance)) {
 					terminalService.setActiveInstance(ctx.instance);
 				}
-			});
-			findWidget.focusTracker.onDidBlur(() => {
+			}));
+			this._register(findWidget.focusTracker.onDidBlur(() => {
 				TerminalFindContribution.activeFindWidget = undefined;
 				ctx.instance.resetScrollbarVisibility();
-			});
+			}));
 
 			if (!ctx.instance.domElement) {
 				throw new Error('FindWidget expected terminal DOM to be initialized');

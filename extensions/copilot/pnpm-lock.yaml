@@ -351,6 +351,94 @@ importers:
         specifier: 3.25.76
         version: 3.25.76
 
+  chat-lib:
+    dependencies:
+      '@microsoft/tiktokenizer':
+        specifier: ^1.0.10
+        version: 1.0.10
+      '@sinclair/typebox':
+        specifier: ^0.34.41
+        version: 0.34.41
+      '@unicode/unicode-15.0.0':
+        specifier: 2.1.0
+        version: 2.1.0
+      '@vscode/copilot-api':
+        specifier: ^0.5.2
+        version: 0.5.2
+      '@vscode/l10n':
+        specifier: ^0.0.18
+        version: 0.0.18
+      '@vscode/prompt-tsx':
+        specifier: ^0.4.0-alpha.8
+        version: 0.4.0-alpha.8
+      '@vscode/tree-sitter-wasm':
+        specifier: 0.0.5-php.2
+        version: 0.0.5-php.2
+      applicationinsights:
+        specifier: ^2.9.7
+        version: 2.9.8
+      jsonc-parser:
+        specifier: ^3.3.1
+        version: 3.3.1
+      monaco-editor:
+        specifier: 0.44.0
+        version: 0.44.0
+      openai:
+        specifier: ^6.7.0
+        version: 6.7.0(zod@3.25.76)
+      undici:
+        specifier: ^7.24.1
+        version: 7.29.1
+      vscode-languageserver-protocol:
+        specifier: ^3.17.5
+        version: 3.17.5
+      vscode-languageserver-textdocument:
+        specifier: ^1.0.12
+        version: 1.0.12
+      web-tree-sitter:
+        specifier: ^0.23.0
+        version: 0.23.2
+      yaml:
+        specifier: ^2.8.0
+        version: 2.8.3
+    devDependencies:
+      '@anthropic-ai/sdk':
+        specifier: ^0.82.0
+        version: 0.82.0(zod@3.25.76)
+      '@octokit/types':
+        specifier: ^14.1.0
+        version: 14.1.0
+      '@types/node':
+        specifier: 24.x
+        version: 24.13.2
+      copyfiles:
+        specifier: ^2.4.1
+        version: 2.4.1
+      dotenv:
+        specifier: ^17.2.0
+        version: 17.2.0
+      npm-run-all:
+        specifier: ^4.1.5
+        version: 4.1.5
+      outdent:
+        specifier: ^0.8.0
+        version: 0.8.0
+      rimraf:
+        specifier: ^6.0.1
+        version: 6.0.1
+      tsx:
+        specifier: ^4.22.4
+        version: 4.22.4
+      typescript:
+        specifier: npm:@typescript/typescript6@^6.0.2
+        version: '@typescript/typescript6@6.0.2'
+      vite:
+        specifier: ^8.0.16
+        version: 8.0.16(@types/node@24.13.2)(esbuild@0.28.1)(tsx@4.22.4)(yaml@2.8.3)
+      vitest:
+        specifier: ^4.1.8
+        version: 4.1.11(@opentelemetry/api@1.9.0)(@types/node@24.13.2)(vite@8.0.16(@types/node@24.13.2)(esbuild@0.28.1)(tsx@4.22.4)(yaml@2.8.3))
+
 packages:
 
   '@anthropic-ai/sdk@0.82.0':

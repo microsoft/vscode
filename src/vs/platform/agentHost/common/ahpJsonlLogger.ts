@@ -185,14 +185,24 @@ export class AhpJsonlLogger extends Disposable {
 		const entry = { ...message, _ahpLog: meta };
 		// Fast path: serialize once. The vast majority of messages are small, so
 		// we only pay a single stringify and use its length to decide whether the
-		// rare oversized-message path below is needed.
-		let body = stringifyAhpLogEntry(entry);
-		if (body.length > MAX_LOG_LINE_LENGTH) {
-			// Slow path (rare): a single message carried very large payloads. Walk
-			// the object via a replacer that elides long string values, keeping the
-			// line valid JSONL instead of writing/holding the full multi-MB payload.
+		// rare oversized-message path below is needed. When the caller already
+		// measured a UTF-8 frame larger than 3x MAX_LOG_LINE_LENGTH (1 UTF-16 code
+		// unit is at most 3 UTF-8 bytes), the full JSON serialization is guaranteed
+		// to exceed MAX_LOG_LINE_LENGTH, so skip materializing the full multi-MB
+		// string first.
+		let body: string;
+		if (typeof byteLength === 'number' && byteLength > MAX_LOG_LINE_LENGTH * 3) {
 			meta.truncated = true;
 			body = stringifyAhpLogEntryTruncated(entry, MAX_LOGGED_STRING_LENGTH);
+		} else {
+			body = stringifyAhpLogEntry(entry);
+			if (body.length > MAX_LOG_LINE_LENGTH) {
+				// Slow path (rare): a single message carried very large payloads. Walk
+				// the object via a replacer that elides long string values, keeping the
+				// line valid JSONL instead of writing/holding the full multi-MB payload.
+				meta.truncated = true;
+				body = stringifyAhpLogEntryTruncated(entry, MAX_LOGGED_STRING_LENGTH);
+			}
 		}
 		const line = `${body}\n`;
 		this._enqueue(VSBuffer.fromString(line));
@@ -389,7 +399,7 @@ export class AhpJsonlLogger extends Disposable {
 }
 
 export function getAhpLogByteLength(text: string): number {
-	return VSBuffer.fromString(text).byteLength;
+	return VSBuffer.byteLength(text);
 }
 
 /** Tests whether a JSONL filename belongs to the given logical Agent Host connection. */

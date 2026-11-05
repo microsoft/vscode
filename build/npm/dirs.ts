@@ -59,7 +59,6 @@ export const workspaceMembers = [
 	'test/scenario',
 	'.vscode/extensions/vscode-selfhost-import-aid',
 	'.vscode/extensions/vscode-selfhost-test-provider',
-	'.vscode/extensions/vscode-extras',
 	'.vscode/extensions/vscode-pr-pinger',
 	'src/vs/sessions/test/e2e',
 ];
@@ -75,26 +74,29 @@ export const workspaceMembers = [
 export const separateRoots = [
 	'build',
 	'remote',
-	'remote/web',
 	'extensions/copilot',
 ];
 
 /**
  * Members of the workspaces of separate roots, by root: they share the root's `pnpm-lock.yaml` and
- * are installed by its `pnpm install`. `build/rspack` and `build/vite` are inside `build`: pnpm uses
- * the nearest `pnpm-workspace.yaml` above a folder, so they can't be members of the main workspace.
+ * are installed by its `pnpm install`. pnpm uses the nearest `pnpm-workspace.yaml` above a folder,
+ * so folders inside a separate root can't be members of the main workspace. `chat-lib` is extracted
+ * from the Copilot extension's sources and published as an npm package; its dependencies are
+ * Copilot's (see `extract-chat-lib`). `remote/web` holds the dependencies of the web build: the
+ * hoisted layout installs them in `remote/node_modules`, and the web build packages them flat (see
+ * `getFlatProductionDependencies`).
  */
 export const separateRootMembers: Readonly<Record<string, readonly string[]>> = {
 	'build': ['build/rspack', 'build/vite'],
+	'remote': ['remote/web'],
+	'extensions/copilot': ['extensions/copilot/chat-lib'],
 };
 
 /**
- * Separate pnpm install roots that are installed on demand, not by the root postinstall:
- * `build/npm/gyp` by the root preinstall, the others by the scripts or CI jobs that use them.
+ * Separate pnpm install roots that are installed on demand, not by the root postinstall, by the
+ * scripts or CI jobs that use them.
  */
 export const standaloneRoots = [
-	'build/npm/gyp',
-	'extensions/copilot/chat-lib',
 	'test/sanity',
 ];
 

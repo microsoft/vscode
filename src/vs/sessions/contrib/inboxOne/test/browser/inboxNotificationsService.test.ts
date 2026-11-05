@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ConfirmationOptionKind } from '../../../../../platform/agentHost/common/state/protocol/state.js';
-import { DeferredPromise } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { type IMarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -46,6 +46,7 @@ import { CHAT_INBOX_ENABLED_SETTING } from '../../browser/inboxNotificationsCons
 
 suite('InboxNotificationsService', () => {
 	const dismissedStorageKey = 'sessions.inboxNotifications.dismissedIds';
+	const completionStartTimeStorageKey = 'sessions.inboxNotifications.completionStartTime';
 	const disposables = new DisposableStore();
 	const passingChecks: readonly IGitHubCICheck[] = [{
 		id: 1, name: 'CI', status: GitHubCheckStatus.Completed, conclusion: GitHubCheckConclusion.Success,
@@ -170,6 +171,7 @@ suite('InboxNotificationsService', () => {
 			readonly onDidChangeLanguageModels?: Event<string>;
 			readonly onDidChangeContentProviderSchemes?: IChatSessionsService['onDidChangeContentProviderSchemes'];
 			readonly telemetryLevel?: TelemetryLevel;
+			readonly completionStartTime?: number | null;
 		} = {},
 	): {
 		readonly service: InboxNotificationsService;
@@ -193,6 +195,9 @@ suite('InboxNotificationsService', () => {
 			getSession: (resource: URI) => sessions.find(candidate => candidate.resource.toString() === resource.toString()),
 		});
 		const effectiveStorageService = storageService ?? store.add(new InMemoryStorageService());
+		if (effectiveStorageService.getNumber(completionStartTimeStorageKey, StorageScope.APPLICATION) === undefined && options.completionStartTime !== null) {
+			effectiveStorageService.store(completionStartTimeStorageKey, options.completionStartTime ?? 0, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		}
 		const effectiveGitHubService = gitHubService ?? new TestGitHubService();
 		const effectiveChatService = chatService ?? new TestChatService();
 		const effectiveAgentHostProvider = agentHostProvider ?? new TestAgentHostProvider();
@@ -298,6 +303,85 @@ suite('InboxNotificationsService', () => {
 		]);
 	});
 
+	test('does not resurrect historical completions when sessions arrive after an update', () => {
+		const fixture = createFixture([], undefined, undefined, undefined, undefined, true, [], true, { completionStartTime: 150 });
+		const old = createSession({ id: 'old', status: SessionStatus.Completed, updatedAt: 100, isRead: true });
+		const oldUnread = createSession({ id: 'old-unread', status: SessionStatus.Completed, updatedAt: 50 });
+		const unread = createSession({ id: 'unread', status: SessionStatus.Completed, updatedAt: 200 });
+		const pending = createSession({ id: 'pending', status: SessionStatus.NeedsInput, updatedAt: 300, isRead: true });
+		fixture.setSessions([old, oldUnread, unread, pending]);
+		const snapshot = (service: InboxNotificationsService) => ({
+			notifications: service.notifications.get().map(item => item.id),
+			rows: service.sessionRows.get().map(row => [row.sessionTitle, row.tab]),
+			count: service.attentionCount.get(),
+		});
+		const initial = snapshot(fixture.service);
+		(old.updatedAt as ISettableObservable<Date>).set(new Date(400), undefined);
+		const restored = createFixture([old, oldUnread, unread, pending], fixture.storageService);
+		assert.deepStrictEqual({ initial, restored: snapshot(restored.service) }, {
+			initial: {
+				notifications: ['pending:needsInput:300', 'unread:completed:200'],
+				rows: [['pending', InboxTab.ReadyForYou], ['unread', InboxTab.ReadyForYou], ['old', InboxTab.Done], ['old-unread', InboxTab.Done]],
+				count: 2,
+			},
+			restored: {
+				notifications: ['pending:needsInput:300', 'unread:completed:200'],
+				rows: [['pending', InboxTab.ReadyForYou], ['unread', InboxTab.ReadyForYou], ['old', InboxTab.Done], ['old-unread', InboxTab.Done]],
+				count: 2,
+			},
+		});
+	});
+
+	test('a historical read session returns to the inbox when another turn completes', () => {
+		const session = createSession({ id: 'old', status: SessionStatus.Completed, updatedAt: 100, isRead: true });
+		const fixture = createFixture([session], undefined, undefined, undefined, undefined, true, [], true, { completionStartTime: 150 });
+		const initial = fixture.service.sessionRows.get()[0].tab;
+		(session.status as ISettableObservable<SessionStatus>).set(SessionStatus.InProgress, undefined);
+		const working = fixture.service.sessionRows.get()[0].tab;
+		transaction(tx => {
+			(session.status as ISettableObservable<SessionStatus>).set(SessionStatus.Completed, tx);
+			(session.lastTurnEnd as ISettableObservable<Date | undefined>).set(new Date(200), tx);
+		});
+		const restored = createFixture([session], fixture.storageService);
+		assert.deepStrictEqual({
+			initial, working,
+			tab: restored.service.sessionRows.get()[0].tab,
+			notifications: restored.service.notifications.get().map(item => item.id),
+		}, {
+			initial: InboxTab.Done, working: InboxTab.Working,
+			tab: InboxTab.ReadyForYou, notifications: ['old:completed:200'],
+		});
+	});
+
+	test('starts completion tracking on first enablement and preserves it across restarts', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const old = createSession({ id: 'old', status: SessionStatus.Completed, updatedAt: Date.now() - 1 });
+		const fixture = createFixture([old], undefined, undefined, undefined, undefined, true, [], false, { completionStartTime: null });
+		const disabledStartTime = fixture.storageService.getNumber(completionStartTimeStorageKey, StorageScope.APPLICATION);
+		await fixture.configurationService.setUserConfiguration(CHAT_INBOX_ENABLED_SETTING, true);
+		fixture.configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+			affectsConfiguration: key => key === CHAT_INBOX_ENABLED_SETTING,
+		}));
+		const startTime = fixture.storageService.getNumber(completionStartTimeStorageKey, StorageScope.APPLICATION)!;
+		const atBoundary = createSession({ id: 'boundary', status: SessionStatus.Completed, updatedAt: startTime, isRead: true });
+		const after = createSession({ id: 'after', status: SessionStatus.Completed, updatedAt: startTime + 1 });
+		fixture.setSessions([old, atBoundary, after]);
+		const initial = fixture.service.notifications.get().map(item => item.id);
+		fixture.service.dispose();
+		await timeout(1000);
+		const offline = createSession({ id: 'offline', status: SessionStatus.Completed, updatedAt: startTime + 500, isRead: true });
+		const restored = createFixture([old, atBoundary, after, offline], fixture.storageService, undefined, undefined, undefined, true, [], true, { completionStartTime: null });
+		assert.deepStrictEqual({
+			disabledStartTime, initial,
+			preservedStartTime: restored.storageService.getNumber(completionStartTimeStorageKey, StorageScope.APPLICATION) === startTime,
+			restored: restored.service.notifications.get().map(item => item.id),
+		}, {
+			disabledStartTime: undefined,
+			initial: [`after:completed:${startTime + 1}`, `boundary:completed:${startTime}`],
+			preservedStartTime: true,
+			restored: [`offline:completed:${startTime + 500}`, ...initial],
+		});
+	}));
+
 	test('switches between priority and recency sorting', () => {
 		const fixture = createFixture([
 			createSession({ id: 'high-old', status: SessionStatus.NeedsInput, updatedAt: 100 }),
@@ -402,6 +486,7 @@ suite('InboxNotificationsService', () => {
 		fixture.service.requestPreview(first);
 		await waitForState(fixture.service.isLoading, loading => !loading);
 		chatService.setCompletedResponse(resource, { requestId: 'second', markdown: `${'Earlier progress. '.repeat(200)}Created chocolate.md.` });
+		(session.lastTurnEnd as ISettableObservable<Date | undefined>).set(new Date(300), undefined);
 		const next = fixture.service.sessionRows.get()[0];
 		fixture.service.requestPreview(next);
 		await waitForState(fixture.service.isLoading, loading => !loading);
@@ -418,6 +503,45 @@ suite('InboxNotificationsService', () => {
 		}, {
 			sameRow: true, newSignature: true, title: 'Update profile', latestInput: true, containsResult: true,
 			bounded: true, requests: 2, old: 'Review profile changes', current: 'Review chocolate.md',
+		});
+	});
+
+	test('keeps completed row content stable when opening and unloading its history', async () => {
+		const session = createSession({ id: 'stable-preview', status: SessionStatus.Completed, updatedAt: 200 });
+		const chatService = new TestChatService();
+		const resource = session.mainChat.get().resource;
+		let requests = 0;
+		chatService.setAcquireOrLoadHandler(async () => {
+			chatService.setCompletedResponse(resource, { requestId: 'loaded', markdown: 'Created chocolate.md.' });
+			return { object: chatService.getSession(resource)!, dispose: () => chatService.removeSession(resource) };
+		});
+		const fixture = createFixture([session], undefined, undefined, chatService, undefined, true, [], true, {
+			utilityRequest: async request => {
+				requests++;
+				return request.purpose === 'inboxPreview' ? 'Review chocolate.md' : '{"status":"Created chocolate.md.","decisions":[],"evidence":[]}';
+			},
+		});
+		const before = fixture.service.sessionRows.get()[0];
+		fixture.service.requestPreview(before);
+		await waitForState(fixture.service.isLoading, loading => !loading);
+		fixture.service.requestDetailSummary(before);
+		await waitForState(fixture.service.isLoading, loading => !loading);
+		chatService.setCompletedResponse(resource, { requestId: 'loaded', markdown: 'Created chocolate.md.' });
+		const opened = fixture.service.sessionRows.get()[0];
+		fixture.service.requestPreview(opened);
+		fixture.service.requestDetailSummary(opened);
+		chatService.removeSession(resource);
+		const closed = fixture.service.sessionRows.get()[0];
+		assert.deepStrictEqual({
+			signatures: [before, opened, closed].map(row => row.previewSignature),
+			titles: [before, opened, closed].map(row => fixture.service.previews.get().get(row.previewSignature!)),
+			summary: fixture.service.detailSummaries.get().get(opened.id)?.status,
+			requests,
+		}, {
+			signatures: [before.previewSignature, before.previewSignature, before.previewSignature],
+			titles: ['Review chocolate.md', 'Review chocolate.md', 'Review chocolate.md'],
+			summary: 'Created chocolate.md.',
+			requests: 2,
 		});
 	});
 
@@ -444,6 +568,54 @@ suite('InboxNotificationsService', () => {
 			latestInput: requests[0].messages.some(message => message.content.some(part => part.type === 'text' && part.value.includes('Created chocolate.md.'))),
 			preview: fixture.service.previews.get().get(row.previewSignature!),
 		}, { loads: 1, releases: 1, latestInput: true, preview: 'Review chocolate.md' });
+	});
+
+	test('settles empty visibility summaries across history reloads while preserving interaction and invalidation retries', async () => {
+		const modelsChanged = disposables.add(new Emitter<string>());
+		const session = createSession({ id: 'empty-visible-summary', status: SessionStatus.Completed, updatedAt: 200 });
+		const chatService = new TestChatService();
+		let loads = 0;
+		let releases = 0;
+		let available = false;
+		let requests = 0;
+		chatService.setAcquireOrLoadHandler(async resource => {
+			loads++;
+			chatService.setCompletedResponse(resource, { requestId: 'loaded', markdown: 'Finished work.' });
+			return { object: chatService.getSession(resource)!, dispose: () => { releases++; chatService.removeSession(resource); } };
+		});
+		const fixture = createFixture([session], undefined, undefined, chatService, undefined, true, [], true, {
+			selectModels: async () => available ? ['utility-model'] : [],
+			onDidChangeLanguageModels: modelsChanged.event,
+			utilityRequest: async () => {
+				requests++;
+				return '{"status":"Generated summary","decisions":[],"evidence":[]}';
+			},
+		});
+		const request = async (source: 'visibility' | 'interaction') => {
+			fixture.service.requestDetailSummary(fixture.service.sessionRows.get()[0], source);
+			await waitForState(fixture.service.isLoading, loading => !loading);
+		};
+		for (let observation = 0; observation < 3; observation++) {
+			await request('visibility');
+		}
+		const settled = { loads, releases, requests };
+		await request('interaction');
+		const retried = loads;
+		(session.lastTurnEnd as ISettableObservable<Date | undefined>).set(new Date(300), undefined);
+		await request('visibility');
+		const changed = loads;
+		available = true;
+		modelsChanged.fire('utility-model');
+		await request('visibility');
+		await request('visibility');
+		const item = fixture.service.sessionRows.get()[0];
+		assert.deepStrictEqual({
+			settled, retried, changed, loads, releases, requests,
+			summary: fixture.service.detailSummaries.get().get(item.id)?.status,
+		}, {
+			settled: { loads: 1, releases: 1, requests: 0 }, retried: 2, changed: 3,
+			loads: 4, releases: 4, requests: 1, summary: 'Generated summary',
+		});
 	});
 
 	test('completed ids survive chat-model residency, metadata changes, and reading the session', () => {
@@ -2447,6 +2619,54 @@ suite('InboxNotificationsService', () => {
 		});
 	});
 
+	test('resuming a legacy held completion preserves pending work across reloads', () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		storageService.store('sessions.inboxNotifications.workflow', JSON.stringify([
+			['session:legacy-held', { hold: true }],
+		]), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const session = createSession({ id: 'legacy-held', status: SessionStatus.Completed, updatedAt: 100, isRead: true });
+		const fixture = createFixture([session], storageService, undefined, undefined, undefined, true, [], true, { completionStartTime: 150 });
+		const initial = fixture.service.sessionRows.get()[0].tab;
+		fixture.service.setSessionOnHold(fixture.service.sessionRows.get()[0], false);
+		const resumed = fixture.service.sessionRows.get()[0].tab;
+		const restored = createFixture([session], storageService);
+		const row = restored.service.sessionRows.get()[0];
+		restored.service.markSessionDone(row);
+		const done = createFixture([session], storageService).service.sessionRows.get()[0].tab;
+		assert.deepStrictEqual({
+			initial, resumed, restored: row.tab,
+			notifications: row.notifications.map(item => item.id), done,
+		}, {
+			initial: InboxTab.OnHold, resumed: InboxTab.ReadyForYou, restored: InboxTab.ReadyForYou,
+			notifications: ['legacy-held:completed:100'], done: InboxTab.Done,
+		});
+	});
+
+	test('discovering many unread completions does not evict explicit workflows or read pending work', () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		storageService.store('sessions.inboxNotifications.workflow', JSON.stringify([
+			['session:held', { hold: true }],
+		]), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const held = createSession({ id: 'held', status: SessionStatus.Completed, updatedAt: 100, isRead: true });
+		const done = createSession({ id: 'done', status: SessionStatus.Completed, updatedAt: 200 });
+		const pending = createSession({ id: 'pending', status: SessionStatus.Completed, updatedAt: 200 });
+		const fixture = createFixture([held, done, pending], storageService, undefined, undefined, undefined, true, [], true, { completionStartTime: 150 });
+		fixture.service.markSessionDone(fixture.service.sessionRows.get().find(row => row.sessionTitle === 'done')!);
+		(pending.isRead as ISettableObservable<boolean>).set(true, undefined);
+		const savedWorkflow = storageService.get('sessions.inboxNotifications.workflow', StorageScope.APPLICATION);
+		fixture.setSessions([
+			held, done, pending,
+			...Array.from({ length: 1000 }, (_, index) => createSession({ id: `discovered-${index}`, status: SessionStatus.Completed, updatedAt: 300 })),
+		]);
+		assert.deepStrictEqual({
+			workflows: Object.fromEntries(fixture.service.sessionRows.get().filter(row => ['held', 'done', 'pending'].includes(row.sessionTitle)).map(row => [row.sessionTitle, row.tab])),
+			workflowUnchanged: storageService.get('sessions.inboxNotifications.workflow', StorageScope.APPLICATION) === savedWorkflow,
+		}, {
+			workflows: { held: InboxTab.OnHold, done: InboxTab.Done, pending: InboxTab.ReadyForYou },
+			workflowUnchanged: true,
+		});
+	});
+
 	test('attention count groups multiple notifications per Ready for you row and excludes other workflows', () => {
 		const completed = createSession({ id: 'completed', status: SessionStatus.Completed, updatedAt: 100 });
 		const pending = createSession({ id: 'pending', status: SessionStatus.NeedsInput, updatedAt: 200 });
@@ -2512,8 +2732,8 @@ suite('InboxNotificationsService', () => {
 		});
 	});
 
-	test('read sessions require explicit Done and return to Ready for you after another response', () => {
-		const session = createSession({ id: 'read-completion', status: SessionStatus.Completed, updatedAt: 100, lastTurnEnd: 100, isRead: true });
+	test('admitted completions remain pending after reading and reloading until explicitly Done', () => {
+		const session = createSession({ id: 'read-completion', status: SessionStatus.Completed, updatedAt: 100, lastTurnEnd: 100 });
 		const fixture = createFixture([session]);
 		const snapshot = () => {
 			const row = fixture.service.sessionRows.get()[0];
@@ -2524,6 +2744,7 @@ suite('InboxNotificationsService', () => {
 		(session.isRead as ISettableObservable<boolean>).set(false, undefined);
 		(session.isRead as ISettableObservable<boolean>).set(true, undefined);
 		const opened = snapshot();
+		const reloadedPending = createFixture([session], fixture.storageService).service.sessionRows.get()[0].tab;
 		fixture.service.markSessionDone(row);
 		const done = snapshot();
 		const restored = createFixture([session], fixture.storageService).service.sessionRows.get()[0].tab;
@@ -2532,10 +2753,12 @@ suite('InboxNotificationsService', () => {
 		transaction(tx => {
 			(session.status as ISettableObservable<SessionStatus>).set(SessionStatus.Completed, tx);
 			(session.lastTurnEnd as ISettableObservable<Date | undefined>).set(new Date(200), tx);
+			(session.isRead as ISettableObservable<boolean>).set(false, tx);
 		});
-		assert.deepStrictEqual({ initial, opened, done, restored, working, next: snapshot() }, {
+		assert.deepStrictEqual({ initial, opened, reloadedPending, done, restored, working, next: snapshot() }, {
 			initial: { tab: InboxTab.ReadyForYou, notifications: ['read-completion:completed:100'], count: 1 },
 			opened: { tab: InboxTab.ReadyForYou, notifications: ['read-completion:completed:100'], count: 1 },
+			reloadedPending: InboxTab.ReadyForYou,
 			done: { tab: InboxTab.Done, notifications: ['read-completion:completed:100'], count: 0 },
 			restored: InboxTab.Done, working: InboxTab.Working,
 			next: { tab: InboxTab.ReadyForYou, notifications: ['read-completion:completed:200'], count: 1 },

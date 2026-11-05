@@ -19,6 +19,7 @@ import { IChatEditingService } from '../../../../workbench/contrib/chat/common/e
 import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { editingEntriesContainResource } from '../../../../workbench/contrib/chat/browser/sessionResourceMatching.js';
 import { changeMatchesResource, getActiveResourceCandidates, IAgentFeedbackContext } from './agentFeedbackEditorUtils.js';
@@ -34,6 +35,7 @@ import { ATTACHMENT_ID_PREFIX, createAgentFeedbackVariableEntry } from './agentF
 import { AgentFeedbackKind, AgentFeedbackState, type IAgentFeedback } from './agentFeedbackModel.js';
 import { SessionEditorCommentSource, toSessionEditorCommentId } from './sessionEditorComments.js';
 import { whenChatWidgetForSession } from '../../chat/browser/chatWidgetUtils.js';
+import { IAgentFeedbackVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 
 // --- Types --------------------------------------------------------------------
 
@@ -117,9 +119,11 @@ export interface ISubmitFeedbackOptions {
 	/**
 	 * The chat to send the request to, when it differs from the feedback's
 	 * session resource: feedback is read and marked under the session, and the
-	 * request goes to this chat's widget.
+	 * request goes to this chat.
 	 */
 	readonly targetChat?: URI;
+	/** Submit Agent Host feedback without requiring or focusing a chat widget. */
+	readonly backgroundSubmit?: (query: string, attachment: IAgentFeedbackVariableEntry) => Promise<boolean>;
 	readonly onRequestAccepted?: () => void;
 }
 
@@ -378,6 +382,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@IFocusedSessionHostService private readonly _focusedSessionHostService: IFocusedSessionHostService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
@@ -391,7 +396,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		this._trackVisibleEditorResources();
 
 		this.activeFeedbackSessionResource = derived(this, reader => {
-			const activeSession = this._sessionsService.activeSession.read(reader);
+			const activeSession = this._focusedSessionHostService.focusedHost.read(reader).session.read(reader);
 			return !activeSession || !activeSession.isCreated.read(reader)
 				? AGENT_FEEDBACK_NEW_SESSION_RESOURCE
 				: activeSession.resource;
@@ -403,7 +408,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		// every comment widget on each tick.
 		const feedbackScopeKey = derived(this, reader => {
 			const scope = this.activeFeedbackSessionResource.read(reader).toString();
-			const workspace = this._sessionsService.activeSession.read(reader)?.workspace.read(reader);
+			const workspace = this._focusedSessionHostService.focusedHost.read(reader).session.read(reader)?.workspace.read(reader);
 			return `${scope}|${workspaceFoldersKey(workspace) ?? ''}`;
 		});
 		this._register(runOnChange(feedbackScopeKey, () => this._onDidChangeFeedbackScope.fire()));
@@ -413,7 +418,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		// workspace change, so the comments stay bound to the last known one and a
 		// draft swap (which briefly drops the workspace) does not discard them.
 		this._newSessionWorkspaceKey = derived(this, reader => {
-			const activeSession = this._sessionsService.activeSession.read(reader);
+			const activeSession = this._focusedSessionHostService.focusedHost.read(reader).session.read(reader);
 			if (!activeSession || activeSession.isCreated.read(reader)) {
 				return undefined;
 			}
@@ -532,7 +537,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 	}
 
 	private _trackVisibleEditorResources(): void {
-		const activeSession = this._sessionsService.activeSession.get();
+		const activeSession = this._focusedSessionHostService.focusedHost.get().session.get();
 		if (!activeSession) {
 			return;
 		}
@@ -553,7 +558,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 	 * thousands of resources is open.
 	 */
 	private _resolveSession(sessionResource: URI): ISession | undefined {
-		const activeSession = this._sessionsService.activeSession.get();
+		const activeSession = this._focusedSessionHostService.focusedHost.get().session.get();
 		if (activeSession && isEqual(activeSession.resource, sessionResource)) {
 			return activeSession;
 		}
@@ -569,7 +574,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		if (!this._isFileEligibleForFeedback(resourceUri)) {
 			return undefined;
 		}
-		const sessionResource = hostSession?.resource ?? this._fileToSession.get(resourceUri) ?? this._sessionsService.activeSession.get()?.resource;
+		const sessionResource = hostSession?.resource ?? this._fileToSession.get(resourceUri) ?? this._focusedSessionHostService.focusedHost.get().session.get()?.resource;
 		if (!sessionResource) {
 			return undefined;
 		}
@@ -581,9 +586,9 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 	}
 
 	getChatChanges(sessionResource: URI): readonly ISessionFileChange[] {
-		const activeSession = this._sessionsService.activeSession.get();
+		const activeSession = this._focusedSessionHostService.focusedHost.get().session.get();
 		if (activeSession && isEqual(activeSession.resource, sessionResource)) {
-			return activeSession.activeChat.get().changes.get();
+			return this._focusedSessionHostService.focusedHost.get().chat.get()?.changes.get() ?? [];
 		}
 		return this._resolveSession(sessionResource)?.mainChat.get().changes.get() ?? [];
 	}
@@ -598,7 +603,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		}
 
 		if (!hostSession) {
-			const activeSession = this._sessionsService.activeSession.get();
+			const activeSession = this._focusedSessionHostService.focusedHost.get().session.get();
 			if (!activeSession || !activeSession.isCreated.get()) {
 				return AGENT_FEEDBACK_NEW_SESSION_RESOURCE;
 			}
@@ -1008,6 +1013,28 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 				return false;
 			}
 			return this._sessionsService.submitNewSessionInput();
+		}
+
+		if (options?.backgroundSubmit) {
+			if (!this.isAgentHostSession(sessionResource)) {
+				this._logService.error('[AgentFeedback] Background submission requires an Agent Host session');
+				return false;
+			}
+			const feedbackIds = options.feedbackIds ? new Set(options.feedbackIds) : undefined;
+			const acceptedItems = this.getFeedback(sessionResource).filter(item =>
+				item.state === AgentFeedbackState.Accepted && (!feedbackIds || feedbackIds.has(item.id)));
+			if (!acceptedItems.length) {
+				this._logService.error('[AgentFeedback] No accepted feedback for background submission');
+				return false;
+			}
+			const annotationsResource = this._getAnnotationsBackend().getAnnotationsChannelResource(sessionResource);
+			const submitted = await options.backgroundSubmit(options.query ?? '/act-on-feedback',
+				createAgentFeedbackVariableEntry(sessionResource, acceptedItems, annotationsResource));
+			if (submitted) {
+				this.markFeedbackSubmitted(sessionResource, options.feedbackIds);
+				options.onRequestAccepted?.();
+			}
+			return submitted;
 		}
 
 		const widget = await whenChatWidgetForSession(this._chatWidgetService, options?.targetChat ?? sessionResource);

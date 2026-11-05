@@ -21,6 +21,7 @@ let _isMobile = false;
 let _locale: string | undefined = undefined;
 let _language: string = LANGUAGE_DEFAULT;
 let _platformLocale: string = LANGUAGE_DEFAULT;
+let _regionalLocale: string = LANGUAGE_DEFAULT;
 let _translationsConfigFile: string | undefined = undefined;
 let _userAgent: string | undefined = undefined;
 
@@ -87,6 +88,7 @@ if (typeof nodeProcess === 'object') {
 			const nlsConfig: nls.INLSConfiguration = JSON.parse(rawNlsConfig);
 			_locale = nlsConfig.userLocale;
 			_platformLocale = nlsConfig.osLocale;
+			_regionalLocale = nlsConfig.regionalLocale ?? nlsConfig.osLocale;
 			_language = nlsConfig.resolvedLanguage || LANGUAGE_DEFAULT;
 			_translationsConfigFile = nlsConfig.languagePack?.translationsConfigFile;
 		} catch (e) {
@@ -108,6 +110,7 @@ else if (typeof navigator === 'object' && !isElectronRenderer) {
 	_language = nls.getNLSLanguage() || LANGUAGE_DEFAULT;
 	_locale = navigator.language.toLowerCase();
 	_platformLocale = _locale;
+	_regionalLocale = _locale;
 }
 
 // Unknown environment
@@ -198,12 +201,16 @@ export namespace Language {
 export const locale = _locale;
 
 /**
- * This will always be set to the OS/browser's locale regardless of
- * what was specified otherwise. The format of the string is all
- * lower case (e.g. zh-tw for Traditional Chinese). The UI is not
- * necessarily shown in the provided locale.
+ * The OS's preferred language (desktop) or browser locale (web), in lower case,
+ * independent of the UI language override.
  */
 export const platformLocale = _platformLocale;
+
+/**
+ * The OS/browser locale for regional formatting, independent of the UI language.
+ * Locale-based Intl formats do not include arbitrary OS custom date/time patterns.
+ */
+export const regionalLocale = _regionalLocale;
 
 /**
  * The translations that are available through language packs.
