@@ -5,20 +5,18 @@
 
 import { BaseActionViewItem, IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import * as dom from '../../../../../base/browser/dom.js';
-import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, IReader, observableSignalFromEvent } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import * as nls from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
-import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { CustomizationType } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { agentHostAgentPickerStorageKey, resolveAgentHostAgent } from '../../../../../platform/agentHost/common/customAgents.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
+import { IWorkbenchContribution } from '../../../../../workbench/common/contributions.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { ChatContextKeyExprs, ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ChatMode, IChatMode } from '../../../../../workbench/contrib/chat/common/chatModes.js';
@@ -56,15 +54,19 @@ interface IAgentPickerActionContext {
 }
 let openActiveAgentPicker: ((anchor?: HTMLElement) => void) | undefined;
 
-// The shared new-session composer renders this picker instead of the workbench
-// agent picker, so it owns the agent picker shortcut there.
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'sessions.agentHost.openAgentPicker',
-	weight: KeybindingWeight.EditorContrib + 1,
-	when: ContextKeyExpr.and(IsActiveSessionAgentHost, ChatContextKeys.inChatInput, SessionActiveChatIsUntitledContext),
-	primary: KeyMod.CtrlCmd | KeyCode.Period,
-	handler: () => openActiveAgentPicker?.(),
-});
+export const OPEN_AGENT_HOST_AGENT_PICKER_COMMAND_ID = 'sessions.agentHost.openAgentPicker';
+
+/**
+ * Where the agent picker shortcut applies. The shared new-session composer
+ * renders this picker instead of the workbench agent picker, so it owns the
+ * agent picker shortcut there.
+ */
+export const AgentHostAgentPickerKeybindingContext = ContextKeyExpr.and(IsActiveSessionAgentHost, ChatContextKeys.inChatInput, SessionActiveChatIsUntitledContext);
+
+/** Opens the agent picker of the active session's composer, if one is rendered. */
+export function openActiveAgentHostAgentPicker(): void {
+	openActiveAgentPicker?.();
+}
 
 /** What the Add Context "Agent..." pick needs from the Agents window. */
 export interface IAgentContextPickDelegate {
@@ -108,7 +110,7 @@ export function isCustomAgentSelected(session: ISession | undefined, reader?: IR
 	return !!modeId && modeId !== ChatMode.Agent.id;
 }
 
-registerAction2(class extends Action2 {
+export class AgentHostAgentPickerAction extends Action2 {
 	constructor() {
 		super({
 			id: AGENT_HOST_AGENT_PICKER_ACTION_ID,
@@ -141,7 +143,7 @@ registerAction2(class extends Action2 {
 	override run(_accessor: unknown, context?: IAgentPickerActionContext): void {
 		openActiveAgentPicker?.(context?.anchor);
 	}
-});
+}
 
 export class AgentHostModePickerActionViewItem extends BaseActionViewItem {
 	private compact = false;
@@ -449,5 +451,3 @@ export class AgentHostAgentPickerContribution extends Disposable implements IWor
 		provider.setAgent?.(session.sessionId, agent ? { uri: agent.uri, name: agent.name } : undefined);
 	}
 }
-
-registerWorkbenchContribution2(AgentHostAgentPickerContribution.ID, AgentHostAgentPickerContribution, WorkbenchPhase.AfterRestored);

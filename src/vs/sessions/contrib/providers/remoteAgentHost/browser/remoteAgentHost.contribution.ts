@@ -16,7 +16,7 @@ import '../../../../../workbench/contrib/chat/browser/remoteAgentHost/remoteAgen
 import './remoteAgentHostActions.js';
 import './missionControlAgentHost.contribution.js';
 import './manageRemoteAgentHosts.js';
-import '../../agentHost/browser/agentHostAgentPicker.js';
+import '../../agentHost/browser/agentHostAgentPicker.contribution.js';
 
 registerAction2(OpenAgentHostStateFileAction);
 
