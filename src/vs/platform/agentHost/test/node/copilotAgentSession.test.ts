@@ -39,7 +39,7 @@ import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { McpServerType, type IMcpServerConfiguration } from '../../../mcp/common/mcpPlatformTypes.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
-import { CapturingTelemetryService as PlatformCapturingTelemetryService } from '../../../telemetry/test/common/testTelemetryService.js';
+import { CapturingTelemetryService as PlatformCapturingTelemetryService, TestDataTelemetryService } from '../../../telemetry/test/common/testTelemetryService.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID, fixedChatOwnerRef, type IAgentChatOwnerRef, SubagentChatSignal, type AgentSignal, type IAgentActionSignal, type IAgentPermissionResponseContext, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
@@ -26513,13 +26513,14 @@ Use the attached image as context.
 
 	suite('Computer Use activation', () => {
 
-		async function createActivationSession(options?: { readonly settingEnabled?: boolean; readonly enabled?: boolean; readonly mode?: string; readonly activeTurn?: boolean; readonly githubCredentials?: CopilotGitHubSessionCredentials }) {
+		async function createActivationSession(options?: { readonly settingEnabled?: boolean; readonly enabled?: boolean; readonly mode?: string; readonly activeTurn?: boolean; readonly githubCredentials?: CopilotGitHubSessionCredentials; readonly telemetryService?: ITelemetryService }) {
 			const plugin = { name: 'computer-use', marketplace: '', source: 'builtin', enabled: options?.enabled ?? false };
 			let pluginListGate = Promise.resolve();
 			const harness = await createAgentSession(disposables, {
 				rootValues: { [AgentHostComputerUseEnabledConfigKey]: options?.settingEnabled ?? true },
 				configValues: options?.mode ? { [SessionConfigKey.Mode]: options.mode } : undefined,
 				githubCredentials: options?.githubCredentials,
+				telemetryService: options?.telemetryService,
 				getInstalledPlugins: async () => {
 					await pluginListGate;
 					return [{ ...plugin }];
@@ -26556,6 +26557,29 @@ Use the attached image as context.
 				result: { resultType: 'success', textResultForLlm: 'Computer Use is on. Its tools, from the computer-use MCP server, are available now.' },
 				enableCalls: [{ names: ['computer-use'] }],
 				toolsAfter: 0,
+			});
+		});
+
+		test('reports the state at launch and how a request ended for the chat\'s turn, only while VS Code offers Computer Use', async () => {
+			const computerUseEvents = (telemetry: TestDataTelemetryService) => telemetry.events.filter(event => event.name.startsWith('agentHost.computerUse'));
+			const telemetry = new TestDataTelemetryService();
+			const { session, runtime, waitForSignal } = await createActivationSession({ telemetryService: telemetry });
+			const [tool] = await runtime.createComputerUseActivationTools!();
+			const result = invokeClientToolHandler(tool, 'tc-activate', { reason: 'Open Calculator' });
+			const request = getInputRequest(await waitForSignal(signal => isAction(signal, ActionType.ChatInputRequested)));
+			session.respondToUserInputRequest(request.id, ChatInputResponseKind.Accept, getComputerUseActivationAnswers('turnOn'));
+			await result;
+			const settingOff = new TestDataTelemetryService();
+			await (await createActivationSession({ settingEnabled: false, telemetryService: settingOff })).runtime.createComputerUseActivationTools!();
+			assert.deepStrictEqual({
+				events: computerUseEvents(telemetry).map(({ name, data }) => ({ name, state: data.state, outcome: data.outcome, turnId: data.turnId, sdkSessionId: data.sdkSessionId === session.sessionId })),
+				settingOff: computerUseEvents(settingOff).length,
+			}, {
+				events: [
+					{ name: 'agentHost.computerUseState', state: 'off', outcome: undefined, turnId: 'turn-computer-use', sdkSessionId: true },
+					{ name: 'agentHost.computerUseActivation', state: undefined, outcome: 'turnedOn', turnId: 'turn-computer-use', sdkSessionId: true },
+				],
+				settingOff: 0,
 			});
 		});
 
@@ -26605,6 +26629,20 @@ Use the attached image as context.
 			});
 		});
 
+		test('reports a request that the end of its turn cancels against that turn', async () => {
+			const telemetry = new TestDataTelemetryService();
+			const { runtime, mockSession, waitForSignal } = await createActivationSession({ telemetryService: telemetry });
+			const [tool] = await runtime.createComputerUseActivationTools!();
+			const result = invokeClientToolHandler(tool, 'tc-activate', { reason: 'Open Calculator' });
+			await waitForSignal(signal => isAction(signal, ActionType.ChatInputRequested));
+			// Ending a turn clears it before it cancels the request.
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+			await result;
+			assert.deepStrictEqual(telemetry.events.filter(event => event.name === 'agentHost.computerUseActivation').map(({ data }) => ({ outcome: data.outcome, turnId: data.turnId })), [
+				{ outcome: 'cancelled', turnId: 'turn-computer-use' },
+			]);
+		});
+
 		test('shows no card outside a running turn, also when the turn stops while the plugin is checked', async () => {
 			const idle = await createActivationSession({ activeTurn: false });
 			const [idleTool] = await idle.runtime.createComputerUseActivationTools!();
@@ -26632,7 +26670,7 @@ Use the attached image as context.
 
 		async function createComputerUseSession(options?: { readonly source?: 'builtin' | 'user'; readonly withSetup?: boolean; readonly mode?: string; readonly activeTurn?: boolean }) {
 			const configuration = disposables.add(new TestComputerUseConfiguration());
-			const setup = disposables.add(new CopilotComputerUsePermissionSetup(undefined, configuration, new NullLogService(), new AgentHostMacAccessibilityTrustService()));
+			const setup = disposables.add(new CopilotComputerUsePermissionSetup(undefined, configuration, new NullLogService(), new AgentHostMacAccessibilityTrustService(), new NullTelemetryServiceShape()));
 			const source = options?.source ?? 'builtin';
 			const harness = await createAgentSession(disposables, {
 				configureMockSession: m => {
