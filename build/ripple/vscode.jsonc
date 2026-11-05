@@ -103,7 +103,6 @@
 		"test job definition": [
 			".github/workflows/pr.yml",
 			".github/workflows/pr-linux-test.yml",
-			".github/workflows/pr-darwin-test.yml",
 			".github/workflows/pr-win32-test.yml",
 			".github/workflows/node_modules_cache/**",
 			".github/workflows/workspace_image/**",

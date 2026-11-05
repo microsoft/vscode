@@ -1,8 +1,8 @@
 # Workspace images
 
-Workspace images let the test jobs of pull requests ([pr-linux-test.yml](../pr-linux-test.yml), [pr-darwin-test.yml](../pr-darwin-test.yml) and [pr-win32-test.yml](../pr-win32-test.yml)) start from a disk image of a workspace of `main` instead of an empty folder: its dependencies, Electron and the Playwright browsers are installed, and its `.git` holds the commit it was built at. A job mounts the image, checks out its own commit, and installs only what changed since, which for most pull requests is nothing.
+Workspace images let the test jobs of pull requests ([pr-linux-test.yml](../pr-linux-test.yml) and [pr-win32-test.yml](../pr-win32-test.yml)) start from a disk image of a workspace of `main` instead of an empty folder: its dependencies, Electron and the Playwright browsers are installed, and its `.git` holds the commit it was built at. A job mounts the image, checks out its own commit, and installs only what changed since, which for most pull requests is nothing.
 
-The Windows and Linux test jobs use the images, except the Windows smoke test shard with the WSL suite, which runs on the 1ES pool and keeps its workspace on drive C. The macOS test jobs adopt them in a follow-up pull request, and until then install everything as before. [What a job does](#what-a-job-does) describes the steps of a job that uses the images.
+The Windows and Linux test jobs use the images, except the Windows smoke test shard with the WSL suite, which runs on the 1ES pool and keeps its workspace on drive C. [What a job does](#what-a-job-does) describes the steps of a job that uses the images.
 
 [pr-workspace-images.yml](../pr-workspace-images.yml) builds an image for each platform on the runners of the jobs every day at 05:00 UTC, and when one of its inputs changes on `main`: those of the install, of the native builds (`NATIVE_BUILD_INPUTS` in `image.ts`) and of the prepared Electron. It doesn't build them for other pushes, as the checkout of a job fetches and writes only what changed since the commit of its image. The images are kept for 2 days, so the daily build keeps a recent image available. [image.ts](image.ts) restores, checks and builds them; it has no dependencies, as the jobs run it before they check out the repository.
 
@@ -21,10 +21,9 @@ The workspace of an image is at the path of the workspaces of the jobs, because 
 | Platform | Image | Restore |
 | -------- | ----- | ------- |
 | Linux | ext4 volume without a journal in a sparse file | Attached to a loop device while still empty, recreated from chunks of zstd, then mounted with `barrier=0`, while the kernel writes the image to the disk |
-| macOS | APFS volume in a sparse ASIF image | Recreated from chunks of zstd, then attached |
 | Windows | Dev Drive in a VHDX with blocks of 1 MB | Recreated from chunks of zstd into a temporary file, which Windows keeps in memory, then attached through the file system cache with the virtual disk API ([Vhd.cs](win32/Vhd.cs)) |
 
-All three are writable volumes. A squashfs under an overlay, which Linux mounts without writing it, took seconds to look up the files of a checkout or `node_modules` for the first time, as squashfs reads its metadata past the caches of the kernel.
+Both are writable volumes. A squashfs under an overlay, which Linux mounts without writing it, took seconds to look up the files of a checkout or `node_modules` for the first time, as squashfs reads its metadata past the caches of the kernel.
 
 The chunks of 32 MB download and decompress in parallel, and the restore writes them in order as they arrive, without the pages of zeros where the file can be sparse. On Windows, the disk sets the pace, at 250-650 MB/s, as a VHDX can be neither sparse nor written later. The first PowerShell of a job takes seconds to start, so [vhd.ps1](win32/vhd.ps1) starts and compiles the virtual disk API while the image downloads into the file that `image.ts` created. On Linux, attaching a file to a loop device waits for the kernel to write the file to the disk, so the restore attaches the empty file while the image downloads, and drops what udev read from it before it mounts the volume. With `barrier=0`, an fsync in the volume doesn't wait for the rest of the image to reach the disk either. Images keep everything of the workspace: the checkout of their commit with HEAD detached (`image.ts seed`), the files that pnpm installed, and the `.build` folder (Electron, and on Linux the sysroots and compilers of `setup-env.sh`).
 

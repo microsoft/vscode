@@ -53,7 +53,6 @@ function readRepositoryFile(relativePath: string): Buffer {
 const runners: Record<string, { platform: string; arch: string; runnerArch: string; os: ICacheWarmingJob['os']; electronCachePath: string }> = {
 	'vscode-large-runners-ubuntu-8-core': { platform: 'linux', arch: 'x64', runnerArch: 'X64', os: 'Linux', electronCachePath: '/home/runner/.cache/electron' },
 	'vscode-large-runners-windows-8-core': { platform: 'win32', arch: 'x64', runnerArch: 'X64', os: 'Windows', electronCachePath: 'C:\\Users\\runneradmin\\AppData\\Local\\electron\\Cache' },
-	'vscode-large-runners-macos-5-core-0': { platform: 'darwin', arch: 'arm64', runnerArch: 'ARM64', os: 'macOS', electronCachePath: '/Users/runner/Library/Caches/electron' },
 };
 
 function getRunner(job: IJob, name: string) {
@@ -188,7 +187,7 @@ suite('Detect missing caches', () => {
 	});
 
 	test('jobs run when one of their caches is missing, has another version or cannot be listed', async () => {
-		const [missing, incompatible] = [getCaches(cacheWarmingJobs.windows, readRepositoryFile)[1], getCaches(cacheWarmingJobs.macOS, readRepositoryFile)[1]];
+		const [missing, incompatible] = [getCaches(cacheWarmingJobs.windows, readRepositoryFile)[1], getCaches(cacheWarmingJobs.linux, readRepositoryFile)[1]];
 		const existing = Object.values(cacheWarmingJobs)
 			.flatMap(job => getCaches(job, readRepositoryFile))
 			.filter(cache => cache.key !== missing.key)
@@ -221,7 +220,7 @@ suite('Detect missing caches', () => {
 			return { listedRefs: [...listedRefs], outputs };
 		};
 
-		const missingOrIncompatible = { 'compile': 'false', 'linux': 'false', 'macOS': 'true', 'windows': 'true', 'copilot-linux': 'false', 'copilot-windows': 'false' };
+		const missingOrIncompatible = { 'compile': 'false', 'linux': 'true', 'windows': 'true', 'copilot-linux': 'false', 'copilot-windows': 'false' };
 		assert.deepStrictEqual(await Promise.all([
 			detect('refs/heads/main', (key, ref) => ref === 'refs/heads/main' ? list(existing, key) : []),
 			// A release branch also restores the caches of main, without saving a copy.
@@ -230,7 +229,7 @@ suite('Detect missing caches', () => {
 		]), [
 			{ listedRefs: ['refs/heads/main'], outputs: missingOrIncompatible },
 			{ listedRefs: ['refs/heads/release/1.200', 'refs/heads/main'], outputs: missingOrIncompatible },
-			{ listedRefs: ['refs/heads/main'], outputs: { 'compile': 'true', 'linux': 'true', 'macOS': 'true', 'windows': 'true', 'copilot-linux': 'true', 'copilot-windows': 'true' } },
+			{ listedRefs: ['refs/heads/main'], outputs: { 'compile': 'true', 'linux': 'true', 'windows': 'true', 'copilot-linux': 'true', 'copilot-windows': 'true' } },
 		]);
 	});
 });

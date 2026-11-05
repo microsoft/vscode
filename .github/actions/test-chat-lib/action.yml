@@ -12,16 +12,17 @@ runs:
     - name: Setup pnpm
       uses: ./.github/actions/setup-pnpm
 
-    # Reuse a node_modules cache that .github/workflows/pr-node-modules.yml keeps warm on `main`:
-    # the Copilot cache on Linux and Windows, and the full cache (which includes extensions/copilot)
-    # on macOS. Never save: PR-scoped caches are not shared with other PRs and only evict the
-    # shared ones.
+    # Reuse the Copilot node_modules cache that .github/workflows/pr-node-modules.yml keeps warm on
+    # `main` for Linux and Windows. No job keeps a cache warm for macOS, which only the manual
+    # chat-lib-package.yml runs on, so it installs the dependencies. Never save: PR-scoped caches are
+    # not shared with other PRs and only evict the shared ones.
     - name: Restore node_modules cache
       id: cache-node-modules
+      if: runner.os != 'macOS'
       uses: ./.github/actions/restore-node-modules
       with:
-        key-prefix: ${{ runner.os == 'macOS' && 'node_modules-macos' || runner.os == 'Windows' && 'copilot-node_modules-windows' || 'copilot-node_modules-linux' }}
-        key-args: ${{ runner.os == 'macOS' && 'darwin $(node -p process.arch) $(node -p process.arch)' || '$(node -p process.platform) $(node -p process.arch)' }}
+        key-prefix: ${{ runner.os == 'Windows' && 'copilot-node_modules-windows' || 'copilot-node_modules-linux' }}
+        key-args: "$(node -p process.platform) $(node -p process.arch)"
 
     # extensions/copilot is a separate install root; chat-lib is a member of its workspace.
     - name: Install Copilot dependencies

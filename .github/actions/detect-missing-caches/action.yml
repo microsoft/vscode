@@ -13,9 +13,6 @@ outputs:
   linux:
     description: "'true' when the Linux job needs to run."
     value: ${{ steps.detect.outputs.linux }}
-  macOS:
-    description: "'true' when the macOS job needs to run."
-    value: ${{ steps.detect.outputs.macOS }}
   windows:
     description: "'true' when the Windows job needs to run."
     value: ${{ steps.detect.outputs.windows }}

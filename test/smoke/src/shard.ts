@@ -38,10 +38,8 @@ const suiteDurations = new Map<string, number>([
 ]);
 const defaultSuiteDuration = 20;
 
-// Coupled to the PR workflows: pr-win32-test.yml only provisions WSL in the first
-// shard, and pr-darwin-test.yml runs the PAC proxy suites after the last shard.
+// Coupled to the PR workflows: pr-win32-test.yml only provisions WSL in the first shard.
 const firstShardSuite = 'Agents Window (WSL Dev Container AgentHost)';
-const lastShardExtraDuration = process.platform === 'darwin' ? 210 : 0;
 
 /**
  * Parses a `--shard` value of the form `<index>/<total>`, e.g. `1/2`.
@@ -73,7 +71,6 @@ function estimateDuration(suite: Suite): number {
 export function selectShardSuites(suites: readonly Suite[], shard: Shard): Suite[] {
 	const durations = suites.map(estimateDuration);
 	const shardDurations = new Array<number>(shard.total).fill(0);
-	shardDurations[shard.total - 1] += lastShardExtraDuration;
 	const assignments: (number | undefined)[] = suites.map(suite => suite.title === firstShardSuite ? 0 : undefined);
 	assignments.forEach((target, suiteIndex) => {
 		if (target !== undefined) {
