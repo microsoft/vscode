@@ -60,6 +60,7 @@ import { IActiveSession, ISessionsManagementService } from '../../../workbench/c
 import { ISessionsProvider } from '../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import '../../browser/media/workbench.css';
 import { ISessionHost, SessionHostKind } from '../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { stubSessionsHostLayout } from './sessionsHostLayoutTestUtils.js';
 
 class TestChatView extends AbstractChatView {
 	private readonly _focusTarget = mainWindow.document.createElement('button');
@@ -354,6 +355,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, tabsReplaceHea
 	const chatHostOpenerService = new ChatHostOpenerService();
 	instantiationService.stub(IChatHostOpenerService, chatHostOpenerService);
 
+	stubSessionsHostLayout(instantiationService);
 	const view = store.add(instantiationService.createInstance(ChatGroupsView, undefined, targetWindow => targetWindow === mainWindow && focus.viewWindow));
 	view.setSingleGroupTabsReplaceHeader(tabsReplaceHeader);
 	mainWindow.document.body.appendChild(view.element);

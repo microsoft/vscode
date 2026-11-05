@@ -43,4 +43,22 @@ export interface ISessionsHostLayoutService {
 
 	/** Whether programmatic editor operations currently suppress automatic editor part visibility. */
 	isEditorPartAutoVisibilitySuppressed(): boolean;
+
+	/**
+	 * The docked side pane (editor area and auxiliary bar shown beside the
+	 * session) of hosts that have one, or `undefined` for hosts without it.
+	 */
+	readonly sidePane?: ISessionsHostSidePane;
+}
+
+/**
+ * Optional side-pane capability of a {@link ISessionsHostLayoutService}. Only
+ * hosts that dock the editor area beside the sessions provide it.
+ */
+export interface ISessionsHostSidePane {
+	/** Whether the docked editor pane is visible. */
+	isEditorPaneVisible(): boolean;
+
+	/** Hides the side pane as one semantic transition. */
+	hideSidePane(): void;
 }

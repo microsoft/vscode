@@ -846,6 +846,9 @@ suite('Sessions - Agents Part Card', () => {
 				agentWorkbenchLayoutService: {
 					isEditorPaneVisible: () => false,
 				},
+				hostLayoutService: {
+					sidePane: { isEditorPaneVisible: () => false },
+				},
 				layoutContents: (width: number, height: number) => {
 					contentLayouts.push({ width, height });
 					return { contentSize: { width, height } };

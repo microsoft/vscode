@@ -82,6 +82,7 @@ import { IWorkbenchGitHubService } from '../../../../../../workbench/services/gi
 import { SessionModelSelection } from '../../../../chat/browser/sessionModelSelection.js';
 import { VisibleSession } from '../../../../../../workbench/contrib/sessions/browser/visibleSessions.js';
 import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { stubSessionsHostLayout } from '../../../../../test/browser/sessionsHostLayoutTestUtils.js';
 
 // ---- Helpers ----------------------------------------------------------------
 
@@ -3521,6 +3522,7 @@ suite('CopilotChatSessionsProvider', () => {
 				await provider.setSessionConfigValue(draft.sessionId, chatResource, 'mode', 'plan');
 				await provider.setSessionConfigValue(draft.sessionId, chatResource, 'approvalMode', 'manual');
 				const { instantiationService, chatViews } = createSessionViewTestServices(disposables);
+				stubSessionsHostLayout(instantiationService);
 				const view = disposables.add(instantiationService.createInstance(SessionView, undefined));
 				view.openSession({
 					...createTestActiveSession(draft.sessionId, false),

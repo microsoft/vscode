@@ -45,6 +45,7 @@ import '../../../base/browser/ui/tree/media/tree.css';
 import '../../browser/parts/media/sessionView.css';
 import { LayoutModeContext } from '../../../workbench/common/contextkeys.js';
 import { IWindowCommandContext } from '../../../workbench/common/windowCommandContext.js';
+import { stubSessionsHostLayout } from './sessionsHostLayoutTestUtils.js';
 
 interface ITestEntry {
 	readonly id: string;
@@ -137,6 +138,7 @@ suite('Sessions - Session Activity Bar', () => {
 			override readonly onDidLayoutMainContainer = onDidLayoutMainContainer.event;
 			override get agentWorkbenchLayout() { return agentWorkbenchLayout; }
 		});
+		stubSessionsHostLayout(instantiationService);
 
 		const contextViewService = new TestContextViewService();
 		instantiationService.stub(IContextViewService, contextViewService);

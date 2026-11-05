@@ -34,8 +34,8 @@ import { IInstantiationService } from '../../../platform/instantiation/common/in
 import { ServiceCollection } from '../../../platform/instantiation/common/serviceCollection.js';
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
 import { Menus, SessionActivityBarGroup } from '../../../workbench/contrib/sessions/browser/menus.js';
-import { IAgentWorkbenchLayoutService } from '../workbench.js';
-import { AgentWorkbenchLayout } from '../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
+import { IWorkbenchLayoutService } from '../../../workbench/services/layout/browser/layoutService.js';
+import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
 import { SESSION_ACTIVITY_BAR_SETTING } from '../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { TOGGLE_SIDE_PANEL_COMMAND_ID } from '../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { sessionActivityBarChatActionContext } from '../../../workbench/contrib/sessions/common/contextkeys.js';
@@ -242,12 +242,13 @@ export class ChatViewSessionActivityBar extends Disposable {
 
 	constructor(
 		private readonly container: HTMLElement,
-		@IAgentWorkbenchLayoutService layoutService: IAgentWorkbenchLayoutService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+		@ISessionsHostLayoutService hostLayoutService: ISessionsHostLayoutService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 
-		if (layoutService.agentWorkbenchLayout !== AgentWorkbenchLayout.Desktop) {
+		if (hostLayoutService.agentWorkbenchLayout !== AgentWorkbenchLayout.Desktop) {
 			this.reservedWidth = constObservable(0);
 			return;
 		}

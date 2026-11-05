@@ -87,7 +87,7 @@ import { ISessionsSetUpService } from './sessionsSetUpService.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../common/layoutConstants.js';
 import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
 import { createMainWindowInstantiationService } from '../../workbench/contrib/sessions/browser/sessionHost.js';
-import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
+import { AgentWorkbenchLayout, ISessionsHostLayoutService, ISessionsHostSidePane } from '../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
 
 const PHONE_NOTIFICATION_ROW_HEIGHT = 44;
 const SESSIONS_SIDE_PANE_DIVIDER_CLASS = 'sessions-side-pane-divider';
@@ -2201,6 +2201,9 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 			this.isModernUICompact() ? LayoutClasses.MODERN_UI_COMPACT : undefined,
 		]);
 	}
+
+	/** The Agents workbench always docks a side pane beside the sessions. */
+	get sidePane(): ISessionsHostSidePane { return this; }
 
 	isEditorPaneVisible(): boolean {
 		return this._effectiveVisible(Parts.EDITOR_PART) || this._effectiveVisible(Parts.AUXILIARYBAR_PART);

@@ -86,6 +86,7 @@ import { IGitHubPRComment } from '../../../../../workbench/contrib/sessions/comm
 import { PullRequestCheck } from '../../../../../platform/github/common/githubPullRequestService.js';
 import '../../../chat/browser/media/chatWidget.css';
 import '../../../chat/browser/media/chatInput.css';
+import { stubSessionsHostLayout } from '../../../../test/browser/sessionsHostLayoutTestUtils.js';
 
 suite('InboxNotificationsView', () => {
 	const disposables = new DisposableStore();
@@ -222,6 +223,7 @@ suite('InboxNotificationsView', () => {
 				sessionsVisible = !hidden;
 			},
 		});
+		stubSessionsHostLayout(instantiationService);
 		instantiationService.stub(ISessionsManagementService, { getSession: () => undefined, setSessionReadState: async () => { }, markChatRead: async () => { } });
 		instantiationService.stubInstance(InboxEvidenceWidget, { element: document.createElement('div'), getAccessibleContent: () => '', dispose: () => { } });
 		instantiationService.stubInstance(InboxCanvases, { element: document.createElement('div'), layout: () => { }, setVisible: () => { }, createAccessibleProvider: () => undefined, dispose: () => { } });

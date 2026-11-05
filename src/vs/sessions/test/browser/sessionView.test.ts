@@ -34,6 +34,7 @@ import { Menus } from '../../../workbench/contrib/sessions/browser/menus.js';
 import { LocalSelectionTransfer } from '../../../platform/dnd/browser/dnd.js';
 import { DraggedSessionIdentifier, SessionsDataTransfers } from '../../browser/dnd.js';
 import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
+import { stubSessionsHostLayout } from './sessionsHostLayoutTestUtils.js';
 
 suite('Sessions - Session View', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -67,6 +68,7 @@ suite('Sessions - Session View', () => {
 			const store = disposables.add(new DisposableStore());
 			const { instantiationService, chatViews } = createSessionViewTestServices(store);
 			const session = hasDraft ? createTestActiveSession('draft', false) : undefined;
+			stubSessionsHostLayout(instantiationService);
 			const view = store.add(instantiationService.createInstance(SessionView, undefined));
 			const workbench = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench'));
 			append(append(workbench, $('.part.sessionspart.sessions-chat-surface')), view.element);
@@ -141,6 +143,7 @@ suite('Sessions - Session View', () => {
 					return view;
 				}
 			}());
+			stubSessionsHostLayout(instantiationService);
 			const host = store.add(instantiationService.createInstance(SessionView, undefined));
 			host.openSession(createTestActiveSession('draft', false), {});
 			const composer = createdViews[0];
@@ -165,6 +168,7 @@ suite('Sessions - Session View', () => {
 
 	test('is a pane host in the host it is created in, for as long as it lives', () => {
 		const { instantiationService, sessionHostService } = createSessionViewTestServices(disposables);
+		stubSessionsHostLayout(instantiationService);
 		const view = instantiationService.createInstance(SessionView, undefined);
 		view.openSession(createTestActiveSession('a'), {});
 		const shown = sessionHostService.hosts.get().map(host => ({ kind: host.kind, parent: host.parent?.kind, session: host.session.get()?.sessionId }));
@@ -191,6 +195,7 @@ suite('Sessions - Session View', () => {
 			};
 			return child;
 		};
+		stubSessionsHostLayout(instantiationService);
 		const view = instantiationService.createInstance(SessionView, undefined);
 		instantiationService.createChild = createChild;
 		view.openSession(createTestActiveSession('a'), {});
@@ -839,6 +844,7 @@ suite('Sessions - Session View', () => {
 				return createView(isNewChatInSession ? 'newChatInSession' : 'newSession', scopedInstantiationService);
 			}
 		}());
+		stubSessionsHostLayout(instantiationService);
 		const view = store.add(instantiationService.createInstance(SessionView, undefined));
 		view.openSession(session, {});
 		session.isCreated.set(false, undefined);
@@ -858,6 +864,7 @@ suite('Sessions - Session View', () => {
 
 	test('clearing a draft normally replaces the composer unless it requests in-place reuse', () => {
 		const { instantiationService, chatViews } = createSessionViewTestServices(disposables);
+		stubSessionsHostLayout(instantiationService);
 		const view = disposables.add(instantiationService.createInstance(SessionView, undefined));
 		const session = createTestActiveSession('draft', false);
 		view.openSession(undefined, {});
@@ -881,6 +888,7 @@ suite('Sessions - Session View', () => {
 			isNewSessionRequestInProgress: requestInProgress,
 			preparationProgress,
 		});
+		stubSessionsHostLayout(instantiationService);
 		const view = store.add(instantiationService.createInstance(SessionView, undefined));
 		const externalControl = document.createElement('button');
 		mainWindow.document.body.append(view.element, externalControl);
@@ -935,6 +943,7 @@ suite('Sessions - Session View', () => {
 			headerWidth: view.element.querySelector<HTMLElement>('.session-view-centered-content')?.style.width,
 		});
 		const session = createTestActiveSession('draft', false);
+		stubSessionsHostLayout(instantiationService);
 		const view = store.add(instantiationService.createInstance(SessionView, undefined));
 		mainWindow.document.body.appendChild(view.element);
 		store.add(toDisposable(() => view.element.remove()));
@@ -964,6 +973,7 @@ suite('Sessions - Session View', () => {
 		const { instantiationService, configurationService } = createSessionViewTestServices(store);
 		const session = createTestActiveSession('session');
 
+		stubSessionsHostLayout(instantiationService);
 		const view = store.add(instantiationService.createInstance(SessionView, undefined));
 		mainWindow.document.body.appendChild(view.element);
 		store.add({ dispose: () => view.element.remove() });
@@ -1014,6 +1024,7 @@ suite('Sessions - Session View', () => {
 		const store = disposables.add(new DisposableStore());
 		const { instantiationService } = createSessionViewTestServices(store);
 		const session = createTestActiveSession('split-gap', true, { chatCount: 2 });
+		stubSessionsHostLayout(instantiationService);
 		const view = store.add(instantiationService.createInstance(SessionView, undefined));
 		mainWindow.document.body.appendChild(view.element);
 		store.add(toDisposable(() => view.element.remove()));

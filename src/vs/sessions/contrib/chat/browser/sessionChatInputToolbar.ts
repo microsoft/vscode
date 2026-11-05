@@ -60,8 +60,7 @@ import { SessionActivatingActionRunner } from '../../../browser/sessionActionRun
 import { computePullRequestIcon } from '../../../../workbench/common/chatPullRequest.js';
 import { ISessionChangesStatsCache, readChatChangesStats, readLoadedChatChangesStats } from '../../../../workbench/contrib/sessions/common/sessionChangesStatsCache.js';
 import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
-import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
-import { Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
+import { Parts, IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { SessionCanvasesControl } from '../../canvases/browser/sessionCanvasesControl.js';
 import { createIssueHover, getIssueStatus } from '../../github/browser/issueHover.js';
@@ -72,6 +71,7 @@ import { IChatEntitlementService } from '../../../../workbench/services/chat/com
 import { ChatPillHoverCache, createChatPillHover } from '../../../../workbench/browser/chatPillHover.js';
 import { EditorsOrder } from '../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../workbench/common/editor/editorInput.js';
+import { ISessionsHostLayoutService } from '../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
 
 const copiedLabel = localize('sessionChatPills.copied', "Copied");
 const copiedToClipboardStatus = localize('sessionChatPills.copiedToClipboard', "Copied to clipboard");
@@ -474,7 +474,8 @@ export class SessionChatInputToolbar extends Disposable {
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@ISessionChangesService sessionChangesService: ISessionChangesService,
 		@ISessionChangesStatsCache changesStatsCache: ISessionChangesStatsCache,
-		@IAgentWorkbenchLayoutService layoutService: IAgentWorkbenchLayoutService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+		@ISessionsHostLayoutService hostLayoutService: ISessionsHostLayoutService,
 		@IOpenerService openerService: IOpenerService,
 		@ISessionChatPillVisibilityService visibility: ISessionChatPillVisibilityService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -687,14 +688,14 @@ export class SessionChatInputToolbar extends Disposable {
 							return;
 						}
 						if (layoutService.isVisible(Parts.EDITOR_PART, mainWindow) && matchesEditor(editorService.activeEditor, entries)) {
-							layoutService.hideSidePane();
+							hostLayoutService.sidePane?.hideSidePane();
 							return;
 						}
 						const editors = editorService.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE);
 						const existing = editors.find(({ editor }) => editor === editorService.activeEditor && matchesEditor(editor, entries))
 							?? editors.find(({ editor }) => matchesEditor(editor, entries));
 						if (existing) {
-							layoutService.revealEditorPartExplicitly();
+							hostLayoutService.revealEditorPartExplicitly();
 							await editorService.openEditor(existing.editor, { revealIfOpened: true }, existing.groupId);
 							return;
 						}
@@ -759,7 +760,7 @@ export class SessionChatInputToolbar extends Disposable {
 					}
 					const chat = this._chat.get();
 					const workspace = chat?.workspace?.get() ?? session.workspace.get();
-					layoutService.revealEditorPartExplicitly();
+					hostLayoutService.revealEditorPartExplicitly();
 					void sessionChangesService.openChangesEditor(session.resource, {
 						changesetSelection: {
 							kind: 'id',

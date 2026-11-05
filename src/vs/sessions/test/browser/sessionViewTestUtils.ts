@@ -39,6 +39,7 @@ import { SessionInputPickerVisibility } from '../../../workbench/contrib/session
 import { IActiveSession, ISessionsManagementService } from '../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { MobileSessionsPart } from '../../browser/parts/mobile/mobileSessionsPart.js';
+import { stubSessionsHostLayout } from './sessionsHostLayoutTestUtils.js';
 
 export class TestChatView extends AbstractChatView {
 	readonly inputPickerVisibility = this._register(new SessionInputPickerVisibility());
@@ -124,6 +125,7 @@ export function createSessionViewTestServices(store: Pick<DisposableStore, 'add'
 	const { sessionHostService } = stubSessionHosts(instantiationService, store);
 	// No surface outside of the grid shows a chat, such as a chat window
 	instantiationService.stub(IChatHostOpenerService, new ChatHostOpenerService());
+	stubSessionsHostLayout(instantiationService);
 	return { instantiationService, configurationService, contextKeyService, chatViews, sessionHostService };
 }
 

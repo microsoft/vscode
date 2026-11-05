@@ -70,6 +70,7 @@ import { GitHubIssueModel } from '../../../../../workbench/contrib/sessions/brow
 import { buildSessionIssueSections, buildSessionPullRequestSections, computeSessionInputPillStats, findSessionOfChat, readLoadedSessionInputPillStats, SessionChatInputToolbar } from '../../browser/sessionChatInputToolbar.js';
 import { buildSessionArtifactSections, type ISessionArtifactActions } from '../../browser/sessionArtifacts.js';
 import { ITestSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { stubSessionsHostLayout } from '../../../../test/browser/sessionsHostLayoutTestUtils.js';
 
 suite('SessionChatInputToolbar', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -111,6 +112,7 @@ suite('SessionChatInputToolbar', () => {
 			isEditorPaneVisible: () => false,
 			isVisible: () => false,
 		}));
+		stubSessionsHostLayout(instantiationService);
 		return { instantiationService, visibility, configuration };
 	}
 
@@ -174,6 +176,7 @@ suite('SessionChatInputToolbar', () => {
 			hideSidePane: () => { paneVisible = false; detailVisible = false; stateChanged.fire(); },
 			revealEditorPartExplicitly: () => { paneVisible = true; stateChanged.fire(); },
 		}));
+		stubSessionsHostLayout(instantiationService);
 		instantiationService.stub(ISessionsService, 'setActive', (target: IActiveSession) => assert.strictEqual(target, session));
 		instantiationService.stub(ICommandService, upcastPartial<ICommandService>({
 			executeCommand: async (command, context: { pullRequest?: IGitHubPullRequestRef; issue?: IGitHubIssueRef }) => {
@@ -842,6 +845,7 @@ suite('SessionChatInputToolbar', () => {
 					getContainer: window => window.document.body,
 					revealEditorPartExplicitly: () => { calls.push({ action: 'reveal' }); },
 				}));
+				stubSessionsHostLayout(instantiationService);
 				instantiationService.stub(ISessionChangesService, upcastPartial<ISessionChangesService>({
 					openChangesEditor: async (resource, options) => {
 						calls.push({ action: 'open', resource, options });
@@ -935,6 +939,7 @@ suite('SessionChatInputToolbar', () => {
 				getContainer: window => window.document.body,
 				revealEditorPartExplicitly: () => { },
 			}));
+			stubSessionsHostLayout(instantiationService);
 			instantiationService.stub(ISessionChangesService, upcastPartial<ISessionChangesService>({
 				openChangesEditor: async (_resource, options) => {
 					const selection = options?.changesetSelection;
@@ -1017,6 +1022,7 @@ suite('SessionChatInputToolbar', () => {
 			getContainer: window => window.document.body,
 			revealEditorPartExplicitly: () => { },
 		}));
+		stubSessionsHostLayout(instantiationService);
 		instantiationService.stub(ISessionChangesService, upcastPartial<ISessionChangesService>({
 			openChangesEditor: async (_resource, options) => {
 				const selection = options?.changesetSelection;

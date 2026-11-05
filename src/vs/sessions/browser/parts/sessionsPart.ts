@@ -9,7 +9,7 @@ import { IInstantiationService } from '../../../platform/instantiation/common/in
 import { IStorageService } from '../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { agentsPanelBorder } from '../../common/theme.js';
-import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
+import { Parts, IWorkbenchLayoutService } from '../../../workbench/services/layout/browser/layoutService.js';
 import { assertReturnsDefined } from '../../../base/common/types.js';
 import { LayoutPriority } from '../../../base/browser/ui/splitview/splitview.js';
 import { Direction, ISerializedGrid } from '../../../base/browser/ui/grid/grid.js';
@@ -29,7 +29,6 @@ import { ProgressBar } from '../../../base/browser/ui/progressbar/progressbar.js
 import { defaultProgressBarStyles } from '../../../platform/theme/browser/defaultStyles.js';
 import { IProgressIndicator } from '../../../platform/progress/common/progress.js';
 import { AbstractProgressScope, ScopedProgressIndicator } from '../../../workbench/services/progress/browser/progressIndicator.js';
-import { IAgentWorkbenchLayoutService } from '../workbench.js';
 import { applyAgentsPartCardStyles, getAgentsPartCardContentSize, getSessionsPartCardMarginRight } from './agentsPartCard.js';
 import { isPhoneLayout } from '../../../workbench/contrib/sessions/browser/mobileLayout.js';
 import { SessionsChatSurface } from '../../services/chatBackground/browser/sessionsChatSurface.js';
@@ -38,6 +37,7 @@ import { ISessionGridSlot, SessionGridRequest } from '../../../workbench/contrib
 import { SessionGridLayout } from './sessionGridLayout.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../../common/layoutConstants.js';
 import { URI } from '../../../base/common/uri.js';
+import { ISessionsHostLayoutService } from '../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
 
 interface IGridSlot {
 	readonly id: string;
@@ -111,7 +111,8 @@ export class SessionsPart extends Part {
 	constructor(
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
-		@IAgentWorkbenchLayoutService private readonly agentWorkbenchLayoutService: IAgentWorkbenchLayoutService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+		@ISessionsHostLayoutService private readonly hostLayoutService: ISessionsHostLayoutService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
@@ -120,7 +121,7 @@ export class SessionsPart extends Part {
 			{ hasTitle: false, borderWidth: () => 0 },
 			themeService,
 			storageService,
-			agentWorkbenchLayoutService
+			layoutService
 		);
 
 		// Bind context keys for compatibility with existing when-clauses
@@ -498,7 +499,7 @@ export class SessionsPart extends Part {
 		const cardSize = getAgentsPartCardContentSize(
 			width,
 			height,
-			this.agentWorkbenchLayoutService.isEditorPaneVisible(),
+			(this.hostLayoutService.sidePane?.isEditorPaneVisible() ?? false),
 			this.layoutService.isVisible(Parts.SIDEBAR_PART),
 			phoneLayout,
 			compactLayout,

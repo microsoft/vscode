@@ -41,6 +41,7 @@ import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { CustomViewVisibleContext } from '../../../../common/agentsWindowContextKeys.js';
 import { TOGGLE_SIDE_PANEL_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { addPeerChat, createTestHarness, ICreateOptions, ITestLayoutHarness, makePaneComposite, makeSession, setActiveChat, TestStubEditorInput } from './layoutControllerTestUtils.js';
+import { stubSessionsHostLayout } from '../../../../test/browser/sessionsHostLayoutTestUtils.js';
 
 /** Concrete, behaviourless subclass so the abstract base (its view-state hook is a no-op) can be instantiated. */
 class TestBaseLayoutController extends BaseLayoutController { }
@@ -100,6 +101,7 @@ suite('BaseLayoutController', () => {
 		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() {
 			override toggleSidePane() { sidePaneToggles.push(true); return true; }
 		}());
+		stubSessionsHostLayout(instantiationService);
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		const run = () => instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(TOGGLE_SIDE_PANEL_COMMAND_ID)!.handler(accessor));
 
