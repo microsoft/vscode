@@ -6,7 +6,8 @@
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { IChatSessionItemArchiveState } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { constObservable, IObservable, IReader, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -48,6 +49,12 @@ export class TestCommandService extends mock<ICommandService>() {
 }
 
 export class TestSessionsManagementService extends mock<ISessionsManagementService>() {
+	override readonly archivedSessionItems = observableValue<IChatSessionItemArchiveState>(this, { available: false, state: 'loaded' });
+	archiveRequests = 0;
+	override acquireArchivedSessionItems() {
+		this.archiveRequests++;
+		return toDisposable(() => this.archiveRequests--);
+	}
 	override readonly onDidChangeSessions = Event.None;
 	override canMoveChat(_session: ISession, _chat: IChat): boolean { return false; }
 	override canMoveSessionUnder(_session: ISession): boolean { return false; }

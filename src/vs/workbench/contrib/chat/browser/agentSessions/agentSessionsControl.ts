@@ -24,7 +24,7 @@ import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Throttler } from '../../../../../base/common/async.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { autorun, derived, observableValue } from '../../../../../base/common/observable.js';
 import { ITreeContextMenuEvent, ITreeNode } from '../../../../../base/browser/ui/tree/tree.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { Separator } from '../../../../../base/common/actions.js';
@@ -47,6 +47,7 @@ import { LayoutSettings } from '../../../../services/layout/browser/layoutServic
 import { isEqual } from '../../../../../base/common/resources.js';
 
 export interface IAgentSessionsControlOptions {
+	readonly initiallyVisible?: boolean;
 	readonly overrideStyles: IStyleOverride<IListStyles>;
 	readonly filter: IAgentSessionsFilter;
 	readonly source: string;
@@ -81,6 +82,7 @@ type AgentSessionOpenedEvent = {
 };
 
 export class AgentSessionsControl extends Disposable implements IAgentSessionsControl {
+	private readonly archiveDemand = this._register(new MutableDisposable());
 
 	private sessionsContainer: HTMLElement | undefined;
 	get element(): HTMLElement | undefined { return this.sessionsContainer; }
@@ -131,6 +133,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
+		this.visible = options.initiallyVisible ?? true;
 
 		this.focusedAgentSessionArchivedContextKey = ChatContextKeys.isArchivedAgentSession.bindTo(this.contextKeyService);
 		this.focusedAgentSessionPinnedContextKey = ChatContextKeys.isPinnedAgentSession.bindTo(this.contextKeyService);
@@ -144,6 +147,11 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		this.create(this.container);
 
 		this.registerListeners();
+		const archivesAvailable = derived(this, reader => this.chatSessionsService.archivedSessionItems.read(reader).available);
+		this._register(autorun(reader => {
+			archivesAvailable.read(reader);
+			void this.update();
+		}));
 	}
 
 	private registerListeners(): void {
@@ -328,7 +336,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			return session.visibleChildIndex === this.sessionsList.getNode(parent).visibleChildrenCount - 1;
 		});
 		const compact = this.options.compactShowMore;
-		const sessionDataSource = this.sessionsDataSource = this._register(new AgentSessionsDataSource(this.options.filter, sorter, this.options.repositoryGroupLimit));
+		const sessionDataSource = this.sessionsDataSource = this._register(new AgentSessionsDataSource(this.options.filter, sorter, this.options.repositoryGroupLimit, () => this.chatSessionsService.archivedSessionItems.get().available));
 		const listDelegate = new AgentSessionsListDelegate(
 			approvalModel,
 			this.options.compactShowMore,
@@ -661,6 +669,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		}));
 
 		this._register(list.onDidChangeCollapseState(e => {
+			this.updateArchiveDemand();
 			if (this._isProgrammaticCollapseChange) {
 				return;
 			}
@@ -682,7 +691,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		const hasSessionsInModel = model.sessions.length > 0;
 		const isFilterActive = !this.options.filter.isDefault();
 
-		const showEmpty = hasSessionsInModel && isEmpty && isFilterActive;
+		const showEmpty = hasSessionsInModel && isEmpty && isFilterActive && !this.sessionsDataSource?.hasLoadableArchiveSection;
 		setVisibility(showEmpty, this.emptyFilterMessage);
 		setVisibility(!showEmpty, this.sessionsList.getHTMLElement());
 	}
@@ -815,6 +824,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		this._isProgrammaticCollapseChange = true;
 		try {
 			this._updateSectionCollapseStatesCore();
+			this.updateArchiveDemand();
 		} finally {
 			this._isProgrammaticCollapseChange = false;
 		}
@@ -888,6 +898,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			this.hasPendingUpdate = false;
 			this.computeRecentRepositoryLabels();
 			await this.sessionsList?.updateChildren();
+			this.updateArchiveDemand();
 
 			this._onDidUpdate.fire();
 			return true;
@@ -917,9 +928,23 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		}
 
 		this.visible = visible;
+		this.updateArchiveDemand();
 
 		if (this.visible) {
 			this.update();
+		}
+	}
+
+	private updateArchiveDemand(): void {
+		const model = this.agentSessionsService.model;
+		const expanded = this.visible && this.chatSessionsService.archivedSessionItems.get().available && (
+			!this.options.filter.getExcludes().archived && this.options.filter.groupResults?.() === AgentSessionsGrouping.Capped
+			|| this.sessionsList?.getNode(model).children.some(child =>
+				isAgentSessionSection(child.element) && child.element.section === AgentSessionSection.Archived && !child.collapsed));
+		if (expanded && !this.archiveDemand.value) {
+			this.archiveDemand.value = this.chatSessionsService.acquireArchivedSessionItems();
+		} else if (!expanded) {
+			this.archiveDemand.clear();
 		}
 	}
 

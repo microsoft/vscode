@@ -80,6 +80,7 @@ import { IChatWidget, IChatWidgetService, IChatWidgetViewModelChangeEvent } from
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatSessionRefreshReason, ChatSessionStatus, IChatSessionContentProvider, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, IChatSessionsExtensionPoint, ReadonlyChatSessionOptionsMap, ResolvedChatSessionsExtensionPoint, SessionType } from '../../../common/chatSessionsService.js';
+import { MockChatSessionsService } from '../../common/mockChatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { IChatModel, IChatRequestModel, IChatRequestVariableData, IChatResponseModel } from '../../../common/model/chatModel.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../../common/participants/chatAgents.js';
@@ -318,7 +319,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 			state.hostSessions = state.hostSessions.filter(entry => entry.session.toString() !== session.toString());
 		}
 	}();
-	const chatSessionsService = options?.chatSessionsService ?? new class extends mock<IChatSessionsService>() {
+	const chatSessionsService = options?.chatSessionsService ?? new class extends MockChatSessionsService {
 		override readonly onDidChangeSessionOptions = sessionOptionsChanged.event;
 		override readonly onDidChangeItemsProviders = Event.None;
 		override readonly onDidChangeAvailability = Event.None;

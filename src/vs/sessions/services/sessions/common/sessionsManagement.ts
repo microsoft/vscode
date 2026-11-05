@@ -6,7 +6,8 @@
 import { Event } from '../../../../base/common/event.js';
 import type { IAgentHostManagedWorktree, IAgentHostWorktreeCleanupStatus } from '../../../../platform/agentHost/common/agentHostWorktreeCleanup.js';
 
-import { IReference } from '../../../../base/common/lifecycle.js';
+import { IDisposable, IReference } from '../../../../base/common/lifecycle.js';
+import { IChatSessionItemArchiveState } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IArtifactModel } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -259,6 +260,8 @@ export interface IMarkSessionReadOptions {
 }
 
 export interface ISessionsManagementService {
+	readonly archivedSessionItems: IObservable<IChatSessionItemArchiveState>;
+	acquireArchivedSessionItems(): IDisposable;
 	readonly _serviceBrand: undefined;
 
 	// -- Sessions --

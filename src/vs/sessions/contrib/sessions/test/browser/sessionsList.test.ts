@@ -180,6 +180,74 @@ suite('Sessions - SessionsList', () => {
 	const automationDefinition = (id: string, ownership: IAutomationDescriptor['ownership'] = 'user'): IAutomationDescriptor =>
 		upcastPartial<IAutomationDescriptor>({ id, ownership });
 
+	test('lazy archive discovery follows section expansion, not the filter or local refresh', () => {
+		const harness = createListHarness(disposables, []);
+		harness.managementService.archivedSessionItems.set({ available: true, state: 'idle' }, undefined);
+		const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+			grouping: () => SessionsGrouping.Date, sorting: () => SessionsSorting.Created, onSessionOpen: () => { },
+		}));
+		list.layout(400, 400);
+		list.setExcludeArchived(false);
+		list.refresh();
+		const before = harness.managementService.archiveRequests;
+		const expanded = list.setItemCollapsed({ section: 'archived' }, false);
+		const after = harness.managementService.archiveRequests;
+		const emptyCount = list.getItemRow({ section: 'archived' })?.getAttribute('aria-label')?.split(', ')[1];
+		const hasLoadingPlaceholder = list.getItemRow({ section: 'archived' })?.parentElement?.textContent?.includes('Loading sessions...') ?? false;
+		list.refresh();
+		const afterRefresh = harness.managementService.archiveRequests;
+		list.setItemCollapsed({ section: 'archived' }, true);
+		const collapsed = harness.managementService.archiveRequests;
+		list.setItemCollapsed({ section: 'archived' }, false);
+		list.setVisible(false);
+		const hidden = harness.managementService.archiveRequests;
+		list.setVisible(true);
+		const restored = harness.managementService.archiveRequests;
+		list.dispose();
+		assert.deepStrictEqual({ before, expanded, after, emptyCount, hasLoadingPlaceholder, afterRefresh, collapsed, hidden, restored, disposed: harness.managementService.archiveRequests }, {
+			before: 0, expanded: true, after: 1, emptyCount: '0', hasLoadingPlaceholder: false, afterRefresh: 1, collapsed: 0, hidden: 0, restored: 1, disposed: 0,
+		});
+	});
+
+	test('lazy archive discovery shows local rows immediately and adds cloud rows without loading UI', () => {
+		const local = createTestSession('Local archive', { isArchived: true }).session;
+		const cloud = createTestSession('Cloud archive', { isArchived: true }).session;
+		const harness = createListHarness(disposables, [local]);
+		harness.managementService.archivedSessionItems.set({ available: true, state: 'idle' }, undefined);
+		const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+			grouping: () => SessionsGrouping.Date, sorting: () => SessionsSorting.Created, onSessionOpen: () => { },
+		}));
+		list.layout(400, 400);
+		list.setExcludeArchived(false);
+		list.setItemCollapsed({ section: 'archived' }, false);
+		const snapshot = () => {
+			const header = list.getItemRow({ section: 'archived' });
+			return {
+				local: !!list.getItemRow({ session: local.resource }),
+				cloud: !!list.getItemRow({ session: cloud.resource }),
+				count: header?.getAttribute('aria-label')?.split(', ')[1],
+				busy: !!header?.querySelector('[aria-busy="true"]'),
+				loadingLabel: /loading|expand to load|unable to load/i.test(header?.getAttribute('aria-label') ?? ''),
+			};
+		};
+		const initial = snapshot();
+		harness.managementService.archivedSessionItems.set({ available: true, state: 'loading' }, undefined);
+		list.update();
+		const loading = snapshot();
+		harness.managementService.archivedSessionItems.set({ available: true, state: 'error' }, undefined);
+		list.update();
+		const failed = snapshot();
+		harness.managementService.sessions.push(cloud);
+		harness.managementService.archivedSessionItems.set({ available: true, state: 'loaded' }, undefined);
+		list.refresh();
+		assert.deepStrictEqual([initial, loading, failed, snapshot()], [
+			{ local: true, cloud: false, count: '1', busy: false, loadingLabel: false },
+			{ local: true, cloud: false, count: '1', busy: false, loadingLabel: false },
+			{ local: true, cloud: false, count: '1', busy: false, loadingLabel: false },
+			{ local: true, cloud: true, count: '2', busy: false, loadingLabel: false },
+		]);
+	});
+
 	suite('catalogue refresh scheduling', () => {
 		async function nextFrame(): Promise<void> {
 			await new Promise<void>(resolve => {
