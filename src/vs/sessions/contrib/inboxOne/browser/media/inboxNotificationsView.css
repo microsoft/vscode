@@ -108,6 +108,12 @@
 	display: block;
 }
 
+.inbox-notifications-new-session.highlight {
+	outline: 2px solid var(--vscode-focusBorder);
+	outline-offset: -2px;
+	border-radius: var(--vscode-cornerRadius-medium);
+}
+
 .inbox-notifications-new-session .new-chat-widget-container,
 .inbox-notifications-new-session .new-chat-widget-container.revealed {
 	justify-content: flex-start;

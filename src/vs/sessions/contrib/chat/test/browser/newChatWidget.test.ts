@@ -26,7 +26,7 @@ import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelSc
 import { IChat, ISession, ISessionGitRepository, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ICreateNewSessionOptions, ISendRequestOptions, ISendRequestSentEvent, ISessionsManagementService, WorkspaceNotTrustedError } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
-import { IOpenNewSessionOptions, IOpenNewSessionResult } from '../../../../services/sessions/browser/sessionsService.js';
+import { IOpenNewSessionOptions, IOpenNewSessionResult, IOpenSessionOptions } from '../../../../services/sessions/browser/sessionsService.js';
 import { SessionsManagementService } from '../../../../services/sessions/browser/sessionsManagementService.js';
 import { ISessionsProvidersService, SessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IPickedSessionType, IPreferredSessionType } from '../../browser/sessionTypePicker.js';
@@ -64,6 +64,9 @@ import { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHo
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { SessionConfigSchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ISessionHost, ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
 
@@ -277,6 +280,7 @@ interface ISessionOptionsPersistenceHarness {
 interface ISendHarness {
 	readonly _backgroundSend?: boolean;
 	readonly _backgroundSendStatus?: ISettableObservable<string | undefined>;
+	_lastBackgroundSentSessionResource?: URI;
 	readonly _newChatInput?: Pick<SharedChatInputComposer, 'hasInput'>;
 	readonly notificationService: { error(message: string | Error): void };
 	readonly _pendingBackgroundSends: { set(key: object, value: IDisposable): void; deleteAndDispose(key: object): void };
@@ -3938,6 +3942,7 @@ suite('NewChatWidget', () => {
 		const folderUri = URI.file('/dismissed');
 		const restored: URI[] = [];
 		const session = upcastPartial<ISession>({ sessionId: 'draft' });
+		const sentSession = upcastPartial<ISession>({ resource: URI.parse('test-session:/started') });
 		let sentOptions: ISendRequestOptions | undefined;
 		const picker = { selectedFolderUri: folderUri, validateSelectedWorkspace: async () => true, clearAttachedContext: () => { }, showPicker: () => { } };
 		const harness: ISendHarness = {
@@ -3967,10 +3972,10 @@ suite('NewChatWidget', () => {
 		onDidSendRequest.fire(upcastPartial<ISendRequestSentEvent>({ options: { query: 'unrelated' } }));
 		const afterUnrelatedSend = { restored: [...restored], status: harness._backgroundSendStatus?.get() };
 		assert.ok(sentOptions);
-		onDidSendRequest.fire(upcastPartial<ISendRequestSentEvent>({ options: sentOptions }));
-		assert.deepStrictEqual({ beforeSuccess, afterUnrelatedSend, restored, pending: pendingSends.size, background: sentOptions.background, status: harness._backgroundSendStatus?.get() }, {
+		onDidSendRequest.fire(upcastPartial<ISendRequestSentEvent>({ options: sentOptions, session: sentSession }));
+		assert.deepStrictEqual({ beforeSuccess, afterUnrelatedSend, restored, pending: pendingSends.size, background: sentOptions.background, status: harness._backgroundSendStatus?.get(), resource: harness._lastBackgroundSentSessionResource }, {
 			beforeSuccess: { restored: [], status: undefined }, afterUnrelatedSend: { restored: [], status: undefined },
-			restored: [folderUri], pending: 0, background: true, status: 'Message sent',
+			restored: [folderUri], pending: 0, background: true, status: 'Message sent', resource: sentSession.resource,
 		});
 	});
 
@@ -4089,6 +4094,46 @@ suite('NewChatWidget', () => {
 			disposedStatus: 'Message sent', announcements: ['Message sent', 'Message sent', 'Message sent', 'Message sent'],
 		});
 	}));
+
+	for (const activation of ['click', 'Enter'] as const) {
+		test(`Inbox sent-session link persists and opens the sent session on ${activation}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(IHoverService, NullHoverService);
+			instantiationService.stub(IOpenerService, {});
+			const changed = disposables.add(new Emitter<void>());
+			const status = observableValue<string | undefined>('status', undefined);
+			const resource = URI.parse('test-session:/started');
+			const opened: { resource: URI; options?: IOpenSessionOptions }[] = [];
+			let hasInput = false;
+			const harness = {
+				_backgroundSend: true,
+				_backgroundSendStatus: status,
+				_lastBackgroundSentSessionResource: resource as URI | undefined,
+				_newChatInput: { onDidChangeInput: changed.event, get hasInput() { return hasInput; } },
+				accessibilityService: { status: () => { } },
+				instantiationService,
+				sessionsService: { openSession: async (resource: URI, options?: IOpenSessionOptions) => { opened.push({ resource, options }); } },
+				_register: <T extends IDisposable>(value: T) => disposables.add(value),
+			};
+			const container = $('div');
+			const render = Reflect.get(NewChatWidget.prototype, '_renderBackgroundSendStatus') as (this: typeof harness, container: HTMLElement) => void;
+			render.call(harness, container);
+			status.set('Message sent', undefined);
+			await timeout(6000);
+			const link = container.querySelector('a')!;
+			if (activation === 'click') {
+				link.click();
+			} else {
+				link.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+			}
+			const confirmation = container.textContent;
+			hasInput = true;
+			changed.fire();
+			assert.deepStrictEqual({ confirmation, opened, cleared: container.textContent, resource: harness._lastBackgroundSentSessionResource }, {
+				confirmation: 'Message sentOpen Session', opened: [{ resource, options: { source: 'inbox', forceMainChat: true } }], cleared: '', resource: undefined,
+			});
+		}));
+	}
 
 	for (const origin of [
 		WorkspaceSelectionOrigin.None, WorkspaceSelectionOrigin.CheckedWorkspace, WorkspaceSelectionOrigin.AgentsRecent,

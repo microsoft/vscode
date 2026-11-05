@@ -419,6 +419,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 	private selectedRowTab: InboxTab | undefined;
 	private readonly newSessionElement = $('div.inbox-notifications-new-session');
 	private readonly newSessionDisposables = this._register(new DisposableStore());
+	private readonly newSessionHighlight = this._register(new MutableDisposable());
 	private newSessionView: AbstractChatView | undefined;
 	private readonly listPaneElement = $('div.inbox-notifications-list-pane');
 	private readonly detailPaneElement = $('div.inbox-notifications-detail-pane');
@@ -895,20 +896,18 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 			this.updateToolbarLoadingSpinner();
 		}));
 
-		const usefulFeedbackButton = this._register(new Button(toolbarActions, {
+		const feedbackButton = this._register(new Button(toolbarActions, {
 			...inboxButtonStyles,
 			secondary: true,
 			small: true,
-			ariaLabel: localize('inboxNotifications.feedback.usefulAria', "Send Positive Feedback about Inbox"),
+			ariaLabel: localize('inboxNotifications.feedback.aria', "Send Feedback about Inbox"),
 		}));
-		usefulFeedbackButton.label = localize('inboxNotifications.feedback.useful', "Send Positive Feedback");
-		usefulFeedbackButton.element.classList.add('inbox-notifications-feedback-button');
-		this._register(usefulFeedbackButton.onDidClick(() => {
-			this.logInboxInteraction('feedback.useful', 'toolbar');
-			this.maybeTriggerConfetti(usefulFeedbackButton.element);
-			usefulFeedbackButton.label = localize('inboxNotifications.feedback.sent', "Feedback Sent");
-			usefulFeedbackButton.enabled = false;
-			status(localize('inboxNotifications.feedback.thanks', "Thanks for your feedback."));
+		feedbackButton.label = localize('inboxNotifications.feedback.label', "Send Feedback");
+		feedbackButton.element.classList.add('inbox-notifications-feedback-button');
+		this._register(feedbackButton.onDidClick(() => {
+			void this.commandService.executeCommand('workbench.action.openIssueReporter', {
+				issueTitle: localize('inboxNotifications.feedback.title', "Agents Window Inbox feedback"),
+			}).catch(onUnexpectedError);
 		}));
 
 		this.deferredUpdatesBanner.appendChild(this.deferredUpdatesBannerLabel);
@@ -3471,6 +3470,10 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		await this.ensureNewSessionComposer();
 		if (!this.selectedItemId.get()) {
 			this.newSessionView?.focus();
+			this.newSessionElement.scrollIntoView({ block: 'nearest' });
+			this.newSessionElement.classList.add('highlight');
+			this.newSessionHighlight.value = disposableTimeout(() => this.newSessionElement.classList.remove('highlight'), 2000);
+			status(localize('inboxNotifications.newSession.focused', "New session composer focused. Type your request at the bottom of Inbox."));
 		}
 	}
 

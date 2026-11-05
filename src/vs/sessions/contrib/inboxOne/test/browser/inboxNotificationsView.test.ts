@@ -474,6 +474,7 @@ suite('InboxNotificationsView', () => {
 			composerAriaLabel: composer.getAttribute('aria-label'),
 			options: newChatOptions.map(({ hostVisible, ...options }) => ({ ...options, hostVisible: hostVisible?.get() })),
 			requests: openNewSession.args, draft: input.value, focused: mainWindow.document.activeElement === input,
+			highlighted: composer.classList.contains('highlight'),
 			belowNotifications: composer.parentElement?.previousElementSibling === notifications,
 			inputAtTop: input.getBoundingClientRect().top - composer.getBoundingClientRect().top < 40,
 		};
@@ -483,7 +484,7 @@ suite('InboxNotificationsView', () => {
 			hasDuplicateNewSessionButton: false,
 			composerLabel: '', composerAriaLabel: 'New session',
 			requests: Array.from({ length: 3 }, () => [{ preserveCustomView: true, cancelRestore: true }]),
-			draft: 'My new session draft', focused: true, belowNotifications: true, inputAtTop: true, disposed: true,
+			draft: 'My new session draft', focused: true, highlighted: true, belowNotifications: true, inputAtTop: true, disposed: true,
 		});
 	});
 
@@ -2596,10 +2597,12 @@ suite('InboxNotificationsView', () => {
 	for (const width of [360, 560, 1000]) {
 		test(`feedback stays at the top right alongside filters with evidence open at width ${width}`, () => {
 			const telemetry: { event: string; data: { interaction?: string } }[] = [];
-			const { view, container } = createView(constObservable([{
+			const { view, container, instantiationService } = createView(constObservable([{
 				id: 'item', kind: InboxNotificationKind.Completed, priority: InboxNotificationPriority.Later,
 				title: 'Review', description: '', timestamp: 1, actions: [],
 			}]), { telemetry });
+			const executeCommand = stub().resolves();
+			instantiationService.stub(ICommandService, 'executeCommand', executeCommand);
 			container.style.width = `${width}px`;
 			view.render(container);
 			view.setVisible(true);
@@ -2618,16 +2621,21 @@ suite('InboxNotificationsView', () => {
 				rightAligned: Math.abs(feedbackBounds.right - toolbarBounds.right) <= 1,
 				contained: feedbackBounds.left >= toolbarBounds.left && feedbackBounds.bottom <= toolbarBounds.bottom,
 				aligned: width >= 560 ? aligned : true,
-				sent: feedback.textContent, disabled: feedback.getAttribute('aria-disabled'),
-				events: telemetry.filter(event => event.data.interaction === 'feedback.useful').length,
-			}, { rightAligned: true, contained: true, aligned: true, sent: 'Feedback Sent', disabled: 'true', events: 1 });
+				label: feedback.textContent, disabled: feedback.getAttribute('aria-disabled'),
+				commands: executeCommand.args,
+				positiveFeedbackEvents: telemetry.filter(event => event.data.interaction === 'feedback.useful').length,
+			}, {
+				rightAligned: true, contained: true, aligned: true, label: 'Send Feedback', disabled: 'false',
+				commands: [['workbench.action.openIssueReporter', { issueTitle: 'Agents Window Inbox feedback' }]],
+				positiveFeedbackEvents: 0,
+			});
 		});
 	}
 
 	test('toolbar accessible names include their visible labels', () => {
 		const { view, container } = createView(constObservable([]));
 		view.render(container);
-		for (const label of ['Recent', 'Send Positive Feedback']) {
+		for (const label of ['Recent', 'Send Feedback']) {
 			const button = Array.from(container.querySelectorAll<HTMLElement>('.monaco-button')).find(button => button.textContent === label);
 			assert.ok(button?.getAttribute('aria-label')?.startsWith(label), label);
 		}
