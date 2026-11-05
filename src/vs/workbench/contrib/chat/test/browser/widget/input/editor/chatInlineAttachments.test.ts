@@ -319,9 +319,9 @@ suite('ChatInlineAttachments', () => {
 		});
 	});
 
-	test('a completion that becomes a pill leaves the cursor right after the pill, which it highlights', async () => {
-		const complete = async (insertText: string) => {
-			const input = createInput('fix ');
+	test('a completion that becomes a pill leaves the cursor right after the pill, which it highlights unless it is at the end of the input', async () => {
+		const complete = async (insertText: string, suffix = '') => {
+			const input = createInput(`fix ${suffix}`);
 			input.editor.setPosition(new Position(1, 5));
 			// A completion inserts the text of a reference, and then adds the reference.
 			input.editor.executeEdits('snippet', [{ range: new Range(1, 5, 1, 5), text: insertText }], () => [new Selection(1, 5 + insertText.length, 1, 5 + insertText.length)]);
@@ -334,9 +334,11 @@ suite('ChatInlineAttachments', () => {
 		assert.deepStrictEqual({
 			withSpace: await complete('#file:a.ts '),
 			withoutSpace: await complete('#a.ts'),
+			inMiddle: await complete('#a.ts', 'and summarize'),
 		}, {
-			withSpace: { input: 'fix \uFFFC', cursor: '(1,6)', active: true },
-			withoutSpace: { input: 'fix \uFFFC', cursor: '(1,6)', active: true },
+			withSpace: { input: 'fix \uFFFC', cursor: '(1,6)', active: false },
+			withoutSpace: { input: 'fix \uFFFC', cursor: '(1,6)', active: false },
+			inMiddle: { input: 'fix \uFFFCand summarize', cursor: '(1,6)', active: true },
 		});
 	});
 

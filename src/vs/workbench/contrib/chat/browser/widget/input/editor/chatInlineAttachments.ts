@@ -1226,7 +1226,7 @@ export class ChatInlineAttachments extends Disposable {
 		}
 	}
 
-	/** Activates the pill right before the cursor, unless an edit rather than the user placed the cursor there. */
+	/** Activates the pill right before the cursor, unless an edit rather than the user placed the cursor there, or the pill is the last thing in the input so that Enter sends the prompt. */
 	private _updateActivePill(): void {
 		const model = this._editor.getModel();
 		const selections = this._editor.getSelections() ?? [];
@@ -1236,7 +1236,9 @@ export class ChatInlineAttachments extends Disposable {
 			for (const pill of this._pills) {
 				const range = pill.range;
 				if (range && isAnchorRange(model, range) && range.getEndPosition().equals(position)) {
-					active = pill;
+					if (!this._isLastInInput(model, range)) {
+						active = pill;
+					}
 					break;
 				}
 			}
@@ -1248,6 +1250,16 @@ export class ChatInlineAttachments extends Disposable {
 		}
 		// Enter opens the pill only when that does something, and otherwise sends the request.
 		this._activePillContextKey.set(!!active?.canOpen);
+	}
+
+	private _isLastInInput(model: ITextModel, range: Range): boolean {
+		const endPosition = range.getEndPosition();
+		const fullEndPosition = model.getFullModelRange().getEndPosition();
+		if (endPosition.equals(fullEndPosition)) {
+			return true;
+		}
+		const textAfter = model.getValueInRange(Range.fromPositions(endPosition, fullEndPosition));
+		return textAfter.trim().length === 0;
 	}
 
 	/**
