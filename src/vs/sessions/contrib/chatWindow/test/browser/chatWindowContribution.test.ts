@@ -31,7 +31,9 @@ import { KeybindingsRegistry } from '../../../../../platform/keybinding/common/k
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ChatWindowLayoutMode } from '../../../../../workbench/contrib/chatWindow/common/chatWindowLayout.js';
 import { Menus } from '../../../../browser/menus.js';
-import { DesktopChangesTabAvailableContext, DesktopFilesTabAvailableContext, DesktopLayoutContext, IsQuickChatSessionContext, SessionHasWorkspaceContext } from '../../../../common/contextkeys.js';
+import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
+import { DesktopLayoutContext, IsQuickChatSessionContext, SessionHasWorkspaceContext } from '../../../../common/contextkeys.js';
+import { DesktopChangesTabAvailableContext, DesktopFilesTabAvailableContext } from '../../../../common/agentsWindowContextKeys.js';
 import { CHAT_WINDOW_OPEN_BROWSER_COMMAND_ID, CHAT_WINDOW_OPEN_CHANGES_COMMAND_ID, CHAT_WINDOW_OPEN_FILES_COMMAND_ID, NEW_FILE_TAB_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { ActiveSessionHost, ISessionHostService, SessionHostKind } from '../../../../services/sessions/browser/sessionHost.js';
 import { ISessionChangesService } from '../../../changes/common/sessionChangesService.js';
@@ -130,16 +132,16 @@ suite('Chat window contribution', () => {
 	});
 
 	test('the Layout menu and Show Editor show in the title bar of a chat window, or in its Session Activity Bar while the strip shows the layout actions; never in the main window', () => {
-		const layoutEntries = (menu: typeof Menus.TitleBarWindowLayout, values: Record<string, ContextKeyValue>) => MenuRegistry.getMenuItems(menu)
-			.filter(item => evaluate(item.when, values) && (isISubmenuItem(item) ? item.submenu === Menus.WindowLayout : !item.isHiddenByDefault && /chatWindow\.toggle(Chat|Editor|Arrangement)$/.test(item.command.id)))
+		const layoutEntries = (menu: typeof AgentsWindowMenus.TitleBarWindowLayout, values: Record<string, ContextKeyValue>) => MenuRegistry.getMenuItems(menu)
+			.filter(item => evaluate(item.when, values) && (isISubmenuItem(item) ? item.submenu === AgentsWindowMenus.WindowLayout : !item.isHiddenByDefault && /chatWindow\.toggle(Chat|Editor|Arrangement)$/.test(item.command.id)))
 			.map(item => isISubmenuItem(item) ? 'Layout' : item.command.id);
 		const stripKeys = { [DesktopLayoutContext.key]: true, [`config.${SESSION_ACTIVITY_BAR_SETTING}`]: true, [`config.${SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING}`]: true };
 		assert.deepStrictEqual({
-			titleBar: layoutEntries(Menus.TitleBarWindowLayout, chatWindowKeys),
+			titleBar: layoutEntries(AgentsWindowMenus.TitleBarWindowLayout, chatWindowKeys),
 			strip: layoutEntries(Menus.SessionActivityBar, chatWindowKeys),
-			titleBarWithStripLayoutActions: layoutEntries(Menus.TitleBarWindowLayout, { ...chatWindowKeys, ...stripKeys }),
+			titleBarWithStripLayoutActions: layoutEntries(AgentsWindowMenus.TitleBarWindowLayout, { ...chatWindowKeys, ...stripKeys }),
 			stripWithStripLayoutActions: layoutEntries(Menus.SessionActivityBar, { ...chatWindowKeys, ...stripKeys }),
-			mainWindow: layoutEntries(Menus.TitleBarWindowLayout, { [IsSessionsWindowContext.key]: true, [ChatContextKeys.enabled.key]: true }),
+			mainWindow: layoutEntries(AgentsWindowMenus.TitleBarWindowLayout, { [IsSessionsWindowContext.key]: true, [ChatContextKeys.enabled.key]: true }),
 		}, {
 			titleBar: ['workbench.action.chatWindow.toggleEditor', 'Layout'],
 			strip: [],
@@ -150,7 +152,7 @@ suite('Chat window contribution', () => {
 	});
 
 	test('the Layout menu disables hiding the part that shows alone, as 491817 does', () => {
-		const items = MenuRegistry.getMenuItems(Menus.WindowLayout).filter(isIMenuItem);
+		const items = MenuRegistry.getMenuItems(AgentsWindowMenus.WindowLayout).filter(isIMenuItem);
 		const enabled = (mode: ChatWindowLayoutMode) => items
 			.filter(item => evaluate(item.when, { ...chatWindowKeys, [LayoutModeContext.key]: mode }) && evaluate(item.command.precondition, { ...chatWindowKeys, [LayoutModeContext.key]: mode }))
 			.map(item => item.command.id.replace('workbench.action.chatWindow.', ''));
@@ -221,7 +223,7 @@ suite('Chat window contribution', () => {
 		const bound = (values: Record<string, ContextKeyValue>) => Object.entries(commands)
 			.filter(([, id]) => rules.some(rule => rule.command === id && evaluate(rule.when ?? undefined, values)))
 			.map(([name]) => name);
-		const addTabMenu = MenuRegistry.getMenuItems(Menus.SessionsEditorTabsBarAddTab).filter(isIMenuItem);
+		const addTabMenu = MenuRegistry.getMenuItems(AgentsWindowMenus.SessionsEditorTabsBarAddTab).filter(isIMenuItem);
 		const addTabIds = [...Object.values(commands), CHAT_WINDOW_OPEN_CHANGES_COMMAND_ID, CHAT_WINDOW_OPEN_FILES_COMMAND_ID, CHAT_WINDOW_OPEN_BROWSER_COMMAND_ID];
 		const addTabEntries = (values: Record<string, ContextKeyValue>) => addTabMenu
 			.filter(item => addTabIds.includes(item.command.id) && evaluate(item.when, values))

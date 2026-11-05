@@ -32,7 +32,7 @@ import { CodeWindow, mainWindow } from '../../../base/browser/window.js';
 import { safeIntl } from '../../../base/common/date.js';
 import { ITitlebarPart, ITitleProperties, ITitleVariable, IAuxiliaryTitlebarPart } from '../../../workbench/browser/parts/titlebar/titlebarPart.js';
 import { WindowTitle } from '../../../workbench/browser/parts/titlebar/windowTitle.js';
-import { Menus } from '../menus.js';
+import { AgentsWindowMenus } from '../agentsWindowMenus.js';
 import { IsNewChatSessionContext } from '../../common/contextkeys.js';
 import { createInstantHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { createMainWindowInstantiationService } from '../../services/sessions/browser/sessionHost.js';
@@ -69,7 +69,7 @@ function trackActionsContainersShowingNoActions(containers: readonly HTMLElement
  *
  * Three sections driven entirely by menus:
  * - **Left**: `Menus.TitleBarLeft` toolbar
- * - **Center**: `Menus.CommandCenter` toolbar (renders session picker via IActionViewItemService)
+ * - **Center**: `AgentsWindowMenus.CommandCenter` toolbar (renders session picker via IActionViewItemService)
  * - **Right**: `Menus.TitleBarRight` toolbar (includes account submenu)
  *
  * No menubar, no editor actions, no layout controls, no WindowTitle dependency.
@@ -235,7 +235,7 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	private fixedHeight: number | undefined;
 
 	/**
-	 * Whether the title bar shows the layout actions of its window ({@link Menus.TitleBarWindowLayout}), which apply to
+	 * Whether the title bar shows the layout actions of its window ({@link AgentsWindowMenus.TitleBarWindowLayout}), which apply to
 	 * windows with layout modes, such as chat windows: the title bars of other windows than the main window.
 	 */
 	protected get showsWindowLayoutActions(): boolean {
@@ -385,9 +385,9 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		// Left toolbar (driven by Menus.TitleBarLeft, rendered after window controls via CSS order)
 		const hoverDelegate = this._register(createInstantHoverDelegate());
 		this.leftToolbarContainer = append(this.leftContent, $('div.left-toolbar-container'));
-		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, this.leftToolbarContainer, Menus.TitleBarLeftLayout, {
+		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, this.leftToolbarContainer, AgentsWindowMenus.TitleBarLeftLayout, {
 			hoverDelegate,
-			contextMenu: Menus.TitleBarContext,
+			contextMenu: AgentsWindowMenus.TitleBarContext,
 			telemetrySource: 'titlePart.left',
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			toolbarOptions: { primaryGroup: () => true },
@@ -398,9 +398,9 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 
 		// Navigation toolbar (Back/Forward), rendered left of the command center.
 		const centerNavContainer = append(this.centerContent, $('div.titlebar-actions-container.titlebar-center-nav-container'));
-		const centerNavToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, centerNavContainer, Menus.TitleBarCenterLeft, {
+		const centerNavToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, centerNavContainer, AgentsWindowMenus.TitleBarCenterLeft, {
 			hoverDelegate,
-			contextMenu: Menus.TitleBarContext,
+			contextMenu: AgentsWindowMenus.TitleBarContext,
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			telemetrySource: 'titlePart.centerLeft',
 			toolbarOptions: { primaryGroup: () => true },
@@ -412,9 +412,9 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		this.windowTitleLabel = append(windowTitle, $('span.window-title-text'));
 		this.renderFixedTitle();
 		const centerToolbarContainer = append(windowTitle, $('div.command-center'));
-		const centerToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, centerToolbarContainer, Menus.CommandCenter, {
+		const centerToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, centerToolbarContainer, AgentsWindowMenus.CommandCenter, {
 			hoverDelegate,
-			contextMenu: Menus.TitleBarContext,
+			contextMenu: AgentsWindowMenus.TitleBarContext,
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			telemetrySource: 'commandCenter',
 			toolbarOptions: { primaryGroup: () => true },
@@ -427,19 +427,19 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 
 		// Actions toolbar (Open in VS Code), rendered right of the command center.
 		const centerActionsContainer = this.centerActionsContainer = append(this.centerContent, $('div.titlebar-actions-container.titlebar-center-actions-container'));
-		const centerActionsToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, centerActionsContainer, Menus.TitleBarCenterRight, {
+		const centerActionsToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, centerActionsContainer, AgentsWindowMenus.TitleBarCenterRight, {
 			hoverDelegate,
-			contextMenu: Menus.TitleBarContext,
+			contextMenu: AgentsWindowMenus.TitleBarContext,
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			telemetrySource: 'titlePart.centerRight',
 			toolbarOptions: { primaryGroup: () => true },
 		}));
 
-		// Right toolbar (driven by Menus.TitleBarRightLayout - includes layout actions)
+		// Right toolbar (driven by AgentsWindowMenus.TitleBarRightLayout - includes layout actions)
 		const rightToolbarContainer = prepend(this.rightContent, $('div.titlebar-actions-container.titlebar-right-layout-container'));
-		const rightToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, rightToolbarContainer, Menus.TitleBarRightLayout, {
+		const rightToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, rightToolbarContainer, AgentsWindowMenus.TitleBarRightLayout, {
 			hoverDelegate,
-			contextMenu: Menus.TitleBarContext,
+			contextMenu: AgentsWindowMenus.TitleBarContext,
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			telemetrySource: 'titlePart.right',
 			toolbarOptions: { primaryGroup: () => true },
@@ -448,9 +448,9 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		// The layout actions of a window with layout modes (before right toolbar), such as a chat window: its Layout menu and
 		// the buttons of its actions, which the user shows and hides from the context menu of the toolbar.
 		const windowLayoutContainer = this.showsWindowLayoutActions ? prepend(this.rightContent, $('div.titlebar-actions-container.titlebar-window-layout-container')) : undefined;
-		const windowLayoutToolBar = windowLayoutContainer && this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, windowLayoutContainer, Menus.TitleBarWindowLayout, {
+		const windowLayoutToolBar = windowLayoutContainer && this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, windowLayoutContainer, AgentsWindowMenus.TitleBarWindowLayout, {
 			hoverDelegate,
-			contextMenu: Menus.TitleBarContext,
+			contextMenu: AgentsWindowMenus.TitleBarContext,
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			telemetrySource: 'titlePart.windowLayout',
 			toolbarOptions: { primaryGroup: () => true },
@@ -458,16 +458,16 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 
 		// Session title actions toolbar (before right toolbar)
 		const sessionActionsContainer = this.sessionActionsContainer = prepend(this.rightContent, $('div.titlebar-actions-container.titlebar-session-actions-container'));
-		const sessionActionsToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, sessionActionsContainer, Menus.TitleBarSessionMenu, {
+		const sessionActionsToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, sessionActionsContainer, AgentsWindowMenus.TitleBarSessionMenu, {
 			hoverDelegate,
-			contextMenu: Menus.TitleBarContext,
+			contextMenu: AgentsWindowMenus.TitleBarContext,
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			telemetrySource: 'titlePart.sessionActions',
 			toolbarOptions: { primaryGroup: () => true },
 		}));
 
 		const screenReaderToolBarElement = prepend(this.rightContent, $('div.titlebar-actions-container.titlebar-screen-reader-container'));
-		const screenReaderButtonBar = this._register(this.instantiationService.createInstance(MenuWorkbenchButtonBar, screenReaderToolBarElement, Menus.TitleBarAccessibility, {
+		const screenReaderButtonBar = this._register(this.instantiationService.createInstance(MenuWorkbenchButtonBar, screenReaderToolBarElement, AgentsWindowMenus.TitleBarAccessibility, {
 			telemetrySource: 'titlePart.accessibility',
 			renderSecondaryActions: false,
 			buttonConfigProvider: () => ({ showIcon: false, showLabel: true, isSecondary: false }),
@@ -517,7 +517,7 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		const event = new StandardMouseEvent(getWindow(this.element), e);
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => event,
-			menuId: Menus.TitleBarContext,
+			menuId: AgentsWindowMenus.TitleBarContext,
 			contextKeyService: this.contextKeyService,
 			domForShadowRoot: isMacintosh && isNative ? event.target : undefined
 		});

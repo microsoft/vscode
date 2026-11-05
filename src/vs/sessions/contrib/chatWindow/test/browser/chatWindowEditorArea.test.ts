@@ -24,6 +24,7 @@ import { ChatWindowLayoutMode } from '../../../../../workbench/contrib/chatWindo
 import { IContentPart, IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { Menus } from '../../../../browser/menus.js';
+import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { IsQuickChatSessionContext, SessionHasWorkspaceContext, SessionsWelcomeVisibleContext } from '../../../../common/contextkeys.js';
 import { ActiveSessionHost, ISessionHostService, SessionHostKind } from '../../../../services/sessions/browser/sessionHost.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
@@ -199,7 +200,7 @@ suite('Chat window editor area', () => {
 	});
 
 	test('the tab entries show in windows with layout modes only, and Changes and Files need a session with a workspace', () => {
-		const shown = (values: Record<string, ContextKeyValue>) => [Menus.SessionActivityBar, Menus.SessionsEditorTabsBarAddTab, Menus.SessionsEmptyEditorGroupAddTab].map(menu =>
+		const shown = (values: Record<string, ContextKeyValue>) => [Menus.SessionActivityBar, AgentsWindowMenus.SessionsEditorTabsBarAddTab, AgentsWindowMenus.SessionsEmptyEditorGroupAddTab].map(menu =>
 			MenuRegistry.getMenuItems(menu).filter(isIMenuItem).filter(item => chatWindowTabEntries.some(entry => entry.id === item.command.id) && evaluate(item.when, values)).map(item => item.command.id).sort());
 		const ids = (...names: string[]) => names.map(name => `sessions.chatWindow.open${name}`).sort();
 		assert.deepStrictEqual({
@@ -216,7 +217,7 @@ suite('Chat window editor area', () => {
 	});
 
 	test('Run and Open in VS Code show in the main window and in every chat window, as the main window\'s rule says, and not in editor windows', () => {
-		const items = MenuRegistry.getMenuItems(Menus.TitleBarCenterRight);
+		const items = MenuRegistry.getMenuItems(AgentsWindowMenus.TitleBarCenterRight);
 		const visible = (values: Record<string, ContextKeyValue>) => items.filter(item => evaluate(item.when, { [SessionsWelcomeVisibleContext.key]: false, ...values })).length;
 		const mainWindow = visible({});
 		const chatWindow = { [IsAuxiliaryWindowContext.key]: true, [LayoutModeContext.key]: 'sideBySide' };

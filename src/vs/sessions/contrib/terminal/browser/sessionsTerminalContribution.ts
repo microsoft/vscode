@@ -30,7 +30,7 @@ import { ITerminalProfileService, TERMINAL_VIEW_ID, TerminalCommandId } from '..
 import { TerminalContextKeys } from '../../../../workbench/contrib/terminal/common/terminalContextKey.js';
 import { ActivePanelContext, IsAuxiliaryWindowContext, PanelVisibleContext } from '../../../../workbench/common/contextkeys.js';
 import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
-import { CustomViewVisibleContext } from '../../../common/contextkeys.js';
+import { CustomViewVisibleContext } from '../../../common/agentsWindowContextKeys.js';
 import { ISessionTaskRunnerRegistry } from '../../chat/browser/sessionTaskRunner.js';
 import { AgentHostSessionTaskRunner } from './agentHostSessionTaskRunner.js';
 import { ChatWindowTerminals, IChatWindowTerminalsService } from './chatWindowTerminals.js';

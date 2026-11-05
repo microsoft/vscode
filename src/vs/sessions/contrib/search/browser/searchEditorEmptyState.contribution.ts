@@ -18,7 +18,7 @@ import { InSearchEditor, SearchEditorScheme } from '../../../../workbench/contri
 import { SearchEditor } from '../../../../workbench/contrib/searchEditor/browser/searchEditor.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { searchViewIcon } from '../../../../workbench/contrib/search/browser/searchIcons.js';
-import { Menus } from '../../../browser/menus.js';
+import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 import { SessionsEmptyStateActions } from '../../../browser/parts/sessionsEmptyStateActions.js';
 import { SessionsEmptyStateLayout } from '../../../browser/parts/sessionsEmptyStateLayout.js';
 import { NEW_FILE_TAB_COMMAND_ID } from '../../../common/sessionCommands.js';
@@ -51,7 +51,7 @@ export class SearchEditorEmptyStateContribution extends Disposable implements IE
 
 			const container = $('.sessions-search-empty-state');
 			const content = append(container, $('.sessions-empty-state-content'));
-			reader.store.add(instantiationService.createInstance(SessionsEmptyStateActions, content, Menus.EmptySearchEditorActions, {
+			reader.store.add(instantiationService.createInstance(SessionsEmptyStateActions, content, AgentsWindowMenus.EmptySearchEditorActions, {
 				ariaLabel: localize('searchEditor.emptyActions', "Search actions"),
 				telemetrySource: 'searchEditor.emptyState',
 				menuOptions: { arg: editor },
@@ -91,7 +91,7 @@ registerAction2(class extends Action2 {
 				when: InSearchEditor,
 				weight: KeybindingWeight.SessionsContrib,
 			},
-			menu: { id: Menus.EmptySearchEditorActions, group: 'navigation', order: 1 },
+			menu: { id: AgentsWindowMenus.EmptySearchEditorActions, group: 'navigation', order: 1 },
 		});
 	}
 
@@ -106,7 +106,7 @@ registerAction2(class extends Action2 {
 	}
 });
 
-MenuRegistry.appendMenuItem(Menus.EmptySearchEditorActions, {
+MenuRegistry.appendMenuItem(AgentsWindowMenus.EmptySearchEditorActions, {
 	command: { id: NEW_FILE_TAB_COMMAND_ID, title: localize2('searchEditor.openFiles', "Open Files"), icon: EmptyFileEditorInput.ICON },
 	group: 'navigation',
 	order: 2,

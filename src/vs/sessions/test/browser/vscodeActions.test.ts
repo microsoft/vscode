@@ -19,7 +19,7 @@ import { TestConfigurationService } from '../../../platform/configuration/test/c
 import { ContextKeyService } from '../../../platform/contextkey/browser/contextKeyService.js';
 import { IsAuxiliaryWindowContext, LayoutModeContext } from '../../../workbench/common/contextkeys.js';
 import { OpenInVSCodeAction } from '../../browser/actions/vscodeActions.js';
-import { Menus } from '../../browser/menus.js';
+import { AgentsWindowMenus } from '../../browser/agentsWindowMenus.js';
 import { IAgentHostSessionsProvider } from '../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
@@ -95,7 +95,7 @@ suite('Open in Editor in Agents windows', () => {
 
 	test('shows in the main window and in chat windows, as the main window always showed it, and not in editor windows', () => {
 		const menus = new OpenInVSCodeAction().desc.menu;
-		const when = (Array.isArray(menus) ? menus : [menus]).find(menu => menu?.id === Menus.TitleBarCenterRight)?.when;
+		const when = (Array.isArray(menus) ? menus : [menus]).find(menu => menu?.id === AgentsWindowMenus.TitleBarCenterRight)?.when;
 		const contextKeyService = store.add(new ContextKeyService(new TestConfigurationService()));
 		const shows = (auxiliary: boolean, layoutMode: string | undefined) => {
 			const scoped = store.add(contextKeyService.createScoped(document.createElement('div')));

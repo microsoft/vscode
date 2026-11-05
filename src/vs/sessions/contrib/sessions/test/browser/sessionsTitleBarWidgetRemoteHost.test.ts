@@ -20,7 +20,7 @@ import { MockContextKeyService } from '../../../../../platform/keybinding/test/c
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/browser/environmentService.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
-import { Menus } from '../../../../browser/menus.js';
+import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IChat, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
@@ -67,7 +67,7 @@ suite('SessionsTitleBarWidget - Remote Host', () => {
 		hoverService.setupManagedHover.returns({ ...Disposable.None, show: () => { }, hide: () => { }, update: () => { } });
 		const feedback = store.add(new SessionActionFeedback());
 		const action = new SubmenuItemAction({
-			submenu: Menus.TitleBarSessionTitle,
+			submenu: AgentsWindowMenus.TitleBarSessionTitle,
 			title: 'Show Sessions',
 		}, undefined, []);
 		const widget = store.add(new SessionsTitleBarWidget(

@@ -22,7 +22,7 @@ import { IWorkbenchAssignmentService } from '../../../../workbench/services/assi
 import { ChatEntitlement, IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
-import { NewSessionOnboardingHandoffContext } from '../../../common/contextkeys.js';
+import { NewSessionOnboardingHandoffContext } from '../../../common/agentsWindowContextKeys.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { ISession } from '../../../services/sessions/common/session.js';

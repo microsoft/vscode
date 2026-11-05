@@ -42,7 +42,7 @@ import { ActivePanelContext, IsAuxiliaryWindowContext, LayoutModeContext, PanelV
 import { TerminalContextKeys } from '../../../../../workbench/contrib/terminal/common/terminalContextKey.js';
 import { Menus, SessionActivityBarGroup } from '../../../../browser/menus.js';
 import '../../../../browser/layoutActions.js';
-import { CustomViewVisibleContext } from '../../../../common/contextkeys.js';
+import { CustomViewVisibleContext } from '../../../../common/agentsWindowContextKeys.js';
 import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING } from '../../../../common/sessionConfig.js';
 import { ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
 import { sessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';

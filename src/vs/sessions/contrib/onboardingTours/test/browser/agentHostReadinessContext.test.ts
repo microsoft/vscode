@@ -10,7 +10,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { AgentHostSessionTypesAvailableContext } from '../../../../common/contextkeys.js';
+import { AgentHostSessionTypesAvailableContext } from '../../../../common/agentsWindowContextKeys.js';
 import { SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
 import { IProviderSessionType, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { AgentHostReadinessContextContribution } from '../../browser/agentHostReadinessContext.js';

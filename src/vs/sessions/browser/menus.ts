@@ -18,29 +18,8 @@ export function getNewSessionRepositoryConfigGroup(order: number, actionId: stri
  * Menu IDs for the Agent Sessions workbench layout.
  */
 export const Menus = {
-	SessionsTitle: new MenuId('SessionsTitle'),
-	CommandCenter: new MenuId('SessionsCommandCenter'),
-	CommandCenterCenter: new MenuId('SessionsCommandCenterCenter'),
-	TitleBarContext: new MenuId('SessionsTitleBarContext'),
-	TitleBarLeftLayout: new MenuId('SessionsTitleBarLeftLayout'),
-	TitleBarCenterLeft: new MenuId('SessionsTitleBarCenterLeft'),
-	TitleBarCenterRight: new MenuId('SessionsTitleBarCenterRight'),
-	TitleBarSessionTitle: new MenuId('SessionsTitleBarSessionTitle'),
-	TitleBarSessionMenu: new MenuId('SessionsTitleBarSessionMenu'),
-	TitleBarAccessibility: new MenuId('SessionsTitleBarAccessibility'),
 	BlockedSessionsHeader: new MenuId('SessionsBlockedSessionsHeader'),
 	BlockedSessionsItem: new MenuId('SessionsBlockedSessionsItem'),
-	TitleBarRightLayout: new MenuId('SessionsTitleBarRightLayout'),
-	/** The Layout menu of a window with layout modes, such as a chat window: how it shows its chat and its editor parts. */
-	WindowLayout: new MenuId('SessionsWindowLayout'),
-	/**
-	 * The layout actions in the title bar of a window with layout modes, such as a chat window: its Layout menu, and a
-	 * button for each of its actions, which the user shows and hides from the context menu of the buttons.
-	 */
-	TitleBarWindowLayout: new MenuId('SessionsTitleBarWindowLayout'),
-	MobileTitleBarCenter: new MenuId('SessionsMobileTitleBarCenter'),
-	PanelTitle: new MenuId('SessionsPanelTitle'),
-	SidebarTitle: new MenuId('SessionsSidebarTitle'),
 	SidebarSessionsHeader: new MenuId('SessionsSidebarSessionsHeader'),
 	SessionSectionNewSession: new MenuId('SessionsSessionSectionNewSession'),
 	SessionsViewFilter: new MenuId('SessionsViewPaneFilterSubMenu'),
@@ -51,37 +30,21 @@ export const Menus = {
 	SessionsViewSource: new MenuId('SessionsViewSource'),
 	SessionsViewHarness: new MenuId('SessionsViewHarness'),
 	SessionsViewExternalFilter: new MenuId('SessionsViewExternalFilter'),
-	AuxiliaryBarTitle: new MenuId('SessionsAuxiliaryBarTitle'),
-	SidebarFooter: new MenuId('SessionsSidebarFooter'),
 	SidebarCustomizations: new MenuId('SessionsSidebarCustomizations'),
 	SidebarAgentHost: new MenuId('SessionsSidebarAgentHost'),
-	AccountMenu: new MenuId('SessionsAccountMenu'),
-	GoMenu: new MenuId('SessionsGoMenu'),
 	AgentFeedbackEditorContent: new MenuId('AgentFeedbackEditorContent'),
-
-	/** Header actions of the test custom view. */
-	CustomViewTest: new MenuId('SessionsCustomViewTest'),
-
-	/** Header actions of the Automations custom view. */
-	CustomViewAutomations: new MenuId('SessionsCustomViewAutomations'),
-	/** Header actions of the pinned canvas page. */
-	CustomViewCanvas: new MenuId('SessionsCustomViewCanvas'),
 	/** Context menu of a pinned canvas row in the sidebar. */
 	SidebarCanvasContext: new MenuId('SessionsSidebarCanvasContext'),
 	/** Hover toolbar of a pinned canvas row in the sidebar. */
 	SidebarCanvasToolbar: new MenuId('SessionsSidebarCanvasToolbar'),
 	/** Context menu for the Automations sidebar shortcut. */
 	AutomationsContext: new MenuId('SessionsAutomationsContext'),
-	/** Context menu actions for an Automation definition card. */
-	AutomationCardContext: new MenuId('SessionsAutomationCardContext'),
 	/** Unified toolbar for all session-backed Automation history rows. Actions are conditionally shown via sessionItem.status context key. */
 	AutomationsHistoryItem: new MenuId('SessionsAutomationsHistoryItem'),
 	/** Context menu for session-backed Automation history rows. */
 	AutomationsHistoryItemContext: new MenuId('SessionsAutomationsHistoryItemContext'),
 	/** Input toolbar actions in the Automation dialog prompt editor. */
 	AutomationsDialogInputToolbar: new MenuId('AutomationsDialogInputToolbar'),
-	/** Target controls above the Automation dialog prompt editor. */
-	AutomationsDialogTargetToolbar: new MenuId('AutomationsDialogTargetToolbar'),
 
 	/** Input toolbar of the new-session and new-chat composers. */
 	NewSessionChatInputToolbar: new MenuId('NewSessions.ChatInputToolbar'),
@@ -113,19 +76,7 @@ export const Menus = {
 	SessionsEditorHeaderLayout: new MenuId('SessionsEditorHeaderLayout'),
 	SessionsEditorTitle: new MenuId('SessionsEditorTitle'),
 	SessionsDiffEditorView: new MenuId('SessionsDiffEditorView'),
-	SessionsEditorTabsBarContext: new MenuId('SessionsEditorTabsBarContext'),
-	SessionsEditorTabsBarAddTab: new MenuId('SessionsEditorTabsBarAddTab'),
-	SessionsEditorTabsBarAddTabCanvas: new MenuId('SessionsEditorTabsBarAddTabCanvas'),
-	EmptyFileEditorActions: new MenuId('SessionsEmptyFileEditorActions'),
-	EmptySearchEditorActions: new MenuId('SessionsEmptySearchEditorActions'),
-	EmptyBrowserEditorActions: new MenuId('SessionsEmptyBrowserEditorActions'),
 	EmptyChangesActions: new MenuId('SessionsEmptyChangesActions'),
-	/**
-	 * The Add Tab actions listed in place of the watermark in an empty editor
-	 * group. A subset of {@link SessionsEditorTabsBarAddTab}, which still backs
-	 * the group's `+` dropdown.
-	 */
-	SessionsEmptyEditorGroupAddTab: new MenuId('SessionsEmptyEditorGroupAddTab'),
 	/**
 	 * The Session Activity Bar, docked at the right edge of the active chat view, grouped by
 	 * {@link SessionActivityBarGroup}. Each tab entry opens or activates its side pane tab, revealing
@@ -134,7 +85,6 @@ export const Menus = {
 	 * panel toggle after the terminal leave the title bar while the activity bar shows its layout actions.
 	 */
 	SessionActivityBar: new MenuId('SessionActivityBar'),
-	SessionActivityBarCanvas: new MenuId('SessionActivityBarCanvas'),
 	/** The Session Activity Bar's context menu, shown after the activity bar's own entry actions. */
 	SessionActivityBarContext: new MenuId('SessionActivityBarContext'),
 	ChangesFilesView: new MenuId('SessionsChangesFilesView'),
@@ -169,17 +119,4 @@ export const SessionActivityBarGroup = {
 	Panel: '2_panel',
 	/** Links to the active chat's pull requests and issues. */
 	GitHub: '3_github',
-} as const;
-
-/**
- * The groups of the Canvas submenus, {@link Menus.SessionsEditorTabsBarAddTabCanvas} and
- * {@link Menus.SessionActivityBarCanvas}, top to bottom, each shown under a title.
- */
-export const SessionCanvasMenuGroup = {
-	/** The active chat's canvases whose tab was closed but which are still running. */
-	Running: '1_running',
-	/** The canvases that can be opened: the active chat's canvas types and the window's canvases. */
-	Available: '2_available',
-	/** Entries that create a canvas or find more canvas types. */
-	Discover: '3_discover',
 } as const;

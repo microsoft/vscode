@@ -32,7 +32,7 @@ import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/service
 import { ComponentFixtureContext, createEditorServices, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { TestProductService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { OpenInVSCodeAction, OpenInVSCodeWidgetContribution } from '../../../../browser/actions/vscodeActions.js';
-import { Menus } from '../../../../browser/menus.js';
+import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { AGENTS_CARD_SURFACE_CLASS, AGENTS_PART_CARD_CLASS, AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS } from '../../../../browser/parts/agentsPartCard.js';
 import { SessionsPart } from '../../../../browser/parts/sessionsPart.js';
 import { TitlebarPart } from '../../../../browser/parts/titlebarPart.js';
@@ -208,7 +208,7 @@ export function createSessionsWorkbenchFixture(context: ComponentFixtureContext,
 		override readonly requiresInputKind = constObservable(undefined);
 		override consumePendingBlink() { return false; }
 	}();
-	disposableStore.add(actionViewItems.register(Menus.CommandCenter, Menus.TitleBarSessionTitle, (action, options) => action instanceof SubmenuItemAction
+	disposableStore.add(actionViewItems.register(AgentsWindowMenus.CommandCenter, AgentsWindowMenus.TitleBarSessionTitle, (action, options) => action instanceof SubmenuItemAction
 		? instantiationService.createInstance(SessionsTitleBarWidget, action, options, feedback, blockedIndicator)
 		: undefined));
 	disposableStore.add(instantiationService.createInstance(NewSessionActionViewItemContribution));

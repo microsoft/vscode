@@ -15,9 +15,10 @@ import { IContext } from '../../../../../platform/contextkey/common/contextkey.j
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { INewSessionInAgentsWindowOptions, NEW_SESSION_IN_AGENTS_WINDOW_COMMAND_ID, SessionType } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IsAuxiliaryWindowContext, LayoutModeContext, SideBarVisibleContext } from '../../../../../workbench/common/contextkeys.js';
-import { Menus } from '../../../../browser/menus.js';
+import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
-import { SessionsTitleBarNewSessionEnabledContext, SessionsWelcomeVisibleContext } from '../../../../common/contextkeys.js';
+import { SessionsWelcomeVisibleContext } from '../../../../common/contextkeys.js';
+import { SessionsTitleBarNewSessionEnabledContext } from '../../../../common/agentsWindowContextKeys.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { IWindowCanvasService } from '../../../../services/canvas/browser/windowCanvasService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -67,7 +68,7 @@ suite('NewChatInSessionsWindowAction', () => {
 
 	test('shows in the title bar in place of the hidden sessions list of the main window, and of an editor window as before, never in a chat window', () => {
 		const menu = new NewChatInSessionsWindowAction().desc.menu;
-		const when = (Array.isArray(menu) ? menu : [menu]).find(item => item?.id === Menus.TitleBarLeftLayout)?.when;
+		const when = (Array.isArray(menu) ? menu : [menu]).find(item => item?.id === AgentsWindowMenus.TitleBarLeftLayout)?.when;
 		// A chat window has layout modes; the main window and editor windows have none.
 		const shows = (window: { auxiliary: boolean; layoutMode?: string }) => !!when?.evaluate(new class extends mock<IContext>() {
 			override getValue<T>(key: string): T | undefined {

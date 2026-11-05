@@ -19,7 +19,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
-import { SessionsAquariumActiveContext } from '../../../common/contextkeys.js';
+import { SessionsAquariumActiveContext } from '../../../common/agentsWindowContextKeys.js';
 import { disposeSharedFishDefs, Fish, pickRandomSpecies } from './fish.js';
 import { FishFeedingStreak, type FishHungerState } from './fishFeedingStreak.js';
 

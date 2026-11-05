@@ -62,6 +62,7 @@ import { openNewSearchEditor } from '../../../../../workbench/contrib/searchEdit
 import { IFileQuery, ISearchComplete, ISearchService } from '../../../../../workbench/services/search/common/search.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { Menus } from '../../../../browser/menus.js';
+import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { NEW_FILE_TAB_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -76,7 +77,8 @@ import { EmptyFileEditorInput, EmptyFileEditorSerializer } from '../../browser/e
 import { ActiveEditorContext, AuxiliaryBarVisibleContext, EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
 import { TestEnvironmentService, TestLayoutService, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { createFileStat } from '../../../../../workbench/test/common/workbenchTestServices.js';
-import { IsQuickChatSessionContext, DesktopChangesTabAvailableContext, DesktopChangesTabMissingContext, DesktopFilesTabAvailableContext, DesktopFilesTabMissingContext } from '../../../../common/contextkeys.js';
+import { IsQuickChatSessionContext } from '../../../../common/contextkeys.js';
+import { DesktopChangesTabAvailableContext, DesktopChangesTabMissingContext, DesktopFilesTabAvailableContext, DesktopFilesTabMissingContext } from '../../../../common/agentsWindowContextKeys.js';
 
 // Import editor contribution to trigger action registration.
 import { SessionsTabStyleContribution } from '../../browser/editor.contribution.js';
@@ -97,10 +99,10 @@ function appendElement(parent: HTMLElement, className: string): HTMLElement {
 }
 
 function registerEmptyFileEditorActions() {
-	if (MenuRegistry.getMenuItems(Menus.EmptyFileEditorActions).some(item => isIMenuItem(item) && item.command.id === NEW_UNTITLED_FILE_COMMAND_ID)) {
+	if (MenuRegistry.getMenuItems(AgentsWindowMenus.EmptyFileEditorActions).some(item => isIMenuItem(item) && item.command.id === NEW_UNTITLED_FILE_COMMAND_ID)) {
 		return Disposable.None;
 	}
-	return MenuRegistry.appendMenuItem(Menus.EmptyFileEditorActions, {
+	return MenuRegistry.appendMenuItem(AgentsWindowMenus.EmptyFileEditorActions, {
 		command: {
 			id: NEW_UNTITLED_FILE_COMMAND_ID,
 			title: 'New File',
@@ -847,7 +849,7 @@ suite('Sessions - Editor Contribution', () => {
 		const ctrlCmdP = decodeKeybinding(KeyMod.CtrlCmd | KeyCode.KeyP, OS)!.getHashCode();
 		const rule = KeybindingsRegistry.getDefaultKeybindings()
 			.find(item => item.command === OPEN_FILE_IN_EMPTY_EDITOR_COMMAND_ID && item.keybinding?.getHashCode() === ctrlCmdP);
-		const menuItem = MenuRegistry.getMenuItems(Menus.EmptyFileEditorActions)
+		const menuItem = MenuRegistry.getMenuItems(AgentsWindowMenus.EmptyFileEditorActions)
 			.find(item => isIMenuItem(item) && item.command.id === OPEN_FILE_IN_EMPTY_EDITOR_COMMAND_ID);
 		assert.ok(menuItem && isIMenuItem(menuItem));
 		const states = [true, false, undefined].map(focused => {
@@ -1510,8 +1512,8 @@ suite('Sessions - Editor Contribution', () => {
 		const result: Record<string, { readonly listed: boolean; readonly sameWhenAsAddTab?: boolean }> = {};
 		for (const [name, action] of Object.entries(actions)) {
 			const items = Array.isArray(action.desc.menu) ? action.desc.menu : [action.desc.menu];
-			const addTab = items.find(item => item?.id === Menus.SessionsEditorTabsBarAddTab);
-			const list = items.find(item => item?.id === Menus.SessionsEmptyEditorGroupAddTab);
+			const addTab = items.find(item => item?.id === AgentsWindowMenus.SessionsEditorTabsBarAddTab);
+			const list = items.find(item => item?.id === AgentsWindowMenus.SessionsEmptyEditorGroupAddTab);
 			result[name] = list
 				? { listed: true, sameWhenAsAddTab: list.when?.serialize() === addTab?.when?.serialize() && list.order === addTab?.order }
 				: { listed: false };

@@ -17,7 +17,7 @@ import { IAgentPluginService } from '../../../../../workbench/contrib/chat/commo
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
-import { AutomationsCustomViewFocusContext } from '../../../../common/contextkeys.js';
+import { AutomationsCustomViewFocusContext } from '../../../../common/agentsWindowContextKeys.js';
 import { SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IAutomationTemplate, readAutomationTemplates } from './automationTemplates.js';

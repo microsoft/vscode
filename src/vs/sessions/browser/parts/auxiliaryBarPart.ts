@@ -29,7 +29,7 @@ import { ActionsOrientation, IActionViewItem } from '../../../base/browser/ui/ac
 import { IPaneCompositeBarOptions } from '../../../workbench/browser/parts/paneCompositeBar.js';
 import { IMenuService, IMenu, MenuId, MenuItemAction } from '../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
-import { Menus } from '../menus.js';
+import { AgentsWindowMenus } from '../agentsWindowMenus.js';
 import { IHoverService } from '../../../platform/hover/browser/hover.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { IBaseActionViewItemOptions } from '../../../base/browser/ui/actionbar/actionViewItems.js';
@@ -128,7 +128,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			SIDE_BAR_TITLE_BORDER,
 			ViewContainerLocation.AuxiliaryBar,
 			Extensions.Auxiliary,
-			Menus.AuxiliaryBarTitle,
+			AgentsWindowMenus.AuxiliaryBarTitle,
 			notificationService,
 			storageService,
 			contextMenuService,

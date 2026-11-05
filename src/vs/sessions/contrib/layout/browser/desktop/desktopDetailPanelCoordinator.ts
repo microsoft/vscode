@@ -12,7 +12,7 @@ import { IContextKey, IContextKeyService } from '../../../../../platform/context
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { HasDockedDetailsContext } from '../../../../common/contextkeys.js';
+import { HasDockedDetailsContext } from '../../../../common/agentsWindowContextKeys.js';
 import { CHANGES_VIEW_CONTAINER_ID } from '../../../changes/common/changes.js';
 import { IChangesViewService } from '../../../changes/common/changesViewService.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';

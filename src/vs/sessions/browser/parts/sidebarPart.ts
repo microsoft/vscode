@@ -31,7 +31,7 @@ import { IMenuService } from '../../../platform/actions/common/actions.js';
 import { Separator } from '../../../base/common/actions.js';
 import { IHoverService } from '../../../platform/hover/browser/hover.js';
 import { Extensions } from '../../../workbench/browser/panecomposite.js';
-import { Menus } from '../menus.js';
+import { AgentsWindowMenus } from '../agentsWindowMenus.js';
 import { $, append, getWindowId, prepend } from '../../../base/browser/dom.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
 import { isFullscreen, onDidChangeFullscreen } from '../../../base/browser/browser.js';
@@ -123,7 +123,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			SIDE_BAR_TITLE_BORDER,
 			ViewContainerLocation.Sidebar,
 			Extensions.Viewlets,
-			Menus.SidebarTitle,
+			AgentsWindowMenus.SidebarTitle,
 			notificationService,
 			storageService,
 			contextMenuService,
@@ -185,7 +185,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		const footer = append(parent, $('.sidebar-footer.sidebar-action-list'));
 		this.footerContainer = footer;
 
-		this.footerToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, footer, Menus.SidebarFooter, {
+		this.footerToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, footer, AgentsWindowMenus.SidebarFooter, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			toolbarOptions: { primaryGroup: () => true },
 			telemetrySource: 'sidebarFooter',

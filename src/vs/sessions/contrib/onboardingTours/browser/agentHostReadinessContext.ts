@@ -7,7 +7,7 @@ import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
-import { AgentHostSessionTypesAvailableContext } from '../../../common/contextkeys.js';
+import { AgentHostSessionTypesAvailableContext } from '../../../common/agentsWindowContextKeys.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 
 export class AgentHostReadinessContextContribution extends Disposable implements IWorkbenchContribution {

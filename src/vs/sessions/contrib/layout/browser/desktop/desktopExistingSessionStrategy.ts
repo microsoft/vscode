@@ -25,7 +25,8 @@ import { IEditorGroupsService } from '../../../../../workbench/services/editor/c
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService, ISidePaneState, ISidePaneToggleEvent } from '../../../../browser/workbench.js';
-import { HasDockedDetailsContext, DesktopLayoutContext } from '../../../../common/contextkeys.js';
+import { DesktopLayoutContext } from '../../../../common/contextkeys.js';
+import { HasDockedDetailsContext } from '../../../../common/agentsWindowContextKeys.js';
 import { DockedEditorInput } from '../../../../browser/dockedEditorInput.js';
 import { IHostSession, IShownChat } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';

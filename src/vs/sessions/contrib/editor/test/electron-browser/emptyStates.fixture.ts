@@ -52,7 +52,7 @@ import { ITextFileService } from '../../../../../workbench/services/textfile/com
 import { IWorkingCopyService } from '../../../../../workbench/services/workingCopy/common/workingCopyService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureCondition } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 
-import { Menus } from '../../../../../sessions/browser/menus.js';
+import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { EmptyFileEditor } from '../../../../../sessions/contrib/editor/browser/emptyFileEditor.js';
 import '../../../../../sessions/contrib/editor/browser/emptyFileEditor.contribution.js';
 import { EmptyFileEditorInput } from '../../../../../sessions/contrib/editor/browser/emptyFileEditorInput.js';
@@ -105,10 +105,10 @@ function prepareContainer(container: HTMLElement, width = FIXTURE_WIDTH): HTMLEl
 }
 
 function ensureEmptyFileEditorActionRegistration(): void {
-	if (MenuRegistry.getMenuItems(Menus.EmptyFileEditorActions).some(item => isIMenuItem(item) && item.command.id === NEW_UNTITLED_FILE_COMMAND_ID)) {
+	if (MenuRegistry.getMenuItems(AgentsWindowMenus.EmptyFileEditorActions).some(item => isIMenuItem(item) && item.command.id === NEW_UNTITLED_FILE_COMMAND_ID)) {
 		return;
 	}
-	MenuRegistry.appendMenuItem(Menus.EmptyFileEditorActions, {
+	MenuRegistry.appendMenuItem(AgentsWindowMenus.EmptyFileEditorActions, {
 		command: {
 			id: NEW_UNTITLED_FILE_COMMAND_ID,
 			title: 'New File',

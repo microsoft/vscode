@@ -65,7 +65,7 @@ import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from
 import { IActionViewItemFactory, IActionViewItemService, NullActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
-import { AutomationsHasItemsContext } from '../../../../common/contextkeys.js';
+import { AutomationsHasItemsContext } from '../../../../common/agentsWindowContextKeys.js';
 import { getSessionApplication } from '../../../../common/sessionApplication.js';
 import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING } from '../../../../common/sessionConfig.js';
 import { buildAutomationsAccessibleContent } from '../../browser/views/automationsAccessibility.js';
@@ -81,7 +81,7 @@ import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../.
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IMenuService, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
-import { Menus } from '../../../../browser/menus.js';
+import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { ArchiveSessionAction } from '../../browser/views/sessionsViewActions.js';
 import { HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { TestCommandService } from './sessionsListTestUtils.js';
@@ -785,7 +785,7 @@ suite('AutomationsCardsWidget', () => {
 	}
 
 	function renderRefreshButton({ instantiationService, contextKeyService, actionFactories }: ReturnType<typeof setup>): HTMLElement {
-		const action = instantiationService.get(IMenuService).getMenuActions(Menus.CustomViewAutomations, contextKeyService)
+		const action = instantiationService.get(IMenuService).getMenuActions(AgentsWindowMenus.CustomViewAutomations, contextKeyService)
 			.flatMap(([, actions]) => actions).find(action => action.id === 'sessions.automations.refresh')!;
 		const item = disposables.add(actionFactories.get(action.id)!(action, {}, instantiationService, 1)!);
 		const container = document.createElement('div');
@@ -796,7 +796,7 @@ suite('AutomationsCardsWidget', () => {
 	}
 
 	function renderRefreshToolbar({ instantiationService, contextKeyService, actionFactories }: ReturnType<typeof setup>) {
-		const action = instantiationService.get(IMenuService).getMenuActions(Menus.CustomViewAutomations, contextKeyService)
+		const action = instantiationService.get(IMenuService).getMenuActions(AgentsWindowMenus.CustomViewAutomations, contextKeyService)
 			.flatMap(([, actions]) => actions).find(action => action.id === 'sessions.automations.refresh')!;
 		const container = document.createElement('div');
 		document.body.append(container);
@@ -1151,7 +1151,7 @@ suite('AutomationsCardsWidget', () => {
 		widget.focus();
 		const command = CommandsRegistry.getCommand('sessions.automations.refresh')!;
 		await instantiationService.invokeFunction(accessor => command.handler(accessor));
-		const menuActions = instantiationService.get(IMenuService).getMenuActions(Menus.CustomViewAutomations, contextKeyService)
+		const menuActions = instantiationService.get(IMenuService).getMenuActions(AgentsWindowMenus.CustomViewAutomations, contextKeyService)
 			.flatMap(([, actions]) => actions).map(action => action.id);
 		assert.deepStrictEqual({
 			calls: automationService.refreshCalls, errors: refreshErrors,
@@ -1164,7 +1164,7 @@ suite('AutomationsCardsWidget', () => {
 		const { instantiationService, contextKeyService } = setup();
 		const enabled = ChatAutomationsEnabledContext.bindTo(contextKeyService);
 		enabled.set(true);
-		const hasRefresh = () => instantiationService.get(IMenuService).getMenuActions(Menus.CustomViewAutomations, contextKeyService)
+		const hasRefresh = () => instantiationService.get(IMenuService).getMenuActions(AgentsWindowMenus.CustomViewAutomations, contextKeyService)
 			.flatMap(([, actions]) => actions).some(action => action.id === 'sessions.automations.refresh' && action.enabled);
 		const initiallyVisible = hasRefresh();
 		enabled.set(false);
@@ -3252,7 +3252,7 @@ suite('AutomationsCardsWidget', () => {
 			showCalls: 1,
 			existing: item,
 			runCalls: 1,
-			menuId: Menus.AutomationCardContext,
+			menuId: AgentsWindowMenus.AutomationCardContext,
 		});
 	});
 
@@ -3278,7 +3278,7 @@ suite('AutomationsCardsWidget', () => {
 
 		const delegate = openAutomationCardMenu(widget, contextMenuService);
 		const menuActions = instantiationService.get(IMenuService).getMenuActions(
-			Menus.AutomationCardContext,
+			AgentsWindowMenus.AutomationCardContext,
 			delegate.contextKeyService ?? contextKeyService,
 			delegate.menuActionOptions,
 		).flatMap(([, actions]) => actions);
@@ -3301,7 +3301,7 @@ suite('AutomationsCardsWidget', () => {
 				menuOpen: actions?.classList.contains('menu-open'),
 			},
 		}, {
-			menuId: Menus.AutomationCardContext,
+			menuId: AgentsWindowMenus.AutomationCardContext,
 			shouldForwardArgs: true,
 			argument: current,
 			anchor: moreActionsButton,
@@ -3330,7 +3330,7 @@ suite('AutomationsCardsWidget', () => {
 		const menu = () => {
 			const delegate = openAutomationCardMenu(widget, contextMenuService);
 			const actions = instantiationService.get(IMenuService).getMenuActions(
-				Menus.AutomationCardContext, delegate.contextKeyService ?? contextKeyService, delegate.menuActionOptions,
+				AgentsWindowMenus.AutomationCardContext, delegate.contextKeyService ?? contextKeyService, delegate.menuActionOptions,
 			).flatMap(([, actions]) => actions);
 			delegate.onHide?.(false);
 			return actions.find(action => action.id === id);
@@ -3374,10 +3374,10 @@ suite('AutomationsCardsWidget', () => {
 		automationService.setRuns([run()]);
 
 		const delegate = openAutomationCardMenu(widget, contextMenuService);
-		assert.strictEqual(delegate.menuId, Menus.AutomationCardContext);
+		assert.strictEqual(delegate.menuId, AgentsWindowMenus.AutomationCardContext);
 		assert.strictEqual(delegate.menuActionOptions?.arg, source);
 		const menuActions = instantiationService.get(IMenuService).getMenuActions(
-			Menus.AutomationCardContext,
+			AgentsWindowMenus.AutomationCardContext,
 			delegate.contextKeyService ?? contextKeyService,
 			delegate.menuActionOptions,
 		).flatMap(([, actions]) => actions);
@@ -3577,7 +3577,7 @@ suite('AutomationsCardsWidget', () => {
 
 		const delegate = openAutomationCardMenu(widget, contextMenuService);
 		const duplicateActions = instantiationService.get(IMenuService).getMenuActions(
-			Menus.AutomationCardContext,
+			AgentsWindowMenus.AutomationCardContext,
 			delegate.contextKeyService ?? contextKeyService,
 			delegate.menuActionOptions,
 		).flatMap(([, actions]) => actions);
@@ -3604,7 +3604,7 @@ suite('AutomationsCardsWidget', () => {
 			automationService.setAutomations([item]);
 			const delegate = openAutomationCardMenu(widget, contextMenuService);
 			return instantiationService.get(IMenuService).getMenuActions(
-				Menus.AutomationCardContext,
+				AgentsWindowMenus.AutomationCardContext,
 				delegate.contextKeyService ?? contextKeyService,
 				delegate.menuActionOptions,
 			).flatMap(([, actions]) => actions).map(action => action.id);
@@ -3628,7 +3628,7 @@ suite('AutomationsCardsWidget', () => {
 			automationService.setAutomations([item]);
 			const delegate = openAutomationCardMenu(widget, contextMenuService);
 			return instantiationService.get(IMenuService).getMenuActions(
-				Menus.AutomationCardContext,
+				AgentsWindowMenus.AutomationCardContext,
 				delegate.contextKeyService ?? contextKeyService,
 				delegate.menuActionOptions,
 			).flatMap(([, actions]) => actions).map(action => action.id);
@@ -3649,7 +3649,7 @@ suite('AutomationsCardsWidget', () => {
 		const getMenuActions = () => {
 			const delegate = openAutomationCardMenu(widget, contextMenuService);
 			return instantiationService.get(IMenuService).getMenuActions(
-				Menus.AutomationCardContext,
+				AgentsWindowMenus.AutomationCardContext,
 				delegate.contextKeyService ?? contextKeyService,
 				delegate.menuActionOptions,
 			).flatMap(([, actions]) => actions);
@@ -3689,7 +3689,7 @@ suite('AutomationsCardsWidget', () => {
 		const getFirstAction = () => {
 			const delegate = openAutomationCardMenu(widget, contextMenuService);
 			return instantiationService.get(IMenuService).getMenuActions(
-				Menus.AutomationCardContext,
+				AgentsWindowMenus.AutomationCardContext,
 				delegate.contextKeyService ?? contextKeyService,
 				delegate.menuActionOptions,
 			).flatMap(([, actions]) => actions)[0];
@@ -3826,7 +3826,7 @@ suite('AutomationsCardsWidget', () => {
 		automationService.setAutomations([source]);
 		const delegate = openAutomationCardMenu(widget, contextMenuService);
 		const menuActions = instantiationService.get(IMenuService).getMenuActions(
-			Menus.AutomationCardContext,
+			AgentsWindowMenus.AutomationCardContext,
 			delegate.contextKeyService ?? contextKeyService,
 			delegate.menuActionOptions,
 		).flatMap(([, actions]) => actions);
@@ -3921,7 +3921,7 @@ suite('AutomationsCardsWidget', () => {
 			moreActionsRole: 'button',
 			moreActionsHasPopup: 'menu',
 			moreActionsUsesVerticalIcon: true,
-			keyboardMenuIds: [Menus.AutomationCardContext, Menus.AutomationCardContext],
+			keyboardMenuIds: [AgentsWindowMenus.AutomationCardContext, AgentsWindowMenus.AutomationCardContext],
 		});
 	});
 

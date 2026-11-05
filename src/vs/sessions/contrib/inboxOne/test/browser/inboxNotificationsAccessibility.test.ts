@@ -10,7 +10,7 @@ import { AccessibleViewRegistry } from '../../../../../platform/accessibility/br
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { InboxCanvasFocusContext } from '../../../../common/contextkeys.js';
+import { InboxCanvasFocusContext } from '../../../../common/agentsWindowContextKeys.js';
 import { InboxNotificationKind, InboxNotificationPriority, InboxTab } from '../../common/inboxNotificationsService.js';
 import { buildInboxNotificationsAccessibleContent } from '../../browser/inboxNotificationsAccessibility.js';
 

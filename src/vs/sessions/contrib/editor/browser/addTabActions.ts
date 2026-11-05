@@ -23,7 +23,8 @@ import { IEditorGroupsService } from '../../../../workbench/services/editor/comm
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { EditorsOrder, isEditorCommandsContext } from '../../../../workbench/common/editor.js';
 import { ActiveEditorContext, AuxiliaryBarVisibleContext, EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../workbench/common/contextkeys.js';
-import { IsQuickChatSessionContext, DesktopChangesTabAvailableContext, DesktopChangesTabMissingContext, DesktopFilesTabAvailableContext, DesktopFilesTabMissingContext, SessionWithWorkspaceContext } from '../../../common/contextkeys.js';
+import { IsQuickChatSessionContext, SessionWithWorkspaceContext } from '../../../common/contextkeys.js';
+import { DesktopChangesTabAvailableContext, DesktopChangesTabMissingContext, DesktopFilesTabAvailableContext, DesktopFilesTabMissingContext } from '../../../common/agentsWindowContextKeys.js';
 import { SessionsCategories } from '../../../common/categories.js';
 import { CHAT_WINDOW_OPEN_BROWSER_COMMAND_ID, CHAT_WINDOW_OPEN_CHANGES_COMMAND_ID, CHAT_WINDOW_OPEN_FILES_COMMAND_ID, NEW_FILE_TAB_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
@@ -31,6 +32,7 @@ import { SessionChangesEditorInput } from '../../changes/browser/sessionChangesE
 import { getMainWindowHost, ISessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { EmptyFileEditorInput } from './emptyFileEditorInput.js';
 import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
+import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 import { ChatWindowLayoutCommandsContext, resolveChatWindowOfContext } from '../../../../workbench/contrib/chatWindow/browser/chatWindowLayoutActions.js';
 import { IChatWindow, IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 
@@ -127,12 +129,12 @@ export class NewFileTabAction extends Action2 {
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyE,
 			},
 			menu: [{
-				id: Menus.SessionsEditorTabsBarAddTab,
+				id: AgentsWindowMenus.SessionsEditorTabsBarAddTab,
 				group: 'navigation',
 				order: 1,
 				when: filesAddTabWhen
 			}, {
-				id: Menus.SessionsEmptyEditorGroupAddTab,
+				id: AgentsWindowMenus.SessionsEmptyEditorGroupAddTab,
 				group: 'navigation',
 				order: 1,
 				when: filesAddTabWhen
@@ -176,12 +178,12 @@ export class NewBrowserTabAction extends Action2 {
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyB,
 			},
 			menu: [{
-				id: Menus.SessionsEditorTabsBarAddTab,
+				id: AgentsWindowMenus.SessionsEditorTabsBarAddTab,
 				group: 'navigation',
 				order: 2,
 				when: addTabLayoutWhen
 			}, {
-				id: Menus.SessionsEmptyEditorGroupAddTab,
+				id: AgentsWindowMenus.SessionsEmptyEditorGroupAddTab,
 				group: 'navigation',
 				order: 2,
 				when: addTabLayoutWhen
@@ -263,7 +265,7 @@ export class NewSearchTabAction extends Action2 {
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyF,
 			},
 			menu: {
-				id: Menus.SessionsEditorTabsBarAddTab,
+				id: AgentsWindowMenus.SessionsEditorTabsBarAddTab,
 				group: 'navigation',
 				order: 3,
 				// Only offered from the Add Tab dropdown.
@@ -300,12 +302,12 @@ export class NewChangesTabAction extends Action2 {
 				mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KeyG },
 			},
 			menu: [{
-				id: Menus.SessionsEditorTabsBarAddTab,
+				id: AgentsWindowMenus.SessionsEditorTabsBarAddTab,
 				group: 'navigation',
 				order: 0,
 				when: changesAddTabWhen
 			}, {
-				id: Menus.SessionsEmptyEditorGroupAddTab,
+				id: AgentsWindowMenus.SessionsEmptyEditorGroupAddTab,
 				group: 'navigation',
 				order: 0,
 				when: changesAddTabWhen

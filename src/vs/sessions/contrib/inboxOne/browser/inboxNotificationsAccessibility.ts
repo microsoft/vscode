@@ -14,7 +14,7 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
-import { InboxCanvasFocusContext } from '../../../common/contextkeys.js';
+import { InboxCanvasFocusContext } from '../../../common/agentsWindowContextKeys.js';
 import { IInboxNotificationItem, IInboxNotificationsService, IInboxSessionRow } from '../common/inboxNotificationsService.js';
 import { getInboxNotificationLabel, getInboxNotificationPriorityLabel, getInboxTabLabel } from './inboxNotificationsLabels.js';
 import { InboxNotificationsView } from './inboxNotificationsView.js';

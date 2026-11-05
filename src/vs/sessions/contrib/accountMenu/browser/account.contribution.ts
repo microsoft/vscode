@@ -17,7 +17,7 @@ import { IDefaultAccountService } from '../../../../platform/defaultAccount/comm
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { appendUpdateMenuItems as registerUpdateMenuItems } from '../../../../workbench/contrib/update/browser/update.js';
-import { Menus } from '../../../browser/menus.js';
+import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { fillInActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { $, addDisposableListener, append, clearNode, disposableWindowInterval, EventType, getDomNodePagePosition } from '../../../../base/browser/dom.js';
@@ -59,7 +59,7 @@ import { CHAT_PET_OPEN_ACHIEVEMENTS_COMMAND_ID } from '../../../../workbench/con
 import { CHAT_PET_CHANGE_COLOR_COMMAND_ID } from '../../../../workbench/contrib/chat/browser/chatPetColors.js';
 
 // --- Account Menu Items --- //
-const AccountMenu = Menus.AccountMenu;
+const AccountMenu = AgentsWindowMenus.AccountMenu;
 const SessionsTitleBarAccountWidgetAction = 'sessions.action.titleBarAccountWidget';
 const SESSIONS_ACCOUNT_TITLEBAR_PANEL_WIDTH = 400;
 
@@ -92,7 +92,7 @@ export function getChatGPTRateLimitResetHover(rateLimit: ICodexAccountRateLimitI
 }
 
 // Register the shared VS Code update entry in the Agents left titlebar actions.
-registerUpdateTitleBarMenuPlacement(Menus.TitleBarLeftLayout, {
+registerUpdateTitleBarMenuPlacement(AgentsWindowMenus.TitleBarLeftLayout, {
 	group: 'navigation',
 	order: 2,
 	when: ContextKeyExpr.and(
@@ -990,7 +990,7 @@ function hasCodexAccountPanelContentChanged(previous: ICodexAccountViewInfo, cur
 
 // --- Register custom view item --- //
 
-// Actions registered at module level so Menus.TitleBarRightLayout is non-empty when the
+// Actions registered at module level so AgentsWindowMenus.TitleBarRightLayout is non-empty when the
 // toolbar is first constructed. The run() is a no-op — rendering is handled by the custom
 // view items registered in AccountWidgetContribution.
 registerAction2(class extends Action2 {
@@ -999,7 +999,7 @@ registerAction2(class extends Action2 {
 			id: SessionsTitleBarAccountWidgetAction,
 			title: localize2('agentsAccountStatusTitleBar', "Agents Account and Status"),
 			menu: {
-				id: Menus.TitleBarRightLayout,
+				id: AgentsWindowMenus.TitleBarRightLayout,
 				group: 'navigation',
 				order: 100,
 				when: IsAuxiliaryWindowContext.toNegated(),
@@ -1020,7 +1020,7 @@ export class AccountWidgetContribution extends Disposable implements IWorkbenchC
 	) {
 		super();
 
-		this._register(actionViewItemService.register(Menus.TitleBarRightLayout, SessionsTitleBarAccountWidgetAction, (action, options) => {
+		this._register(actionViewItemService.register(AgentsWindowMenus.TitleBarRightLayout, SessionsTitleBarAccountWidgetAction, (action, options) => {
 			return instantiationService.createInstance(TitleBarAccountWidget, action, options);
 		}, undefined));
 	}

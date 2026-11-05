@@ -20,6 +20,7 @@ import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actio
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { Menus } from '../../../browser/menus.js';
+import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 import { SessionsCategories } from '../../../common/categories.js';
 import { ICustomViewService } from '../../../services/customView/browser/customViewService.js';
 import { CanvasesPinnedToSidebarContext, IPinnedCanvas, IPinnedCanvasService, PINNED_CANVAS_PAGE_ID, PinnedCanvasConnectedContext } from '../browser/pinnedCanvases.js';
@@ -171,7 +172,7 @@ class RemoveCanvasFromSidebarAction extends Action2 {
 				order: 10,
 				when: pinnedCanvasesAvailable,
 			}, {
-				id: Menus.CustomViewCanvas,
+				id: AgentsWindowMenus.CustomViewCanvas,
 				group: '2_organize',
 				order: 10,
 				when: pinnedCanvasesAvailable,
@@ -208,7 +209,7 @@ class GoToPinnedCanvasChatAction extends Action2 {
 				order: 10,
 				when: pinnedCanvasesAvailable,
 			}, {
-				id: Menus.CustomViewCanvas,
+				id: AgentsWindowMenus.CustomViewCanvas,
 				group: 'navigation',
 				order: 10,
 				when: pinnedCanvasesAvailable,
@@ -237,7 +238,7 @@ class ClosePinnedCanvasAction extends Action2 {
 				order: 10,
 				when: pinnedCanvasesAvailable,
 			}, {
-				id: Menus.CustomViewCanvas,
+				id: AgentsWindowMenus.CustomViewCanvas,
 				group: '4_manage',
 				order: 10,
 				when: pinnedCanvasesAvailable,

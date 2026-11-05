@@ -26,7 +26,7 @@ import { IViewDescriptorService, ViewContainerLocation } from '../../../workbenc
 import { HoverPosition } from '../../../base/browser/ui/hover/hoverWidget.js';
 import { IMenuService, MenuId } from '../../../platform/actions/common/actions.js';
 import { getContextMenuActions } from '../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { Menus } from '../menus.js';
+import { AgentsWindowMenus } from '../agentsWindowMenus.js';
 import { AbstractPaneCompositePart, CompositeBarPosition } from '../../../workbench/browser/parts/paneCompositePart.js';
 import { Part } from '../../../workbench/browser/part.js';
 import { IPaneCompositeBarOptions } from '../../../workbench/browser/parts/paneCompositeBar.js';
@@ -119,7 +119,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 			PANEL_TITLE_BORDER,
 			ViewContainerLocation.Panel,
 			Extensions.Panels,
-			Menus.PanelTitle,
+			AgentsWindowMenus.PanelTitle,
 			notificationService,
 			storageService,
 			contextMenuService,

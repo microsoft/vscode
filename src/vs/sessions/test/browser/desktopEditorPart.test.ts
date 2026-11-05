@@ -31,7 +31,7 @@ import { NullTelemetryServiceShape } from '../../../platform/telemetry/common/te
 import { TestMenuService, workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { DesktopMainEditorPart } from '../../browser/parts/desktopEditorPart.js';
 import { IEmptyEditorGroup } from '../../browser/parts/emptyEditorGroupAddTab.js';
-import { Menus } from '../../browser/menus.js';
+import { AgentsWindowMenus } from '../../browser/agentsWindowMenus.js';
 import '../../browser/parts/media/editorPart.css';
 import { TestContextViewService } from './testContextViewService.js';
 
@@ -246,10 +246,10 @@ suite('Sessions - Desktop editor part empty group', () => {
 			// `+` and list menus for the first render and again when the group becomes empty again.
 			// Each of the two renders reads the Add Tab menu for the `+` dropdown and its own menu for the list, which also follows changes inside submenus (e.g. Canvas).
 			requestedMenus: [
-				{ id: Menus.SessionsEditorTabsBarAddTab, submenuChanges: false },
-				{ id: Menus.SessionsEmptyEditorGroupAddTab, submenuChanges: true },
-				{ id: Menus.SessionsEditorTabsBarAddTab, submenuChanges: false },
-				{ id: Menus.SessionsEmptyEditorGroupAddTab, submenuChanges: true },
+				{ id: AgentsWindowMenus.SessionsEditorTabsBarAddTab, submenuChanges: false },
+				{ id: AgentsWindowMenus.SessionsEmptyEditorGroupAddTab, submenuChanges: true },
+				{ id: AgentsWindowMenus.SessionsEditorTabsBarAddTab, submenuChanges: false },
+				{ id: AgentsWindowMenus.SessionsEmptyEditorGroupAddTab, submenuChanges: true },
 			],
 			ran: ['test.browser'],
 			submenuOnClick: { items: ['Kusto'], focused: true },

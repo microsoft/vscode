@@ -11,6 +11,7 @@ import { Categories } from '../../platform/action/common/actionCommonCategories.
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../platform/contextkey/common/contextkey.js';
 import { Menus, SessionActivityBarGroup } from './menus.js';
+import { AgentsWindowMenus } from './agentsWindowMenus.js';
 import { ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../platform/keybinding/common/keybindingsRegistry.js';
 import { registerIcon } from '../../platform/theme/common/iconRegistry.js';
@@ -19,11 +20,12 @@ import { TogglePanelAction } from '../../workbench/browser/parts/panel/panelActi
 import { LayoutDensityMenu } from '../../workbench/browser/actions/layoutDensityActions.js';
 import { IsAuxiliaryWindowContext, IsWindowAlwaysOnTopContext, LayoutModeContext, PanelVisibleContext, SideBarVisibleContext } from '../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService, Parts } from '../../workbench/services/layout/browser/layoutService.js';
-import { SessionsWelcomeVisibleContext, CustomViewVisibleContext, DesktopLayoutContext, IsPhoneLayoutContext, SessionActivityBarLayoutActionsContext } from '../common/contextkeys.js';
+import { SessionsWelcomeVisibleContext, DesktopLayoutContext, IsPhoneLayoutContext } from '../common/contextkeys.js';
+import { CustomViewVisibleContext, SessionActivityBarLayoutActionsContext } from '../common/agentsWindowContextKeys.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../common/sessionConfig.js';
 
-MenuRegistry.appendMenuItem(Menus.TitleBarContext, {
+MenuRegistry.appendMenuItem(AgentsWindowMenus.TitleBarContext, {
 	title: localize('layoutDensity', "Layout Density"),
 	submenu: LayoutDensityMenu,
 	group: '2_configuration',
@@ -152,7 +154,7 @@ class ToggleSidebarVisibilityAction extends Action2 {
 			},
 			menu: [
 				{
-					id: Menus.TitleBarLeftLayout,
+					id: AgentsWindowMenus.TitleBarLeftLayout,
 					group: 'navigation',
 					order: 0,
 					when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated())
@@ -182,7 +184,7 @@ class ToggleSidebarVisibilityAction extends Action2 {
 
 registerAction2(ToggleSidebarVisibilityAction);
 
-MenuRegistry.appendMenuItem(Menus.TitleBarAccessibility, {
+MenuRegistry.appendMenuItem(AgentsWindowMenus.TitleBarAccessibility, {
 	command: {
 		id: 'editor.action.toggleScreenReaderAccessibilityMode',
 		title: localize('screenReaderOptimizedBadge', "Screen Reader Optimized"),
@@ -210,14 +212,14 @@ const hidePanelCommand = {
 	precondition: CustomViewVisibleContext.negate()
 };
 
-MenuRegistry.appendMenuItem(Menus.TitleBarSessionMenu, {
+MenuRegistry.appendMenuItem(AgentsWindowMenus.TitleBarSessionMenu, {
 	command: showPanelCommand,
 	group: 'navigation',
 	order: 10,
 	when: ContextKeyExpr.and(titleBarPanelWhen, PanelVisibleContext.toNegated())
 });
 
-MenuRegistry.appendMenuItem(Menus.TitleBarSessionMenu, {
+MenuRegistry.appendMenuItem(AgentsWindowMenus.TitleBarSessionMenu, {
 	command: hidePanelCommand,
 	group: 'navigation',
 	order: 10,
@@ -238,7 +240,7 @@ MenuRegistry.appendMenuItem(Menus.SessionActivityBar, {
 	when: ContextKeyExpr.and(sessionActivityBarPanelWhen, PanelVisibleContext)
 });
 
-MenuRegistry.appendMenuItem(Menus.PanelTitle, {
+MenuRegistry.appendMenuItem(AgentsWindowMenus.PanelTitle, {
 	command: {
 		id: 'workbench.action.closePanel',
 		title: localize('closePanel', "Hide Panel"),
@@ -249,7 +251,7 @@ MenuRegistry.appendMenuItem(Menus.PanelTitle, {
 });
 
 // Floating window controls: always-on-top
-MenuRegistry.appendMenuItem(Menus.TitleBarRightLayout, {
+MenuRegistry.appendMenuItem(AgentsWindowMenus.TitleBarRightLayout, {
 	command: {
 		id: 'workbench.action.toggleWindowAlwaysOnTop',
 		title: localize('toggleWindowAlwaysOnTop', "Toggle Always on Top"),

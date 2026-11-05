@@ -14,9 +14,11 @@ import { ActiveEditorContext, EditorAreaFocusContext, LayoutModeContext, SideBar
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { INewSessionInAgentsWindowOptions } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { Menus } from '../../../browser/menus.js';
+import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 import { resolveDevContainerSourceWorkspace } from '../../../browser/openInVSCodeUtils.js';
 import { isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
-import { SessionsListRearrangeContext, SessionsTitleBarNewSessionEnabledContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { SessionsListRearrangeContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { SessionsTitleBarNewSessionEnabledContext } from '../../../common/agentsWindowContextKeys.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsRecentWorkspacesService } from '../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
@@ -54,7 +56,7 @@ export class NewChatInSessionsWindowAction extends Action2 {
 					when: SessionsListRearrangeContext.negate(),
 				},
 				{
-					id: Menus.TitleBarLeftLayout,
+					id: AgentsWindowMenus.TitleBarLeftLayout,
 					group: 'navigation',
 					order: 1,
 					// In place of the sessions list of the main window while it is hidden; a window with layout modes, such as a chat window, has none.

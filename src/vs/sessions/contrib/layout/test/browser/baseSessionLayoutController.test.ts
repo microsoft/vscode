@@ -19,6 +19,7 @@ import { IMenuItem, isIMenuItem, MenuId, MenuRegistry } from '../../../../../pla
 import { ContextKeyValue, IContext } from '../../../../../platform/contextkey/common/contextkey.js';
 import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../../../common/sessionConfig.js';
 import { Menus } from '../../../../browser/menus.js';
+import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { SessionEditorWorkingSetService } from '../../common/sessionEditorWorkingSet.js';
 import { SessionStatus } from '../../../../services/sessions/common/session.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
@@ -37,7 +38,7 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { IChatWindow, IChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { ChatWindowLayoutMode } from '../../../../../workbench/contrib/chatWindow/common/chatWindowLayout.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { CustomViewVisibleContext } from '../../../../common/contextkeys.js';
+import { CustomViewVisibleContext } from '../../../../common/agentsWindowContextKeys.js';
 import { TOGGLE_SIDE_PANEL_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { addPeerChat, createTestHarness, ICreateOptions, ITestLayoutHarness, makePaneComposite, makeSession, setActiveChat, TestStubEditorInput } from './layoutControllerTestUtils.js';
 
@@ -133,7 +134,7 @@ suite('BaseLayoutController', () => {
 	test('shows the side panel toggle at the top of the session activity bar only while it can show there', () => {
 		disposables.add(BaseLayoutController.registerSidePaneToggleAction());
 		const find = (menu: MenuId) => MenuRegistry.getMenuItems(menu).filter(isIMenuItem).filter(item => item.command.id === 'workbench.action.agentToggleSidePanel');
-		const titleBar = find(Menus.TitleBarSessionMenu)[0];
+		const titleBar = find(AgentsWindowMenus.TitleBarSessionMenu)[0];
 		const activityBar = find(Menus.SessionActivityBar)[0];
 		const appearance = find(MenuId.MenubarAppearanceMenu)[0];
 		// Where the toggle shows in each layout, for a hidden panel and a closed welcome view in the main window.

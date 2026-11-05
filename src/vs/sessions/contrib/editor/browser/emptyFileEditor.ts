@@ -20,7 +20,7 @@ import { IEditorOpenContext } from '../../../../workbench/common/editor.js';
 import { NEW_UNTITLED_FILE_COMMAND_ID } from '../../../../workbench/contrib/files/browser/fileConstants.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IEditorGroup } from '../../../../workbench/services/editor/common/editorGroupsService.js';
-import { Menus } from '../../../browser/menus.js';
+import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 import { SessionsEmptyStateActions } from '../../../browser/parts/sessionsEmptyStateActions.js';
 import { SessionsEmptyStateLayout } from '../../../browser/parts/sessionsEmptyStateLayout.js';
 import { EmptyFileEditorSearch } from './emptyFileEditorSearch.js';
@@ -74,7 +74,7 @@ export class EmptyFileEditor extends EditorPane {
 		const scopedContextKeyService = this._register(this.contextKeyService.createScoped(container));
 		EmptyFileEditorFocusedContext.bindTo(scopedContextKeyService).set(true);
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])));
-		this._register(scopedInstantiationService.createInstance(SessionsEmptyStateActions, actions, Menus.EmptyFileEditorActions, {
+		this._register(scopedInstantiationService.createInstance(SessionsEmptyStateActions, actions, AgentsWindowMenus.EmptyFileEditorActions, {
 			ariaLabel: localize('emptyFileEditor.actions', "Files"),
 			telemetrySource: 'emptyFileEditor.actions',
 			menuOptions: { arg: this },

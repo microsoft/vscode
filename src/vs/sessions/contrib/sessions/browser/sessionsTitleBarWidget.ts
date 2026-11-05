@@ -16,6 +16,7 @@ import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../pla
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { Menus } from '../../../browser/menus.js';
+import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { autorun } from '../../../../base/common/observable.js';
@@ -748,7 +749,7 @@ export class SessionsTitleBarContribution extends Disposable implements IWorkben
 		this._register(registerBlockedSessionsHeaderActions());
 		this._register(registerBlockedSessionsItemActions());
 
-		this._register(actionViewItemService.register(Menus.CommandCenter, Menus.TitleBarSessionTitle, (action, options, scopedInstantiationService) => {
+		this._register(actionViewItemService.register(AgentsWindowMenus.CommandCenter, AgentsWindowMenus.TitleBarSessionTitle, (action, options, scopedInstantiationService) => {
 			if (!(action instanceof SubmenuItemAction)) {
 				return undefined;
 			}
@@ -763,13 +764,13 @@ export class SessionsTitleBarContribution extends Disposable implements IWorkben
 
 export function registerSessionsTitleBarMenus(): IDisposable {
 	return combinedDisposable(
-		MenuRegistry.appendMenuItem(Menus.CommandCenter, {
-			submenu: Menus.TitleBarSessionTitle,
+		MenuRegistry.appendMenuItem(AgentsWindowMenus.CommandCenter, {
+			submenu: AgentsWindowMenus.TitleBarSessionTitle,
 			title: localize('agentSessionsControl', "Agent Sessions"),
 			order: 101,
 			when: ContextKeyExpr.and(IsAuxiliaryWindowContext.negate(), SessionsWelcomeVisibleContext.negate())
 		}),
-		MenuRegistry.appendMenuItem(Menus.TitleBarSessionTitle, {
+		MenuRegistry.appendMenuItem(AgentsWindowMenus.TitleBarSessionTitle, {
 			command: {
 				id: SHOW_SESSIONS_PICKER_COMMAND_ID,
 				title: localize('showSessions', "Show Sessions"),
