@@ -1033,6 +1033,51 @@ suite('TabbedModelPicker', () => {
 		});
 	});
 
+	test('comparison offers Fusion and its tiers without standalone HydraFusion or single-model selection', async () => {
+		const fusion = createFusionModel();
+		const state = observableValue<IModelPickerComparisonState | undefined>('comparison', undefined);
+		const comparison: IModelPickerComparison = {
+			available: constObservable(true), summary: constObservable(undefined), state, label: 'Compare Models',
+			start: () => state.set({
+				title: 'Attempts', description: 'Select models.', summary: '', selectedModelIds: [],
+				multiple: true, maxSelections: 10, canGoBack: false, canGoNext: false, canFinish: false,
+			}, undefined),
+			cancel: () => state.set(undefined, undefined), reset: () => state.set(undefined, undefined),
+			select: id => state.set({ ...state.get()!, selectedModelIds: [id] }, undefined),
+			setCount: () => { }, back: () => { }, next: () => { }, finish: () => { },
+			getVariants: () => [], addVariant: () => { }, removeVariant: () => { },
+		};
+		const { popup, selections, values } = createPicker({
+			models: [fusion, createHydraFusionModel(), createHydraFusionMaxModel(), ...models],
+			selectedModelId: 'copilot/hydrafusion',
+			comparison,
+		});
+		element(popup, '[aria-label="Compare Models"]').click();
+		const rows = listRows(popup);
+		element(popup, '.chat-model-picker-model').click();
+		openDetails(popup, copilotFusionName);
+		const tiers = [...popup.querySelectorAll<HTMLElement>('.chat-model-card [role="radio"]')].map(tier => tier.textContent);
+		element(popup, '.chat-model-card [role="radio"]:last-child').click();
+		await timeout(0);
+		goBack(popup);
+
+		assert.deepStrictEqual({
+			fusionVisible: rows.includes(copilotFusionName),
+			standaloneHydraFusion: rows.some(label => label === 'HydraFusion' || label === 'HydraFusion Max'),
+			tiers,
+			configuration: values.get(fusion.identifier),
+			checked: selectedModels(popup),
+			selections,
+		}, {
+			fusionVisible: true,
+			standaloneHydraFusion: false,
+			tiers: ['Standard', 'High', 'Max'],
+			configuration: { tier: 'hydrafusion-max' },
+			checked: [copilotFusionName],
+			selections: [],
+		});
+	});
+
 	test('compare-mode Details use the destination model schema instead of an unsupported active-harness tier', () => {
 		const codexModel = harnessModel('codex', 'GPT-6.1 Sol');
 		const destinationModel: ILanguageModelChatMetadataAndIdentifier = {

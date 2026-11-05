@@ -4254,7 +4254,7 @@ suite('NewChatWidget', () => {
 		});
 	});
 
-	test('retains comparison models from every harness during model refresh', () => {
+	test('retains comparison models from every harness and Fusion, but not legacy routing models, during model refresh', () => {
 		const model = (identifier: string) => upcastPartial<ILanguageModelChatMetadataAndIdentifier>({
 			identifier,
 			metadata: upcastPartial<ILanguageModelChatMetadata>({ id: identifier, name: identifier }),
@@ -4265,6 +4265,9 @@ suite('NewChatWidget', () => {
 					model('copilot-model'),
 					model('claude-model'),
 					model('codex-model'),
+					{ ...model('fusion'), metadata: { ...model('auto').metadata, autoModelFusion: true } },
+					model('auto'),
+					{ ...model('hydrafusion'), metadata: { ...model('hydrafusion').metadata, modelGroup: { id: 'copilotcli' } } },
 				],
 			},
 		};
@@ -4273,6 +4276,7 @@ suite('NewChatWidget', () => {
 			'copilot-model',
 			'claude-model',
 			'codex-model',
+			'fusion',
 		]);
 	});
 
