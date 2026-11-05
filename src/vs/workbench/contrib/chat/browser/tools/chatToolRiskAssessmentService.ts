@@ -12,8 +12,9 @@ import { createDecorator } from '../../../../../platform/instantiation/common/in
 import { ChatConfiguration } from '../../common/constants.js';
 import { ChatMessageRole, ILanguageModelsService } from '../../common/languageModels.js';
 import { IChatUtilityModelService } from '../../common/chatUtilityModelService.js';
+import { ConfigureAutomationToolReferenceName } from '../../common/automations/automationService.js';
 import { TerminalToolId } from '../../common/tools/terminalToolIds.js';
-import { IToolData } from '../../common/tools/languageModelToolsService.js';
+import { IToolData, ToolDataSource } from '../../common/tools/languageModelToolsService.js';
 
 export const enum ToolRiskLevel {
 	Green = 'green',
@@ -30,10 +31,9 @@ export interface IToolRiskAssessment {
 export const IChatToolRiskAssessmentService = createDecorator<IChatToolRiskAssessmentService>('chatToolRiskAssessmentService');
 
 /**
- * Which rubric the model uses to assess a tool call: `terminal` for a shell command, `generic`
- * for file edits, reads, fetches, and everything else. When omitted, auto-detected from the tool id.
+ * The assessment rubric. When omitted, selected from the tool's identity.
  */
-export type ToolRiskPromptKind = 'terminal' | 'generic';
+export type ToolRiskPromptKind = 'terminal' | 'automation' | 'generic';
 
 export interface IChatToolRiskAssessmentService {
 	readonly _serviceBrand: undefined;
@@ -140,11 +140,11 @@ export class ChatToolRiskAssessmentService implements IChatToolRiskAssessmentSer
 }
 
 /**
- * Resolve which rubric to assess a tool call under. An explicit kind wins; otherwise it is
- * auto-detected from the tool id so `run_in_terminal` keeps the terminal rubric.
+ * An explicit rubric wins; otherwise terminal and built-in automation tools are identified automatically.
  */
 function resolveRiskPromptKind(tool: IToolData, kind: ToolRiskPromptKind | undefined): ToolRiskPromptKind {
-	return kind ?? (tool.id === TerminalToolId.RunInTerminal ? 'terminal' : 'generic');
+	return kind ?? (tool.id === TerminalToolId.RunInTerminal ? 'terminal'
+		: tool.source.type === ToolDataSource.Internal.type && tool.toolReferenceName === ConfigureAutomationToolReferenceName ? 'automation' : 'generic');
 }
 
 /**
@@ -164,7 +164,14 @@ function buildPrompt(tool: IToolData, parameters: unknown, kind: ToolRiskPromptK
 	const argsJson = serializeParameters(parameters);
 	return kind === 'terminal'
 		? buildTerminalPrompt(tool, argsJson)
-		: buildGenericToolPrompt(tool, argsJson);
+		: kind === 'automation' ? buildAutomationPrompt(tool, argsJson) : buildGenericToolPrompt(tool, argsJson);
+}
+
+function buildAutomationPrompt(tool: IToolData, argsJson: string): string {
+	return buildGenericToolPrompt(tool, argsJson, [
+		`For automation creation or updates, explicitly call out extremely permissive settings that auto-approve tool calls (e.g. Copilot "Allow All", Claude "Bypass Permissions", or Codex "Full Access").`,
+		`Judge the configuration values, not the automation's name, prompt or execution mode; manual, assisted, omitted or reset permissions do not establish auto-approval.`,
+	]);
 }
 
 function serializeParameters(parameters: unknown): string {
@@ -247,7 +254,7 @@ function buildTerminalPrompt(tool: IToolData, argsJson: string): string {
 	].join('\n');
 }
 
-function buildGenericToolPrompt(tool: IToolData, argsJson: string): string {
+function buildGenericToolPrompt(tool: IToolData, argsJson: string, extraExplanationRules: readonly string[] = []): string {
 	return [
 		`You assess what one tool call does for a code-editing AI agent, and how risky it is.`,
 		`The tool may edit files, read files, fetch data, or perform some other action.`,
@@ -298,6 +305,7 @@ function buildGenericToolPrompt(tool: IToolData, argsJson: string): string {
 		`  - Cite the ACTUAL files, paths, URLs, or values from the arguments below.`,
 		`  - Never use generic phrases like "may have side effects". Always name WHAT is read or changed.`,
 		`  - Plain prose. No quotes around the sentence. No markdown fences.`,
+		...extraExplanationRules.map(rule => `  - ${rule}`),
 		``,
 		`Tool: ${tool.displayName} (id: ${tool.id})`,
 		`Description: ${tool.modelDescription || tool.userDescription || ''}`,
