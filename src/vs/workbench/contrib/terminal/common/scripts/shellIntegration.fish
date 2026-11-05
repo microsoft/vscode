@@ -149,6 +149,12 @@ end
 
 # Preserve the user's existing prompt, to wrap in our escape sequences.
 function __preserve_fish_prompt --on-event fish_prompt
+	# config.fish has been evaluated by now. Apply the environment variables
+	# before the first prompt is displayed, so that the user's prompt can use
+	# them (for example a tool on a PATH entry added by an extension). The
+	# prompt wrappers run the user's prompt before anything else, so it still
+	# sees the $status and $pipestatus of the last command.
+	__vsc_apply_env_vars
 	if functions --query fish_prompt
 		if functions --query __vsc_fish_prompt
 			# Erase the fallback so it can be set to the user's prompt
@@ -206,8 +212,8 @@ end
 # Sent at the start of the prompt.
 # Marks the beginning of the prompt (and, implicitly, a new line).
 function __vsc_fish_prompt_start
-	# Applying environment variables is deferred to after config.fish has been
-	# evaluated
+	# The environment variables are normally applied before the first prompt
+	# (see __preserve_fish_prompt), in which case this does nothing.
 	__vsc_apply_env_vars
 	__vsc_esc A
 	set -g vsc_initialized 1
