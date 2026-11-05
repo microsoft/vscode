@@ -1919,6 +1919,64 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		for (const sessionCount of [128, 256]) {
+			test(`resolves automation badge sessions in linear work for ${sessionCount} runs`, () => {
+				const sessions = Array.from({ length: sessionCount }, (_, index) => createSession(`automation-${index}`, {
+					resource: URI.parse(`test-session:/Workspace/Automation-${index}`),
+					isRead: index !== 0,
+				}));
+				const duplicate = createSession('duplicate', {
+					resource: URI.parse('test-session:/workspace/automation-0'),
+					isRead: true,
+				});
+				const automationSessions = observableValue<readonly ISession[]>('automationSessions', [...sessions, duplicate]);
+				const runs: readonly IAutomationRun[] = sessions.map((session, index) => ({
+					id: `run-${index}`,
+					automationId: 'automation',
+					status: 'completed',
+					trigger: 'schedule',
+					sessionResource: session.resource.with({ path: session.resource.path.toLowerCase() }),
+					startedAt: '2026-08-10T00:00:00.000Z',
+				}));
+				let comparisonKeys = 0;
+				const extUri = new class extends ExtUri {
+					override getComparisonKey(resource: URI, ignoreFragment = false): string {
+						comparisonKeys++;
+						return super.getComparisonKey(resource, ignoreFragment);
+					}
+				}(() => true);
+				const renderer = new SessionSectionRenderer(
+					true,
+					() => { },
+					constObservable(true),
+					constObservable(new Set<string>()),
+					noHeaderStatusTrigger,
+					new class extends mock<IInstantiationService>() { },
+					NullHoverService,
+					new class extends mock<IContextKeyService>() { },
+					new class extends mock<IAutomationService>() {
+						override readonly automations = constObservable([automationDefinition('automation')]);
+						override readonly runs = constObservable(runs);
+					},
+					automationSessions,
+					new class extends mock<IUriIdentityService>() { override readonly extUri = extUri; },
+					new class extends mock<ICustomViewService>() { },
+					new class extends mock<IMenuService>() { },
+					noKeybindingService,
+				);
+				const status = renderer.automationStatus.get();
+				const initialComparisonKeys = comparisonKeys;
+				automationSessions.set([duplicate, ...sessions], undefined);
+				const reorderedStatus = renderer.automationStatus.get();
+
+				assert.deepStrictEqual({ status, initialComparisonKeys, reorderedStatus }, {
+					status: SessionStatus.Completed,
+					initialComparisonKeys: sessions.length * 2 + 1,
+					reorderedStatus: undefined,
+				});
+			});
+		}
+
 		test('needs-input automation status takes priority over other running runs', () => {
 			const runningSession = createSession('automation-running', {
 				resource: URI.parse('test-session:/Workspace/Automation-Running'),

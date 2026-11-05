@@ -501,7 +501,14 @@ export type ICloudSandboxDiscoveryResult =
 	/** Changes only; sessions absent from this result must be retained. */
 	| { readonly kind: 'incremental'; readonly sessions: readonly ICloudSandboxDiscoveredSession[]; readonly removedTaskIds: readonly string[] }
 	/** Some tasks could not be resolved; only explicitly removed tasks may be dropped. */
-	| { readonly kind: 'partial'; readonly sessions: readonly ICloudSandboxDiscoveredSession[]; readonly removedTaskIds?: readonly string[]; readonly failedTaskIds?: readonly string[] }
+	| {
+		readonly kind: 'partial';
+		readonly sessions: readonly ICloudSandboxDiscoveredSession[];
+		readonly removedTaskIds?: readonly string[];
+		readonly failedTaskIds?: readonly string[];
+		/** The recent inventory window was enumerated; unresolved details are retained for per-task retries. Does not authorize absence pruning. */
+		readonly inventoryComplete?: boolean;
+	}
 	/** Discovery could not run (auth not ready, request failed). Existing state must be left alone. */
 	| { readonly kind: 'failed'; readonly reason: string };
 

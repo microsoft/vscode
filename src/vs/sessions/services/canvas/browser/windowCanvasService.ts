@@ -383,15 +383,18 @@ export class WindowCanvasService extends Disposable implements IWindowCanvasServ
 		}
 		if (!entry.presentation) {
 			const element = $('.window-canvas-content');
+			// The services of the content's scope dispose after the content, which may still use them as it goes away.
 			const store = entry.store.add(new DisposableStore());
+			const scopedServices = entry.store.add(new DisposableStore());
 			try {
-				const context = store.add(this.contextKeyService.createScoped(element));
-				const instantiationService = store.add(this.mainWindowInstantiationService.createChild(new ServiceCollection([IContextKeyService, context])));
+				const context = scopedServices.add(this.contextKeyService.createScoped(element));
+				const instantiationService = scopedServices.add(this.mainWindowInstantiationService.createChild(new ServiceCollection([IContextKeyService, context])));
 				const content = store.add(instantiationService.createInstance<IWindowCanvas>(input.descriptor.ctor));
 				content.render(element);
 				entry.presentation = { element, content };
 			} catch (error) {
 				entry.store.delete(store);
+				entry.store.delete(scopedServices);
 				throw error;
 			}
 		}
