@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
-import { DeferredPromise } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { bufferToReadable, newWriteableBufferStream, streamToBuffer, VSBuffer } from '../../../../../base/common/buffer.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { basename, dirname, extUriBiasedIgnorePathCase, joinPath } from '../../../../../base/common/resources.js';
@@ -15,7 +15,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { getRandomTestPath } from '../../../../../base/test/node/testUtils.js';
 import { WORKING_COPY_BACKUP_TEMP_FILE_SUFFIX } from '../../../../../platform/backup/common/backup.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
-import { FileSystemProviderCapabilities, IFileOpenOptions } from '../../../../../platform/files/common/files.js';
+import { FileSystemProviderCapabilities, IFileDeleteOptions, IFileOpenOptions } from '../../../../../platform/files/common/files.js';
 import { DiskFileSystemProvider } from '../../../../../platform/files/node/diskFileSystemProvider.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { WorkingCopyBackupService } from '../../common/workingCopyBackupService.js';
@@ -33,6 +33,7 @@ function snapshotIdentifiers(identifiers: readonly IWorkingCopyIdentifier[]) {
 class TestBackupFileSystemProvider extends DiskFileSystemProvider {
 	onWrite: (() => void) | undefined;
 	renameError: Error | undefined;
+	deleteError: Error | undefined;
 	bytesWritten = 0;
 	largestWrite = 0;
 	opens = 0;
@@ -70,6 +71,13 @@ class TestBackupFileSystemProvider extends DiskFileSystemProvider {
 			throw this.renameError;
 		}
 		return super.renameFileAtomic(from, to, options);
+	}
+
+	override async delete(resource: URI, options: IFileDeleteOptions): Promise<void> {
+		if (this.deleteError) {
+			throw this.deleteError;
+		}
+		return super.delete(resource, options);
 	}
 }
 
@@ -232,6 +240,54 @@ suite('Streamed working copy backups', () => {
 		const onlyTemporaryFiles = disposables.add(new TestBackupService(joinPath(root, 'backups'), fileService, new NullLogService()));
 		assert.deepStrictEqual(await onlyTemporaryFiles.getBackups(), []);
 	});
+
+	test('joining a failed backup still drains later queued work without rejecting', async () => {
+		const identifier = { resource: joinPath(root, 'failed.txt'), typeId: '' };
+		const laterIdentifier = { resource: joinPath(root, 'later.txt'), typeId: '' };
+		provider.bufferedWrites = true;
+		const firstWrite = new DeferredPromise<void>();
+		provider.onWrite = () => firstWrite.complete();
+		const stream = newWriteableBufferStream();
+		const failed = assert.rejects(service.backup(identifier, stream, 1), /interrupted/);
+		stream.write(VSBuffer.fromString('partial'));
+		await firstWrite.p;
+
+		let joinSettled = false;
+		const joined = service.joinBackups().then(
+			() => { joinSettled = true; return 'fulfilled'; },
+			() => { joinSettled = true; return 'rejected'; },
+		);
+		const laterWrite = new DeferredPromise<void>();
+		provider.onWrite = () => laterWrite.complete();
+		const laterStream = newWriteableBufferStream();
+		const laterBackup = service.backup(laterIdentifier, laterStream, 1);
+		laterStream.write(VSBuffer.fromString('later'));
+		await laterWrite.p;
+
+		stream.error(new Error('interrupted'));
+		await failed;
+		await timeout(0);
+		const settledBeforeDrain = joinSettled;
+		laterStream.end();
+		await laterBackup;
+		const outcome = await joined;
+
+		assert.deepStrictEqual({ settledBeforeDrain, outcome }, { settledBeforeDrain: false, outcome: 'fulfilled' });
+	});
+
+	for (const all of [false, true]) {
+		test(`joining failed ${all ? 'discardBackups' : 'discardBackup'} does not rethrow the operation error`, async () => {
+			const identifier = { resource: joinPath(root, 'document.txt'), typeId: '' };
+			await service.backup(identifier, bufferToReadable(VSBuffer.fromString('previous')), 1);
+			provider.deleteError = new Error('discard failed');
+			const discarded = all ? service.discardBackups() : service.discardBackup(identifier);
+			await Promise.all([
+				assert.rejects(discarded, /discard failed/),
+				service.joinBackups(),
+			]);
+			assert.strictEqual(service.hasBackupSync(identifier, 1), true);
+		});
+	}
 
 	test('migration drains writes and resumes queued backups and discards at the new location', async () => {
 		const identifier = { resource: joinPath(root, 'document.txt'), typeId: '' };

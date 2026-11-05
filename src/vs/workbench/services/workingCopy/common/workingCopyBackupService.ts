@@ -188,7 +188,7 @@ export abstract class WorkingCopyBackupService extends Disposable implements IWo
 			return this.backupPathTransition.p.then(() => this.joinBackups());
 		}
 		if (this.pendingOperations.size > 0) {
-			return Promises.settled([...this.pendingOperations]).then(() => this.impl.joinBackups());
+			return Promise.allSettled([...this.pendingOperations]).then(() => this.impl.joinBackups());
 		}
 		return this.impl.joinBackups();
 	}
