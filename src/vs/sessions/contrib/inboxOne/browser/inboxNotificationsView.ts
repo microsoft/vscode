@@ -420,6 +420,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 	private observedComposerContent: HTMLElement | undefined;
 	private composerInitialization: Promise<void> | undefined;
 	private selectedRowTab: InboxTab | undefined;
+	private retainedReplyRowId: string | undefined;
 	private readonly newSessionElement = $('div.inbox-notifications-new-session');
 	private readonly newSessionDisposables = this._register(new DisposableStore());
 	private readonly newSessionHighlight = this._register(new MutableDisposable());
@@ -922,7 +923,11 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		}));
 		showNewNotificationsButton.label = localize('inboxNotifications.showNewNotifications', "Show Inbox Updates");
 		this._register(showNewNotificationsButton.onDidClick(() => {
-			if (this.applyDeferredUpdates(true)) {
+			const retainedReply = !!this.retainedReplyRowId;
+			if (retainedReply) {
+				this.clearSelectedItem('updatesShown');
+			}
+			if (this.applyDeferredUpdates(true) || retainedReply) {
 				this.logInboxInteraction('deferredUpdates.showNewNotifications', 'banner');
 			}
 		}));
@@ -965,21 +970,25 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 			const tab = this.selectedTab.read(reader);
 			const query = this.searchText.read(reader).toLocaleLowerCase().trim();
 			const rows = this.inboxNotificationsService.sessionRows.read(reader);
+			const categories = this.visibleCategories.read(reader);
+			const sortMode = this.inboxNotificationsService.sortMode.read(reader);
+			const queryKey = JSON.stringify([tab, query, sortMode, [...categories]]);
+			const queryChanged = queryKey !== this.listQueryKey;
 			const selectedId = this.selectedItemId.read(reader);
 			const selected = rows.find(row => row.id === selectedId);
-			if (selectedId && (!selected || selected.tab !== tab)) {
+			const retainReply = !!selected && selected.tab !== tab && !queryChanged
+				&& (this.retainedReplyRowId === selectedId || this.isReplyComposerFocused());
+			// Once retained, incidental blur must not interrupt the same draft on the next update.
+			this.retainedReplyRowId = retainReply ? selectedId : undefined;
+			if (selectedId && (!selected || selected.tab !== tab && !retainReply)) {
 				// Selection cleanup must not apply a deferred snapshot from before the tab change.
 				this.deferredItems = undefined;
 				this.clearSelectedItem(selected ? 'tabChanged' : 'itemRemoved');
 			}
 			const previews = this.inboxNotificationsService.previews.read(reader);
-			const items = rows.filter(row => row.tab === tab && (!query || [
+			const items = rows.filter(row => (row.tab === tab || retainReply && row.id === selectedId) && (!query || [
 				row.title, row.workTitle, row.sessionTitle, row.repositoryLabel, row.previewSignature && previews.get(row.previewSignature),
 			].filter(Boolean).join(' ').toLocaleLowerCase().includes(query)));
-			const categories = this.visibleCategories.read(reader);
-			const sortMode = this.inboxNotificationsService.sortMode.read(reader);
-			const queryKey = JSON.stringify([tab, query, sortMode, [...categories]]);
-			const queryChanged = queryKey !== this.listQueryKey;
 			if (queryChanged) {
 				for (const action of this.rowActions.values()) {
 					action.queryKey = undefined;
@@ -1121,6 +1130,11 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 			&& !!activeElement.closest('.inbox-notifications-chat-part-host');
 	}
 
+	private isReplyComposerFocused(): boolean {
+		const activeElement = getActiveElement();
+		return !!activeElement && this.detailChatElement.contains(activeElement);
+	}
+
 	private renderList(items: readonly IInboxNotificationItem[]): void {
 		const list = this.listContainer.get();
 		if (!list || this._store.isDisposed) {
@@ -1202,7 +1216,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 
 	private renderCard(item: IInboxNotificationItem): HTMLElement {
 		const action = this.rowActions.get(item.id);
-		const signature = `${safeStringify(item)}|${action ? action.succeeded ? 'succeeded' : 'running' : ''}`;
+		const signature = `${safeStringify(item)}|${this.selectedTab.get()}|${action ? action.succeeded ? 'succeeded' : 'running' : ''}`;
 		let rendering = this.cardRenderings.get(item.id);
 		if (!rendering || rendering.signature !== signature) {
 			rendering?.store.dispose();
@@ -1363,6 +1377,9 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 			].filter(Boolean).join('. '));
 		}));
 		const metadata = content.appendChild($('.inbox-notifications-row-metadata'));
+		if (row && row.tab !== this.selectedTab.get()) {
+			metadata.appendChild($('span.inbox-notifications-row-workflow-status', undefined, getInboxTabLabel(row.tab)));
+		}
 		if (rowAction) {
 			const feedback = metadata.appendChild($('.inbox-notifications-row-action-status'));
 			feedback.appendChild(renderIcon(rowAction.succeeded ? Codicon.check : Codicon.loading)).setAttribute('aria-hidden', 'true');
@@ -2832,6 +2849,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		}
 
 		this.endSelectionTelemetry('selectionChanged');
+		this.retainedReplyRowId = undefined;
 		this.selectedRowTab = this.getRow(id)?.tab;
 		this.selectedChatResource = undefined;
 		this.detailExchangeExpanded = this.selectedRowTab === InboxTab.Working;
@@ -2889,6 +2907,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		const restoreComposerFocus = !!focused && (this.detailPaneElement.contains(focused) || this.detailChatElement.contains(focused));
 		this.endSelectionTelemetry(trigger);
 		this.selectedRowTab = undefined;
+		this.retainedReplyRowId = undefined;
 		this.selectedChatResource = undefined;
 		this.selectedItemId.set(undefined, undefined);
 		for (const rendering of this.cardRenderings.values()) {
