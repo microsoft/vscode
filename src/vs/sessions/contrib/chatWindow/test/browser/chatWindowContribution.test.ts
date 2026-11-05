@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable } from '../../../../../base/common/observable.js';
+import { constObservable, derived } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -36,7 +36,7 @@ import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { DesktopLayoutContext, IsQuickChatSessionContext, SessionHasWorkspaceContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { DesktopChangesTabAvailableContext, DesktopFilesTabAvailableContext, SessionsTitleBarNewSessionEnabledContext } from '../../../../common/agentsWindowContextKeys.js';
 import { CHAT_WINDOW_OPEN_BROWSER_COMMAND_ID, CHAT_WINDOW_OPEN_CHANGES_COMMAND_ID, CHAT_WINDOW_OPEN_FILES_COMMAND_ID, NEW_FILE_TAB_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
-import { ActiveSessionHost, ISessionHostService, SessionHostKind } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ISessionHostService, SessionHost, SessionHostKind } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { ISessionChangesService } from '../../../../../workbench/contrib/sessions/common/sessionChangesService.js';
 import { NEW_BROWSER_TAB_COMMAND_ID, NEW_CHANGES_TAB_COMMAND_ID, NEW_SEARCH_TAB_COMMAND_ID, NewBrowserTabAction, NewChangesTabAction, NewFileTabAction, NewSearchTabAction } from '../../../editor/browser/addTabActions.js';
 import '../../../../browser/layoutActions.js';
@@ -314,9 +314,9 @@ suite('Chat window contribution', () => {
 			// The session of the window, which its host shows, differs from the active session of the main window.
 			const windowSession = constObservable<IActiveSession | undefined>(upcastPartial<IActiveSession>({ resource: URI.parse('test:/window'), scopedChatResource: URI.parse('test:/window/chat'), ...withCreatedStatus(constObservable(true)) }));
 			const scoped = disposables.add(new TestInstantiationService());
-			const windowHost = new ActiveSessionHost({ kind: SessionHostKind.ChatWindow, parent: undefined, session: windowSession, chat: constObservable(upcastPartial<IChat>({ resource: URI.parse('test:/window/chat') })), contextKeyService: upcastPartial<IContextKeyService>({}), windowId: constObservable(window.windowId) });
+			const windowHost = new SessionHost({ kind: SessionHostKind.ChatWindow, parent: undefined, session: windowSession, chat: constObservable(upcastPartial<IChat>({ resource: URI.parse('test:/window/chat') })), contextKeyService: upcastPartial<IContextKeyService>({}), windowId: constObservable(window.windowId) });
 			const mainSession = constObservable<IActiveSession | undefined>(upcastPartial<IActiveSession>({ resource: URI.parse('test:/main'), ...withCreatedStatus(constObservable(true)), activeChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('test:/main/chat') })) }));
-			const mainHost = new ActiveSessionHost({ kind: SessionHostKind.MainWindow, parent: undefined, session: mainSession, contextKeyService: upcastPartial<IContextKeyService>({}), windowId: constObservable(mainWindowId) });
+			const mainHost = new SessionHost({ kind: SessionHostKind.MainWindow, parent: undefined, session: mainSession, chat: derived(reader => mainSession.read(reader)?.activeChat.read(reader)), contextKeyService: upcastPartial<IContextKeyService>({}), windowId: constObservable(mainWindowId) });
 			instantiationService.stub(ISessionHostService, upcastPartial<ISessionHostService>({ getHostOfWindow: windowId => windowId === window.windowId ? windowHost : windowId === mainWindowId ? mainHost : undefined }));
 			instantiationService.stub(IChatWindowService, upcastPartial<IChatWindowService>({
 				activeWindow: focusedWindow === 'chat' ? window : undefined,

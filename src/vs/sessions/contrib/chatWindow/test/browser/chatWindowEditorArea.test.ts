@@ -26,7 +26,7 @@ import { IEditorService } from '../../../../../workbench/services/editor/common/
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { IsQuickChatSessionContext, SessionHasWorkspaceContext, SessionsWelcomeVisibleContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
-import { ActiveSessionHost, ISessionHostService, SessionHostKind } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ISessionHostService, SessionHost, SessionHostKind } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IChat } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
@@ -82,7 +82,7 @@ suite('Chat window editor area', () => {
 		// It shows the chat `session` names as its own.
 		const shown = session && upcastPartial<IActiveSession>({ ...session, ...withCreatedStatus(constObservable(true)) });
 		const chat = session?.scopedChatResource && upcastPartial<IChat>({ resource: session.scopedChatResource });
-		const windowHost = new ActiveSessionHost({ kind: SessionHostKind.ChatWindow, parent: undefined, session: constObservable(shown), chat: constObservable(chat), contextKeyService: upcastPartial<IContextKeyService>({}) });
+		const windowHost = new SessionHost({ kind: SessionHostKind.ChatWindow, parent: undefined, session: constObservable(shown), chat: constObservable(chat), contextKeyService: upcastPartial<IContextKeyService>({}) });
 		instantiationService.stub(ISessionHostService, upcastPartial<ISessionHostService>({ getHostOfWindow: () => windowHost }));
 		return instantiationService;
 	}

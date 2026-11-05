@@ -32,7 +32,7 @@ import { IActiveSession, ISessionsManagementService } from '../../../../../workb
 import { IChat, ISessionChangeset, ISessionChangesetOperation, ISessionWorkspace, ISessionFolder, SessionChangesetOperationScope, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IChangesSessionObservables, IChangesSessionScope, IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { actionsNamingSession, ChangesActionsBar, createChangesSessionScope } from '../../../../../workbench/contrib/sessions/browser/changes/changesView.js';
-import { ActiveSessionHost, SessionHostKind } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { SessionHost, SessionHostKind } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 
 suite('ChangesActionsBar', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -158,9 +158,9 @@ suite('ChangesActionsBar', () => {
 			getSessionChanges: (session, chat) => { requested.push(session, chat); return otherChanges; },
 		});
 		const contextKeyService = upcastPartial<IContextKeyService>({});
-		const mainHost = new ActiveSessionHost({ kind: SessionHostKind.MainWindow, parent: undefined, session: constObservable<IActiveSession | undefined>(undefined), contextKeyService });
-		const pane = new ActiveSessionHost({ kind: SessionHostKind.Pane, parent: mainHost, session: constObservable<IActiveSession | undefined>(undefined), contextKeyService });
-		const chatWindowHost = new ActiveSessionHost({ kind: SessionHostKind.ChatWindow, parent: undefined, session: constObservable<IActiveSession | undefined>(undefined), contextKeyService });
+		const mainHost = new SessionHost({ kind: SessionHostKind.MainWindow, parent: undefined, session: constObservable<IActiveSession | undefined>(undefined), chat: constObservable(undefined), contextKeyService });
+		const pane = new SessionHost({ kind: SessionHostKind.Pane, parent: mainHost, session: constObservable<IActiveSession | undefined>(undefined), chat: constObservable(undefined), contextKeyService });
+		const chatWindowHost = new SessionHost({ kind: SessionHostKind.ChatWindow, parent: undefined, session: constObservable<IActiveSession | undefined>(undefined), chat: constObservable(undefined), contextKeyService });
 
 		const mainScope = createChangesSessionScope(changesViewService, pane);
 		const windowScope = createChangesSessionScope(changesViewService, chatWindowHost);

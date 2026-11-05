@@ -12,7 +12,7 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ServiceIdentifier } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
-import { ActiveSessionHost, IFocusedSessionHostService, ISessionHost, ISessionHostService, SessionHostKind } from '../../browser/sessionHost.js';
+import { IFocusedSessionHostService, ISessionHost, ISessionHostService, SessionHost, SessionHostKind } from '../../browser/sessionHost.js';
 import { SessionHostService } from '../../browser/sessionHostService.js';
 import { ISessionsService } from '../../browser/sessionsService.js';
 import { ISessionsPartService, ISessionView } from '../../browser/sessionsPartService.js';
@@ -53,10 +53,12 @@ export function sessionsServiceWithGridHost(gridHost: ISessionHost): ISessionsSe
  * as session views and composers, which nest their hosts in the one they are created in.
  */
 export function stubSessionHosts(instantiationService: TestInstantiationService, store: Pick<DisposableStore, 'add'>, options?: { readonly session?: IObservable<IActiveSession | undefined>; readonly editorGroupsService?: IEditorGroupsService }): { readonly mainHost: ISessionHost; readonly sessionHostService: SessionHostService } {
-	const mainHost = new ActiveSessionHost({
+	const session = options?.session ?? constObservable(undefined);
+	const mainHost = new SessionHost({
 		kind: SessionHostKind.MainWindow,
 		parent: undefined,
-		session: options?.session ?? constObservable(undefined),
+		session,
+		chat: derived(reader => session.read(reader)?.activeChat.read(reader)),
 		contextKeyService: upcastPartial<IContextKeyService>({}),
 		windowId: constObservable(mainWindow.vscodeWindowId),
 	});

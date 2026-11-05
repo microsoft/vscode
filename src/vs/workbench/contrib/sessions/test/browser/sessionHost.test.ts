@@ -6,14 +6,14 @@
 import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
-import { ActiveSessionHost, getMainWindowHost, getWindowHost, ISessionHost, SessionHostKind, shownChatOf } from '../../browser/sessionHost.js';
+import { getMainWindowHost, getWindowHost, ISessionHost, SessionHost, SessionHostKind, shownChatOf } from '../../browser/sessionHost.js';
 import { FocusedSessionHostService, SessionHostService } from '../../browser/sessionHostService.js';
 import { IChat } from '../../common/session.js';
 import { IActiveSession } from '../../common/sessionsManagement.js';
@@ -36,11 +36,12 @@ function session(id: string, activeChat: IChat, options?: { readonly created?: b
 const contextKeyService = upcastPartial<IContextKeyService>({});
 const CHAT_WINDOW_ID = 4242;
 
-function host(kind: SessionHostKind, parent: ISessionHost | undefined, value: IObservable<IActiveSession | undefined>, options?: { readonly windowId?: number; readonly loadingChat?: URI }): ActiveSessionHost {
-	return new ActiveSessionHost({
+function host(kind: SessionHostKind, parent: ISessionHost | undefined, value: IObservable<IActiveSession | undefined>, options?: { readonly windowId?: number; readonly loadingChat?: URI }): SessionHost {
+	return new SessionHost({
 		kind,
 		parent,
 		session: value,
+		chat: derived(reader => value.read(reader)?.activeChat.read(reader)),
 		contextKeyService,
 		windowId: options?.windowId !== undefined ? constObservable(options.windowId) : undefined,
 		loadingChat: options?.loadingChat ? constObservable(options.loadingChat) : undefined,
@@ -252,7 +253,7 @@ suite('SessionHost', () => {
 	test('a chat window that gains focus before its host knows its window becomes the focused host once it does', () => {
 		const { service } = createService();
 		const windowId = observableValue<number | undefined>('windowId', undefined);
-		const chatWindow = new ActiveSessionHost({ kind: SessionHostKind.ChatWindow, parent: undefined, session: constObservable(sessionAInWindow), contextKeyService, windowId });
+		const chatWindow = new SessionHost({ kind: SessionHostKind.ChatWindow, parent: undefined, session: constObservable(sessionAInWindow), chat: constObservable(sessionAInWindow?.activeChat?.get()), contextKeyService, windowId });
 		disposables.add(service.registerHost(chatWindow));
 		const onDidChangeActiveWindow = disposables.add(new Emitter<number>());
 		const focused = disposables.add(new FocusedSessionHostService(service, upcastPartial<IHostService>({ hasFocus: true, onDidChangeActiveWindow: onDidChangeActiveWindow.event })));

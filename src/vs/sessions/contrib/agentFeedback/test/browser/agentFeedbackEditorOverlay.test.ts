@@ -25,7 +25,7 @@ import { AgentFeedbackEditorOverlay, getAgentFeedbackOverlayResourceCandidates }
 import { IAgentFeedbackService } from '../../../../../workbench/contrib/sessions/browser/agentFeedback.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { ActiveSessionHost, ISessionHostService, SessionHostKind } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ISessionHostService, SessionHost, SessionHostKind } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IChat, ISession, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
 
@@ -39,8 +39,8 @@ suite('AgentFeedbackEditorOverlay', () => {
 	 */
 	function stubHosts(instantiationService: TestInstantiationService, main: IActiveSession | undefined, inWindow?: IActiveSession, windowParts: readonly IEditorPart[] = []): void {
 		const contextKeyService = upcastPartial<IContextKeyService>({});
-		const mainHost = new ActiveSessionHost({ kind: SessionHostKind.MainWindow, parent: undefined, session: constObservable(main), contextKeyService });
-		const chatWindowHost = new ActiveSessionHost({ kind: SessionHostKind.ChatWindow, parent: undefined, session: constObservable(inWindow), contextKeyService });
+		const mainHost = new SessionHost({ kind: SessionHostKind.MainWindow, parent: undefined, session: constObservable(main), chat: constObservable(main?.activeChat?.get()), contextKeyService });
+		const chatWindowHost = new SessionHost({ kind: SessionHostKind.ChatWindow, parent: undefined, session: constObservable(inWindow), chat: constObservable(inWindow?.activeChat?.get()), contextKeyService });
 		instantiationService.stub(ISessionHostService, upcastPartial<ISessionHostService>({
 			getHostOfGroup: group => windowParts.some(part => part.groups.includes(group as IEditorGroup)) ? chatWindowHost : mainHost,
 		}));

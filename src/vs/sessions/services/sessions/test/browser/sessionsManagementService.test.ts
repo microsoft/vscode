@@ -84,7 +84,7 @@ import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/service
 import { ChatHostOpenerService, IChatHostOpenerService } from '../../../../../workbench/contrib/sessions/browser/chatHostOpener.js';
 import { SessionActivatingActionRunner } from '../../../../../workbench/contrib/sessions/browser/sessionActionRunner.js';
 import { SessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHostService.js';
-import { ActiveSessionHost, createMainWindowInstantiationService, getMainWindowHost, ISessionHost, ISessionHostService, SessionHost, SessionHostKind } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { createMainWindowInstantiationService, getMainWindowHost, ISessionHost, ISessionHostService, SessionHost, SessionHostKind } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { getSingletonServiceDescriptors } from '../../../../../platform/instantiation/common/extensions.js';
 import { InstantiationService } from '../../../../../platform/instantiation/common/instantiationService.js';
@@ -612,7 +612,7 @@ suite('SessionsManagementService', () => {
 			await view.openSession(parent.resource);
 			await view.moveChatToGrid(parent.sessionId, child.resource, (Reflect.get(view, '_visibility') as VisibleSessions).getGridSlots()[0].id, 'right');
 			const [slot, detached] = view.visibleSessionPanes.get();
-			const chatWindow = new ActiveSessionHost({ kind: SessionHostKind.ChatWindow, parent: undefined, session: constObservable(detached), contextKeyService: upcastPartial<IContextKeyService>({}) });
+			const chatWindow = new SessionHost({ kind: SessionHostKind.ChatWindow, parent: undefined, session: constObservable(detached), chat: constObservable(detached?.activeChat?.get()), contextKeyService: upcastPartial<IContextKeyService>({}) });
 
 			assert.deepStrictEqual({
 				empty,

@@ -34,7 +34,7 @@ import { IActiveSession } from '../../../common/sessionsManagement.js';
 import { IChat, IGitHubPullRequestRef, ISessionWorkspace, SessionStatus } from '../../../common/session.js';
 import { ISessionsProvider } from '../../../common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
-import { ActiveSessionHost, ISessionHost, SessionHostKind } from '../../../browser/sessionHost.js';
+import { ISessionHost, SessionHost, SessionHostKind } from '../../../browser/sessionHost.js';
 import { stubSessionHosts } from '../sessionHostTestUtils.js';
 import { ISessionsService } from '../../../browser/sessionsService.js';
 import { IAgentFeedbackService, ISubmitFeedbackOptions } from '../../../browser/agentFeedback.js';
@@ -124,7 +124,7 @@ suite('SessionInputBanners', () => {
 
 		// Each chat window scopes its views to its own session; the main window to the session it shows.
 		const contextKeyService = upcastPartial<IContextKeyService>({});
-		const hostOf = (kind: SessionHostKind, session: IActiveSession) => new ActiveSessionHost({ kind, parent: undefined, session: constObservable<IActiveSession | undefined>(session), contextKeyService });
+		const hostOf = (kind: SessionHostKind, session: IActiveSession) => new SessionHost({ kind, parent: undefined, session: constObservable<IActiveSession | undefined>(session), chat: constObservable(session?.activeChat?.get()), contextKeyService });
 		const bannersIn = (host: ISessionHost) => {
 			const banners = store.add(instantiationService.createChild(new ServiceCollection([ISessionHost, host])).createInstance(SessionInputBanners));
 			// Every chat window's session view is active, as is the main window's.
@@ -135,7 +135,7 @@ suite('SessionInputBanners', () => {
 			windowA: bannersIn(hostOf(SessionHostKind.ChatWindow, windowA)),
 			windowB: bannersIn(hostOf(SessionHostKind.ChatWindow, windowB)),
 			// A pane of the main window shows the banners of the main window's session.
-			main: bannersIn(new ActiveSessionHost({ kind: SessionHostKind.Pane, parent: hostOf(SessionHostKind.MainWindow, main), session: constObservable<IActiveSession | undefined>(windowA), contextKeyService })),
+			main: bannersIn(new SessionHost({ kind: SessionHostKind.Pane, parent: hostOf(SessionHostKind.MainWindow, main), session: constObservable<IActiveSession | undefined>(windowA), chat: constObservable(windowA?.activeChat?.get()), contextKeyService })),
 		}, {
 			windowA: '1 check failed',
 			windowB: '2 out of 2 checks failed',

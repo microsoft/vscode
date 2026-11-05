@@ -362,23 +362,6 @@ export class SessionHost implements ISessionHost {
 	}
 }
 
-export interface IActiveSessionHostOptions extends Omit<ISessionHostOptions, 'session' | 'chat'> {
-	readonly session: IObservable<IActiveSession | undefined>;
-	/** The chat the host shows of its session, when not the session's active chat. */
-	readonly chat?: IObservable<IChat | undefined>;
-}
-
-/**
- * A host that shows the selected chat of an {@link IActiveSession}, and the session it is a view of.
- *
- * @internal Transitional: hosts own their chat once the chat-window session copy is gone, which removes this class.
- */
-export class ActiveSessionHost extends SessionHost {
-	constructor(options: IActiveSessionHostOptions) {
-		super({ ...options, chat: derived(reader => options.chat?.read(reader) ?? options.session.read(reader)?.activeChat.read(reader)) });
-	}
-}
-
 /** Whether `host` shows `resource`, as its session or its chat. */
 export function hostShows(host: ISessionHost, resource: URI, reader: IReader | undefined): boolean {
 	return isEqual(host.chatResource.read(reader), resource) || isEqual(host.session.read(reader)?.resource, resource);

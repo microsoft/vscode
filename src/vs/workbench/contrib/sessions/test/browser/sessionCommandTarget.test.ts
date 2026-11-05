@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { constObservable } from '../../../../../base/common/observable.js';
+import { constObservable, derived } from '../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Direction } from '../../../../../base/browser/ui/grid/grid.js';
@@ -16,7 +16,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { ActiveSessionHost, IFocusedSessionHostService, ISessionHost, ISessionHostService, SessionHostKind, sessionMenuArgs } from '../../browser/sessionHost.js';
+import { IFocusedSessionHostService, ISessionHost, ISessionHostService, SessionHost, SessionHostKind, sessionMenuArgs } from '../../browser/sessionHost.js';
 import { resolveSessionCommandTarget } from '../../browser/sessionCommandTarget.js';
 import { SessionHostService } from '../../browser/sessionHostService.js';
 import { ISessionsService } from '../../browser/sessionsService.js';
@@ -46,11 +46,11 @@ suite('resolveSessionCommandTarget', () => {
 	function setup(focusedWindow: 'main' | 'chat' = 'main') {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const contextKeyService = upcastPartial<IContextKeyService>({});
-		const mainHost = new ActiveSessionHost({ kind: SessionHostKind.MainWindow, parent: undefined, session: constObservable<IActiveSession | undefined>(sessionB), contextKeyService, windowId: constObservable(mainWindow.vscodeWindowId) });
+		const mainHost = new SessionHost({ kind: SessionHostKind.MainWindow, parent: undefined, session: constObservable<IActiveSession | undefined>(sessionB), chat: constObservable(sessionB?.activeChat?.get()), contextKeyService, windowId: constObservable(mainWindow.vscodeWindowId) });
 		const groups = [upcastPartial<IEditorGroup>({ id: 1, windowId: mainWindow.vscodeWindowId }), upcastPartial<IEditorGroup>({ id: 7, windowId: CHAT_WINDOW_ID })];
 		const sessionsService = sessionsServiceWithGridHost(mainHost);
 		const sessionHostService = disposables.add(new SessionHostService(sessionsService, upcastPartial<IEditorGroupsService>({ getGroup: id => groups.find(group => group.id === id) })));
-		const chatWindowHost = new ActiveSessionHost({ kind: SessionHostKind.ChatWindow, parent: undefined, session: constObservable<IActiveSession | undefined>(sessionAInWindow), contextKeyService, windowId: constObservable(CHAT_WINDOW_ID) });
+		const chatWindowHost = new SessionHost({ kind: SessionHostKind.ChatWindow, parent: undefined, session: constObservable<IActiveSession | undefined>(sessionAInWindow), chat: constObservable(sessionAInWindow?.activeChat?.get()), contextKeyService, windowId: constObservable(CHAT_WINDOW_ID) });
 		disposables.add(sessionHostService.registerHost(chatWindowHost));
 		instantiationService.stub(ISessionHostService, sessionHostService);
 		instantiationService.stub(ISessionsService, sessionsService);
@@ -114,7 +114,7 @@ suite('resolveSessionCommandTarget', () => {
 	test('a session that several windows show resolves to the host in the focused window', () => {
 		const resolveIn = (focusedWindow: 'main' | 'chat') => {
 			const { resolve, mainHost, sessionHostService } = setup(focusedWindow);
-			disposables.add(sessionHostService.registerHost(new ActiveSessionHost({ kind: SessionHostKind.Pane, parent: mainHost, session: constObservable<IActiveSession | undefined>(sessionA), contextKeyService: upcastPartial<IContextKeyService>({}) })));
+			disposables.add(sessionHostService.registerHost(new SessionHost({ kind: SessionHostKind.Pane, parent: mainHost, session: constObservable<IActiveSession | undefined>(sessionA), chat: constObservable(sessionA?.activeChat?.get()), contextKeyService: upcastPartial<IContextKeyService>({}) })));
 			return resolve(sessionA.resource);
 		};
 		assert.deepStrictEqual({ main: resolveIn('main'), chat: resolveIn('chat') }, {
@@ -169,7 +169,7 @@ suite('resolveSessionCommandTarget: panes of the grid', () => {
 		const model = disposables.add(new VisibleSessions(session => session.mainChat.get(), () => [], () => [], () => { }, uriIdentityService));
 		arrange(model);
 		const contextKeyService = upcastPartial<IContextKeyService>({});
-		const mainHost = new ActiveSessionHost({ kind: SessionHostKind.MainWindow, parent: undefined, session: model.activeSession, contextKeyService, windowId: constObservable(mainWindow.vscodeWindowId) });
+		const mainHost = new SessionHost({ kind: SessionHostKind.MainWindow, parent: undefined, session: model.activeSession, chat: derived(reader => model.activeSession.read(reader)?.activeChat.read(reader)), contextKeyService, windowId: constObservable(mainWindow.vscodeWindowId) });
 		// A pane host stands for the pane whose session it shows; the main window's for the grid's active pane.
 		const paneOfHost = (host: ISessionHost) => host === mainHost ? model.activeSession.get() : host.session.get();
 		const sessionsService = upcastPartial<ISessionsService>({
@@ -183,7 +183,7 @@ suite('resolveSessionCommandTarget: panes of the grid', () => {
 		const hostOfPane = new Map<IActiveSession, ISessionHost>();
 		for (const pane of model.gridSessions.get()) {
 			if (pane) {
-				const host = new ActiveSessionHost({ kind: SessionHostKind.Pane, parent: mainHost, session: constObservable(pane), contextKeyService });
+				const host = new SessionHost({ kind: SessionHostKind.Pane, parent: mainHost, session: constObservable(pane), chat: constObservable(pane?.activeChat?.get()), contextKeyService });
 				disposables.add(sessionHostService.registerHost(host));
 				panes.set(host, model.isDetachedPane(pane) ? `${pane.sessionId} (detached)` : pane.sessionId);
 				hostOfPane.set(pane, host);
