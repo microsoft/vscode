@@ -1,0 +1,84 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import type { SkillProvider } from '@github/copilot-sdk';
+import { FileAccess } from '../../../../base/common/network.js';
+import { joinPath } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
+import type { IFileService } from '../../../files/common/files.js';
+import type { ILogService } from '../../../log/common/log.js';
+import { CustomizationType } from '../../common/state/protocol/state.js';
+import { CustomizationLoadStatus, customizationId, type DirectoryCustomization } from '../../common/state/sessionState.js';
+
+const troubleshootName = 'troubleshoot';
+const skillsDirectory = FileAccess.asFileUri('vs/platform/agentHost/node/copilot/skills');
+const troubleshootUri = joinPath(skillsDirectory, 'troubleshoot', 'SKILL.md');
+
+function troubleshootDescriptor() {
+	return {
+		name: troubleshootName,
+		description: localize('copilot.builtinTroubleshoot.description', "Investigate unexpected Copilot session behavior, slow requests, tool failures, and customization loading by analyzing session event logs."),
+		userInvocable: true,
+	};
+}
+
+/** Resolves SDK-owned skill invocations, which have no filesystem path in their SDK event. */
+export function getCopilotBuiltinSkillUri(name: string): URI | undefined {
+	return name === troubleshootName ? troubleshootUri : undefined;
+}
+
+/** Publishes the host-owned skill without exporting session-specific paths to clients. */
+export function buildCopilotBuiltinSkillsContainer(): DirectoryCustomization {
+	const uri = skillsDirectory.toString();
+	const skillUri = troubleshootUri.toString();
+	const { name, description } = troubleshootDescriptor();
+	return {
+		type: CustomizationType.Directory,
+		id: customizationId(uri),
+		uri,
+		name: 'builtin',
+		enabled: true,
+		contents: CustomizationType.Skill,
+		writable: false,
+		load: { kind: CustomizationLoadStatus.Loaded },
+		children: [{
+			type: CustomizationType.Skill,
+			id: customizationId(skillUri),
+			uri: skillUri,
+			name,
+			description,
+		}],
+	};
+}
+
+/** Supplies paths for the exact SDK conversation on create and resume, including peer chats. */
+export function createCopilotSkillProvider(sdkConversationId: string, copilotHome: URI, fileService: IFileService, logService: ILogService): SkillProvider {
+	const sessionStateDirectory = joinPath(copilotHome, 'session-state');
+	const eventsFile = joinPath(sessionStateDirectory, sdkConversationId, 'events.jsonl');
+	return {
+		listSkills: () => [troubleshootDescriptor()],
+		readSkill: async (name, { signal }) => {
+			if (name !== troubleshootName) {
+				return undefined;
+			}
+			signal.throwIfAborted();
+			try {
+				const content = await fileService.readFile(troubleshootUri);
+				signal.throwIfAborted();
+				const context = [
+					`Current conversation events file (JSON-encoded host path): ${JSON.stringify(eventsFile.fsPath)}`,
+					`Session-state directory (JSON-encoded host path): ${JSON.stringify(sessionStateDirectory.fsPath)}`,
+				].join('\n');
+				return content.value.toString().replace('{{COPILOT_SESSION_LOG_CONTEXT}}', () => context);
+			} catch (error) {
+				if (!signal.aborted) {
+					logService.error('[CopilotSkillProvider] Failed to read troubleshoot skill', error);
+				}
+				throw error;
+			}
+		},
+	};
+}

@@ -35,6 +35,9 @@ const commonResourcePatterns = [
 const desktopResourcePatterns = [
 	...commonResourcePatterns,
 
+	// Host-owned Copilot skills
+	'vs/platform/agentHost/node/copilot/skills/**/SKILL.md',
+
 	// HTML
 	'vs/code/electron-browser/workbench/workbench.html',
 	'vs/code/electron-browser/workbench/workbench-dev.html',
@@ -82,6 +85,9 @@ const desktopResourcePatterns = [
 
 // Resources for server target (minimal - no UI)
 const serverResourcePatterns = [
+	// Host-owned Copilot skills (also inherited by server-web)
+	'vs/platform/agentHost/node/copilot/skills/**/SKILL.md',
+
 	// Shell scripts for process monitoring
 	'vs/base/node/cpuUsage.sh',
 	'vs/base/node/ps.sh',

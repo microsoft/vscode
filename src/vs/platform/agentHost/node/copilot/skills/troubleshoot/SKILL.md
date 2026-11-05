@@ -1,9 +1,3 @@
----
-name: troubleshoot
-description: Investigate unexpected behavior in the current Copilot agent session by analyzing its event log. Use when the user asks why something happened, why a request was slow, why a tool was or was not used, or why instructions/skills/agents did not load.
----
-<!-- Customize this skill and select save to override its behavior. Delete that copy to restore the built-in behavior. -->
-
 # Troubleshoot
 
 ## Purpose
@@ -21,12 +15,14 @@ Base every conclusion on evidence from the event log. Do not guess.
 
 ## Locating the Session Log
 
-The skill runs **inside** the session's agent, so the log is on the same machine. It lives outside the workspace — read it via the terminal (`run_in_terminal`), never `grep_search`.
+The skill runs **inside** the Copilot agent host, so the log is on the same machine as the agent, including for SSH, WSL, and container hosts. Use the host's read or terminal tools; workspace-scoped search tools cannot find logs outside the workspace.
 
-1. **If a `Session log:` path is provided with this message, use it.** It may point to a session **other than** the current one (via `#session`) and may be **comma-separated paths** — investigate all of them and compare.
-2. **Sticky reference:** if no path is on the *current* message but an earlier turn in **this conversation** already established a target (a `Session log:` path, or a `#session:` reference), keep analyzing **that same session** for the follow-up. Do **not** fall back to self-discovery here — the newest log is the *current* session, which is the wrong one. Switch only if the user references a new session.
-3. **Otherwise, self-discover it:** pick the **most recently modified** `events.jsonl` under `${XDG_STATE_HOME:-$HOME}/.copilot/session-state/<sessionId>/` — this skill is appending to the current session's log, so it's reliably newest. Honor `XDG_STATE_HOME`, else `$HOME`.
-4. **If none exists** there, this isn't a Copilot session — tell the user the skill supports Copilot sessions only, and stop.
+1. **Attached session:** if the request contains an attached chat session and its session events file, investigate that file rather than the current conversation. Multiple attachments can be compared. A user-provided `Session log:` path also takes precedence over the current conversation.
+2. **Follow-up:** keep analyzing the same referenced session established earlier in this conversation unless the user selects a different target.
+3. **Current conversation:** otherwise use the exact current conversation log below. Do not select the newest log: other conversations can be running concurrently.
+4. **Other sessions:** search the supplied session-state directory only when the user asks to investigate another session without attaching it. Each SDK conversation has its own `<sdk-conversation-id>/events.jsonl` there. If a target is missing or unreadable, report that rather than silently switching sessions.
+
+{{COPILOT_SESSION_LOG_CONTEXT}}
 
 ## Data Source — `events.jsonl`
 
@@ -88,9 +84,9 @@ The VS Code user-data dir depends on the build:
 - macOS: `~/Library/Application Support/Code`
 - Linux: `~/.config/Code`
 
-A new `logs/<timestamp>/` folder is created per VS Code session — pick the **most recently modified** `ahp/ahp-*.jsonl`.
+These logs live on the **VS Code client**, not necessarily on the agent host. For a remote host, ask the user to export or attach the relevant client wire log rather than searching the host for it. A new `logs/<timestamp>/` folder is created per VS Code session — pick the **most recently modified** `ahp/ahp-*.jsonl`.
 
-**Named by _connection_ id, not session id** — one log **multiplexes all sessions on that connection** (no per-session file). Long connections rotate into `ahp-….1.jsonl`, `.2.jsonl`, … (max 5); the active one is the **most recently modified** (the locate commands pick it). Read the newest log for connection-level health; to isolate one session, filter by its id (the `session-state/<sessionId>/` folder name, which appears in frames' `params`/`result`).
+**Named by _connection_ id, not session id** — one log **multiplexes all sessions on that connection** (no per-session file). Long connections rotate into `ahp-….1.jsonl`, `.2.jsonl`, … (max 5); the active one is the **most recently modified** (the locate commands pick it). Read the newest log for connection-level health; to isolate one session, filter by its advertised protocol session or chat URI in frames' `params`/`result`. Do not assume the protocol identity matches the SDK conversation's log-folder name.
 
 **If no `ahp/` folder exists, the wire log is disabled** (it is on by default only in Insiders). Tell the user to set `"chat.agentHost.ahpJsonlLoggingEnabled": true`, restart VS Code, reproduce the issue, then re-run.
 
@@ -115,7 +111,7 @@ Triage: look for `error` frames, requests (`c2s` with an `id`) that have **no ma
 
 ## Tooling Strategy (important)
 
-The event log is outside the workspace, so `grep_search` cannot read it. **Use `run_in_terminal`.**
+The event log can be outside the workspace. Use the host's read or terminal tools with the supplied absolute path, not workspace-scoped search.
 
 ### Do a single triage pass first (important for efficiency)
 
@@ -127,7 +123,7 @@ Each terminal command is a separate round-trip, so **don't run one command per q
 Use a streaming `jq` program (macOS/Linux) or a streaming Node `readline` pass (Windows) — the per-query examples below are the building blocks. Then run targeted follow-ups only to drill in.
 
 ### macOS / Linux / WSL / Git Bash (`grep` / `jq`)
-- Locate the newest log: `ls -t "${XDG_STATE_HOME:-$HOME}"/.copilot/session-state/*/events.jsonl | head -n 1`
+- Use the exact current or attached log path supplied above. To find other sessions, list `*/events.jsonl` under the supplied session-state directory.
 - Check size first: `ls -lh <logPath>`
 - Errors: `grep '"success":false' <logPath>` (tool failures) and `grep '"type":"tool.execution_complete"' <logPath>`
 - Count events by type (streaming): `jq -nr 'reduce inputs as $i ({}; .[$i.type] += 1) | to_entries | sort_by(-.value)[] | "\(.value) \(.key)"' <logPath>`
@@ -138,10 +134,9 @@ Use a streaming `jq` program (macOS/Linux) or a streaming Node `readline` pass (
 ### Windows (PowerShell + Node.js)
 **Do not parse the log with PowerShell JSON.** `Get-Content … | ForEach-Object { ConvertFrom-Json }` (or any per-line `ConvertFrom-Json`) deserializes one object at a time and is slow even on small logs. Use `Select-String` for plain-text matches and a **streaming** `node` pass for anything that needs JSON. Use `jq` instead if it is available.
 
-- Locate the newest log:
+- Locate other session logs only when needed:
   ```powershell
-  $stateHome = if ($env:XDG_STATE_HOME) { $env:XDG_STATE_HOME } else { $HOME }
-  Get-ChildItem (Join-Path $stateHome '.copilot\session-state\*\events.jsonl') | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+  Get-ChildItem (Join-Path '<session-state directory supplied above>' '*\events.jsonl')
   ```
 - Check size first: `(Get-Item <logPath>).Length`
 - Plain-text matches (fast, streaming, no parsing): `Select-String '"success":false' <logPath>`
@@ -157,7 +152,7 @@ Use a streaming `jq` program (macOS/Linux) or a streaming Node `readline` pass (
 
 ## Investigation Workflow
 
-1. Locate `events.jsonl` and run the single triage pass.
+1. Use the attached or current conversation log identified above and run the single triage pass.
 2. Match the symptom: **errors** → `success:false`; **latency** → gaps between `assistant.turn_start` and its `assistant.message`, or a tool's start↔complete; **tool / model / input** → the relevant event type; **agent-host / transport** failure (local) → also the Wire Log.
 3. Read only the relevant slices, then determine the most likely root cause (order contributing factors by impact) and give concrete next steps.
 
@@ -174,5 +169,5 @@ Cover **what happened and why** (root cause), **key evidence** (paraphrased — 
 ## Important Rules
 
 - Base every claim on log evidence — never assume causality.
-- Search via `run_in_terminal`; never `grep_search`, and never `read_file` a whole (possibly huge) log — narrow first, then read small ranges.
+- Search via the host's terminal tools; never workspace-scoped search, and never read a whole (possibly huge) log — narrow first, then read small ranges.
 - If no Copilot session log exists, say so and stop.

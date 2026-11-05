@@ -22,7 +22,6 @@ import { ServicesAccessor } from '../../../../../platform/instantiation/common/i
 import { IChatWidget } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IDynamicVariable } from '../../../../../workbench/contrib/chat/common/attachments/chatVariables.js';
 import { ChatRequestDynamicVariablePart } from '../../../../../workbench/contrib/chat/common/requestParser/chatParserTypes.js';
-import { getSessionReferenceResource } from '../../../../services/sessions/browser/sessionReference.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { SessionReferenceCompletions } from '../../browser/sessionReferenceCompletions.js';
@@ -113,24 +112,28 @@ suite('SessionReferenceCompletions', () => {
 		});
 	});
 
-	test('accepting a session adds an inline reference that troubleshooting resolves to that session', () => {
+	test('accepting a session adds a general session reference without a troubleshooting command', () => {
 		const { complete, added } = createCompletions();
-		const text = '/troubleshoot #sess';
+		const text = 'Compare #sess';
 		const item: CompletionItem = complete(text)!.suggestions[2];
 		CommandsRegistry.getCommand(item.command!.id)!.handler(upcastPartial<ServicesAccessor>({}), ...item.command!.arguments!);
 
 		// The input's request parser turns the inline reference into the request's attachment.
 		const [reference] = added;
 		const referenceText = '#session:Fix the bug';
-		const entry = new ChatRequestDynamicVariablePart(new OffsetRange(14, 14 + referenceText.length), reference.range, referenceText, reference.id, reference.modelDescription, reference.data, reference.fullName).toVariableEntry();
+		const entry = new ChatRequestDynamicVariablePart(new OffsetRange(8, 8 + referenceText.length), reference.range, referenceText, reference.id, reference.modelDescription, reference.data, reference.fullName).toVariableEntry();
 
 		assert.deepStrictEqual({
 			range: reference.range,
 			id: entry.id,
-			resolved: getSessionReferenceResource(entry)?.toString(),
+			kind: entry.kind,
+			name: entry.name,
+			resolved: URI.isUri(entry.value) ? entry.value.toString() : undefined,
 		}, {
-			range: new Range(1, 15, 1, 15 + referenceText.length),
-			id: 'session:older',
+			range: new Range(1, 9, 1, 9 + referenceText.length),
+			id: 'agent-host-copilotcli:/older',
+			kind: 'sessionReference',
+			name: 'Fix the bug',
 			resolved: 'agent-host-copilotcli:/older',
 		});
 	});

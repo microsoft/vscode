@@ -5637,7 +5637,7 @@ suite('SessionsManagementService', () => {
 		assert.strictEqual(view.activeSession.get()?.sessionId, 's1');
 	});
 
-	test('only appends the session log to the exact troubleshoot command', async () => {
+	test('forwards prompts and session references unchanged without special troubleshoot augmentation', async () => {
 		const chat: IChat = { ...stubChat, resource: URI.parse('test:///chat') };
 		const session = stubSession({
 			sessionId: 'session',
@@ -5646,28 +5646,20 @@ suite('SessionsManagementService', () => {
 			chats: constObservable([chat]),
 			mainChat: constObservable(chat),
 		});
-		const sentQueries: string[] = [];
+		const sent: ISendRequestOptions[] = [];
 		const provider = new class extends TestSessionsProvider {
 			override async sendRequest(_sessionId: string, _chatResource: URI, options: ISendRequestOptions): Promise<ISession> {
-				sentQueries.push(options.query);
+				sent.push(options);
 				return session;
 			}
 		}(session);
 		const { service } = createSessionsManagementService(session, disposables, provider);
-
-		for (const query of ['/troubleshoot', '  /troubleshoot investigate this', '/troubleshoot-flaky-tests build', '/troubleshooter']) {
-			await service.sendRequest(session, chat, { query });
+		const attachment = { kind: 'sessionReference' as const, id: 'target', name: 'Target', value: URI.parse('agent-host-copilotcli:/target') };
+		const requests: ISendRequestOptions[] = ['/troubleshoot', 'Compare #session:Target', '/troubleshoot-flaky-tests build'].map(query => ({ query, attachedContext: [attachment] }));
+		for (const options of requests) {
+			await service.sendRequest(session, chat, options);
 		}
-
-		assert.deepStrictEqual(sentQueries.map(query => ({
-			command: query.split('\n', 1)[0],
-			hasSessionLog: query.includes('\n\nSession log:'),
-		})), [
-			{ command: '/troubleshoot', hasSessionLog: true },
-			{ command: '  /troubleshoot investigate this', hasSessionLog: true },
-			{ command: '/troubleshoot-flaky-tests build', hasSessionLog: false },
-			{ command: '/troubleshooter', hasSessionLog: false },
-		]);
+		assert.deepStrictEqual(sent, requests);
 	});
 
 	for (const newSession of [true, false]) {

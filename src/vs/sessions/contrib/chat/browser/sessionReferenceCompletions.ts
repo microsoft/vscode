@@ -18,7 +18,7 @@ import { IChatWidget } from '../../../../workbench/contrib/chat/browser/chat.js'
 import { ChatDynamicVariableModel } from '../../../../workbench/contrib/chat/browser/attachments/chatDynamicVariables.js';
 import { getCopilotCliSessionRawId } from '../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
 import { IDynamicVariable } from '../../../../workbench/contrib/chat/common/attachments/chatVariables.js';
-import { createSessionReferenceVariableEntry } from '../../../services/sessions/browser/sessionReference.js';
+import { ChatSessionReferenceVariableId } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 
@@ -43,9 +43,8 @@ CommandsRegistry.registerCommand(ADD_SESSION_REFERENCE_COMMAND, (_accessor, args
  * Provides `#session` completions in an Agents window composer: one item per
  * Copilot CLI session (active, past or archived) on the host of the composer's
  * session. Accepting an item inserts an inline `#session:<title>` reference,
- * which the sessions management service resolves to that session's event log
- * for the `/troubleshoot` skill. The workbench's own `#session` completions
- * reference a session resource instead, which that skill cannot use.
+ * which uses the workbench's session-reference attachment path to provide the
+ * session's event log independently of the prompt or skill being used.
  */
 export class SessionReferenceCompletions extends Disposable {
 
@@ -96,16 +95,15 @@ export class SessionReferenceCompletions extends Disposable {
 			.filter((entry): entry is { session: ISession; rawId: string } => entry.rawId !== undefined && entry.session.resource.scheme === currentResource.scheme)
 			.sort((a, b) => b.session.updatedAt.get().getTime() - a.session.updatedAt.get().getTime());
 
-		return sessions.map(({ session, rawId }, index): CompletionItem => {
+		return sessions.map(({ session }, index): CompletionItem => {
 			// One line, so the inline reference stays on one line.
 			const title = session.title.get().replace(/\s+/g, ' ').trim() || localize('untitledSession', "Untitled session");
 			const date = session.updatedAt.get().toLocaleString();
 			const referenceText = `${VARIABLE_LEADER}${SESSION_TOKEN}:${title}`;
-			const entry = createSessionReferenceVariableEntry(rawId, title, session.resource);
 			const reference: IDynamicVariable = {
-				id: entry.id,
-				fullName: entry.name,
-				data: entry.value,
+				id: ChatSessionReferenceVariableId,
+				fullName: title,
+				data: session.resource,
 				range: new Range(range.replace.startLineNumber, range.replace.startColumn, range.replace.startLineNumber, range.replace.startColumn + referenceText.length),
 			};
 			return {

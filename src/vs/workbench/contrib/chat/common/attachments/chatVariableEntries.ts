@@ -569,6 +569,8 @@ export interface IChatRequestDebugEventsVariableEntry extends IBaseChatRequestVa
 	readonly sessionResource: URI;
 }
 
+export const ChatSessionReferenceVariableId = 'vscode.sessionReference';
+
 export interface IChatRequestSessionReferenceVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'sessionReference';
 	readonly value: URI;

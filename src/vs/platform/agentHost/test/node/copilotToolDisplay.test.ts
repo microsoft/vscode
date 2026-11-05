@@ -6,6 +6,7 @@
 import assert from 'assert';
 import type { PermissionRequest } from '@github/copilot-sdk';
 import * as marked from '../../../../base/common/marked/marked.js';
+import { FileAccess } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AgentPermissionKind } from '../../common/agent.js';
@@ -1279,6 +1280,19 @@ suite('skill events', () => {
 			withOrigin: { markdown: 'Read skill fs:review' },
 			withoutOrigin: { markdown: 'Read skill' },
 		});
+	});
+
+	test('SDK troubleshoot invocations link to the published builtin without misattributing disk or unknown skills', () => {
+		const builtinUri = FileAccess.asFileUri('vs/platform/agentHost/node/copilot/skills/troubleshoot/SKILL.md');
+		assert.deepStrictEqual([
+			synthesizeSkillToolCall({ name: 'troubleshoot', source: 'sdk', path: '', content: '' }, 'sdk').invocationMessage,
+			synthesizeSkillToolCall({ name: 'troubleshoot', source: 'personal', path: '/user/skills/troubleshoot/SKILL.md', content: '' }, 'disk').invocationMessage,
+			synthesizeSkillToolCall({ name: 'other', source: 'sdk', path: '', content: '' }, 'other').invocationMessage,
+		], [
+			{ markdown: `Read skill [troubleshoot](${builtinUri})` },
+			{ markdown: 'Read skill [troubleshoot](file:///user/skills/troubleshoot/SKILL.md)' },
+			{ markdown: 'Read skill other' },
+		]);
 	});
 
 	test('hides the raw `skill` tool call and synthesizes a tool-start/complete pair from `skill.invoked`', () => {
