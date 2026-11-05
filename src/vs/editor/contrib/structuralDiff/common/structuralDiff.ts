@@ -7,14 +7,12 @@ import { raceCancellationError } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError, onUnexpectedExternalError } from '../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { isHighSurrogate } from '../../../../base/common/strings.js';
 import { Constants } from '../../../../base/common/uint.js';
 import { diffEditorDefaultOptions } from '../../../common/config/diffEditor.js';
 import { clampedInt } from '../../../common/config/editorOptions.js';
 import { IRange, Range } from '../../../common/core/range.js';
-import { RangeMapping } from '../../../common/diff/rangeMapping.js';
 import { LanguageFeatureRegistry } from '../../../common/languageFeatureRegistry.js';
-import { StructuralDiff, StructuralDiffClassification, StructuralDiffContext, StructuralDiffCoverage, StructuralDiffEntity, StructuralDiffNode, StructuralDiffProvider, StructuralDiffResult, StructuralDiffTag, StructuralDiffTextChange, SymbolKind, symbolKindNames } from '../../../common/languages.js';
+import { StructuralDiff, StructuralDiffClassification, StructuralDiffContext, StructuralDiffCoverage, StructuralDiffEntity, StructuralDiffNode, StructuralDiffProvider, StructuralDiffResult, StructuralDiffTag, SymbolKind, symbolKindNames } from '../../../common/languages.js';
 import { ITextModel } from '../../../common/model.js';
 import { IEditorWorkerService } from '../../../common/services/editorWorker.js';
 import { ITextResourceConfigurationService } from '../../../common/services/textResourceConfiguration.js';
@@ -95,7 +93,10 @@ export namespace StructuralDiffs {
 			}
 
 			const context: StructuralDiffContext = {
-				changes: textDiff.changes.flatMap(change => (change.innerChanges ?? [change.toRangeMapping()]).map(mapping => toTextChange(mapping, originalModel, modifiedModel))),
+				changes: textDiff.changes.flatMap(change => (change.innerChanges ?? [change.toRangeMapping()]).map(mapping => ({
+					originalRange: clampRange(originalModel, mapping.originalRange),
+					modifiedRange: clampRange(modifiedModel, mapping.modifiedRange),
+				}))),
 			};
 			for (const provider of providers) {
 				checkCancellation();
@@ -133,53 +134,17 @@ function isEnumValue(enumObject: { readonly [value: number]: string }, value: un
 }
 
 /**
- * Returns the change that a text diff mapping describes. The text diff compares UTF-16 code units, so a change can start
- * or end within a surrogate pair, where `validateRange` would move it. It would move the two ranges differently, for
- * example an empty range instead of extending it, so that they would no longer describe the same change. Instead, a start
- * or end that it would move in either document is extended in both, by the unchanged text next to the change, which is
- * the same in both documents.
+ * Clamps a range to the document, such as the maximal columns of whole-line changes. Ranges are UTF-16 offsets, and the
+ * text diff compares code units, so unlike `validateRange`, this does not move a range out of a surrogate pair. Moving
+ * the two ranges of a change separately would make them describe different changes.
  */
-function toTextChange(mapping: RangeMapping, originalModel: ITextModel, modifiedModel: ITextModel): StructuralDiffTextChange {
-	const sides = [
-		{ model: originalModel, range: clampRange(originalModel, mapping.originalRange) },
-		{ model: modifiedModel, range: clampRange(modifiedModel, mapping.modifiedRange) },
-	];
-	// Invalid text can contain consecutive high surrogates, so the ranges are extended until `validateRange` would leave them unchanged.
-	// A change is extended by the same text in both documents, so both ranges must stay within their lines.
-	let extendStart = 0;
-	while (sides.every(({ range }) => range.startColumn - extendStart > 1)
-		&& sides.some(({ model, range }) => followsHighSurrogate(model, range.startLineNumber, range.startColumn - extendStart))) {
-		extendStart++;
-	}
-	// Unlike a start, `validateRange` does not move an end at the end of a line.
-	let extendEnd = 0;
-	while (sides.every(({ model, range }) => range.endColumn + extendEnd < model.getLineMaxColumn(range.endLineNumber))
-		&& sides.some(({ model, range }) => followsHighSurrogate(model, range.endLineNumber, range.endColumn + extendEnd))) {
-		extendEnd++;
-	}
-	const [originalRange, modifiedRange] = sides.map(({ range }) => new Range(range.startLineNumber, range.startColumn - extendStart, range.endLineNumber, range.endColumn + extendEnd));
-	return { originalRange, modifiedRange };
-}
-
-/** Clamps a range to the document, such as the maximal columns of whole-line changes, without moving it out of surrogate pairs. */
 function clampRange(model: ITextModel, range: IRange): Range {
 	return Range.fromPositions(model.getPositionAt(model.getOffsetAt(Range.getStartPosition(range))), model.getPositionAt(model.getOffsetAt(Range.getEndPosition(range))));
 }
 
-/**
- * Whether the UTF-16 code unit before a position is a high surrogate, so that `validateRange` treats the position as within
- * a surrogate pair. The line is read directly, because reading the text in a range would validate the range.
- */
-function followsHighSurrogate(model: ITextModel, lineNumber: number, column: number): boolean {
-	return column > 1 && isHighSurrogate(model.getLineContent(lineNumber).charCodeAt(column - 2));
-}
-
-/**
- * Returns the range if it addresses existing text in the model without splitting a surrogate pair, like the text changes,
- * because a range that has to be adjusted is not valid.
- */
+/** Returns the range if it lies within the model, because a range that has to be clamped is not valid. */
 function toValidRange(model: ITextModel, range: IRange): Range | undefined {
-	const valid = model.validateRange(range);
+	const valid = clampRange(model, range);
 	return Range.equalsRange(valid, range) ? valid : undefined;
 }
 

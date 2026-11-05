@@ -9,6 +9,8 @@ declare module 'vscode' {
 	 * A textual change between the original and modified documents.
 	 *
 	 * Ranges use zero-based lines and UTF-16 character offsets, with an exclusive end.
+	 * The editor compares UTF-16 code units, so a change can start or end between the
+	 * two code units of a character such as an emoji.
 	 * Replacement ranges need not have the same length.
 	 *
 	 * For example, if the first line of the original document is `foo(a, b)`:
