@@ -22,7 +22,7 @@ import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../.
 import { getChatNotificationResource } from '../../../../../workbench/contrib/chat/common/chatNotification.js';
 import { hashSessionIdForTelemetry } from '../../../../common/sessionsTelemetry.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../../common/session.js';
-import { getSessionComparisonHarnessDisplayLabel, getSessionComparisonWorkspaceError, ISessionComparisonHarness, ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, SessionComparisonParticipantRole, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../common/sessionComparison.js';
+import { getSessionComparisonHarnessDisplayLabel, getSessionComparisonWorkspaceError, ISessionComparison, ISessionComparisonHarness, ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, SessionComparisonParticipantRole, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../common/sessionComparison.js';
 import { IChatDeletedEvent, ICreateNewSessionOptions, ISendRequestOptions, ISessionsManagementService, NewSessionRequestOptions } from '../../common/sessionsManagement.js';
 import { IChatMovedEvent, ISessionChangeEvent } from '../../common/sessionsProvider.js';
 import { IDeletedSessionGroups, ISessionGroup, ISessionGroupsChangeEvent, ISessionGroupsService } from '../../browser/sessionGroupsService.js';
@@ -99,7 +99,7 @@ suite('SessionComparisonService', () => {
 				}
 			}
 		}();
-		const service = disposables.add(new SessionComparisonService(
+		let service = disposables.add(new SessionComparisonService(
 			sessionsManagementService,
 			groupsService,
 			storageService,
@@ -107,7 +107,26 @@ suite('SessionComparisonService', () => {
 			chatService,
 			telemetryService,
 		));
-		return { service, sessionsManagementService, groupsService, storageService, chatService, telemetryService };
+		async function restoreNestedComparison(comparison: ISessionComparison): Promise<SessionComparisonService> {
+			const sessions = comparison.participants.flatMap(participant => {
+				const session = participant.sessionResource ? sessionsManagementService.getSession(participant.sessionResource) : undefined;
+				return session ? [session] : [];
+			});
+			const parent = sessions[0];
+			service.dispose();
+			const stored: { id: string; sessionResource?: string }[] = JSON.parse(storageService.get('sessions.comparisons', StorageScope.PROFILE)!);
+			stored.find(record => record.id === comparison.id)!.sessionResource = parent.resource.toString();
+			storageService.store('sessions.comparisons', JSON.stringify(stored), StorageScope.PROFILE, StorageTarget.MACHINE);
+			service = disposables.add(new SessionComparisonService(sessionsManagementService, groupsService, storageService, new NullLogService(), chatService, telemetryService));
+			for (const session of sessions.slice(1)) {
+				const anchor = parent.chats.get().findLast(chat => chat.origin?.kind !== ChatOriginKind.Tool && chat.interactivity.get() !== ChatInteractivity.Hidden);
+				await sessionsManagementService.moveSessionUnder(session, parent, anchor);
+			}
+			await sessionsManagementService.renameSession(parent, comparison.title);
+			groupsService.deleteGroup(comparison.groupId, { automatic: true });
+			return service;
+		}
+		return { service, sessionsManagementService, groupsService, storageService, chatService, telemetryService, restoreNestedComparison };
 	}
 
 	test('rejects comparison setup without deleting a successfully launched attempt', async () => {
@@ -158,8 +177,8 @@ suite('SessionComparisonService', () => {
 		await assert.rejects(service.startComparison({ ...startOptions(), judgeHarness: undefined }), /requires a Judge/);
 	});
 
-	test('nests multi-harness attempts and evaluators while tracking their own status and identities across reload', async () => {
-		const { service, sessionsManagementService, groupsService, storageService, chatService } = createServices();
+	test('restores nested multi-harness attempts and evaluators while tracking their own status and identities across reload', async () => {
+		let { service, sessionsManagementService, groupsService, storageService, chatService, restoreNestedComparison } = createServices();
 		const firstStatus = observableValue('first', SessionStatus.Completed);
 		const secondStatus = observableValue('second', SessionStatus.InProgress);
 		const archived = observableValue('archived', false);
@@ -175,6 +194,7 @@ suite('SessionComparisonService', () => {
 		sessionsManagementService.enqueue(stubSession('judge'));
 		chatService.setUsage(second.mainChat.get().resource, []);
 		const comparison = await service.startComparison(startOptions());
+		service = await restoreNestedComparison(comparison);
 		await sessionsManagementService.renameSession(parent, 'My comparison');
 		const beforeCompletion = sessionsManagementService.createCalls.length;
 		const secondChat = chats.get().find(chat => chat.resource.fragment === 'second')!;
@@ -235,21 +255,44 @@ suite('SessionComparisonService', () => {
 		}, { unavailable: ['attempt-two'], archivedAfterChatDeletion: false, archivedAfterParentDeletion: true });
 	});
 
-	test('a refused move retains the comparison and its independently usable sessions', async () => {
+	test('keeps attempts, Judge, and synthesis as peer sessions even when the provider supports nesting', async () => {
 		const { service, sessionsManagementService, groupsService } = createServices();
-		sessionsManagementService.enqueue({ ...stubSession('first'), capabilities: constObservable({ supportsMultipleChats: true }) });
-		sessionsManagementService.enqueue(stubSession('second'));
-		sessionsManagementService.nestChat = () => { throw new Error('Move refused'); };
+		const status = observableValue('status', SessionStatus.InProgress);
+		sessionsManagementService.enqueue({ ...stubSession('first', status), capabilities: constObservable({ supportsMultipleChats: true }) });
+		sessionsManagementService.enqueue(stubSession('second', status));
+		sessionsManagementService.enqueue(stubSession('judge'));
+		sessionsManagementService.enqueue(stubSession('synthesis'));
+		sessionsManagementService.nestChat = () => { throw new Error('Comparison participants must remain peers'); };
 		const comparison = await service.startComparison(startOptions());
+		status.set(SessionStatus.Completed, undefined);
+		sessionsManagementService.fireChange();
+		await timeout(0);
+		service.submitVerdict(comparison.id, verdict('attempt-one', ['attempt-one', 'attempt-two']));
+		await service.synthesize(comparison.id);
+		const current = service.getComparison(comparison.id)!;
 		assert.deepStrictEqual({
-			parent: comparison.sessionResource,
-			participants: comparison.participants.map(participant => participant.sessionResource?.toString()),
+			parent: current.sessionResource,
+			participants: current.participants.map(participant => ({
+				session: participant.sessionResource?.toString(),
+				chat: participant.chatResource?.toString(),
+				group: groupsService.getGroupOfSession(sessionsManagementService.getSession(participant.sessionResource!)!.sessionId),
+			})),
 			deleted: groupsService.deletedGroupIds,
-		}, { parent: undefined, participants: ['test:/first', 'test:/second'], deleted: [] });
+			moves: sessionsManagementService.moveAnchors,
+			renames: sessionsManagementService.renameCalls,
+		}, {
+			parent: undefined,
+			participants: ['first', 'second', 'judge', 'synthesis'].map(id => ({
+				session: `test:/${id}`, chat: `test-chat:/${id}`, group: comparison.groupId,
+			})),
+			deleted: [],
+			moves: [],
+			renames: [],
+		});
 	});
 
 	test('shared owners retain both comparisons through chat moves and deletions', async () => {
-		const { service, sessionsManagementService } = createServices();
+		let { service, sessionsManagementService, restoreNestedComparison } = createServices();
 		const parents = ['first', 'second'].map(id => {
 			const session = stubSession(id);
 			return { ...session, chats: observableValue<readonly IChat[]>(id, [session.mainChat.get()]), capabilities: constObservable({ supportsMultipleChats: true }) };
@@ -263,7 +306,9 @@ suite('SessionComparisonService', () => {
 		for (const parent of parents) {
 			sessionsManagementService.enqueue(parent);
 			sessionsManagementService.enqueue(stubSession(`${parent.sessionId}-attempt`));
-			comparisons.push(await service.startComparison({ ...startOptions(), judgeHarness: undefined, synthesisHarness: undefined }));
+			const comparison = await service.startComparison({ ...startOptions(), judgeHarness: undefined, synthesisHarness: undefined });
+			service = await restoreNestedComparison(comparison);
+			comparisons.push(comparison);
 		}
 		const [source, destination] = parents;
 		const moved = source.chats.get()[1];
@@ -292,7 +337,7 @@ suite('SessionComparisonService', () => {
 	for (const evaluator of ['judge', 'synthesis'] as const) {
 		for (const destinationKind of ['promoted', 'existing'] as const) {
 			test(`${evaluator} creation preserves an attempt moved elsewhere (${destinationKind} session)`, async () => {
-				const { service, sessionsManagementService, groupsService } = createServices();
+				let { service, sessionsManagementService, groupsService, restoreNestedComparison } = createServices();
 				const status = observableValue('status', SessionStatus.InProgress);
 				const first = stubSession('first', status);
 				const chats = observableValue<readonly IChat[]>('chats', [first.mainChat.get()]);
@@ -306,6 +351,7 @@ suite('SessionComparisonService', () => {
 				sessionsManagementService.enqueue(stubSession('second', status));
 				sessionsManagementService.enqueue(stubSession('judge'));
 				const comparison = await service.startComparison(startOptions());
+				service = await restoreNestedComparison(comparison);
 				if (evaluator === 'synthesis') {
 					status.set(SessionStatus.Completed, undefined);
 					sessionsManagementService.fireChange();
@@ -361,8 +407,8 @@ suite('SessionComparisonService', () => {
 
 	for (const role of [SessionComparisonParticipantRole.Judge, SessionComparisonParticipantRole.Synthesis]) {
 		test(`moved ${role} resolves only its exact live chat and retains that identity through another move`, async () => {
-			const { service, sessionsManagementService, chatService } = createServices();
-			const status = observableValue('status', SessionStatus.Completed);
+			let { service, sessionsManagementService, chatService, restoreNestedComparison } = createServices();
+			const status = observableValue('status', SessionStatus.InProgress);
 			const first = stubSession('first', status);
 			const chats = observableValue<readonly IChat[]>('chats', [first.mainChat.get()]);
 			const parent = { ...first, chats, capabilities: constObservable({ supportsMultipleChats: true }) };
@@ -373,6 +419,8 @@ suite('SessionComparisonService', () => {
 			const originalResource = URI.parse(`test-chat:/${role}`);
 			chatService.setUsage(originalResource, []);
 			const comparison = await service.startComparison(startOptions());
+			service = await restoreNestedComparison(comparison);
+			status.set(SessionStatus.Completed, undefined);
 			await timeout(0);
 			if (role === SessionComparisonParticipantRole.Synthesis) {
 				service.submitVerdict(comparison.id, verdict('attempt-one', ['attempt-one', 'attempt-two']));
@@ -407,7 +455,7 @@ suite('SessionComparisonService', () => {
 
 	for (const evaluator of ['judge', 'synthesis'] as const) {
 		test(`archiving a native parent cleans up a ${evaluator} registered during creation`, async () => {
-			const { service, sessionsManagementService } = createServices();
+			let { service, sessionsManagementService, restoreNestedComparison } = createServices();
 			const status = observableValue('status', SessionStatus.InProgress);
 			const archived = observableValue('archived', false);
 			const first = stubSession('first', status, undefined, archived);
@@ -417,6 +465,7 @@ suite('SessionComparisonService', () => {
 			sessionsManagementService.enqueue(parent);
 			sessionsManagementService.enqueue(stubSession('second', status));
 			const comparison = await service.startComparison(startOptions());
+			service = await restoreNestedComparison(comparison);
 			sessionsManagementService.enqueue(stubSession('judge'));
 			const archiveParent = () => {
 				archived.set(true, undefined);
@@ -445,7 +494,7 @@ suite('SessionComparisonService', () => {
 
 	for (const manuallyUngrouped of [false, true]) {
 		test(`failed evaluator nesting restores automatic grouping but preserves user organization (${manuallyUngrouped})`, async () => {
-			const { service, sessionsManagementService, groupsService } = createServices();
+			let { service, sessionsManagementService, groupsService, restoreNestedComparison } = createServices();
 			const status = observableValue('status', SessionStatus.InProgress);
 			const first = stubSession('first', status);
 			const chats = observableValue<readonly IChat[]>('chats', [first.mainChat.get()]);
@@ -454,6 +503,7 @@ suite('SessionComparisonService', () => {
 			sessionsManagementService.enqueue(parent);
 			sessionsManagementService.enqueue(stubSession('second', status));
 			const comparison = await service.startComparison(startOptions());
+			service = await restoreNestedComparison(comparison);
 			if (manuallyUngrouped) {
 				groupsService.removeFromGroup(parent.sessionId);
 			}
@@ -474,7 +524,7 @@ suite('SessionComparisonService', () => {
 	for (const evaluator of ['judge', 'synthesis'] as const) {
 		for (const refused of [false, true]) {
 			test(`archiving during ${evaluator} nesting cleans up only a refused move (${refused})`, async () => {
-				const { service, sessionsManagementService } = createServices();
+				let { service, sessionsManagementService, restoreNestedComparison } = createServices();
 				const status = observableValue('status', SessionStatus.InProgress);
 				const archived = observableValue('archived', false);
 				const first = stubSession('first', status, undefined, archived);
@@ -484,6 +534,7 @@ suite('SessionComparisonService', () => {
 				sessionsManagementService.enqueue(parent);
 				sessionsManagementService.enqueue(stubSession('second', status));
 				const comparison = await service.startComparison(startOptions());
+				service = await restoreNestedComparison(comparison);
 				const started = new DeferredPromise<void>();
 				const finish = new DeferredPromise<void>();
 				const holdMove = () => {
@@ -531,7 +582,7 @@ suite('SessionComparisonService', () => {
 	}
 
 	test('starts the Judge when a nested chat completes without a session-change event', async () => {
-		const { service, sessionsManagementService } = createServices();
+		let { service, sessionsManagementService, restoreNestedComparison } = createServices();
 		const first = stubSession('first', observableValue('firstStatus', SessionStatus.Completed));
 		const secondStatus = observableValue('secondStatus', SessionStatus.InProgress);
 		const chats = observableValue<readonly IChat[]>('chats', [first.mainChat.get()]);
@@ -541,6 +592,7 @@ suite('SessionComparisonService', () => {
 		sessionsManagementService.enqueue(stubSession('second', secondStatus));
 		sessionsManagementService.enqueue(stubSession('judge'));
 		const comparison = await service.startComparison(startOptions());
+		service = await restoreNestedComparison(comparison);
 		const before = sessionsManagementService.createCalls.length;
 		const replacementStatus = observableValue('replacementStatus', SessionStatus.InProgress);
 		chats.set(chats.get().map(chat => chat.resource.fragment === 'second' ? { ...chat, status: replacementStatus } : chat), undefined);
