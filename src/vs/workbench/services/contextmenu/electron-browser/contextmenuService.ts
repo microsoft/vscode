@@ -229,8 +229,8 @@ export class NativeContextMenuService extends Disposable implements IContextMenu
 
 	private createMenu(delegate: IContextMenuDelegate, entries: readonly IAction[], onHide: () => void, targetWindow: Window, submenuIds = new Set<string>(), entryIndexes?: number[]): IContextMenuItem[] {
 		const items: IContextMenuItem[] = [];
-		// Native menus have no group headers on all platforms, so a group's title becomes a disabled item
-		// at the start of the group. It is the label of the separator before the group, or else the group
+		// A group's title becomes a header at the start of the group: a section header on macOS 14 and later,
+		// and a disabled item elsewhere. It is the label of the separator before the group, or else the group
 		// title of its first action.
 		let separatorLabel: string | undefined;
 		let isGroupStart = true;
@@ -247,7 +247,7 @@ export class NativeContextMenuService extends Disposable implements IContextMenu
 				isGroupStart = false;
 				const title = separatorLabel || getMenuActionGroupTitle(entry);
 				if (title) {
-					items.push({ label: unmnemonicLabel(stripIcons(title)).trim(), enabled: false });
+					items.push({ label: unmnemonicLabel(stripIcons(title)).trim(), type: 'header', enabled: false });
 				}
 			}
 

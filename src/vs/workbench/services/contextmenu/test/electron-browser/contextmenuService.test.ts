@@ -84,7 +84,7 @@ suite('Native ContextMenuService', () => {
 		});
 	}
 
-	test('shows group titles as disabled items at the start of each group', () => {
+	test('shows group titles as headers at the start of each group', () => {
 		const action = (id: string, title: string, groupTitle?: string) => new MenuItemAction({ id, title }, undefined, { groupTitle }, undefined, undefined, new MockContextKeyService(), NullCommandService);
 		const actions = [
 			// The first group's title, from its first action
@@ -110,13 +110,13 @@ suite('Native ContextMenuService', () => {
 			positioningItems,
 		}, {
 			menu: [
-				{ type: undefined, label: 'Recent', enabled: false },
+				{ type: 'header', label: 'Recent', enabled: false },
 				{ type: undefined, label: 'Open', enabled: true },
 				{ type: 'separator', label: undefined, enabled: undefined },
-				{ type: undefined, label: 'Discover More', enabled: false },
+				{ type: 'header', label: 'Discover More', enabled: false },
 				{ type: undefined, label: 'Browse', enabled: true },
 				{ type: 'separator', label: undefined, enabled: undefined },
-				{ type: undefined, label: 'Help', enabled: false },
+				{ type: 'header', label: 'Help', enabled: false },
 				{ type: undefined, label: 'About', enabled: true },
 			],
 			positioningItems: [1, 4],
