@@ -717,7 +717,9 @@
 
 		&[aria-readonly="true"] {
 			color: var(--vscode-descriptionForeground);
-			cursor: default;
+			cursor: text;
+			-webkit-user-select: text;
+			user-select: text;
 		}
 
 		&:empty::before {
