@@ -18,13 +18,13 @@ import { observableConfigValue } from '../../../../platform/observable/common/pl
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
-import { getFailedChecks, buildFixCIPrompt, submitFixCIChecks } from '../../changes/browser/checksActions.js';
+import { buildFixCIPrompt, countRequiredChecks, submitFixCIChecks } from '../../changes/browser/checksActions.js';
 import { whenChatWidgetForSession } from '../../chat/browser/chatWidgetUtils.js';
 import type { ISessionChatPillsDebugData } from '../../chat/browser/sessionChatInputToolbarDebug.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { GitHubPullRequestCIModel } from '../../github/browser/models/githubPullRequestCIModel.js';
-import { GitHubCheckStatus, GitHubPullRequestState, OPEN_PULL_REQUEST_ACTION_ID } from '../../github/common/types.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { GitHubPullRequestState, OPEN_PULL_REQUEST_ACTION_ID } from '../../github/common/types.js';
+import { getWindowHost, ISessionHost } from '../../../services/sessions/browser/sessionHost.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { getGitHubPullRequestRefs, IGitHubPullRequestRef, SessionStatus } from '../../../services/sessions/common/session.js';
 import { getSessionAgentMergeConfigurationObservable } from '../../../browser/sessionAgentMerge.js';
@@ -81,7 +81,9 @@ function feedbackForPullRequest(feedback: IAgentFeedback, pullRequest: IGitHubPu
 }
 
 /**
- * Hosts one actionable banner directly above the active session's chat input.
+ * Hosts one actionable banner directly above the chat input of the session of its window
+ * (the window {@link ISessionHost}): a chat window shows its own session's banners, not those of the
+ * globally active session, and the main window keeps its session's while a chat window has focus.
  * Multiple pull requests and agent-review comments are presented as carousel
  * items within that single banner.
  */
@@ -102,16 +104,19 @@ export class SessionInputBanners extends Disposable {
 		if (!this._active.read(reader)) {
 			return undefined;
 		}
-		const session = this.sessionsService.activeSession.read(reader);
+		const session = getWindowHost(this.sessionHost).session.read(reader);
 		if (!session || session.status.read(reader) !== SessionStatus.Completed) {
 			return undefined;
 		}
 		return session;
 	});
 
+	/** The chat its window shows of {@link _session}. */
+	private readonly _chat = derived(this, reader => this._session.read(reader) ? getWindowHost(this.sessionHost).chat.read(reader) : undefined);
+
 	private readonly _agentMergeConfiguration = derived(this, reader => {
 		const session = this._session.read(reader);
-		const activeChat = session?.activeChat.read(reader);
+		const activeChat = this._chat.read(reader);
 		return session && activeChat ? getSessionAgentMergeConfigurationObservable(session, this.sessionsProvidersService, this.configurationService, activeChat).read(reader) : undefined;
 	});
 
@@ -123,12 +128,12 @@ export class SessionInputBanners extends Disposable {
 
 		const states: BannerState[] = [];
 		const session = this._session.read(reader);
-		if (!session) {
+		const activeChat = this._chat.read(reader);
+		if (!session || !activeChat) {
 			return states;
 		}
 
 		this._feedbackChanged.read(reader);
-		const activeChat = session.activeChat.read(reader);
 		const createdFeedback = this.feedbackService.getFeedback(session.resource)
 			.filter(item => item.state === AgentFeedbackState.Created);
 		const gitHubInfo = activeChat.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
@@ -159,11 +164,9 @@ export class SessionInputBanners extends Disposable {
 			if (!legacyCIDismissed && !(agentMerge?.enabled && agentMerge.actions.fixCI) && livePullRequest && livePullRequest.state === GitHubPullRequestState.Open) {
 				const ciModelRef = reader.store.add(this.gitHubService.createPullRequestCIModelReference(pullRequest.owner, pullRequest.repo, pullRequest.number, livePullRequest.headSha));
 				const ciModel = ciModelRef.object;
-				if (!ciModel.fixRequested.read(reader)) {
-					const checks = ciModel.checks.read(reader);
-					failed = getFailedChecks(checks).length;
-					completed = checks.filter(check => check.status === GitHubCheckStatus.Completed).length;
-					pending = checks.length - completed;
+				const required = ciModel.fixRequested.read(reader) ? undefined : ciModel.requiredChecks.read(reader);
+				if (required) {
+					({ failed, completed, pending } = countRequiredChecks(required));
 				}
 			}
 
@@ -208,7 +211,7 @@ export class SessionInputBanners extends Disposable {
 	});
 
 	constructor(
-		@ISessionsService private readonly sessionsService: ISessionsService,
+		@ISessionHost private readonly sessionHost: ISessionHost,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IGitHubService private readonly gitHubService: IGitHubService,
@@ -245,7 +248,7 @@ export class SessionInputBanners extends Disposable {
 			if (!session || this._artifactIntegrationsEnabled.read(reader) || (agentMerge?.enabled && agentMerge.actions.fixCI && agentMerge.actions.addressReviews)) {
 				return;
 			}
-			const gitHubInfo = session.activeChat.read(reader).workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
+			const gitHubInfo = this._chat.read(reader)?.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
 			for (const pullRequest of getGitHubPullRequestRefs(gitHubInfo)) {
 				const prModelRef = reader.store.add(this.gitHubService.createPullRequestModelReference(pullRequest.owner, pullRequest.repo, pullRequest.number));
 				const prModel = prModelRef.object;

@@ -40,7 +40,7 @@ import { raceTimeout } from '../../../../../../base/common/async.js';
 import { basename, dirname } from '../../../../../../base/common/path.js';
 import { isWindows } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { aggregateAnthropicSse, anthropicMessageToSse, ANTHROPIC_MESSAGES_PATH, aggregateResponsesSse, responsesMessageToSse, RESPONSES_PATH, summarizeResponsesRequest, deserializeAnthropicContent, serializeAnthropicContent, summarizeAnthropicRequest, type AnthropicContentBlock, type IAnthropicMessage, type IReadableAnthropicRequest } from './capiWireCodec.js';
+import { aggregateAnthropicSse, anthropicMessageToSse, ANTHROPIC_MESSAGES_PATH, aggregateResponsesJson, aggregateResponsesSse, responsesMessageToJson, responsesMessageToSse, RESPONSES_PATH, summarizeResponsesRequest, deserializeAnthropicContent, serializeAnthropicContent, summarizeAnthropicRequest, type AnthropicContentBlock, type IAnthropicMessage, type IReadableAnthropicRequest } from './capiWireCodec.js';
 import { getAncillaryStub } from './capiStubs.js';
 import { findPosixOnlyCommands, formatPosixCommandError, getRecordedShellCommand, type IRecordedCommand } from './posixCommandLint.js';
 import { formatModelRequestMismatch, modelRequestsMatch, projectModelRequest } from './modelRequestProjection.js';
@@ -152,13 +152,11 @@ interface IStoredAnthropicMessage {
 }
 
 /**
- * A model turn in the YAML fixture: a readable request summary + the captured
- * assistant reply. On replay the reply is regenerated into the fixture
- * dialect's SSE stream, so captures stay human-readable instead of raw SSE
- * blobs. The endpoint is derived from the fixture-level `dialect`, so it is not
- * repeated here.
+ * A readable model request/reply, with optional per-turn dialect and non-streaming response overrides.
  */
 interface ITurnExchange {
+	readonly dialect?: TurnDialect;
+	readonly stream?: false;
 	readonly request: IReadableAnthropicRequest;
 	readonly response: IStoredAnthropicMessage;
 }
@@ -179,7 +177,7 @@ type IFixtureExchange = ITurnExchange | IRawFixtureExchange;
 
 interface IFixture {
 	readonly version: 1;
-	/** Dialect shared by every turn exchange; omitted when there are no turns. */
+	/** Default dialect; individual turns can override it. Omitted when there are no turns. */
 	readonly dialect?: TurnDialect;
 	readonly exchanges: IFixtureExchange[];
 }
@@ -246,7 +244,7 @@ export interface ICapiReplayProxyOptions {
 /** A replayable item: raw bytes (ancillary) or a model reply to regenerate. */
 type IReplayItem =
 	| { readonly kind: 'raw'; readonly response: ICapiReplayResponse }
-	| { readonly kind: 'turn'; readonly dialect: TurnDialect; readonly message: IAnthropicMessage; readonly request: IReadableAnthropicRequest };
+	| { readonly kind: 'turn'; readonly dialect: TurnDialect; readonly stream?: false; readonly message: IAnthropicMessage; readonly request: IReadableAnthropicRequest };
 
 /** Sequence cursor for one `(method, path)` bucket during replay. */
 interface IReplayBucket {
@@ -518,6 +516,14 @@ export class CapiReplayProxy {
 	// -- request handling -----------------------------------------------------
 
 	private _handle(req: http.IncomingMessage, res: http.ServerResponse): void {
+		const path = new URL(req.url ?? '/', 'http://localhost').pathname;
+		if (req.method === 'GET' && (path === '/json/version' || path === '/json/list')) {
+			// Debugger discovery scans local listening ports. This is not a DevTools server or CAPI traffic.
+			req.resume();
+			res.writeHead(404);
+			res.end();
+			return;
+		}
 		const chunks: Buffer[] = [];
 		req.on('data', chunk => chunks.push(chunk));
 		req.on('end', () => {
@@ -581,8 +587,12 @@ export class CapiReplayProxy {
 
 		if (item.kind === 'turn') {
 			this._assertRecordedRequest(item.dialect, item.request, body);
-			// Regenerate the dialect's SSE stream from the captured reply.
 			const message = this._expandReplayMessage(item.message);
+			if (item.stream === false) {
+				res.writeHead(200, { 'content-type': 'application/json' });
+				res.end(responsesMessageToJson(message));
+				return;
+			}
 			const sseBody = item.dialect === 'responses' ? responsesMessageToSse(message) : anthropicMessageToSse(message);
 			res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' });
 			res.end(sseBody);
@@ -789,16 +799,20 @@ export class CapiReplayProxy {
 
 	private _loadFixture(): void {
 		const fixture = yamlModule.load(readFileSync(this._fixturePath, 'utf8')) as IFixture;
-		const turnEndpoint = fixture.dialect ? DIALECT_ENDPOINT[fixture.dialect] : undefined;
 		for (const exchange of fixture.exchanges) {
 			let key: string;
 			let item: IReplayItem;
 			if (isTurnExchange(exchange)) {
-				if (!turnEndpoint) {
-					throw new Error(`[capi-replay] fixture has turn exchanges but no top-level dialect: ${this._fixturePath}`);
+				const dialect = exchange.dialect ?? fixture.dialect;
+				const turnEndpoint = dialect ? DIALECT_ENDPOINT[dialect] : undefined;
+				if (!dialect || !turnEndpoint) {
+					throw new Error(`[capi-replay] fixture has a turn without a supported dialect: ${this._fixturePath}`);
+				}
+				if (exchange.stream === false && dialect !== 'responses') {
+					throw new Error(`[capi-replay] non-streaming turns require the Responses dialect: ${this._fixturePath}`);
 				}
 				key = `${turnEndpoint.method} ${turnEndpoint.path}`;
-				item = { kind: 'turn', dialect: fixture.dialect!, message: { content: deserializeAnthropicContent(exchange.response.content), stopReason: exchange.response.stopReason }, request: exchange.request };
+				item = { kind: 'turn', dialect, stream: exchange.stream, message: { content: deserializeAnthropicContent(exchange.response.content), stopReason: exchange.response.stopReason }, request: exchange.request };
 			} else {
 				key = `${exchange.method} ${exchange.path}`;
 				item = { kind: 'raw', response: exchange.response };
@@ -814,15 +828,12 @@ export class CapiReplayProxy {
 
 	private _writeFixture(): void {
 		const built = this._recorded.map(exchange => this._toFixtureExchange(exchange));
-		const exchanges = built.map(b => b.exchange);
+		const dialect = built.find(b => b.dialect !== undefined)?.dialect;
+		const exchanges = built.map(b => b.dialect && b.dialect !== dialect ? { ...b.exchange, dialect: b.dialect } : b.exchange);
 		this._normalizeToolCallIds(exchanges);
 		this._normalizeGeneratedValues(exchanges, new RegExp(SHELL_OUTPUT_PATH_PATTERN, 'gi'), 'shell_output');
 		this._normalizeGeneratedValues(exchanges, new RegExp(UUID_PATTERN, 'gi'), 'uuid');
 		this._assertNoPosixOnlyCommands(exchanges);
-		// Every turn in a fixture shares one endpoint, so the dialect (and the
-		// `(method, path)` it implies) is stored once at the top instead of on each
-		// exchange.
-		const dialect = built.find(b => b.dialect !== undefined)?.dialect;
 		const fixture: IFixture = { version: 1, ...(dialect ? { dialect } : {}), exchanges };
 		mkdirSync(dirname(this._fixturePath), { recursive: true });
 		const dumpOptions = { lineWidth: -1, noRefs: true };
@@ -979,10 +990,11 @@ export class CapiReplayProxy {
 		}
 		if (exchange.method === 'POST' && exchange.path === RESPONSES_PATH) {
 			const request = summarizeResponsesRequest(exchange.requestBody);
-			const message = aggregateResponsesSse(exchange.response.body);
+			const streaming = aggregateResponsesSse(exchange.response.body);
+			const message = streaming ?? aggregateResponsesJson(exchange.response.body);
 			if (request && message) {
 				const content = this._normalizeMessageContent(message.content);
-				return { exchange: { request: this._normalizeRequest(request), response: { content: serializeAnthropicContent(content), stopReason: message.stopReason } }, dialect: 'responses' };
+				return { exchange: { ...(!streaming ? { stream: false as const } : {}), request: this._normalizeRequest(request), response: { content: serializeAnthropicContent(content), stopReason: message.stopReason } }, dialect: 'responses' };
 			}
 		}
 		return { exchange: { method: exchange.method, path: exchange.path, response: exchange.response } };

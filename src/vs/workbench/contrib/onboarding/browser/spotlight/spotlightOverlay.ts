@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableGenericMouseDownListener, addDisposableListener, animate, append, EventType, getActiveElement, getWindow, isHTMLElement, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
+import { $, addDisposableGenericMouseDownListener, addDisposableListener, animate, append, EventType, getActiveElement, getWindow, isHTMLElement, scheduleAtNextAnimationFrame, setParentFlowTo } from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
@@ -11,6 +11,7 @@ import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, isMarkdownString } from '../../../../../base/common/htmlContent.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 import { AnchorAlignment, AnchorAxisAlignment, AnchorPosition, IRect, layout2d } from '../../../../../base/common/layout.js';
 import { renderMarkdown } from '../../../../../base/browser/markdownRenderer.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
@@ -39,6 +40,8 @@ export interface ISpotlightContent {
 	readonly description: string | IMarkdownString;
 	/** Localized primary button label, replacing the default Next or Done. */
 	readonly nextButtonLabel?: string;
+	/** Localized label of the button that ends the tour, replacing End Tour. */
+	readonly endTourLabel?: string;
 	/** Zero-based index of the current step. */
 	readonly stepIndex: number;
 	/** Total number of steps in the tour. Progress is displayed only for multi-step tours. */
@@ -150,8 +153,6 @@ export class SpotlightOverlay extends Disposable {
 		const actions = append(footer, $('.spotlight-callout-actions'));
 
 		this._skipButton = this._register(new Button(actions, { ...defaultButtonStyles, secondary: true }));
-		this._skipButton.label = localize('spotlight.endTour', "End Tour");
-		this._skipButton.setTitle(localize('spotlight.endTour.tooltip', "End Tour (Esc)"));
 		this._register(this._skipButton.onDidClick(() => this._onDidSkip.fire(OnboardingDismissReason.SkipButton)));
 
 		this._backButton = this._register(new Button(actions, { ...defaultButtonStyles, secondary: true }));
@@ -192,6 +193,9 @@ export class SpotlightOverlay extends Disposable {
 
 		// Rebuild the per-step re-layout listeners.
 		this._stepListeners.clear();
+		// Keep focus in the target's logical subtree when the callout is rendered outside its popup.
+		target.id ||= `spotlight-target-${generateUuid()}`;
+		setParentFlowTo(this._root, target);
 		const targetWindow = getWindow(this._container);
 		const focusElement = options.focusTarget?.element ?? target;
 
@@ -488,6 +492,10 @@ export class SpotlightOverlay extends Disposable {
 			: '';
 
 		this._skipButton.element.style.display = content.isLastStep && !content.showEndTour ? 'none' : '';
+		this._skipButton.label = content.endTourLabel ?? localize('spotlight.endTour', "End Tour");
+		this._skipButton.setTitle(content.endTourLabel
+			? localize('spotlight.endTour.customTooltip', "{0} (Esc)", content.endTourLabel)
+			: localize('spotlight.endTour.tooltip', "End Tour (Esc)"));
 		this._backButton.element.style.display = content.canGoBack ? '' : 'none';
 		this._nextButton.label = content.nextButtonLabel ?? (content.isLastStep
 			? localize('spotlight.done', "Done")

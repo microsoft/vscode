@@ -38,6 +38,8 @@ import {
 	type ICloudSandboxPreparedReservation,
 	type ICloudSandboxDiscoveredSession,
 	type ICloudSandboxDiscoveryResult,
+	type ICloudSandboxDiscoveryOptions,
+	type CloudSandboxDiscoveryTrigger,
 	type ICloudSandboxSessionFeedConnection,
 } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -45,7 +47,7 @@ import { readSessionWorkspaceless, SessionStatus } from '../../../../../../platf
 import { readSessionInitiator } from '../../../../../../platform/agentHost/common/meta/agentSessionInitiatorMeta.js';
 import { RootStateSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { RootState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { constObservable, IObservable, observableValue, waitForState } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, IObservable, observableValue, waitForState } from '../../../../../../base/common/observable.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ChatAIDisabledSettingId } from '../../../../../../platform/chat/common/chatSettings.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
@@ -62,7 +64,7 @@ import { TestLifecycleService, TestWorkspaceTrustManagementService } from '../..
 import { IHostService } from '../../../../../../workbench/services/host/browser/host.js';
 import { ILifecycleService } from '../../../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { IChatEntitlementService, IChatSentiment } from '../../../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSessionContentProvider, IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSessionContentProvider, IChatSessionItemArchiveProvider, IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatService } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { CloudSandboxStartupError } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxStartupError.js';
 import { IAgentHostGroup } from '../../../../../common/agentHostSessionsProvider.js';
@@ -77,6 +79,7 @@ import { ReadOnlyChatSession } from '../../../../../../workbench/contrib/chat/br
 import { createCloudSandboxSessionPreparation } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxLegacySessionPreparation.js';
 import { ICloudSandboxSessionEnvironment } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxSessionContribution.js';
 import { CloudSandboxSessionFeed } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxSessionFeed.js';
+import { ICloudSandboxTelemetryService } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxTelemetry.js';
 import { CloudSandboxDraftPreparationService } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxDraftPreparationService.js';
 import { IRemoteAgentHostSessionsProviderConfig } from '../../browser/remoteAgentHostSessionsProvider.js';
 import { CloudSandboxSessionsProvider } from '../../browser/cloudSandboxSessionsProvider.js';
@@ -208,6 +211,8 @@ class StubProvider extends mock<CloudSandboxSessionsProvider>() {
 
 class TestCloudSandboxContribution extends CloudSandboxAgentHostContribution {
 	readonly stubProviders = new Map<string, StubProvider>();
+	/** Jitter applied to automatic polls; deterministic so timing assertions hold. */
+	pollJitter = 0;
 
 	/**
 	 * Drives the async activation the chat service performs on open. Called directly rather than
@@ -223,11 +228,19 @@ class TestCloudSandboxContribution extends CloudSandboxAgentHostContribution {
 	}
 
 	refreshTasks(taskIds: readonly string[]): Promise<void> {
-		return this._discoverAndSeed(true, true, taskIds);
+		return this._refreshFromFeed({ reason: 'change', taskIds });
+	}
+
+	refreshFeed(reason: 'renewal' | 'reconnect'): Promise<void> {
+		return this._refreshFromFeed({ reason });
 	}
 
 	ensureProvider(env: ICloudSandboxSessionEnvironment): void {
 		this._ensureProvider(env);
+	}
+
+	protected override _pollJitter(): number {
+		return this.pollJitter;
 	}
 
 	protected override _instantiateProvider(config: IRemoteAgentHostSessionsProviderConfig): CloudSandboxSessionsProvider {
@@ -256,6 +269,7 @@ const CLOUD_SANDBOX_GROUP: IAgentHostGroup = {
 };
 
 interface ITestHarness {
+	readonly archiveProvider: IChatSessionItemArchiveProvider | undefined;
 	readonly preparation: ICloudSandboxDraftPreparationService;
 	readonly contribution: TestCloudSandboxContribution;
 	readonly providersService: SessionsProvidersService;
@@ -302,12 +316,15 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 	readonly draftPreparation?: ICloudSandboxDraftPreparationService;
 	/** Task Mission Control returns from `createSession`, or a rejection. */
 	readonly createSession?: () => Promise<ICloudSandboxCreatedSession>;
-	readonly listSessions?: (token: CancellationToken, options?: { readonly incremental?: boolean; readonly taskIds?: readonly string[] }) => Promise<ICloudSandboxDiscoveryResult>;
+	readonly getAccountKey?: (accountKey: string | undefined) => Promise<string | undefined>;
+	readonly listSessions?: (token: CancellationToken, options?: ICloudSandboxDiscoveryOptions) => Promise<ICloudSandboxDiscoveryResult>;
 	readonly connectSessionFeed?: (token: CancellationToken) => Promise<ICloudSandboxSessionFeedConnection | undefined>;
 	readonly sessionFeed?: Partial<CloudSandboxSessionFeed>;
 	readonly deleteTask?: (taskId: string, token: CancellationToken) => Promise<void>;
 	readonly renameTask?: (taskId: string, title: string, token: CancellationToken) => Promise<void>;
 	readonly setTaskArchived?: (taskId: string, archived: boolean, token: CancellationToken) => Promise<void>;
+	readonly clearSessionHistory?: (taskId?: string) => void;
+	readonly connections?: IRemoteAgentHostService['connections'];
 	/** Whether the sandbox feature settings start on. Defaults to `true`. */
 	readonly enabled?: boolean;
 	readonly earlyPreparation?: boolean;
@@ -325,9 +342,13 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 	const hostGroups: IAgentHostGroup[] = [];
 	const readOnlySessionTypes: string[] = [];
 	const contentProviders = new Map<string, IChatSessionContentProvider>();
+	let archiveProvider: IChatSessionItemArchiveProvider | undefined;
 	let customizationFactory: RemoteAgentHostConnectionCustomizationFactory | undefined;
 	const instantiationService = store.add(new TestInstantiationService());
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
+	instantiationService.stub(ICloudSandboxTelemetryService, new class extends mock<ICloudSandboxTelemetryService>() {
+		override reportSessionFeed() { }
+	}());
 	instantiationService.stub(ICommandService, new class extends mock<ICommandService>() { }());
 	if (options?.sessionFeed) {
 		instantiationService.stubInstance(CloudSandboxSessionFeed, options.sessionFeed);
@@ -356,6 +377,7 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 	const workspaceTrust = store.add(new TestWorkspaceTrustManagementService(false));
 	instantiationService.stub(IWorkspaceTrustManagementService, workspaceTrust);
 	const harness: ITestHarness = {
+		get archiveProvider() { return archiveProvider; },
 		get preparation() { return preparation; },
 		workspaceTrust,
 		discovered: sessions,
@@ -420,13 +442,15 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 	instantiationService.stub(ICloudSandboxApiService, new class extends mock<ICloudSandboxApiService>() {
 		override readonly onDidChangeAccount = accountChanges.event;
 		override invalidateSessionHistory(): void { }
-		override clearSessionHistory(): void { }
-		override async getAccountKey(): Promise<string | undefined> { return accountKey; }
+		override clearSessionHistory(taskId?: string): void { options?.clearSessionHistory?.(taskId); }
+		override async getAccountKey(): Promise<string | undefined> {
+			return options?.getAccountKey ? options.getAccountKey(accountKey) : accountKey;
+		}
 		override async reserveSession() {
 			return { taskId: 'task-new', sessionId: 'sess-new', environmentId: 'env-new', reservationExpiresAt: Date.UTC(2100, 0, 1) };
 		}
 		override async connectSessionFeed(token: CancellationToken) { return options?.connectSessionFeed?.(token); }
-		override async listSessions(token: CancellationToken, discoveryOptions?: { readonly incremental?: boolean; readonly taskIds?: readonly string[] }): Promise<ICloudSandboxDiscoveryResult> {
+		override async listSessions(token: CancellationToken, discoveryOptions?: ICloudSandboxDiscoveryOptions): Promise<ICloudSandboxDiscoveryResult> {
 			discoveryModes.push(discoveryOptions?.incremental === true);
 			if (options?.listSessions) {
 				return options.listSessions(token, discoveryOptions);
@@ -470,7 +494,7 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 	}());
 	instantiationService.stub(IRemoteAgentHostService, new class extends mock<IRemoteAgentHostService>() {
 		override readonly onDidChangeConnections = Event.None;
-		override readonly connections = [];
+		override readonly connections = options?.connections ?? [];
 		override readonly configuredEntries = [];
 		// No live protocol client is modelled, so activation stops once the connect has been made
 		// rather than going on to wait for the host to advertise its agents.
@@ -545,6 +569,13 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 		}
 	}());
 	instantiationService.stub(IChatSessionsService, new class extends mock<IChatSessionsService>() {
+		override registerChatSessionItemArchiveProvider(provider: IChatSessionItemArchiveProvider): IDisposable {
+			archiveProvider = provider;
+			return toDisposable(() => {
+				provider.setRequested(false);
+				archiveProvider = undefined;
+			});
+		}
 		override getContentProviderSchemes(): string[] { return [...readOnlySessionTypes]; }
 		override registerChatSessionContentProvider(sessionType: string, provider: IChatSessionContentProvider): IDisposable {
 			readOnlySessionTypes.push(sessionType);
@@ -586,6 +617,290 @@ function discoveredSession(overrides?: Partial<ICloudSandboxDiscoveredSession>):
 suite('CloudSandboxAgentHostContribution', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('requests archives only on demand, coalesces expansion and reuses the loaded account cache', async () => {
+		const requests: (boolean | undefined)[] = [];
+		const pending = new DeferredPromise<ICloudSandboxDiscoveryResult>();
+		const entered = new DeferredPromise<void>();
+		const archived = discoveredSession({ isArchived: true });
+		const h = await createContribution(store, [], {
+			listSessions: async (_token, options) => {
+				requests.push(options?.includeArchived);
+				if (options?.includeArchived) {
+					void entered.complete();
+					return pending.p;
+				}
+				return { kind: 'scoped', sessions: [], removedTaskIds: [] };
+			},
+		});
+		const before = [...requests];
+		h.archiveProvider!.setRequested(true);
+		await entered.p;
+		h.archiveProvider!.setRequested(false);
+		h.archiveProvider!.setRequested(true);
+		await pending.complete({ kind: 'complete', sessions: [archived] });
+		await h.runDiscovery();
+		const afterLoad = requests.length;
+		h.archiveProvider!.setRequested(false);
+		h.archiveProvider!.setRequested(true);
+		assert.deepStrictEqual({
+			before, requests, afterLoad, state: h.archiveProvider!.state.get(),
+			cached: h.contribution.stubProviders.get(cloudSandboxAddress('env-1'))?.seeded.map(session => session.summary),
+		}, {
+			before: [false], requests: [false, true], afterLoad: 2, state: 'loaded', cached: [archived.name],
+		});
+	});
+
+	test('captures archive demand before asynchronous authentication when startup expansion is restored', async () => {
+		const authentication = new DeferredPromise<void>();
+		const entered = new DeferredPromise<void>();
+		const requests: (boolean | undefined)[] = [];
+		const h = await createContribution(store, [], {
+			waitForDiscovery: false,
+			getAccountKey: async account => {
+				if (!entered.isSettled) {
+					void entered.complete();
+					await authentication.p;
+				}
+				return account;
+			},
+			listSessions: async (_token, options) => {
+				requests.push(options?.includeArchived);
+				return options?.includeArchived
+					? { kind: 'complete', sessions: [] }
+					: { kind: 'scoped', sessions: [], removedTaskIds: [] };
+			},
+		});
+		await entered.p;
+		h.archiveProvider!.setRequested(true);
+		const finished = h.runDiscovery();
+		await authentication.complete();
+		await finished;
+		assert.deepStrictEqual({ requests, state: h.archiveProvider!.state.get() }, {
+			requests: [false, true], state: 'loaded',
+		});
+	});
+
+	test('retains the in-flight archive demand through authentication and collapse/re-expansion', async () => {
+		const authentication = new DeferredPromise<void>();
+		const authenticationEntered = new DeferredPromise<void>();
+		const inventory = new DeferredPromise<void>();
+		const inventoryEntered = new DeferredPromise<void>();
+		const requests: (boolean | undefined)[] = [];
+		let hold = false;
+		const h = await createContribution(store, [], {
+			getAccountKey: async account => {
+				if (hold) {
+					void authenticationEntered.complete();
+					await authentication.p;
+				}
+				return account;
+			},
+			listSessions: async (_token, options) => {
+				requests.push(options?.includeArchived);
+				if (hold) {
+					void inventoryEntered.complete();
+					await inventory.p;
+				}
+				return options?.includeArchived
+					? { kind: 'complete', sessions: [] }
+					: { kind: 'scoped', sessions: [], removedTaskIds: [] };
+			},
+		});
+		hold = true;
+		h.archiveProvider!.setRequested(true);
+		await authenticationEntered.p;
+		h.archiveProvider!.setRequested(false);
+		await authentication.complete();
+		await inventoryEntered.p;
+		h.archiveProvider!.setRequested(true);
+		const finished = h.runDiscovery();
+		await inventory.complete();
+		await finished;
+		assert.deepStrictEqual({ requests, state: h.archiveProvider!.state.get() }, {
+			requests: [false, true], state: 'loaded',
+		});
+	});
+
+	test('keeps loaded archive state through background refresh success and failure', async () => {
+		const archived = discoveredSession({ isArchived: true });
+		const warnings: string[] = [];
+		let result: ICloudSandboxDiscoveryResult = { kind: 'scoped', sessions: [], removedTaskIds: [] };
+		const h = await createContribution(store, [], {
+			listSessions: async () => result,
+			logService: new class extends NullLogService {
+				override warn(message: string): void { warnings.push(message); }
+			}(),
+		});
+		result = { kind: 'complete', sessions: [archived] };
+		h.archiveProvider!.setRequested(true);
+		await h.runDiscovery();
+		const states: string[] = [];
+		const archiveState = h.archiveProvider!.state;
+		store.add(autorun(reader => states.push(archiveState.read(reader))));
+		for (const refresh of [
+			{ kind: 'incremental', sessions: [], removedTaskIds: [] },
+			{ kind: 'partial', sessions: [], failedTaskIds: ['active-task'] },
+			{ kind: 'failed', reason: 'service unavailable' },
+		] satisfies ICloudSandboxDiscoveryResult[]) {
+			result = refresh;
+			await h.contribution.refreshFeed('renewal');
+		}
+		assert.deepStrictEqual({
+			states,
+			cached: h.contribution.stubProviders.get(cloudSandboxAddress('env-1'))?.seeded.map(session => session.summary),
+			failureLogged: warnings.some(message => message.includes('service unavailable')),
+		}, { states: ['loaded'], cached: [archived.name], failureLogged: true });
+	});
+
+	test('scoped windows evict absent active rows without scanning beyond the window or dropping cached archives', async () => {
+		const active = discoveredSession();
+		const archive = discoveredSession({ sessionId: 'old', taskId: 'old-task', isArchived: true });
+		let phase = 0;
+		const requests: { includeArchived: boolean | undefined; taskIds: readonly string[] | undefined }[] = [];
+		const h = await createContribution(store, [], {
+			listSessions: async (_token, options) => {
+				requests.push({ includeArchived: options?.includeArchived, taskIds: options?.taskIds });
+				if (phase === 0) {
+					return { kind: 'scoped', sessions: [active], removedTaskIds: [] };
+				}
+				if (phase === 1) {
+					return { kind: 'complete', sessions: [active, archive] };
+				}
+				return { kind: 'scoped', sessions: [], removedTaskIds: [] };
+			},
+		});
+		phase = 1;
+		h.archiveProvider!.setRequested(true);
+		await h.runDiscovery();
+		h.archiveProvider!.setRequested(false);
+		phase = 2;
+		await h.runDiscovery();
+		const provider = h.contribution.stubProviders.get(cloudSandboxAddress('env-1'))!;
+		assert.deepStrictEqual({
+			lastRequests: requests.slice(-1),
+			sessions: provider.seeded.map(session => ({ id: AgentSession.id(session.session), archived: !!((session.status ?? 0) & SessionStatus.IsArchived) })),
+			archivedTaskOwned: provider.taskArchiveHandlers.has(archive.sessionId),
+			disposed: provider.disposed,
+		}, {
+			lastRequests: [{ includeArchived: false, taskIds: undefined }],
+			sessions: [{ id: 'old', archived: true }],
+			archivedTaskOwned: true,
+			disposed: false,
+		});
+	});
+
+	test('archive errors retry on expansion and an account change invalidates the archive cache', async () => {
+		const requests: (boolean | undefined)[] = [];
+		let fail = true;
+		const h = await createContribution(store, [], {
+			listSessions: async (_token, options) => {
+				requests.push(options?.includeArchived);
+				return options?.includeArchived && fail
+					? { kind: 'failed', reason: 'unavailable' }
+					: options?.includeArchived ? { kind: 'complete', sessions: [] } : { kind: 'scoped', sessions: [], removedTaskIds: [] };
+			},
+		});
+		h.archiveProvider!.setRequested(true);
+		await h.runDiscovery();
+		const failed = h.archiveProvider!.state.get();
+		h.archiveProvider!.setRequested(false);
+		fail = false;
+		h.archiveProvider!.setRequested(true);
+		await h.runDiscovery();
+		h.archiveProvider!.setRequested(false);
+		h.changeAccount('other-account');
+		await h.runDiscovery();
+		const reset = h.archiveProvider!.state.get();
+		h.archiveProvider!.setRequested(true);
+		await h.runDiscovery();
+		assert.deepStrictEqual({ failed, reset, requests }, { failed: 'error', reset: 'idle', requests: [false, true, true, false, true] });
+	});
+
+	test('a mutation during scoped discovery cannot overwrite archived UI or persisted state', async () => {
+		const storage: IStorageService = store.add(new InMemoryStorageService());
+		const first = discoveredSession();
+		const missing = discoveredSession({ sessionId: 'missing', taskId: 'missing-task' });
+		const entered = new DeferredPromise<void>();
+		const inventory = new DeferredPromise<ICloudSandboxDiscoveryResult>();
+		let refreshing = false;
+		const h = await createContribution(store, [first, missing], {
+			storageService: storage,
+			listSessions: async () => {
+				if (!refreshing) {
+					return { kind: 'complete', sessions: [first, missing] };
+				}
+				void entered.complete();
+				return inventory.p;
+			},
+		});
+		refreshing = true;
+		const discovering = h.runDiscovery();
+		await entered.p;
+		const provider = h.contribution.stubProviders.get(cloudSandboxAddress(first.environmentId))!;
+		await provider.taskArchiveHandlers.get(first.sessionId)!(true);
+		provider.setSessionArchived(first.sessionId, true);
+		await inventory.complete({ kind: 'scoped', sessions: [first], removedTaskIds: [] });
+		await discovering;
+		const key = `sessions.cloudSandbox.inventory.["github","account-1"].${JSON.stringify([first.environmentId, first.sessionId])}`;
+		const persisted = storage.getObject<{ sessions: ICloudSandboxDiscoveredSession[] }>(key, StorageScope.PROFILE);
+		assert.deepStrictEqual({
+			archived: !!((provider.seeded[0].status ?? 0) & SessionStatus.IsArchived),
+			persisted: persisted?.sessions[0].isArchived,
+		}, { archived: true, persisted: true });
+	});
+
+	test('manual, renewal and reconnect refreshes follow current archive demand', async () => {
+		const requests: { trigger: string | undefined; includeArchived: boolean | undefined }[] = [];
+		const h = await createContribution(store, [], {
+			listSessions: async (_token, options) => {
+				requests.push({ trigger: options?.trigger, includeArchived: options?.includeArchived });
+				return options?.incremental
+					? { kind: 'incremental', sessions: [], removedTaskIds: [] }
+					: options?.includeArchived ? { kind: 'complete', sessions: [] } : { kind: 'scoped', sessions: [], removedTaskIds: [] };
+			},
+		});
+		h.archiveProvider!.setRequested(true);
+		await h.runDiscovery();
+		await h.contribution.refreshFeed('renewal');
+		await h.contribution.refreshFeed('reconnect');
+		await h.runDiscovery();
+		h.archiveProvider!.setRequested(false);
+		await h.contribution.refreshFeed('renewal');
+		assert.deepStrictEqual(requests, [
+			{ trigger: 'startup', includeArchived: false },
+			{ trigger: 'manual', includeArchived: true },
+			{ trigger: 'feedRenewal', includeArchived: true },
+			{ trigger: 'feedReconnect', includeArchived: true },
+			{ trigger: 'manual', includeArchived: true },
+			{ trigger: 'feedRenewal', includeArchived: false },
+		]);
+	});
+
+	test('disabling discovery cancels an archive read and prevents late publication', async () => {
+		const pending = new DeferredPromise<ICloudSandboxDiscoveryResult>();
+		const entered = new DeferredPromise<CancellationToken>();
+		const h = await createContribution(store, [], {
+			listSessions: async (token, options) => {
+				if (options?.includeArchived) {
+					void entered.complete(token);
+					return pending.p;
+				}
+				return { kind: 'scoped', sessions: [], removedTaskIds: [] };
+			},
+		});
+		h.archiveProvider!.setRequested(true);
+		const finished = h.runDiscovery();
+		const token = await entered.p;
+		await h.setEnabled(false);
+		await pending.complete({ kind: 'complete', sessions: [discoveredSession({ isArchived: true })] });
+		await finished;
+		assert.deepStrictEqual({
+			cancelled: token.isCancellationRequested,
+			registered: !!h.archiveProvider,
+			providers: h.contribution.stubProviders.size,
+		}, { cancelled: true, registered: false, providers: 0 });
+	});
 
 	for (const claimed of [true, false]) {
 		test(`Agents reuses a confirmed ${claimed ? 'claim' : 'fallback'} after connection failure`, async () => {
@@ -1653,12 +1968,13 @@ suite('CloudSandboxAgentHostContribution', () => {
 
 	test('does not restore old history after a removed environment is replaced during background waking', async () => {
 		const wake = new DeferredPromise<void>();
-		const harness = await createContribution(store, [discoveredSession()]);
+		let result: ICloudSandboxDiscoveryResult = { kind: 'complete', sessions: [discoveredSession()] };
+		const harness = await createContribution(store, [], { listSessions: async () => result });
 		harness.onConnect = () => wake.p;
 		const opened = await harness.activate('env-1');
-		harness.discovered = [];
+		result = { kind: 'complete', sessions: [], removedTaskIds: ['task-1'] };
 		await harness.runDiscovery();
-		harness.discovered = [discoveredSession({ taskId: 'task-2' })];
+		result = { kind: 'complete', sessions: [discoveredSession({ taskId: 'task-2' })] };
 		await harness.runDiscovery();
 		await wake.error(new Error('Old connection failed'));
 		await timeout(0);
@@ -2359,6 +2675,98 @@ suite('CloudSandboxAgentHostContribution startup inventory', () => {
 suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('a connected feed still processes task hints and renewal and reconnect catch-up', async () => {
+		const requests: (ICloudSandboxDiscoveryOptions | undefined)[] = [];
+		const harness = await createContribution(store, [discoveredSession()], {
+			sessionFeed: { connected: true, start: async () => { }, dispose: () => { } },
+			listSessions: async (_token, options) => {
+				requests.push(options);
+				return options?.incremental
+					? { kind: 'incremental', sessions: [], removedTaskIds: [] }
+					: { kind: 'complete', sessions: [discoveredSession()] };
+			},
+		});
+		await harness.contribution.refreshTasks(['changed-task']);
+		await harness.contribution.refreshFeed('renewal');
+		await harness.contribution.refreshFeed('reconnect');
+
+		assert.deepStrictEqual(requests, [
+			{ incremental: false, includeArchived: false, trigger: 'startup' },
+			{ incremental: true, includeArchived: false, trigger: 'feedChange', taskIds: ['changed-task'] },
+			{ incremental: true, includeArchived: false, trigger: 'feedRenewal' },
+			{ incremental: false, includeArchived: false, trigger: 'feedReconnect' },
+		]);
+	});
+
+	test('renewals catch up incrementally while periodic and reconnect scans remain authoritative', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const requests: (ICloudSandboxDiscoveryOptions | undefined)[] = [];
+		let sessions = [discoveredSession()];
+		const harness = await createContribution(store, sessions, {
+			sessionFeed: { connected: true, start: async () => { }, dispose: () => { } },
+			listSessions: async (_token, options) => {
+				requests.push(options);
+				return options?.incremental
+					? { kind: 'incremental', sessions: [], removedTaskIds: [] }
+					: { kind: 'complete', sessions };
+			},
+		});
+		harness.setFocused(false);
+		const provider = harness.contribution.stubProviders.get(cloudSandboxAddress('env-1'))!;
+		sessions = [];
+		await timeout(8 * 60_000);
+		await harness.contribution.refreshFeed('renewal');
+		const retainedAfterRenewal = !provider.disposed;
+		await timeout(8 * 60_000);
+		await harness.contribution.refreshFeed('renewal');
+		const removedAfterPeriodicFullScan = provider.disposed;
+		await harness.contribution.refreshFeed('reconnect');
+		assert.deepStrictEqual({ requests, retainedAfterRenewal, removedAfterPeriodicFullScan }, {
+			requests: [
+				{ incremental: false, includeArchived: false, trigger: 'startup' },
+				{ incremental: true, includeArchived: false, trigger: 'feedRenewal' },
+				{ incremental: false, includeArchived: false, trigger: 'feedRenewal' },
+				{ incremental: false, includeArchived: false, trigger: 'feedReconnect' },
+			],
+			retainedAfterRenewal: true,
+			removedAfterPeriodicFullScan: true,
+		});
+	}));
+
+	for (const manual of [false, true]) {
+		test(`coalesced renewals preserve incremental intent unless a manual full scan is queued (manual=${manual})`, async () => {
+			const pending = new DeferredPromise<ICloudSandboxDiscoveryResult>();
+			const entered = new DeferredPromise<void>();
+			let hold = false;
+			const requests: (ICloudSandboxDiscoveryOptions | undefined)[] = [];
+			const harness = await createContribution(store, [], {
+				listSessions: async (_token, options) => {
+					requests.push(options);
+					if (hold) {
+						await entered.complete();
+						return pending.p;
+					}
+					return options?.incremental
+						? { kind: 'incremental', sessions: [], removedTaskIds: [] }
+						: { kind: 'complete', sessions: [] };
+				},
+			});
+			hold = true;
+			const first = harness.contribution.refreshFeed('renewal');
+			await entered.p;
+			const queued = harness.contribution.refreshFeed('renewal');
+			const queuedAgain = harness.contribution.refreshFeed('renewal');
+			const full = manual ? harness.runDiscovery() : Promise.resolve();
+			hold = false;
+			await pending.complete({ kind: 'incremental', sessions: [], removedTaskIds: [] });
+			await Promise.all([first, queued, queuedAgain, full]);
+			assert.deepStrictEqual(requests, [
+				{ incremental: false, includeArchived: false, trigger: 'startup' },
+				{ incremental: true, includeArchived: false, trigger: 'feedRenewal' },
+				{ incremental: !manual, includeArchived: false, trigger: manual ? 'manual' : 'feedRenewal' },
+			]);
+		});
+	}
+
 	for (const failure of ['invalidated', 'partial', 'persistent'] as const) {
 		test(`retries a ${failure} task refresh once without losing successful tasks`, async () => {
 			const batches: (readonly string[] | undefined)[] = [];
@@ -2515,25 +2923,27 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 		assert.deepStrictEqual(batches, [undefined, undefined, ['one', 'two']]);
 	});
 
-	test('frequent task hints cannot postpone the safety poll indefinitely', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		const batches: (readonly string[] | undefined)[] = [];
-		const harness = await createContribution(store, [], {
-			sessionFeed: { connected: true, start: async () => { }, dispose: () => { } },
-			listSessions: async (_token, options) => {
-				batches.push(options?.taskIds);
-				return options?.incremental
-					? { kind: 'incremental', sessions: [], removedTaskIds: [] }
-					: { kind: 'complete', sessions: [] };
-			},
-		});
-		for (let i = 0; i < 4; i++) {
-			await timeout(60_000);
-			await harness.contribution.refreshTasks(['one']);
-		}
-		await timeout(60_001);
-		await harness.contribution.checkForUpdates();
-		assert.deepStrictEqual(batches, [undefined, ['one'], ['one'], ['one'], ['one'], undefined]);
-	}));
+	for (const connected of [false, true]) {
+		test(`task hints never postpone the inventory poll and a connected feed replaces it (connected=${connected})`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const batches: (readonly string[] | undefined)[] = [];
+			const harness = await createContribution(store, [], {
+				sessionFeed: { connected, start: async () => { }, dispose: () => { } },
+				listSessions: async (_token, options) => {
+					batches.push(options?.taskIds);
+					return options?.incremental
+						? { kind: 'incremental', sessions: [], removedTaskIds: [] }
+						: { kind: 'complete', sessions: [discoveredSession()] };
+				},
+			});
+			for (let i = 0; i < 4; i++) {
+				await timeout(60_000);
+				await harness.contribution.refreshTasks(['one']);
+			}
+			await timeout(60_001);
+			await harness.contribution.checkForUpdates();
+			assert.deepStrictEqual(batches, [undefined, ['one'], ['one'], ['one'], ['one'], ...connected ? [] : [undefined]]);
+		}));
+	}
 
 	test('shares overlapping full refreshes without an unnecessary follow-up scan', async () => {
 		const pending = new DeferredPromise<ICloudSandboxDiscoveryResult>();
@@ -2550,33 +2960,70 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 		assert.deepStrictEqual(harness.discoveryModes, [false, false]);
 	});
 
-	test('refreshes on stale focus and host selection but not while blurred or fresh', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		const harness = await createContribution(store, [], {
-			listSessions: async (_token, options) => options?.incremental
-				? { kind: 'incremental', sessions: [], removedTaskIds: [] }
-				: { kind: 'complete', sessions: [] },
+	for (const connected of [false, true]) {
+		test(`stale focus and host selection refresh only without a connected feed (connected=${connected})`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const triggers: (CloudSandboxDiscoveryTrigger | undefined)[] = [];
+			const harness = await createContribution(store, [], {
+				sessionFeed: { connected, start: async () => { }, dispose: () => { } },
+				listSessions: async (_token, options) => {
+					triggers.push(options?.trigger);
+					return options?.incremental
+						? { kind: 'incremental', sessions: [], removedTaskIds: [] }
+						: { kind: 'complete', sessions: [discoveredSession()] };
+				},
+			});
+			// The inventory goes stale exactly one interval after a pass; keep the poll due later so focus and selection do the refreshing.
+			harness.contribution.pollJitter = 30_000;
+			harness.setFocused(false);
+			harness.setFocused(true);
+			await harness.contribution.checkForUpdates();
+			const fresh = harness.discoveryModes.length;
+
+			harness.setFocused(false);
+			await timeout(5 * 60_000);
+			harness.selectSandboxHost();
+			await harness.contribution.checkForUpdates();
+			const blurred = harness.discoveryModes.length;
+
+			harness.setFocused(true);
+			await harness.contribution.checkForUpdates();
+			harness.selectSandboxHost();
+			await harness.contribution.checkForUpdates();
+			await timeout(5 * 60_000);
+			harness.selectSandboxHost();
+			await harness.contribution.checkForUpdates();
+
+			assert.deepStrictEqual({ fresh, blurred, modes: harness.discoveryModes, triggers }, {
+				fresh: 1, blurred: 1,
+				modes: connected ? [false] : [false, true, true],
+				triggers: connected ? ['startup'] : ['startup', 'focus', 'selection'],
+			});
+		}));
+	}
+
+	test('stale focus resumes discovery when the feed disconnects', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		let connected = true;
+		const triggers: (CloudSandboxDiscoveryTrigger | undefined)[] = [];
+		const harness = await createContribution(store, [discoveredSession()], {
+			sessionFeed: { get connected() { return connected; }, start: async () => { }, dispose: () => { } },
+			listSessions: async (_token, options) => {
+				triggers.push(options?.trigger);
+				return { kind: 'complete', sessions: [discoveredSession()] };
+			},
 		});
 		harness.setFocused(false);
+		await timeout(5 * 60_000 + 1);
 		harness.setFocused(true);
 		await harness.contribution.checkForUpdates();
-		const fresh = harness.discoveryModes.length;
+		const whileConnected = [...triggers];
 
+		connected = false;
 		harness.setFocused(false);
-		await timeout(60_000);
-		harness.selectSandboxHost();
-		await harness.contribution.checkForUpdates();
-		const blurred = harness.discoveryModes.length;
-
 		harness.setFocused(true);
 		await harness.contribution.checkForUpdates();
-		harness.selectSandboxHost();
-		await harness.contribution.checkForUpdates();
-		await timeout(60_000);
-		harness.selectSandboxHost();
-		await harness.contribution.checkForUpdates();
 
-		assert.deepStrictEqual({ fresh, blurred, modes: harness.discoveryModes }, {
-			fresh: 1, blurred: 1, modes: [false, true, true],
+		assert.deepStrictEqual({ whileConnected, afterDisconnect: triggers }, {
+			whileConnected: ['startup'], afterDisconnect: ['startup', 'focus'],
 		});
 	}));
 
@@ -2588,16 +3035,16 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 				: { kind: 'complete', sessions },
 		});
 		const provider = harness.contribution.stubProviders.get(cloudSandboxAddress('env-1'))!;
-		await timeout(60_000);
+		await timeout(5 * 60_000);
 		await harness.contribution.checkForUpdates();
 		const retainedAfterIncremental = !provider.disposed;
 		sessions = [];
-		await timeout(14 * 60_000);
+		await timeout(10 * 60_000);
 		await harness.contribution.checkForUpdates();
 
 		assert.deepStrictEqual({
 			modes: harness.discoveryModes, retainedAfterIncremental, removedAfterFull: provider.disposed,
-		}, { modes: [false, ...Array.from({ length: 14 }, () => true), false], retainedAfterIncremental: true, removedAfterFull: true });
+		}, { modes: [false, true, true, false], retainedAfterIncremental: true, removedAfterFull: true });
 	}));
 
 	test('subscribes before the initial task read, without connecting a sandbox', async () => {
@@ -2609,20 +3056,20 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 		assert.deepStrictEqual({ order, connected: harness.connectedTo }, { order: ['subscribe', 'list'], connected: [] });
 	});
 
-	for (const failure of ['flag disabled', 'request failed'] as const) {
+	for (const failure of ['flag disabled', 'waiting on a Retry-After'] as const) {
 		test(`normal polling finds new sessions without reprobing when the feed is ${failure}`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 			let negotiations = 0;
 			const harness = await createContribution(store, [], {
 				connectSessionFeed: async () => {
 					negotiations++;
-					if (failure === 'request failed') {
-						throw new Error('Feed is unavailable');
+					if (failure === 'waiting on a Retry-After') {
+						throw new CloudSandboxRequestError(503, 'Unavailable', 3600);
 					}
 					return undefined;
 				},
 			});
 			harness.discovered = [discoveredSession()];
-			await timeout(60_001);
+			await timeout(15 * 60_000 + 1);
 			await harness.contribution.checkForUpdates();
 			const afterPoll = harness.contribution.stubProviders.get(cloudSandboxAddress('env-1'))?.seeded.map(session => session.summary);
 			await timeout(10 * 60_000);
@@ -2638,13 +3085,13 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 		}));
 	}
 
-	test('polling-only discovery never negotiates a feed and retains the normal refresh interval', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('polling-only discovery never negotiates a feed and polls on the normal interval', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		let negotiations = 0;
 		const harness = await createContribution(store, [discoveredSession()], {
 			sessionFeedEnabled: false,
 			connectSessionFeed: async () => { negotiations++; return undefined; },
 		});
-		await timeout(60_001);
+		await timeout(5 * 60_000 + 1);
 		await harness.contribution.checkForUpdates();
 		assert.deepStrictEqual({ negotiations, modes: harness.discoveryModes }, { negotiations: 0, modes: [false, true] });
 	}));
@@ -2698,12 +3145,12 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 		const provider = harness.contribution.stubProviders.get(cloudSandboxAddress('env-1'))!;
 		await harness.setSessionFeedEnabled(false);
 		await harness.runDiscovery();
-		await timeout(60_001);
+		await timeout(5 * 60_000 + 1);
 		await harness.contribution.checkForUpdates();
 		const polling = { starts, disposals, modes: [...harness.discoveryModes] };
 		await harness.setSessionFeedEnabled(true);
 		await harness.runDiscovery();
-		await timeout(60_001);
+		await timeout(5 * 60_000 + 1);
 		await harness.contribution.checkForUpdates();
 		assert.deepStrictEqual({
 			polling,
@@ -2750,7 +3197,7 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 		assert.deepStrictEqual({ negotiations, modes: harness.discoveryModes }, { negotiations: 0, modes: [] });
 	});
 
-	test('uses a slow safety poll with a healthy feed and resumes faster polling on disconnect', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('does not poll while the feed is connected and resumes jittered polling once it drops', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		let connected = true;
 		let disposed = false;
 		const harness = await createContribution(store, [discoveredSession()], {
@@ -2760,19 +3207,55 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 				dispose: () => { disposed = true; },
 			},
 		});
-		await timeout(5 * 60_000 - 1);
-		const beforeSafetyPoll = harness.discoveryModes.length;
-		await timeout(2);
-		const afterSafetyPoll = harness.discoveryModes.length;
+		harness.contribution.pollJitter = 30_000;
+		await timeout(5 * 60_000 + 1);
+		const whileConnected = harness.discoveryModes.length;
 		connected = false;
-		await timeout(60_000);
-		const afterDisconnect = harness.discoveryModes.length;
+		await timeout(5 * 60_000 + 30_000 - 2);
+		const beforeJitteredPoll = harness.discoveryModes.length;
+		await timeout(2);
+		const afterJitteredPoll = harness.discoveryModes.length;
 		await harness.setEnabled(false);
-		await timeout(5 * 60_000);
-		assert.deepStrictEqual({ beforeSafetyPoll, afterSafetyPoll, afterDisconnect, afterDisable: harness.discoveryModes.length, disposed }, {
-			beforeSafetyPoll: 1, afterSafetyPoll: 2, afterDisconnect: 3, afterDisable: 3, disposed: true,
+		await timeout(10 * 60_000);
+		assert.deepStrictEqual({ whileConnected, beforeJitteredPoll, afterJitteredPoll, afterDisable: harness.discoveryModes.length, disposed }, {
+			whileConnected: 1, beforeJitteredPoll: 1, afterJitteredPoll: 2, afterDisable: 2, disposed: true,
 		});
 	}));
+
+	test('polls at the full-scan interval until the account has a sandbox', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const harness = await createContribution(store, []);
+		await timeout(10 * 60_000 + 1);
+		const whileEmpty = harness.discoveryModes.length;
+		harness.discovered = [discoveredSession()];
+		await timeout(5 * 60_000);
+		const afterReconciliation = harness.discoveryModes.length;
+		await timeout(5 * 60_000 + 1);
+		assert.deepStrictEqual({ whileEmpty, afterReconciliation, modes: harness.discoveryModes }, {
+			whileEmpty: 1, afterReconciliation: 2, modes: [false, false, true],
+		});
+	}));
+
+	for (const path of ['provisioning', 'feed task read'] as const) {
+		test(`resumes the normal interval once the first sandbox arrives through ${path}`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const found = discoveredSession();
+			const harness = await createContribution(store, [], {
+				listSessions: async (_token, options) => options?.taskIds
+					? { kind: 'incremental', sessions: [found], removedTaskIds: [] }
+					: options?.incremental ? { kind: 'incremental', sessions: [], removedTaskIds: [] } : { kind: 'complete', sessions: [] },
+			});
+			await timeout(60_000);
+			if (path === 'provisioning') {
+				harness.contribution.ensureProvider(found);
+			} else {
+				await harness.contribution.refreshTasks([found.taskId]);
+			}
+			const afterFirstSandbox = harness.discoveryModes.length;
+			await timeout(4 * 60_000 + 1);
+			assert.deepStrictEqual({ afterFirstSandbox, modes: harness.discoveryModes }, {
+				afterFirstSandbox: path === 'provisioning' ? 1 : 2, modes: path === 'provisioning' ? [false, true] : [false, true, true],
+			});
+		}));
+	}
 
 	test('replaces account-scoped discovery subscriptions on account changes and cancels them on disablement', async () => {
 		const subscriptions: { disposed: boolean }[] = [];
@@ -2796,28 +3279,28 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 		const harness = await createContribution(store, [], {
 			listSessions: async (_token, options) => options?.incremental
 				? { kind: 'failed', reason: 'temporarily unavailable' }
-				: { kind: 'complete', sessions: [] },
+				: { kind: 'complete', sessions: [discoveredSession()] },
 		});
-		await timeout(60_000);
+		await timeout(5 * 60_000);
 		await harness.contribution.checkForUpdates();
-		await timeout(60_000);
+		await timeout(5 * 60_000);
 		await harness.contribution.checkForUpdates();
 		const duringBackoff = harness.discoveryModes.length;
-		await timeout(60_000);
+		await timeout(5 * 60_000);
 		await harness.contribution.checkForUpdates();
 		await harness.runDiscovery();
 
 		assert.deepStrictEqual({ duringBackoff, modes: harness.discoveryModes }, {
-			duringBackoff: 2, modes: [false, true, true, false],
+			duringBackoff: 2, modes: [false, true, false, false],
 		});
 	}));
 
 	test('queues one full refresh when manual requests overlap an incremental scan', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const pending = new DeferredPromise<ICloudSandboxDiscoveryResult>();
 		const harness = await createContribution(store, [], {
-			listSessions: async (_token, options) => options?.incremental ? pending.p : { kind: 'complete', sessions: [] },
+			listSessions: async (_token, options) => options?.incremental ? pending.p : { kind: 'complete', sessions: [discoveredSession()] },
 		});
-		await timeout(60_000);
+		await timeout(5 * 60_000);
 		const automatic = harness.contribution.checkForUpdates();
 		const manual = harness.runDiscovery();
 		const anotherManual = harness.runDiscovery();
@@ -2826,6 +3309,130 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 
 		assert.deepStrictEqual(harness.discoveryModes, [false, true, false]);
 	}));
+
+	test('preserves connected task ownership and history outside the recent window until explicitly removed', async () => {
+		const session = discoveredSession();
+		const address = cloudSandboxAddress(session.environmentId);
+		const cleared: (string | undefined)[] = [];
+		let result: ICloudSandboxDiscoveryResult = { kind: 'complete', sessions: [session] };
+		const harness = await createContribution(store, [], {
+			listSessions: async () => result,
+			clearSessionHistory: taskId => cleared.push(taskId),
+			connections: [{ address, name: session.name, status: RemoteAgentHostConnectionStatus.connected }],
+		});
+		const provider = harness.contribution.stubProviders.get(address)!;
+		cleared.length = 0;
+		result = { kind: 'complete', sessions: [] };
+		await harness.runDiscovery();
+		await provider.taskRenameHandlers.get(session.sessionId)!('Renamed connected task');
+		await provider.taskArchiveHandlers.get(session.sessionId)!(true);
+		const afterWindowRefresh = {
+			renamed: [...harness.renamedTasks],
+			archived: [...harness.archivedTasks],
+			cleared: [...cleared],
+			disposed: provider.disposed,
+		};
+		result = { kind: 'complete', sessions: [], removedTaskIds: [session.taskId] };
+		await harness.runDiscovery();
+
+		assert.deepStrictEqual({
+			afterWindowRefresh,
+			afterRemoval: {
+				renameHandlers: provider.taskRenameHandlers.size,
+				archiveHandlers: provider.taskArchiveHandlers.size,
+				cleared,
+				disposed: provider.disposed,
+			},
+		}, {
+			afterWindowRefresh: {
+				renamed: [{ taskId: session.taskId, title: 'Renamed connected task' }],
+				archived: [{ taskId: session.taskId, archived: true }],
+				cleared: [],
+				disposed: false,
+			},
+			afterRemoval: { renameHandlers: 0, archiveHandlers: 0, cleared: [session.taskId], disposed: false },
+		});
+	});
+
+	for (const state of ['connecting', 'reconnecting'] as const) {
+		test(`retains ${state} environments on window eviction but reconciles explicit removals`, async () => {
+			const session = discoveredSession();
+			const address = cloudSandboxAddress(session.environmentId);
+			const cleared: (string | undefined)[] = [];
+			let result: ICloudSandboxDiscoveryResult = { kind: 'complete', sessions: [session] };
+			const harness = await createContribution(store, [], {
+				listSessions: async () => result,
+				clearSessionHistory: taskId => cleared.push(taskId),
+				connections: [{ address, name: session.name, status: RemoteAgentHostConnectionStatus[state] }],
+			});
+			const provider = harness.contribution.stubProviders.get(address)!;
+			cleared.length = 0;
+			result = { kind: 'complete', sessions: [] };
+			await harness.runDiscovery();
+			const afterWindowRefresh = {
+				disposed: provider.disposed,
+				renameHandlers: provider.taskRenameHandlers.size,
+				archiveHandlers: provider.taskArchiveHandlers.size,
+				cleared: [...cleared],
+				disconnected: [...harness.disconnectedFrom],
+			};
+			result = { kind: 'complete', sessions: [], removedTaskIds: [session.taskId] };
+			await harness.runDiscovery();
+
+			assert.deepStrictEqual({
+				afterWindowRefresh,
+				afterRemoval: { disposed: provider.disposed, cleared, disconnected: harness.disconnectedFrom },
+			}, {
+				afterWindowRefresh: { disposed: false, renameHandlers: 1, archiveHandlers: 1, cleared: [], disconnected: [] },
+				afterRemoval: { disposed: true, cleared: [session.taskId], disconnected: [address] },
+			});
+		});
+	}
+
+	test('a pending wake survives window eviction without a connection entry until explicitly removed', async () => {
+		const session = discoveredSession();
+		const address = cloudSandboxAddress(session.environmentId);
+		const cleared: (string | undefined)[] = [];
+		let result: ICloudSandboxDiscoveryResult = { kind: 'complete', sessions: [session] };
+		const harness = await createContribution(store, [], {
+			listSessions: async () => result,
+			clearSessionHistory: taskId => cleared.push(taskId),
+		});
+		const provider = harness.contribution.stubProviders.get(address)!;
+		const wake = new DeferredPromise<void>();
+		let wakeToken = CancellationToken.None;
+		harness.onConnect = async (_options, token) => {
+			wakeToken = token;
+			await wake.p;
+		};
+		const connecting = harness.contribution.connect({
+			environmentId: session.environmentId, sessionId: session.sessionId, name: session.name,
+		});
+		const cancelled = assert.rejects(connecting, CancellationError);
+		cleared.length = 0;
+		result = { kind: 'complete', sessions: [] };
+		await harness.runDiscovery();
+		const afterWindowRefresh = {
+			cancelled: wakeToken.isCancellationRequested,
+			disposed: provider.disposed,
+			renameHandlers: provider.taskRenameHandlers.size,
+			archiveHandlers: provider.taskArchiveHandlers.size,
+			cleared: [...cleared],
+			disconnected: [...harness.disconnectedFrom],
+		};
+		result = { kind: 'complete', sessions: [], removedTaskIds: [session.taskId] };
+		await harness.runDiscovery();
+		await wake.complete();
+		await cancelled;
+
+		assert.deepStrictEqual({
+			afterWindowRefresh,
+			afterRemoval: { cancelled: wakeToken.isCancellationRequested, disposed: provider.disposed, cleared, disconnected: harness.disconnectedFrom },
+		}, {
+			afterWindowRefresh: { cancelled: false, disposed: false, renameHandlers: 1, archiveHandlers: 1, cleared: [], disconnected: [] },
+			afterRemoval: { cancelled: true, disposed: true, cleared: [session.taskId], disconnected: [address] },
+		});
+	});
 
 	test('keeps absent sessions but reconciles explicit removals from incremental and partial scans', async () => {
 		let result: ICloudSandboxDiscoveryResult = {

@@ -24,9 +24,9 @@ suite('Agent Host Chat Move Errors', () => {
 
 		assert.deepStrictEqual({
 			reasons: [archived, notStarted, credentials, unknownReason, failure].map(getChatMoveRefusal),
-			messages: [archived, notStarted, credentials, unknownReason, failure].map(error => message(toChatMoveError(error, false))),
+			messages: [archived, notStarted, credentials, unknownReason, failure].map(error => message(toChatMoveError(error, { chatSharesFolder: false }))),
 			// Only refusals become errors the sessions list shows as they are.
-			refused: [archived, notStarted, credentials, unknownReason, failure].map(error => toChatMoveError(error, false) instanceof SessionMoveRefusedError),
+			refused: [archived, notStarted, credentials, unknownReason, failure].map(error => toChatMoveError(error, { chatSharesFolder: false }) instanceof SessionMoveRefusedError),
 		}, {
 			reasons: [AgentChatMoveRefusal.SessionArchived, AgentChatMoveRefusal.NotStarted, AgentChatMoveRefusal.DifferentCredentialOwner, undefined, undefined],
 			messages: [
@@ -46,11 +46,33 @@ suite('Agent Host Chat Move Errors', () => {
 		const message = (error: unknown) => error instanceof Error ? error.message : String(error);
 
 		assert.deepStrictEqual({
-			shared: message(toChatMoveError(refusal, true)),
-			noFolder: message(toChatMoveError(refusal, false)),
+			shared: message(toChatMoveError(refusal, { chatSharesFolder: true })),
+			noFolder: message(toChatMoveError(refusal, { chatSharesFolder: false })),
 		}, {
 			shared: 'This chat shares its folder with another chat in its session, so it can\'t be moved on its own.',
 			noFolder: 'This chat\'s folder is missing, so it can\'t be moved.',
+		});
+	});
+
+	test('explains refusals by agent, and an unsupported new session as the chat having no conversation of its own', () => {
+		const message = (error: unknown) => error instanceof Error ? error.message : String(error);
+		const refusal = (reason: AgentChatMoveRefusal) => new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Host details.', { reason });
+
+		assert.deepStrictEqual({
+			// Only with chats on their own agents off.
+			differentProvider: message(toChatMoveError(refusal(AgentChatMoveRefusal.DifferentProvider), { chatSharesFolder: false })),
+			agentUnavailable: message(toChatMoveError(refusal(AgentChatMoveRefusal.AgentUnavailable), { chatSharesFolder: false })),
+			agentWithoutChats: message(toChatMoveError(refusal(AgentChatMoveRefusal.AgentWithoutChats), { chatSharesFolder: false })),
+			agentConfigUnavailable: message(toChatMoveError(refusal(AgentChatMoveRefusal.AgentConfigUnavailable), { chatSharesFolder: false, toNewSession: true })),
+			unsupportedNewSession: message(toChatMoveError(refusal(AgentChatMoveRefusal.Unsupported), { chatSharesFolder: false, toNewSession: true })),
+			unsupportedSession: message(toChatMoveError(refusal(AgentChatMoveRefusal.Unsupported), { chatSharesFolder: false })),
+		}, {
+			differentProvider: 'Chats can only move between sessions of the same agent. Pick a session that uses this chat\'s agent.',
+			agentUnavailable: 'This chat\'s agent is unavailable or disabled. Enable it to move the chat.',
+			agentWithoutChats: 'The destination session\'s agent can\'t host chats of other agents, or this chat\'s agent can\'t join one. Pick a session whose agent supports multiple chats, or one of this chat\'s agent.',
+			agentConfigUnavailable: 'This chat\'s agent couldn\'t load its settings for the move. Try again.',
+			unsupportedNewSession: 'This chat has no conversation of its own yet, so it can\'t be moved into a new session.',
+			unsupportedSession: 'This chat can\'t be moved there.',
 		});
 	});
 });

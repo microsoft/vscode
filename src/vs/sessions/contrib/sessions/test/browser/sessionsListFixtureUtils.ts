@@ -52,6 +52,7 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatSessionItemArchiveState } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatEntitlementService, IChatSentiment } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
@@ -63,12 +64,16 @@ import { TestQuickInputService } from '../../../../../workbench/test/browser/wor
 import { Menus } from '../../../../browser/menus.js';
 import { IsPhoneLayoutContext, SessionsListRearrangeContext } from '../../../../common/contextkeys.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
+import { ISessionsListPresentation } from '../../../../services/presentation/browser/sessionsListPresentation.js';
+import { DefaultSessionsListPresentation } from '../../../../services/presentation/browser/defaultSessionsListPresentation.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { getSessionGroupSectionId, ISessionGroupsService, SessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionsListModelService, SessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
+import { sessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 import { IChat, ISession, ISessionEnvironment } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionComparison, ISessionComparisonService } from '../../../../services/sessions/common/sessionComparison.js';
@@ -76,9 +81,10 @@ import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from
 import { buildTestSession, ITestChat, ITestChatSpec, ITestSession, ITestSessionSpec } from '../../../../services/sessions/test/common/testSessionBuilder.js';
 import { BlockedSessionReason, BlockedSessions } from '../../../blockedSessions/browser/blockedSessions.js';
 import { NEW_SESSION_ACTION_ID } from '../../../chat/common/constants.js';
+import { IInboxNotificationsService, InboxNotificationsSortMode } from '../../../inboxOne/common/inboxNotificationsService.js';
 import { NEW_SESSION_BUTTON_STYLE_SETTING, NEW_SESSION_BUTTON_STYLE_TREATMENT, NewSessionActionViewItemContribution, type NewSessionButtonStyle } from '../../browser/sessionsActions.js';
 import { SessionChatItem, SessionsGrouping, SessionsList, SessionsListItemReference, SessionsSorting } from '../../browser/views/sessionsList.js';
-import { renderSessionsHeader } from '../../browser/views/sessionsView.js';
+import { ISessionsHeaderElements, renderSessionsHeader } from '../../browser/views/sessionsView.js';
 import { SessionsArchiveActionsContribution, getSessionsArchiveActionConstructors } from '../../browser/views/sessionsViewActions.js';
 import { TestSessionsList } from './testSessionsList.js';
 
@@ -147,13 +153,18 @@ export interface ISessionsListFixtureView {
 
 /** Pointer and keyboard state, applied after the list renders. */
 export interface ISessionsListFixtureInteraction {
+	/**
+	 * The query typed into the find widget of the Sessions header, which {@link ISessionsListFixtureState.header}
+	 * renders. Applied first, since searching moves the keyboard focus to the first result.
+	 */
+	readonly search?: string;
 	readonly selected?: readonly SessionsListFixtureRow[];
 	/** The row with keyboard focus. */
 	readonly focused?: SessionsListFixtureRow;
 	/** Whether the list owns DOM focus. Defaults to `true` when {@link focused} is set. */
 	readonly listFocused?: boolean;
-	/** The row under the pointer, rendered with the `.hovered` row class. */
-	readonly hovered?: SessionsListFixtureRow;
+	/** The pane or row under the pointer, rendered with the `.hovered` class. */
+	readonly hovered?: SessionsListFixtureRow | 'pane';
 	/** The session, chat, or group row showing its inline rename editor. */
 	readonly renaming?: SessionsListFixtureRow;
 	/** Creates a group from these sessions and shows its name editor, like Create Group. */
@@ -424,6 +435,7 @@ function getArchiveWordingCommands(wording: ChatSessionArchiveActionWording): Re
 
 /** A live sessions catalog: renames, archiving, and read state update the rendered sessions. */
 class FixtureSessionsManagementService extends mock<ISessionsManagementService>() {
+	override readonly archivedSessionItems = constObservable<IChatSessionItemArchiveState>({ available: false, state: 'loaded' });
 	private readonly store = new DisposableStore();
 	private readonly changeEmitter = this.store.add(new Emitter<ISessionsChangeEvent>());
 	private readonly archiveEmitter = this.store.add(new Emitter<ISession>());
@@ -623,6 +635,7 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 			reg.define(IMarkdownRendererService, MarkdownRendererService);
 			reg.defineInstance(IProductService, TestProductService);
 			reg.defineInstance(ISessionsManagementService, new FixtureSessionsManagementService(sessions));
+			reg.define(ISessionsListPresentation, DefaultSessionsListPresentation);
 			reg.define(ISessionsListModelService, SessionsListModelService);
 			reg.define(ISessionGroupsService, SessionGroupsService);
 			reg.define(ISessionSectionOrderService, SessionSectionOrderService);
@@ -656,8 +669,9 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 			});
 			reg.defineInstance(ISessionsService, new class extends mock<ISessionsService>() {
 				override readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> = constObservable(visibleSessions);
-				override readonly activeSession: IObservable<IActiveSession | undefined> = constObservable(undefined);
+				readonly activeSession: IObservable<IActiveSession | undefined> = constObservable(undefined);
 			}());
+			reg.defineInstance(ISessionHostService, sessionHostServiceOf(disposableStore, { mainWindowActiveSession: constObservable(undefined), visibleSessions: constObservable(visibleSessions), windowSessions: constObservable([]) }));
 			reg.defineInstance(IAgentHostFilterService, new class extends mock<IAgentHostFilterService>() {
 				override readonly onDidChange = Event.None;
 				override readonly selectedHostId = undefined;
@@ -693,6 +707,13 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 			reg.defineInstance(ICustomViewService, new class extends mock<ICustomViewService>() {
 				override readonly activeCustomView = constObservable(undefined);
 				override hideCustomView(): void { }
+			}());
+			reg.defineInstance(IInboxNotificationsService, new class extends mock<IInboxNotificationsService>() {
+				override readonly notifications = constObservable([]);
+				override readonly attentionCount = constObservable(0);
+				override readonly isLoading = constObservable(false);
+				override readonly sortMode = constObservable(InboxNotificationsSortMode.Priority);
+				override setSortMode(): void { }
 			}());
 		},
 	});
@@ -769,6 +790,7 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 	container.style.width = `${state.frame?.width ?? width}px`;
 	container.style.height = `${state.frame?.height ?? view.height ?? (view.phone ? 260 : 220)}px`;
 	container.style.backgroundColor = 'var(--vscode-sideBar-background, var(--vscode-editor-background))';
+	container.classList.add('agent-sessions-viewpane');
 	if (state.frame) {
 		container.style.position = 'relative';
 	}
@@ -778,14 +800,18 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 
 	let listParent = container;
 	let navigationContainer: HTMLElement | undefined;
+	let renderedHeader: ISessionsHeaderElements | undefined;
+	let findWidgetContainer: HTMLElement | undefined;
 	if (header) {
-		container.classList.add('agent-sessions-viewpane', 'agent-sessions-section');
+		container.classList.add('agent-sessions-section');
 		const content = DOM.append(container, DOM.$('.agent-sessions-content'));
 		navigationContainer = DOM.append(content, DOM.$('.agent-sessions-navigation-container'));
 		const sessionsHeaderContainer = DOM.append(content, DOM.$('.agent-sessions-header-container'));
 		disposableStore.add(instantiationService.createInstance(NewSessionActionViewItemContribution));
-		const renderedHeader = renderSessionsHeader(sessionsHeaderContainer, false, instantiationService, contextKeyService, disposableStore);
+		renderedHeader = renderSessionsHeader(sessionsHeaderContainer, false, instantiationService, contextKeyService, disposableStore);
 		renderedHeader.toolbar?.refresh();
+		findWidgetContainer = DOM.append(renderedHeader.row, DOM.$('.agent-sessions-find-widget-container'));
+		findWidgetContainer.style.display = 'none';
 		listParent = content;
 	}
 	const listHost = DOM.append(listParent, DOM.$(header ? '.agent-sessions-control-container' : 'div'));
@@ -804,9 +830,13 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 		customizationMigrationsAvailable: constObservable(header?.customizationMigrationsAvailable ?? false),
 		customizationExtensionSuggestionsAvailable: constObservable(header?.customizationExtensionSuggestionsAvailable ?? false),
 		navigationContainer,
+		findWidgetContainer,
 		onSessionOpen: () => { },
 		approvalModel,
 	}));
+	if (renderedHeader && findWidgetContainer) {
+		disposableStore.add(showFindWidgetInHeader(list, renderedHeader, findWidgetContainer));
+	}
 	for (const spec of state.sessions) {
 		if (spec.application) {
 			const session = getSession(spec.id).session;
@@ -833,6 +863,9 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 	}
 
 	await timeout(SETTLE_DELAY);
+	if (interaction.search !== undefined) {
+		typeSearch(list, findWidgetContainer, interaction.search);
+	}
 	applyInteraction(context, list, interaction, resolve, getSession, groupIds, interactionStore);
 	await timeout(SETTLE_DELAY);
 
@@ -909,6 +942,30 @@ async function renderHeaderState(container: HTMLElement, instantiationService: T
 	}
 }
 
+/** Like the Sessions view, replaces the label and actions of the header with the find widget while it is open. */
+function showFindWidgetInHeader(list: SessionsList, header: ISessionsHeaderElements, findWidgetContainer: HTMLElement): IDisposable {
+	return list.onDidChangeFindOpenState(open => {
+		findWidgetContainer.style.display = open ? '' : 'none';
+		header.label.style.display = open ? 'none' : '';
+		header.actions.style.display = open ? 'none' : '';
+	});
+}
+
+/** Opens the find widget like the Sessions view, which shows its container first so it can take focus, and types the query. */
+function typeSearch(list: SessionsList, findWidgetContainer: HTMLElement | undefined, query: string): void {
+	if (!findWidgetContainer) {
+		throw new Error('Searching needs the Sessions header, which hosts the find widget.');
+	}
+	findWidgetContainer.style.display = '';
+	list.openFind();
+	const input = findWidgetContainer.querySelector<HTMLInputElement>('.monaco-tree-type-filter input');
+	if (!input) {
+		throw new Error('Expected the find widget to open in the Sessions header.');
+	}
+	input.value = query;
+	input.dispatchEvent(new InputEvent('input', { bubbles: true }));
+}
+
 function applyInteraction(context: ComponentFixtureContext, list: TestSessionsList, interaction: ISessionsListFixtureInteraction, resolve: (row: SessionsListFixtureRow) => SessionsListItemReference, getSession: (id: string) => ITestSession, groupIds: ReadonlyMap<string, string>, interactionStore: DisposableStore): void {
 	if (interaction.selected && !list.setSelectedItems(interaction.selected.map(resolve))) {
 		throw new Error(`Expected selectable session or chat rows for ${JSON.stringify(interaction.selected)}.`);
@@ -920,7 +977,11 @@ function applyInteraction(context: ComponentFixtureContext, list: TestSessionsLi
 		context.focus(list);
 	}
 	if (interaction.hovered) {
-		simulateHover(list, resolve(interaction.hovered), context.disposableStore);
+		context.container.classList.add('hovered');
+		context.disposableStore.add(toDisposable(() => context.container.classList.remove('hovered')));
+		if (interaction.hovered !== 'pane') {
+			simulateHover(list, resolve(interaction.hovered), context.disposableStore);
+		}
 	}
 	if (interaction.createGroupFrom) {
 		list.createGroupFromSessions(interaction.createGroupFrom.map(id => getSession(id).session));
@@ -1007,8 +1068,9 @@ function startRename(list: SessionsList, row: SessionsListFixtureRow, getSession
 
 /**
  * Renders pointer hover on a row: the `.hovered` class stands in for CSS
- * `:hover`, and a `mouseover` drives the list's own hover tracking. Reapplied
- * after list updates, which can recycle row elements.
+ * `:hover`, and a `mouseover` drives JavaScript that reacts to the pointer,
+ * such as the list revealing its scrollbar. Reapplied after list updates,
+ * which can recycle row elements.
  */
 function simulateHover(list: TestSessionsList, item: SessionsListItemReference, store: DisposableStore): void {
 	let hoveredRow: HTMLElement | undefined;

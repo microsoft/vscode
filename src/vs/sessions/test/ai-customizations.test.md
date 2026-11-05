@@ -311,6 +311,7 @@ This tests the transition from the empty state to having an active workspace sel
 
 - The migration settings and candidates from Scenario 6
 - The new-chat view with an agent-host session type selected
+- At least 3 sessions started in the Agents window. Before that, no banner shows below the composer, the notice included.
 
 #### Actions and expected results
 
@@ -321,3 +322,4 @@ This tests the transition from the empty state to having an active workspace sel
 5. Complete all migrations, then return to new chat. The notice disappears. Profile-only migrations also show in a workspace without local candidates or in a workspace-less quick chat.
 6. Disable the migration settings or AI features. No notice appears and disabled migration categories are not scanned for the notice.
 7. Verify light, dark, high-contrast, and keyboard focus states. Dismissal returns focus to the input.
+8. With a getting-started tip available, only the notice shows below the composer, because the banners there show one at a time. Dismissing the notice brings the tip back. A worktree suggestion (`sessions.chat.worktreeSuggestion` set to `inlineHint`) replaces the notice while it shows.

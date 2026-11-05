@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 import * as vscode from 'vscode';
 
-import type { Snapshot } from '@typescript/native/unstable/async';
-import * as ts from '@typescript/native/unstable/ast';
+import type { Snapshot } from '@typescript/native/async';
+import * as ts from '@typescript/native/ast';
 
 import type { ILogService } from '../../../../platform/log/common/logService';
 import { Region, type IRegionContextProviderService, type RegionResult, type LineRange } from '../../../../platform/languageContextProvider/common/regionContextProvider';
@@ -31,7 +31,7 @@ type ScopeInfo = {
 
 interface RegionContextApi {
 	clearSourceFileCache(): void;
-	updateSnapshot(): Promise<Snapshot>;
+	createSnapshot(): Promise<Snapshot>;
 }
 
 interface RegionContextApiProvider extends vscode.Disposable {
@@ -61,7 +61,7 @@ export class TS7RegionContextProvider implements Omit<IRegionContextProviderServ
 			return undefined;
 		}
 		api.clearSourceFileCache();
-		const snapshot = await api.updateSnapshot();
+		const snapshot = await api.createSnapshot();
 		try {
 
 			const project = await snapshot.getDefaultProjectForFile(document.fsPath);
@@ -395,7 +395,7 @@ export class TS7RegionContextProvider implements Omit<IRegionContextProviderServ
 		if (ts.isVariableDeclaration(node) && !ts.isIdentifier(node.name)) {
 			return undefined;
 		}
-		const initializer = ts.skipOuterExpressions(node.initializer);
+		const initializer = this.skipOuterExpressions(node.initializer);
 		let kind: string;
 		if (ts.isArrowFunction(initializer)) {
 			kind = ts.isVariableDeclaration(node) ? 'arrow-function' : 'function';
@@ -429,10 +429,28 @@ export class TS7RegionContextProvider implements Omit<IRegionContextProviderServ
 
 	private getOutermostExpression(node: ts.Node): ts.Node {
 		let current = node;
-		while (ts.isOuterExpression(current.parent) && current.parent.expression === current) {
+		while (this.isOuterExpression(current.parent) && current.parent.expression === current) {
 			current = current.parent;
 		}
 		return current;
+	}
+
+	private skipOuterExpressions(node: ts.Expression): ts.Expression {
+		let current = node;
+		while (this.isOuterExpression(current)) {
+			current = current.expression;
+		}
+		return current;
+	}
+
+	private isOuterExpression(node: ts.Node): node is ts.ParenthesizedExpression | ts.AsExpression | ts.SatisfiesExpression | ts.TypeAssertion | ts.NonNullExpression | ts.ExpressionWithTypeArguments | ts.PartiallyEmittedExpression {
+		return ts.isParenthesizedExpression(node)
+			|| ts.isAsExpression(node)
+			|| ts.isSatisfiesExpression(node)
+			|| ts.isTypeAssertion(node)
+			|| ts.isNonNullExpression(node)
+			|| ts.isExpressionWithTypeArguments(node)
+			|| ts.isPartiallyEmittedExpression(node);
 	}
 
 	private isInsideRequestedRange(sourceFile: ts.SourceFile, member: ts.Node, requested: LineRange): boolean {

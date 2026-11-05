@@ -8,7 +8,7 @@ import { stub } from 'sinon';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -20,6 +20,7 @@ import { ResolveSessionConfigResult } from '../../../../../../platform/agentHost
 import { IDialogService, IPrompt } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { TestDialogService } from '../../../../../../platform/dialogs/test/common/testDialogService.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
@@ -32,6 +33,7 @@ import { ISessionsProvidersService } from '../../../../../services/sessions/brow
 import { IChat, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { AgentHostCodexApprovalsPicker } from '../../browser/agentHostCodexApprovalsPicker.js';
+import { sessionChatSourceOf } from '../../../../../services/sessions/browser/sessionHost.js';
 
 suite('AgentHostCodexApprovalsPicker', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -97,9 +99,7 @@ suite('AgentHostCodexApprovalsPicker', () => {
 		instantiation.stub(ISessionsProvidersService, { onDidChangeProviders: Event.None, getProviders: () => [provider] });
 		instantiation.stub(ISessionsProvidersService, 'getProvider', () => provider);
 		instantiation.stub(ITelemetryService, NullTelemetryService);
-		instantiation.stub(IHoverService, new class extends mock<IHoverService>() {
-			override setupDelayedHover() { return Disposable.None; }
-		}());
+		instantiation.stub(IHoverService, { ...NullHoverService });
 		instantiation.stub(IOpenerService, new class extends mock<IOpenerService>() { });
 		const dialogService = new TestDialogService();
 		const prompt = stub(dialogService, 'prompt').callsFake(async options => {
@@ -110,7 +110,7 @@ suite('AgentHostCodexApprovalsPicker', () => {
 		store.add(toDisposable(() => prompt.restore()));
 		instantiation.stub(IDialogService, dialogService);
 		instantiation.stub(IChatWidgetService, { getWidgetBySessionResource: resource => resource.toString() === chat.resource.toString() ? widget : undefined });
-		const picker = store.add(instantiation.createInstance(AgentHostCodexApprovalsPicker, session));
+		const picker = store.add(instantiation.createInstance(AgentHostCodexApprovalsPicker, sessionChatSourceOf(session)));
 		const container = dom.append(document.body, dom.$('div'));
 		store.add(toDisposable(() => container.remove()));
 		picker.render(container);

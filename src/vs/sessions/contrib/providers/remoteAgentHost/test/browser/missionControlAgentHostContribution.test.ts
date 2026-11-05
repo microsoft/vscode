@@ -38,7 +38,6 @@ import { Menus } from '../../../../../browser/menus.js';
 import { RemoteAgentHostCommandIds } from '../../browser/remoteAgentHostActions.js';
 import { IRecentWorkspace, ISessionsRecentWorkspacesService } from '../../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionWorkspace } from '../../../../../services/sessions/common/session.js';
-import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../../chat/common/constants.js';
 import { getRemoteAgentHostPickerKey } from '../../browser/remoteAgentHostPickerVisibility.js';
 
 class TestProvider extends mock<RemoteAgentHostSessionsProvider>() {
@@ -115,6 +114,7 @@ suite('Mission Control native provider inventory', () => {
 	} = {}) {
 		const instantiation = store.add(new TestInstantiationService());
 		const hosts = observableValue<readonly IMissionControlHost[]>('hosts', []);
+		const ownEnvironmentId = observableValue<string | undefined>('ownEnvironmentId', undefined);
 		let account = 'first';
 		const created: { provider: TestProvider; options: IEntryDrivenProviderOptions }[] = [];
 		const actions: string[] = [];
@@ -185,6 +185,7 @@ suite('Mission Control native provider inventory', () => {
 		}());
 		instantiation.stub(IMissionControlEnvironmentService, new class extends mock<IMissionControlEnvironmentService>() {
 			override readonly hosts = hosts;
+			override readonly ownEnvironmentId = ownEnvironmentId;
 			override readonly enabled = true;
 			override get accountKey() { return account; }
 			override async refresh() { actions.push('discover'); await options.refresh?.(); }
@@ -214,7 +215,7 @@ suite('Mission Control native provider inventory', () => {
 			}
 		}));
 		return {
-			hosts, created, actions, contribution, configuration, sharedProjects, recentQueries, providerChanges, rediscover, sharedStartup, setConnectionStatus,
+			hosts, ownEnvironmentId, created, actions, contribution, configuration, sharedProjects, recentQueries, providerChanges, rediscover, sharedStartup, setConnectionStatus,
 			whenConnected: (id: string) => {
 				const isConnected = () => RemoteAgentHostConnectionStatus.isConnected(connections.get(`cloudsandbox:${id}`)?.status);
 				return isConnected() ? Promise.resolve() : Event.toPromise(Event.filter(connectionsChanged.event, isConnected), connectionListeners);
@@ -241,6 +242,30 @@ suite('Mission Control native provider inventory', () => {
 			]);
 		});
 	}
+
+	test('marks this computer\'s environment as its local registration and keeps it out of the picker and auto-connect', async () => {
+		const { hosts, ownEnvironmentId, created, actions, rediscover } = fixture('profile', { web: true });
+		ownEnvironmentId.set('own', undefined);
+		hosts.set([
+			{ id: 'own', name: 'This Machine', kind: 'user-local', status: 'online' },
+			{ id: 'other', name: 'Other Machine', kind: 'user-local', status: 'online' },
+		], undefined);
+		await rediscover();
+		assert.deepStrictEqual({
+			providers: created.map(({ provider, options }) => ({
+				address: provider.remoteAddress,
+				localRegistration: options.localRegistration?.get(),
+				pickerVisible: options.isVisibleInEnvironmentPicker?.get(),
+			})),
+			connects: actions.filter(action => action.startsWith('connect:')),
+		}, {
+			providers: [
+				{ address: 'cloudsandbox:own', localRegistration: 'githubEnvironment', pickerVisible: false },
+				{ address: 'cloudsandbox:other', localRegistration: undefined, pickerVisible: true },
+			],
+			connects: ['connect:other'],
+		});
+	});
 
 	test('publishes native sessions only while connected and hides them again after connection loss or explicit disconnect', async () => {
 		const { hosts, created, setConnectionStatus } = fixture();
@@ -278,22 +303,18 @@ suite('Mission Control native provider inventory', () => {
 		});
 	});
 
-	test('publishes only local-disk picker recents and updates them when history or picker settings change', async () => {
+	test('publishes only local-disk picker recents and updates them when history or providers change', () => {
 		const f = fixture();
 		const first = URI.file('/home/test/code/first');
 		const second = URI.file('/another-drive/second');
 		f.setRecentFolders([first, URI.parse('vscode-agent-host://remote/remote-folder'), URI.parse('vscode-remote://ssh-remote+host/folder'), second]);
 		f.setRecentFolders([second]);
 		f.providerChanges.fire({ added: [], removed: [] });
-		await f.configuration.setUserConfiguration(UNIFIED_WORKSPACE_PICKER_SETTING, true);
-		f.configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
-			affectsConfiguration: section => section === UNIFIED_WORKSPACE_PICKER_SETTING,
-		}));
 		assert.deepStrictEqual({
 			projects: f.sharedProjects,
 			lastQuery: f.recentQueries.at(-1),
 		}, {
-			projects: [[], [first.toString(), second.toString()], [second.toString()], [second.toString()], [second.toString()]],
+			projects: [[], [first.toString(), second.toString()], [second.toString()], [second.toString()]],
 			lastQuery: { includeVSCode: true, collapseWorktrees: true },
 		});
 	});

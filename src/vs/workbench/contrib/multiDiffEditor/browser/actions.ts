@@ -26,7 +26,7 @@ import { AUX_WINDOW_GROUP, IEditorService, SIDE_GROUP } from '../../../services/
 import { ActiveEditorContext, IsSessionsWindowContext } from '../../../common/contextkeys.js';
 import { createMultiDiffEditorLayoutDebugModel, isMultiDiffEditorLayoutDebugStateProvider } from './multiDiffEditorLayoutDebug.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
-import { ActiveMultiDiffEditorHasFileListContext, MultiDiffEditorFileListEnabledContext, MultiDiffEditorFileListPosition, MultiDiffEditorFileListPositionContext, MultiDiffEditorFileListViewMode, MultiDiffEditorFileListViewModeContext, MultiDiffEditorFileListVisibleContext, MultiDiffEditorFilesViewAndPositionMenu, setMultiDiffEditorFileListPosition, setMultiDiffEditorFileListViewMode, toggleMultiDiffEditorFileList } from '../common/multiDiffEditor.js';
+import { ActiveMultiDiffEditorHasFileListContext, isMultiDiffEditorFileListHost, MultiDiffEditorFileListAvailableContext, TOGGLE_MULTI_DIFF_EDITOR_FILE_LIST_COMMAND_ID, MultiDiffEditorFileListEnabledContext, MultiDiffEditorFileListPosition, MultiDiffEditorFileListPositionContext, MultiDiffEditorFileListViewMode, MultiDiffEditorFileListViewModeContext, MultiDiffEditorFilesViewAndPositionMenu, setMultiDiffEditorFileListPosition, setMultiDiffEditorFileListViewMode, toggleMultiDiffEditorFileList } from '../common/multiDiffEditor.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
@@ -211,17 +211,15 @@ export class FocusFileListAction extends Action2 {
 		super({
 			id: 'multiDiffEditor.focusFileList',
 			title: localize2('focusFileList', 'Focus File List'),
-			precondition: ContextKeyExpr.and(
-				ActiveEditorContext.isEqualTo(MultiDiffEditor.ID),
-				MultiDiffEditorFileListVisibleContext,
-			),
+			// In any editor that supports the changed files list, also while the user has hidden it, as focusing the list shows it.
+			precondition: MultiDiffEditorFileListAvailableContext,
 			f1: true,
 		});
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const activeEditorPane = accessor.get(IEditorService).activeEditorPane;
-		if (activeEditorPane instanceof MultiDiffEditor) {
+		if (isMultiDiffEditorFileListHost(activeEditorPane)) {
 			activeEditorPane.focusFileList();
 		}
 	}
@@ -230,7 +228,7 @@ export class FocusFileListAction extends Action2 {
 export class ToggleFileListAction extends Action2 {
 	constructor() {
 		super({
-			id: 'multiDiffEditor.toggleFileList',
+			id: TOGGLE_MULTI_DIFF_EDITOR_FILE_LIST_COMMAND_ID,
 			title: localize2('toggleFileList', 'Toggle Files'),
 			icon: Codicon.listFlat,
 			toggled: MultiDiffEditorFileListEnabledContext,
@@ -261,6 +259,7 @@ abstract class SetFileListViewModeAction extends Action2 {
 				id: MultiDiffEditorFilesViewAndPositionMenu,
 				group: '1_view',
 				order: _viewMode === 'list' ? 1 : 2,
+				when: ActiveMultiDiffEditorHasFileListContext,
 			},
 		});
 	}
@@ -293,6 +292,7 @@ abstract class SetFileListPositionAction extends Action2 {
 				id: MultiDiffEditorFilesViewAndPositionMenu,
 				group: '2_position',
 				order: _position === 'left' ? 1 : 2,
+				when: ActiveMultiDiffEditorHasFileListContext,
 			},
 		});
 	}

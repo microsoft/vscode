@@ -15,7 +15,7 @@ import { detectAgentHostE2EChanges } from '../../../.github/actions/detect-agent
 const repositoryRoot = path.resolve(import.meta.dirname, '../../..');
 const profilePath = path.join(repositoryRoot, 'src/vs/platform/agentHost/test/node/agentHostTestProfile.ts');
 
-async function detect(files: readonly { filename: string; previous_filename?: string }[], expectedCount = files.length, failure?: Error) {
+async function detect(files: readonly { filename: string; previous_filename?: string; status?: string; patch?: string }[], expectedCount = files.length, failure?: Error) {
 	const outputs: Record<string, string> = {};
 	const messages: string[] = [];
 	await detectAgentHostE2EChanges({
@@ -45,6 +45,12 @@ suite('Agent Host PR test selection', () => {
 		for (const filename of [
 			'src/vs/workbench/browser/editor.ts',
 			'README.md',
+			'build/azure-pipelines/product-build.yml',
+			'.vscode/settings.json',
+			'.vscode/extensions/vscode-pr-pinger/package.json',
+			'.vscode/extensions/vscode-selfhost-test-provider/package-lock.json',
+			'test/sanity/package.json',
+			'.eslint-plugin-local/package.json',
 			'src/vs/platform/agentHost/node/copilot/copilotAgent.ts',
 			'src/vs/base/common/async.ts',
 		]) {
@@ -52,6 +58,12 @@ suite('Agent Host PR test selection', () => {
 			results.push({ affected: outputs.affected, profile: outputs.profile });
 		}
 		assert.deepStrictEqual(results, [
+			{ affected: 'false', profile: 'pr' },
+			{ affected: 'false', profile: 'pr' },
+			{ affected: 'false', profile: 'pr' },
+			{ affected: 'false', profile: 'pr' },
+			{ affected: 'false', profile: 'pr' },
+			{ affected: 'false', profile: 'pr' },
 			{ affected: 'false', profile: 'pr' },
 			{ affected: 'false', profile: 'pr' },
 			{ affected: 'true', profile: 'pr' },
@@ -76,13 +88,20 @@ suite('Agent Host PR test selection', () => {
 			'scripts/test-integration.sh',
 			'scripts/test-integration.bat',
 			'build/agent-sdk/agents/copilot/package.json',
+			'build/azure-pipelines/linux/setup-env.sh',
 			'build/lib/test/agentHostTestSelection.test.ts',
 			'package.json',
 			'package-lock.json',
+			'pnpm-lock.yaml',
+			'pnpm-workspace.yaml',
+			'.pnpmfile.mjs',
 			'remote/package.json',
 			'remote/package-lock.json',
+			'remote/pnpm-lock.yaml',
+			'remote/pnpm-workspace.yaml',
+			'remote/.pnpmfile.mjs',
 			'extensions/copilot/package.json',
-			'.npmrc',
+			'extensions/copilot/pnpm-lock.yaml',
 			'.nvmrc',
 			'product.json',
 		];
@@ -92,6 +111,22 @@ suite('Agent Host PR test selection', () => {
 			results.push([outputs.affected, outputs.profile, outputs.reason.includes(filename), messages.some(message => message.includes('profile: full'))]);
 		}
 		assert.deepStrictEqual(results, filenames.map(() => ['true', 'full', true, true]));
+	});
+
+	test('a change that only updates the distro commit in package.json does not run Agent Host E2E', async () => {
+		const { outputs } = await detect([{
+			filename: 'package.json',
+			status: 'modified',
+			patch: [
+				'@@ -1,5 +1,5 @@',
+				' {',
+				'   "name": "code-oss-dev",',
+				'-  "distro": "2733515d0a50cde08bdfbbe4368f0f75b7828882",',
+				'+  "distro": "eb93e228cf5aa5544a0eccb94616d63902d7e4e8",',
+				'   "author": {',
+			].join('\n'),
+		}]);
+		assert.deepStrictEqual({ affected: outputs.affected, profile: outputs.profile }, { affected: 'false', profile: 'pr' });
 	});
 
 	test('both sides of a rename participate in selection', async () => {
@@ -149,15 +184,17 @@ suite('Agent Host PR test selection', () => {
 				integrationTests: job.env?.INTEGRATION_TESTS,
 				shard: job.env?.AGENT_HOST_E2E_SHARD_INDEX === undefined ? undefined : `${job.env.AGENT_HOST_E2E_SHARD_INDEX}/${job.env.AGENT_HOST_E2E_SHARD_TOTAL}`,
 			});
+			// The job that runs the node.js integration tests: Linux runs them apart from the extension host tests.
+			const nodeIntegration = jobs.electron ?? jobs['electron-node'];
 			return {
 				needs: caller.needs,
 				if: caller.if,
 				profile: caller.with?.agent_host_test_profile,
 				reason: caller.with?.agent_host_test_profile_reason,
 				// The jobs that run Agent Host E2E without the integration tests, by their names.
-				agentHost: Object.fromEntries(Object.values(jobs).filter(job => job.env?.AGENT_HOST_E2E_TESTS !== undefined && job !== jobs.electron).map(job => [job.name, describe(job)])),
+				agentHost: Object.fromEntries(Object.values(jobs).filter(job => job.env?.AGENT_HOST_E2E_TESTS !== undefined && job !== nodeIntegration).map(job => [job.name, describe(job)])),
 				// Provider integration tests in the serial node.js run also read the profile.
-				integration: describe(jobs.electron),
+				integration: describe(nodeIntegration),
 			};
 		});
 		const platforms = ['linux', 'darwin', 'win32'].map(platform => {
@@ -250,14 +287,16 @@ suite('Agent Host PR test selection', () => {
 							shard: undefined,
 						},
 					} : {
-						// Linux runs it in its own job whenever the changed files can affect it, Windows in two shards only
+						// Linux runs it in its own job whenever the changed files can affect it, Windows in three shards only
 						// when the plan also selects one of its suites.
 						agentHost: output === 'agent-host-e2e' ? { 'Agent-Host-E2E': agentHostJob() } : {
-							'Agent-Host-E2E (shard 1/2)': agentHostJob('1/2'),
-							'Agent-Host-E2E (shard 2/2)': agentHostJob('2/2'),
+							'Agent-Host-E2E (shard 1/3)': agentHostJob('1/3'),
+							'Agent-Host-E2E (shard 2/3)': agentHostJob('2/3'),
+							'Agent-Host-E2E (shard 3/3)': agentHostJob('3/3'),
 						},
 						integration: {
-							affected: '${{ needs.changes.result != \'success\' || needs.changes.outputs.product-tests == \'true\' }}',
+							// Windows skips its node.js integration tests job when the plan selects none of them.
+							affected: `\${{ needs.changes.result != 'success' || needs.changes.outputs.${output === 'agent-host-e2e' ? 'product-tests' : 'selected-node-integration-tests'} == 'true' }}`,
 							agentHostTests: undefined,
 							integrationTests: 'true',
 							shard: undefined,
@@ -268,6 +307,8 @@ suite('Agent Host PR test selection', () => {
 			platforms: ['linux', 'darwin', 'win32'].map(platform => {
 				// macOS and Windows run only the planned node.js integration tests and Agent Host E2E suites.
 				const planned = platform !== 'linux';
+				// Linux and Windows run the node.js integration tests and the extension host tests in separate jobs.
+				const splitsIntegrationTests = platform !== 'darwin';
 				return {
 					// Linux and Windows run Agent Host E2E in their own jobs, so their Electron jobs have no input for it.
 					defaults: { agentHostTests: platform === 'darwin' ? false : undefined, nodeIntegrationTests: planned ? true : undefined, profile: 'full', reason: 'Change detection unavailable' },
@@ -283,7 +324,7 @@ suite('Agent Host PR test selection', () => {
 					// Runs after an Agent Host E2E failure in the same job, so that one does not hide the other.
 					integration: {
 						id: 'node-integration-tests',
-						if: `\${{ env.ELECTRON_TESTS == 'true' && env.INTEGRATION_TESTS == 'true' && ${planned ? 'env.NODE_INTEGRATION_TESTS == \'true\' && ' : ''}!cancelled() && (success() || steps.agent-host-e2e.outcome == 'failure') }}`,
+						if: `\${{ env.ELECTRON_TESTS == 'true' && env.INTEGRATION_TESTS == 'true' && ${splitsIntegrationTests ? 'env.INTEGRATION_TEST_SUITE != \'extension-host\'' : 'env.NODE_INTEGRATION_TESTS == \'true\''} && !cancelled() && (success() || steps.agent-host-e2e.outcome == 'failure') }}`,
 						runsScript: true,
 						runList: planned,
 						profile: '${{ inputs.agent_host_test_profile }}',
@@ -291,7 +332,7 @@ suite('Agent Host PR test selection', () => {
 					},
 					// Runs after a node.js integration test or Agent Host E2E failure in the same job.
 					extensionHost: {
-						if: '${{ env.ELECTRON_TESTS == \'true\' && env.INTEGRATION_TESTS == \'true\' && !cancelled() && (success() || steps.agent-host-e2e.outcome == \'failure\' || steps.node-integration-tests.outcome == \'failure\') }}',
+						if: `\${{ env.ELECTRON_TESTS == 'true' && env.INTEGRATION_TESTS == 'true' && ${splitsIntegrationTests ? 'env.INTEGRATION_TEST_SUITE != \'node\' && ' : ''}!cancelled() && (success() || steps.agent-host-e2e.outcome == 'failure' || steps.node-integration-tests.outcome == 'failure') }}`,
 						runsScript: true,
 					},
 				};

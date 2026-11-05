@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { Emitter } from '../../../../../base/common/event.js';
-import { dispose } from '../../../../../base/common/lifecycle.js';
+import { dispose, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { ILanguageSelection, ILanguageService } from '../../../../../editor/common/languages/language.js';
@@ -61,15 +61,12 @@ suite('PerfModelContentProvider', () => {
 			{ whenConnected: Promise.resolve() } as unknown as ITerminalService,
 		);
 
-		try {
-			await provider.provideTextContent(URI.parse('perf:Startup Performance'));
-			assert.strictEqual(provider['_modelDisposables'].length, 2);
+		store.add(toDisposable(() => dispose(provider['_modelDisposables'])));
+		await provider.provideTextContent(URI.parse('perf:Startup Performance'));
+		assert.strictEqual(provider['_modelDisposables'].length, 2);
 
-			modelStates[0].disposed = true;
-			await provider.provideTextContent(URI.parse('perf:Startup Performance'));
-			assert.strictEqual(provider['_modelDisposables'].length, 2);
-		} finally {
-			dispose(provider['_modelDisposables']);
-		}
+		modelStates[0].disposed = true;
+		await provider.provideTextContent(URI.parse('perf:Startup Performance'));
+		assert.strictEqual(provider['_modelDisposables'].length, 2);
 	});
 });

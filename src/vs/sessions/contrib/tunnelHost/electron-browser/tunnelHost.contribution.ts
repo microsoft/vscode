@@ -4,10 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
+import { toAction } from '../../../../base/common/actions.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { IActionViewItemService, type IActionViewItemFactory } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
@@ -17,8 +21,10 @@ import { IRemoteTunnelService } from '../../../../platform/remoteTunnel/common/r
 import { RemoteConnectionsActionViewItem } from '../../../../workbench/contrib/chat/electron-browser/toggleRemoteConnectionsActionViewItem.js';
 import { executeToggleRemoteConnections, TUNNEL_HOST_SHARING_KEY } from '../../../../workbench/contrib/chat/electron-browser/tunnelHost.contribution.js';
 import { Menus } from '../../../browser/menus.js';
+import { OPEN_REMOTES_EDITOR_COMMAND_ID, TOGGLE_REMOTE_CONNECTIONS_COMMAND_ID } from '../../../common/sessionCommands.js';
+import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../chat/common/constants.js';
 
-export const TOGGLE_SHARING_FROM_AGENTS_ID = 'sessions.tunnelHost.toggleSharingFromAgents';
+export const TOGGLE_SHARING_FROM_AGENTS_ID = TOGGLE_REMOTE_CONNECTIONS_COMMAND_ID;
 
 export class SessionsTunnelHostTitlebarContribution extends Disposable implements IWorkbenchContribution {
 
@@ -27,6 +33,8 @@ export class SessionsTunnelHostTitlebarContribution extends Disposable implement
 	constructor(
 		@IRemoteTunnelService remoteTunnelService: IRemoteTunnelService,
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@ICommandService commandService: ICommandService,
 	) {
 		super();
 
@@ -62,7 +70,17 @@ export class SessionsTunnelHostTitlebarContribution extends Disposable implement
 		}));
 
 		const viewItemFactory: IActionViewItemFactory = (action, _options, instantiationService) => {
-			return instantiationService.createInstance(RemoteConnectionsActionViewItem, action, false);
+			return instantiationService.createInstance(RemoteConnectionsActionViewItem, action, false, {
+				getManagementAction: () => configurationService.getValue<boolean>(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING)
+					&& configurationService.getValue<boolean>(ENVIRONMENT_PICKER_SETTING)
+					&& configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)
+					? toAction({
+						id: OPEN_REMOTES_EDITOR_COMMAND_ID,
+						label: localize('manageRemoteEnvironments', "Manage Remote Environments..."),
+						run: () => commandService.executeCommand(OPEN_REMOTES_EDITOR_COMMAND_ID),
+					})
+					: undefined,
+			});
 		};
 		this._register(actionViewItemService.register(Menus.TitleBarRightLayout, TOGGLE_SHARING_FROM_AGENTS_ID, viewItemFactory, remoteTunnelService.onDidChangeTunnelStatus));
 	}

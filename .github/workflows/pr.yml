@@ -35,7 +35,7 @@ jobs:
   # job: the Ripple job reports a broken ripple.
   changes:
     name: Detect Changes
-    runs-on: ubuntu-24.04
+    runs-on: vscode-large-runners-ubuntu-8-core
     outputs:
       cli: ${{ steps.detect.outputs.cli }}
       copilot-shim: ${{ steps.detect.outputs.copilot-shim }}
@@ -43,6 +43,8 @@ jobs:
       unit-tests: ${{ steps.detect.outputs.unit-tests }}
       browser-integration: ${{ steps.detect.outputs.browser-integration }}
       product-tests: ${{ steps.detect.outputs.product-tests }}
+      monaco-editor: ${{ steps.detect.outputs.monaco-editor }}
+      telemetry: ${{ steps.detect.outputs.telemetry }}
       agent-host-e2e: ${{ steps.detect-agent-host-e2e.outputs.affected }}
       agent-host-test-profile: ${{ steps.detect-agent-host-e2e.outputs.profile }}
       agent-host-test-profile-reason: ${{ steps.detect-agent-host-e2e.outputs.reason }}
@@ -104,7 +106,7 @@ jobs:
       - name: Save ripple
         if: steps.build-ripple.outcome == 'success'
         continue-on-error: true
-        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: build/ripple/target/release/ripple
           key: ${{ steps.cache-ripple.outputs.cache-primary-key }}
@@ -121,7 +123,7 @@ jobs:
       - name: Upload test plan
         if: steps.plan.outputs.select == 'true'
         continue-on-error: true
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: test-plan
           path: .build/test-plan
@@ -202,11 +204,15 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
   # Keep these checks first after Detect Changes so they appear at the top of the job group.
+  # Compile & Hygiene always runs: its build script tests also check the Azure Pipelines
+  # definitions, which no other job of this workflow reads.
   compile:
     name: Compile & Hygiene
     needs: changes
     if: ${{ !cancelled() }}
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=compile-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
+    runs-on: vscode-large-runners-ubuntu-8-core
+    outputs:
+      checks-failed: ${{ steps.failed-checks.outputs.failed }}
     env:
       # Hygiene and ESLint check only the files that changed since this commit, unless
       # a change can affect other files (see build/lib/changedFiles.ts). The full checks
@@ -221,9 +227,12 @@ jobs:
         run: git fetch --no-tags --depth=1 origin "$PR_BASE_SHA" || echo "::warning::Could not fetch $PR_BASE_SHA; hygiene and ESLint will check every file."
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
+
+      - name: Setup pnpm
+        uses: ./.github/actions/setup-pnpm
 
       - name: Restore node_modules cache
         id: cache-node-modules
@@ -246,12 +255,12 @@ jobs:
           set -e
 
           for i in {1..5}; do # try 5 times
-            npm ci && break
+            pnpm install --frozen-lockfile && break
             if [ $i -eq 5 ]; then
-              echo "Npm install failed too many times" >&2
+              echo "pnpm install failed too many times" >&2
               exit 1
             fi
-            echo "Npm install failed $i, trying again..."
+            echo "pnpm install failed $i, trying again..."
           done
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
@@ -262,7 +271,8 @@ jobs:
         run: node build/npm/electronTypes.ts
 
       - name: Type check /build/ scripts
-        run: npm run typecheck
+        id: typecheck-build
+        run: pnpm run typecheck
         working-directory: build
 
       - name: Prepare built-in extensions cache key
@@ -284,24 +294,28 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Check Markdown editor manifests and clipboard
+        id: markdown-editor
         run: |
-          npm run markdown-editor-package-json-check
-          npm --prefix extensions/markdown-language-features run test-markdown-editor-package-json
-          npm --prefix extensions/markdown-language-features run test-markdown-editor-clipboard
+          pnpm run markdown-editor-package-json-check
+          pnpm -C extensions/markdown-language-features run test-markdown-editor-package-json
+          pnpm -C extensions/markdown-language-features run test-markdown-editor-clipboard
 
       # Hygiene and ESLint check only the changed files, so they take seconds and fail the job
       # before the compilation checks start. --continue-on-error reports both when both fail.
       # ESLint stays out of the compilation checks so that its worker memory doesn't overlap theirs.
       - name: Hygiene & ESLint
-        run: npm exec -- npm-run-all2 -lp --continue-on-error "hygiene -- --changed-since $PR_BASE_SHA" "eslint -- --changed-since $PR_BASE_SHA"
+        id: hygiene
+        run: pnpm exec npm-run-all2 -lp --continue-on-error "hygiene --changed-since $PR_BASE_SHA" "eslint --changed-since $PR_BASE_SHA"
 
       # core-ci-pr skips the minified bundles that only the product build uses.
       - name: Compile
-        run: npm exec -- npm-run-all2 -lp core-ci-pr valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
+        id: compile
+        run: pnpm exec npm-run-all2 -lp core-ci-pr valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Check Codex protocol client is in sync
+        id: codex-sync
         run: |
           git fetch --no-tags --depth=1 origin "$CODEX_SYNC_BASE" || true
           node build/codex/check-protocol-sync.ts --if-changed --base "$CODEX_SYNC_BASE"
@@ -309,13 +323,20 @@ jobs:
           CODEX_SYNC_BASE: ${{ github.event.pull_request.base.sha }}
 
       - name: Check cyclic dependencies
+        id: cyclic-dependencies
         run: node build/lib/checkCyclicDependencies.ts out-build
+
+      # Tells Cancel Run that a check of the change failed, rather than the setup of the job, which a rerun fixes.
+      - name: Report failed checks
+        id: failed-checks
+        if: ${{ failure() && (steps.typecheck-build.outcome == 'failure' || steps.markdown-editor.outcome == 'failure' || steps.hygiene.outcome == 'failure' || steps.compile.outcome == 'failure' || steps.codex-sync.outcome == 'failure' || steps.cyclic-dependencies.outcome == 'failure') }}
+        run: echo "failed=true" >> "$GITHUB_OUTPUT"
 
   monaco-editor:
     name: Monaco Editor
     needs: changes
-    if: ${{ !cancelled() }}
-    runs-on: ubuntu-latest
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.monaco-editor == 'true') }}
+    runs-on: vscode-large-runners-ubuntu-8-core
     timeout-minutes: 40
     permissions: {}
     env:
@@ -327,9 +348,12 @@ jobs:
           persist-credentials: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
+
+      - name: Setup pnpm
+        uses: ./.github/actions/setup-pnpm
 
       # Reuse the node_modules cache that .github/workflows/pr-node-modules.yml keeps warm on
       # `main`. Never save: PR-scoped caches are not shared with other PRs and only evict the
@@ -347,29 +371,29 @@ jobs:
           sudo apt update
           sudo apt install -y libxkbfile-dev pkg-config libkrb5-dev libxss1
 
-      - name: Execute npm
+      - name: Install dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
         run: |
-          npm ci
+          pnpm install --frozen-lockfile
 
       - name: Download Playwright
-        run: npm run playwright-install
+        run: pnpm run playwright-install
 
       - name: Run Monaco Editor Checks
-        run: npm run monaco-compile-check
+        run: pnpm run monaco-compile-check
 
       - name: Check generated Monaco declarations
-        run: npm run gulp monacodts-check
+        run: pnpm run gulp monacodts-check
 
       - name: Editor Distro & ESM
-        run: npm run gulp editor-distro
+        run: pnpm run gulp editor-distro
 
       - name: Editor ESM sources check
         working-directory: ./test/monaco
-        run: npm run esm-check
+        run: pnpm run esm-check
 
       - name: Typings validation prep
         run: |
@@ -377,6 +401,7 @@ jobs:
 
       - name: Typings validation
         working-directory: ./typings-test
+        # npm only writes a CommonJS package.json here; `pnpm init` defaults to ES modules.
         run: |
           npm init -yp
           ../node_modules/.bin/tsc6 --init
@@ -385,22 +410,22 @@ jobs:
 
       - name: Package Editor with Webpack
         working-directory: ./test/monaco
-        run: npm run bundle-webpack
+        run: pnpm run bundle-webpack
 
       - name: Compile Editor Tests
         working-directory: ./test/monaco
-        run: npm run compile
+        run: pnpm run compile
 
       - name: Run Editor Tests
         timeout-minutes: 5
         working-directory: ./test/monaco
-        run: npm run test
+        run: pnpm run test
 
   telemetry:
     name: Telemetry
     needs: changes
-    if: ${{ !cancelled() }}
-    runs-on: ubuntu-latest
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.telemetry == 'true') }}
+    runs-on: vscode-large-runners-ubuntu-8-core
     permissions: {}
     steps:
       - name: Checkout microsoft/vscode
@@ -409,14 +434,18 @@ jobs:
           persist-credentials: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
 
+      - name: Setup pnpm
+        uses: ./.github/actions/setup-pnpm
+
       - name: Install telemetry extractor
         run: |
-          # Use the same exact version as npm ci in the official builds.
-          version=$(node -p "require('./package-lock.json').packages['node_modules/@vscode/telemetry-extractor'].version")
+          # Use the same exact version as pnpm install in the official builds. Only the extractor is
+          # installed, into a scratch folder outside the repository, so npm is fine for this.
+          version=$(pnpm list --lockfile-only --json --depth 0 --filter . @vscode/telemetry-extractor | node -p "const [root] = JSON.parse(require('fs').readFileSync(0, 'utf8')); ({ ...root.dependencies, ...root.devDependencies })['@vscode/telemetry-extractor'].version")
           npm install --prefix "$RUNNER_TEMP/telemetry-extractor" --no-save --no-package-lock --no-audit --no-fund "@vscode/telemetry-extractor@$version"
 
       - name: Run vscode-telemetry-extractor
@@ -432,7 +461,7 @@ jobs:
     name: Ripple
     needs: changes
     if: ${{ !cancelled() && needs.changes.outputs.ripple-changed == 'true' }}
-    runs-on: ubuntu-24.04
+    runs-on: vscode-large-runners-ubuntu-8-core
     steps:
       - name: Check that ripple builds, passes its tests and plans the tests
         env:
@@ -509,8 +538,8 @@ jobs:
       browser_unit_affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.selected-browser-unit-tests == 'true' }}
       browser_affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.browser-integration == 'true' }}
       remote_affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true' }}
-      # The Electron job runs only the node.js integration tests that the plan selects, and skips them
-      # when it selects none.
+      # The Electron (node.js) job runs only the node.js integration tests that the plan selects, and is
+      # skipped when it selects none.
       node_integration_tests: ${{ needs.changes.result != 'success' || needs.changes.outputs.selected-node-integration-tests == 'true' }}
       # The provider integration tests and the Agent Host E2E tests read the profile.
       agent_host_test_profile: ${{ needs.changes.outputs.agent-host-test-profile || 'full' }}
@@ -520,7 +549,7 @@ jobs:
     name: Copilot - Check Test Cache
     needs: changes
     if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=copilot-check-test-cache-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
+    runs-on: vscode-large-runners-ubuntu-8-core
     permissions:
       contents: read
       pull-requests: read
@@ -530,9 +559,12 @@ jobs:
         with:
           lfs: true
 
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: extensions/copilot/.nvmrc
+
+      - name: Setup pnpm
+        uses: ./.github/actions/setup-pnpm
 
       - name: Restore node_modules cache
         id: cache-node-modules
@@ -541,23 +573,24 @@ jobs:
           key-prefix: copilot-node_modules-linux
           key-args: "$(node -p process.platform) $(node -p process.arch)"
 
+      # Same commands as the Copilot jobs of pr-node-modules.yml, which save this cache on main.
       - name: Install root dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: npm ci --ignore-scripts --no-workspaces
+        run: pnpm install --frozen-lockfile --ignore-scripts --filter .
 
       - name: Install copilot dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
         working-directory: extensions/copilot
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Ensure no duplicate cache keys
         working-directory: extensions/copilot
-        run: npx tsx test/base/cache-cli check
+        run: pnpm exec tsx test/base/cache-cli check
 
       - name: Ensure no untrusted cache changes
         if: github.event_name == 'pull_request'
         working-directory: extensions/copilot
-        run: npx tsx build/pr-check-cache-files.ts
+        run: pnpm exec tsx build/pr-check-cache-files.ts
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPOSITORY: ${{ github.repository }}
@@ -567,28 +600,31 @@ jobs:
     name: Copilot - Check Telemetry
     needs: changes
     if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=copilot-check-telemetry-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
+    runs-on: vscode-large-runners-ubuntu-8-core
     permissions:
       contents: read
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: extensions/copilot/.nvmrc
+
+      - name: Setup pnpm
+        uses: ./.github/actions/setup-pnpm
 
       - name: Validate telemetry events
         working-directory: extensions/copilot
         run: |
-          version=$(node -p "require('../../package-lock.json').packages['node_modules/@vscode/telemetry-extractor'].version")
+          version=$(pnpm -C ../.. list --lockfile-only --json --depth 0 --filter . @vscode/telemetry-extractor | node -p "const [root] = JSON.parse(require('fs').readFileSync(0, 'utf8')); ({ ...root.dependencies, ...root.devDependencies })['@vscode/telemetry-extractor'].version")
           npx --package="@vscode/telemetry-extractor@$version" --yes vscode-telemetry-extractor -s . > /dev/null
 
   copilot-linux-tests:
     name: Copilot - Test (Linux)
     needs: changes
     if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=copilot-linux-tests-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
+    runs-on: vscode-large-runners-ubuntu-8-core
     permissions:
       contents: read
     steps:
@@ -598,12 +634,15 @@ jobs:
           lfs: true
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: extensions/copilot/.nvmrc
 
+      - name: Setup pnpm
+        uses: ./.github/actions/setup-pnpm
+
       - name: Setup Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.12'
           architecture: 'x64'
@@ -618,6 +657,10 @@ jobs:
 
       - name: Install system dependencies
         run: |
+          set -e
+          # The extension host tests launch VS Code, whose Chromium sandbox needs unprivileged
+          # user namespaces, which Ubuntu 24.04 restricts by default via AppArmor
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           sudo apt-get update
           sudo apt-get install -y xvfb libgtk-3-0 libgbm1
 
@@ -628,46 +671,47 @@ jobs:
           key-prefix: copilot-node_modules-linux
           key-args: "$(node -p process.platform) $(node -p process.arch)"
 
+      # Same commands as the Copilot jobs of pr-node-modules.yml, which save this cache on main.
       - name: Install root dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: npm ci --ignore-scripts --no-workspaces
+        run: pnpm install --frozen-lockfile --ignore-scripts --filter .
 
       - name: Install copilot dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
         working-directory: extensions/copilot
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: TypeScript type checking
         working-directory: extensions/copilot
-        run: npm run typecheck
+        run: pnpm run typecheck
 
       - name: Lint
         working-directory: extensions/copilot
-        run: npm run lint
+        run: pnpm run lint
 
       - name: Compile
         working-directory: extensions/copilot
-        run: npm run compile
+        run: pnpm run compile
 
       - name: Run extension host tests
         working-directory: extensions/copilot
-        run: xvfb-run -a npm run test:extension
+        run: xvfb-run -a pnpm run test:extension
 
       - name: Run vitest unit tests
         working-directory: extensions/copilot
-        run: npm run test:unit
+        run: pnpm run test:unit
 
       - name: Run simulation tests with cache
         working-directory: extensions/copilot
-        run: npm run simulate-ci
+        run: pnpm run simulate-ci
 
       - name: Run Completions Core prompt tests
         working-directory: extensions/copilot
-        run: npm run test:prompt
+        run: pnpm run test:prompt
 
       - name: Run Completions Core lib tests using VS Code
         working-directory: extensions/copilot
-        run: xvfb-run -a npm run test:completions-core
+        run: xvfb-run -a pnpm run test:completions-core
 
       - name: Archive simulation output
         if: always()
@@ -679,7 +723,7 @@ jobs:
 
       - name: Upload simulation output
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: copilot-simulation-output-linux-${{ github.run_attempt }}
           path: extensions/copilot/.simulation-archive/simulation.tgz
@@ -698,12 +742,15 @@ jobs:
           lfs: true
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: extensions/copilot/.nvmrc
 
+      - name: Setup pnpm
+        uses: ./.github/actions/setup-pnpm
+
       - name: Setup Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.12'
           architecture: 'x64'
@@ -723,38 +770,39 @@ jobs:
           key-prefix: copilot-node_modules-windows
           key-args: "$(node -p process.platform) $(node -p process.arch)"
 
+      # Same commands as the Copilot jobs of pr-node-modules.yml, which save this cache on main.
       - name: Install root dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: npm ci --ignore-scripts --no-workspaces
+        run: pnpm install --frozen-lockfile --ignore-scripts --filter .
 
       - name: Install copilot dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
         working-directory: extensions/copilot
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Compile
         working-directory: extensions/copilot
-        run: npm run compile
+        run: pnpm run compile
 
       - name: Run extension host tests
         working-directory: extensions/copilot
-        run: npm run test:extension
+        run: pnpm run test:extension
 
       - name: Run vitest unit tests
         working-directory: extensions/copilot
-        run: npm run test:unit
+        run: pnpm run test:unit
 
       - name: Run simulation tests with cache
         working-directory: extensions/copilot
-        run: npm run simulate-ci
+        run: pnpm run simulate-ci
 
       - name: Run Completions Core prompt tests
         working-directory: extensions/copilot
-        run: npm run test:prompt
+        run: pnpm run test:prompt
 
       - name: Run Completions Core lib tests using VS Code
         working-directory: extensions/copilot
-        run: npm run test:completions-core
+        run: pnpm run test:completions-core
 
   # GitHub neither expands the matrix of a job that its if: skips nor evaluates the expressions in
   # the name of a skipped job, so each platform has its own job with a fixed name instead of a
@@ -763,7 +811,7 @@ jobs:
     name: chat-lib - Test (Linux)
     needs: changes
     if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
-    runs-on: ubuntu-latest
+    runs-on: vscode-large-runners-ubuntu-8-core
     timeout-minutes: 30
     permissions:
       contents: read
@@ -778,7 +826,7 @@ jobs:
     name: chat-lib - Test (macOS)
     needs: changes
     if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
-    runs-on: macos-latest
+    runs-on: vscode-large-runners-macos-5-core-0
     timeout-minutes: 30
     permissions:
       contents: read
@@ -793,7 +841,7 @@ jobs:
     name: chat-lib - Test (Windows)
     needs: changes
     if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
-    runs-on: windows-latest
+    runs-on: windows-2025
     timeout-minutes: 30
     permissions:
       contents: read
@@ -803,6 +851,29 @@ jobs:
 
       - name: Test chat-lib
         uses: ./.github/actions/test-chat-lib
+
+  # When Compile & Hygiene finds a problem in the change, which has to be fixed and pushed again
+  # anyway, this job cancels the run so that the test jobs free their machines for other pull
+  # requests, above all the scarce macOS and Windows ones. It does not cancel when the setup of
+  # Compile & Hygiene fails, as a rerun of that job fixes it. It runs apart from Compile & Hygiene so
+  # that the code of the pull request never runs with a token that can cancel workflow runs, and the
+  # token of a pull request from a fork cannot cancel the run.
+  cancel-run:
+    name: Cancel Run
+    needs: compile
+    if: ${{ failure() && needs.compile.outputs.checks-failed == 'true' && github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: vscode-large-runners-ubuntu-8-core
+    permissions:
+      actions: write
+    steps:
+      - name: Cancel the workflow run
+        run: |
+          echo "::notice title=Run cancelled::Compile & Hygiene failed, so the other jobs were cancelled. Fix the change and push again."
+          gh run cancel "$RUN_ID" --repo "$REPOSITORY"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.run_id }}
+          REPOSITORY: ${{ github.repository }}
 
   # The only check of this workflow that branch protection requires:
   # Detect Changes plans the pull request, the jobs above run what the plan
@@ -831,8 +902,9 @@ jobs:
       - chat-lib-linux-tests
       - chat-lib-macos-tests
       - chat-lib-windows-tests
+      - cancel-run
     if: ${{ always() }}
-    runs-on: ubuntu-24.04
+    runs-on: vscode-large-runners-ubuntu-8-core
     steps:
       - name: Check job results
         env:
@@ -842,6 +914,10 @@ jobs:
           status=0
           while IFS=$'\t' read -r job result; do
             case "$job:$result" in
+              # Cancel Run only runs after Compile & Hygiene failed, which fails the gate, and the run it
+              # cancels can cancel it too.
+              cancel-run:*)
+                ;;
               *:success)
                 echo "$job succeeded." ;;
               *:skipped)

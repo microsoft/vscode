@@ -3,8 +3,47 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { expect, test } from '@playwright/test';
+import { expect, Page, test } from '@playwright/test';
 import { openFixture } from './utils.js';
+
+/** Titles of the session and chat rows that draw a hierarchy guide, as rendered, in list order. */
+function shownGuides(page: Page): Promise<string[]> {
+	return page.locator('.session-item, .session-chat-item').evaluateAll(items => items
+		.filter(item => {
+			const style = getComputedStyle(item, '::after');
+			return style.content !== 'none' && style.display !== 'none' && style.opacity === '1';
+		})
+		.sort((a, b) => Number(a.closest('.monaco-list-row')?.getAttribute('data-index')) - Number(b.closest('.monaco-list-row')?.getAttribute('data-index')))
+		.map(item => item.querySelector('.session-title, .session-chat-title')?.textContent ?? ''));
+}
+
+test('reveals the guides of every hierarchy while the pointer is anywhere over the pane', async ({ page }) => {
+	await openFixture(page, 'sessions/sessionsList/SessionsList_NestedChatHierarchies/Dark', '.sessions-list-control');
+
+	const pane = await page.locator('.agent-sessions-viewpane').boundingBox();
+	expect(pane).not.toBeNull();
+	const outsidePane = { x: pane!.x + pane!.width + 20, y: pane!.y + 20 };
+	const emptySpaceInPane = { x: pane!.x + pane!.width / 2, y: pane!.y + pane!.height - 10 };
+	const firstSession = page.locator('.monaco-list-row').filter({ has: page.getByText('HTTP Client Retry Plan', { exact: true }) });
+	const secondSession = page.locator('.monaco-list-row').filter({ has: page.getByText('Session Persistence Cleanup', { exact: true }) });
+	const allGuides = ['HTTP Client Retry Plan', 'Task A', 'Task B', 'Session Persistence Cleanup', 'Audit stored state', 'Migrate old entries'];
+
+	await page.mouse.move(outsidePane.x, outsidePane.y);
+	await expect.poll(() => shownGuides(page)).toEqual([]);
+
+	await page.mouse.move(emptySpaceInPane.x, emptySpaceInPane.y);
+	await expect.poll(() => shownGuides(page)).toEqual(allGuides);
+	await expect(firstSession.locator('.session-chat-twistie.collapsible')).toHaveCSS('opacity', '0');
+	await expect(secondSession.locator('.session-chat-twistie.collapsible')).toHaveCSS('opacity', '0');
+
+	await secondSession.hover();
+	await expect.poll(() => shownGuides(page)).toEqual(allGuides);
+	await expect(firstSession.locator('.session-chat-twistie.collapsible')).toHaveCSS('opacity', '0');
+	await expect(secondSession.locator('.session-chat-twistie.collapsible')).toHaveCSS('opacity', '1');
+
+	await page.mouse.move(outsidePane.x, outsidePane.y);
+	await expect.poll(() => shownGuides(page)).toEqual([]);
+});
 
 test('renders empty-section placeholders at the compact row height', async ({ page }) => {
 	await openFixture(page, 'sessions/sessionsList/SessionsList_Groups_Empty/Dark', '.session-placeholder');
@@ -73,7 +112,7 @@ for (const theme of ['Dark', 'Light']) {
 			await expect(chatTitles).toHaveText(['Task A', 'Task B']);
 			await expect(page.locator('.session-item.pinned')).toHaveCount(pinned ? 1 : 0);
 			await expect(page.locator('.session-item.sticky')).toHaveCount(sticky ? 1 : 0);
-			await expect(page.locator('.session-chat-item.session-hierarchy-guides-visible')).toHaveCount(2);
+			await expect.poll(() => shownGuides(page)).toEqual(['HTTP Client Retry Plan', 'Task A', 'Task B']);
 
 			const twistie = sessionRow.locator('.session-chat-twistie.collapsible');
 			await sessionRow.hover();

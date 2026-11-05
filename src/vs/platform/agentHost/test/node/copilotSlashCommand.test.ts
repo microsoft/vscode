@@ -9,7 +9,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { renderCopilotSlashCommandOutput, type CopilotSlashCommandOutput, type ICopilotSlashCommandHandler, type RuntimeSlashCommandInfo } from '../../node/copilot/copilotSlashCommand.js';
 import { CopilotSlashCommandProvider } from '../../node/copilot/copilotSlashCommandProvider.js';
-import { getCopilotCustomizationCommandHandler, invokeCopilotPluginCommand, type ICopilotPluginCommandApi, type ReloadCopilotPlugins } from '../../node/copilot/copilotCustomizationCommandDisplay.js';
+import { copilotSandboxPolicyCommand } from '../../node/copilot/copilotSandboxPolicyDisplay.js';
+import { getCopilotCustomizationCommandHandler, invokeCopilotPluginCommand, type ICopilotMcpCommandServer, type ICopilotPluginCommandApi, type ReloadCopilotPlugins } from '../../node/copilot/copilotCustomizationCommandDisplay.js';
 
 function pluginApi(calls: string[]): ICopilotPluginCommandApi {
 	return {
@@ -151,6 +152,32 @@ suite('Copilot slash command handlers', () => {
 		});
 	});
 
+	test('resolves a bare skill name to its unique plugin-namespaced skill command', async () => {
+		const synced: RuntimeSlashCommandInfo = { name: 'VS Code Synced Data:commit', kind: 'skill', description: 'Commit', allowDuringAgentExecution: false };
+		const first: RuntimeSlashCommandInfo = { name: 'plugin-a:review', kind: 'skill', description: 'Review A', allowDuringAgentExecution: false };
+		const second: RuntimeSlashCommandInfo = { name: 'plugin-b:review', kind: 'skill', description: 'Review B', allowDuringAgentExecution: false };
+		const shadowed: RuntimeSlashCommandInfo = { name: 'plugin-c:diagnostic', kind: 'skill', description: 'Shadowed', allowDuringAgentExecution: false };
+		const clientCommand: RuntimeSlashCommandInfo = { name: 'ext:deploy', kind: 'client', description: 'Deploy', allowDuringAgentExecution: false };
+		const sandboxSkill: RuntimeSlashCommandInfo = { name: 'plugin-d:sandbox', kind: 'skill', description: 'Sandbox skill', allowDuringAgentExecution: false };
+		const provider = new CopilotSlashCommandProvider(async () => [command, synced, first, second, shadowed, clientCommand, sandboxSkill], undefined, store.add(new NullLogService()));
+
+		assert.deepStrictEqual({
+			unique: await provider.resolveSlashCommand('/Commit'),
+			ambiguous: await provider.resolveSlashCommand('review'),
+			exactWins: await provider.resolveSlashCommand('diagnostic'),
+			notSkill: await provider.resolveSlashCommand('deploy'),
+			namespaced: await provider.resolveSlashCommand('plugin-a:review'),
+			hostCommandWins: (await provider.resolveSlashCommand('sandbox'))?.name,
+		}, {
+			unique: synced,
+			ambiguous: undefined,
+			exactWins: command,
+			notSkill: undefined,
+			namespaced: first,
+			hostCommandWins: copilotSandboxPolicyCommand.name,
+		});
+	});
+
 	suite('Copilot skills display', () => {
 		const command: RuntimeSlashCommandInfo = {
 			name: 'skills',
@@ -226,9 +253,126 @@ suite('Copilot slash command handlers', () => {
 			allowDuringAgentExecution: false,
 		};
 
+		test('shows one server with host-known configuration without exposing environment values', async () => {
+			const lookups: string[] = [];
+			const handler = getCopilotCustomizationCommandHandler(command, undefined, undefined, async name => {
+				lookups.push(name);
+				return {
+					name, enabled: true, source: 'workspace', live: { status: 'connected' },
+					sourceUri: 'file:///workspace/.mcp.json',
+					configuration: { type: 'stdio', command: './start-mcp.bash', args: ['--verbose'], env: { TOKEN: 'secret' }, tools: ['*'] },
+					tools: [{ name: 'query', description: 'Run [query](command:unsafe)' }],
+				};
+			});
+			const result = await handler?.invoke?.('show dbt-mcp');
+			assert.deepStrictEqual({ lookups, result }, {
+				lookups: ['dbt-mcp'],
+				result: {
+					kind: 'text',
+					markdown: true,
+					text: [
+						'# MCP server: `dbt-mcp`', '',
+						'- Status: `connected`', '- Enabled: Yes', '- Source: `workspace`',
+						'- Configuration file: `file:///workspace/.mcp.json`', '',
+						'## Launch configuration', '',
+						'```json',
+						'{',
+						'  "type": "stdio",',
+						'  "command": "./start-mcp.bash",',
+						'  "args": [',
+						'    "--verbose"',
+						'  ],',
+						'  "env": [',
+						'    "TOKEN"',
+						'  ],',
+						'  "tools": [',
+						'    "*"',
+						'  ]',
+						'}',
+						'```', '',
+						'Configuration known to the agent host. Environment variable and header names are shown without their values.', '',
+						'## Available tools', '',
+						'- `query` — Run \\[query\\]\\(command:unsafe\\)',
+					].join('\n'),
+				},
+			});
+		});
+
+		test('shows remote launch details without exposing header values', async () => {
+			const handler = getCopilotCustomizationCommandHandler(command, undefined, undefined, async name => ({
+				name, enabled: true, live: { status: 'connected' },
+				configuration: { type: 'http', url: 'https://example.invalid/mcp', headers: { Authorization: 'secret' } },
+				tools: [],
+			}));
+			const result = await handler?.invoke?.('show remote');
+			assert.deepStrictEqual(result?.kind === 'text' ? result.text : result, [
+				'# MCP server: `remote`', '',
+				'- Status: `connected`', '- Enabled: Yes', '',
+				'## Launch configuration', '',
+				'```json',
+				'{',
+				'  "type": "http",',
+				'  "url": "https://example.invalid/mcp",',
+				'  "headers": [',
+				'    "Authorization"',
+				'  ]',
+				'}',
+				'```', '',
+				'Configuration known to the agent host. Environment variable and header names are shown without their values.', '',
+				'## Available tools', '',
+				'No tools reported by this server.',
+			].join('\n'));
+		});
+
+		test('shows unavailable runtime details and safely formats server errors', async () => {
+			const handler = getCopilotCustomizationCommandHandler(command, undefined, undefined, async name => ({
+				name, enabled: false, source: 'plugin', sourcePlugin: 'tools`plugin',
+				live: { status: 'failed', error: 'Failed\n```\n[help](command:unsafe)' },
+			}));
+			assert.deepStrictEqual(await handler?.invoke?.('show "server name"'), {
+				kind: 'text', markdown: true,
+				text: [
+					'# MCP server: `server name`', '',
+					'- Status: `failed`', '- Enabled: No', '- Source: `plugin`',
+					'- Plugin: ``tools`plugin``', '',
+					'## Error', '',
+					'````text',
+					'Failed', '```', '[help](command:unsafe)',
+					'````', '',
+					'## Launch configuration', '',
+					'The runtime does not expose this server\'s launch configuration to the agent host.', '',
+					'## Available tools', '',
+					'Tools are not loaded for this server.',
+				].join('\n'),
+			});
+		});
+
+		test('delegates list and mutation commands and reports unknown names explicitly', async () => {
+			const lookups: string[] = [];
+			const handler = getCopilotCustomizationCommandHandler(command, undefined, undefined, async name => {
+				lookups.push(name);
+				return undefined;
+			});
+			const inputs = ['', 'list', 'show', 'enable github', 'disable github', 'reload', 'SHOW missing'];
+			const results = await Promise.all(inputs.map(input => handler?.invoke?.(input)));
+			assert.deepStrictEqual({ lookups, results }, {
+				lookups: ['missing'],
+				results: [undefined, undefined, undefined, undefined, undefined, undefined, {
+					kind: 'text', text: 'MCP server "missing" is not configured in this session.',
+				}],
+			});
+		});
+
+		test('surfaces server lookup failures', async () => {
+			const handler = getCopilotCustomizationCommandHandler(command, undefined, undefined, async (): Promise<ICopilotMcpCommandServer> => {
+				throw new Error('Inventory unavailable');
+			});
+			await assert.rejects(() => handler!.invoke!('show github'), /Inventory unavailable/);
+		});
+
 		test('formats the plain runtime list as compact Markdown', async () => {
 			const handler = getCopilotCustomizationCommandHandler(command);
-			const output = await handler?.getOutput?.('show github', {
+			const output = await handler?.getOutput?.('list', {
 				kind: 'text',
 				text: [
 					'MCP Servers',

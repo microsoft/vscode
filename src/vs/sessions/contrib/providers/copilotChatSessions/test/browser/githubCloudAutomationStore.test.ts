@@ -60,6 +60,7 @@ class TestApi extends mock<IAutomationsClient>() {
 	readonly priorities: { method: string; priority: RequestPriority | undefined }[] = [];
 	readonly calls: { method: string; account: string; repository: typeof repository; token: AbortSignal }[] = [];
 	readonly automationEnabled = new Map<string, boolean>();
+	readonly allowReadAccessTriggers = new Map<string, boolean>();
 	readonly manageability = new Map<string, boolean | Error | Promise<boolean>>();
 	readonly privateRepositories = new Map<string, boolean | Error | Promise<boolean>>();
 	readonly metadataCalls: { readonly repository: RepositoryRef; readonly token: AbortSignal }[] = [];
@@ -134,7 +135,7 @@ class TestApi extends mock<IAutomationsClient>() {
 		return {
 			automations_enabled: this.automationEnabled.get(ref.repo) ?? true,
 			can_manage_automations: await result,
-			allow_read_access_triggers: false,
+			allow_read_access_triggers: this.allowReadAccessTriggers.get(ref.repo) ?? false,
 			require_trigger_scoped_writes: false,
 		};
 	}
@@ -279,7 +280,28 @@ suite('GitHubCloudAutomationStore', () => {
 		assert.deepStrictEqual({
 			target: target.get(), calls: api.calls.map(call => call.method), entries: store.entries.get(),
 			cached: target === store.getWorkspaceTarget(URI.file('/repo')),
-		}, { target: { workspace, repositoryLabel: 'microsoft/vscode-internalbacklog' }, calls: ['capability'], entries: [], cached: true });
+		}, { target: { workspace, repositoryLabel: 'microsoft/vscode-internalbacklog', allowReadAccessTriggers: false }, calls: ['capability'], entries: [], cached: true });
+	});
+
+	test('background configuration 404 invalidates an existing workspace target without poisoning readiness', async () => {
+		const { store, api } = setup(() => workspace);
+		const target = store.getWorkspaceTarget(URI.file('/repo'));
+		await timeout(0);
+
+		api.manageability.set(repository.repo, new ApiRequestError(404, 'notFound'));
+		await store.refresh({ background: true });
+
+		assert.deepStrictEqual({
+			target: target.get(),
+			state: store.catalogueState.get(),
+		}, {
+			target: {
+				disabledReason: 'Cloud automations cannot be managed for this repository.',
+				isRepository: true,
+				repositoryLabel: 'microsoft/vscode-internalbacklog',
+			},
+			state: 'ready',
+		});
 	});
 
 	test('public repositories are identified without checking automation manageability', async () => {
@@ -346,7 +368,7 @@ suite('GitHubCloudAutomationStore', () => {
 	});
 
 	for (const eligibilityFirst of [true, false]) {
-		test(`public repository selection remains disabled when ${eligibilityFirst ? 'eligibility precedes refresh' : 'refresh precedes eligibility'}`, async () => {
+		test(`public repository selection remains disabled and preserves trigger restrictions when ${eligibilityFirst ? 'eligibility precedes refresh' : 'refresh precedes eligibility'}`, async () => {
 			const { store, api, recents } = setup();
 			api.privateRepositories.set(repository.repo, false);
 			api.definitions.set(repository.repo, [definition]);
@@ -369,9 +391,34 @@ suite('GitHubCloudAutomationStore', () => {
 					isRepository: true,
 					isPrivateRepository: false,
 					repositoryLabel: 'microsoft/vscode-internalbacklog',
+					allowReadAccessTriggers: false,
 				},
 				canManageExisting: true,
 				selectableFromSearch: false,
+			});
+		});
+	}
+
+	for (const isPrivate of [false, true]) {
+		test(`background configuration refresh updates ${isPrivate ? 'private' : 'public'} repository trigger restrictions without a manageability change`, async () => {
+			const { store, api } = setup();
+			api.privateRepositories.set(repository.repo, isPrivate);
+			const target = store.getWorkspaceTarget(workspace);
+			await timeout(0);
+			const initial = target.get().allowReadAccessTriggers;
+
+			api.allowReadAccessTriggers.set(repository.repo, true);
+			await store.refresh({ background: true });
+			const allowed = target.get().allowReadAccessTriggers;
+
+			api.allowReadAccessTriggers.set(repository.repo, false);
+			await store.refresh({ background: true });
+			assert.deepStrictEqual({
+				initial, allowed, restricted: target.get().allowReadAccessTriggers,
+				workspace: target.get().workspace?.toString(), calls: api.calls.map(call => call.method),
+			}, {
+				initial: isPrivate ? false : undefined, allowed: true, restricted: false, workspace: isPrivate ? workspace.toString() : undefined,
+				calls: [...(isPrivate ? ['capability'] : []), 'capability', 'list', 'capability', 'list'],
 			});
 		});
 	}
@@ -428,19 +475,16 @@ suite('GitHubCloudAutomationStore', () => {
 	test('temporarily suppresses repeated failed capability checks and retries after expiry', async () => {
 		const clock = useFakeTimers();
 		const { store, api } = setup();
-		try {
-			api.manageability.set(repository.repo, new Error('Offline'));
-			const first = await store.isRepositoryManageable(repository, CancellationToken.None);
-			const second = await store.isRepositoryManageable(repository, CancellationToken.None);
-			const callsBeforeExpiry = api.calls.length;
-			await clock.tickAsync(30_000);
-			const third = await store.isRepositoryManageable(repository, CancellationToken.None);
-			assert.deepStrictEqual({ first, second, third, callsBeforeExpiry, calls: api.calls.length }, {
-				first: false, second: false, third: false, callsBeforeExpiry: 1, calls: 2,
-			});
-		} finally {
-			clock.restore();
-		}
+		disposables.add(toDisposable(() => clock.restore()));
+		api.manageability.set(repository.repo, new Error('Offline'));
+		const first = await store.isRepositoryManageable(repository, CancellationToken.None);
+		const second = await store.isRepositoryManageable(repository, CancellationToken.None);
+		const callsBeforeExpiry = api.calls.length;
+		await clock.tickAsync(30_000);
+		const third = await store.isRepositoryManageable(repository, CancellationToken.None);
+		assert.deepStrictEqual({ first, second, third, callsBeforeExpiry, calls: api.calls.length }, {
+			first: false, second: false, third: false, callsBeforeExpiry: 1, calls: 2,
+		});
 	});
 
 	test('successful capability checks clear transient failure suppression', async () => {
@@ -1072,6 +1116,77 @@ suite('GitHubCloudAutomationStore', () => {
 		await store.refresh();
 		assert.deepStrictEqual({ entries: store.entries.get(), state: store.catalogueState.get() }, {
 			entries: [{ repository, definition: { ...definition, name: 'Updated' } }], state: 'ready',
+		});
+	});
+
+	test('configuration 404 evicts a stale persisted repository without poisoning healthy readiness', async () => {
+		const { store, api, storage } = setup();
+		const stale = { owner: 'microsoft', repo: 'stale' };
+		storage.store(storageKey, JSON.stringify([storedRepository, { owner: stale.owner, name: stale.repo }]), StorageScope.PROFILE, StorageTarget.MACHINE);
+		api.definitions.set(stale.repo, [{ ...definition, id: 'stale' }]);
+		api.tasks = [{ id: 'run', state: 'completed', created_at: definition.created_at, remote_steerable: true }];
+		await store.refresh();
+		await store.refreshHistory();
+
+		api.definitions.set(repository.repo, [{ ...definition, name: 'Updated' }]);
+		api.manageability.set(stale.repo, new ApiRequestError(404, 'notFound'));
+		await store.refresh();
+
+		assert.deepStrictEqual({
+			entries: store.entries.get(),
+			historyRepositories: store.history.get().map(row => row.entry.repository.repo),
+			state: store.catalogueState.get(),
+			stored: JSON.parse(storage.get(storageKey, StorageScope.PROFILE)!),
+		}, {
+			entries: [{ repository, definition: { ...definition, name: 'Updated' } }],
+			historyRepositories: [repository.repo],
+			state: 'ready',
+			stored: [storedRepository],
+		});
+	});
+
+	test('definition 404 retains persisted repositories for an explicit refresh retry', async () => {
+		const { store, api, storage } = setup();
+		storage.store(storageKey, JSON.stringify([storedRepository]), StorageScope.PROFILE, StorageTarget.MACHINE);
+		await store.refresh();
+
+		api.definitions.set(repository.repo, new ApiRequestError(404, 'notFound'));
+		await assert.rejects(store.refresh(), /Some GitHub repositories/);
+
+		assert.deepStrictEqual({
+			entries: store.entries.get(),
+			state: store.catalogueState.get(),
+			stored: JSON.parse(storage.get(storageKey, StorageScope.PROFILE)!),
+		}, {
+			entries: [{ repository, definition }],
+			state: 'error',
+			stored: [storedRepository],
+		});
+	});
+
+	test('configuration failures retain persisted repositories for an explicit refresh retry', async () => {
+		const { store, api, storage } = setup();
+		storage.store(storageKey, JSON.stringify([storedRepository]), StorageScope.PROFILE, StorageTarget.MACHINE);
+		await store.refresh();
+
+		api.manageability.set(repository.repo, new ApiRequestError(503, 'unknown'));
+		await assert.rejects(store.refresh(), /Some GitHub repositories/);
+		const failed = {
+			entries: store.entries.get(),
+			state: store.catalogueState.get(),
+			stored: JSON.parse(storage.get(storageKey, StorageScope.PROFILE)!),
+		};
+
+		api.manageability.delete(repository.repo);
+		await store.refresh();
+		assert.deepStrictEqual({
+			failed,
+			retriedConfigurations: api.calls.filter(call => call.method === 'capability').length,
+			state: store.catalogueState.get(),
+		}, {
+			failed: { entries: [{ repository, definition }], state: 'error', stored: [storedRepository] },
+			retriedConfigurations: 3,
+			state: 'ready',
 		});
 	});
 

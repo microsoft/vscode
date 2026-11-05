@@ -345,11 +345,11 @@ export class ChatContextUsageWidget extends Disposable {
 	 */
 	setModelConfigurationResolver(
 		resolver: (modelId: string) => IStringDictionary<unknown> | undefined,
-		onDidChange: Event<string>,
+		onDidChange: Event<readonly string[]>,
 	): void {
 		this._modelConfigurationResolver = resolver;
-		this._modelConfigurationListener.value = onDidChange(modelId => {
-			const affectsDisplayedModel = this._currentModelId === modelId || this._selectedModelId === modelId;
+		this._modelConfigurationListener.value = onDidChange(modelIds => {
+			const affectsDisplayedModel = modelIds.some(modelId => this._currentModelId === modelId || this._selectedModelId === modelId);
 			if (this._currentResponse && this._currentModelId && affectsDisplayedModel) {
 				this.updateFromResponse(this._currentResponse, this._currentModelId);
 			}

@@ -29,7 +29,7 @@ import { ICustomizationHarnessService, ICustomizationMarketplaceInfo, ICustomiza
 import { IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
 import { CopilotConnectorsMarketplaceProvider, ICopilotConnectorsService } from './copilotConnectorsService.js';
 import { isAgentFinderPublicFeedAvailable } from './customizationMarketplaceConfiguration.js';
-import { createPluginCustomizationMarketplaceProviders, getAllPluginCustomizationMarketplaceSourceInfos, getPluginCustomizationMarketplaceSourceInfos } from './pluginCustomizationMarketplaceProvider.js';
+import { createPluginCustomizationMarketplaceProviders, getAllPluginCustomizationMarketplaceSourceInfos, getPluginCustomizationMarketplaceSourceInfos, isPluginMarketplaceAvailableInDiscover } from './pluginCustomizationMarketplaceProvider.js';
 
 export function getProviderMarketplaceSourceId(name: string): string {
 	return `providerPluginMarketplace.${encodeURIComponent(name)}`;
@@ -278,14 +278,18 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 		if (this.configurationService.getValue<boolean>(ChatConfiguration.PluginsEnabled) !== true) {
 			return [];
 		}
-		return this.providerMarketplaces
-			.filter(marketplace => includeUnavailable || marketplace.available !== false)
+		return this.getProviderMarketplaces(includeUnavailable)
 			.map(marketplace => ({
 				id: getProviderMarketplaceSourceId(marketplace.name),
 				displayName: marketplace.name,
 				enablementSetting: CustomizationMarketplaceConfiguration.MarketplaceEnabled,
-				configurationDependencies: [ChatConfiguration.PluginsEnabled],
+				configurationDependencies: [ChatConfiguration.PluginsEnabled, CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled],
 			}));
+	}
+
+	private getProviderMarketplaces(includeUnavailable = false): readonly ICustomizationMarketplaceInfo[] {
+		return this.providerMarketplaces.filter(marketplace => includeUnavailable ||
+			marketplace.available !== false && isPluginMarketplaceAvailableInDiscover(this.configurationService, marketplace.source, this.isGitHubFeedAvailable()));
 	}
 
 	private bindMarketplaceProviders(
@@ -362,8 +366,7 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 				githubFeedAvailable,
 			);
 		const providerMarketplaceProviders = managementProvider
-			? this.providerMarketplaces
-				.filter(marketplace => marketplace.available !== false)
+			? this.getProviderMarketplaces()
 				.map(marketplace => createLazyCustomizationMarketplaceProvider(
 					getProviderMarketplaceSourceId(marketplace.name),
 					() => ({
@@ -423,7 +426,7 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 					},
 				}), CustomizationMarketplaceSources.AgentFinderPublicFeed.id),
 				createLazyCustomizationMarketplaceProvider(CustomizationMarketplaceSources.CopilotConnectors.id, () => new CopilotConnectorsMarketplaceProvider(this.copilotConnectorsService, this.configurationService)),
-			]);
+			], ['harness.githubFeed', CustomizationMarketplaceSources.CopilotConnectors.id]);
 		}
 		return this.service;
 	}

@@ -14,7 +14,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { CustomizationMarketplaceConfiguration } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { INotification, INotificationHandle, INotificationService, Severity } from '../../../../../../platform/notification/common/notification.js';
@@ -27,14 +27,18 @@ import { AICustomizationManagementCommands, AICustomizationManagementSection } f
 import { ChatConfiguration } from '../../../common/constants.js';
 import { ICustomizationHarnessService, ICustomizationMarketplaceManagementProvider, ICustomizationPluginInstallProvider, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { IAgentPluginRepositoryService } from '../../../common/plugins/agentPluginRepositoryService.js';
-import { IPluginInstallService } from '../../../common/plugins/pluginInstallService.js';
+import { IInstallPluginFromSourceResult, IPluginInstallService } from '../../../common/plugins/pluginInstallService.js';
 import { IPluginMarketplaceService, parseMarketplaceReference } from '../../../common/plugins/pluginMarketplaceService.js';
 import { isMarketplaceReferenceAllowed, StrictKnownMarketplaces } from '../../../common/plugins/strictKnownMarketplaces.js';
 
 suite('InstallFromSourceAction', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createFixture(pluginInstallProvider?: ICustomizationPluginInstallProvider) {
+	function createFixture(
+		pluginInstallProvider?: ICustomizationPluginInstallProvider,
+		localInstallResult: IInstallPluginFromSourceResult = { success: true },
+		options: { skipReveal?: boolean; revealError?: Error } = {},
+	) {
 		const instantiationService = workbenchInstantiationService({}, store);
 		const acceptEmitter = store.add(new Emitter<void>());
 		const hideEmitter = store.add(new Emitter<IQuickInputHideEvent>());
@@ -61,6 +65,17 @@ suite('InstallFromSourceAction', () => {
 		]);
 		const localInstalls: string[] = [];
 		const validations: string[] = [];
+		const notifications: Parameters<INotificationService['error']>[0][] = [];
+		const commands: { id: string; args: unknown[] }[] = [];
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+			override async executeCommand<T>(id: string, ...args: unknown[]): Promise<T | undefined> {
+				commands.push({ id, args });
+				if (options.revealError) {
+					throw options.revealError;
+				}
+				return undefined;
+			}
+		}());
 		instantiationService.stub(IQuickInputService, new class extends mock<IQuickInputService>() {
 			override createInputBox() { return inputBox; }
 		}());
@@ -70,6 +85,11 @@ suite('InstallFromSourceAction', () => {
 				return harnesses.get(sessionResource.scheme);
 			}
 		}());
+		instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
+			override error(error: Parameters<INotificationService['error']>[0]): void {
+				notifications.push(error);
+			}
+		}());
 		instantiationService.stub(IPluginInstallService, new class extends mock<IPluginInstallService>() {
 			override validatePluginSource(source: string) {
 				validations.push(source);
@@ -77,7 +97,7 @@ suite('InstallFromSourceAction', () => {
 			}
 			override async installPluginFromSource(source: string) {
 				localInstalls.push(source);
-				return { success: true };
+				return localInstallResult;
 			}
 		}());
 		instantiationService.stub(IConfigurationService, new class extends mock<IConfigurationService>() {
@@ -85,9 +105,58 @@ suite('InstallFromSourceAction', () => {
 				assert.fail('Source installation must not update VS Code configuration');
 			}
 		}());
-		const result = instantiationService.invokeFunction(accessor => new InstallFromSourceAction().run(accessor, { skipReveal: true }));
-		return { inputBox, acceptEmitter, showEmitter, result, localInstalls, validations, session, activeSessionResource, harnesses };
+		const result = instantiationService.invokeFunction(accessor => new InstallFromSourceAction().run(accessor, { skipReveal: options.skipReveal ?? true }));
+		return { inputBox, acceptEmitter, showEmitter, result, localInstalls, validations, notifications, commands, session, activeSessionResource, harnesses };
 	}
+
+	test('reveals the installed plugin in Chat Customizations for the installing session', async () => {
+		const installedUri = URI.file('/plugins/example');
+		const fixture = createFixture(undefined, { success: true, installedUri }, { skipReveal: false });
+		fixture.inputBox.value = 'owner/repo';
+		fixture.acceptEmitter.fire();
+		fixture.activeSessionResource.set(URI.parse('other:/session'), undefined);
+
+		assert.deepStrictEqual({ installed: await fixture.result, commands: fixture.commands }, {
+			installed: true,
+			commands: [{
+				id: AICustomizationManagementCommands.OpenEditor,
+				args: [{ section: AICustomizationManagementSection.Plugins, sessionResource: fixture.session, revealUri: installedUri }],
+			}],
+		});
+	});
+
+	test('opens the installing harness Plugins section after a provider-owned installation', async () => {
+		const fixture = createFixture({ installFromSource: async () => { } }, undefined, { skipReveal: false });
+		fixture.inputBox.value = 'owner/repo';
+		fixture.acceptEmitter.fire();
+
+		assert.deepStrictEqual({ installed: await fixture.result, commands: fixture.commands, localInstalls: fixture.localInstalls }, {
+			installed: true,
+			commands: [{
+				id: AICustomizationManagementCommands.OpenEditor,
+				args: [{ section: AICustomizationManagementSection.Plugins, sessionResource: fixture.session, revealUri: undefined }],
+			}],
+			localInstalls: [],
+		});
+	});
+
+	test('does not navigate when skipReveal is true', async () => {
+		const fixture = createFixture(undefined, { success: true, installedUri: URI.file('/plugins/example') }, { skipReveal: true });
+		fixture.inputBox.value = 'owner/repo';
+		fixture.acceptEmitter.fire();
+
+		assert.deepStrictEqual({ installed: await fixture.result, commands: fixture.commands }, { installed: true, commands: [] });
+	});
+
+	test('reports reveal errors without reopening the input or failing a successful installation', async () => {
+		const revealError = new Error('Cannot open Chat Customizations');
+		const fixture = createFixture(undefined, { success: true, installedUri: URI.file('/plugins/example') }, { skipReveal: false, revealError });
+		store.add(fixture.showEmitter.event(() => assert.fail('A navigation error must not restart installation')));
+		fixture.inputBox.value = 'owner/repo';
+		fixture.acceptEmitter.fire();
+
+		assert.deepStrictEqual({ installed: await fixture.result, notifications: fixture.notifications }, { installed: true, notifications: [revealError] });
+	});
 
 	test('uses the harness installer for repository, folder, and marketplace sources without changing VS Code plugin locations', async () => {
 		const sources = ['owner/repo', 'https://github.com/owner/repo.git', '/plugins/example', '~/plugins/example', 'file:///plugins/example', 'plugin@marketplace'];
@@ -185,16 +254,15 @@ suite('InstallFromSourceAction', () => {
 		});
 	});
 
-	test('shows harness installation errors without falling back to VS Code installation', async () => {
-		const fixture = createFixture({
-			installFromSource: async () => { throw new Error('SDK rejected source'); },
-		});
+	test('keeps cancelled local installation silent', async () => {
+		const fixture = createFixture(undefined, { success: false });
 		const shown = Event.toPromise(fixture.showEmitter.event);
 		fixture.inputBox.value = 'owner/repo';
 		fixture.acceptEmitter.fire();
 		await shown;
 		const state = {
-			message: fixture.inputBox.validationMessage,
+			validationMessage: fixture.inputBox.validationMessage,
+			notifications: fixture.notifications,
 			busy: fixture.inputBox.busy,
 			enabled: fixture.inputBox.enabled,
 			localInstalls: fixture.localInstalls,
@@ -202,7 +270,35 @@ suite('InstallFromSourceAction', () => {
 		fixture.inputBox.hide();
 
 		assert.deepStrictEqual({ ...state, installed: await fixture.result }, {
-			message: 'Failed to install plugin: SDK rejected source',
+			validationMessage: undefined,
+			notifications: [],
+			busy: false,
+			enabled: true,
+			localInstalls: ['owner/repo'],
+			installed: false,
+		});
+	});
+
+	test('shows harness installation errors as notifications without falling back to VS Code installation', async () => {
+		const fixture = createFixture({
+			installFromSource: async () => { throw new Error('The plugin is invalid'); },
+		});
+		const shown = Event.toPromise(fixture.showEmitter.event);
+		fixture.inputBox.value = 'owner/repo';
+		fixture.acceptEmitter.fire();
+		await shown;
+		const state = {
+			validationMessage: fixture.inputBox.validationMessage,
+			notifications: fixture.notifications,
+			busy: fixture.inputBox.busy,
+			enabled: fixture.inputBox.enabled,
+			localInstalls: fixture.localInstalls,
+		};
+		fixture.inputBox.hide();
+
+		assert.deepStrictEqual({ ...state, installed: await fixture.result }, {
+			validationMessage: undefined,
+			notifications: ['Failed to install plugin: The plugin is invalid'],
 			busy: false,
 			enabled: true,
 			localInstalls: [],
@@ -1212,25 +1308,89 @@ suite('ManagePluginMarketplacesAction', () => {
 		}
 	}
 
-	test('shows plugins from the default marketplace using its public feed replacement', async () => {
+	test('hides the default marketplace from management when the public feed replaces it', async () => {
 		const marketplace = parseMarketplaceReference('github/awesome-copilot#marketplace')!;
 		const fixture = createFixture({
 			[ChatConfiguration.PluginMarketplaces]: [marketplace.rawValue],
 			[ChatConfiguration.ExtraMarketplaces]: {},
+			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
 			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true,
 		}, true);
-		fixture.quickInputService.pickIds.push(marketplace.canonicalId, 'showPlugins');
+		await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
+
+		assert.deepStrictEqual({
+			items: fixture.quickInputService.pickSnapshots[0],
+			configurationUpdates: fixture.configurationService.updates,
+		}, {
+			items: [
+				{ id: 'addMarketplace', label: '$(add) Add Marketplace...', type: 'item' },
+				{ id: 'browseMarketplaces', label: 'Browse All Marketplaces', type: 'item' },
+			],
+			configurationUpdates: [],
+		});
+	});
+
+	test('keeps the hidden default marketplace in add validation', async () => {
+		const marketplace = parseMarketplaceReference('github/awesome-copilot#marketplace')!;
+		const fixture = createFixture({
+			[ChatConfiguration.PluginMarketplaces]: [marketplace.rawValue],
+			[ChatConfiguration.ExtraMarketplaces]: {},
+			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
+			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true,
+		}, true);
+		fixture.quickInputService.pickIds.push('addMarketplace');
+		fixture.quickInputService.inputValue = marketplace.rawValue;
+		fixture.quickInputService.inputBackAfterAccept = true;
 
 		await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
 
-		assert.deepStrictEqual(fixture.commands, [{
-			id: AICustomizationManagementCommands.OpenMarketplace,
-			args: [{
-				section: AICustomizationManagementSection.Plugins,
-				searchQuery: '',
-				sourceId: CustomizationMarketplaceSources.AgentFinderPublicFeed.id,
+		assert.deepStrictEqual({
+			items: fixture.quickInputService.pickSnapshots[0],
+			validation: fixture.quickInputService.inputValidationSnapshots,
+			configurationUpdates: fixture.configurationService.updates,
+		}, {
+			items: [
+				{ id: 'addMarketplace', label: '$(add) Add Marketplace...', type: 'item' },
+				{ id: 'browseMarketplaces', label: 'Browse All Marketplaces', type: 'item' },
+			],
+			validation: [{
+				phase: 'accept',
+				value: marketplace.rawValue,
+				message: 'This marketplace is already configured.',
+				severity: Severity.Error,
 			}],
-		}]);
+			configurationUpdates: [],
+		});
+	});
+
+	test('filters provider Awesome Copilot from management when toggling the feed', async () => {
+		const marketplaces = ['awesome-copilot', 'team-plugins'].map(name => ({
+			name, source: `GitHub: github/${name}`, isDefault: name === 'awesome-copilot', managed: false, available: true,
+		}));
+		const provider: ICustomizationMarketplaceManagementProvider = {
+			onDidChange: Event.None,
+			onDidChangeMarketplaces: Event.None,
+			list: async () => marketplaces,
+			add: async () => { throw new Error('Unexpected add'); },
+			queryMarketplace: async () => ({ items: [], total: 0 }),
+			remove: async () => { throw new Error('Unexpected remove'); },
+			refresh: async () => [],
+		};
+		const fixture = createFixture({
+			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
+		}, true, provider);
+		const actual = [];
+		for (const enabled of [false, true, false]) {
+			await fixture.configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, enabled);
+			await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
+			actual.push(fixture.quickInputService.pickSnapshots.at(-1)!
+				.filter(pick => marketplaces.some(marketplace => marketplace.name === pick.id)).map(pick => pick.id));
+		}
+		assert.deepStrictEqual(actual, [
+			['awesome-copilot', 'team-plugins'],
+			['team-plugins'],
+			['awesome-copilot', 'team-plugins'],
+		]);
 	});
 
 	test('shows plugins from the default marketplace using its configured source under strict policy', async () => {

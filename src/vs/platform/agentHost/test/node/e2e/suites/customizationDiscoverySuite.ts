@@ -13,7 +13,7 @@ import { customizationId, CustomizationType, ROOT_STATE_URI, type ClientPluginCu
 import { ActionType, type SessionCustomizationsChangedAction } from '../../../../common/state/sessionActions.js';
 import type { SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
-import { createRealSession, driveTurnToCompletion, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
+import { createRealSession, driveTurnToCompletion, initTestGitRepo, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
 import { defaultChatChannel, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { createTestDirectory } from '../harness/testDirectories.js';
@@ -97,12 +97,14 @@ export function defineCustomizationDiscoveryTests(context: IAgentHostE2ETestCont
 		}
 		writeFileSync(instruction, '---\napplyTo:\n  - "**/*"\n---\nPrefer short answers.');
 		writeFileSync(skill, '---\nname: hello-skill\ndescription: Says hello\n---\nReturn a greeting.');
-		writeFileSync(hook, JSON.stringify({ PreToolUse: [] }));
+		writeFileSync(hook, JSON.stringify({
+			version: 1, hooks: { preToolUse: [{ type: 'command', bash: 'exit 0', powershell: 'exit 0' }] },
+		}));
 		return [
 			{ type: CustomizationType.Agent, path: agent },
 			{ type: CustomizationType.Rule, path: instruction },
 			{ type: CustomizationType.Skill, path: skill },
-			{ type: CustomizationType.Hook, path: hook },
+			...(config.provider === 'copilotcli' ? [] : [{ type: CustomizationType.Hook, path: hook }]),
 		];
 	}
 
@@ -121,6 +123,9 @@ export function defineCustomizationDiscoveryTests(context: IAgentHostE2ETestCont
 		: 'provider-supported workspace customizations';
 	customizationDiscoveryTest(`customization discovery: discover finds ${supportedCustomizations}`, async function () {
 		const workspace = createWorkspace('all');
+		if (config.provider === 'copilotcli') {
+			initTestGitRepo(workspace);
+		}
 		const files = writeWorkspaceCustomizations(workspace);
 		const sessionUri = await createDiscoverySession('all', workspace);
 		const customizations = await sessionCustomizations(sessionUri);
@@ -128,6 +133,13 @@ export function defineCustomizationDiscoveryTests(context: IAgentHostE2ETestCont
 		assert.deepStrictEqual(discoveredFixtureFiles(customizations, files), files
 			.map(file => ({ type: file.type, uri: URI.file(file.path).toString() }))
 			.sort((a, b) => a.uri.localeCompare(b.uri)));
+		if (config.provider === 'copilotcli') {
+			const hooks = customizations.flatMap(item => item.type === CustomizationType.Directory ? item.children ?? [] : [])
+				.filter(child => child.type === CustomizationType.Hook);
+			assert.deepStrictEqual(hooks.map(hook => ({ name: hook.name, enabled: hook.enabled, scheme: URI.parse(hook.uri).scheme })), [
+				{ name: 'preToolUse', enabled: true, scheme: 'agent-discovery' },
+			], JSON.stringify(customizations.filter(item => item.type === CustomizationType.Directory && item.contents === CustomizationType.Hook)));
+		}
 	});
 
 	if (config.provider === 'copilotcli') {

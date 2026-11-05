@@ -7,7 +7,7 @@ import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import type { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import type { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { mock } from '../../../../base/test/common/mock.js';
@@ -664,7 +664,7 @@ class TestRemoteAgentHostLocationPreferenceService implements IRemoteAgentHostLo
 
 suite('SSHRemoteAgentHostService (renderer)', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let mainService: MockSSHMainService;
 	let remoteAgentHostService: MockRemoteAgentHostService;
 	let configurationService: TestConfigurationService;
@@ -734,8 +734,6 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 		service = disposables.add(instantiationService.createInstance(SSHRemoteAgentHostService));
 	});
 
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const sampleConfig: ISSHAgentHostConfig = {
 		host: 'remote.example',
@@ -1277,7 +1275,7 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 
 suite('SSHRemoteAgentHostService endpoint selection preference (renderer)', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let mainService: MockSSHMainService;
 	let locationPreferenceService: TestRemoteAgentHostLocationPreferenceService;
 	let dialogServiceStub: Partial<IDialogService>;
@@ -1320,8 +1318,6 @@ suite('SSHRemoteAgentHostService endpoint selection preference (renderer)', () =
 		disposables.add(instantiationService.createInstance(SSHRemoteAgentHostService));
 	});
 
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const connectionKey = 'ssh:remote.example';
 
@@ -1544,7 +1540,7 @@ suite('SSHRemoteAgentHostService endpoint selection preference (renderer)', () =
 
 suite('SSHRemoteAgentHostService host key verification (renderer)', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let mainService: MockSSHMainService;
 	let hostKeyTrustService: SSHHostKeyTrustService;
 	let notificationService: CapturingNotificationService;
@@ -1606,8 +1602,6 @@ suite('SSHRemoteAgentHostService host key verification (renderer)', () => {
 		disposables.add(instantiationService.createInstance(TestableService));
 	});
 
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	/** Settles once every verification the test has triggered has finished. */
 	async function settleVerifications(): Promise<void> {
@@ -2114,7 +2108,7 @@ suite('SSHRemoteAgentHostService host key verification (renderer)', () => {
 });
 
 suite('SSHRemoteAgentHostService lifecycle (renderer)', () => {
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const config: ISSHAgentHostConfig = {
 		host: 'remote.example',
 		username: 'user',
@@ -2182,8 +2176,6 @@ suite('SSHRemoteAgentHostService lifecycle (renderer)', () => {
 		service = disposables.add(instantiationService.createInstance(SSHRemoteAgentHostService));
 	});
 
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	async function waitForTransport(count: number): Promise<void> {
 		while (transports.length < count) {

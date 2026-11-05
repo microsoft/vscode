@@ -11,7 +11,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { supportsAgentHostAutonomousAutomations } from '../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
 import type { AutomationTarget, IAutomationDescriptor, IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { AutomationUnavailableError, type AutomationCatalogueState, type AutomationMutationGuard, type AutomationUnavailableReasonCode, type IAutomationCustomizationChoice, type IAutomationRunRequestResult, type ICreateAutomationOptions, type IGuardedAutomationUpdateResult, type IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationUnavailableError, type AutomationCatalogueState, type AutomationMutationGuard, type AutomationUnavailableReasonCode, type IAutomationCustomizationChoice, type IAutomationRunRequestResult, type ICreateAutomationOptions, type IDeleteAutomationOptions, type IGuardedAutomationUpdateResult, type IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import type { ISessionsProviderAutomations } from '../../../../services/sessions/common/sessionsProvider.js';
 import { AgentHostAutomationStore, type IAgentHostAutomationBoundaryMapper, type IAgentHostAutomationConnection } from './agentHostAutomationStore.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
@@ -26,6 +26,7 @@ export class ReconnectableAgentHostAutomationStore extends Disposable implements
 
 	private readonly currentStore = this._register(disposableObservableValue<AgentHostAutomationStore | undefined>(this, undefined));
 	private readonly connectionBinding = this._register(new DisposableStore());
+	private boundConnection: IAgentHostAutomationConnection | undefined;
 	private readonly runsForCache = new Map<string, IObservable<readonly IAutomationRun[]>>();
 	private readonly configurationChanged;
 	private readonly connectionState = observableValue<AutomationConnectionState>(this, 'disconnected');
@@ -66,9 +67,17 @@ export class ReconnectableAgentHostAutomationStore extends Disposable implements
 		this.configurationChanged = observableSignalFromEvent(this, this.configurationService.onDidChangeConfiguration);
 	}
 
-	/** Rebinds to the connection and exposes a projection only while compatible Automation support is available. */
+	/**
+	 * Rebinds to the connection and exposes a projection only while compatible
+	 * Automation support is available. Rebinding to the connection that is
+	 * already bound keeps the existing projection and catalogue subscription.
+	 */
 	setConnection(connection: IAgentHostAutomationConnection): void {
+		if (connection === this.boundConnection) {
+			return;
+		}
 		this.clearConnection();
+		this.boundConnection = connection;
 		this.connectionBinding.add(autorun(reader => {
 			this.configurationChanged.read(reader);
 			const enabled = this.configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) === true;
@@ -99,6 +108,7 @@ export class ReconnectableAgentHostAutomationStore extends Disposable implements
 
 	/** Disposes client-side projections and observations without changing host definitions or runs. */
 	clearConnection(): void {
+		this.boundConnection = undefined;
 		this.connectionBinding.clear();
 		transaction(tx => {
 			this.currentStore.set(undefined, tx);
@@ -126,6 +136,30 @@ export class ReconnectableAgentHostAutomationStore extends Disposable implements
 		return this.currentStore.get()?.canDeleteAutomation(id) === true;
 	}
 
+	supportsDeleteHistoryChoice(id: string): boolean {
+		return this.currentStore.get()?.supportsDeleteHistoryChoice(id) === true;
+	}
+
+	getAutomationHistoryName(id: string): string | undefined {
+		return this.currentStore.get()?.getAutomationHistoryName(id);
+	}
+
+	getAutomationHistoryState(id: string) {
+		return this.currentStore.get()?.getAutomationHistoryState(id);
+	}
+
+	deleteAutomationHistory(id: string): Promise<void> {
+		const store = this.requireStore();
+		if (!store.deleteAutomationHistory) {
+			throw new AutomationUnavailableError(localize('agentHostAutomation.historyDeleteUnavailable', "This Automation's retained run history cannot currently be deleted."));
+		}
+		return store.deleteAutomationHistory(id);
+	}
+
+	canDeleteAutomationHistory(id: string): boolean {
+		return this.currentStore.get()?.canDeleteAutomationHistory(id) === true;
+	}
+
 	runsFor(automationId: string): IObservable<readonly IAutomationRun[]> {
 		let result = this.runsForCache.get(automationId);
 		if (!result) {
@@ -147,8 +181,8 @@ export class ReconnectableAgentHostAutomationStore extends Disposable implements
 		return this.requireStore().updateAutomationIfUnchanged(id, patch, expected, mutationGuard);
 	}
 
-	deleteAutomation(id: string, mutationGuard?: AutomationMutationGuard): Promise<void> {
-		return this.requireStore().deleteAutomation(id, mutationGuard);
+	deleteAutomation(id: string, mutationGuard?: AutomationMutationGuard, options?: IDeleteAutomationOptions): Promise<void> {
+		return this.requireStore().deleteAutomation(id, mutationGuard, options);
 	}
 
 	runAutomation(automationId: string, token?: CancellationToken): Promise<IAutomationRunRequestResult> {

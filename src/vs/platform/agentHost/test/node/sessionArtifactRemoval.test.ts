@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
-import { Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileService } from '../../../files/common/fileService.js';
@@ -69,24 +68,23 @@ suite('Session Artifact Removal', () => {
 		const internals = service as unknown as {
 			_createArtifactServerToolAccessor(): IArtifactServerToolAccessor;
 			_orchestratorDatabase: IAgentHostDatabase;
-			_whenBackgroundCatalogStateWritesIdle(session: string): Promise<void>;
 		};
 		const sessionStateStore = getTestSessionStateStore(service);
-		// The seeded summary change is flushed and persisted before the test starts, so its background catalog write
-		// never lands during the test's own writes. Tests that need that interleaving force it.
-		const summaryFlushed = Event.toPromise(Event.filter(stateManager.onDidChangeSessionSummary, e => e.session === session.toString()));
+		const whenIdle = async () => {
+			// Summary writes can enqueue mirror writes, so drain them before flushing the mirrors.
+			await service.whenCatalogReconciliationIdle();
+			await sessionStateStore.whenIdle(session);
+		};
 		stateManager.setSessionMeta(session.toString(), meta);
 		await database.setMetadata(SESSION_ARTIFACTS_KEY, stringifySessionArtifacts(artifacts));
-		await summaryFlushed;
-		await internals._whenBackgroundCatalogStateWritesIdle(session.toString());
-		await service.whenCatalogReconciliationIdle();
-		await sessionStateStore.whenIdle(session);
-		/** Reads a session.db key once the session state store, which owns the key, has mirrored it there. */
+		await whenIdle();
+		/** Reads a session.db key after catalog writes and their mirrors have settled. */
 		const readPersisted = async (key: string) => {
-			await sessionStateStore.whenIdle(session);
+			await whenIdle();
 			return database.getMetadata(key);
 		};
 		const readCentralArtifacts = async () => {
+			await whenIdle();
 			const row = await internals._orchestratorDatabase.getSessionV2(session.toString());
 			assert.ok(row);
 			const decoded = decodeAgentHostCatalogPayload(row.payload);
@@ -94,12 +92,15 @@ suite('Session Artifact Removal', () => {
 			return readSessionArtifacts(decoded.value.data._meta);
 		};
 		/** The artifacts as published, in central state, in session.db and in the session catalog. */
-		const readStates = async () => ({
-			published: stateManager.getSessionState(session.toString())?._meta,
-			central: sessionStateStore.peek(session)?.values.get(SESSION_ARTIFACTS_KEY),
-			persisted: await readPersisted(SESSION_ARTIFACTS_KEY),
-			catalog: await readCentralArtifacts(),
-		});
+		const readStates = async () => {
+			await whenIdle();
+			return {
+				published: stateManager.getSessionState(session.toString())?._meta,
+				central: sessionStateStore.peek(session)?.values.get(SESSION_ARTIFACTS_KEY),
+				persisted: await readPersisted(SESSION_ARTIFACTS_KEY),
+				catalog: await readCentralArtifacts(),
+			};
+		};
 		return { service, agent, session, stateManager, meta, artifactAccessor: internals._createArtifactServerToolAccessor(), readCentralArtifacts, readPersisted, readStates };
 	}
 
@@ -244,110 +245,119 @@ suite('Session Artifact Removal', () => {
 		});
 	});
 
-	test('retains a concurrent tool addition while removal is awaiting persistence', async () => {
-		const writeStarted = new DeferredPromise<void>();
-		const finishWrite = new DeferredPromise<void>();
-		class DelayedDatabase extends TestSessionDatabase {
-			delayNextArtifactWrite = false;
-			override async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot, validate?: SessionCatalogSyncWriteValidator): Promise<SessionCatalogSyncWriteResult> {
-				if (this.delayNextArtifactWrite && values[SESSION_ARTIFACTS_KEY] !== undefined) {
-					this.delayNextArtifactWrite = false;
-					await writeStarted.complete();
-					await finishWrite.p;
+	for (const flushSummaryDuringRemoval of [false, true]) {
+		const summaryTiming = flushSummaryDuringRemoval ? 'during removal' : 'after mutations';
+		test(`retains a concurrent tool addition while removal is awaiting persistence (summary flushed ${summaryTiming})`, async () => {
+			const writeStarted = new DeferredPromise<void>();
+			const finishWrite = new DeferredPromise<void>();
+			class DelayedDatabase extends TestSessionDatabase {
+				delayNextArtifactWrite = false;
+				override async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot, validate?: SessionCatalogSyncWriteValidator): Promise<SessionCatalogSyncWriteResult> {
+					if (this.delayNextArtifactWrite && values[SESSION_ARTIFACTS_KEY] !== undefined) {
+						this.delayNextArtifactWrite = false;
+						await writeStarted.complete();
+						await finishWrite.p;
+					}
+					return super.setMetadataValuesAndCatalogSyncSnapshot(values, snapshot, validate);
 				}
-				return super.setMetadataValuesAndCatalogSyncSnapshot(values, snapshot, validate);
 			}
-		}
-		const database = new DelayedDatabase();
-		const fixture = await createFixture(database);
-		database.delayNextArtifactWrite = true;
-		const { service, session, stateManager, meta } = fixture;
-		let completed = false;
-		const removal = service.removeSessionArtifact(session, 'pr').then(() => { completed = true; });
-		await writeStarted.p;
-		const latestMeta = { ...meta, unrelated: { keep: true, updated: true } };
-		stateManager.setSessionMeta(session.toString(), latestMeta);
-		const addition = addConcurrentReference(fixture);
-		try {
+			const database = new DelayedDatabase();
+			const fixture = await createFixture(database);
+			database.delayNextArtifactWrite = true;
+			const { service, session, stateManager, meta } = fixture;
+			let completed = false;
+			const removal = service.removeSessionArtifact(session, 'pr').then(() => { completed = true; });
+			await writeStarted.p;
+			const latestMeta = { ...meta, unrelated: { keep: true, updated: true } };
+			stateManager.setSessionMeta(session.toString(), latestMeta);
+			const addition = addConcurrentReference(fixture);
+			try {
+				if (flushSummaryDuringRemoval) {
+					stateManager.flushPendingSessionSummaries();
+				}
+				assert.deepStrictEqual({
+					completed,
+					meta: stateManager.getSessionState(session.toString())?._meta,
+				}, {
+					completed: false,
+					meta: latestMeta,
+				});
+			} finally {
+				await finishWrite.complete();
+				await Promise.all([removal, addition]);
+			}
+
+			const remaining = readSessionArtifacts(stateManager.getSessionState(session.toString())?._meta);
 			assert.deepStrictEqual({
-				completed,
+				labels: remaining.map(artifact => artifact.label),
 				meta: stateManager.getSessionState(session.toString())?._meta,
+				persisted: await fixture.readPersisted(SESSION_ARTIFACTS_KEY),
+				centralArtifacts: await fixture.readCentralArtifacts(),
 			}, {
-				completed: false,
-				meta: latestMeta,
+				labels: ['Report', 'Docs', 'Concurrent'],
+				meta: withSessionArtifacts(latestMeta, remaining),
+				persisted: stringifySessionArtifacts(remaining),
+				centralArtifacts: remaining,
 			});
-		} finally {
-			await finishWrite.complete();
-			await Promise.all([removal, addition]);
-		}
-
-		const remaining = readSessionArtifacts(stateManager.getSessionState(session.toString())?._meta);
-		assert.deepStrictEqual({
-			labels: remaining.map(artifact => artifact.label),
-			meta: stateManager.getSessionState(session.toString())?._meta,
-			persisted: await fixture.readPersisted(SESSION_ARTIFACTS_KEY),
-			centralArtifacts: await fixture.readCentralArtifacts(),
-		}, {
-			labels: ['Report', 'Docs', 'Concurrent'],
-			meta: withSessionArtifacts(latestMeta, remaining),
-			persisted: stringifySessionArtifacts(remaining),
-			centralArtifacts: remaining,
 		});
-	});
 
-	test('keeps a rejected removal visible while preserving a queued addition and independent metadata', async () => {
-		const writeStarted = new DeferredPromise<void>();
-		const finishWrite = new DeferredPromise<void>();
-		class FailingDelayedDatabase extends TestSessionDatabase {
-			failNextArtifactWrite = false;
-			override async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot, validate?: SessionCatalogSyncWriteValidator): Promise<SessionCatalogSyncWriteResult> {
-				if (this.failNextArtifactWrite && values[SESSION_ARTIFACTS_KEY] !== undefined) {
-					this.failNextArtifactWrite = false;
-					await writeStarted.complete();
-					await finishWrite.p;
-					throw new Error('artifact write failed');
+		test(`keeps a rejected removal visible while preserving a queued addition and independent metadata (summary flushed ${summaryTiming})`, async () => {
+			const writeStarted = new DeferredPromise<void>();
+			const finishWrite = new DeferredPromise<void>();
+			class FailingDelayedDatabase extends TestSessionDatabase {
+				failNextArtifactWrite = false;
+				override async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot, validate?: SessionCatalogSyncWriteValidator): Promise<SessionCatalogSyncWriteResult> {
+					if (this.failNextArtifactWrite && values[SESSION_ARTIFACTS_KEY] !== undefined) {
+						this.failNextArtifactWrite = false;
+						await writeStarted.complete();
+						await finishWrite.p;
+						throw new Error('artifact write failed');
+					}
+					return super.setMetadataValuesAndCatalogSyncSnapshot(values, snapshot, validate);
 				}
-				return super.setMetadataValuesAndCatalogSyncSnapshot(values, snapshot, validate);
 			}
-		}
-		const database = new FailingDelayedDatabase();
-		const fixture = await createFixture(database);
-		database.failNextArtifactWrite = true;
-		const { service, session, stateManager, meta } = fixture;
-		const publishedLabels: string[][] = [];
-		store.add(service.onDidAction(envelope => {
-			if (envelope.action.type === ActionType.SessionMetaChanged) {
-				publishedLabels.push(readSessionArtifacts(envelope.action._meta).map(artifact => artifact.label));
+			const database = new FailingDelayedDatabase();
+			const fixture = await createFixture(database);
+			database.failNextArtifactWrite = true;
+			const { service, session, stateManager, meta } = fixture;
+			const publishedLabels: string[][] = [];
+			store.add(service.onDidAction(envelope => {
+				if (envelope.action.type === ActionType.SessionMetaChanged) {
+					publishedLabels.push(readSessionArtifacts(envelope.action._meta).map(artifact => artifact.label));
+				}
+			}));
+
+			const rejectedRemoval = assert.rejects(service.removeSessionArtifact(session, 'pr'), /artifact write failed/);
+			await writeStarted.p;
+			const latestMeta = { ...meta, unrelated: { keep: true, updated: true } };
+			stateManager.setSessionMeta(session.toString(), latestMeta);
+			const addition = addConcurrentReference(fixture);
+			try {
+				if (flushSummaryDuringRemoval) {
+					stateManager.flushPendingSessionSummaries();
+				}
+				assert.deepStrictEqual(stateManager.getSessionState(session.toString())?._meta, latestMeta);
+			} finally {
+				await finishWrite.complete();
+				await Promise.all([rejectedRemoval, addition]);
 			}
-		}));
 
-		const rejectedRemoval = assert.rejects(service.removeSessionArtifact(session, 'pr'), /artifact write failed/);
-		await writeStarted.p;
-		const latestMeta = { ...meta, unrelated: { keep: true, updated: true } };
-		stateManager.setSessionMeta(session.toString(), latestMeta);
-		const addition = addConcurrentReference(fixture);
-		try {
-			assert.deepStrictEqual(stateManager.getSessionState(session.toString())?._meta, latestMeta);
-		} finally {
-			await finishWrite.complete();
-			await Promise.all([rejectedRemoval, addition]);
-		}
-
-		const remaining = readSessionArtifacts(stateManager.getSessionState(session.toString())?._meta);
-		assert.deepStrictEqual({
-			labels: remaining.map(artifact => artifact.label),
-			meta: stateManager.getSessionState(session.toString())?._meta,
-			persisted: await fixture.readPersisted(SESSION_ARTIFACTS_KEY),
-			publishedLabels,
-			centralArtifacts: await fixture.readCentralArtifacts(),
-		}, {
-			labels: ['PR', 'Report', 'Docs', 'Concurrent'],
-			meta: withSessionArtifacts(latestMeta, remaining),
-			persisted: stringifySessionArtifacts(remaining),
-			publishedLabels: [['PR', 'Report', 'Docs'], ['PR', 'Report', 'Docs', 'Concurrent']],
-			centralArtifacts: remaining,
+			const remaining = readSessionArtifacts(stateManager.getSessionState(session.toString())?._meta);
+			assert.deepStrictEqual({
+				labels: remaining.map(artifact => artifact.label),
+				meta: stateManager.getSessionState(session.toString())?._meta,
+				persisted: await fixture.readPersisted(SESSION_ARTIFACTS_KEY),
+				publishedLabels,
+				centralArtifacts: await fixture.readCentralArtifacts(),
+			}, {
+				labels: ['PR', 'Report', 'Docs', 'Concurrent'],
+				meta: withSessionArtifacts(latestMeta, remaining),
+				persisted: stringifySessionArtifacts(remaining),
+				publishedLabels: [['PR', 'Report', 'Docs'], ['PR', 'Report', 'Docs', 'Concurrent']],
+				centralArtifacts: remaining,
+			});
 		});
-	});
+	}
 
 	class FailingDatabase extends TestSessionDatabase {
 		failArtifactWrites = false;
@@ -417,9 +427,8 @@ suite('Session Artifact Removal', () => {
 		database.failArtifactWrites = true;
 		// A summary change is flushed while the removal is persisting, queueing a background write behind it.
 		database.beforeNextArtifactWrite = async () => {
-			const summaryFlushed = Event.toPromise(stateManager.onDidChangeSessionSummary);
 			stateManager.setSessionMeta(session.toString(), latestMeta);
-			await summaryFlushed;
+			stateManager.flushPendingSessionSummaries();
 		};
 
 		await assert.rejects(service.removeSessionArtifact(session, 'pr'), /artifact write failed/);
@@ -625,9 +634,8 @@ suite('Session Artifact Removal', () => {
 		await writeStarted.p;
 		// The flushed summary still lists the removed artifact, because the removal is published only once persisted.
 		const latestMeta = { ...meta, unrelated: { keep: true, updated: true } };
-		const summaryFlushed = Event.toPromise(stateManager.onDidChangeSessionSummary);
 		stateManager.setSessionMeta(session.toString(), latestMeta);
-		await summaryFlushed;
+		stateManager.flushPendingSessionSummaries();
 		await finishWrite.complete();
 		await removal;
 
