@@ -2399,6 +2399,21 @@ suite('RemoteAgentHostService', () => {
 			assert.strictEqual(formatter.formatting.workspaceSuffix, 'Host 1');
 		});
 
+		test('retains formatters across unchanged large inventory reconciliations', () => {
+			const entries: IRemoteAgentHostEntry[] = Array.from({ length: 150 }, (_, index) => ({
+				name: `Host ${index}`,
+				connection: { type: RemoteAgentHostEntryType.WebSocket, address: `ws://host${index}:8080` },
+			}));
+			configService.setEntries(entries);
+			const original = [...registeredFormatters];
+			configService.setEntries(entries.map(entry => ({ ...entry })));
+			configService.setEntries(entries.map(entry => ({ ...entry })));
+			assert.deepStrictEqual({
+				count: registeredFormatters.length,
+				unchanged: registeredFormatters.every((formatter, index) => formatter === original[index]),
+			}, { count: 150, unchanged: true });
+		});
+
 		test('updates formatter with native Windows path formatting after connecting', async () => {
 			configService.setEntries([{ name: 'Host 1', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://host1:8080' } }]);
 			await waitForCreatedClients(1);
