@@ -64,8 +64,6 @@ suite('InternalTerminalShellIntegration', () => {
 	}
 
 	async function emitData(data: string): Promise<void> {
-		// AsyncIterableProducers are initialized in a microtask, this doesn't matter in practice
-		// since the events will always come through in different events.
 		await new Promise<void>(r => queueMicrotask(r));
 		si.emitData(data);
 	}
@@ -174,6 +172,32 @@ suite('InternalTerminalShellIntegration', () => {
 			]);
 		});
 
+		for (const reader of ['microtask', 'async generator'] as const) {
+			test(`flush preserves output before the end event for a ${reader} reader`, async () => {
+				const execution = await startExecutionAwaitObject(testCommandLine);
+				const stream = execution.read();
+				async function* forward() {
+					yield* stream;
+				}
+				const events: string[] = [];
+				store.add(si.onDidRequestEndExecution(() => events.push('end')));
+				const reading = (async () => {
+					for await (const chunk of reader === 'async generator' ? forward() : stream) {
+						await Promise.resolve();
+						events.push(chunk);
+					}
+				})();
+				const data = Array.from({ length: 100 }, (_, i) => `${i}\r\n`);
+				for (const chunk of data) {
+					si.emitData(chunk);
+				}
+				await endExecutionAwaitObject(testCommandLine);
+				await reading;
+
+				deepStrictEqual(events, [...data, 'end']);
+			});
+		}
+
 		test('separate reads receive all data', async () => {
 			const execution = await startExecutionAwaitObject(testCommandLine);
 			const first = AsyncIterableObject.toPromise(execution.read());
@@ -196,6 +220,33 @@ suite('InternalTerminalShellIntegration', () => {
 			await endExecutionAwaitObject(testCommandLine);
 
 			deepStrictEqual(await AsyncIterableObject.toPromise(stream), ['first', 'last']);
+		});
+
+		test('a subscribed stream preserves a large queued log after the command ends', async () => {
+			const execution = await startExecutionAwaitObject(testCommandLine);
+			const stream = execution.read();
+			const data = Array.from({ length: 10000 }, (_, i) => `${i}\r\n`);
+			for (const chunk of data) {
+				si.emitData(chunk);
+			}
+			await endExecutionAwaitObject(testCommandLine);
+
+			deepStrictEqual(await AsyncIterableObject.toPromise(stream), data);
+		});
+
+		test('concurrent pending reads receive chunks in order and complete at the end', async () => {
+			const execution = await startExecutionAwaitObject(testCommandLine);
+			const iterator = execution.read()[Symbol.asyncIterator]();
+			const pending = [iterator.next(), iterator.next(), iterator.next()];
+			si.emitData('');
+			si.emitData('last');
+			await endExecutionAwaitObject(testCommandLine);
+
+			deepStrictEqual(await Promise.all(pending), [
+				{ done: false, value: '' },
+				{ done: false, value: 'last' },
+				{ done: true, value: undefined },
+			]);
 		});
 
 		test('a stalled reader does not block the end event or lose queued data', async () => {
@@ -255,7 +306,7 @@ suite('InternalTerminalShellIntegration', () => {
 			});
 		});
 
-		test('return before producer initialization completes a pending read', async () => {
+		test('return completes a pending read', async () => {
 			const execution = await startExecutionAwaitObject(testCommandLine);
 			const iterator = execution.read()[Symbol.asyncIterator]();
 			const pending = iterator.next();
