@@ -179,6 +179,26 @@ suite('Tests for Emmet actions on html tags', () => {
 			});
 		});
 	});
+
+	test('update tag with markup as text in a quoted attribute value', () => {
+		const htmlContents = `
+	<div title="<b>example</b>"></div>
+	`;
+		const expectedContents = `
+	<section title="<b>example</b>"></section>
+	`;
+
+		return withRandomFileEditor(htmlContents, 'html', (editor, doc) => {
+			editor.selections = [
+				new Selection(1, 15, 1, 15), // cursor on the b in the title value
+			];
+
+			return updateTag('section')!.then(() => {
+				assert.strictEqual(doc.getText(), expectedContents);
+				return Promise.resolve();
+			});
+		});
+	});
 	// #endregion
 
 	// #region remove tag

@@ -86,9 +86,10 @@ function getRangesToUpdate(document: vscode.TextDocument, selection: vscode.Sele
 }
 
 /**
- * Markup inside an attribute value, such as a JSX element passed as a prop
- * (`<Route element={<Home/>}>`), is not part of the parsed tree. If the offset
- * is inside such a value, find the node at the offset within the value.
+ * Markup inside a JSX expression attribute value, such as an element passed as
+ * a prop (`<Route element={<Home/>}>`), is not part of the parsed tree. If the
+ * offset is inside such a value, find the node at the offset within the value.
+ * Quoted values are left alone: a `<` in them is literal text.
  */
 function getNodeInAttributeValue(documentText: string, node: HtmlFlatNode, offset: number): HtmlFlatNode | undefined {
 	if (!node.open || offset < node.open.start || offset > node.open.end) {
@@ -99,7 +100,7 @@ function getNodeInAttributeValue(documentText: string, node: HtmlFlatNode, offse
 		return undefined;
 	}
 	const valueText = documentText.substring(attribute.value.start, attribute.value.end);
-	if (!valueText.includes('<')) {
+	if (!valueText.startsWith('{') || !valueText.includes('<')) {
 		return undefined;
 	}
 	// Pad the value so that the offsets of the parsed nodes match the document.
