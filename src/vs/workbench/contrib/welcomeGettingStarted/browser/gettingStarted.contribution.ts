@@ -19,8 +19,7 @@ import { IWalkthroughsService } from './gettingStartedService.js';
 import { GettingStartedEditorOptions, GettingStartedInput } from './gettingStartedInput.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { workbenchConfigurationNodeBase } from '../../../common/configuration.js';
+import { Extensions as WorkbenchConfigurationExtensions, IConfigurationMigrationRegistry, workbenchConfigurationNodeBase } from '../../../common/configuration.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
@@ -32,8 +31,6 @@ import { Categories } from '../../../../platform/action/common/actionCommonCateg
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { GettingStartedAccessibleView } from './gettingStartedAccessibleView.js';
-import { AgentSessionsWelcomePage } from '../../welcomeAgentSessions/browser/agentSessionsWelcome.js';
-import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 
 export * as icons from './gettingStartedIcons.js';
 
@@ -62,53 +59,45 @@ registerAction2(class extends Action2 {
 	) {
 		const editorService = accessor.get(IEditorService);
 		const commandService = accessor.get(ICommandService);
-		const configurationService = accessor.get(IConfigurationService);
-		const chatEntitlementService = accessor.get(IChatEntitlementService);
 
 		const toSide = typeof optionsOrToSide === 'object' ? optionsOrToSide.toSide : optionsOrToSide;
 		const inactive = typeof optionsOrToSide === 'object' ? optionsOrToSide.inactive : false;
 		const activeEditor = editorService.activeEditor;
 
-		// If no specific walkthrough is requested and agent sessions welcome is preferred, open that instead
-		if (!walkthroughID && !chatEntitlementService.sentiment.hidden && configurationService.getValue<string>('workbench.startupEditor') === 'agentSessionsWelcomePage') {
-			commandService.executeCommand(AgentSessionsWelcomePage.COMMAND_ID);
-			return;
-		} else {
-			if (walkthroughID) {
-				const selectedCategory = typeof walkthroughID === 'string' ? walkthroughID : walkthroughID.category;
-				let selectedStep: string | undefined;
-				if (typeof walkthroughID === 'object' && 'category' in walkthroughID && 'step' in walkthroughID) {
-					selectedStep = `${walkthroughID.category}#${walkthroughID.step}`;
-				} else {
-					selectedStep = undefined;
-				}
-
-				// If the walkthrough is already open just reveal the step
-				if (selectedStep && activeEditor instanceof GettingStartedInput && activeEditor.selectedCategory === selectedCategory) {
-					activeEditor.showWelcome = false;
-					commandService.executeCommand('walkthroughs.selectStep', selectedStep);
-					return;
-				}
-
-				let options: GettingStartedEditorOptions;
-				if (selectedCategory) {
-					// Otherwise open the walkthrough editor with the selected category and step
-					options = { selectedCategory, selectedStep, showWelcome: false, preserveFocus: toSide ?? false, inactive };
-				} else {
-					// Open Welcome page
-					options = { selectedCategory, selectedStep, showWelcome: true, preserveFocus: toSide ?? false, inactive };
-				}
-				editorService.openEditor({
-					resource: GettingStartedInput.RESOURCE,
-					options
-				}, toSide ? SIDE_GROUP : undefined);
-
+		if (walkthroughID) {
+			const selectedCategory = typeof walkthroughID === 'string' ? walkthroughID : walkthroughID.category;
+			let selectedStep: string | undefined;
+			if (typeof walkthroughID === 'object' && 'category' in walkthroughID && 'step' in walkthroughID) {
+				selectedStep = `${walkthroughID.category}#${walkthroughID.step}`;
 			} else {
-				editorService.openEditor({
-					resource: GettingStartedInput.RESOURCE,
-					options: { preserveFocus: toSide ?? false, inactive }
-				}, toSide ? SIDE_GROUP : undefined);
+				selectedStep = undefined;
 			}
+
+			// If the walkthrough is already open just reveal the step
+			if (selectedStep && activeEditor instanceof GettingStartedInput && activeEditor.selectedCategory === selectedCategory) {
+				activeEditor.showWelcome = false;
+				commandService.executeCommand('walkthroughs.selectStep', selectedStep);
+				return;
+			}
+
+			let options: GettingStartedEditorOptions;
+			if (selectedCategory) {
+				// Otherwise open the walkthrough editor with the selected category and step
+				options = { selectedCategory, selectedStep, showWelcome: false, preserveFocus: toSide ?? false, inactive };
+			} else {
+				// Open Welcome page
+				options = { selectedCategory, selectedStep, showWelcome: true, preserveFocus: toSide ?? false, inactive };
+			}
+			editorService.openEditor({
+				resource: GettingStartedInput.RESOURCE,
+				options
+			}, toSide ? SIDE_GROUP : undefined);
+
+		} else {
+			editorService.openEditor({
+				resource: GettingStartedInput.RESOURCE,
+				options: { preserveFocus: toSide ?? false, inactive }
+			}, toSide ? SIDE_GROUP : undefined);
 		}
 	}
 });
@@ -309,7 +298,7 @@ configurationRegistry.registerConfiguration({
 		'workbench.startupEditor': {
 			'scope': ConfigurationScope.RESOURCE,
 			'type': 'string',
-			'enum': ['none', 'welcomePage', 'readme', 'newUntitledFile', 'welcomePageInEmptyWorkbench', 'terminal', 'agentSessionsWelcomePage'],
+			'enum': ['none', 'welcomePage', 'readme', 'newUntitledFile', 'welcomePageInEmptyWorkbench', 'terminal'],
 			'enumDescriptions': [
 				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.none' }, "Start without an editor."),
 				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.welcomePage' }, "Open the Welcome page, with content to aid in getting started with VS Code and extensions."),
@@ -317,7 +306,6 @@ configurationRegistry.registerConfiguration({
 				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.newUntitledFile' }, "Open a new untitled text file (only applies when opening an empty window)."),
 				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.welcomePageInEmptyWorkbench' }, "Open the Welcome page when opening an empty workbench."),
 				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.terminal' }, "Open a new terminal in the editor area."),
-				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.agentSessionsWelcomePage' }, "Open the Agent Sessions Welcome page. Will override the workbench secondary side bar visibility settings."),
 			],
 			'default': 'welcomePage',
 			'description': localize('workbench.startupEditor', "Controls which editor is shown at startup, if none are restored from the previous session."),
@@ -343,6 +331,12 @@ configurationRegistry.registerConfiguration({
 		}
 	}
 });
+
+Registry.as<IConfigurationMigrationRegistry>(WorkbenchConfigurationExtensions.ConfigurationMigration)
+	.registerConfigurationMigrations([{
+		key: 'workbench.startupEditor',
+		migrateFn: (value: unknown) => value === 'agentSessionsWelcomePage' ? { value: 'welcomePage' } : []
+	}]);
 
 registerWorkbenchContribution2(WorkspacePlatformContribution.ID, WorkspacePlatformContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(StartupPageEditorResolverContribution.ID, StartupPageEditorResolverContribution, WorkbenchPhase.BlockRestore);

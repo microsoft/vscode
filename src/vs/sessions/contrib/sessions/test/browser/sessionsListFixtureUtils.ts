@@ -52,6 +52,7 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatSessionItemArchiveState } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatEntitlementService, IChatSentiment } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
@@ -71,6 +72,8 @@ import { ISessionsListModelService, SessionsListModelService } from '../../../..
 import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
+import { sessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 import { IChat, ISession, ISessionEnvironment } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionComparison, ISessionComparisonService } from '../../../../services/sessions/common/sessionComparison.js';
@@ -432,6 +435,7 @@ function getArchiveWordingCommands(wording: ChatSessionArchiveActionWording): Re
 
 /** A live sessions catalog: renames, archiving, and read state update the rendered sessions. */
 class FixtureSessionsManagementService extends mock<ISessionsManagementService>() {
+	override readonly archivedSessionItems = constObservable<IChatSessionItemArchiveState>({ available: false, state: 'loaded' });
 	private readonly store = new DisposableStore();
 	private readonly changeEmitter = this.store.add(new Emitter<ISessionsChangeEvent>());
 	private readonly archiveEmitter = this.store.add(new Emitter<ISession>());
@@ -665,9 +669,9 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 			});
 			reg.defineInstance(ISessionsService, new class extends mock<ISessionsService>() {
 				override readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> = constObservable(visibleSessions);
-				override readonly activeSession: IObservable<IActiveSession | undefined> = constObservable(undefined);
-				override readonly mainWindowActiveSession = this.activeSession;
+				readonly activeSession: IObservable<IActiveSession | undefined> = constObservable(undefined);
 			}());
+			reg.defineInstance(ISessionHostService, sessionHostServiceOf(disposableStore, { mainWindowActiveSession: constObservable(undefined), visibleSessions: constObservable(visibleSessions), windowSessions: constObservable([]) }));
 			reg.defineInstance(IAgentHostFilterService, new class extends mock<IAgentHostFilterService>() {
 				override readonly onDidChange = Event.None;
 				override readonly selectedHostId = undefined;

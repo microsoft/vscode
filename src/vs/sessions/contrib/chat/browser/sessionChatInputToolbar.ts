@@ -48,7 +48,7 @@ import { IResolvedSessionPullRequest, SessionPullRequestPresentationModel } from
 import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS, SessionChatPillKind } from '../../../../workbench/contrib/chat/common/sessionChatPills.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, IChat, SESSION_CHANGES_CHANGESET_ID, type IGitHubIssueRef, type IGitHubPullRequestRef, type ISessionWorkspace } from '../../../services/sessions/common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, IHostSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { logSessionArtifactOpen } from '../../../common/sessionsTelemetry.js';
 import { isAgentHostProvider, isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
@@ -295,7 +295,7 @@ export function buildSessionIssueSections(issues: readonly IResolvedSessionIssue
 }
 
 /** Returns the focused chat's changes counts represented by the shared Changes pill. */
-export function computeSessionInputPillStats(session: IActiveSession | undefined, chat: IChat | undefined, reader: IReader, changesStatsCache?: ISessionChangesStatsCache): IDiffStats {
+export function computeSessionInputPillStats(session: IHostSession | undefined, chat: IChat | undefined, reader: IReader, changesStatsCache?: ISessionChangesStatsCache): IDiffStats {
 	if (session?.worktreePending?.read(reader)) {
 		return EMPTY_DIFF_STATS;
 	}
@@ -315,7 +315,7 @@ export function computeSessionInputPillStats(session: IActiveSession | undefined
  * represented changeset loads, or while the session's worktree is being created.
  * Unlike {@link computeSessionInputPillStats}, this never falls back to cached stats.
  */
-export function readLoadedSessionInputPillStats(session: IActiveSession | undefined, chat: IChat | undefined, reader: IReader): IDiffStats | undefined {
+export function readLoadedSessionInputPillStats(session: IHostSession | undefined, chat: IChat | undefined, reader: IReader): IDiffStats | undefined {
 	if (session?.worktreePending?.read(reader)) {
 		return undefined;
 	}
@@ -329,17 +329,17 @@ export function readLoadedSessionInputPillStats(session: IActiveSession | undefi
 }
 
 /** Whether `chat` is one of the session's nested chats rather than its main chat. */
-function isNestedChat(session: IActiveSession | undefined, chat: IChat | undefined, reader: IReader | undefined): boolean {
+function isNestedChat(session: IHostSession | undefined, chat: IChat | undefined, reader: IReader | undefined): boolean {
 	const mainChat = session?.mainChat?.read(reader);
 	return !!mainChat && !!chat && !isEqual(mainChat.resource, chat.resource);
 }
 
-function isCloudSandboxSession(session: IActiveSession | undefined): boolean {
+function isCloudSandboxSession(session: IHostSession | undefined): boolean {
 	return session?.environment === 'cloud' && isAgentHostProviderId(session.providerId);
 }
 
 /** Cloud sandboxes and nested chats show Session Changes; other main chats keep their workspace-based selection. */
-function getChangesPillChangesetId(workspace: ISessionWorkspace | undefined, isNested: boolean, session: IActiveSession | undefined): string {
+function getChangesPillChangesetId(workspace: ISessionWorkspace | undefined, isNested: boolean, session: IHostSession | undefined): string {
 	return !isNested && !isCloudSandboxSession(session) && workspace?.folders[0]?.gitRepository?.workTreeUri
 		? BRANCH_CHANGES_CHANGESET_ID
 		: SESSION_CHANGES_CHANGESET_ID;
@@ -441,7 +441,7 @@ export class SessionChatInputToolbar extends Disposable {
 		if (!chat) {
 			return undefined;
 		}
-		return findSessionOfChat(this._sessionsService, chat.resource, reader);
+		return findSessionOfChat(this._paneSession?.read(reader), this._sessionsService, chat.resource, reader);
 	});
 
 	/**
@@ -463,6 +463,8 @@ export class SessionChatInputToolbar extends Disposable {
 	constructor(
 		compact: ChatPillsCompactMode,
 		focusFallback: (() => void) | undefined,
+		/** The session of the pane that hosts the chat, such as a chat editor's session scoped to its chat. */
+		private readonly _paneSession: IObservable<IActiveSession | undefined> | undefined,
 		@IClipboardService clipboardService: IClipboardService,
 		@ICommandService commandService: ICommandService,
 		@IGitHubService gitHubService: IGitHubService,
@@ -850,18 +852,16 @@ export class SessionChatInputToolbar extends Disposable {
 /**
  * The shown session that owns the chat `chatResource`: the session of a window that shows exactly that chat first, as the
  * sessions the main window shows list all chats of their session, including those shown in other windows; then the
- * sessions the main window shows, then the active session.
+ * panes of the grid, its active pane among them.
  */
-export function findSessionOfChat(sessionsService: Pick<ISessionsService, 'visibleSessions' | 'windowSessions' | 'activeSession'>, chatResource: URI, reader: IReader | undefined): IActiveSession | undefined {
-	const windowSession = sessionsService.windowSessions.read(reader).find(session => isEqual(session.scopedChatResource, chatResource));
-	if (windowSession) {
-		return windowSession;
+export function findSessionOfChat(paneSession: IActiveSession | undefined, sessionsService: Pick<ISessionsService, 'visibleSessionPanes'>, chatResource: URI, reader: IReader | undefined): IActiveSession | undefined {
+	if (paneSession?.chats.read(reader).some(c => isEqual(c.resource, chatResource))) {
+		return paneSession;
 	}
-	for (const session of sessionsService.visibleSessions.read(reader)) {
+	for (const session of sessionsService.visibleSessionPanes.read(reader)) {
 		if (session?.chats.read(reader).some(c => isEqual(c.resource, chatResource))) {
 			return session;
 		}
 	}
-	const active = sessionsService.activeSession.read(reader);
-	return active?.chats.read(reader).some(c => isEqual(c.resource, chatResource)) ? active : undefined;
+	return undefined;
 }

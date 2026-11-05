@@ -13,8 +13,9 @@ import { bindContextKey } from '../../../../platform/observable/common/platformO
 import { AGENT_HOST_PULL_REQUEST_OPERATION_IDS } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { DesktopChangesEditorTransitionContext, SessionHasOpenPullRequestContext, SessionPrimaryPullRequestOperationContext } from '../../../common/contextkeys.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
+import { getMainWindowHost, ISessionHostService } from '../../../services/sessions/browser/sessionHost.js';
+import { IHostSession } from '../../../services/sessions/common/sessionsManagement.js';
+import { IChat } from '../../../services/sessions/common/session.js';
 import { IGitHubService, IGitHubSessionPullRequestObservables } from '../../github/browser/githubService.js';
 import { IChangesSessionObservables, IChangesViewService } from '../common/changesViewService.js';
 import { SessionChangesReviewedFilesContext } from './changesMultiDiffSourceResolver.js';
@@ -22,7 +23,9 @@ import { bindSessionCIChecksContextKeys } from './checksActions.js';
 
 /** The session the session action context keys are derived from. */
 export interface ISessionActionContextKeysSource {
-	readonly session: IObservable<IActiveSession | undefined>;
+	readonly session: IObservable<IHostSession | undefined>;
+	/** The chat the host shows of {@link session}. */
+	readonly chat: IObservable<IChat | undefined>;
 	readonly changes: Pick<IChangesSessionObservables, 'changesObs' | 'changesetsLoadingObs' | 'loadingObs' | 'changesetObs' | 'changesetOperationsObs' | 'stateObs'>;
 	readonly pullRequest: Pick<IGitHubSessionPullRequestObservables, 'pullRequestCIObs'>;
 }
@@ -123,7 +126,7 @@ function bindChangesetOperationContextKeys(source: ISessionActionContextKeysSour
 	return store;
 }
 
-/** Binds the session action context keys of the active session on the global context key service. */
+/** Binds the session action context keys of the main window host's session on the global context key service. */
 class ActiveSessionActionContextKeysContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.sessions.activeSessionActionContextKeys';
@@ -131,13 +134,15 @@ class ActiveSessionActionContextKeysContribution extends Disposable implements I
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@ISessionsService sessionsService: ISessionsService,
+		@ISessionHostService sessionHostService: ISessionHostService,
 		@IChangesViewService changesViewService: IChangesViewService,
 		@IGitHubService gitHubService: IGitHubService,
 	) {
 		super();
+		const mainWindowHost = getMainWindowHost(sessionHostService);
 		this._register(bindSessionActionContextKeys(instantiationService, {
-			session: sessionsService.mainWindowActiveSession,
+			session: mainWindowHost.session,
+			chat: mainWindowHost.chat,
 			changes: {
 				changesObs: changesViewService.activeSessionChangesObs,
 				changesetsLoadingObs: changesViewService.activeSessionChangesetsLoadingObs,

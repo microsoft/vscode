@@ -21,7 +21,6 @@ import { getOrganizationSupportActionLabel, getOrganizationSupportActionTooltip,
 import { mainWindow } from '../../../../base/browser/window.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
-import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 
 export const enum SessionsBlockedReason {
@@ -75,7 +74,6 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 		@IProductService private readonly productService: IProductService,
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@ISessionsPartService private readonly sessionsPartService: ISessionsPartService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
 	) {
 		super();
@@ -246,7 +244,7 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 				return;
 			}
 		}
-		this.sessionsPartService.focusSession(this.sessionsService.activeSession.get());
+		this.sessionsService.focusActiveSession();
 	}
 
 	private _renderUpdateRequired(card: HTMLElement, info: IManagedSettingsUpdateInfo): Button {

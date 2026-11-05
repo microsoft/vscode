@@ -14,9 +14,10 @@ import { IContextKeyService, RawContextKey } from '../../../../platform/contextk
 import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID, AGENT_HOST_MERGE_CHANGESET_OPERATION_ID } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { getMainWindowHost, ISessionHost, ISessionHostService } from '../../../services/sessions/browser/sessionHost.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { BRANCH_CHANGES_CHANGESET_ID, IChat, ISession, ISessionChangeset, ISessionChangesetOperation, ISessionChangesSummary, ISessionFileChange, ISessionWorkspace, sessionFileChangesEqual, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope, SessionStatus } from '../../../services/sessions/common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, IHostSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, AgentFeedbackState, IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
 import { ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
 import { ChangesViewMode, IsolationMode } from '../common/changes.js';
@@ -132,9 +133,9 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 	private readonly _changesetSelectionsBySession = new ResourceMap<ISessionChangesetSelections>();
 	private readonly _changesetSelectionChanged = observableSignal('changesView.changesetSelectionChanged');
 
-	setChangesetId(changesetId: string | undefined, session?: IActiveSession): void {
-		const activeSession = session ?? this.sessionsService.mainWindowActiveSession.get();
-		const activeChat = activeSession?.activeChat.get();
+	setChangesetId(changesetId: string | undefined, session?: IHostSession, chat?: IChat): void {
+		const activeSession = session ?? this._mainWindowHost.session.get();
+		const activeChat = session ? chat : this._mainWindowHost.chat.get();
 		if (!activeSession || !activeChat) {
 			return;
 		}
@@ -156,9 +157,9 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 		});
 	}
 
-	showChangeset(changeset: ISessionChangeset, session?: IActiveSession): void {
-		const activeSession = session ?? this.sessionsService.mainWindowActiveSession.get();
-		const activeChat = activeSession?.activeChat.get();
+	showChangeset(changeset: ISessionChangeset, session?: IHostSession, chat?: IChat): void {
+		const activeSession = session ?? this._mainWindowHost.session.get();
+		const activeChat = session ? chat : this._mainWindowHost.chat.get();
 		if (!activeSession || !activeChat) {
 			return;
 		}
@@ -182,19 +183,23 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 		this.storageService.store('changesView.viewMode', mode, StorageScope.WORKSPACE, StorageTarget.USER);
 	}
 
+	/** The session of the main window, which it keeps while a chat window has focus. */
+	private readonly _mainWindowHost: ISessionHost;
+
 	constructor(
 		@IAgentFeedbackService private readonly agentFeedbackService: IAgentFeedbackService,
 		@ICodeReviewService private readonly codeReviewService: ICodeReviewService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@ISessionsService private readonly sessionsService: ISessionsService,
+		@ISessionHostService sessionHostService: ISessionHostService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 	) {
 		super();
+		this._mainWindowHost = getMainWindowHost(sessionHostService);
 		this._loadViewState();
 
 		// The main window keeps its session while a chat window has focus.
-		const active = this.getSessionChanges(this.sessionsService.mainWindowActiveSession);
+		const active = this.getSessionChanges(this._mainWindowHost.session, this._mainWindowHost.chat);
 		this.activeSessionResourceObs = active.resourceObs;
 		this.activeSessionSectionCollapseStateObs = active.sectionCollapseStateObs;
 		this.activeSessionTypeObs = active.typeObs;
@@ -252,9 +257,8 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 		this._bindContextKeys();
 	}
 
-	getSessionChanges(sessionObs: IObservable<ISession | undefined>, chatObs?: IObservable<IChat | undefined>): IChangesSessionObservables {
-		// The chat whose changes these are: the given one, else the active chat of the session.
-		const chatOf = (reader: IReader): IChat | undefined => chatObs ? chatObs.read(reader) : (sessionObs.read(reader) as IActiveSession | undefined)?.activeChat.read(reader);
+	getSessionChanges(sessionObs: IObservable<ISession | undefined>, chatObs: IObservable<IChat | undefined>): IChangesSessionObservables {
+		const chatOf = (reader: IReader): IChat | undefined => chatObs.read(reader);
 		const resourceObs = derivedOpts({ equalsFn: isEqual }, reader => {
 			const session = sessionObs.read(reader);
 			return session?.resource;
@@ -634,12 +638,12 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 		this.storageService.store(SESSION_VIEW_STATE_STORAGE_KEY, JSON.stringify(entries), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
-	setChangesetFilesReviewState(resources: readonly URI[], reviewed: boolean, session?: IActiveSession): void {
+	setChangesetFilesReviewState(resources: readonly URI[], reviewed: boolean, session?: ISession, chat?: IChat): void {
 		if (resources.length === 0) {
 			return;
 		}
 
-		const changeset = (session ? getChangesOfSession(this, this.sessionsService.mainWindowActiveSession.get(), session) : getActiveSessionChanges(this)).changesetObs.get();
+		const changeset = (session ? getChangesOfSession(this, { session: this._mainWindowHost.session.get(), chat: this._mainWindowHost.chat.get() }, session, chat) : getActiveSessionChanges(this)).changesetObs.get();
 		if (!changeset || !changeset.setReviewState) {
 			return;
 		}
@@ -806,4 +810,10 @@ export function bindChangesetContextKeys(changes: Pick<IChangesSessionObservable
 		return changesetOperationCountObs.read(reader) > 0;
 	}));
 	return store;
+}
+
+/** What the main window's Changes show: the session and the chat of the main window, which its cached changes are of. */
+export function mainWindowChangesOwner(accessor: ServicesAccessor): { readonly session: IHostSession | undefined; readonly chat: IChat | undefined } {
+	const host = getMainWindowHost(accessor.get(ISessionHostService));
+	return { session: host.session.get(), chat: host.chat.get() };
 }

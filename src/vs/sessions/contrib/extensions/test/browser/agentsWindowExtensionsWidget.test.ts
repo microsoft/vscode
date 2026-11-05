@@ -78,6 +78,8 @@ function anExtension(id: string, options: ITestExtensionOptions): IExtension {
 		override readonly local = options.installed === false ? undefined : new class extends mock<ILocalExtension>() {
 			override readonly manifest = manifest;
 		}();
+		// Like the extensions workbench service, which reads the manifests of extensions that aren't installed from the Marketplace.
+		override async getManifest() { return manifest; }
 	}();
 }
 
@@ -429,9 +431,9 @@ suite('AgentsWindowExtensionsWidget', () => {
 				return singlePagePager([
 					prettier,
 					updating,
-					anExtension('pub.black', { displayName: 'Black Formatter', publisher: 'Microsoft', state: ExtensionState.Uninstalled, installed: false, marketplace: { installCount: 500, rating: 4.4, ratingCount: 10, verified: true } }),
+					anExtension('pub.black', { displayName: 'Black Formatter', publisher: 'Microsoft', state: ExtensionState.Uninstalled, installed: false, marketplace: { installCount: 500, rating: 4.4, ratingCount: 10, verified: true }, contributes: { views: { explorer: [{}] }, debuggers: [{}] } }),
 					downloading,
-					anExtension('pub.blocked', { displayName: 'Blocked Formatter', state: ExtensionState.Uninstalled, installed: false }),
+					anExtension('pub.blocked', { displayName: 'Blocked Formatter', state: ExtensionState.Uninstalled, installed: false, contributes: { walkthroughs: [{}] } }),
 					anExtension('pub.builtInFormatter', { displayName: 'Built-in Formatter', state: ExtensionState.Uninstalled, installed: false, isBuiltin: true }),
 				]);
 			}
@@ -449,18 +451,23 @@ suite('AgentsWindowExtensionsWidget', () => {
 		widget.setVisible(true);
 
 		widget.setSearchQuery('formatter');
-		const labels = await waitForRowLabels(container, labels => labels.some(label => label.includes('Can\'t be installed')));
+		// Like for installed extensions, warns about contributions that the Agents window doesn't support, once it read their manifests.
+		const labels = await waitForRowLabels(container, labels => labels.some(label => label.includes('Can\'t be installed') && label.includes('Warning:')) && labels.some(label => label.startsWith('Black Formatter') && label.includes('Warning:')));
+		const warningIcons = [...container.querySelectorAll<HTMLElement>('.agents-window-marketplace-extension-row')]
+			.filter(row => row.querySelector<HTMLElement>('.agents-window-extension-warning')!.style.display !== 'none')
+			.map(row => row.querySelector('.agents-window-extension-name')!.textContent);
 
-		assert.deepStrictEqual({ queries, labels }, {
+		assert.deepStrictEqual({ queries, labels, warningIcons }, {
 			queries: [{ text: 'formatter', source: AGENTS_WINDOW_MARKETPLACE_QUERY_SOURCE }],
 			labels: [
 				'Other Extensions, 1 extensions. Extensions that haven\'t declared support for the Agents window. They are disabled by default and might not work as expected.',
 				'Prettier, Publisher, Disabled',
 				'Marketplace, 3 extensions. Extensions from the Marketplace that aren\'t installed. Installing one here also installs it in VS Code, and enables it in the Agents window.',
-				'Black Formatter, Microsoft, Verified publisher, 500 installs, Rated 4.5 out of 5, Not installed',
+				'Black Formatter, Microsoft, Verified publisher, 500 installs, Rated 4.5 out of 5, Not installed. Warning: Contributes views, debuggers, which are not supported in the Agents window.',
 				'Downloading Formatter, Publisher, Installing',
-				'Blocked Formatter, Publisher, Can\'t be installed: Your organization does not allow this extension.',
+				'Blocked Formatter, Publisher, Can\'t be installed: Your organization does not allow this extension.. Warning: Contributes walkthroughs, which are not supported in the Agents window.',
 			],
+			warningIcons: ['Black Formatter', 'Blocked Formatter'],
 		});
 	});
 

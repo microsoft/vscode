@@ -5,9 +5,12 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { derived, IObservable, observableSignalFromEvent } from '../../../../base/common/observable.js';
+import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILifecycleService } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
+import { ISession } from '../common/session.js';
 import { ISessionsProvider } from '../common/sessionsProvider.js';
 
 export const ISessionsProvidersService = createDecorator<ISessionsProvidersService>('sessionsProvidersService');
@@ -32,6 +35,20 @@ export interface ISessionsProvidersService {
 	getProviders(options?: { readonly includeSessionBackends?: boolean }): ISessionsProvider[];
 	/** Resolves both logical provider IDs and existing sessions' backend routing IDs. */
 	getProvider<T extends ISessionsProvider>(providerId: string): T | undefined;
+}
+
+export function observeSessionSandboxToggle(session: IObservable<ISession | undefined>, chat: IObservable<URI | undefined>, providers: ISessionsProvidersService): IObservable<boolean> {
+	const providersChanged = observableSignalFromEvent('sandboxToggle.providers', providers.onDidChangeProviders);
+	const checked = derived(reader => {
+		const current = session.read(reader);
+		const resource = chat.read(reader);
+		if (!current || !resource) {
+			return undefined;
+		}
+		providersChanged.read(reader);
+		return providers.getProvider(current.providerId)?.getSandboxToggleChecked?.(current, resource);
+	});
+	return derived(reader => checked.read(reader)?.read(reader) === true);
 }
 
 export class SessionsProvidersService extends Disposable implements ISessionsProvidersService {

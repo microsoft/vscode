@@ -17,6 +17,7 @@ import { IAgentsWindowDraft } from '../../../platform/window/common/window.js';
 import { defaultProgressBarStyles } from '../../../platform/theme/browser/defaultStyles.js';
 import { IProgressScope, ScopedProgressIndicator } from '../../../workbench/services/progress/browser/progressIndicator.js';
 import { IChat, ISession } from '../../services/sessions/common/session.js';
+import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { WorkspaceSelectionOrigin } from '../../common/workspaceSelection.js';
 import { ISessionPickerVisibility, noSessionPickerVisibility } from '../../services/sessions/common/sessionPickerVisibility.js';
 import type { IChatSessionHistoryStatus } from '../../../platform/chat/common/chatSessionHistory.js';
@@ -56,6 +57,8 @@ export interface IChatViewOptions {
 	readonly inputOnly?: boolean;
 	/** Options of the chat input of a chat view that hosts a session's chat. */
 	readonly input?: IChatViewInputOptions;
+	/** The session of the pane that hosts the view, such as the draft its new-session composer shows. */
+	readonly session?: IObservable<IActiveSession | undefined>;
 }
 
 /**
@@ -94,6 +97,8 @@ export interface ISelectWorkspaceOptions {
 export interface ISelectNoWorkspaceOptions {
 	readonly userSelection?: boolean;
 	readonly preserveNavigation?: boolean;
+	/** Only replace an automatic default in a fresh, empty composer. */
+	readonly isDefault?: boolean;
 }
 
 export type WorkspaceSelectionResult = 'applied' | 'notReady' | 'preserved';
@@ -225,8 +230,12 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 		return Promise.resolve('notReady');
 	}
 
-	selectNoWorkspace(_options?: ISelectNoWorkspaceOptions): void {
-		// no-op by default
+	/**
+	 * Start without a workspace, acknowledging application or preservation of an existing choice.
+	 * Views without a ready workspace picker return notReady.
+	 */
+	selectNoWorkspace(_options?: ISelectNoWorkspaceOptions): WorkspaceSelectionResult {
+		return 'notReady';
 	}
 
 	/**

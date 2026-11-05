@@ -57,6 +57,7 @@ import { ArtifactIntegrationPresentation } from '../../browser/artifactIntegrati
 import { ArtifactDetailsModel } from '../../browser/artifactDetailsModel.js';
 import { ArtifactDetailsPanel } from '../../browser/artifactDetailsPanel.js';
 import { artifactViewKey, IArtifactDetailsViewData } from '../../browser/artifactDetailsView.js';
+import { stubFocusedSessionHostFromSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Artifact Integration Presentation', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -157,8 +158,7 @@ suite('Artifact Integration Presentation', () => {
 			}
 		}());
 		instantiation.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = activeSession;
-			override readonly mainWindowActiveSession = this.activeSession;
+			readonly activeSession = activeSession;
 			override async openChat(_session: ISession, resource: URI): Promise<void> {
 				openedChats.push(resource.toString());
 				activeSession.set(new class extends mock<IActiveSession>() {
@@ -167,6 +167,7 @@ suite('Artifact Integration Presentation', () => {
 				await openChatResult;
 			}
 		}());
+		stubFocusedSessionHostFromSessionsService(instantiation);
 		instantiation.stub(IChatWidgetService, new class extends mock<IChatWidgetService>() {
 			override readonly onDidAddWidget = onDidAddWidget.event;
 			override readonly onDidRemoveWidget = Event.None;

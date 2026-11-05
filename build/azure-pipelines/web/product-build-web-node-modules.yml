@@ -69,7 +69,7 @@ jobs:
         displayName: Setup system services
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
-      - script: node build/npm/preinstall.ts
+      - script: pnpm run preinstall
         displayName: Install Electron headers
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 

@@ -1048,8 +1048,7 @@ suite('Sessions list context menus', () => {
 				}
 			});
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-				override readonly activeSession = constObservable(undefined);
-				override readonly mainWindowActiveSession = this.activeSession;
+				readonly activeSession = constObservable(undefined);
 				override readonly visibleSessions = constObservable([]);
 				override async canOpenSession(): Promise<boolean> { return true; }
 				override showSession(): void { }
