@@ -4,8 +4,8 @@ name: Code OSS (workspace images)
 # pr-darwin-test.yml and pr-win32-test.yml): a disk image of a workspace of main, with its
 # dependencies, Electron and the Playwright browsers installed, at the path of the workspaces of the
 # jobs, and with a .git that their checkouts reuse. A job that mounts an image installs only what
-# changed since. The test workflows adopt the images one platform at a time in follow-up pull
-# requests, and until then nothing uses them. See .github/workflows/workspace_image/README.md.
+# changed since. The Windows test jobs use the images, and the Linux and macOS test jobs adopt them
+# in follow-up pull requests. See .github/workflows/workspace_image/README.md.
 # The daily and manual runs also prepare the WSL distribution of the Windows smoke tests (the
 # wsl-distro job).
 on:
@@ -394,7 +394,7 @@ jobs:
   # job. The cache key hashes the files that define the distribution, so that the shard of a commit that changes them
   # builds the distribution instead; the shard restores the newest entry of its key.
   wsl-distro:
-    name: Windows (WSL distribution)
+    name: Windows (WSL distro)
     if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-windows-2022-x64, "JobId=wsl-distro-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
     timeout-minutes: 30

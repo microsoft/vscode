@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { suite, test } from 'node:test';
+import { FAILSAFE_SCHEMA, load } from 'js-yaml';
 import { NATIVE_BUILD_INPUTS } from '../../../.github/workflows/workspace_image/image.ts';
 import { computeNodeModulesBaseCacheKey } from '../../azure-pipelines/common/cacheKeys.ts';
 import { distroRoots } from '../../npm/dirs.ts';
@@ -17,7 +18,29 @@ function readRepositoryFile(file: string): Buffer {
 	return readFileSync(path.join(repositoryRoot, file));
 }
 
+interface IStep {
+	readonly id?: string;
+	readonly name?: string;
+	readonly shell?: string;
+	readonly env?: Record<string, string>;
+	readonly run?: string;
+}
+
+function loadSteps(workflow: string, job: string): readonly IStep[] {
+	const { jobs } = load(readRepositoryFile(`.github/workflows/${workflow}`).toString(), { schema: FAILSAFE_SCHEMA }) as { jobs: Record<string, { steps: IStep[] }> };
+	return jobs[job].steps;
+}
+
 suite('workspace images', () => {
+	// image.ts finds vhd.ps1 in the win32 folder beside it, which the download keeps
+	test('the Windows test jobs download the scripts like the job that builds the Windows image', () => {
+		const download = (workflow: string, job: string) => {
+			const step = loadSteps(workflow, job).find(step => step.id === 'image-scripts');
+			return { name: step?.name, shell: step?.shell, env: step?.env, run: step?.run };
+		};
+		assert.deepEqual(download('pr-win32-test.yml', 'electron-unit'), download('pr-workspace-images.yml', 'windows'));
+	});
+
 	// image.ts runs before the checkout, without the files of the repository, so it lists the inputs
 	// of the base key of the node_modules caches itself
 	test('compare the inputs of the base key of the node_modules caches', () => {
