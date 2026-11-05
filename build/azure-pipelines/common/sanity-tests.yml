@@ -59,8 +59,8 @@ jobs:
           continueOnError: true
           sbomEnabled: false
     variables:
-      - name: SANITY_NODE_VERSION
-        value: 22.22.0
+      - name: SANITY_NODE_VERSION_SPEC
+        value: 24.x
       - name: TEST_DIR
         value: $(Build.SourcesDirectory)/test/sanity
       - name: LOG_FILE
@@ -165,6 +165,29 @@ jobs:
           displayName: Clear NuGet access token
           condition: always()
 
+      # Resolve the latest release before restoring caches so a new Node.js release gets fresh caches.
+      - ${{ if eq(parameters.os, 'windows') }}:
+        - powershell: |
+            $ErrorActionPreference = 'Stop'
+            $sums = & curl.exe -fsSL --connect-timeout 20 --max-time 60 --retry 3 "https://nodejs.org/dist/latest-v$(SANITY_NODE_VERSION_SPEC)/SHASUMS256.txt"
+            if ($LASTEXITCODE -ne 0) { throw 'Could not resolve the latest Node.js release' }
+            $match = [regex]::Match(($sums -join "`n"), 'node-v(24\.\d+\.\d+)-')
+            if (-not $match.Success) { throw 'No Node.js 24 release found' }
+            Write-Host "##vso[task.setvariable variable=SANITY_NODE_VERSION]$($match.Groups[1].Value)"
+          displayName: Resolve latest Node.js 24 release
+
+      - ${{ else }}:
+        - bash: |
+            set -euo pipefail
+            sums=$(curl -fsSL --connect-timeout 20 --max-time 60 --retry 3 "https://nodejs.org/dist/latest-v$(SANITY_NODE_VERSION_SPEC)/SHASUMS256.txt")
+            version=$(printf '%s\n' "$sums" | sed -n 's/.* node-v\(24\.[0-9]*\.[0-9]*\)-.*/\1/p' | sort -u)
+            if [[ ! "$version" =~ ^24\.[0-9]+\.[0-9]+$ ]]; then
+              echo 'Could not resolve the latest Node.js 24 release' >&2
+              exit 1
+            fi
+            echo "##vso[task.setvariable variable=SANITY_NODE_VERSION]$version"
+          displayName: Resolve latest Node.js 24 release
+
       # Node.js comes from the pipeline cache when possible. nodejs.org stalls from the shared
       # agent pools at times, so the bounded download below is only the fallback.
       - task: Cache@2
@@ -190,7 +213,7 @@ jobs:
 
       - task: Cache@2
         inputs:
-          key: '"sanity-node_modules" | "$(Agent.OS)" | "${{ parameters.arch }}" | $(TEST_DIR)/pnpm-lock.yaml'
+          key: '"sanity-node_modules" | "$(SANITY_NODE_VERSION)" | "$(Agent.OS)" | "${{ parameters.arch }}" | $(TEST_DIR)/pnpm-lock.yaml'
           path: $(TEST_DIR)/node_modules
           cacheHitVar: SANITY_NODE_MODULES_RESTORED
         displayName: Restore node_modules cache
