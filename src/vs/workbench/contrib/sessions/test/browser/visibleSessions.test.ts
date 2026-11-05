@@ -309,7 +309,7 @@ suite('VisibleSessions', () => {
 			{ rebound: { id, title: 'Replaced', chat: child.resource.toString() }, remaining: 1, activeScope: undefined });
 	});
 
-	test('forwards session metadata through visible and resource-override wrappers', () => {
+	test('forwards session metadata through visible wrappers', () => {
 		const hasGitRepository = observableValue('hasGitRepository', false);
 		const completedStateIcon = observableValue('completedStateIcon', Codicon.gitMerge);
 		const isExternal = observableValue('isExternal', true);
@@ -318,26 +318,17 @@ suite('VisibleSessions', () => {
 		const model = createModel();
 		model.setActive(session);
 		const visible = model.activeSession.get();
-		const resourceOverride = model.updateResourceOfSession(session, URI.parse('test:///override'));
 
 		assert.deepStrictEqual({
-			visible: visible?.hasGitRepository === hasGitRepository,
-			resourceOverride: resourceOverride.hasGitRepository === hasGitRepository,
-			visibleCompletedStateIcon: visible?.completedStateIcon === completedStateIcon,
-			resourceOverrideCompletedStateIcon: resourceOverride.completedStateIcon === completedStateIcon,
-			visibleExternal: visible?.isExternal === isExternal,
-			resourceOverrideExternal: resourceOverride.isExternal === isExternal,
-			visibleRemoteConnectionStatus: visible?.remoteConnectionStatus === remoteConnectionStatus,
-			resourceOverrideRemoteConnectionStatus: resourceOverride.remoteConnectionStatus === remoteConnectionStatus,
+			hasGitRepository: visible?.hasGitRepository === hasGitRepository,
+			completedStateIcon: visible?.completedStateIcon === completedStateIcon,
+			isExternal: visible?.isExternal === isExternal,
+			remoteConnectionStatus: visible?.remoteConnectionStatus === remoteConnectionStatus,
 		}, {
-			visible: true,
-			resourceOverride: true,
-			visibleCompletedStateIcon: true,
-			resourceOverrideCompletedStateIcon: true,
-			visibleExternal: true,
-			resourceOverrideExternal: true,
-			visibleRemoteConnectionStatus: true,
-			resourceOverrideRemoteConnectionStatus: true,
+			hasGitRepository: true,
+			completedStateIcon: true,
+			isExternal: true,
+			remoteConnectionStatus: true,
 		});
 	});
 

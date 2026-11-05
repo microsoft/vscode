@@ -333,59 +333,6 @@ export class VisibleSession extends Disposable implements IActiveSession {
 }
 
 /**
- * Lightweight {@link ISession} adapter that delegates every property to a
- * wrapped session but exposes a different {@link ISession.resource} value.
- *
- * Used as a transient session instance during the create-chat / send-request
- * transition, so the visibility model can reflect the new chat resource on
- * the same grid slot before the provider has produced a final session.
- */
-class ResourceOverrideSession implements ISession {
-
-	constructor(
-		private readonly _session: ISession,
-		readonly resource: URI,
-	) { }
-
-	get sessionId() { return this._session.sessionId; }
-	get providerId() { return this._session.providerId; }
-	get sessionType() { return this._session.sessionType; }
-	get harness() { return this._session.harness; }
-	get environment() { return this._session.environment; }
-	get application() { return this._session.application; }
-	get icon() { return this._session.icon; }
-	get createdAt() { return this._session.createdAt; }
-	get workspace() { return this._session.workspace; }
-	get hasGitRepository() { return this._session.hasGitRepository; }
-	get worktreePending() { return this._session.worktreePending; }
-	get isQuickChat() { return this._session.isQuickChat; }
-	get isAutomation() { return this._session.isAutomation; }
-	get isExternal() { return this._session.isExternal; }
-	get remoteConnectionStatus() { return this._session.remoteConnectionStatus; }
-	get createdBySession() { return this._session.createdBySession; }
-	get title() { return this._session.title; }
-	get updatedAt() { return this._session.updatedAt; }
-	get status() { return this._session.status; }
-	get completedStateIcon() { return this._session.completedStateIcon; }
-	get changesSummary() { return this._session.changesSummary; }
-	get artifacts() { return this._session.artifacts; }
-	get modelId() { return this._session.modelId; }
-	get mode() { return this._session.mode; }
-	get permissionLevel() { return this._session.permissionLevel; }
-	get branch() { return this._session.branch; }
-	get loading() { return this._session.loading; }
-	get isNewSessionRequestInProgress() { return this._session.isNewSessionRequestInProgress; }
-	get preparationProgress() { return this._session.preparationProgress; }
-	get isArchived() { return this._session.isArchived; }
-	get isRead() { return this._session.isRead; }
-	get description() { return this._session.description; }
-	get lastTurnEnd() { return this._session.lastTurnEnd; }
-	get chats() { return this._session.chats; }
-	get mainChat() { return this._session.mainChat; }
-	get capabilities() { return this._session.capabilities; }
-}
-
-/**
  * Sentinel used to distinguish "no slot tracked" from the empty slot
  * (which is itself represented by `undefined` in the visible list).
  */
@@ -1147,23 +1094,6 @@ export class VisibleSessions extends Disposable {
 			}
 			this._refresh(tsx);
 		});
-	}
-
-	/**
-	 * Create a transient {@link ISession} that mirrors the given session but
-	 * exposes a different {@link ISession.resource}. The visibility model's
-	 * wrapper for the same session id is rebuilt against this transient
-	 * session so consumers observe the new resource. Returns the transient
-	 * session so callers can pass it to a subsequent {@link updateSession}
-	 * once the provider produces the final session.
-	 *
-	 * No-op (but still returns the transient session) if the session is not
-	 * currently in the grid.
-	 */
-	updateResourceOfSession(session: ISession, resource: URI): ISession {
-		const tmpSession = new ResourceOverrideSession(session, resource);
-		this.updateSession(session, tmpSession);
-		return tmpSession;
 	}
 
 	/**
