@@ -56,6 +56,7 @@ import { resolveServerUrls } from './serverUrls.js';
 import ErrorTelemetry from '../../telemetry/node/errorTelemetry.js';
 import { AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
+import { ByokLmBridgeRegistry } from './byokLmBridgeRegistry.js';
 
 /** Log to stderr so messages appear in the terminal alongside the process. */
 function log(msg: string): void {
@@ -203,6 +204,7 @@ async function main(): Promise<void> {
 		}
 	}
 
+	const byokLmBridgeRegistry = new ByokLmBridgeRegistry();
 	const runtime = await createAgentHostRuntime({
 		environmentService,
 		productService,
@@ -212,7 +214,7 @@ async function main(): Promise<void> {
 		transientProxyConfiguration: false,
 		hostLaunchKind: AgentHostLaunchKind.VSCodeCLI,
 		providerConfigurations: [createCodexProviderConfiguration(environmentService.userHome, process.env[AgentHostCodexAgentCodexHomeEnvVar])],
-		byok: { kind: 'unavailable' },
+		byok: { kind: 'renderer', bridgeRegistry: byokLmBridgeRegistry },
 	});
 	disposables.add(runtime);
 	const { agentService, instantiationService } = runtime;
@@ -340,6 +342,7 @@ async function main(): Promise<void> {
 			completionTriggerCharacters: completions.triggerCharacters,
 			terminalCommandPrefix: BANG_COMMAND_PREFIX,
 			otlpLogEmitter,
+			byokLmBridgeRegistry,
 		},
 		clientFileSystemProvider,
 	));

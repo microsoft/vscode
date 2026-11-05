@@ -11,6 +11,7 @@ import { Disposable, toDisposable } from '../../../../../../base/common/lifecycl
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentConnection, type AuthenticateParams } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostByokLmHandler } from '../../../../../../platform/agentHost/common/agentHostByokLm.js';
 import { IAgentHostAdvertisedAuthenticationResolver } from '../../../../../../platform/agentHost/common/agentHostAdvertisedAuthentication.js';
 import { IAgentHostMcpAuthenticationRequest } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { ICloudSandboxAgentHostService } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
@@ -73,7 +74,14 @@ suite('Remote Agent Host silent MCP authentication', () => {
 		const authenticationError = new DeferredPromise<void>();
 		const errors: unknown[][] = [];
 		let handler: ((request: IAgentHostMcpAuthenticationRequest) => Promise<boolean>) | undefined;
+		let registeredByokHandler: IAgentHostByokLmHandler | undefined;
+		let byokHandlerDisposals = 0;
 		let registered = true;
+		const byokHandler: IAgentHostByokLmHandler = {
+			_serviceBrand: undefined,
+			chat: async () => ({ output: [] }),
+			listModels: async () => [],
+		};
 		const connection = new class extends mock<IAgentConnection>() {
 			override readonly clientId = 'client';
 			override readonly rootState = {
@@ -84,6 +92,15 @@ suite('Remote Agent Host silent MCP authentication', () => {
 			override registerMcpAuthenticationHandler(value: typeof handler) {
 				handler = value;
 				return toDisposable(() => { handler = undefined; });
+			}
+			override registerByokLmHandler(value: IAgentHostByokLmHandler) {
+				registeredByokHandler = value;
+				return toDisposable(() => {
+					if (registeredByokHandler === value) {
+						registeredByokHandler = undefined;
+					}
+					byokHandlerDisposals++;
+				});
 			}
 			override async authenticate(params: AuthenticateParams) {
 				sent.push(params);
@@ -122,6 +139,7 @@ suite('Remote Agent Host silent MCP authentication', () => {
 		instantiation.stub(IRemoteAgentHostConnectionCustomizationService, { get: () => customization });
 		instantiation.stub(IRemoteAgentHostAuthenticationService, new RemoteAgentHostAuthenticationService());
 		instantiation.stub(IAgentHostFileSystemService, { registerAuthority: () => Disposable.None });
+		instantiation.stub(IAgentHostByokLmHandler, byokHandler);
 		instantiation.stubInstance(RemoteAgentHostLogForwarder, store.add(toDisposable(() => { })));
 		instantiation.stub(IChatSessionsService, {});
 		instantiation.stub(ILanguageModelsService, {});
@@ -154,6 +172,7 @@ suite('Remote Agent Host silent MCP authentication', () => {
 		return {
 			authenticate: (value: IAgentHostMcpAuthenticationRequest) => { assert.ok(handler); return handler(value); }, sent, sessionOptions,
 			notifications, opened, authenticationSent: authenticationSent.p, authenticationError: authenticationError.p, errors,
+			byokHandler, getRegisteredByokHandler: () => registeredByokHandler, getByokHandlerDisposals: () => byokHandlerDisposals,
 			removeConnection: () => { registered = false; connectionsChanged.fire(); },
 		};
 	}
@@ -174,6 +193,14 @@ suite('Remote Agent Host silent MCP authentication', () => {
 		const context = fixture();
 		context.notifications.fire({ type: 'root/progress', channel: 'custom-host:/root', progressToken: 'policy', progress: 0 });
 		assert.strictEqual(context.opened.length, 0);
+	});
+
+	test('registers and disposes the renderer BYOK handler with a remote connection', () => {
+		const context = fixture();
+		assert.strictEqual(context.getRegisteredByokHandler(), context.byokHandler);
+		context.removeConnection();
+		assert.strictEqual(context.getRegisteredByokHandler(), undefined);
+		assert.strictEqual(context.getByokHandlerDisposals(), 1);
 	});
 
 	test('forwards remembered MCP credentials to the user-local protocol sealing boundary', async () => {

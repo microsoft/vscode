@@ -180,9 +180,8 @@ function arraysEqual(a: readonly string[] | undefined, b: readonly string[] | un
 }
 
 /**
- * No-op {@link IByokLmBridgeRegistry} for agent host entrypoints that do not
- * support BYOK — e.g. the remote agent host, where no extension host runs
- * alongside the agent host to serve the renderer LM API.
+ * No-op {@link IByokLmBridgeRegistry} for agent host entrypoints that cannot
+ * accept renderer connections to serve the Language Model API.
  */
 export class NullByokLmBridgeRegistry implements IByokLmBridgeRegistry {
 
