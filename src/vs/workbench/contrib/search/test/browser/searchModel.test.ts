@@ -509,6 +509,44 @@ suite('SearchModel', () => {
 		assert.ok(target.calledWith('searchResultsFinished'));
 	});
 
+	for (const reportProgress of [false, true]) {
+		test(`Search Model: Releases the progress emitter after ${reportProgress ? 'first progress' : 'completion'}`, async () => {
+			const completion = new DeferredPromise<ISearchComplete>();
+			const firstRender = new DeferredPromise<void>();
+			instantiationService.stub(ITelemetryService, 'publicLog', (eventName: string) => {
+				if (eventName === 'searchResultsFirstRender') {
+					firstRender.complete();
+				}
+			});
+			const searchService = searchServiceWithDeferredPromise(completion.p);
+			const search = sinon.spy(searchService, 'textSearchSplitSyncAsync');
+			instantiationService.stub(ISearchService, searchService);
+			instantiationService.stub(INotebookSearchService, notebookSearchServiceWithInfo([], undefined));
+
+			const model = store.add(instantiationService.createInstance(SearchModelImpl));
+			const disposables = Reflect.get(Reflect.get(model, '_store'), '_toDispose') as ReadonlySet<unknown>;
+			const initialCount = disposables.size;
+			const result = model.search({ contentPattern: { pattern: 'somestring' }, type: QueryType.Text, folderQueries });
+			assert.strictEqual(disposables.size, initialCount + 1);
+
+			if (reportProgress) {
+				search.firstCall.args[2]!({ message: 'Searching' });
+			} else {
+				completion.complete({ results: [], messages: [] });
+			}
+			await firstRender.p;
+			assert.strictEqual(disposables.size, initialCount);
+
+			if (reportProgress) {
+				assert.strictEqual(completion.isSettled, false);
+				search.firstCall.args[2]!({ message: 'Still searching' });
+				completion.complete({ results: [], messages: [] });
+			}
+			await result.asyncResults;
+			assert.strictEqual(disposables.size, initialCount);
+		});
+	}
+
 	test('Search Model: Search reports timed telemetry on search when progress is not called', () => {
 		const target2 = sinon.spy();
 		sinon.stub(nullEvent, 'stop').callsFake(target2);
