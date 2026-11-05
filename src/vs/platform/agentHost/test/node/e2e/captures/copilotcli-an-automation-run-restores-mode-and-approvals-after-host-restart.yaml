@@ -20,19 +20,23 @@ exchanges:
           content: ran
         - role: user
           content: |-
-            You have not yet marked the task as complete using the task_complete tool. If you were planning, stop planning and start implementing. You aren't done until you have fully completed the task.
+            You have not yet marked the task as complete using the task_complete tool. If you were planning changes the user asked for, stop planning and start implementing. You aren't done until you have fully completed the task.
 
             IMPORTANT: Do NOT call task_complete if:
             - You have open questions or ambiguities - make good decisions and keep working
             - You encountered an error - try to resolve it or find an alternative approach
             - There are remaining steps - complete them first
 
+            If the user asked only for a review, analysis or recommendation and you have already delivered it, the task is complete: call task_complete now. A follow-up you offered or recommended is not part of the task, so do not start it.
+
             Keep working autonomously until the task is truly finished, then call task_complete.
     response:
       content:
+        - type: text
+          text: The task was simply to reply "ran", which I already did.
         - type: tool_use
           id: toolcall_0
           name: task_complete
           input:
-            summary: Replied "ran" as requested. There is no further task to implement.
+            summary: Replied "ran" as requested. No further action needed.
       stopReason: tool_use
