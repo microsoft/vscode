@@ -7,9 +7,9 @@ import type { Query, SDKControlInterruptResponse, SDKMessage, SDKUserMessage, Wa
 
 import assert from 'assert';
 import * as sinon from 'sinon';
-import { DeferredPromise } from '../../../../base/common/async.js';
+import { AsyncIterableSource, DeferredPromise, Promises } from '../../../../base/common/async.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
-import { DisposableStore, IReference } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -21,11 +21,13 @@ import { ServiceCollection } from '../../../instantiation/common/serviceCollecti
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
+import { ActionType } from '../../common/state/sessionActions.js';
 import { buildDefaultChatUri } from '../../common/state/sessionState.js';
 import { ClaudeSdkPipeline, IRematerializer } from '../../node/claude/claudeSdkPipeline.js';
 import { SubagentRegistry } from '../../node/claude/claudeSubagentRegistry.js';
 import { createSessionDataService, createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
-import { fixedChatOwnerRef } from '../../common/agent.js';
+import { AgentSignal, fixedChatOwnerRef } from '../../common/agent.js';
+import { makeResultSuccess, makeTextResponseMessages } from './claudeMapSessionEventsTestUtils.js';
 
 // ===== Test doubles =====
 
@@ -225,6 +227,37 @@ function createPipeline(
 	return { pipeline, warm, controller };
 }
 
+async function createPipelineWithGatedShutdown(disposables: Pick<DisposableStore, 'add'>) {
+	const warm = new FakeWarmQuery();
+	const query: Query = new ImmediatelyDoneQuery();
+	const reading = new DeferredPromise<void>();
+	const ended = new DeferredPromise<IteratorResult<SDKMessage, void>>();
+	const shutdownStarted = new DeferredPromise<void>();
+	const releaseShutdown = new DeferredPromise<void>();
+	disposables.add(toDisposable(() => {
+		releaseShutdown.complete();
+		ended.complete({ done: true, value: undefined });
+	}));
+	sinon.stub(warm, 'query').returns(query);
+	sinon.stub(query, 'next').callsFake(() => {
+		reading.complete();
+		return ended.p;
+	});
+	sinon.stub(query, 'return').callsFake(async () => {
+		shutdownStarted.complete();
+		try {
+			await releaseShutdown.p;
+			return { done: true, value: undefined };
+		} finally {
+			ended.complete({ done: true, value: undefined });
+		}
+	});
+	const harness = createPipeline(disposables, warm);
+	const cancelledTurn = assert.rejects(harness.pipeline.send(makePrompt('paused'), 'turn-paused'), isCancellationError);
+	await reading.p;
+	return { ...harness, query, shutdownStarted, releaseShutdown, cancelledTurn };
+}
+
 function makePrompt(uuid: string, text: string = uuid): SDKUserMessage {
 	return {
 		type: 'user',
@@ -315,6 +348,262 @@ suite('ClaudeSdkPipeline', () => {
 	});
 
 	suite('abort', () => {
+
+		test('interrupts before closing and waits for exit before rebuilding, ignoring cancelled results', async () => {
+			const warm = new FakeWarmQuery();
+			const query = makeControllableQuery();
+			const prompts = new DeferredPromise<AsyncIterator<SDKUserMessage>>();
+			sinon.stub(warm, 'query').callsFake(prompt => {
+				assert.ok(typeof prompt !== 'string');
+				prompts.complete(prompt[Symbol.asyncIterator]());
+				return query;
+			});
+			const reading = new DeferredPromise<void>();
+			const message = new DeferredPromise<IteratorResult<SDKMessage, void>>();
+			const consumed = new DeferredPromise<void>();
+			const ended = new DeferredPromise<IteratorResult<SDKMessage, void>>();
+			sinon.stub(query, 'next')
+				.onFirstCall().callsFake(() => { reading.complete(); return message.p; })
+				.onSecondCall().callsFake(() => { consumed.complete(); return ended.p; });
+			const interrupted = new DeferredPromise<SDKControlInterruptResponse | undefined>();
+			const interrupt = sinon.stub(query, 'interrupt').returns(interrupted.p);
+			const returning = new DeferredPromise<void>();
+			const exited = new DeferredPromise<void>();
+			sinon.stub(query, 'return').callsFake(async () => {
+				returning.complete();
+				await exited.p;
+				ended.complete({ done: true, value: undefined });
+				return { done: true, value: undefined };
+			});
+			const { pipeline, controller } = createPipeline(disposables, warm);
+			const signals: string[] = [];
+			disposables.add(pipeline.onDidProduceSignal(signal => signals.push(signal.kind)));
+			const cancelled = assert.rejects(pipeline.send(makePrompt('paused'), 'paused'), isCancellationError);
+			await reading.p;
+			const promptIterator = await prompts.p;
+			await promptIterator.next();
+			const waitingPrompt = DeferredPromise.fromPromise(promptIterator.next());
+
+			const abort = pipeline.abort();
+			assert.strictEqual(pipeline.abort(), abort, 'concurrent cancellation shares the same shutdown');
+			let rebuilt = false;
+			pipeline.attachRematerializer({
+				async rematerialize() {
+					assert.strictEqual(exited.isResolved, true, 'the old process must finish writing before resume');
+					rebuilt = true;
+					return { warm: new FakeWarmQuery(), abortController: new AbortController() };
+				},
+			});
+			const recovery = pipeline.rebindForRestart();
+			message.complete({ done: false, value: makeResultSuccess('sess-1') });
+			await consumed.p;
+			assert.deepStrictEqual({
+				interrupts: interrupt.callCount,
+				aborted: pipeline.isAborted,
+				transportClosed: controller.signal.aborted,
+				promptStreamClosed: waitingPrompt.isSettled,
+				disposals: warm.asyncDisposeCount,
+				rebuilt,
+				signals,
+			}, { interrupts: 1, aborted: true, transportClosed: false, promptStreamClosed: false, disposals: 0, rebuilt: false, signals: [] });
+
+			interrupted.complete(undefined);
+			await returning.p;
+			assert.deepStrictEqual({
+				transportClosed: controller.signal.aborted,
+				disposals: warm.asyncDisposeCount,
+				rebuilt,
+			}, { transportClosed: true, disposals: 1, rebuilt: false });
+			exited.complete();
+			await Promise.all([abort, recovery, cancelled]);
+			assert.deepStrictEqual({ rebuilt, waitingPrompt: await waitingPrompt.p }, { rebuilt: true, waitingPrompt: { done: true, value: undefined } });
+		});
+
+		test('interrupt failure is surfaced after closing the transport and cancelling the send', async () => {
+			const warm = new ControllableWarmQuery();
+			const { pipeline, controller } = createPipeline(disposables, warm);
+			const cancelled = assert.rejects(pipeline.send(makePrompt('paused'), 'paused'), isCancellationError);
+			await flushMicrotasks();
+			const query = warm.queries[0];
+			const failure = new Error('interrupt failed');
+			sinon.stub(query, 'interrupt').rejects(failure);
+			sinon.stub(query, 'return').callsFake(async () => {
+				query.end();
+				return { done: true, value: undefined };
+			});
+			await assert.rejects(pipeline.abort(), error => error === failure);
+			await cancelled;
+			assert.deepStrictEqual({
+				transportClosed: controller.signal.aborted,
+				disposals: warm.asyncDisposeCount,
+				activeTurn: pipeline.hasActiveTurn,
+			}, { transportClosed: true, disposals: 1, activeTurn: false });
+		});
+
+		test('replacement waiting for previous shutdown can be cancelled before recovery starts', async () => {
+			const { pipeline, shutdownStarted, releaseShutdown, cancelledTurn } = await createPipelineWithGatedShutdown(disposables);
+			const fresh = { warm: new FakeWarmQuery(), abortController: new AbortController() };
+			const rematerializer: IRematerializer = { async rematerialize() { return fresh; } };
+			const rebuild = sinon.spy(rematerializer, 'rematerialize');
+			pipeline.attachRematerializer(rematerializer);
+			const abort = pipeline.abort();
+			await shutdownStarted.p;
+			const replacement = assert.rejects(pipeline.send(makePrompt('replacement'), 'turn-replacement'), isCancellationError);
+			const cancelReplacement = pipeline.abort();
+			releaseShutdown.complete();
+			await Promises.settled([abort, cancelReplacement, cancelledTurn, replacement]);
+
+			assert.deepStrictEqual({
+				rebuilds: rebuild.callCount,
+				freshQueries: fresh.warm.queryCallCount,
+				aborted: pipeline.isAborted,
+				activeTurn: pipeline.hasActiveTurn,
+			}, { rebuilds: 0, freshQueries: 0, aborted: true, activeTurn: false });
+		});
+
+		test('replacement waiting for previous shutdown recovers after an interrupt failure', async () => {
+			const { pipeline, query, shutdownStarted, releaseShutdown, cancelledTurn } = await createPipelineWithGatedShutdown(disposables);
+			const failure = new Error('interrupt failed');
+			sinon.stub(query, 'interrupt').rejects(failure);
+			const freshWarm = new FakeWarmQuery();
+			const freshQuery: Query = new ImmediatelyDoneQuery();
+			const messages = new AsyncIterableSource<SDKMessage>();
+			disposables.add(toDisposable(() => messages.resolve()));
+			const iterator = messages.asyncIterable[Symbol.asyncIterator]();
+			const prompts = new DeferredPromise<AsyncIterator<SDKUserMessage>>();
+			sinon.stub(freshQuery, 'next').callsFake(() => iterator.next());
+			sinon.stub(freshWarm, 'query').callsFake(prompt => {
+				assert.ok(typeof prompt !== 'string');
+				prompts.complete(prompt[Symbol.asyncIterator]());
+				return freshQuery;
+			});
+			pipeline.attachRematerializer({
+				async rematerialize() {
+					return { warm: freshWarm, abortController: new AbortController() };
+				},
+			});
+			const signals: AgentSignal[] = [];
+			disposables.add(pipeline.onDidProduceSignal(signal => signals.push(signal)));
+			const aborted = assert.rejects(pipeline.abort(), error => error === failure);
+			await shutdownStarted.p;
+			const replacement = pipeline.send(makePrompt('replacement'), 'turn-replacement');
+			const nextPrompt = (async () => (await prompts.p).next())();
+			releaseShutdown.complete();
+			try {
+				const submitted = await Promise.race([nextPrompt, replacement]);
+				assert.ok(submitted && !submitted.done);
+				messages.emitMany(makeTextResponseMessages('sess-1', 'replacement response'));
+				await replacement;
+				assert.deepStrictEqual({
+					prompt: submitted.value.message.content,
+					responses: signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatDelta
+						? [{ turnId: signal.action.turnId, content: signal.action.content }] : []),
+					completed: signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatTurnComplete ? [signal.action.turnId] : []),
+				}, {
+					prompt: 'replacement',
+					responses: [{ turnId: 'turn-replacement', content: 'replacement response' }],
+					completed: ['turn-replacement'],
+				});
+			} finally {
+				messages.resolve();
+				await Promises.settled([aborted, cancelledTurn, replacement]);
+			}
+		});
+
+		test('replacement waiting for previous shutdown still fails when shutdown fails', async () => {
+			const { pipeline, shutdownStarted, releaseShutdown, cancelledTurn } = await createPipelineWithGatedShutdown(disposables);
+			const failure = new Error('shutdown failed');
+			const fresh = { warm: new FakeWarmQuery(), abortController: new AbortController() };
+			const rematerializer: IRematerializer = { async rematerialize() { return fresh; } };
+			const rebuild = sinon.spy(rematerializer, 'rematerialize');
+			pipeline.attachRematerializer(rematerializer);
+			const aborted = assert.rejects(pipeline.abort(), error => error === failure);
+			await shutdownStarted.p;
+			const replacement = assert.rejects(pipeline.send(makePrompt('replacement'), 'turn-replacement'), error => error === failure);
+			releaseShutdown.error(failure);
+			await Promises.settled([aborted, cancelledTurn, replacement]);
+			assert.deepStrictEqual({
+				rebuilds: rebuild.callCount,
+				freshQueries: fresh.warm.queryCallCount,
+				activeTurn: pipeline.hasActiveTurn,
+			}, { rebuilds: 0, freshQueries: 0, activeTurn: false });
+		});
+
+		for (const first of ['rebuild', 'interrupt'] as const) {
+			test(`cancellation discards a late runtime when ${first} completes first`, async () => {
+				const warm = new FakeWarmQuery();
+				const query: Query = new ImmediatelyDoneQuery();
+				const messages = new AsyncIterableSource<SDKMessage>();
+				disposables.add(toDisposable(() => messages.resolve()));
+				const iterator = messages.asyncIterable[Symbol.asyncIterator]();
+				const prompts = new DeferredPromise<AsyncIterator<SDKUserMessage>>();
+				sinon.stub(query, 'next').callsFake(() => iterator.next());
+				sinon.stub(warm, 'query').callsFake(prompt => {
+					assert.ok(typeof prompt !== 'string');
+					prompts.complete(prompt[Symbol.asyncIterator]());
+					return query;
+				});
+				const interrupted = new DeferredPromise<SDKControlInterruptResponse | undefined>();
+				sinon.stub(query, 'interrupt').returns(interrupted.p);
+				let closedBeforeInterrupt = false;
+				sinon.stub(warm, Symbol.asyncDispose).callsFake(async () => {
+					closedBeforeInterrupt ||= !interrupted.isResolved;
+					warm.asyncDisposeCount++;
+					messages.resolve();
+				});
+				const queryReturn = sinon.stub(query, 'return').callsFake(async () => {
+					messages.resolve();
+					return { done: true, value: undefined };
+				});
+				const { pipeline } = createPipeline(disposables, warm);
+				const seed = pipeline.send(makePrompt('seed'), 'turn-seed');
+				await (await prompts.p).next();
+				messages.emitOne(makeResultSuccess('sess-1'));
+				await seed;
+
+				const enteredRebuild = new DeferredPromise<void>();
+				const releaseRebuild = new DeferredPromise<{ warm: FakeWarmQuery; abortController: AbortController }>();
+				pipeline.attachRematerializer({
+					async rematerialize() {
+						enteredRebuild.complete();
+						return releaseRebuild.p;
+					},
+				});
+				const cancelled = assert.rejects(pipeline.rebindForRestart(), isCancellationError);
+				await enteredRebuild.p;
+				const abort = pipeline.abort();
+				const fresh = { warm: new FakeWarmQuery(), abortController: new AbortController() };
+				try {
+					if (first === 'rebuild') {
+						releaseRebuild.complete(fresh);
+						await cancelled;
+					} else {
+						interrupted.complete(undefined);
+						await abort;
+					}
+				} finally {
+					interrupted.complete(undefined);
+					releaseRebuild.complete(fresh);
+					await Promises.settled([abort, cancelled]);
+				}
+
+				assert.deepStrictEqual({
+					closedBeforeInterrupt,
+					queryReturns: queryReturn.callCount,
+					freshAborted: fresh.abortController.signal.aborted,
+					freshDisposals: fresh.warm.asyncDisposeCount,
+					freshQueries: fresh.warm.queryCallCount,
+					aborted: pipeline.isAborted,
+				}, {
+					closedBeforeInterrupt: false,
+					queryReturns: 1,
+					freshAborted: true,
+					freshDisposals: 1,
+					freshQueries: 0,
+					aborted: true,
+				});
+			});
+		}
 
 		test('flips the controller signal and isAborted', () => {
 			const { pipeline, controller } = createPipeline(disposables);
@@ -414,75 +703,94 @@ suite('ClaudeSdkPipeline', () => {
 
 		test('abort issued while the rematerializer is still resolving cancels the freshly-built controller (rebind-window race)', async () => {
 			const { pipeline } = createPipeline(disposables);
+			const enteredRebuild = new DeferredPromise<void>();
 			const releaseRebuild = new DeferredPromise<{ warm: FakeWarmQuery; controller: AbortController }>();
-			const built: { warm: FakeWarmQuery; controller: AbortController }[] = [];
 			pipeline.attachRematerializer({
 				async rematerialize() {
+					enteredRebuild.complete();
 					const pair = await releaseRebuild.p;
-					built.push(pair);
 					return { warm: pair.warm, abortController: pair.controller };
 				},
 			});
 
-			// Trigger rebind by aborting the seed controller and starting a send.
-			// The send awaits _rebindQuery, which awaits releaseRebuild.
-			pipeline.abort();
-			const sendPromise = pipeline.send(makePrompt('p1'), 'turn-A');
-			await Promise.resolve(); // let _rebindQuery start its await
-
-			// Issue a SECOND abort while rebind is in-flight. This must
-			// land on the not-yet-installed controller — abort returning
-			// early as idempotent here would silently drop the user's
-			// cancel.
-			pipeline.abort();
-
-			// Now release the rematerializer with a fresh, non-aborted controller.
+			await pipeline.abort();
+			const cancelled = assert.rejects(pipeline.send(makePrompt('p1'), 'turn-A'), isCancellationError);
+			await enteredRebuild.p;
+			await pipeline.abort();
 			const freshController = new AbortController();
-			releaseRebuild.complete({ warm: new FakeWarmQuery(), controller: freshController });
-
-			await sendPromise.then(
-				() => assert.fail('expected cancellation after rebind-window abort'),
-				err => assert.ok(isCancellationError(err), `expected CancellationError, got ${err}`),
-			);
-			assert.strictEqual(built.length, 1);
-			assert.strictEqual(built[0].controller.signal.aborted, true, 'fresh controller cancelled before being installed');
-			assert.strictEqual(pipeline.isAborted, true);
+			const freshWarm = new FakeWarmQuery();
+			releaseRebuild.complete({ warm: freshWarm, controller: freshController });
+			await cancelled;
+			assert.deepStrictEqual({
+				freshAborted: freshController.signal.aborted,
+				freshDisposals: freshWarm.asyncDisposeCount,
+				freshQueries: freshWarm.queryCallCount,
+				aborted: pipeline.isAborted,
+				activeTurn: pipeline.hasActiveTurn,
+			}, { freshAborted: true, freshDisposals: 1, freshQueries: 0, aborted: true, activeTurn: false });
 		});
 
-		test('a rebind hands the consumer loop off to the new query so the post-rebind turn is not lost', async () => {
-			// Regression: a rebind swaps in a fresh `_query` while the consumer
-			// loop is still draining the OLD one. The post-rebind `send` queues
-			// its prompt while the old loop is still marked running, so
-			// `_ensureConsumerLoop` no-ops. If the old loop then just stopped,
-			// nothing would ever read the new query and `send` would hang
-			// ("Restore Checkpoint then send" never responds).
-			const warm1 = new ControllableWarmQuery();
-			const { pipeline } = createPipeline(disposables, warm1);
+		test('a rebind ignores late old results and completes the replacement from its own query', async () => {
+			const [oldRuntime, replacementRuntime] = [0, 1].map(() => {
+				const warm = new FakeWarmQuery();
+				const query: Query = new ImmediatelyDoneQuery();
+				const messages = new AsyncIterableSource<SDKMessage>();
+				disposables.add(toDisposable(() => messages.resolve()));
+				const iterator = messages.asyncIterable[Symbol.asyncIterator]();
+				const prompts = new DeferredPromise<AsyncIterator<SDKUserMessage>>();
+				const reading = new DeferredPromise<void>();
+				const ended = new DeferredPromise<void>();
+				sinon.stub(query, 'next').callsFake(async () => {
+					reading.complete();
+					const result = await iterator.next();
+					if (result.done) {
+						ended.complete();
+					}
+					return result;
+				});
+				sinon.stub(warm, 'query').callsFake(prompt => {
+					assert.notStrictEqual(typeof prompt, 'string');
+					if (typeof prompt === 'string') {
+						throw new Error('Expected the streaming SDK prompt boundary');
+					}
+					prompts.complete(prompt[Symbol.asyncIterator]());
+					return query;
+				});
+				return { warm, messages, prompts, reading, ended };
+			});
+			const { pipeline } = createPipeline(disposables, oldRuntime.warm);
+			const first = pipeline.send(makePrompt('first'), 'turn-first');
+			const firstPrompt = await (await oldRuntime.prompts.p).next();
+			oldRuntime.messages.emitOne(makeResultSuccess('sess-1'));
+			await first;
 
-			// Bind Q1 and start the consumer loop draining it. No result is
-			// pushed, so this send never resolves — we only need the live loop.
-			pipeline.send(makePrompt('p1'), 'turn-1').catch(() => { /* unwound on teardown */ });
-			await flushMicrotasks();
-			const q1 = warm1.queries[0];
-			assert.ok(q1.nextCallCount > 0, 'consumer loop drains Q1');
-
-			// Rebind to a fresh warm/Q2 while Q1's loop is still parked.
-			const warm2 = new ControllableWarmQuery();
-			pipeline.attachRematerializer({ rematerialize: async () => ({ warm: warm2, abortController: new AbortController() }) });
+			const signals: AgentSignal[] = [];
+			disposables.add(pipeline.onDidProduceSignal(signal => signals.push(signal)));
+			pipeline.attachRematerializer({ rematerialize: async () => ({ warm: replacementRuntime.warm, abortController: new AbortController() }) });
 			await pipeline.rebindForRestart();
-			const q2 = warm2.queries[0];
-			assert.strictEqual(q2.nextCallCount, 0, 'new query not drained yet — the old loop is still running');
+			const replacement = DeferredPromise.fromPromise(pipeline.send(makePrompt('replacement'), 'turn-replacement'));
+			const replacementPrompt = await (await replacementRuntime.prompts.p).next();
+			oldRuntime.messages.emitMany(makeTextResponseMessages('sess-1', 'stale response'));
+			oldRuntime.messages.resolve();
+			await replacementRuntime.reading.p;
+			const beforeReplacementResult = { settled: replacement.isSettled, signals: signals.slice() };
 
-			// The old query's stream now ends (as a real dispose would). The
-			// loop must hand off to Q2 rather than stopping.
-			q1.end();
-			await flushMicrotasks();
-
-			assert.ok(q2.nextCallCount > 0, 'consumer loop handed off to the new query after the old one ended');
-
-			// Clean teardown: let the re-armed loop unwind before dispose.
-			q2.end();
-			await flushMicrotasks();
+			replacementRuntime.messages.emitMany(makeTextResponseMessages('sess-1', 'replacement response'));
+			await replacement.p;
+			replacementRuntime.messages.resolve();
+			await replacementRuntime.ended.p;
+			assert.deepStrictEqual({
+				prompts: [firstPrompt.value?.message.content, replacementPrompt.value?.message.content],
+				beforeReplacementResult,
+				responses: signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatDelta
+					? [{ turnId: signal.action.turnId, content: signal.action.content }] : []),
+				completed: signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatTurnComplete ? [signal.action.turnId] : []),
+			}, {
+				prompts: ['first', 'replacement'],
+				beforeReplacementResult: { settled: false, signals: [] },
+				responses: [{ turnId: 'turn-replacement', content: 'replacement response' }],
+				completed: ['turn-replacement'],
+			});
 		});
 
 		test('restart invokes the rebuild command with its owning receiver', async () => {
@@ -510,10 +818,17 @@ suite('ClaudeSdkPipeline', () => {
 
 		test('dispose while rebuilding cancels and releases the late command result', async () => {
 			const { pipeline, warm } = createPipeline(disposables);
+			const enteredRebuild = new DeferredPromise<void>();
 			const rebuilt = new DeferredPromise<{ warm: FakeWarmQuery; abortController: AbortController }>();
-			pipeline.attachRematerializer({ rematerialize: () => rebuilt.p });
-			pipeline.abort();
+			pipeline.attachRematerializer({
+				rematerialize() {
+					enteredRebuild.complete();
+					return rebuilt.p;
+				},
+			});
+			await pipeline.abort();
 			const rejected = assert.rejects(pipeline.send(makePrompt('pending'), 'turn-A'), isCancellationError);
+			await enteredRebuild.p;
 			pipeline.dispose();
 			const fresh = { warm: new FakeWarmQuery(), abortController: new AbortController() };
 			rebuilt.complete(fresh);
@@ -521,9 +836,10 @@ suite('ClaudeSdkPipeline', () => {
 			assert.deepStrictEqual({
 				originalDisposals: warm.asyncDisposeCount,
 				freshDisposals: fresh.warm.asyncDisposeCount,
+				freshQueries: fresh.warm.queryCallCount,
 				freshAborted: fresh.abortController.signal.aborted,
 				activeTurn: pipeline.hasActiveTurn,
-			}, { originalDisposals: 1, freshDisposals: 1, freshAborted: true, activeTurn: false });
+			}, { originalDisposals: 1, freshDisposals: 1, freshQueries: 0, freshAborted: true, activeTurn: false });
 		});
 	});
 
@@ -596,7 +912,7 @@ suite('ClaudeSdkPipeline', () => {
 			// buffer the value and let `_replayCurrentConfig` push it onto the
 			// freshly-bound query after the rebind.
 			const { pipeline, warm } = await seededHighThenBind(disposables);
-			pipeline.abort();
+			await pipeline.abort();
 			warm.flagSettings.length = 0; // isolate: ignore anything from the dead query
 			await pipeline.setEffort('low');
 			assert.deepStrictEqual(warm.flagSettings, [], 'effort must not be pushed while needsRebind');

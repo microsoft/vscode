@@ -366,6 +366,8 @@ export type IChatSessionHistoryItem = {
 	details?: string;
 	elapsedMs?: number;
 	completedAt?: number;
+	/** Whether the response was cancelled rather than completed. */
+	isCanceled?: boolean;
 	/**
 	 * Error details for a failed response. Rendered as a proper chat error
 	 * (including the quota-exceeded upgrade affordance), mirroring the live
@@ -633,6 +635,13 @@ export interface IChatSession extends IDisposable {
 	transferredState?: {
 		readonly editingSession: IChatEditingSession | undefined;
 		readonly inputState: ISerializableChatModelInputState | undefined;
+		/**
+		 * The language model the transferred draft selects. Set even when
+		 * {@link inputState} has no `selectedModel` because the model's metadata
+		 * is not available yet (cold restore), so the restore can wait for that
+		 * model instead of falling back to the request history's.
+		 */
+		readonly selectedModelId?: string;
 	};
 
 	requestHandler?: (
@@ -866,6 +875,21 @@ export interface IChatSessionItemsDelta {
 /** Automatic refreshes may reuse fresh data instead of starting another fetch. */
 export type ChatSessionRefreshReason = 'initial' | 'automatic' | 'manual';
 
+export type ChatSessionArchiveDiscoveryState = 'idle' | 'loading' | 'loaded' | 'error';
+
+/** Optional inventory capability, independent of the controllers created for discovered sessions. */
+export interface IChatSessionItemArchiveProvider {
+	/** Initial discovery state; cached results remain loaded during refreshes. */
+	readonly state: IObservable<ChatSessionArchiveDiscoveryState>;
+	/** Requests archived discovery while at least one archive-history surface needs it. */
+	setRequested(requested: boolean): void;
+}
+
+export interface IChatSessionItemArchiveState {
+	readonly available: boolean;
+	readonly state: ChatSessionArchiveDiscoveryState;
+}
+
 export interface IChatSessionItemController {
 
 	readonly onDidChangeChatSessionItems: Event<IChatSessionItemsDelta>;
@@ -994,6 +1018,10 @@ export interface IChatSessionCommitEvent {
 export const IChatSessionsService = createDecorator<IChatSessionsService>('chatSessionsService');
 
 export interface IChatSessionsService {
+	readonly archivedSessionItems: IObservable<IChatSessionItemArchiveState>;
+	registerChatSessionItemArchiveProvider(provider: IChatSessionItemArchiveProvider): IDisposable;
+	/** Acquire while archived history is expanded or otherwise explicitly requested. */
+	acquireArchivedSessionItems(): IDisposable;
 	readonly _serviceBrand: undefined;
 
 	// #region Chat session item provider support

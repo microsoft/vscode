@@ -6,10 +6,10 @@ import path from 'path';
 import * as fs from 'fs';
 import * as child_process from 'child_process';
 import * as os from 'os';
-import { isUpToDate, forceInstallMessage } from './installStateHash.ts';
 import { isCloudSandbox } from './cloudSandbox.ts';
 import { checkPackageManager, getPinnedPnpmVersion, getPnpmCommand } from '../lib/pnpm.ts';
 import { installNodeGypHeaders } from './nodeGypHeaders.ts';
+import { readNativeBuildConfig } from './pnpm/nativeBuildEnv.ts';
 
 if (!process.env['VSCODE_SKIP_NODE_VERSION_CHECK']) {
 	// Get the running Node.js version
@@ -44,13 +44,6 @@ const packageManagerError = checkPackageManager(process.env.npm_config_user_agen
 if (packageManagerError) {
 	console.error(`\x1b[1;31m*** ${packageManagerError} ***\x1b[0;0m`);
 	throw new Error();
-}
-
-// Fast path: if nothing changed since last successful install, skip everything.
-// This makes `pnpm install` near-instant when dependencies haven't changed.
-if (!process.env['VSCODE_FORCE_INSTALL'] && isUpToDate()) {
-	console.log(`\x1b[32mAll dependencies up to date.\x1b[0m ${forceInstallMessage}`);
-	process.exit(0);
 }
 
 if (process.platform === 'win32') {
@@ -129,8 +122,8 @@ async function installHeaders() {
 	// construct the path to its entry point
 	const nodeGypScript = path.join(import.meta.dirname, 'gyp', 'node_modules', 'node-gyp', 'bin', 'node-gyp.js');
 
-	const local = getHeaderInfo(path.join(import.meta.dirname, '..', '..', '.npmrc'));
-	const remote = getHeaderInfo(path.join(import.meta.dirname, '..', '..', 'remote', '.npmrc'));
+	const local = getHeaderInfo(path.join(import.meta.dirname, '..', '..'));
+	const remote = getHeaderInfo(path.join(import.meta.dirname, '..', '..', 'remote'));
 
 	if (local !== undefined) {
 		// Both disturl and target come from a file checked into our repository
@@ -186,24 +179,17 @@ function getLocalHeaderPath(target: string): string | undefined {
 	return path.join(cachePath, 'node-gyp', target, 'include', 'node');
 }
 
-function getHeaderInfo(rcFile: string): { disturl: string; target: string } | undefined {
-	const lines = fs.readFileSync(rcFile, 'utf8').split(/\r\n|\n/g);
-	let disturl: string | undefined;
-	let target: string | undefined;
-	for (const line of lines) {
-		let match = line.match(/\s*disturl=*\"(.*)\"\s*$/);
-		if (match !== null && match.length >= 1) {
-			disturl = match[1];
-			if (isCloudSandbox() && disturl === 'https://electronjs.org/headers') {
-				disturl = 'https://artifacts.electronjs.org/headers/dist';
-			}
-		}
-		match = line.match(/\s*target=*\"(.*)\"\s*$/);
-		if (match !== null && match.length >= 1) {
-			target = match[1];
-		}
+/**
+ * Returns where to download the headers of the runtime that the install root `rootDir` builds
+ * native modules for, from the `nativeBuild` field of its `package.json`.
+ */
+function getHeaderInfo(rootDir: string): { disturl: string; target: string } | undefined {
+	const config = readNativeBuildConfig(rootDir);
+	if (config?.target === undefined) {
+		return undefined;
 	}
-	return disturl !== undefined && target !== undefined
-		? { disturl, target }
-		: undefined;
+	const disturl = isCloudSandbox() && config.disturl === 'https://electronjs.org/headers'
+		? 'https://artifacts.electronjs.org/headers/dist'
+		: config.disturl;
+	return { disturl, target: config.target };
 }

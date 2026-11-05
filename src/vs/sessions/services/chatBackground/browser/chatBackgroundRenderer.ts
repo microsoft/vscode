@@ -225,7 +225,10 @@ export class SessionsChatBackgroundRenderer extends Disposable {
 		this.element.classList.toggle('has-chat-background', !!background);
 		this.element.classList.toggle('has-chat-background-image', background?.kind === 'image');
 		this.backgroundLayer.hidden = !background;
-		this.backgroundLayer.style.backgroundImage = background?.kind === 'image' ? background.backgroundImage : '';
+		const image = background?.kind === 'image' ? background : undefined;
+		this.backgroundLayer.style.backgroundImage = image?.backgroundImageReducedMotion ? '' : image?.backgroundImage ?? '';
+		this.backgroundLayer.style.setProperty('--sessions-chat-background-image', image?.backgroundImageReducedMotion ? image.backgroundImage : '');
+		this.backgroundLayer.style.setProperty('--sessions-chat-background-reduced-motion-image', image?.backgroundImageReducedMotion ?? '');
 		this.backgroundLayer.style.backgroundRepeat = background?.kind === 'image' ? background.backgroundRepeat : '';
 		this.backgroundLayer.style.backgroundSize = background?.kind === 'image' ? background.backgroundSize : '';
 		this.backgroundLayer.style.backgroundPosition = background?.kind === 'image' ? background.backgroundPosition : '';

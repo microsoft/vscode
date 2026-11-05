@@ -39,6 +39,7 @@ import { ISessionsPartService } from '../../../../services/sessions/browser/sess
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ChatInteractivity, IChat, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ITestSessionsService, stubMissingSessionHostsFromSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 class RecordingNotificationService extends TestNotificationService {
 	readonly notifications: { severity: Severity; message: string }[] = [];
@@ -299,6 +300,7 @@ suite('ResponseSelectionSideChatController', () => {
 			isArchived: constObservable(false),
 			capabilities: constObservable({ supportsMultipleChats: true, supportsSideChat: true }),
 			chats: constObservable([chat, sideChat]),
+			activeChat: constObservable(chat),
 		});
 
 		const callOrder: string[] = [];
@@ -319,12 +321,15 @@ suite('ResponseSelectionSideChatController', () => {
 				callOrder.push(`send:${sentChat.resource.toString()}:${sendOptions.query}`);
 			}),
 		}));
-		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({
+		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
 			visibleSessions: constObservable([session]),
+			activeSession: constObservable(session),
+			navigationRequest: constObservable(undefined),
 			openChat: async (_session, chatUri) => {
 				callOrder.push(`open:${chatUri.toString()}`);
 			},
 		}));
+		stubMissingSessionHostsFromSessionsService(instantiationService);
 		instantiationService.stub(ISessionsPartService, upcastPartial<ISessionsPartService>({
 			getSessionView: () => undefined,
 		}));
@@ -650,6 +655,39 @@ suite('ResponseSelectionSideChatController', () => {
 
 		setSelection('hello world');
 		assert.notStrictEqual(inputDomNode(controller).style.display, 'none');
+	});
+
+	test('follows the selection in the window its chat shows in when it was created before it showed there', () => {
+		const { controller, widget, transcriptDomNode, store } = setup();
+		// The chat shows in another window after it was created, as a chat in an auxiliary window does.
+		const frame = dom.getActiveDocument().createElement('iframe');
+		dom.getActiveDocument().body.appendChild(frame);
+		store.add(toDisposable(() => frame.remove()));
+		const frameWindow = frame.contentWindow! as Window & typeof globalThis & { getSelection: () => Selection | null };
+		frameWindow.document.body.appendChild(widget.domNode);
+		const textNode = transcriptDomNode.querySelector('.chat-markdown-part')!.firstChild as Text;
+		const range = frameWindow.document.createRange();
+		range.setStart(textNode, 0);
+		range.setEnd(textNode, textNode.data.length);
+		frameWindow.getSelection = () => upcastPartial<Selection>({
+			toString: () => textNode.data,
+			isCollapsed: false,
+			anchorNode: textNode,
+			anchorOffset: 0,
+			focusNode: textNode,
+			focusOffset: textNode.data.length,
+			rangeCount: 1,
+			getRangeAt: () => range,
+		});
+		const hidden = () => inputDomNode(controller).style.display === 'none';
+
+		frameWindow.document.dispatchEvent(new Event('selectionchange'));
+		const beforeFocus = hidden();
+		// Selecting in it with the keyboard moves the focus into it first.
+		transcriptDomNode.dispatchEvent(new frameWindow.FocusEvent('focusin', { bubbles: true }));
+		frameWindow.document.dispatchEvent(new Event('selectionchange'));
+
+		assert.deepStrictEqual({ beforeFocus, afterFocus: hidden() }, { beforeFocus: true, afterFocus: false });
 	});
 
 	test('hides the input again once the selection is cleared', () => {

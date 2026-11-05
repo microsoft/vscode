@@ -38,9 +38,9 @@ import { ITextFileService } from '../../../../../services/textfile/common/textfi
 import { IChatPlanApprovalAction, IChatPlanReview, IChatPlanReviewResult } from '../../../common/chatService/chatService.js';
 import { IPlanReviewFeedbackItem, IPlanReviewFeedbackService } from '../../planReviewFeedback/planReviewFeedbackService.js';
 import { ChatPlanReviewData } from '../../../common/model/chatProgressTypes/chatPlanReviewData.js';
-import { IChatRendererContent, isResponseVM } from '../../../common/model/chatViewModel.js';
+import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';
-import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
+import { IChatContentPart } from './chatContentParts.js';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import { getChatMarkdownRenderOptions } from '../chatContentMarkdownRenderer.js';
 import './media/chatPlanReview.css';
@@ -88,7 +88,7 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 
 	constructor(
 		public readonly review: IChatPlanReview,
-		context: IChatContentPartRenderContext,
+		context: { readonly element: { readonly sessionResource: URI; readonly isComplete?: boolean } },
 		private readonly _options: IChatPlanReviewPartOptions,
 		@IMarkdownRendererService private readonly _markdownRendererService: IMarkdownRendererService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
@@ -110,7 +110,7 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 			this._isCollapsed = review.draftCollapsed;
 		}
 
-		const isResponseComplete = isResponseVM(context.element) && context.element.isComplete;
+		const isResponseComplete = context.element.isComplete === true;
 		this._isSubmitted = !!review.isUsed || isResponseComplete;
 		if (review instanceof ChatPlanReviewData) {
 			this._register(review.onDidDismiss(() => {

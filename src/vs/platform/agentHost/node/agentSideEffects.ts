@@ -27,7 +27,7 @@ import { captureCredentialSource, type IAgentHostCredentialSource } from '../com
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { getPendingSteeringMessages } from '../common/agentSessionMessage.js';
 import { isRenameChatTool } from '../common/serverToolNames.js';
-import { type CodexModelProvider, AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
+import { type AgentHostPrewarmSkipReason, type CodexModelProvider, AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { AgentPermissionKind, AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, IAgent, IAgentChatContext, IAgentToolPendingConfirmationSignal, type AgentSubagentKind, type AgentSubagentTaskModelSource, type IAgentModelCallCompletedSignal, type IAgentModelCallFinishedSignal, type IAgentSubagentStartedSignal } from '../common/agent.js';
 import { readCodexSessionModel, withCodexSessionModel } from '../common/meta/codexSessionModel.js';
 import { isPresentationOnlyToolCall, readToolCallMeta, toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
@@ -47,7 +47,7 @@ import { ChatProvidersConfigKey, chatProvidersRootConfigSchema } from '../common
 import { resolveChatAttachment } from '../common/state/chatAttachmentContext.js';
 import { buildOpenSessionLinkForChat } from '../common/openSessionLink.js';
 import { McpServerStatus, ToolCallContributorKind, type AgentInfo, type SessionActiveClient } from '../common/state/protocol/state.js';
-import type { CustomizationEnablement } from '../common/state/protocol/channels-session/state.js';
+import { CustomizationEnablementKind, type CustomizationEnablement } from '../common/state/protocol/channels-session/state.js';
 import { ActionType, isChatAction, StateAction, type ChatDeltaAction, type ChatReasoningAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallResultConfirmedAction, type ChatToolCallStartAction, type ChatTurnStartedAction } from '../common/state/sessionActions.js';
 import {
 	createErrorResponsePart,
@@ -80,6 +80,7 @@ import {
 	type Customization,
 	type McpServerCustomization,
 	type PluginCustomization,
+	type SkillCustomization,
 	type ToolCallContributor
 } from '../common/state/sessionState.js';
 import { AgentHostInputRequestTracker } from './agentHostInputRequestTracker.js';
@@ -101,7 +102,7 @@ import './localCommands/localChatCommands.contribution.js';
 import { SessionPermissionManager } from './sessionPermissions.js';
 import { stripProxyErrorMarker, toChatErrorMeta, tryParseForwardedChatError } from './shared/proxyChatError.js';
 import { IAgentHostPeerChatPersistenceService } from './agentHostPeerChatStore.js';
-import { targetForMcpServer, targetForPlugin } from './shared/customizationEnablementGate.js';
+import { targetForMcpServer, targetForMcpSkill, targetForPlugin } from './shared/customizationEnablementGate.js';
 import { IAgentHostWorktreeIsolation } from './shared/worktreeIsolation.js';
 import { IAgentHostWorktreeCleanupService } from './agentHostWorktreeCleanupService.js';
 import { IAgentHostChatOwnershipService, mintSubagentChatUri } from './agentHostChatOwnershipService.js';
@@ -195,7 +196,7 @@ interface ISubagentParentTurnTelemetryContext {
 }
 
 interface ICustomizationEnablementCandidate {
-	readonly customization: PluginCustomization | McpServerCustomization;
+	readonly customization: PluginCustomization | McpServerCustomization | SkillCustomization;
 	readonly owningPluginUri?: string;
 }
 
@@ -220,6 +221,13 @@ function getCustomizationEnablementCandidates(customizations: readonly Customiza
 					// MCP children therefore use the unowned `mcpServers#<name>` key.
 					candidates.push({ customization: child });
 				}
+			}
+		}
+	}
+	for (const candidate of [...candidates]) {
+		if (candidate.customization.type === CustomizationType.McpServer) {
+			for (const skill of candidate.customization.children ?? []) {
+				candidates.push({ customization: skill });
 			}
 		}
 	}
@@ -413,11 +421,11 @@ export class AgentSideEffects extends Disposable {
 		// actions, which bypass handleAction.
 		this._register(this._stateManager.onDidEmitEnvelope(envelope => {
 			const action = envelope.action;
-			if (action.type === ActionType.SessionCustomizationToggled) {
+			if (action.type === ActionType.SessionCustomizationToggled && !envelope.rejectionReason) {
 				const sessionState = this._stateManager.getSessionState(envelope.channel);
 				const mcpServerOwners = this._options.getAgent(envelope.channel)?.getMcpServerOwners?.(URI.parse(envelope.channel));
-				const customization = getCustomizationEnablementCandidates(sessionState?.customizations, mcpServerOwners)
-					.find(candidate => candidate.customization.id === action.id);
+				const candidates = getCustomizationEnablementCandidates(sessionState?.customizations, mcpServerOwners);
+				const customization = candidates.find(candidate => candidate.customization.id === action.id);
 				if (customization === undefined) {
 					// Toggle actions target entries from the immediately preceding
 					// session snapshot. A removed entry cannot be re-enabled, so
@@ -1688,6 +1696,7 @@ export class AgentSideEffects extends Disposable {
 			session: e.chat,
 			permissionKind: e.permissionKind,
 			permissionPath: e.permissionPath,
+			permissionResource: e.permissionResource,
 			permissionUrl: e.permissionUrl,
 			toolInput: e.shellCommand ?? getInlineToolInput(e.state.toolInput),
 			requestSandboxBypass: e.requestSandboxBypass,
@@ -1760,6 +1769,20 @@ export class AgentSideEffects extends Disposable {
 			// Strip confirmationTitle so createToolReadyAction emits the
 			// auto-approved (no-options) action.
 			effective = { ...e, state: { ...e.state, confirmationTitle: undefined } };
+		} else if (e.unattended) {
+			// Nobody can answer, so hand the request back to the agent instead of showing a confirmation.
+			this._toolCallAgents.delete(toolCallKey);
+			this._managedApprovalToolCalls.delete(toolCallKey);
+			agent.respondToPermissionRequest(e.state.toolCallId, false, { decisionSource: 'unattended_fallback', userNotAvailable: true });
+			// A started call stays `Streaming` until it is ready, and only a ready call takes the failed
+			// result the agent reports. A running client tool is one its client executes, so a client tool
+			// is left as it is rather than run.
+			if (toolCall?.status === ToolCallStatus.Streaming && contributor?.kind !== ToolCallContributorKind.Client) {
+				const settled = this._permissionManager.createToolReadyAction({ ...e, state: { ...e.state, confirmationTitle: undefined } }, sessionKey, turnId);
+				this._stateManager.dispatchServerAction(sessionKey, settled);
+				this._turnTracker.markActivity(sessionKey, turnId, settled.type);
+			}
+			return;
 		} else if (effective.state.confirmationTitle) {
 			// Make sure the agent is registered for the eventual `ChatToolCallConfirmed` response.
 			this._toolCallAgents.set(toolCallKey, agent.id);
@@ -1793,7 +1816,7 @@ export class AgentSideEffects extends Disposable {
 		this._turnTracker.markActivity(sessionKey, turnId, readyAction.type);
 	}
 
-	handleAction(channel: ProtocolURI, action: StateAction, clientId?: string, clientContextOrType: IAgentHostClientTelemetryContext | AgentHostClientType = AgentHostClientType.Unknown, resumedTurn?: Turn, automaticArchive = false, clientSeq?: number, credentials?: IAgentHostCredentialSource): void {
+	handleAction(channel: ProtocolURI, action: StateAction, clientId?: string, clientContextOrType: IAgentHostClientTelemetryContext | AgentHostClientType = AgentHostClientType.Unknown, resumedTurn?: Turn, automaticArchive = false, clientSeq?: number, credentials?: IAgentHostCredentialSource, permissionFeedback?: string): void {
 		let clientContext = typeof clientContextOrType === 'string'
 			? createUnknownAgentHostClientTelemetryContext(clientContextOrType)
 			: clientContextOrType;
@@ -1897,6 +1920,7 @@ export class AgentSideEffects extends Disposable {
 					const agent = this._options.agents.get().find(a => a.id === agentId);
 					agent?.respondToPermissionRequest(action.toolCallId, action.approved, {
 						...readAgentPermissionResponseMeta(action),
+						...(permissionFeedback !== undefined ? { userFeedback: permissionFeedback } : {}),
 						selectedOptionId: action.selectedOptionId,
 						origin: clientId !== undefined && clientSeq !== undefined ? { clientId, clientSeq } : undefined,
 					});
@@ -2118,10 +2142,15 @@ export class AgentSideEffects extends Disposable {
 	}
 
 	private _recordCustomizationEnablement(session: ProtocolURI, candidate: ICustomizationEnablementCandidate, enablement: readonly CustomizationEnablement[]): void {
-		const target = candidate.customization.type === CustomizationType.Plugin
-			? targetForPlugin(candidate.customization)
-			: targetForMcpServer(candidate.customization, candidate.owningPluginUri, false);
-		this._customizationEnablementService.replaceEnablement(session, target, enablement);
+		const customization = candidate.customization;
+		const target = customization.type === CustomizationType.Skill
+			? targetForMcpSkill(customization)
+			: customization.type === CustomizationType.Plugin
+				? targetForPlugin(customization)
+				: targetForMcpServer(customization, candidate.owningPluginUri, false);
+		this._customizationEnablementService.replaceEnablement(session, target, customization.type === CustomizationType.Skill
+			? enablement.filter(entry => entry.kind === CustomizationEnablementKind.Session)
+			: enablement);
 	}
 
 	cancelSessionTitleGeneration(session: ProtocolURI): void {
@@ -2259,10 +2288,15 @@ export class AgentSideEffects extends Disposable {
 			// preparation is only logged: `sendMessage` then prepares as usual and
 			// surfaces any error exactly as it would without the overlap.
 			let providerPreparation: Promise<void> | undefined;
+			// Preparation can materialize the deferred session, so it reports how the send found its warm launch.
+			const prewarmReporters = {
+				reportPrewarmedSession: (discardReason?: string) => this._turnTracker.markPrewarmedSession(turnChannel, turnId, discardReason),
+				reportPrewarmSkipped: (reason: AgentHostPrewarmSkipReason) => this._turnTracker.markPrewarmSkipped(turnChannel, turnId, reason),
+			};
 			if (agent.chats.prepareTurn) {
 				this._overlapExperimentTrigger.report();
 				if (this._agentConfigService.getRootValue(platformRootSchema, AgentHostOverlapProviderPreparationConfigKey) === true) {
-					providerPreparation = agent.chats.prepareTurn(chatUri, turnId, resolvedWorkingDirectories, clientOperationContext).catch(err => {
+					providerPreparation = agent.chats.prepareTurn(chatUri, turnId, resolvedWorkingDirectories, { ...clientOperationContext, ...prewarmReporters }).catch(err => {
 						this._logService.warn(`[AgentSideEffects] Turn preparation failed for ${chat}; sending will prepare again`, err);
 					});
 				}
@@ -2278,7 +2312,7 @@ export class AgentSideEffects extends Disposable {
 				...clientOperationContext,
 				turnTelemetryCorrelation: { agentSessionId: AgentSession.id(sessionChannel), chatSessionId: getTelemetryChatSessionId(turnChannel), turnId },
 				reportCodexModelProvider: (provider: CodexModelProvider) => this._turnTracker.setCodexModelProvider(turnChannel, turnId, provider),
-				reportPrewarmedSession: (discardReason?: string) => this._turnTracker.markPrewarmedSession(turnChannel, turnId, discardReason),
+				...prewarmReporters,
 				...(turnTelemetryContext ? { turnTelemetryContext } : {}),
 				...(contribution.instructions?.length ? { hostInstructions: contribution.instructions } : {}),
 				sendStageRecorder: this._turnTracker.createProviderStageRecorder(turnChannel, turnId),
