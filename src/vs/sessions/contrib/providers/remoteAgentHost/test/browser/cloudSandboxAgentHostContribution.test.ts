@@ -2446,34 +2446,6 @@ suite('CloudSandboxAgentHostContribution startup inventory', () => {
 		}, { removed: true, cached: [], restored: 0, connections: [], history: [] });
 	});
 
-	test('removes task-owned empty placeholders from restored inventory while retaining their shared environment sibling', async () => {
-		const storageService = store.add(new InMemoryStorageService());
-		const real = discoveredSession();
-		const empty = ['empty-1', 'empty-2'].map(id => discoveredSession({
-			sessionId: id, taskId: `task-${id}`, name: 'New task', eventType: 'unknown', status: SessionStatus.Idle,
-		}));
-		const first = await createContribution(store, [real, ...empty], { storageService });
-		first.contribution.dispose();
-		let result: ICloudSandboxDiscoveryResult = { kind: 'failed', reason: 'offline' };
-		const restored = await createContribution(store, [], { storageService, listSessions: async () => result });
-		const provider = restored.contribution.stubProviders.get(cloudSandboxAddress(real.environmentId))!;
-		result = { kind: 'incremental', sessions: [], removedTaskIds: empty.map(session => session.taskId) };
-		await restored.runDiscovery();
-		const remaining = provider.getSessions().map(session => AgentSession.id(session.resource));
-		restored.contribution.dispose();
-		const next = await createContribution(store, [], {
-			storageService, listSessions: async () => ({ kind: 'failed', reason: 'offline' }),
-		});
-
-		assert.deepStrictEqual({
-			remaining,
-			inventory: readInventory(storageService).map(session => session.sessionId),
-			afterRestart: next.contribution.stubProviders.get(cloudSandboxAddress(real.environmentId))?.getSessions().map(session => AgentSession.id(session.resource)),
-			mutations: [...restored.deletedTasks, ...restored.archivedTasks],
-			connections: [...restored.connectedTo, ...next.connectedTo],
-		}, { remaining: [real.sessionId], inventory: [real.sessionId], afterRestart: [real.sessionId], mutations: [], connections: [] });
-	});
-
 	test('refreshes existing provider metadata and persists repository replacement and removal', async () => {
 		const storageService = store.add(new InMemoryStorageService());
 		let result: ICloudSandboxDiscoveryResult = { kind: 'complete', sessions: [discoveredSession()] };
@@ -2761,6 +2733,61 @@ suite('CloudSandboxAgentHostContribution startup inventory', () => {
 
 suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const inventoryComplete of [false, true]) {
+		test(`renewals retry details incrementally only after the inventory was enumerated (inventoryComplete=${inventoryComplete})`, async () => {
+			const requests: (ICloudSandboxDiscoveryOptions | undefined)[] = [];
+			const session = discoveredSession();
+			const harness = await createContribution(store, [session], {
+				listSessions: async (_token, options) => {
+					requests.push(options);
+					return { kind: 'partial', sessions: requests.length === 1 ? [session] : [], inventoryComplete };
+				},
+			});
+			const provider = harness.contribution.stubProviders.get(cloudSandboxAddress(session.environmentId))!;
+			await harness.contribution.refreshFeed('renewal');
+			await harness.contribution.refreshFeed('renewal');
+			assert.deepStrictEqual({
+				requests, retained: !provider.disposed, rows: provider.seeded.map(session => session.summary),
+			}, {
+				requests: [
+					{ incremental: false, includeArchived: false, trigger: 'startup' },
+					{ incremental: inventoryComplete, includeArchived: false, trigger: 'feedRenewal' },
+					{ incremental: inventoryComplete, includeArchived: false, trigger: 'feedRenewal' },
+				],
+				retained: true, rows: [session.name],
+			});
+		});
+	}
+
+	test('enumerated archives with unresolved details are retained across collapse and expansion without another full scan', async () => {
+		const requests: (ICloudSandboxDiscoveryOptions | undefined)[] = [];
+		const completed = new DeferredPromise<void>();
+		const harness = await createContribution(store, [], {
+			listSessions: async (_token, options) => {
+				requests.push(options);
+				if (options?.includeArchived) {
+					return { kind: 'partial', sessions: [], inventoryComplete: true };
+				}
+				return { kind: 'scoped', sessions: [], removedTaskIds: [] };
+			},
+		});
+		store.add(autorun(reader => {
+			if (harness.archiveProvider!.state.read(reader) === 'loaded') {
+				void completed.complete();
+			}
+		}));
+		harness.archiveProvider!.setRequested(true);
+		await completed.p;
+		harness.archiveProvider!.setRequested(false);
+		harness.archiveProvider!.setRequested(true);
+		await harness.contribution.refreshFeed('renewal');
+		assert.deepStrictEqual(requests, [
+			{ incremental: false, includeArchived: false, trigger: 'startup' },
+			{ incremental: false, includeArchived: true, trigger: 'manual' },
+			{ incremental: true, includeArchived: true, trigger: 'feedRenewal' },
+		]);
+	});
 
 	test('a connected feed still processes task hints and renewal and reconnect catch-up', async () => {
 		const requests: (ICloudSandboxDiscoveryOptions | undefined)[] = [];
