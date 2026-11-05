@@ -124,8 +124,8 @@ const PREVIEW_SYSTEM_PROMPT = [
 /** Matches leading model refusals so we suppress the preview rather than surfacing an apology. */
 const PREVIEW_REFUSAL_PREFIX_RE = /^(?:sorry\b|unfortunately\b|my apologies\b|as an ai\b|i\s+apologi[sz]e\b|i\s*['\u2019]?m\s+sorry\b|i\s+am\s+sorry\b|i\s*['\u2019]?m\s+unable\b|i\s+am\s+unable\b|i\s+am\s+not\s+able\b|i\s*(?:can['\u2019]?t|cannot|can\s?not|won['\u2019]?t)\b)/i;
 
-function toPreviewPlainText(value: string | IMarkdownString): string {
-	const text = typeof value === 'string' ? value : renderAsPlaintext(value);
+function toPreviewPlainText(value: string | IMarkdownString, options?: { readonly omitMarkdownSyntax?: boolean }): string {
+	const text = typeof value === 'string' ? value : renderAsPlaintext(value, options);
 	return text.replace(/\s+/g, ' ').trim();
 }
 
@@ -1133,7 +1133,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				case 'toolConfirmation':
 					return {
 						contextLabel: 'tool run waiting for the user to approve',
-						detailText: [toPreviewPlainText(part.title), toPreviewPlainText(part.message), part.commandLine, part.toolInput].filter(Boolean).join(' — '),
+						detailText: [toPreviewPlainText(part.title), toPreviewPlainText(part.message, { omitMarkdownSyntax: true }), part.commandLine, part.toolInput].filter(Boolean).join(' — '),
 					};
 				case 'planReview':
 					return {

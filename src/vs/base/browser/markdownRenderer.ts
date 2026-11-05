@@ -841,7 +841,7 @@ export function renderAsPlaintext(str: IMarkdownString | string, options?: {
 	 *
 	 * By default a list item is emitted as its raw source, so inline syntax survives into the
 	 * output — a link keeps its target, as in `- Added [src/](/some/path)`, and `**bold**` keeps
-	 * its asterisks. Enable this for callers that need the text a reader actually sees. Off by
+	 * its asterisks. Enable this for callers that need visible text, including escaped link labels. Off by
 	 * default because it changes long-standing output for every caller.
 	 */
 	readonly omitMarkdownSyntax?: boolean;
@@ -868,6 +868,10 @@ export function renderAsPlaintext(str: IMarkdownString | string, options?: {
 		// A tight list item's content arrives as a block-level text token carrying the inline
 		// tokens, so the list item alone is not enough to reach the inline renderers.
 		renderer.text = parsedText;
+		renderer.link = function (token: marked.Tokens.Link): string {
+			const text = this.parser.parseInline(token.tokens);
+			return options.useLinkFormatter ? linkFormatter({ ...token, text }) : text;
+		};
 	}
 
 	const html = marked.parse(value, { async: false, renderer });

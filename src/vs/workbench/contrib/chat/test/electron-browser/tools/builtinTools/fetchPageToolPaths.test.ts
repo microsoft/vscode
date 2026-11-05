@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { renderMarkdown } from '../../../../../../../base/browser/markdownRenderer.js';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../../../base/common/event.js';
-import { IMarkdownString } from '../../../../../../../base/common/htmlContent.js';
+import { IMarkdownString, isMarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { upcastDeepPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
@@ -19,6 +20,7 @@ import { TestContextService, TestFileService } from '../../../../../../test/comm
 import { MockTrustedDomainService } from '../../../../../url/test/browser/mockTrustedDomainService.js';
 import { IChatToolRiskAssessmentService } from '../../../../browser/tools/chatToolRiskAssessmentService.js';
 import { LanguageModelToolsService } from '../../../../browser/tools/languageModelToolsService.js';
+import { getChatMarkdownRenderOptions } from '../../../../browser/widget/chatContentMarkdownRenderer.js';
 import { IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
 import { IChatModel, IChatRequestModel } from '../../../../common/model/chatModel.js';
@@ -98,6 +100,9 @@ suite('FetchWebPageTool effective paths', () => {
 				{ parameters: { urls: [url] }, toolCallId: 'path-test', chatSessionResource: undefined },
 				CancellationToken.None
 			);
+			const confirmationMessage = prepared?.confirmationMessages?.message;
+			assert.ok(isMarkdownString(confirmationMessage));
+			const confirmation = store.add(renderMarkdown(confirmationMessage, getChatMarkdownRenderOptions())).element;
 			const effectsBeforeInvocation = fixture.extractedUris.length;
 			const result = await fixture.tool.invoke(
 				{ callId: 'path-test', toolId: FetchWebPageToolData.id, parameters: { urls: [url] }, context: undefined },
@@ -109,7 +114,8 @@ suite('FetchWebPageTool effective paths', () => {
 			assert.deepStrictEqual({
 				effectsBeforeInvocation,
 				policy: fixture.policyUris,
-				confirmation: messageText(prepared?.confirmationMessages?.message),
+				confirmation: confirmation.textContent,
+				confirmationTargets: Array.from(confirmation.querySelectorAll('a'), anchor => anchor.dataset.href),
 				invocation: messageText(prepared?.invocationMessage),
 				extracted: fixture.extractedUris,
 				browser: fixture.browserDestinations,
@@ -118,6 +124,7 @@ suite('FetchWebPageTool effective paths', () => {
 				effectsBeforeInvocation: 0,
 				policy: [destination, destination],
 				confirmation: destination,
+				confirmationTargets: [destination],
 				invocation: `Fetching ${destination}`,
 				extracted: [destination],
 				browser: [destination],

@@ -7097,7 +7097,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		if (!value) {
 			return '';
 		}
-		const plainText = renderAsPlaintext(typeof value === 'string' ? { value } : value, { useLinkFormatter: true }).replace(/\s+/g, ' ').trim();
+		const plainText = renderAsPlaintext(typeof value === 'string' ? { value } : value, { useLinkFormatter: true, omitMarkdownSyntax: true }).replace(/\s+/g, ' ').trim();
 		if (plainText.length <= maxLength) {
 			return plainText;
 		}

@@ -8,7 +8,7 @@ import { ConfirmationOptionKind } from '../../../../../platform/agentHost/common
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { type IMarkdownString } from '../../../../../base/common/htmlContent.js';
+import { escapeMarkdownLinkText, type IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { DisposableStore, IDisposable, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, ISettableObservable, autorun, constObservable, observableValue, transaction, waitForState } from '../../../../../base/common/observable.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -1855,6 +1855,41 @@ suite('InboxNotificationsService', () => {
 				buttonLabels: ['Allow Once', 'Skip'],
 			},
 		}]);
+	});
+
+	test('uses literal linked tool-confirmation URLs in preview input', () => {
+		const chatResource = URI.parse('test:///chat/fetch-links');
+		const chatService = new TestChatService();
+		const fixture = createFixture([
+			createSession({ id: 'fetch-links', status: SessionStatus.NeedsInput, updatedAt: 200, chatResource }),
+		], undefined, undefined, chatService);
+		const urls = ['https://example.com/?text=foo bar&size=20', 'https://example.com/?text=[foo] (bar)'];
+		const message = new MarkdownString(urls.map(url => `- ${new MarkdownString().appendLink(url, escapeMarkdownLinkText(url)).value}`).join('\n'));
+		chatService.setPendingParts(chatResource, {
+			requestId: 'fetch-links-request',
+			startedWaitingAt: 10,
+			parts: [upcastPartial<IChatToolInvocation>({
+				kind: 'toolInvocation',
+				toolCallId: 'fetch-links',
+				state: observableValue<IChatToolInvocation.State>('fetch-links', {
+					type: IChatToolInvocation.StateKind.WaitingForConfirmation,
+					parameters: {},
+					confirmationMessages: { title: 'Fetch web pages?', message },
+					confirm: () => { },
+				}),
+			})],
+		});
+		const input = fixture.service.notifications.get()[0].previewInputText ?? '';
+
+		assert.deepStrictEqual({
+			containsLiteralUrls: input.includes(urls.join(' ')),
+			containsEscapes: input.includes('\\'),
+			containsLinkSyntax: input.includes(']('),
+		}, {
+			containsLiteralUrls: true,
+			containsEscapes: false,
+			containsLinkSyntax: false,
+		});
 	});
 
 	test('result approval has a distinct identity after execution approval is dismissed', () => {

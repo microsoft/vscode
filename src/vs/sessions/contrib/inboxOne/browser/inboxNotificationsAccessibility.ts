@@ -149,7 +149,7 @@ export function buildInboxNotificationsAccessibleContent(items: readonly (Pick<I
 			const part = item.needsInputPart;
 			for (const text of [part.originMessage, part.title, part.message, part.commandLine, part.disclaimer]) {
 				if (text) {
-					lines.push(typeof text === 'string' ? text : renderAsPlaintext(text));
+					lines.push(typeof text === 'string' ? text : renderAsPlaintext(text, { omitMarkdownSyntax: text === part.message }));
 				}
 			}
 			if (!part.buttons.length) {
