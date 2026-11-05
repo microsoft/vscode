@@ -6,7 +6,7 @@
 import type { URI } from '../../../../base/common/uri.js';
 import type { IRange } from '../../../../editor/common/core/range.js';
 import type { AgentFeedbackAuthorValue, IFeedbackPullRequest } from '../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
-import type { ICodeReviewSuggestion } from '../../codeReview/browser/codeReviewService.js';
+import type { ICodeReviewSuggestion } from '../../codeReview/browser/codeReview.js';
 
 /**
  * Core agent-feedback model types.

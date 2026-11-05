@@ -17,8 +17,9 @@ import { ArtifactIntegrationsSettingId } from '../../../../platform/artifactInte
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
-import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
-import { buildFixCIPrompt, countRequiredChecks, submitFixCIChecks } from '../../changes/browser/checksActions.js';
+import { IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedback.js';
+import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback } from '../../agentFeedback/browser/agentFeedbackModel.js';
+import { buildFixCIPrompt, countRequiredChecks, submitFixCIChecks } from '../../changes/browser/fixCIChecks.js';
 import { whenChatWidgetForSession } from '../../chat/browser/chatWidgetUtils.js';
 import type { ISessionChatPillsDebugData } from '../../chat/browser/sessionChatInputToolbarDebug.js';
 import { IGitHubService } from '../../../../workbench/contrib/sessions/browser/github/githubService.js';

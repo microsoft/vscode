@@ -107,14 +107,14 @@ import { IAccessibilitySignalService } from '../../../../platform/accessibilityS
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { InMemoryTextModelService } from '../../../../editor/common/services/inMemoryTextModelService.js';
 // eslint-disable-next-line local/code-import-patterns
-import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, IAgentFeedbackService } from '../../../../sessions/contrib/agentFeedback/browser/agentFeedbackService.js';
+import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, IAgentFeedbackService } from '../../../../sessions/contrib/agentFeedback/browser/agentFeedback.js';
 import { IChatEditingService } from '../../../contrib/chat/common/editing/chatEditingService.js';
 import { ISessionsManagementService } from '../../../contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../contrib/sessions/browser/sessionsService.js';
 import { ActiveSessionHost, SessionHostKind } from '../../../contrib/sessions/browser/sessionHost.js';
 import { ISessionChangesStatsCache, SessionChangesStatsCache } from '../../../contrib/sessions/common/sessionChangesStatsCache.js';
 // eslint-disable-next-line local/code-import-patterns
-import { ICodeReviewService, PRReviewStateKind } from '../../../../sessions/contrib/codeReview/browser/codeReviewService.js';
+import { ICodeReviewService, PRReviewStateKind } from '../../../../sessions/contrib/codeReview/browser/codeReview.js';
 import { constObservable } from '../../../../base/common/observable.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 

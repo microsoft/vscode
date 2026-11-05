@@ -19,7 +19,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { IAICustomizationItemsModel } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
-import { readTotalCustomizationCount } from './customizationsToolbar.contribution.js';
+import { readTotalCustomizationCount } from './customizationItems.js';
 import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { IAICustomizationMcpServerCountService } from './customizationMcpServerCount.js';
 import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';

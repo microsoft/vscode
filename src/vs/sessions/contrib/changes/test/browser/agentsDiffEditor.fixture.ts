@@ -38,10 +38,11 @@ import { TestEditorInput } from '../../../../../workbench/test/browser/workbench
 import { AgentFeedbackEditorInputContribution } from '../../../agentFeedback/browser/agentFeedbackEditorInputContribution.js';
 import { AgentFeedbackOverlayController, IAgentFeedbackOverlayEditorGroup } from '../../../agentFeedback/browser/agentFeedbackEditorOverlay.js';
 import { clearAllFeedbackActionId, navigateNextFeedbackActionId, navigatePreviousFeedbackActionId, navigationBearingFakeActionId, submitFeedbackActionId } from '../../../agentFeedback/browser/agentFeedbackEditorActions.js';
-import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackService } from '../../../agentFeedback/browser/agentFeedbackService.js';
+import { IAgentFeedbackService } from '../../../agentFeedback/browser/agentFeedback.js';
+import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback } from '../../../agentFeedback/browser/agentFeedbackModel.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { ISession, ISessionFileChange } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { ICodeReviewService } from '../../../codeReview/browser/codeReviewService.js';
+import { ICodeReviewService } from '../../../codeReview/browser/codeReview.js';
 import { createMockCodeReviewService } from '../../../../../workbench/test/browser/componentFixtures/sessions/mockCodeReviewService.js';
 
 const SESSION_RESOURCE = URI.parse('fixture-session://agents-diff');

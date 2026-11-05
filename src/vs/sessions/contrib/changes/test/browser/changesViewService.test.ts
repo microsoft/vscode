@@ -16,8 +16,9 @@ import { TestStorageService } from '../../../../../workbench/test/common/workben
 import { IChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IActiveSession, IChatDeletedEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { BRANCH_CHANGES_CHANGESET_ID, IChat, ISession, ISessionChangeset, ISessionChangesetOperation, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope, SessionChangesetOperationStatus, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { AgentFeedbackState, IAgentFeedback, IAgentFeedbackService } from '../../../agentFeedback/browser/agentFeedbackService.js';
-import { ICodeReviewService, PRReviewStateKind } from '../../../codeReview/browser/codeReviewService.js';
+import { IAgentFeedbackService } from '../../../agentFeedback/browser/agentFeedback.js';
+import { AgentFeedbackState, IAgentFeedback } from '../../../agentFeedback/browser/agentFeedbackModel.js';
+import { ICodeReviewService, PRReviewStateKind } from '../../../codeReview/browser/codeReview.js';
 import { ChangesetReviewedFilesContext, ChangesViewService } from '../../browser/changesViewService.js';
 import { getChangesOfSession } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { ChangesViewMode } from '../../../../../workbench/contrib/sessions/common/changes.js';

@@ -123,9 +123,9 @@ import { IAgentHostCustomizationService } from '../../../../contrib/chat/browser
 import { ICanvasContext, ICanvasContextService, ICanvasDefinition, ICanvasService } from '../../../../contrib/canvases/common/canvas.js';
 import { CustomizationEnablementKind, McpAuthRequiredReason, McpServerStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 // eslint-disable-next-line local/code-import-patterns
-import { IAgentFeedbackService } from '../../../../../sessions/contrib/agentFeedback/browser/agentFeedbackService.js';
+import { IAgentFeedbackService } from '../../../../../sessions/contrib/agentFeedback/browser/agentFeedback.js';
 // eslint-disable-next-line local/code-import-patterns
-import { ICodeReviewService } from '../../../../../sessions/contrib/codeReview/browser/codeReviewService.js';
+import { ICodeReviewService } from '../../../../../sessions/contrib/codeReview/browser/codeReview.js';
 import { createMockCodeReviewService } from './mockCodeReviewService.js';
 import { IChatEditingService } from '../../../../contrib/chat/common/editing/chatEditingService.js';
 import { IAgentSessionsService } from '../../../../contrib/chat/browser/agentSessions/agentSessionsService.js';

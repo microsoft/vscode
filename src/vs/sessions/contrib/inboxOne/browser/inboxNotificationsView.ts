@@ -84,10 +84,12 @@ import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/c
 import { InboxCanvasFocusContext } from '../../../common/agentsWindowContextKeys.js';
 import { AUTO_DELETE_MARKED_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_MARK_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING } from '../../../../workbench/contrib/sessions/common/github/sessionLifecycleSettings.js';
 import { IGitHubService } from '../../../../workbench/contrib/sessions/browser/github/githubService.js';
-import { buildFixCIPrompt } from '../../changes/browser/checksActions.js';
-import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
+import { buildFixCIPrompt } from '../../changes/browser/fixCIChecks.js';
+import { IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedback.js';
+import { AgentFeedbackKind, AgentFeedbackState } from '../../agentFeedback/browser/agentFeedbackModel.js';
 import { syncPRReviewFeedback } from '../../agentFeedback/browser/agentFeedbackPRReviewSeeder.js';
-import { getPRReviewComments, IPRReviewComment } from '../../codeReview/browser/codeReviewService.js';
+import { getPRReviewComments } from '../../codeReview/browser/codeReviewService.js';
+import { IPRReviewComment } from '../../codeReview/browser/codeReview.js';
 import {
 	IInboxDetailSummary,
 	IInboxNotificationAction,

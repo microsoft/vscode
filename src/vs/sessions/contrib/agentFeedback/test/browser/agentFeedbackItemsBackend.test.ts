@@ -26,7 +26,7 @@ import { ISession } from '../../../../../workbench/contrib/sessions/common/sessi
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { AnnotationsAgentFeedbackItemsBackend } from '../../browser/agentFeedbackItemsBackend.js';
-import { AgentFeedbackKind, AgentFeedbackState } from '../../browser/agentFeedbackService.js';
+import { AgentFeedbackKind, AgentFeedbackState } from '../../browser/agentFeedbackModel.js';
 import { stubFocusedSessionHostFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('AnnotationsAgentFeedbackItemsBackend', () => {

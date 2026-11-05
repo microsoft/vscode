@@ -23,7 +23,7 @@ import { ICustomizationMigrationIgnoredGroup, ICustomizationMigrationService } f
 import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { IFocusedSessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { IAICustomizationMcpServerCountService } from './customizationMcpServerCount.js';
-import { readTotalCustomizationCount } from './customizationsToolbar.contribution.js';
+import { readTotalCustomizationCount } from './customizationItems.js';
 import { IAgentsWindowExtensionSuggestionsService } from '../../extensions/browser/agentsWindowExtensionSuggestions.js';
 
 export class CustomizationsNavigationState extends Disposable {

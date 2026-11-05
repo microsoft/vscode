@@ -10,7 +10,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IAgentEditorComment, IAgentEditorCommentRevealEvent, IAgentEditorCommentsBridge, IAgentEditorCommentsProvider } from '../../../../workbench/services/agentEditorComments/common/agentEditorComments.js';
-import { IAgentFeedbackService } from './agentFeedbackService.js';
+import { IAgentFeedbackService } from './agentFeedback.js';
 import { getSessionEditorComments, fromSessionEditorCommentId, SessionEditorCommentSource } from './sessionEditorComments.js';
 import { IPlanReviewFeedbackService } from '../../../../workbench/contrib/chat/browser/planReviewFeedback/planReviewFeedbackService.js';
 import { AgentFeedbackState } from './agentFeedbackModel.js';

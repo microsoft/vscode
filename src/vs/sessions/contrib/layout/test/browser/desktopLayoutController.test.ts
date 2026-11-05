@@ -45,7 +45,7 @@ import { IEditorWillOpenEvent, isResourceEditorInput } from '../../../../../work
 import { DesktopLayoutController, TOGGLE_DETAILS_COMMAND_ID } from '../../browser/desktopLayoutController.js';
 import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID } from '../../../../../workbench/contrib/sessions/common/changes.js';
 import { ChangesViewPane } from '../../../changes/browser/changesView.js';
-import { REVEAL_CI_CHECKS_COMMAND_ID } from '../../../changes/browser/checksActions.js';
+import { REVEAL_CI_CHECKS_COMMAND_ID } from '../../../changes/browser/fixCIChecks.js';
 import { GitHubCheckConclusion, GitHubCheckStatus } from '../../../../../workbench/contrib/sessions/common/github/types.js';
 import '../../../changes/browser/changesActions.js';
 import { SESSIONS_FILES_CONTAINER_ID } from '../../../files/browser/files.contribution.js';

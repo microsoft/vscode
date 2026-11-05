@@ -32,7 +32,7 @@ import { IChatViewFactory } from '../../../../services/chatView/browser/chatView
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { IAgentFeedbackService } from '../../../agentFeedback/browser/agentFeedbackService.js';
+import { IAgentFeedbackService } from '../../../agentFeedback/browser/agentFeedback.js';
 import { IGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
 import { NEW_SESSION_WELCOME_NAME_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { InboxNotificationsView } from '../../browser/inboxNotificationsView.js';

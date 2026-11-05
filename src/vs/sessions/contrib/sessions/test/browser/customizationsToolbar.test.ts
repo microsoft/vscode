@@ -43,7 +43,8 @@ import { PromptsStorage } from '../../../../../workbench/contrib/chat/common/pro
 import { ILanguageModelToolsService, IToolData, IToolSet } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IAICustomizationMcpServerCountService } from '../../browser/customizationMcpServerCount.js';
-import { CUSTOMIZATION_ITEMS, CustomizationLinkViewItem, CustomizationsToolbarContribution, readCustomizationCount } from '../../browser/customizationsToolbar.contribution.js';
+import { CustomizationLinkViewItem, CustomizationsToolbarContribution } from '../../browser/customizationsToolbar.contribution.js';
+import { CUSTOMIZATION_ITEMS, readCustomizationCount } from '../../browser/customizationItems.js';
 import { CustomizationsNavigationState } from '../../browser/customizationsNavigationState.js';
 import { IAgentsWindowExtensionSuggestionsService } from '../../../extensions/browser/agentsWindowExtensionSuggestions.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';

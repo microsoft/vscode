@@ -17,7 +17,8 @@ import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/action
 import { SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { resolveSessionCommandTarget } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
-import { CodeReviewService, ICodeReviewService } from './codeReviewService.js';
+import { CodeReviewService } from './codeReviewService.js';
+import { ICodeReviewService } from './codeReview.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { SessionChangesEditorInput } from '../../changes/browser/sessionChangesEditorInput.js';

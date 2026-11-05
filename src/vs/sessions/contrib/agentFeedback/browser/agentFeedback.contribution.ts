@@ -17,7 +17,9 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
-import { AgentFeedbackService, AgentFeedbackState, IAgentFeedbackService } from './agentFeedbackService.js';
+import { AgentFeedbackService } from './agentFeedbackService.js';
+import { IAgentFeedbackService } from './agentFeedback.js';
+import { AgentFeedbackState } from './agentFeedbackModel.js';
 import { AgentFeedbackAttachmentContribution } from './agentFeedbackAttachment.js';
 import { AgentEditorCommentsProviderContribution } from './agentEditorCommentsProvider.js';
 import { AgentFeedbackPRThreadResolverContribution } from './agentFeedbackPRThreadResolver.js';

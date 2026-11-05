@@ -8,8 +8,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { getResourceEditorComments, getSessionEditorComments, groupNearbySessionEditorComments, hasAcceptedAgentFeedbackComments, SessionEditorCommentSource } from '../../browser/sessionEditorComments.js';
-import { AgentFeedbackKind, AgentFeedbackState } from '../../browser/agentFeedbackService.js';
-import { IPRReviewState, PRReviewStateKind } from '../../../codeReview/browser/codeReviewService.js';
+import { AgentFeedbackKind, AgentFeedbackState } from '../../browser/agentFeedbackModel.js';
+import { IPRReviewState, PRReviewStateKind } from '../../../codeReview/browser/codeReview.js';
 
 suite('SessionEditorComments', () => {
 	const session = URI.parse('test://session/1');

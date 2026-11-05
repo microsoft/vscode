@@ -15,7 +15,7 @@ import { ActionType } from '../../../../platform/agentHost/common/state/protocol
 import { Annotation, AnnotationEntry, AnnotationsState, StateComponents, StringOrMarkdown } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { TextRange } from '../../../../platform/agentHost/common/state/protocol/common/state.js';
 import { authorForFeedbackKind, feedbackAnnotationEntryMeta, FEEDBACK_ANNOTATION_META_KEY, readFeedbackAnnotationMeta, resolveFeedbackEntryAuthor, type AgentFeedbackKindValue, type AgentFeedbackStateValue, type IFeedbackAnnotationMeta, type IFeedbackPullRequest } from '../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
-import { ICodeReviewSuggestion } from '../../codeReview/browser/codeReviewService.js';
+import { ICodeReviewSuggestion } from '../../codeReview/browser/codeReview.js';
 import { IAgentHostSessionsProvider, isAgentHostProviderId } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';

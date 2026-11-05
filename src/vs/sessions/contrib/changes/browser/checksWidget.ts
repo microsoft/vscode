@@ -22,7 +22,7 @@ import { DEFAULT_LABELS_CONTAINER, IResourceLabel, ResourceLabels } from '../../
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { GitHubCheckConclusion, GitHubCheckStatus, IGitHubCICheck } from '../../../../workbench/contrib/sessions/common/github/types.js';
 import { GitHubPullRequestCIModel, parseWorkflowRunId } from '../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
-import { CICheckGroup, getCheckGroup, getCheckStateLabel } from './checksActions.js';
+import { CICheckGroup, getCheckGroup, getCheckStateLabel } from './fixCIChecks.js';
 import { ChecksViewModel } from './checksViewModel.js';
 
 const $ = dom.$;

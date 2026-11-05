@@ -27,7 +27,7 @@ import { BrowserEditorInput } from '../../../../contrib/browserView/common/brows
 import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../../../contrib/browserView/common/browserView.js';
 import { IWorkbenchGitHubService } from '../../../../services/github/common/githubService.js';
 // eslint-disable-next-line local/code-import-patterns
-import { IAgentFeedbackService } from '../../../../../sessions/contrib/agentFeedback/browser/agentFeedbackService.js';
+import { IAgentFeedbackService } from '../../../../../sessions/contrib/agentFeedback/browser/agentFeedback.js';
 // eslint-disable-next-line local/code-import-patterns
 import { SESSION_CHAT_INPUT_TOOLBAR_HEIGHT, SessionChatInputToolbar } from '../../../../../sessions/contrib/chat/browser/sessionChatInputToolbar.js';
 // eslint-disable-next-line local/code-import-patterns

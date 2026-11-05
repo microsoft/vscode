@@ -9,7 +9,7 @@ import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ISessionFileChange } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { getFeedbackSessionCandidates, getSessionChangeForResource } from '../../browser/agentFeedbackEditorUtils.js';
-import { IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
+import { IAgentFeedbackService } from '../../browser/agentFeedback.js';
 
 suite('AgentFeedbackEditorUtils', () => {
 

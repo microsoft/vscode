@@ -15,12 +15,7 @@ import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/co
 import { MultiDiffEditorInput } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
 import { ISessionFileChange } from '../../../../workbench/contrib/sessions/common/session.js';
 import { SessionChangesEditorInput } from '../../changes/browser/sessionChangesEditorInput.js';
-import type { IAgentFeedbackService } from './agentFeedbackService.js';
-
-export interface IAgentFeedbackContext {
-	readonly codeSelection?: string;
-	readonly diffHunks?: string;
-}
+import { type IAgentFeedbackService, IAgentFeedbackContext } from './agentFeedback.js';
 
 export function changeMatchesResource(change: ISessionFileChange, resourceUri: URI): boolean {
 	if (isIChatSessionFileChange2(change)) {

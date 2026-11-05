@@ -8,8 +8,9 @@ import { URI } from '../../../../base/common/uri.js';
 import { IFeedbackPullRequest } from '../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
-import { ICodeReviewService } from '../../codeReview/browser/codeReviewService.js';
-import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedbackChangeEvent, IAgentFeedbackService } from './agentFeedbackService.js';
+import { ICodeReviewService } from '../../codeReview/browser/codeReview.js';
+import { IAgentFeedbackChangeEvent, IAgentFeedbackService } from './agentFeedback.js';
+import { AgentFeedbackKind, AgentFeedbackState } from './agentFeedbackModel.js';
 
 interface ISeenPRComment {
 	readonly state: AgentFeedbackState;
