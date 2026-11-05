@@ -11,7 +11,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { createAgentHostResourceUriMapper } from '../../../../../platform/agentHost/common/agentHostUri.js';
-import { CustomizationType, McpServerStatus, type Customization, type McpServerCustomization, type PluginCustomization } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { CustomizationType, McpServerStatus, type AgentCustomization, type Customization, type McpServerCustomization, type PluginCustomization } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILoggerService, NullLoggerService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
@@ -22,7 +22,7 @@ import { AgentHostCustomizationService } from '../../browser/agentHostCustomizat
 import { IChat, ISession } from '../../../sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../sessions/browser/sessionsProvidersService.js';
-import { ISessionsService } from '../../../sessions/browser/sessionsService.js';
+import { focusedSessionHostServiceOf } from '../../../sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsProvider } from '../../../sessions/common/sessionsProvider.js';
 import { assertCodexSkillItems, createCodexSkillCustomizations } from '../../../../../workbench/contrib/chat/test/browser/agentSessions/agentHostSkillDiscoveryTestUtils.js';
 
@@ -56,11 +56,10 @@ suite('AgentHostCustomizationService', () => {
 		const service = store.add(new AgentHostCustomizationService(
 			new class extends mock<ISessionsManagementService>() {
 				override readonly onDidChangeSessions = Event.None;
+				override readonly automationSession = constObservable<ISession | undefined>(undefined);
 				override getSession(): ISession { return session; }
 			}(),
-			new class extends mock<ISessionsService>() {
-				override readonly activeSession = observableValue<IActiveSession | undefined>(this, session);
-			}(),
+			focusedSessionHostServiceOf(observableValue<IActiveSession | undefined>('activeSession', session)),
 			new class extends mock<ISessionsProvidersService>() {
 				constructor(private readonly _provider: ISessionsProvider) { super(); }
 				override getProvider<T extends ISessionsProvider>(): T { return this._provider as T; }
@@ -74,22 +73,22 @@ suite('AgentHostCustomizationService', () => {
 		await assertCodexSkillItems(service, sessionResource, store);
 	});
 
-	function createSut(provider: IAgentHostSessionsProvider, activeClientService?: IAgentHostActiveClientService): { service: AgentHostCustomizationService; sessionResource: URI } {
+	function createSut(provider: IAgentHostSessionsProvider, activeClientService?: IAgentHostActiveClientService, automationDraft = false): { service: AgentHostCustomizationService; sessionResource: URI } {
 		const sessionResource = URI.parse('agent-host-copilot:///session-1');
 		const session = new class extends mock<ISession>() {
 			override readonly resource = sessionResource;
 			override readonly providerId = provider.id;
 			override readonly sessionId = `${provider.id}:session-1`;
+			override readonly mode = constObservable(undefined);
 		};
 		const sessionsManagementService = new class extends mock<ISessionsManagementService>() {
 			override readonly onDidChangeSessions = Event.None;
+			override readonly automationSession = constObservable<ISession | undefined>(automationDraft ? session : undefined);
 			override getSession(resource: URI): ISession | undefined {
-				return resource.toString() === sessionResource.toString() ? session : undefined;
+				return !automationDraft && resource.toString() === sessionResource.toString() ? session : undefined;
 			}
 		};
-		const sessionsService = new class extends mock<ISessionsService>() {
-			override readonly activeSession = observableValue(this, undefined);
-		};
+		const focusedSessionHostService = focusedSessionHostServiceOf(constObservable(undefined));
 		const sessionsProvidersService = new class extends mock<ISessionsProvidersService>() {
 			constructor(private readonly _provider: ISessionsProvider) {
 				super();
@@ -107,7 +106,7 @@ suite('AgentHostCustomizationService', () => {
 		});
 		const service = store.add(new AgentHostCustomizationService(
 			sessionsManagementService,
-			sessionsService,
+			focusedSessionHostService,
 			sessionsProvidersService,
 			instantiationService,
 			new NullLogService(),
@@ -118,6 +117,26 @@ suite('AgentHostCustomizationService', () => {
 		));
 		return { service, sessionResource };
 	}
+
+	test('resolves custom agents from a hidden Automation draft', () => {
+		const agent: AgentCustomization = {
+			type: CustomizationType.Agent,
+			id: 'file:///workspace/.github/agents/reviewer.agent.md',
+			uri: 'file:///workspace/.github/agents/reviewer.agent.md',
+			name: 'Reviewer',
+		};
+		const provider = new class extends mock<IAgentHostSessionsProvider>() {
+			override readonly id = 'agenthost-test';
+			override readonly onDidChangeCustomAgents = Event.None;
+			override readonly onDidChangeCustomizations = Event.None;
+			override getCustomAgents(): readonly AgentCustomization[] {
+				return [agent];
+			}
+		}();
+		const { service, sessionResource } = createSut(provider, undefined, true);
+
+		assert.deepStrictEqual(service.getCustomAgents(sessionResource), [agent]);
+	});
 
 	test('resolves the selected Agents chat through the provider advertised backend URI', () => {
 		const sessionResource = URI.parse('agent-host-copilot:///session-1');
@@ -153,6 +172,7 @@ suite('AgentHostCustomizationService', () => {
 		const service = store.add(new AgentHostCustomizationService(
 			new class extends mock<ISessionsManagementService>() {
 				override readonly onDidChangeSessions = Event.None;
+				override readonly automationSession = constObservable<ISession | undefined>(undefined);
 				override getSession(resource: URI): ISession | undefined {
 					return isEqual(resource, sessionResource) ? session : undefined;
 				}
@@ -160,9 +180,7 @@ suite('AgentHostCustomizationService', () => {
 					return { session, chat: mainChat };
 				}
 			}(),
-			new class extends mock<ISessionsService>() {
-				override readonly activeSession = constObservable<IActiveSession | undefined>(session);
-			}(),
+			focusedSessionHostServiceOf(constObservable<IActiveSession | undefined>(session)),
 			new class extends mock<ISessionsProvidersService>() {
 				override getProvider<T extends ISessionsProvider>(): T {
 					return provider as unknown as T;
@@ -188,12 +206,14 @@ suite('AgentHostCustomizationService', () => {
 		const plugin: PluginCustomization = {
 			type: CustomizationType.Plugin,
 			id: 'plugin',
-			uri: 'vscode-synced-customization:///plugin',
+			uri: URI.parse('vscode-synced-customization:///plugin').toString(),
 			name: 'Plugin',
+			clientId: 'vscode',
 			children: [server],
 		};
 		const provider = new class extends mock<IAgentHostSessionsProvider>() {
 			override readonly id = 'agenthost-test';
+			override getClientId(): string { return 'vscode'; }
 			override readonly onDidChangeCustomAgents = Event.None;
 			override readonly onDidChangeCustomizations = Event.None;
 			override getBackendSessionResource(): URI { return URI.parse('other-agent://tenant/conversations/opaque-session'); }

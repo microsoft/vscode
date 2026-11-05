@@ -6,8 +6,9 @@
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { IChatSessionItemArchiveState } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { constObservable, IObservable, IReader, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -20,8 +21,12 @@ import { IChatService } from '../../../../../workbench/contrib/chat/common/chatS
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
+import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
+import { IInboxNotificationsService, InboxNotificationsSortMode } from '../../../inboxOne/common/inboxNotificationsService.js';
 import { IDeletedSessionGroups, ISessionGroup, ISessionGroupAppearance, ISessionGroupPlacement, ISessionGroupsChangeEvent, ISessionGroupsService, SessionGroupTree } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionListModelChangeEvent, ISessionsListModelService, SessionListModelChangeKind, SessionSortEntry, SessionSortMode } from '../../../../services/sessions/browser/sessionsListModelService.js';
+import { ISessionsListPresentation } from '../../../../services/presentation/browser/sessionsListPresentation.js';
+import { DefaultSessionsListPresentation } from '../../../../services/presentation/browser/defaultSessionsListPresentation.js';
 import { ISessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
@@ -31,6 +36,7 @@ import { IChat, ISession, ISessionCapabilities, ISessionChangesSummary, SessionS
 import { ISessionComparison, ISessionComparisonService } from '../../../../services/sessions/common/sessionComparison.js';
 import { IDeleteChatOptions } from '../../../../services/sessions/common/sessionsProvider.js';
 import { getSessionApplication } from '../../../../common/sessionApplication.js';
+import { stubSessionHostsFromSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 const ITestAgentSessionsService = createDecorator<object>('agentSessions');
 
@@ -44,6 +50,12 @@ export class TestCommandService extends mock<ICommandService>() {
 }
 
 export class TestSessionsManagementService extends mock<ISessionsManagementService>() {
+	override readonly archivedSessionItems = observableValue<IChatSessionItemArchiveState>(this, { available: false, state: 'loaded' });
+	archiveRequests = 0;
+	override acquireArchivedSessionItems() {
+		this.archiveRequests++;
+		return toDisposable(() => this.archiveRequests--);
+	}
 	override readonly onDidChangeSessions = Event.None;
 	override canMoveChat(_session: ISession, _chat: IChat): boolean { return false; }
 	override canMoveSessionUnder(_session: ISession): boolean { return false; }
@@ -270,8 +282,14 @@ export interface IListHarnessOptions {
 	readonly sectionMemberships?: ReadonlyMap<string, string>;
 	readonly sectionAppearances?: ReadonlyMap<string, ISessionGroupAppearance>;
 	readonly pinnedSessionIds?: ReadonlySet<string>;
+	/** Automation sessions shown in the Sessions list. The harness updates the set as the real service does. */
+	readonly shownAutomationSessionIds?: ReadonlySet<string>;
 	/** Apply sort changes and fire change events, as the real service does. */
 	readonly liveListModel?: boolean;
+	/** Apply pinSession changes and fire change events, as the real service does. */
+	readonly livePins?: boolean;
+	/** The active session, whose open chat the list selects. */
+	readonly activeSession?: IObservable<IActiveSession | undefined>;
 	readonly liveGroups?: boolean;
 	readonly comparisons?: readonly ISessionComparison[];
 	/** Custom groups the user capped with "Show less" in an earlier window; groups otherwise list every session. */
@@ -291,6 +309,8 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 	const memberships = options.memberships ?? new Map();
 	const sectionMemberships = options.sectionMemberships ?? new Map();
 	const pinnedSessionIds = options.pinnedSessionIds ?? new Set();
+	const livePinnedSessionIds = new Set<string>();
+	const shownAutomationSessionIds = new Set(options.shownAutomationSessionIds);
 	const comparisons = options.comparisons ?? [];
 	const deletedGroupIds: string[] = [];
 	const cancelledComparisonIds: string[] = [];
@@ -308,16 +328,21 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 	const sectionReorders: IListHarness['sectionReorders'] = [];
 
 	instantiationService.stub(ISessionsManagementService, managementService);
+	instantiationService.stub(ISessionsListPresentation, new DefaultSessionsListPresentation());
 	instantiationService.stub(ICommandService, commandService);
 	instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 		override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([]);
-		override readonly activeSession = constObservable<IActiveSession | undefined>(undefined);
+		readonly activeSession = options.activeSession ?? constObservable<IActiveSession | undefined>(undefined);
 	});
 	instantiationService.stub(ISessionsListModelService, new class extends mock<ISessionsListModelService>() {
 		override readonly onDidChange = onDidChangeListModel.event;
-		override isSessionPinned(session: ISession): boolean { return pinnedSessionIds.has(session.sessionId); }
+		override isSessionPinned(session: ISession): boolean { return pinnedSessionIds.has(session.sessionId) || livePinnedSessionIds.has(session.sessionId); }
 		override pinSession(session: ISession): void {
 			pinChanges.push({ sessionId: session.sessionId, pinned: true });
+			if (options.livePins) {
+				livePinnedSessionIds.add(session.sessionId);
+				onDidChangeListModel.fire({ changes: [{ sessionId: session.sessionId, kind: SessionListModelChangeKind.Pinned }] });
+			}
 		}
 		override unpinSessions(sessions: ISession[]): void {
 			for (const session of sessions) {
@@ -327,6 +352,25 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 			}
 		}
 		override migrateLegacyReadState(): void { }
+		override isSessionListed(session: ISession, reader?: IReader): boolean {
+			return !session.isAutomation?.read(reader) || shownAutomationSessionIds.has(session.sessionId);
+		}
+		override showAutomationSessions(sessions: readonly ISession[]): void {
+			this.setAutomationSessionsShown(sessions, true);
+		}
+		override hideAutomationSessions(sessions: readonly ISession[]): void {
+			this.setAutomationSessionsShown(sessions, false);
+		}
+		private setAutomationSessionsShown(sessions: readonly ISession[], shown: boolean): void {
+			for (const session of sessions) {
+				if (shown) {
+					shownAutomationSessionIds.add(session.sessionId);
+				} else {
+					shownAutomationSessionIds.delete(session.sessionId);
+				}
+			}
+			onDidChangeListModel.fire({ changes: sessions.map(session => ({ sessionId: session.sessionId, kind: SessionListModelChangeKind.AutomationListing })) });
+		}
 		override getSortKey(session: SessionSortEntry, mode: SessionSortMode): number {
 			return sortOverrides.get(mode)?.get(session.sessionId) ?? getNaturalSortKey(session, mode);
 		}
@@ -444,6 +488,10 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 		override readonly selectedHostId = undefined;
 		override readonly selectedHost = undefined;
 	});
+	instantiationService.stub(ICustomViewService, new class extends mock<ICustomViewService>() {
+		override readonly activeCustomView = constObservable(undefined);
+		override hideCustomView(): void { }
+	});
 	instantiationService.stub(IWorkbenchAssignmentService, new class extends mock<IWorkbenchAssignmentService>() {
 		override readonly onDidRefetchAssignments = Event.None;
 		override async getTreatment<T extends string | number | boolean>(): Promise<T | undefined> { return undefined; }
@@ -452,6 +500,13 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 		override readonly onDidChangeProviders = Event.None;
 		override getProviders() { return []; }
 		override getProvider() { return undefined; }
+	});
+	instantiationService.stub(IInboxNotificationsService, new class extends mock<IInboxNotificationsService>() {
+		override readonly notifications = constObservable([]);
+		override readonly attentionCount = constObservable(0);
+		override readonly isLoading = constObservable(false);
+		override readonly sortMode = constObservable(InboxNotificationsSortMode.Priority);
+		override setSortMode(): void { }
 	});
 	instantiationService.stub(ISessionsWindowUsageService, new class extends mock<ISessionsWindowUsageService>() {
 		override readonly hadPriorWindowOpen = true;
@@ -474,6 +529,7 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 		instantiationService.get(IStorageService).store('sessionsListControl.sessionGroupExpansionState', JSON.stringify(state), StorageScope.PROFILE, StorageTarget.USER);
 	}
 	configure?.(instantiationService);
+	stubSessionHostsFromSessionsService(instantiationService);
 
 	const createContainer = (width = 400, height = 300) => {
 		const container = mainWindow.document.createElement('div');

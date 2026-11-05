@@ -16,6 +16,7 @@ const range = z.object({ start: offset, endExclusive: offset });
 const version = z.object({ serverRevision: offset, clientRevision: offset });
 const editorConfiguration = z.object({
 	highlightActiveBlock: z.boolean(),
+	renderWhitespace: z.boolean(),
 	/** The line break the document uses, which the editor should insert. */
 	lineBreak: z.enum(['\n', '\r\n']),
 });

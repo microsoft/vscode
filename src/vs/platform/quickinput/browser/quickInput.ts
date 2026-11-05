@@ -167,8 +167,6 @@ export abstract class QuickInput extends Disposable implements IQuickInput {
 	private _inlineButtons: IQuickInputButton[] = [];
 	private _inputButtons: IQuickInputButton[] = [];
 	private buttonsUpdated = false;
-	private _widget: HTMLElement | undefined;
-	private widgetUpdated = false;
 	protected noValidationMessage: string | undefined = QuickInput.noPromptMessage;
 	private _validationMessage: string | undefined;
 	private _lastValidationMessage: string | undefined;
@@ -193,18 +191,6 @@ export abstract class QuickInput extends Disposable implements IQuickInput {
 
 	protected get visible(): boolean {
 		return this._visible.get();
-	}
-
-	get widget(): HTMLElement | undefined {
-		return this._widget;
-	}
-
-	set widget(widget: HTMLElement | undefined) {
-		if (this._widget !== widget) {
-			this._widget = widget;
-			this.widgetUpdated = true;
-			this.update();
-		}
 	}
 
 	get title() {
@@ -364,7 +350,6 @@ export abstract class QuickInput extends Disposable implements IQuickInput {
 
 		// update properties in the controller that get reset in the ui.show() call
 		this._visible.set(true, undefined);
-		this.widgetUpdated = true;
 		// This ensures the message/prompt gets rendered
 		this._lastValidationMessage = undefined;
 		// This ensures the input box has the right severity applied
@@ -401,11 +386,6 @@ export abstract class QuickInput extends Disposable implements IQuickInput {
 	protected update() {
 		if (!this.visible) {
 			return;
-		}
-		if (this.widgetUpdated) {
-			this.widgetUpdated = false;
-			dom.reset(this.ui.widget, ...(this._widget ? [this._widget] : []));
-			this.ui.container.classList.toggle('has-custom-widget', !!this._widget);
 		}
 		const title = this.getTitle();
 		if (title && this.ui.title.textContent !== title) {
@@ -1161,8 +1141,7 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 		this.ui.customButton.label = this.customLabel || '';
 		this.ui.customButton.element.title = this.customHover || '';
 		this.ui.customButton.secondary = this.customButtonSecondary || false;
-		const activeElement = dom.getActiveElement();
-		if (!visibilities.inputBox && !(activeElement && this.widget?.contains(activeElement))) {
+		if (!visibilities.inputBox) {
 			// we need to move focus into the tree to detect keybindings
 			// properly when the input box is not visible (quick nav)
 			this.ui.list.domFocus();
@@ -1348,6 +1327,28 @@ export class InputBox extends QuickInput implements IInputBox {
 export class QuickWidget extends QuickInput implements IQuickWidget {
 	readonly type = QuickInputType.QuickWidget;
 
+	private _widget: HTMLElement | undefined;
+	private widgetUpdated = false;
+
+	get widget(): HTMLElement | undefined {
+		return this._widget;
+	}
+
+	set widget(widget: HTMLElement | undefined) {
+		if (this._widget !== widget) {
+			this._widget = widget;
+			this.widgetUpdated = true;
+			this.update();
+		}
+	}
+
+	override show(): void {
+		if (!this.visible) {
+			this.widgetUpdated = true;
+		}
+		super.show();
+	}
+
 	protected override update() {
 		if (!this.visible) {
 			return;
@@ -1356,6 +1357,10 @@ export class QuickWidget extends QuickInput implements IQuickWidget {
 			title: !!this.title || !!this.step || !!this.titleButtons.length,
 			description: !!this.description || !!this.step
 		});
+		if (this.widgetUpdated) {
+			this.widgetUpdated = false;
+			dom.reset(this.ui.widget, ...(this._widget ? [this._widget] : []));
+		}
 		super.update();
 	}
 }

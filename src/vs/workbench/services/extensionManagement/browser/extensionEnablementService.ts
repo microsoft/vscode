@@ -26,7 +26,7 @@ import { NotificationTelemetryId, NotificationActionTelemetryId } from '../../..
 import { IHostService } from '../../host/browser/host.js';
 import { IExtensionBisectService } from './extensionBisect.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
-import { IExtensionManifestPropertiesService } from '../../extensions/common/extensionManifestPropertiesService.js';
+import { IExtensionManifestPropertiesService, isSupportedOnSessionsWindowOnlyWhenManaged } from '../../extensions/common/extensionManifestPropertiesService.js';
 import { isVirtualWorkspace } from '../../../../platform/workspace/common/virtualWorkspace.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -133,7 +133,8 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 			}
 			if (this.environmentService.isSessionsWindow && (e.affectsConfiguration(EXTENSIONS_AGENTS_WINDOW_MANAGEMENT) || e.affectsConfiguration(EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE))) {
 				// Start or stop the extensions whose state depends on Agents window management, and the extensions that depend on them.
-				const affected = this._withDependents(this.extensionsManager.extensions.filter(ext => !ext.isBuiltin && !this.extensionManifestPropertiesService.canExecuteOnSessionsWindow(ext.manifest, ext.isBuiltin)));
+				// Management also decides whether extensions without code support the Agents window.
+				const affected = this._withDependents(this.extensionsManager.extensions.filter(ext => !ext.isBuiltin && (isSupportedOnSessionsWindowOnlyWhenManaged(ext.manifest) || !this.extensionManifestPropertiesService.canExecuteOnSessionsWindow(ext.manifest, ext.isBuiltin))));
 				if (affected.length) {
 					this._onEnablementChanged.fire(affected);
 				}

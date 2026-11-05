@@ -20,19 +20,18 @@ import { IEnvironmentService } from '../../../environment/common/environment.js'
 import { TargetPlatform } from '../../../extensions/common/extensions.js';
 import { resolveMarketplaceHeaders } from '../../../externalServices/common/marketplace.js';
 import { IFileService } from '../../../files/common/files.js';
-import { FileService } from '../../../files/common/fileService.js';
-import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import product from '../../../product/common/product.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AuthInfo, Credentials, IRequestService } from '../../../request/common/request.js';
 import { InMemoryStorageService, IStorageService } from '../../../storage/common/storage.js';
 import { TelemetryConfiguration, TELEMETRY_SETTING_ID } from '../../../telemetry/common/telemetry.js';
-import { ExtensionBlockingOrigin, InstallOperation, StatisticType } from '../../common/extensionManagement.js';
+import { ExtensionBlockingOrigin, ExtensionBlockingScope, InstallOperation, StatisticType } from '../../common/extensionManagement.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { AllowedExtensionsService } from '../../common/allowedExtensionsService.js';
 import { ExtensionGalleryManifestStatus, ExtensionGalleryResourceType, IExtensionGalleryManifest, IExtensionGalleryManifestService } from '../../common/extensionGalleryManifest.js';
-import { ExtensionGalleryServiceWithNoStorageService, IRawGalleryExtensionBlocking, IRawGalleryExtensionVersion, filterLatestExtensionVersionsForTargetPlatform, getBlockingInfo, sortExtensionVersions } from '../../common/extensionGalleryService.js';
+import { ExtensionGalleryServiceWithNoStorageService, IRawGalleryExtensionBlocking, IRawGalleryExtensionVersion, filterLatestExtensionVersionsForTargetPlatform, getBlockingInfo, getGalleryLinkTemplate, sortExtensionVersions } from '../../common/extensionGalleryService.js';
 
 class EnvironmentServiceMock extends mock<IEnvironmentService>() {
 	override readonly serviceMachineIdResource: URI;
@@ -173,9 +172,7 @@ suite('Extension Gallery Service', () => {
 	setup(() => {
 		const serviceMachineIdResource = joinPath(URI.file('tests').with({ scheme: 'vscode-tests' }), 'machineid');
 		environmentService = new EnvironmentServiceMock(serviceMachineIdResource);
-		fileService = disposables.add(new FileService(new NullLogService()));
-		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
-		disposables.add(fileService.registerProvider(serviceMachineIdResource.scheme, fileSystemProvider));
+		fileService = createInMemoryFileService(disposables, serviceMachineIdResource.scheme);
 		storageService = disposables.add(new InMemoryStorageService());
 		configurationService = new TestConfigurationService({ [TELEMETRY_SETTING_ID]: TelemetryConfiguration.ON });
 		configurationService.updateValue(TELEMETRY_SETTING_ID, TelemetryConfiguration.ON);
@@ -332,6 +329,23 @@ suite('Extension Gallery Service', () => {
 		});
 	});
 
+	test('getCompatibleExtension does not query all versions for an extension-level block', async () => {
+		const rawExtension = { ...rawLatestExtension(), flags: 'blocked', blocking: { origin: 'policy' } };
+		const requestService = new RecordingRequestService(options => options.type === 'GET' ? requestContext(200, rawExtension) : requestContext(200, galleryQueryResponse([])));
+		const galleryService = createExtensionGalleryService(requestService);
+		const [extension] = await galleryService.getExtensions([{ id: 'publisher.extension', uuid: 'extension-uuid' }], CancellationToken.None);
+
+		const compatibleExtension = await galleryService.getCompatibleExtension(extension, false, TargetPlatform.UNIVERSAL);
+
+		assert.deepStrictEqual({
+			requests: requestService.requests,
+			blockingInfo: compatibleExtension?.blockingInfo,
+		}, {
+			requests: [{ type: 'GET', url: 'https://marketplace.test/_apis/public/gallery/publishers/publisher/extensions/extension/latest' }],
+			blockingInfo: { origin: ExtensionBlockingOrigin.Policy, scope: ExtensionBlockingScope.Extension },
+		});
+	});
+
 	test('getExtensions falls back to query API when latest resource response omits files', async () => {
 		const rawExtension = rawLatestExtension();
 		const invalidLatestExtension = {
@@ -475,7 +489,7 @@ suite('Extension Gallery Service', () => {
 
 		assert.deepStrictEqual(
 			extensions.map(extension => ({ version: extension.version, blockingInfo: extension.blockingInfo })),
-			[{ version: '2.0.0', blockingInfo: { origin: ExtensionBlockingOrigin.Service } }]
+			[{ version: '2.0.0', blockingInfo: { origin: ExtensionBlockingOrigin.Service, scope: ExtensionBlockingScope.Version } }]
 		);
 	});
 
@@ -890,27 +904,32 @@ suite('Extension Gallery Service', () => {
 
 		test('extension flag without object is blocked', () => {
 			assert.deepStrictEqual(getBlockingInfo({ flags: 'public, validated, blocked' }, {}), {
-				origin: ExtensionBlockingOrigin.Service
+				origin: ExtensionBlockingOrigin.Service,
+				scope: ExtensionBlockingScope.Extension,
 			});
 		});
 
 		test('extension object without flag is blocked', () => {
 			assert.deepStrictEqual(getBlockingInfo({ flags: 'public', blocking: { origin: 'policy' } }, {}), {
-				origin: ExtensionBlockingOrigin.Policy
+				origin: ExtensionBlockingOrigin.Policy,
+				scope: ExtensionBlockingScope.Extension,
 			});
 		});
 
 		test('a blocked version blocks the extension in hand, by flag or by object', () => {
 			assert.deepStrictEqual(
 				[{ flags: 'validated, blocked' }, { blocking: { origin: 'policy' } }]
-					.map(version => getBlockingInfo(notBlocked, version)?.origin),
-				[ExtensionBlockingOrigin.Service, ExtensionBlockingOrigin.Policy]);
+					.map(version => getBlockingInfo(notBlocked, version)),
+				[
+					{ origin: ExtensionBlockingOrigin.Service, scope: ExtensionBlockingScope.Version },
+					{ origin: ExtensionBlockingOrigin.Policy, scope: ExtensionBlockingScope.Version },
+				]);
 		});
 
 		test('an extension block outranks a version block', () => {
 			assert.deepStrictEqual(
 				getBlockingInfo({ flags: 'blocked', blocking: { origin: 'service' } }, { flags: 'blocked', blocking: { origin: 'policy' } }),
-				{ origin: ExtensionBlockingOrigin.Service });
+				{ origin: ExtensionBlockingOrigin.Service, scope: ExtensionBlockingScope.Extension });
 		});
 
 		test('unrecognized, absent, and wrong-typed origins degrade to service without failing', () => {
@@ -922,12 +941,40 @@ suite('Extension Gallery Service', () => {
 
 		test('unknown flag tokens do not fail parsing', () => {
 			assert.deepStrictEqual(getBlockingInfo({ flags: 'public, quarantined, blocked, embargoed' }, {}), {
-				origin: ExtensionBlockingOrigin.Service
+				origin: ExtensionBlockingOrigin.Service,
+				scope: ExtensionBlockingScope.Extension,
 			});
 		});
 
 		test('blocked is matched as a whole token', () => {
 			assert.strictEqual(getBlockingInfo({ flags: 'public, unblocked' }, { flags: 'unblocked' }), undefined);
+		});
+	});
+
+	suite('getGalleryLinkTemplate', () => {
+		const manifest: IExtensionGalleryManifest = {
+			version: '',
+			resources: [
+				{ id: 'https://marketplace/items?itemName={publisher}.{name}', type: `${ExtensionGalleryResourceType.ExtensionDetailsViewUri}/1.0.0-preview` },
+				{ id: 'https://marketplace/public/items?itemName={publisher}.{name}', type: 'PublicExtensionDetailsViewUriTemplate/1.0.0-preview' },
+			],
+			capabilities: { extensionQuery: {} }
+		};
+
+		test('uses the default link type when none is given', () => {
+			assert.strictEqual(getGalleryLinkTemplate(manifest, undefined, ExtensionGalleryResourceType.ExtensionDetailsViewUri), 'https://marketplace/items?itemName={publisher}.{name}');
+		});
+
+		test('uses the given link type when the manifest defines it', () => {
+			assert.strictEqual(getGalleryLinkTemplate(manifest, 'PublicExtensionDetailsViewUriTemplate/1.0.0-preview', ExtensionGalleryResourceType.ExtensionDetailsViewUri), 'https://marketplace/public/items?itemName={publisher}.{name}');
+		});
+
+		test('falls back to the default link type when the manifest does not define the given one', () => {
+			assert.strictEqual(getGalleryLinkTemplate(manifest, 'UnknownExtensionDetailsViewUriTemplate/1.0.0-preview', ExtensionGalleryResourceType.ExtensionDetailsViewUri), 'https://marketplace/items?itemName={publisher}.{name}');
+		});
+
+		test('returns undefined when neither link type is defined', () => {
+			assert.strictEqual(getGalleryLinkTemplate(manifest, 'UnknownPublisherViewUriTemplate', ExtensionGalleryResourceType.PublisherViewUri), undefined);
 		});
 	});
 });

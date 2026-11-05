@@ -8,7 +8,7 @@ import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { isDefined } from '../../../../../../../base/common/types.js';
 import { localize } from '../../../../../../../nls.js';
 import { COPILOT_VENDOR_ID, getLanguageModelProviderIcon, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, isUserProvidedModel, LanguageModelProviderIcon } from '../../../../common/languageModels.js';
-import { buildModelToProviderGroupMap, getProviderGroupForModel, getProviderGroupKey, isVersionAtLeast } from './modelPickerItemPrimitives.js';
+import { buildModelToProviderGroupMap, getProviderGroupForModel, getProviderGroupKey, IProviderGroupInfo, isVersionAtLeast } from './modelPickerItemPrimitives.js';
 import { isDeprecated } from './modelPickerBadges.js';
 import { isEarlyAccessModel, latestOfEachLine } from './modelPickerLineage.js';
 import { getProviderIconForIdentity } from './modelProviderIcons.js';
@@ -98,71 +98,58 @@ export function buildModelPickerDestinations(
 	hasOwnRow: (model: ILanguageModelChatMetadataAndIdentifier) => boolean = isAutoModel,
 	keepBuiltIn = false,
 ): IModelPickerDestination[] {
-	const builtInModels: ILanguageModelChatMetadataAndIdentifier[] = [];
-	const userModels: ILanguageModelChatMetadataAndIdentifier[] = [];
+	const builtInVendor = languageModelsService.getVendors().find(vendor => vendor.isDefault);
+	const builtInGroup = {
+		vendor: builtInVendor?.vendor ?? COPILOT_VENDOR_ID,
+		groupName: builtInVendor?.displayName ?? localize('chat.modelPicker.builtInProvider', "GitHub Copilot"),
+		icon: builtInVendor?.icon,
+	};
+	const modelToGroup = buildModelToProviderGroupMap(languageModelsService);
+	// Provider identity keeps same-name providers distinct, with the built-in ID reserved.
+	const byProvider = new Map<string, { label: string; icon: LanguageModelProviderIcon | undefined; models: ILanguageModelChatMetadataAndIdentifier[]; placeholders: IModelPickerProviderPlaceholder[] }>();
+	const providerEntry = (group: IProviderGroupInfo, isBuiltIn = false) => {
+		const key = isBuiltIn ? MODEL_PICKER_BUILT_IN_DESTINATION : `${PROVIDER_DESTINATION_PREFIX}${getProviderGroupKey(group.vendor, group.groupName)}`;
+		let entry = byProvider.get(key);
+		if (!entry) {
+			entry = { label: group.groupName, icon: group.icon, models: [], placeholders: [] };
+			byProvider.set(key, entry);
+		}
+		entry.icon ??= group.icon;
+		return entry;
+	};
+	providerEntry(builtInGroup, true);
 	for (const model of models) {
 		if (hasOwnRow(model)) {
 			continue;
 		}
-		(isUserProvidedModel(model, languageModelsService) ? userModels : builtInModels).push(model);
-	}
-
-	const builtInVendor = languageModelsService.getVendors().find(vendor => vendor.isDefault);
-	const builtInVendorId = builtInVendor?.vendor ?? COPILOT_VENDOR_ID;
-	const builtInLabel = builtInVendor?.displayName ?? localize('chat.modelPicker.builtInProvider', "GitHub Copilot");
-	const builtInPlaceholders = placeholders.filter(placeholder => placeholder.vendor === builtInVendorId);
-	const userPlaceholders = placeholders.filter(placeholder => placeholder.vendor !== builtInVendorId);
-
-	// The built-in destination stands even with nothing to list: a plan that only grants
-	// Auto still needs somewhere to show it, and its curated models still need to name
-	// the upgrade that would unlock them.
-	const hasOwnRowModel = models.some(hasOwnRow);
-	const destinations: IModelPickerDestination[] = [];
-	if (builtInModels.length || builtInPlaceholders.length || hasOwnRowModel || keepBuiltIn) {
-		destinations.push({
-			id: MODEL_PICKER_BUILT_IN_DESTINATION,
-			label: builtInLabel,
-			icon: builtInVendor?.icon ?? getProviderIconForIdentity(`${builtInLabel} ${builtInVendorId}`),
-			models: builtInModels,
-			placeholders: builtInPlaceholders,
-		});
-	}
-
-	const modelToGroup = buildModelToProviderGroupMap(languageModelsService);
-	// Keyed by provider identity rather than by display name, so two providers that
-	// happen to share a name each keep their own tab instead of being merged.
-	const byProvider = new Map<string, { label: string; icon: LanguageModelProviderIcon | undefined; models: ILanguageModelChatMetadataAndIdentifier[]; placeholders: IModelPickerProviderPlaceholder[] }>();
-	const providerEntry = (key: string, label: string, icon: LanguageModelProviderIcon | undefined) => {
-		let entry = byProvider.get(key);
-		if (!entry) {
-			entry = { label, icon, models: [], placeholders: [] };
-			byProvider.set(key, entry);
-		}
-		entry.icon ??= icon;
-		return entry;
-	};
-	for (const model of userModels) {
-		const { vendor, groupName, icon } = getProviderGroupForModel(model, modelToGroup, languageModelsService);
-		providerEntry(getProviderGroupKey(vendor, groupName), groupName, icon).models.push(model);
+		const isBuiltIn = !isUserProvidedModel(model, languageModelsService);
+		const group = isBuiltIn ? builtInGroup : getProviderGroupForModel(model, modelToGroup, languageModelsService);
+		providerEntry(group, isBuiltIn).models.push(model);
 	}
 	// A provider still signing in has no models yet, but it has earned its tab.
-	for (const placeholder of userPlaceholders) {
-		providerEntry(getProviderGroupKey(placeholder.vendor, placeholder.label), placeholder.label, getLanguageModelProviderIcon(languageModelsService, placeholder.vendor)).placeholders.push(placeholder);
+	for (const placeholder of placeholders) {
+		const isBuiltIn = placeholder.vendor === builtInGroup.vendor;
+		const group = isBuiltIn ? builtInGroup : {
+			vendor: placeholder.vendor,
+			groupName: placeholder.label,
+			icon: getLanguageModelProviderIcon(languageModelsService, placeholder.vendor),
+		};
+		providerEntry(group, isBuiltIn).placeholders.push(placeholder);
 	}
-	// Ordered by the name the user reads, with the key breaking ties so that providers
-	// sharing a name keep a stable order.
-	const sortedProviders = [...byProvider].sort(([leftKey, left], [rightKey, right]) =>
-		left.label.localeCompare(right.label) || leftKey.localeCompare(rightKey));
-	for (const [key, entry] of sortedProviders) {
-		destinations.push({
-			id: `${PROVIDER_DESTINATION_PREFIX}${key}`,
+	// Auto-only and curated-upgrade plans still need the built-in destination.
+	const retainBuiltIn = keepBuiltIn || models.some(hasOwnRow);
+	return [...byProvider]
+		.filter(([key, entry]) => entry.models.length || entry.placeholders.length || (key === MODEL_PICKER_BUILT_IN_DESTINATION && retainBuiltIn))
+		.sort(([leftKey, left], [rightKey, right]) =>
+			Number(rightKey === MODEL_PICKER_BUILT_IN_DESTINATION) - Number(leftKey === MODEL_PICKER_BUILT_IN_DESTINATION)
+			|| left.label.localeCompare(right.label) || leftKey.localeCompare(rightKey))
+		.map(([key, entry]) => ({
+			id: key,
 			label: entry.label,
-			icon: entry.icon ?? getProviderIconForIdentity(entry.label),
+			icon: entry.icon ?? getProviderIconForIdentity(key === MODEL_PICKER_BUILT_IN_DESTINATION ? `${entry.label} ${builtInGroup.vendor}` : entry.label),
 			models: entry.models,
 			placeholders: entry.placeholders,
-		});
-	}
-	return destinations;
+		}));
 }
 
 export interface IModelPickerSectionsOptions {

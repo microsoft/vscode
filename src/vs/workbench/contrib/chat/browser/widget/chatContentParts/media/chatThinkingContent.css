@@ -279,8 +279,22 @@
 }
 
 /* Anchor the footer to the list's integer-sized row, not the fractional streaming content height. */
-.interactive-session .chat-list-scrolled-to-bottom .interactive-response.chat-persistent-progress.chat-progress-scroll-target > .value > .chat-working-progress {
+.interactive-session .chat-list-scrolled-to-bottom .interactive-response.chat-persistent-progress.chat-progress-scroll-target > .value > .chat-working-progress,
+.interactive-session .chat-list-scrolled-to-bottom .interactive-response.chat-persistent-progress.chat-progress-scroll-target > .value > .chat-working-progress-anchor > .chat-working-progress {
 	translate: 0 var(--chat-response-height-rounding, 0px);
+}
+
+.chat-working-progress-anchor {
+	display: flow-root;
+	min-height: var(--chat-response-footer-height);
+}
+
+.interactive-session .interactive-item-container.chat-persistent-progress .chat-working-progress {
+	gap: 0;
+	line-height: 1.5em;
+	min-height: var(--chat-response-footer-height);
+	margin: 0;
+	padding: 0;
 }
 
 /* The row container class keeps these ahead of the legacy `.interactive-item-container .value > …`
@@ -292,6 +306,7 @@
 	> .chat-thinking-conversation,
 	> .chat-tool-call-with-icon,
 	> .progress-container,
+	> .chat-working-progress-anchor,
 	> .chat-markdown-part,
 	> .chat-confirmation-widget-container,
 	> .chat-question-carousel-container,
@@ -357,10 +372,8 @@
 		}
 	}
 
-	> .chat-working-progress {
-		gap: 0;
-		line-height: 1.5em;
-		min-height: var(--chat-response-footer-height);
+	> .chat-working-progress,
+	> .chat-working-progress-anchor {
 		/* Reserve the footer gap even without content; otherwise collapse with the preceding margin. */
 		margin-top: var(--chat-persistent-item-gap);
 	}
@@ -379,6 +392,8 @@
 
 /* Reserve the tool text gutter without shifting the leading icons. */
 .interactive-session .interactive-response.chat-persistent-progress > .value > .chat-working-progress > .chat-progress-icon,
+.interactive-session .interactive-response.chat-persistent-progress > .value > .chat-working-progress-anchor > .chat-working-progress > .chat-progress-icon,
+.interactive-session .chat-sticky-progress > .chat-working-progress > .chat-progress-icon,
 .interactive-session .interactive-response .value .chat-thinking-box:is(.chat-persistent-reasoning, .chat-thinking-conversation, .chat-tool-chain-collapsible) > .chat-used-context-label .monaco-button.monaco-icon-button > :is(.codicon-thinking, .codicon-tools, .codicon-chevron-right-compact) {
 	margin-right: calc(var(--vscode-spacing-size240) - var(--vscode-codiconFontSize-compact) - 0.2em);
 }
@@ -592,11 +607,16 @@
 			}
 
 			[data-code] {
-				background-color: var(--vscode-textPreformat-background);
+				background-color: var(--vscode-textCodeBlock-background);
 				padding: 1px 3px;
 				border-radius: 4px;
 				border: 1px solid var(--vscode-textPreformat-border);
 				white-space: pre-wrap;
+
+				code,
+				.monaco-tokenized-source {
+					background-color: transparent;
+				}
 			}
 		}
 

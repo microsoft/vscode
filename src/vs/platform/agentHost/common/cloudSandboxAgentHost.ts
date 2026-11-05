@@ -376,6 +376,9 @@ export interface ICloudSandboxSessionFeedConnection {
 	readonly group: string;
 	readonly expires_at: string;
 	readonly reconnect_after: string;
+	/** Server-relative milliseconds; omitted together by older servers. */
+	readonly expires_in?: number;
+	readonly reconnect_in?: number;
 	readonly frame_schema_version: 1;
 }
 
@@ -430,7 +433,7 @@ export interface ICloudSandboxApiService {
 	getCachedEnvironments(): readonly IMissionControlEnvironment[] | undefined;
 
 	/** Enumerate sandbox sessions, or refresh only the tasks named by feed notifications. */
-	listSessions(token: CancellationToken, options?: { readonly incremental?: boolean; readonly taskIds?: readonly string[] }): Promise<ICloudSandboxDiscoveryResult>;
+	listSessions(token: CancellationToken, options?: ICloudSandboxDiscoveryOptions): Promise<ICloudSandboxDiscoveryResult>;
 
 	/** Reserve or renew an unsubmitted task for the draft's repository or default compute scope. */
 	reserveSession(request: ICloudSandboxReserveSessionRequest, token: CancellationToken): Promise<ICloudSandboxReservedSession>;
@@ -463,10 +466,23 @@ export interface ICloudSandboxApiService {
 	clearSessionHistory(taskId?: string): void;
 }
 
-/** Only a complete scan permits removing absent sessions; other results may name explicit removals. */
+export const cloudSandboxDiscoveryTriggers = ['startup', 'automatic', 'poll', 'focus', 'selection', 'accountChange', 'configurationChange', 'manual', 'feedChange', 'feedRenewal', 'feedReconnect'] as const;
+export type CloudSandboxDiscoveryTrigger = typeof cloudSandboxDiscoveryTriggers[number];
+
+export interface ICloudSandboxDiscoveryOptions {
+	readonly incremental?: boolean;
+	/** Defaults to including archived inventory. False omits archived discovery, not targeted reads of known tasks. */
+	readonly includeArchived?: boolean;
+	readonly taskIds?: readonly string[];
+	readonly trigger?: CloudSandboxDiscoveryTrigger;
+}
+
+/** Successful recent-window refreshes permit eviction only within their requested scope; removal IDs report confirmed changes. */
 export type ICloudSandboxDiscoveryResult =
-	/** Every task was scanned and resolved; absent sessions really are gone. */
-	| { readonly kind: 'complete'; readonly sessions: readonly ICloudSandboxDiscoveredSession[] }
+	/** A successful recent-window refresh; absent cached sessions may be evicted. Removal IDs report confirmed changes, not window eviction. */
+	| { readonly kind: 'complete'; readonly sessions: readonly ICloudSandboxDiscoveredSession[]; readonly removedTaskIds?: readonly string[] }
+	/** A successful non-archived recent-window refresh; absent cached archives must be retained. */
+	| { readonly kind: 'scoped'; readonly sessions: readonly ICloudSandboxDiscoveredSession[]; readonly removedTaskIds: readonly string[] }
 	/** Changes only; sessions absent from this result must be retained. */
 	| { readonly kind: 'incremental'; readonly sessions: readonly ICloudSandboxDiscoveredSession[]; readonly removedTaskIds: readonly string[] }
 	/** Some tasks could not be resolved; only explicitly removed tasks may be dropped. */

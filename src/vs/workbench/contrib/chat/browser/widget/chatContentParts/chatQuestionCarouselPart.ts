@@ -65,6 +65,8 @@ export interface IChatQuestionCarouselOptions {
 	};
 	shouldAutoFocus?: boolean;
 	shouldAutoSelectFirstOption?: boolean;
+	/** Opt-in suppression of details identical to the displayed question heading. */
+	hideDuplicateDetailedMessage?: boolean;
 }
 
 class ChatQuestionAnswerCollapsiblePart extends ChatCollapsibleContentPart {
@@ -826,12 +828,12 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		}
 
 		const questionText = getDisplayedQuestionText(question);
+		const rawValue = isMarkdownString(questionText) ? questionText.value : questionText;
 		if (questionText) {
 			const title = dom.$(`.chat-question-title.${CHAT_CARD_TITLE_CLASS}`);
 			const messageContent = this.getQuestionText(questionText);
 			title.setAttribute('aria-label', messageContent);
 
-			const rawValue = isMarkdownString(questionText) ? questionText.value : questionText;
 			const suffixed = question.required ? `${rawValue} *` : rawValue;
 			const md = isMarkdownString(questionText)
 				? MarkdownString.lift({ ...questionText, value: suffixed })
@@ -870,7 +872,8 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		const inputContainer = dom.$('.chat-question-input-container');
 
 		// Render detailed markdown message inside the scrollable input area
-		if (question.detailedMessage) {
+		const detailedValue = isMarkdownString(question.detailedMessage) ? question.detailedMessage.value : question.detailedMessage;
+		if (question.detailedMessage && (!this._options.hideDuplicateDetailedMessage || detailedValue?.trim() !== rawValue.trim())) {
 			const detailedMd = isMarkdownString(question.detailedMessage)
 				? MarkdownString.lift(question.detailedMessage)
 				: new MarkdownString(question.detailedMessage);

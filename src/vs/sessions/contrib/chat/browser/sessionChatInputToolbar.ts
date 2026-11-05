@@ -37,7 +37,7 @@ import { ChatInputPills, StandardChatInputPillSources } from '../../../../workbe
 import type { IChatBackgroundActivityPillSections } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { createSessionPullRequestPillData, type IChatPullRequestPillEntry, type IChatPullRequestPillSection } from '../../../../workbench/contrib/chat/browser/sessionPullRequestPill.js';
 import { diffStatsEqual, EMPTY_DIFF_STATS, IDiffStats } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
-import { SessionArtifacts, sessionArtifactLocation } from './sessionArtifacts.js';
+import { createOpenPullRequestChangesAction, SessionArtifacts, sessionArtifactLocation } from './sessionArtifacts.js';
 import { SessionCustomizations } from '../../../../workbench/contrib/chat/browser/sessionCustomizations.js';
 import { localize } from '../../../../nls.js';
 import { CHAT_INPUT_PILLS_ROW_HEIGHT, chatPillCopyUrlHoverLabel, chatPillRemoveArtifactHoverLabel, getChatPillEntries, getChatPillResourceLocation, getChatReferencePillPresentation, type ChatPillsCompactMode, type IChatPillEntry, type IChatPillSection, withChatPillHoverLabel } from '../../../../workbench/browser/chatPills.js';
@@ -48,7 +48,7 @@ import { IResolvedSessionPullRequest, SessionPullRequestPresentationModel } from
 import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS, SessionChatPillKind } from '../../../../workbench/contrib/chat/common/sessionChatPills.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, IChat, SESSION_CHANGES_CHANGESET_ID, type IGitHubIssueRef, type IGitHubPullRequestRef, type ISessionWorkspace } from '../../../services/sessions/common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, IHostSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { logSessionArtifactOpen } from '../../../common/sessionsTelemetry.js';
 import { isAgentHostProvider, isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
@@ -75,7 +75,6 @@ import { EditorInput } from '../../../../workbench/common/editor/editorInput.js'
 
 const copiedLabel = localize('sessionChatPills.copied', "Copied");
 const copiedToClipboardStatus = localize('sessionChatPills.copiedToClipboard', "Copied to clipboard");
-const openChangesHoverLabel = localize('sessionChatPills.openChanges', "Open Changes");
 const copyFeedbackDuration = 1200;
 
 /** Fake artifacts for the pill debug overlay. */
@@ -179,17 +178,12 @@ export function buildSessionPullRequestSections(pullRequests: readonly IResolved
 				class: ThemeIcon.asClassName(Codicon.close),
 				run: () => artifactActions.remove?.([recordedReferenceId], resourceLabel),
 			}), chatPillRemoveArtifactHoverLabel) : undefined,
-			toolbarActions: [withChatPillHoverLabel(toAction({
-				id: `sessionChatPills.openPullRequestChanges.${ref.owner.toLowerCase()}.${ref.repo.toLowerCase()}.${ref.number}`,
-				label: localize('sessionChatPills.openPullRequestChanges', "Open Pull Request Changes"),
-				class: ThemeIcon.asClassName(Codicon.diffMultiple),
-				run: () => {
-					if (session) {
-						sessionsService.setActive(session);
-					}
-					return commandService.executeCommand(OPEN_PULL_REQUEST_CHANGES_ACTION_ID, { pullRequest: ref });
-				},
-			}), openChangesHoverLabel), withChatPillHoverLabel(createCopyAction?.(
+			toolbarActions: [createOpenPullRequestChangesAction(ref, () => {
+				if (session) {
+					sessionsService.setActive(session);
+				}
+				return commandService.executeCommand(OPEN_PULL_REQUEST_CHANGES_ACTION_ID, { pullRequest: ref });
+			}), withChatPillHoverLabel(createCopyAction?.(
 				`${ref.owner.toLowerCase()}/${ref.repo.toLowerCase()}/${ref.number}`,
 				localize('sessionChatPills.copyPullRequest', "Copy pull request URL"),
 				() => clipboardService.writeText(ref.uri.toString(true)),
@@ -301,7 +295,7 @@ export function buildSessionIssueSections(issues: readonly IResolvedSessionIssue
 }
 
 /** Returns the focused chat's changes counts represented by the shared Changes pill. */
-export function computeSessionInputPillStats(session: IActiveSession | undefined, chat: IChat | undefined, reader: IReader, changesStatsCache?: ISessionChangesStatsCache): IDiffStats {
+export function computeSessionInputPillStats(session: IHostSession | undefined, chat: IChat | undefined, reader: IReader, changesStatsCache?: ISessionChangesStatsCache): IDiffStats {
 	if (session?.worktreePending?.read(reader)) {
 		return EMPTY_DIFF_STATS;
 	}
@@ -321,7 +315,7 @@ export function computeSessionInputPillStats(session: IActiveSession | undefined
  * represented changeset loads, or while the session's worktree is being created.
  * Unlike {@link computeSessionInputPillStats}, this never falls back to cached stats.
  */
-export function readLoadedSessionInputPillStats(session: IActiveSession | undefined, chat: IChat | undefined, reader: IReader): IDiffStats | undefined {
+export function readLoadedSessionInputPillStats(session: IHostSession | undefined, chat: IChat | undefined, reader: IReader): IDiffStats | undefined {
 	if (session?.worktreePending?.read(reader)) {
 		return undefined;
 	}
@@ -335,17 +329,17 @@ export function readLoadedSessionInputPillStats(session: IActiveSession | undefi
 }
 
 /** Whether `chat` is one of the session's nested chats rather than its main chat. */
-function isNestedChat(session: IActiveSession | undefined, chat: IChat | undefined, reader: IReader | undefined): boolean {
+function isNestedChat(session: IHostSession | undefined, chat: IChat | undefined, reader: IReader | undefined): boolean {
 	const mainChat = session?.mainChat?.read(reader);
 	return !!mainChat && !!chat && !isEqual(mainChat.resource, chat.resource);
 }
 
-function isCloudSandboxSession(session: IActiveSession | undefined): boolean {
+function isCloudSandboxSession(session: IHostSession | undefined): boolean {
 	return session?.environment === 'cloud' && isAgentHostProviderId(session.providerId);
 }
 
 /** Cloud sandboxes and nested chats show Session Changes; other main chats keep their workspace-based selection. */
-function getChangesPillChangesetId(workspace: ISessionWorkspace | undefined, isNested: boolean, session: IActiveSession | undefined): string {
+function getChangesPillChangesetId(workspace: ISessionWorkspace | undefined, isNested: boolean, session: IHostSession | undefined): string {
 	return !isNested && !isCloudSandboxSession(session) && workspace?.folders[0]?.gitRepository?.workTreeUri
 		? BRANCH_CHANGES_CHANGESET_ID
 		: SESSION_CHANGES_CHANGESET_ID;
@@ -447,7 +441,7 @@ export class SessionChatInputToolbar extends Disposable {
 		if (!chat) {
 			return undefined;
 		}
-		return this._findOwningSession(chat.resource, reader);
+		return findSessionOfChat(this._paneSession?.read(reader), this._sessionsService, chat.resource, reader);
 	});
 
 	/**
@@ -469,6 +463,8 @@ export class SessionChatInputToolbar extends Disposable {
 	constructor(
 		compact: ChatPillsCompactMode,
 		focusFallback: (() => void) | undefined,
+		/** The session of the pane that hosts the chat, such as a chat editor's session scoped to its chat. */
+		private readonly _paneSession: IObservable<IActiveSession | undefined> | undefined,
 		@IClipboardService clipboardService: IClipboardService,
 		@ICommandService commandService: ICommandService,
 		@IGitHubService gitHubService: IGitHubService,
@@ -606,10 +602,11 @@ export class SessionChatInputToolbar extends Disposable {
 			}
 			return computeAggregateIssueIcon(resolved.map(({ issue }) => issue));
 		});
+		// Integrated pull requests and issues without a pill of their own stay in these pills, with their integration's presentation.
 		const plainPullRequestSections = derived(this, reader => pullRequestSections.read(reader)
-			.map(section => ({ ...section, entries: section.entries.filter(entry => !sessionArtifacts.hasIntegration(entry.id, reader)) })));
+			.map(section => ({ ...section, entries: section.entries.filter(entry => !sessionArtifacts.hasOwnPill(entry.id, reader)).map(entry => sessionArtifacts.decorateEntry(entry, reader)) })));
 		const plainIssueSections = derived(this, reader => issueSections.read(reader)
-			.map(section => ({ ...section, entries: section.entries.filter(entry => !sessionArtifacts.hasIntegration(entry.id, reader)) })));
+			.map(section => ({ ...section, entries: section.entries.filter(entry => !sessionArtifacts.hasOwnPill(entry.id, reader)).map(entry => sessionArtifacts.decorateEntry(entry, reader)) })));
 		const pullRequestData = createSessionPullRequestPillData(plainPullRequestSections, visibility.pullRequests, pullRequestPresentation.icon);
 		const activityBarPullRequests = createSessionPullRequestPillData(pullRequestSections, visibility.pullRequests, pullRequestPresentation.icon);
 		const openerChanges = observableSignalFromEvent(this, Event.any<unknown>(
@@ -850,14 +847,21 @@ export class SessionChatInputToolbar extends Disposable {
 		return this._debugData.get();
 	}
 
-	private _findOwningSession(chatResource: URI, reader: IReader): IActiveSession | undefined {
-		for (const session of this._sessionsService.visibleSessions.read(reader)) {
-			if (session?.chats.read(reader).some(c => isEqual(c.resource, chatResource))) {
-				return session;
-			}
-		}
-		const active = this._sessionsService.activeSession.read(reader);
-		return active?.chats.read(reader).some(c => isEqual(c.resource, chatResource)) ? active : undefined;
-	}
+}
 
+/**
+ * The shown session that owns the chat `chatResource`: the session of a window that shows exactly that chat first, as the
+ * sessions the main window shows list all chats of their session, including those shown in other windows; then the
+ * panes of the grid, its active pane among them.
+ */
+export function findSessionOfChat(paneSession: IActiveSession | undefined, sessionsService: Pick<ISessionsService, 'visibleSessionPanes'>, chatResource: URI, reader: IReader | undefined): IActiveSession | undefined {
+	if (paneSession?.chats.read(reader).some(c => isEqual(c.resource, chatResource))) {
+		return paneSession;
+	}
+	for (const session of sessionsService.visibleSessionPanes.read(reader)) {
+		if (session?.chats.read(reader).some(c => isEqual(c.resource, chatResource))) {
+			return session;
+		}
+	}
+	return undefined;
 }

@@ -17,6 +17,7 @@ import { getSelectedModelStorageKey, getStoredSelectedModel, storeSelectedModel 
 import { ChatAgentLocation, ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier, type IModelConfigurationAccess } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { IntendedModelSlot } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { getAgentModelPolicyError, resolveAgentModelPreferences } from '../../../../workbench/contrib/chat/common/promptSyntax/languageProviders/promptModelResolver.js';
 import { IModelPickerComparison } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerComparison.js';
 import { IPendingModelSelection, isInConversationModelChoice, ModelSelectionReason, RestoredModelReason } from '../../../../workbench/contrib/chat/common/modelSelection.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
@@ -101,7 +102,7 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 
 	private readonly _providerListener = this._register(new MutableDisposable());
 	private readonly _modelConfigurationListener = this._register(new MutableDisposable());
-	private readonly _onDidChangeModelConfiguration = this._register(new Emitter<string>());
+	private readonly _onDidChangeModelConfiguration = this._register(new Emitter<readonly string[]>());
 	private _modelConfigurationAccess: IModelConfigurationAccess | undefined;
 	private readonly _diagnostics: ChatModelSelectionDiagnostics;
 	private readonly _controller: ChatInputModelSelectionController;
@@ -116,6 +117,7 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 	private _activeProvider: ISessionsProvider | undefined;
 	private _listenedProvider: ISessionsProvider | undefined;
 	private _models: readonly ILanguageModelChatMetadataAndIdentifier[] = [];
+	private _agentModelPreferences: ISessionModelSelectionState['agentModelPreferences'];
 	private _modelTarget: string | undefined;
 	private _boundSessionKey: string | undefined;
 	private _boundConversationKey: string | undefined;
@@ -174,6 +176,7 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 			chat?.status.read(reader);
 			// Where the model came from is what decides whether it outranks `chat.defaultModel`.
 			chat?.modelSource.read(reader);
+			chat?.mode.read(reader);
 			this._refresh('sessionState', session);
 		}));
 		this._register(this._configurationService.onDidChangeConfiguration(event => {
@@ -199,7 +202,7 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 		}
 
 		// Fresh snapshot: the pool the picker rendered from may already be stale.
-		const snapshot = provider.getModelsSnapshot(session.sessionId);
+		const snapshot = provider.getModelsSnapshot(session.sessionId, undefined, session.activeChat.get().resource);
 		this._modelTarget = snapshot.modelTarget;
 		this._models = snapshot.models;
 		const model = snapshot.models.find(model => model.identifier === modelIdentifier);
@@ -212,7 +215,7 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 			return false;
 		}
 
-		const options = normalizeModelPickerOptions(provider.getModelPickerOptions(session.sessionId));
+		const options = normalizeModelPickerOptions(provider.getModelPickerOptions(session.sessionId, session.activeChat.get().resource));
 		const providerModelBefore = session.modelId.get();
 		const storageKey = getSelectedModelStorageKey(ChatAgentLocation.Chat, snapshot.modelTarget);
 		const conversation = this._conversation();
@@ -285,8 +288,11 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 			readonly sessionType: ISessionType;
 			readonly model: ILanguageModelChatMetadataAndIdentifier;
 		}>();
+		const preferences = this.state.get().agentModelPreferences;
 		for (const sessionType of workspace ? provider.getSessionTypes(workspace.uri) : provider.sessionTypes) {
-			for (const model of provider.getModelsSnapshotForCreation(workspace?.uri, sessionType.id).models) {
+			const available = provider.getModelsSnapshotForCreation(workspace?.uri, sessionType.id).models;
+			const allowed = preferences?.required ? resolveAgentModelPreferences(preferences.models, available) : available;
+			for (const model of allowed) {
 				models.set(model.identifier, {
 					presentation: {
 						...model,
@@ -320,7 +326,7 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 			applyModel: model => this._pushModelToProvider(model),
 			isModelAbsenceConclusive: modelId => {
 				const session = this._activeSession;
-				return !!session && this._activeProvider?.getModelsSnapshot(session.sessionId, modelId).desiredModelResolution.kind === 'unavailable';
+				return !!session && this._activeProvider?.getModelsSnapshot(session.sessionId, modelId, session.activeChat.get().resource).desiredModelResolution.kind === 'unavailable';
 			},
 			// The provider owns Automation model preferences; the controller only selects the model.
 		};
@@ -348,11 +354,11 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 		const modelConfiguration = this.modelConfiguration && session ? provider?.getAutomationModelConfiguration?.(session.sessionId) : undefined;
 		if (modelConfiguration !== this._modelConfigurationAccess) {
 			this._modelConfigurationAccess = modelConfiguration;
-			this._modelConfigurationListener.value = modelConfiguration?.onDidChange?.(modelId => this._onDidChangeModelConfiguration.fire(modelId));
+			this._modelConfigurationListener.value = modelConfiguration?.onDidChange?.(modelIds => this._onDidChangeModelConfiguration.fire(modelIds));
 			const displayedModelId = this._state.get().currentModel?.identifier;
 			if (displayedModelId) {
 				// A new draft may use the same model with different preferences.
-				this._onDidChangeModelConfiguration.fire(displayedModelId);
+				this._onDidChangeModelConfiguration.fire([displayedModelId]);
 			}
 		}
 
@@ -363,6 +369,7 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 			this._displayOnly = false;
 			// Nothing to clear: each conversation's state lives in its own record.
 			this._models = [];
+			this._agentModelPreferences = undefined;
 			this._modelTarget = undefined;
 			this._state.set(EMPTY_MODEL_SELECTION_STATE, undefined);
 			return;
@@ -376,7 +383,7 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 		const chatModelSource = chatModelId ? (chat.modelSource.get() ?? ChatModelSource.Chosen) : undefined;
 		// Undefined only when the chat has no model, which is the one case with no authority at all.
 		const chatModelReason = chatModelSource === undefined ? undefined : restoreReasonForSource(chatModelSource);
-		const baseSnapshot = provider.getModelsSnapshot(session.sessionId, chatModelId);
+		const baseSnapshot = provider.getModelsSnapshot(session.sessionId, chatModelId, chat.resource);
 		const remembered = this._getRememberedModel(session, baseSnapshot.modelTarget);
 
 		const rebound = session.sessionId !== this._boundSessionKey || conversationKey !== this._boundConversationKey;
@@ -384,11 +391,12 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 		// that has yet to run on anything. Reading it per chat is what keeps one chat's choice out
 		// of another's: the incoming chat brings its own model with it.
 		const desiredModelId = chatModelId ?? remembered;
-		const snapshot = desiredModelId === chatModelId ? baseSnapshot : provider.getModelsSnapshot(session.sessionId, desiredModelId);
+		const snapshot = desiredModelId === chatModelId ? baseSnapshot : provider.getModelsSnapshot(session.sessionId, desiredModelId, chat.resource);
 
 		this._models = snapshot.models;
+		this._agentModelPreferences = snapshot.agentModelPreferences;
 		this._modelTarget = snapshot.modelTarget;
-		const options = normalizeModelPickerOptions(provider.getModelPickerOptions(session.sessionId));
+		const options = normalizeModelPickerOptions(provider.getModelPickerOptions(session.sessionId, chat.resource));
 		// The provider resolves the desired model: a host republishes it under its own identifier,
 		// so matching the raw one would miss it.
 		const resolvedDesiredModel = snapshot.desiredModelResolution.kind === 'available'
@@ -565,7 +573,9 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 		pendingSelection: IPendingModelSelection | undefined,
 		currentModel = this._controller.currentModel.get(),
 	): void {
-		this._state.set(createModelSelectionState(this._models, options, currentModel, pendingSelection), undefined);
+		const state = createModelSelectionState(this._models, options, currentModel, pendingSelection);
+		const preferences = this._agentModelPreferences;
+		this._state.set({ ...state, agentModelPreferences: preferences, agentModelPolicyError: getAgentModelPolicyError(preferences, currentModel?.identifier, this._models) }, undefined);
 	}
 
 	/** The remembered preference, migrating the legacy key forward the first time it is seen. */

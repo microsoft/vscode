@@ -56,15 +56,15 @@ When running in a VS Code editor window with a workspace folder, use the VS Code
 
 Run a targeted type check or build when you are not fully confident in the change, and the change is broad or cross-cutting, it affects build or type configuration, or another validation step reports a compilation problem. When task tools are unavailable or no suitable task exists, useful commands include:
 
-- `npm run typecheck-client` for the main sources under `src/`
-- `npm run gulp compile-extensions` for built-in extensions
-- `npm run typecheck` from the `build` folder for build tooling
+- `pnpm run typecheck-client` for the main sources under `src/`
+- `pnpm run gulp compile-extensions` for built-in extensions
+- `pnpm run typecheck` from the `build` folder for build tooling
 
-Development compile tasks already type-check their inputs. Do not run `npm run typecheck-client` immediately before `npm run compile` or `npm run compile-client`; choose the command that covers the required validation. When tests only need fresh client output, use `npm run build-fast -- --client-only`. It supports cold builds and file-granular incremental updates without starting a watcher or building extensions. Use `npm run build-fast` when extension and Copilot outputs are also needed. The client and extension JavaScript lanes transpile rather than type-check; extension media retains its existing type checks. Run explicit type checks when the change warrants them. Reserve `npm run transpile-client` for an intentional clean client rebuild.
+Development compile tasks already type-check their inputs. Do not run `pnpm run typecheck-client` immediately before `pnpm run compile` or `pnpm run compile-client`; choose the command that covers the required validation. When tests only need fresh client output, use `pnpm run build-fast --client-only`. It supports cold builds and file-granular incremental updates without starting a watcher or building extensions. Use `pnpm run build-fast` when extension and Copilot outputs are also needed. The client and extension JavaScript lanes transpile rather than type-check; extension media retains its existing type checks. Run explicit type checks when the change warrants them. Reserve `pnpm run transpile-client` for an intentional clean client rebuild.
 
-Reuse successful validation while its relevant inputs remain unchanged, including when moving into review, commit, or PR creation. Batch related test selectors in one invocation. Prefer `npm run eslint -- <changed files>` for targeted linting; this wrapper caches results by file content. Install dependencies only when dependency inputs change or validation identifies missing dependencies; use `npm run install-fast` for a needed refresh, which skips up-to-date installations and falls back to `npm install` when required. Never share or symlink `node_modules` between worktrees.
+Reuse successful validation while its relevant inputs remain unchanged, including when moving into review, commit, or PR creation. Batch related test selectors in one invocation. Prefer `pnpm run eslint <changed files>` for targeted linting; this wrapper caches results by file content. The repository installs dependencies with pnpm (the `packageManager` field of `package.json` pins the version); never install them with npm or yarn. Install dependencies only when dependency inputs change or validation identifies missing dependencies; run `pnpm install` for a needed refresh, which takes a few seconds when nothing changed. Never share or symlink `node_modules` between worktrees.
 
-Use `scripts/test.sh` (or `scripts\test.bat` on Windows) for unit tests and `scripts/test-integration.sh` (or `scripts\test-integration.bat` on Windows) for integration tests. Add a targeted selector such as `--grep` whenever possible. Run `npm run valid-layers-check` only when a change may affect module layering.
+Use `scripts/test.sh` (or `scripts\test.bat` on Windows) for unit tests and `scripts/test-integration.sh` (or `scripts\test-integration.bat` on Windows) for integration tests. Add a targeted selector such as `--grep` whenever possible. Run `pnpm run valid-layers-check` only when a change may affect module layering.
 
 ## Coding Guidelines
 
@@ -157,6 +157,16 @@ function f(x: number, y: string): void { }
 - Avoid using events to drive control flow between components. Instead, prefer direct method calls or service interactions to ensure clearer dependencies and easier traceability of logic. Events should be reserved for broadcasting state changes or notifications rather than orchestrating behavior across components.
 - Service dependencies MUST be declared in constructors and MUST NOT be accessed through the `IInstantiationService` at any other point in time.
 
+## Public Content
+
+This repository is public, and so is everything written in it: pull requests, issues, comments, reviews, commit messages, code, tests and documentation. The instructions above cover the code; this section covers the text around it.
+
+- Don't include confidential information: credentials or tokens, personal or customer data, links to internal-only tools and dashboards, or data from internal sources such as telemetry queries, experiment scorecards and cost reports.
+- Anything derived from internal data is confidential too: counts of users, devices, sessions or requests; rates, shares and deltas; statistical results; cost, token usage and capacity figures; and screenshots of queries or dashboards. Telemetry event and property names, and the shape of a query, are fine.
+- When internal data informs a change, describe the conclusion without numbers, for example "the experiment showed no regression" or "the error is common on Windows".
+- Numbers you measured yourself, for example in a local run, a test or a benchmark, are fine as long as they aren't cost figures. So are planned settings such as a rollout percentage.
+- Check the text of a pull request, issue, comment or commit message against these rules before you publish it. Commit messages can't be changed after they are merged.
+
 ## Learnings
 - Minimize the amount of assertions in tests. Prefer one snapshot-style `assert.deepStrictEqual` over multiple precise assertions, as they are much more difficult to understand and to update.
-- Do not stub a global object (e.g. `(mainWindow as any).ResizeObserver = ...`) or use `any` casts to install fakes in tests. Instead, make the dependency injectable: add an optional constructor parameter on the production class that defaults to the real implementation (e.g. `targetWindow.ResizeObserver`), and have the test pass a fake that implements the real interface.
+- Do not stub a global object (e.g. `(mainWindow as any).ResizeObserver = ...`) or use `any` casts to install fakes in tests. Instead, make the dependency injectable: add an optional constructor parameter on the production class that defaults to the real implementation (e.g. `dom.DisposableResizeObserver`'s `resizeObserverCtor` option, which defaults to `targetWindow.ResizeObserver`), and have the test pass a fake that implements the real interface.

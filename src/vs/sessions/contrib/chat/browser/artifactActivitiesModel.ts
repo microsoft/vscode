@@ -10,13 +10,14 @@ import { CancellationError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, observableSignal } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import { getArtifactThemeIcon } from '../../../../platform/artifactIntegrations/browser/artifactDetailsList.js';
 import { ArtifactRun, ArtifactRunState, ArtifactSnapshot, IArtifactModel, isArtifactRunSettled } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { IChatWidget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../../../workbench/contrib/chat/common/model/chatViewModel.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ArtifactDetailsViewState, IArtifactActivitiesViewData, IArtifactActivityViewData } from './artifactDetailsView.js';
 
@@ -44,6 +45,7 @@ export class ArtifactActivitiesModel extends Disposable {
 		private readonly dismiss: () => void,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
+		@IFocusedSessionHostService private readonly _focusedSessionHostService: IFocusedSessionHostService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) {
 		super();
@@ -81,7 +83,9 @@ export class ArtifactActivitiesModel extends Disposable {
 				this.loading = false;
 				this.error = '';
 				this.changed.trigger(undefined);
-			} else if (state.activitiesExpanded && !this.pages.length && !this.loading && !this.error) {
+			} else if (!this.pages.length && !this.loading && !this.error
+				&& (state.activitiesExpanded || !snapshot.runs.some(isVisibleActivity))) {
+				// Recent runs that were all skipped would hide the card, so discover older visible history first.
 				void this.loadPage(0);
 			}
 		}));
@@ -97,7 +101,7 @@ export class ArtifactActivitiesModel extends Disposable {
 				runs.set(run.id, run);
 			}
 		}
-		return [...runs.values()].sort((a, b) => b.createdAt - a.createdAt || a.id.localeCompare(b.id));
+		return [...runs.values()].filter(isVisibleActivity).sort((a, b) => b.createdAt - a.createdAt || a.id.localeCompare(b.id));
 	}
 
 	private item(run: ArtifactRun, snapshot: ArtifactSnapshot): IArtifactActivityViewData {
@@ -105,8 +109,10 @@ export class ArtifactActivitiesModel extends Disposable {
 		const name = run.presentation?.action.label ?? (actions.length === 1 ? actions[0].label : run.actionId);
 		const label = localize('artifactActivityLabel', "{0}: {1}", name, artifactRunStateLabel(run.state));
 		const revealable = !!run.chat && !!run.receipt;
+		// The icon identifies the kind of action; state icons would be mistaken for check results.
+		const iconId = (actions.length === 1 ? actions[0].iconId : undefined) ?? run.presentation?.action.iconId;
 		return {
-			id: run.id, label, icon: activityIcon(run),
+			id: run.id, label, icon: iconId ? getArtifactThemeIcon({ id: iconId }) : Codicon.history,
 			description: localize('artifactActivityDescription', "{0}\n{1}\n{2}\n{3}{4}", label, run.reason,
 				run.source === 'automation' ? localize('artifactAutomaticActivity', "Automatic action") : localize('artifactManualActivity', "Manual action"),
 				new Date(run.createdAt).toLocaleString(), revealable ? localize('artifactRevealActivityHint', "\nSelect to reveal in chat.") : ''),
@@ -124,24 +130,27 @@ export class ArtifactActivitiesModel extends Disposable {
 		if (this._store.isDisposed || (this.loading && !replacePending)) {
 			return;
 		}
-		const before = index === 0 ? undefined : this.pages[index - 1]?.next;
 		const generation = ++this.generation;
 		this.loading = true;
 		this.error = '';
-		this.retryPage = index;
 		this.changed.trigger(undefined);
 		try {
-			if (index > 0 && !before) {
-				throw new Error(localize('artifactActivityCursorUnavailable', "Earlier activity is no longer available. Reopen the artifact details to refresh its history."));
+			// Skipped runs are not shown, so keep paging until a page adds a visible run or history ends.
+			for (let page: IActivityPage | undefined; !page || (page.next && !page.runs.some(isVisibleActivity)); index++) {
+				const before = index === 0 ? undefined : this.pages[index - 1]?.next;
+				this.retryPage = index;
+				if (index > 0 && !before) {
+					throw new Error(localize('artifactActivityCursorUnavailable', "Earlier activity is no longer available. Reopen the artifact details to refresh its history."));
+				}
+				page = await this.model.getRuns(before, 50);
+				if (this._store.isDisposed || generation !== this.generation) {
+					return;
+				}
+				if (this.pages[index]?.next !== page.next) {
+					this.pages.length = index;
+				}
+				this.pages[index] = page;
 			}
-			const page = await this.model.getRuns(before, 50);
-			if (this._store.isDisposed || generation !== this.generation) {
-				return;
-			}
-			if (this.pages[index]?.next !== page.next) {
-				this.pages.length = index;
-			}
-			this.pages[index] = page;
 		} catch (error) {
 			if (!this._store.isDisposed && generation === this.generation) {
 				this.error = localize('artifactActivitiesLoadError', "Could not load activities: {0}", toErrorMessage(error));
@@ -220,8 +229,7 @@ export class ArtifactActivitiesModel extends Disposable {
 			await this.sessionsService.openChat(owner.session, resource, { source: 'link' });
 			opened = true;
 			store.add(autorun(reader => {
-				const active = this.sessionsService.activeSession.read(reader);
-				if (!isEqual(active?.activeChat.read(reader)?.resource, resource)) {
+				if (!isEqual(this._focusedSessionHostService.focusedHost.read(reader).chat.read(reader)?.resource, resource)) {
 					cancelled = true;
 					if (!ready.isSettled) {
 						void ready.complete(undefined);
@@ -244,6 +252,11 @@ export class ArtifactActivitiesModel extends Disposable {
 	}
 }
 
+/** A skipped run did nothing, so it is not shown as activity. */
+function isVisibleActivity(run: ArtifactRun): boolean {
+	return run.state !== 'skipped';
+}
+
 export function artifactRunStateLabel(state: ArtifactRunState): string {
 	switch (state) {
 		case 'queued': return localize('artifactQueued', "Queued");
@@ -256,20 +269,5 @@ export function artifactRunStateLabel(state: ArtifactRunState): string {
 		case 'failed': return localize('artifactFailed', "Failed");
 		case 'cancelled': return localize('artifactCancelled', "Cancelled");
 		case 'interrupted': return localize('artifactInterrupted', "Interrupted");
-	}
-}
-
-function activityIcon(run: ArtifactRun): ThemeIcon {
-	switch (run.state) {
-		case 'completed': return { ...Codicon.passFilledCompact, color: { id: 'charts.green' } };
-		case 'failed': return { ...Codicon.errorCompact, color: { id: 'errorForeground' } };
-		case 'interrupted': return { ...Codicon.warning, color: { id: 'editorWarning.foreground' } };
-		case 'skipped': return Codicon.skip;
-		case 'cancelled': return Codicon.circleSlash;
-		case 'blocked': return Codicon.watch;
-		case 'queued': return Codicon.clock;
-		case 'preparing':
-		case 'submitted':
-		case 'running': return ThemeIcon.modify(Codicon.loading, 'spin');
 	}
 }

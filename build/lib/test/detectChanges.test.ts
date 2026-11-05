@@ -14,6 +14,18 @@ import { detectChanges } from '../../../.github/actions/detect-changes/detect.ts
 const repositoryRoot = path.resolve(import.meta.dirname, '../../..');
 const coreTestOutputs = ['unit-tests', 'browser-integration', 'product-tests'];
 
+/** The outputs of the changes that only Compile & Hygiene reads. */
+const onlyCompileAndHygiene = {
+	'cli': 'false',
+	'copilot-shim': 'false',
+	'copilot': 'false',
+	'unit-tests': 'false',
+	'browser-integration': 'false',
+	'product-tests': 'false',
+	'monaco-editor': 'false',
+	'telemetry': 'false',
+};
+
 interface IWorkflowJob {
 	readonly name?: string;
 	readonly needs?: string | readonly string[];
@@ -64,7 +76,7 @@ function skipOutput(test: ITestJob): string | undefined {
 	return typeof condition === 'string' ? /needs\.changes\.outputs\.(?<output>[\w-]+) == 'true'/.exec(condition)?.groups?.output : undefined;
 }
 
-async function detect(files: readonly { filename: string; previous_filename?: string }[], expectedCount = files.length, failure?: Error) {
+async function detect(files: readonly { filename: string; previous_filename?: string; status?: string; patch?: string }[], expectedCount = files.length, failure?: Error) {
 	const outputs: Record<string, string> = {};
 	await detectChanges({
 		paginate: async (_method, parameters) => {
@@ -149,6 +161,14 @@ suite('Detect Changes', () => {
 			['build/azure-pipelines/win32/steps/product-build-win32-test.yml', ['false', 'false', 'false']],
 			['build/azure-pipelines/linux/setup-env.sh', ['true', 'true', 'true']],
 			['build/azure-pipelines/common/computeBuiltInDepsCacheKey.ts', ['true', 'true', 'true']],
+			['.vscode/settings.json', ['false', 'false', 'false']],
+			['.vscode/extensions/vscode-selfhost-test-provider/src/extension.ts', ['false', 'false', 'false']],
+			['.vscode/extensions/vscode-pr-pinger/package.json', ['false', 'false', 'false']],
+			['extensions/vscode-api-tests/testWorkspace/.vscode/settings.json', ['false', 'true', 'true']],
+			['eslint.config.js', ['false', 'false', 'false']],
+			['.eslint-plugin-local/code-no-any-casts.ts', ['false', 'false', 'false']],
+			['test/sanity/src/cli.test.ts', ['false', 'false', 'false']],
+			['test/smoke/src/main.ts', ['true', 'true', 'true']],
 			['package.json', ['true', 'true', 'true']],
 		];
 		const results: [string, string[]][] = [];
@@ -198,7 +218,61 @@ suite('Detect Changes', () => {
 				'monaco-editor': 'false',
 				'telemetry': 'false',
 			},
-			unskippableJobs: ['changes', 'compile', 'pr-gate'],
+			// Cancel Run only runs when Compile & Hygiene fails.
+			unskippableJobs: ['changes', 'compile', 'cancel-run', 'pr-gate'],
+		});
+	});
+
+	test('a change to the workspace configuration, the ESLint configuration or the sanity tests runs only Compile & Hygiene, and the Copilot checks lint with the ESLint configuration', async () => {
+		assert.deepStrictEqual({
+			workspaceConfiguration: await detect([
+				{ filename: '.vscode/settings.json' },
+				{ filename: '.vscode/launch.json' },
+				{ filename: '.vscode/tasks.json' },
+				{ filename: '.vscode/extensions/vscode-selfhost-test-provider/src/extension.ts' },
+				{ filename: '.vscode/extensions/vscode-pr-pinger/package.json' },
+			]),
+			eslintConfiguration: await detect([
+				{ filename: 'eslint.config.js' },
+				{ filename: '.eslint-ignore' },
+				{ filename: '.eslint-allowed-javascript-files' },
+				{ filename: '.eslint-allowed-bracket-notation-files' },
+				{ filename: '.eslint-plugin-local/code-no-any-casts.ts' },
+			]),
+			sanityTests: await detect([
+				{ filename: 'test/sanity/src/cli.test.ts' },
+				{ filename: 'test/sanity/pnpm-lock.yaml' },
+			]),
+		}, {
+			workspaceConfiguration: onlyCompileAndHygiene,
+			eslintConfiguration: { ...onlyCompileAndHygiene, 'copilot': 'true' },
+			sanityTests: onlyCompileAndHygiene,
+		});
+	});
+
+	test('a change that only updates the distro commit in package.json runs only Compile & Hygiene', async () => {
+		// The line of package.json that `npm run update-distro` rewrites, so that the test fails when its format changes.
+		const distroLine = readFileSync(path.join(repositoryRoot, 'package.json'), 'utf8').split('\n').find(line => line.includes('"distro"'));
+		const packageJsonChange = (...changedLines: string[]) => ({
+			filename: 'package.json',
+			status: 'modified',
+			patch: ['@@ -1,7 +1,7 @@', ' {', '   "name": "code-oss-dev",', ...changedLines, '   "author": {'].join('\n'),
+		});
+		const distroUpdate = packageJsonChange(`-${distroLine}`, `+  "distro": "${'0'.repeat(40)}",`);
+		const everyCheck = { ...onlyCompileAndHygiene, 'cli': 'true', 'copilot': 'true', 'unit-tests': 'true', 'browser-integration': 'true', 'product-tests': 'true', 'monaco-editor': 'true', 'telemetry': 'true' };
+		assert.deepStrictEqual({
+			distroUpdate: await detect([distroUpdate]),
+			withAzurePipelinesDefinition: await detect([distroUpdate, { filename: 'build/azure-pipelines/product-build.yml' }]),
+			withSources: await detect([distroUpdate, { filename: 'src/vs/base/common/async.ts' }]),
+			withOtherField: await detect([packageJsonChange(`-${distroLine}`, '-  "version": "1.0.0",', `+  "distro": "${'0'.repeat(40)}",`, '+  "version": "1.1.0",')]),
+			// GitHub omits the patch of large diffs.
+			withoutPatch: await detect([{ filename: 'package.json', status: 'modified' }]),
+		}, {
+			distroUpdate: onlyCompileAndHygiene,
+			withAzurePipelinesDefinition: onlyCompileAndHygiene,
+			withSources: { ...everyCheck, 'cli': 'false', 'copilot': 'false' },
+			withOtherField: everyCheck,
+			withoutPatch: everyCheck,
 		});
 	});
 
@@ -240,8 +314,8 @@ suite('Detect Changes', () => {
 		// Linux and macOS Electron jobs, which also run Agent Host E2E.
 		const agentHostOutputs = ['agent-host-e2e', 'agent-host-test-profile', 'agent-host-test-profile-reason', 'electron-tests'];
 		// And whether the pull request changes ripple, and whether ripple failed, for the Ripple job, and whether
-		// the macOS and Windows test jobs have planned files to run: unit tests (for the Browser ones, browser tests),
-		// node.js integration tests and Agent Host E2E suites.
+		// the test jobs have planned files to run: unit tests (for the Browser ones, browser tests), node.js
+		// integration tests and Agent Host E2E suites.
 		const rippleOutputs = ['ripple-changed', 'ripple-failed', 'selected-unit-tests', 'selected-browser-unit-tests', 'selected-node-integration-tests', 'selected-agent-host-e2e'];
 		assert.deepStrictEqual(Object.keys(loadWorkflow().jobs.changes.outputs ?? {}).sort(), [...outputs, ...agentHostOutputs, ...rippleOutputs].sort());
 	});
@@ -259,7 +333,7 @@ suite('Detect Changes', () => {
 		});
 	});
 
-	test('the macOS and Windows test jobs run only the planned files, and skip when the plan of a working ripple selects none', () => {
+	test('the test jobs run only the planned files, and skip when the plan of a working ripple selects none', () => {
 		const { jobs } = loadWorkflow();
 		const tests = testJobs();
 		const selected = (output: string) => `\${{ needs.changes.result != 'success' || needs.changes.outputs.${output} == 'true' }}`;
@@ -268,11 +342,12 @@ suite('Detect Changes', () => {
 			outputs: ['selected-unit-tests', 'selected-browser-unit-tests', 'selected-node-integration-tests', 'selected-agent-host-e2e'].map(output => jobs.changes.outputs?.[output]),
 			skippableUnitTests: skippedBy('selected-unit-tests'),
 			skippableBrowserUnitTests: skippedBy('selected-browser-unit-tests'),
+			skippableNodeIntegrationTests: skippedBy('selected-node-integration-tests'),
 			skippableAgentHostE2E: skippedBy('selected-agent-host-e2e'),
 			planned: [...tests].filter(([, test]) => test.job.env?.TEST_SELECTION === 'true').map(([check]) => check).sort(),
-			// The macOS and Windows Electron jobs also run the extension host tests, so they skip their node.js
-			// integration tests and Agent Host E2E steps instead.
-			steps: Object.fromEntries(['Linux / Electron', 'macOS / Electron', 'Windows / Electron'].map(check => {
+			// The macOS Electron job also runs the extension host tests, so it skips its node.js integration tests and
+			// Agent Host E2E steps instead. Linux and Windows run the node.js integration tests in a job of their own.
+			steps: Object.fromEntries(['Linux / Electron (node.js)', 'macOS / Electron', 'Windows / Electron (node.js)'].map(check => {
 				const test = tests.get(check)!;
 				return [check, {
 					nodeIntegrationTests: resolveInput(test, test.job.env?.NODE_INTEGRATION_TESTS),
@@ -286,20 +361,25 @@ suite('Detect Changes', () => {
 				`\${{ steps.detect.outputs.product-tests == 'true' && steps.ripple.outputs.selects-no-node-integration-tests != 'true' }}`,
 				`\${{ steps.detect-agent-host-e2e.outputs.affected == 'true' && steps.ripple.outputs.selects-no-agent-host-e2e != 'true' }}`,
 			],
-			skippableUnitTests: ['macOS / Electron-Unit', 'Windows / Electron-Unit'].sort(),
-			skippableBrowserUnitTests: ['macOS / Browser-Unit', 'Windows / Browser-Unit'].sort(),
-			skippableAgentHostE2E: ['Windows / Agent-Host-E2E (shard 1/2)', 'Windows / Agent-Host-E2E (shard 2/2)'],
+			skippableUnitTests: ['Linux / Electron-Unit (electron)', 'Linux / Electron-Unit (node)', 'macOS / Electron-Unit', 'Windows / Electron-Unit'].sort(),
+			skippableBrowserUnitTests: ['Linux / Browser-Unit', 'macOS / Browser-Unit', 'Windows / Browser-Unit'].sort(),
+			skippableNodeIntegrationTests: ['Linux / Electron (node.js)', 'Windows / Electron (node.js)'],
+			skippableAgentHostE2E: ['Linux / Agent-Host-E2E', 'Windows / Agent-Host-E2E (shard 1/3)', 'Windows / Agent-Host-E2E (shard 2/3)', 'Windows / Agent-Host-E2E (shard 3/3)'],
 			planned: [
+				'Linux / Electron-Unit (electron)', 'Linux / Electron-Unit (node)', 'Linux / Browser-Unit', 'Linux / Electron (node.js)',
+				'Linux / Agent-Host-E2E',
 				'macOS / Electron-Unit', 'macOS / Browser-Unit', 'macOS / Electron',
-				'Windows / Electron-Unit', 'Windows / Browser-Unit', 'Windows / Electron',
-				'Windows / Agent-Host-E2E (shard 1/2)', 'Windows / Agent-Host-E2E (shard 2/2)',
+				'Windows / Electron-Unit', 'Windows / Browser-Unit', 'Windows / Electron (node.js)',
+				'Windows / Agent-Host-E2E (shard 1/3)', 'Windows / Agent-Host-E2E (shard 2/3)', 'Windows / Agent-Host-E2E (shard 3/3)',
 			].sort(),
 			steps: {
-				// Linux runs every node.js integration test, and Agent Host E2E in its own job.
-				'Linux / Electron': { nodeIntegrationTests: undefined, agentHostE2E: undefined },
+				// Linux skips the whole job when the plan selects no node.js integration test, and runs Agent Host E2E in
+				// its own job.
+				'Linux / Electron (node.js)': { nodeIntegrationTests: undefined, agentHostE2E: undefined },
 				'macOS / Electron': { nodeIntegrationTests: selected('selected-node-integration-tests'), agentHostE2E: selected('selected-agent-host-e2e') },
-				// Windows runs Agent Host E2E in its own jobs.
-				'Windows / Electron': { nodeIntegrationTests: selected('selected-node-integration-tests'), agentHostE2E: undefined },
+				// Windows skips the whole job when the plan selects no node.js integration test, and runs Agent Host E2E
+				// in its own jobs.
+				'Windows / Electron (node.js)': { nodeIntegrationTests: undefined, agentHostE2E: undefined },
 			},
 		});
 	});
@@ -334,15 +414,18 @@ suite('Detect Changes', () => {
 			checks: {
 				'Linux / CLI': skipsWhenUnaffected('cli'),
 				'Linux / Copilot Shim': skipsWhenUnaffected('copilot-shim'),
-				'Linux / Electron-Unit (electron)': skipsWhenUnaffected('unit-tests'),
-				'Linux / Electron-Unit (node)': skipsWhenUnaffected('unit-tests'),
-				'Linux / Electron': skipsWhenUnaffected('product-tests'),
-				'Linux / Agent-Host-E2E': skipsWhenUnaffected('agent-host-e2e'),
-				'Linux / Electron-Smoke (shard 1/2)': skipsWhenUnaffected('product-tests'),
-				'Linux / Electron-Smoke (shard 2/2)': skipsWhenUnaffected('product-tests'),
-				'Linux / Browser-Unit': skipsWhenUnaffected('unit-tests'),
+				'Linux / Electron-Unit (electron)': skipsWhenUnaffected('selected-unit-tests'),
+				'Linux / Electron-Unit (node)': skipsWhenUnaffected('selected-unit-tests'),
+				'Linux / Electron (node.js)': skipsWhenUnaffected('selected-node-integration-tests'),
+				'Linux / Electron (extension host)': skipsWhenUnaffected('product-tests'),
+				'Linux / Agent-Host-E2E': skipsWhenUnaffected('selected-agent-host-e2e'),
+				'Linux / Electron-Smoke (shard 1/3)': skipsWhenUnaffected('product-tests'),
+				'Linux / Electron-Smoke (shard 2/3)': skipsWhenUnaffected('product-tests'),
+				'Linux / Electron-Smoke (shard 3/3)': skipsWhenUnaffected('product-tests'),
+				'Linux / Browser-Unit': skipsWhenUnaffected('selected-browser-unit-tests'),
 				'Linux / Browser': skipsWhenUnaffected('browser-integration'),
-				'Linux / Remote': skipsWhenUnaffected('product-tests'),
+				'Linux / Remote (integration)': skipsWhenUnaffected('product-tests'),
+				'Linux / Remote (smoke)': skipsWhenUnaffected('product-tests'),
 				'macOS / Electron-Unit': skipsWhenUnaffected('selected-unit-tests'),
 				'macOS / Electron': skipsWhenUnaffected('electron-tests'),
 				'macOS / Electron-Smoke (shard 1/2)': skipsWhenUnaffected('product-tests'),
@@ -351,16 +434,20 @@ suite('Detect Changes', () => {
 				'macOS / Browser': skipsWhenUnaffected('browser-integration'),
 				'macOS / Remote': skipsWhenUnaffected('product-tests'),
 				'Windows / Electron-Unit': skipsWhenUnaffected('selected-unit-tests'),
-				'Windows / Electron': skipsWhenUnaffected('product-tests'),
-				'Windows / Agent-Host-E2E (shard 1/2)': skipsWhenUnaffected('selected-agent-host-e2e'),
-				'Windows / Agent-Host-E2E (shard 2/2)': skipsWhenUnaffected('selected-agent-host-e2e'),
+				'Windows / Electron (node.js)': skipsWhenUnaffected('selected-node-integration-tests'),
+				'Windows / Electron (extension host)': skipsWhenUnaffected('product-tests'),
+				'Windows / Agent-Host-E2E (shard 1/3)': skipsWhenUnaffected('selected-agent-host-e2e'),
+				'Windows / Agent-Host-E2E (shard 2/3)': skipsWhenUnaffected('selected-agent-host-e2e'),
+				'Windows / Agent-Host-E2E (shard 3/3)': skipsWhenUnaffected('selected-agent-host-e2e'),
 				'Windows / Electron-Smoke (shard 1/3)': skipsWhenUnaffected('product-tests'),
 				'Windows / Electron-Smoke (shard 2/3)': skipsWhenUnaffected('product-tests'),
 				'Windows / Electron-Smoke (shard 3/3)': skipsWhenUnaffected('product-tests'),
 				'Windows / Browser-Unit': skipsWhenUnaffected('selected-browser-unit-tests'),
-				'Windows / Browser': skipsWhenUnaffected('browser-integration'),
+				'Windows / Browser (integration)': skipsWhenUnaffected('browser-integration'),
+				'Windows / Browser (smoke)': skipsWhenUnaffected('browser-integration'),
 				'Windows / Remote (integration)': skipsWhenUnaffected('product-tests'),
-				'Windows / Remote (smoke)': skipsWhenUnaffected('product-tests'),
+				'Windows / Remote (smoke, shard 1/2)': skipsWhenUnaffected('product-tests'),
+				'Windows / Remote (smoke, shard 2/2)': skipsWhenUnaffected('product-tests'),
 			},
 			undeclaredOutputs: [],
 		});

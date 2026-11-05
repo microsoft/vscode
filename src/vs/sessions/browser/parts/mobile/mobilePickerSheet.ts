@@ -159,6 +159,8 @@ export interface IMobilePickerSheetSearchSource {
 	readonly ariaLabel?: string;
 	/** Message rendered inside the result list when zero results are returned. */
 	readonly emptyMessage?: string;
+	/** Notifies the sheet that the current query's results have changed. */
+	readonly onDidChangeItems?: Event<void>;
 	/** Loads the result rows for the given query. */
 	loadItems(query: string, token: CancellationToken): Promise<readonly IMobilePickerSheetItem[]>;
 	/**
@@ -493,6 +495,11 @@ export function showMobilePickerSheet(
 			};
 			const inputListener = DOM.addDisposableListener(searchInput, 'input', onInput);
 			disposables.add(inputListener);
+			if (search.onDidChangeItems) {
+				disposables.add(search.onDidChangeItems(() => {
+					void renderResults(searchInput!.value);
+				}));
+			}
 
 			// Initial population (empty query).
 			renderResults('');

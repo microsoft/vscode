@@ -194,6 +194,7 @@ class Editor extends Disposable {
 		this.model.sourceText.set(new StringValue(initialState.content), undefined);
 		this.model.readonlyMode.set(initialState.readonly, undefined);
 		this.model.lineBreak.set(initialState.lineBreak, undefined);
+		this.model.renderWhitespace.set(initialState.renderWhitespace, undefined);
 
 		this._register(this.#connection.register(markdownEditorRenderer, {
 			readClipboardMedia: (request, _context, { signal }) => {
@@ -281,8 +282,9 @@ class Editor extends Disposable {
 			highlightThemeChanged: () => {
 				this.#syntaxHighlighter.themeChanged();
 			},
-			configurationChanged: ({ highlightActiveBlock, lineBreak }) => {
+			configurationChanged: ({ highlightActiveBlock, renderWhitespace, lineBreak }) => {
 				this.#view?.highlightActiveBlock.set(highlightActiveBlock, undefined);
+				this.model.renderWhitespace.set(renderWhitespace, undefined);
 				this.model.lineBreak.set(lineBreak, undefined);
 			},
 			richLinkPresentations: ({ presentations }) => {
@@ -719,6 +721,7 @@ function isInitialState(value: unknown): value is InitialState {
 		&& isTaskProgressLabels(candidate.taskProgressLabels)
 		&& typeof candidate.readonly === 'boolean'
 		&& typeof candidate.highlightActiveBlock === 'boolean'
+		&& typeof candidate.renderWhitespace === 'boolean'
 		&& (candidate.lineBreak === '\n' || candidate.lineBreak === '\r\n')
 		&& typeof candidate.richLinksEnabled === 'boolean'
 		&& Array.isArray(candidate.linkPresentationRules);

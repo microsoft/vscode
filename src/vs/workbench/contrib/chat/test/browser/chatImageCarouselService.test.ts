@@ -635,6 +635,27 @@ suite('ChatImageCarouselService helpers', () => {
 			], 0, sessionResource)]]);
 		});
 
+		test('keeps an explicit image collection isolated from chat history and composer attachments', async () => {
+			const sessionResource = URI.parse('chat-session://test/session');
+			const uri = URI.file('/artifact.png');
+			const executeCommand = sinon.stub().resolves();
+			const getWidgetBySessionResource = sinon.stub().throws(new Error('Explicit collections must not read the chat widget'));
+			const service = new ChatImageCarouselService(
+				upcastPartial<IChatWidgetService>({ getWidgetBySessionResource }),
+				upcastPartial<ICommandService>({ executeCommand }),
+				upcastPartial<IFileService>({ readFile: async () => { throw new Error('Images should load lazily'); } }),
+				upcastPartial<IChatSessionsService>({}),
+			);
+			await service.openCarouselAtResource(uri, undefined, {
+				sessionResource, includeChatImages: false,
+				currentInput: { text: 'Unrelated attachment', attachments: [makeImageVariableEntry({ value: new Uint8Array([1, 2, 3]) })] },
+				additionalImages: [{ uri, mimeType: 'image/png' }],
+			});
+			assert.deepStrictEqual(executeCommand.args, [['workbench.action.chat.openImageInCarousel', buildCollectionArgs([
+				{ title: 'Artifact Images', images: [{ id: uri.toString(), name: 'artifact.png', mimeType: 'image/png', uri }] },
+			], 0, sessionResource)]]);
+		});
+
 		test('opens a response Markdown image among the conversation images', async () => {
 			const sessionResource = URI.parse('chat-session://test/session');
 			const data = new Uint8Array([1, 2, 3]);

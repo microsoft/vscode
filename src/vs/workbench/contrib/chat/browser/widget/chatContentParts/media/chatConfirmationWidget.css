@@ -63,6 +63,8 @@
 
 .chat-confirmation-widget-container {
 	position: relative;
+	/* The container is the focusable element; match the card's radius so its focus outline follows the card's corners. */
+	border-radius: var(--vscode-cornerRadius-medium);
 
 	> .monaco-progress-container.active {
 		position: absolute;
@@ -547,6 +549,18 @@
 	border: none !important;
 }
 
+.chat-confirmation-message-terminal-reason {
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+
+	.chat-markdown-part > :first-child {
+		margin-top: 0;
+	}
+
+	.chat-markdown-part > :last-child {
+		margin-bottom: 0;
+	}
+}
+
 .chat-confirmation-message-terminal .chat-confirmation-message-terminal-disclaimer p:last-child {
 	margin-bottom: 0 !important;
 	padding: 4px 8px 0 8px;
@@ -555,6 +569,22 @@
 .chat-confirmation-widget-container.hideButtons .chat-confirmation-widget-buttons,
 .chat-confirmation-widget-container.hideButtons .chat-toolbar-container {
 	display: none;
+}
+
+.chat-confirmation-widget2 .chat-confirmation-feedback {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size40);
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80) 0;
+
+	.chat-confirmation-feedback-label {
+		font-size: var(--vscode-fontSize-label1);
+	}
+
+	.chat-confirmation-feedback-description {
+		color: var(--vscode-descriptionForeground);
+		font-size: var(--vscode-fontSize-label2);
+	}
 }
 
 .chat-confirmation-widget2 .chat-confirmation-widget-buttons {

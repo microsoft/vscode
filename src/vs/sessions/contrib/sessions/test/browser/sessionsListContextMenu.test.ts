@@ -12,6 +12,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
 import { isDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, transaction } from '../../../../../base/common/observable.js';
+import { isWeb } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -27,10 +28,13 @@ import { IContextMenuService } from '../../../../../platform/contextview/browser
 import { IConfirmation, IConfirmationResult, IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
+import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
-import { ARCHIVE_SESSION_COMMAND_ID, DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { ARCHIVE_SESSION_COMMAND_ID, DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID, HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
 import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
 import { ISessionGroup } from '../../../../services/sessions/browser/sessionGroupsService.js';
@@ -47,6 +51,8 @@ import { ISessionChatMoveTarget, ISessionsManagementService } from '../../../../
 import { SessionMoveRefusedError } from '../../../../services/sessions/common/sessionsProvider.js';
 import { MOVE_CHAT_TO_SESSION_ACTION_ID, MOVE_SESSION_INTO_SESSION_ACTION_ID, PROMOTE_CHAT_TO_SESSION_ACTION_ID } from '../../browser/sessionsActions.js';
 import { NEW_SESSION_ACTION_ID } from '../../../chat/common/constants.js';
+import '../../../chatWindow/browser/openChatInWindow.js';
+import { CHAT_WINDOWS_ENABLED_SETTING } from '../../../chatWindow/common/chatWindows.js';
 
 class TestContextMenuService extends mock<IContextMenuService>() {
 	override readonly onDidShowContextMenu = Event.None;
@@ -274,10 +280,10 @@ suite('Sessions list context menus', () => {
 
 		assert.deepStrictEqual({
 			menu: actions.map(toLabel),
-			groupSubmenu: actions.find((action): action is SubmenuAction => action instanceof SubmenuAction)?.actions.map(toLabel),
+			groupSubmenu: actions.find((action): action is SubmenuAction => action instanceof SubmenuAction && action.label === 'Add to Group')?.actions.map(toLabel),
 		}, {
 			menu: [
-				'Open to the Side',
+				'Open in',
 				'New Nested Session',
 				'---',
 				'Mark as Unread',
@@ -291,6 +297,105 @@ suite('Sessions list context menus', () => {
 				'Delete...',
 			],
 			groupSubmenu: ['Group'],
+		});
+	});
+
+	test('Open in offers ordered targets and forwards the clicked session to the editor action', async () => {
+		const session = createTestSession('Session').session;
+		const harness = createListHarness(disposables, [session]);
+		const { instantiationService, store } = harness;
+		const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+		await configurationService.setUserConfiguration(CHAT_WINDOWS_ENABLED_SETTING, true);
+		const contextKeyService = store.add(new ContextKeyService(configurationService));
+		ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+		IsSessionsWindowContext.bindTo(contextKeyService).set(true);
+		const menuService = store.add(instantiationService.createInstance(MenuService));
+		const describe = (id: MenuId) => Separator.join(...menuService.getMenuActions(id, contextKeyService)
+			.map(([, actions]) => actions)).map(action => action instanceof Separator ? '---' : action.label);
+		const command = CommandsRegistry.getCommand('sessions.list.openInEditorWindow')!;
+		const chatContext = { session, chat: session.mainChat.get() };
+		await instantiationService.invokeFunction(command.handler, [session]);
+		await instantiationService.invokeFunction(command.handler, chatContext);
+		await instantiationService.invokeFunction(command.handler, [session, session]);
+
+		assert.deepStrictEqual({
+			session: describe(Menus.SessionItemOpenIn),
+			chat: describe(Menus.SessionChatItemOpenIn),
+			multiSelection: menuService.getMenuActions(Menus.SessionItemOpenIn, contextKeyService.createOverlay([['sessionItem.isMultiSelection', true]]))
+				.flatMap(([, actions]) => actions.map(action => ({ label: action.label, enabled: action.enabled }))),
+			calls: harness.commandService.calls,
+		}, {
+			session: ['Split View', 'New Window', '---', 'Editor Window'],
+			chat: ['Split View', 'New Window', '---', 'Editor Window'],
+			multiSelection: [
+				{ label: 'Split View', enabled: true },
+				{ label: 'New Window', enabled: false },
+				{ label: 'Editor Window', enabled: false },
+			],
+			calls: [
+				{ commandId: isWeb ? 'sessions.openInVSCode' : 'agents.openSessionInVSCode', args: [chatContext] },
+				{ commandId: isWeb ? 'sessions.openInVSCode' : 'agents.openSessionInVSCode', args: [chatContext] },
+			],
+		});
+	});
+
+	test('session menus offer Hide from Sessions List after Pin for automation sessions the list shows', async () => {
+		const session: ISession = { ...createTestSession('Automation').session, isAutomation: constObservable(true) };
+		const harness = createListHarness(disposables, [session], { groups: [group], shownAutomationSessionIds: new Set([session.sessionId]) });
+		const { instantiationService, store } = harness;
+		const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+		await configurationService.setUserConfiguration(ChatSessionArchiveActionWordingSettingId, ChatSessionArchiveActionWording.MarkAsDone);
+		const contextKeyService = store.add(new ContextKeyService(configurationService));
+		ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+		ChatAutomationsEnabledContext.bindTo(contextKeyService).set(true);
+		IsSessionsWindowContext.bindTo(contextKeyService).set(true);
+		instantiationService.stub(IContextKeyService, contextKeyService);
+		instantiationService.stub(IAutomationService, new class extends mock<IAutomationService>() {
+			override readonly automations = constObservable([]);
+			override readonly runs = constObservable([]);
+			override readonly catalogueState = constObservable('ready' as const);
+		});
+		instantiationService.stub(ICustomViewService, new class extends mock<ICustomViewService>() {
+			override readonly activeCustomView = constObservable(undefined);
+		});
+		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
+		store.add(instantiationService.createInstance(SessionsArchiveActionsContribution));
+		const contextMenuService = new TestContextMenuService();
+		instantiationService.stub(IContextMenuService, contextMenuService);
+		const container = harness.createContainer(400, 500);
+		const list = store.add(instantiationService.createInstance(SessionsList, container, {
+			grouping: () => SessionsGrouping.Workspace,
+			sorting: () => SessionsSorting.Created,
+			onSessionOpen: () => { },
+		}));
+		list.layout(500, 400);
+		await timeout(100);
+		const row = container.querySelector<HTMLElement>('.session-item');
+		assert.ok(row);
+
+		dispatchContextMenu(row);
+		const actions = contextMenuService.delegate!.getActions();
+		contextMenuService.delegate!.onHide?.(false);
+		await actions.find(action => action.id === HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID)?.run();
+
+		assert.deepStrictEqual({
+			menu: actions.map(action => action instanceof Separator ? '---' : action.label),
+			commands: harness.commandService.calls,
+		}, {
+			menu: [
+				'Open in',
+				'---',
+				'Mark as Unread',
+				'Mark as Done',
+				'---',
+				'Pin',
+				'Hide from Sessions List',
+				'Add to Group',
+				'Create Group',
+				'---',
+				'Rename...',
+			],
+			commands: [{ commandId: HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID, args: [[session]] }],
 		});
 	});
 
@@ -862,7 +967,7 @@ suite('Sessions list context menus', () => {
 				override async confirm(confirmation: IConfirmation): Promise<IConfirmationResult> { events.push(`dialog: ${confirmation.message}`); return { confirmed: true }; }
 			});
 			instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
-				override warn(message: string) { events.push(`warn: ${message}`); return undefined!; }
+				override error(message: string) { events.push(`error: ${message}`); }
 			});
 			instantiationService.stub(ISessionsManagementService, new class extends TestSessionsManagementService {
 				override canMoveChat(_session: ISession, chat: IChat): boolean { return chat === peer; }
@@ -904,7 +1009,7 @@ suite('Sessions list context menus', () => {
 			results: [true, false, false, false],
 			events: [
 				'move Peer -> newSession',
-				'warn: Could not move \'Peer\'. Send a message in this chat before moving it.',
+				'error: Could not move \'Peer\'. Send a message in this chat before moving it.',
 				// The main chat and a disabled setting don't move.
 			],
 		});
@@ -943,7 +1048,7 @@ suite('Sessions list context menus', () => {
 				}
 			});
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-				override readonly activeSession = constObservable(undefined);
+				readonly activeSession = constObservable(undefined);
 				override readonly visibleSessions = constObservable([]);
 				override async canOpenSession(): Promise<boolean> { return true; }
 				override showSession(): void { }
@@ -968,7 +1073,7 @@ suite('Sessions list context menus', () => {
 			});
 		});
 		const coreActionIds = new Set([RENAME_CHAT_COMMAND_ID, 'sessions.list.openChatToSide', 'sessions.list.deleteChat']);
-		const menuItems = MenuRegistry.getMenuItems(Menus.SessionChatItemContext)
+		const menuItems = [...MenuRegistry.getMenuItems(Menus.SessionChatItemContext), ...MenuRegistry.getMenuItems(Menus.SessionChatItemOpenIn)]
 			.filter(isIMenuItem)
 			.filter(item => coreActionIds.has(item.command.id));
 		assert.deepStrictEqual(menuItems.map(item => ({
@@ -979,8 +1084,8 @@ suite('Sessions list context menus', () => {
 			when: item.when?.serialize(),
 		})), [
 			{ id: RENAME_CHAT_COMMAND_ID, title: 'Rename...', group: '4_manage', order: 1, when: 'sessionChatItem.canRename && !sessionChatItem.isUntitled' },
-			{ id: 'sessions.list.openChatToSide', title: 'Open to the Side', group: 'navigation', order: 2, when: undefined },
 			{ id: 'sessions.list.deleteChat', title: 'Delete...', group: '4_manage', order: 2, when: 'sessionChatItem.canDelete' },
+			{ id: 'sessions.list.openChatToSide', title: 'Split View', group: 'navigation', order: 1, when: undefined },
 		]);
 		const deleteToolbarItem = MenuRegistry.getMenuItems(Menus.SessionChatItemToolbar)
 			.filter(isIMenuItem)

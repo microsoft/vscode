@@ -156,10 +156,13 @@ suite('Markdown editor RPC', () => {
 			configurationChanged: configuration => { seen.push(configuration); },
 		});
 		const renderer = host.get(markdownEditorRenderer);
-		renderer.configurationChanged({ highlightActiveBlock: false, lineBreak: '\n' });
-		renderer.configurationChanged({ highlightActiveBlock: true, lineBreak: '\r\n' });
-		await host.channel.sendNotification('markdown.editor.renderer::configurationChanged', { highlightActiveBlock: true, lineBreak: '\r' });
-		assert.deepStrictEqual(seen, [{ highlightActiveBlock: false, lineBreak: '\n' }, { highlightActiveBlock: true, lineBreak: '\r\n' }]);
+		renderer.configurationChanged({ highlightActiveBlock: false, renderWhitespace: true, lineBreak: '\n' });
+		renderer.configurationChanged({ highlightActiveBlock: true, renderWhitespace: false, lineBreak: '\r\n' });
+		await host.channel.sendNotification('markdown.editor.renderer::configurationChanged', { highlightActiveBlock: true, renderWhitespace: false, lineBreak: '\r' });
+		assert.deepStrictEqual(seen, [
+			{ highlightActiveBlock: false, renderWhitespace: true, lineBreak: '\n' },
+			{ highlightActiveBlock: true, renderWhitespace: false, lineBreak: '\r\n' },
+		]);
 		assert.strictEqual(rendererInbox.messages.length, 3);
 		assert.deepStrictEqual(hostInbox.messages, []);
 		assert.deepStrictEqual(errors, []);

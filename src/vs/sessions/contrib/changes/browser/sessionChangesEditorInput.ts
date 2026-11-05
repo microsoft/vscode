@@ -5,10 +5,9 @@
 
 import './media/sessionChangesEditorInput.css';
 import { localize } from '../../../../nls.js';
-import { mainWindow } from '../../../../base/browser/window.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Event } from '../../../../base/common/event.js';
-import { MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { EditorInputCapabilities, IEditorSerializer, IUntypedEditorInput, Verbosity } from '../../../../workbench/common/editor.js';
@@ -16,8 +15,9 @@ import { EditorInput } from '../../../../workbench/common/editor/editorInput.js'
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { MultiDiffEditorInput } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
 import { MultiDiffEditorViewModel } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
-import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
-import { DockedEditorInput } from '../../../common/dockedEditorInput.js';
+import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
+import { DockedEditorInput } from '../../../browser/dockedEditorInput.js';
+import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { getSessionChangesFileCountLabel } from '../common/changes.js';
 import { ISessionChangesService } from '../common/sessionChangesService.js';
 
@@ -31,20 +31,17 @@ export class SessionChangesEditorInput extends DockedEditorInput {
 	static readonly ID = 'workbench.input.agentSessions.sessionChanges';
 	static readonly EDITOR_ID = 'workbench.editor.agentSessions.sessionChanges';
 
-	private readonly _innerInput = this._register(new MutableDisposable<MultiDiffEditorInput>());
+	private readonly _innerInput = new MutableDisposable<MultiDiffEditorInput>();
+	private _viewModelRetainers = 0;
 
 	constructor(
 		readonly multiDiffSource: URI,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ISessionChangesService private readonly sessionChangesService: ISessionChangesService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
 	) {
-		super();
-		this._register(layoutService.onDidChangePartVisibility(event => {
-			if (event.partId === Parts.EDITOR_PART) {
-				this._onDidChangeCapabilities.fire();
-			}
-		}));
+		super(editorGroupsService, layoutService);
 
 		const onDidChangeCount = Event.fromObservableLight(sessionChangesService.activeSessionUncommittedChangesCountObs);
 		this._register(onDidChangeCount(() => this._onDidChangeLabel.fire()));
@@ -63,8 +60,7 @@ export class SessionChangesEditorInput extends DockedEditorInput {
 	}
 
 	override get capabilities(): EditorInputCapabilities {
-		const capabilities = super.capabilities | EditorInputCapabilities.Singleton | EditorInputCapabilities.Readonly;
-		return this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow) ? capabilities : capabilities | EditorInputCapabilities.CannotClose;
+		return super.capabilities | EditorInputCapabilities.Singleton | EditorInputCapabilities.Readonly;
 	}
 
 	override getName(): string {
@@ -115,6 +111,32 @@ export class SessionChangesEditorInput extends DockedEditorInput {
 
 	clear(): void {
 		this._innerInput.clear();
+	}
+
+	/**
+	 * Keeps the resolved view model alive, even after this input is disposed, until the
+	 * returned handle is disposed. The Changes editor retains the input it is showing
+	 * while it resolves the next one, so replacing the input does not blank the diffs.
+	 */
+	retainViewModel(): IDisposable {
+		this._viewModelRetainers++;
+		let released = false;
+		return toDisposable(() => {
+			if (released) {
+				return;
+			}
+			released = true;
+			if (--this._viewModelRetainers === 0 && this.isDisposed()) {
+				this._innerInput.dispose();
+			}
+		});
+	}
+
+	override dispose(): void {
+		super.dispose();
+		if (this._viewModelRetainers === 0) {
+			this._innerInput.dispose();
+		}
 	}
 
 	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {

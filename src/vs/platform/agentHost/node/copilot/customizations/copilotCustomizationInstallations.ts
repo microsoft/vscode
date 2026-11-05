@@ -4,17 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { CopilotClient, InstallationConfirmationHandler, InstallationConfirmationRequest } from '@github/copilot-sdk';
-import { disposableTimeout } from '../../../../../base/common/async.js';
+import { createHash } from 'crypto';
+import { disposableTimeout, raceCancellationError } from '../../../../../base/common/async.js';
+import { cancelOnDispose } from '../../../../../base/common/cancellation.js';
 import { structuralEquals } from '../../../../../base/common/equals.js';
 import { Disposable, DisposableMap, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { hasKey } from '../../../../../base/common/types.js';
+import { stableStringify } from '../../../../../base/common/objects.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { IAgentCustomizationInstallation, IAgentCustomizationInstallationApplyResult, IAgentCustomizationInstallationCatalogue, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchItem, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult } from '../../../common/agent.js';
-import { toCopilotMcpServerConfiguration } from '../../../../mcp/common/mcpCopilotConfiguration.js';
-import type { IMcpServerConfiguration } from '../../../../mcp/common/mcpPlatformTypes.js';
+import { ICopilotMcpServerConfiguration, toCopilotMcpServerConfiguration } from '../../../../mcp/common/mcpCopilotConfiguration.js';
+import { parseMcpGalleryServerConfiguration } from '../../../../mcp/common/mcpGalleryService.js';
+import { TransportType } from '../../../../mcp/common/mcpManagement.js';
+import { McpServerManifestParser } from '../../../../mcp/common/mcpManagementService.js';
+import { IMcpServerConfiguration, McpServerType } from '../../../../mcp/common/mcpPlatformTypes.js';
+import { IRequestService, isSuccess, readBoundedResponse } from '../../../../request/common/request.js';
 
 const catalogContract = {
 	protocolVersion: 3,
@@ -179,6 +186,7 @@ class PendingCustomizationInstallation extends Disposable {
 }
 
 export class CopilotCustomizationInstallations extends Disposable {
+	private readonly lifetimeToken = cancelOnDispose(this._store);
 	private readonly operations = this._register(new DisposableMap<string, PendingCustomizationInstallation>());
 	private readonly catalogSelections = this._register(new DisposableMap<string, RetainedCatalogSelection>());
 	private readonly catalogCursors = this._register(new DisposableMap<string, RetainedCatalogCursor>());
@@ -209,6 +217,7 @@ export class CopilotCustomizationInstallations extends Disposable {
 	constructor(
 		private readonly getClient: () => Promise<ICopilotCustomizationInstallationClient>,
 		private readonly createPolicySession: (client: ICopilotCustomizationInstallationClient, sessionId: string) => Promise<ICopilotCustomizationPolicySession>,
+		private readonly requestService?: IRequestService,
 	) {
 		super();
 	}
@@ -318,7 +327,7 @@ export class CopilotCustomizationInstallations extends Disposable {
 							installCount: candidate.installCount,
 						} : {}),
 						installable: false,
-						unavailableMessage: localize('copilot.customizationFeed.installUnavailable', "The SDK cannot install this customization in the selected session."),
+						unavailableMessage: localize('copilot.customizationFeed.installUnavailable', "This customization cannot be installed in the selected session."),
 					};
 				return [{
 					...item,
@@ -408,7 +417,7 @@ export class CopilotCustomizationInstallations extends Disposable {
 
 	private async prepareInstall(client: ICopilotCustomizationInstallationClient, policySessionId: string, request: IAgentCustomizationInstallationRequest): Promise<IAgentCustomizationInstallationReview> {
 		if (request.installation.kind !== 'skill' && request.installation.kind !== 'mcp' && request.installation.kind !== 'plugin') {
-			throw new Error(localize('copilot.customizationInstallation.unsupported', "This customization does not provide an SDK installation identity."));
+			throw new Error(localize('copilot.customizationInstallation.unsupported', "This customization does not provide an installation identity."));
 		}
 		if (request.installation.kind === 'mcp' && request.installation.source) {
 			const card = request.installation.source;
@@ -432,7 +441,7 @@ export class CopilotCustomizationInstallations extends Disposable {
 			searchId = retained.searchId;
 		} else {
 			if (request.installation.kind !== 'plugin' && !request.itemUrl) {
-				throw new Error(localize('copilot.customizationInstallation.unsupported', "This customization does not provide an SDK installation identity."));
+				throw new Error(localize('copilot.customizationInstallation.unsupported', "This customization does not provide an installation identity."));
 			}
 			const expectedKind = request.installation.kind === 'skill' ? 'ai-skill' : request.installation.kind === 'mcp' ? 'mcp-server' : 'plugin';
 			const catalogIdentity = request.catalogIdentity ?? request.identifier;
@@ -456,7 +465,7 @@ export class CopilotCustomizationInstallations extends Disposable {
 					: candidate.source.kind === 'url' && candidate.source.url === request.itemUrl)
 			);
 			if (!matched || !this.isInstallableCatalogCandidate(matched)) {
-				throw new Error(localize('copilot.customizationInstallation.catalogChanged', "The SDK catalog no longer contains this exact customization. Refresh Browse and try again."));
+				throw new Error(localize('copilot.customizationInstallation.catalogChanged', "The catalog no longer contains this exact customization. Refresh Browse and try again."));
 			}
 			candidate = matched;
 			searchId = search.searchId;
@@ -464,7 +473,7 @@ export class CopilotCustomizationInstallations extends Disposable {
 		const expectedKind = request.installation.kind === 'skill' ? 'ai-skill' : request.installation.kind === 'mcp' ? 'mcp-server' : 'plugin';
 		if (candidate.kind !== expectedKind) {
 			retained?.dispose();
-			throw new Error(localize('copilot.customizationInstallation.catalogChanged', "The SDK catalog no longer contains this exact customization. Refresh Browse and try again."));
+			throw new Error(localize('copilot.customizationInstallation.catalogChanged', "The catalog no longer contains this exact customization. Refresh Browse and try again."));
 		}
 		try {
 			return await this.prepareCandidateInstall(client, policySessionId, request, candidate, searchId);
@@ -477,7 +486,7 @@ export class CopilotCustomizationInstallations extends Disposable {
 		if (candidate.kind === 'plugin') {
 			const plugins = client.rpc.plugins;
 			if (!plugins) {
-				throw new Error(localize('copilot.customizationInstallation.pluginUnsupported', "The SDK does not support installing catalog plugins."));
+				throw new Error(localize('copilot.customizationInstallation.pluginUnsupported', "Catalog plugin installation is not supported."));
 			}
 			const result = await plugins.planInstall({
 				contract: pluginInstallationContract,
@@ -485,11 +494,11 @@ export class CopilotCustomizationInstallations extends Disposable {
 				policySessionId,
 			});
 			if (result.kind !== 'outcome' || result.outcome.kind !== 'install-planned') {
-				throw this.resultError(result, localize('copilot.customizationInstallation.pluginPlanFailed', "The SDK could not prepare this plugin installation."));
+				throw this.resultError(result, localize('copilot.customizationInstallation.pluginPlanFailed', "Could not prepare this plugin installation."));
 			}
 			const plan = result.outcome.plan;
 			if (request.version !== undefined && plan.review.catalogue.version !== request.version) {
-				throw new Error(localize('copilot.customizationInstallation.catalogVersionChanged', "The SDK catalog version changed after discovery. Refresh Browse and try again."));
+				throw new Error(localize('copilot.customizationInstallation.catalogVersionChanged', "The catalog version changed after discovery. Refresh Browse and try again."));
 			}
 			const review: IAgentCustomizationInstallationReview = {
 				operationId: generateUuid(),
@@ -524,7 +533,7 @@ export class CopilotCustomizationInstallations extends Disposable {
 
 		if (candidate.kind === 'ai-skill') {
 			if (candidate.installability !== 'installable') {
-				throw new Error(localize('copilot.customizationInstallation.skillUnavailable', "The SDK cannot install this skill in the selected session."));
+				throw new Error(localize('copilot.customizationInstallation.skillUnavailable', "This skill cannot be installed in the selected session."));
 			}
 			const result = await client.rpc.skills.planInstall({
 				contract: skillInstallationContract,
@@ -532,11 +541,11 @@ export class CopilotCustomizationInstallations extends Disposable {
 				policySessionId,
 			});
 			if (result.kind !== 'outcome' || result.outcome.kind !== 'install-planned') {
-				throw this.resultError(result, localize('copilot.customizationInstallation.skillPlanFailed', "The SDK could not prepare this skill installation."));
+				throw this.resultError(result, localize('copilot.customizationInstallation.skillPlanFailed', "Could not prepare this skill installation."));
 			}
 			const plan = result.outcome.plan;
 			if (request.version !== undefined && plan.review.catalogue.version !== request.version) {
-				throw new Error(localize('copilot.customizationInstallation.catalogVersionChanged', "The SDK catalog version changed after discovery. Refresh Browse and try again."));
+				throw new Error(localize('copilot.customizationInstallation.catalogVersionChanged', "The catalog version changed after discovery. Refresh Browse and try again."));
 			}
 			const review = this.toSkillReview(generateUuid(), 'install', plan.review);
 			this.addOperation(new PendingCustomizationInstallation(
@@ -557,13 +566,13 @@ export class CopilotCustomizationInstallations extends Disposable {
 		}
 
 		if (candidate.installability !== 'installable' || candidate.source.kind !== 'url') {
-			throw new Error(localize('copilot.customizationInstallation.mcpUnavailable', "The SDK cannot install this MCP server in the selected session."));
+			throw new Error(localize('copilot.customizationInstallation.mcpUnavailable', "This MCP server cannot be installed in the selected session."));
 		}
 		if (request.itemUrl !== candidate.source.url
 			|| request.displayName !== candidate.displayName
 			|| request.description !== (candidate.description ?? '')
 		) {
-			throw new Error(localize('copilot.customizationInstallation.catalogChanged', "The SDK catalog no longer contains this exact customization. Refresh Browse and try again."));
+			throw new Error(localize('copilot.customizationInstallation.catalogChanged', "The catalog no longer contains this exact customization. Refresh Browse and try again."));
 		}
 		return this.prepareMcpInstall(
 			client,
@@ -586,27 +595,38 @@ export class CopilotCustomizationInstallations extends Disposable {
 		const planned = await client.rpc.mcp.planInstall({
 			contract: {
 				...catalogContract,
-				requiredCapabilities: [...catalogContract.requiredCapabilities, 'mcp-install-planning', 'multiple-transport-choice'],
+				requiredCapabilities: [
+					...catalogContract.requiredCapabilities.filter(capability => source.kind === 'candidate' || capability !== 'catalog-search-session-bound'),
+					'mcp-install-planning',
+					'multiple-transport-choice',
+				],
 			},
 			...(source.kind === 'candidate' ? { policySessionId } : {}),
 			scope: 'user',
 			source,
 		});
 		if (planned.kind !== 'planned') {
-			throw this.resultError(planned, localize('copilot.customizationInstallation.mcpPlanFailed', "The SDK could not prepare this MCP server installation."));
+			throw this.resultError(planned, localize('copilot.customizationInstallation.mcpPlanFailed', "Could not prepare this MCP server installation."));
 		}
 		const recommended = planned.plan.recommendedTransportChoiceId
 			? planned.plan.transportChoices.find(choice => choice.choiceId === planned.plan.recommendedTransportChoiceId)
 			: undefined;
-		const choice = [recommended, ...planned.plan.transportChoices].find(choice =>
+		const choices = [recommended, ...planned.plan.transportChoices];
+		const choice = choices.find(choice =>
 			choice?.installMethod === 'remote' && choice.secretPlaceholders.length === 0
-		);
-		if (!choice || choice.installMethod !== 'remote') {
+			&& (source.kind === 'candidate' || choice.requiredValues.length === 0)
+		) ?? (source.kind === 'card' ? choices.find(choice =>
+			choice?.installMethod === 'package' && choice.requiredValues.length === 0 && choice.secretPlaceholders.length === 0
+		) : undefined);
+		if (!choice) {
 			throw new Error(localize('copilot.customizationInstallation.mcpInputsRequired', "This MCP server requires an installation choice or additional values that Browse cannot collect yet."));
 		}
 		const configuration = planned.plan.configurationChanges[planned.plan.transportChoices.indexOf(choice)];
 		if (source.kind === 'card') {
-			return this.prepareMcpCardConfiguration(client, request, planned.plan, choice, configuration);
+			return this.prepareMcpCardConfiguration(client, request, card, planned.plan, choice, configuration);
+		}
+		if (choice.installMethod !== 'remote') {
+			throw new Error(localize('copilot.customizationInstallation.mcpPackageUnsupported', "Confirmed local MCP server installations are not supported."));
 		}
 		const prepared = await client.rpc.mcp.prepareInstall({
 			contract: mcpInstallationContract,
@@ -619,7 +639,7 @@ export class CopilotCustomizationInstallations extends Disposable {
 			secretStorage: 'keychain',
 		});
 		if (prepared.kind !== 'outcome' || prepared.outcome.kind !== 'install-prepared') {
-			throw this.resultError(prepared, localize('copilot.customizationInstallation.mcpPrepareFailed', "The SDK could not prepare this MCP server installation."));
+			throw this.resultError(prepared, localize('copilot.customizationInstallation.mcpPrepareFailed', "Could not prepare this MCP server installation."));
 		}
 		const operation = prepared.outcome.operation;
 		const operationId = generateUuid();
@@ -664,14 +684,15 @@ export class CopilotCustomizationInstallations extends Disposable {
 	}
 
 	/** Provisional direct-card fallback until https://github.com/github/copilot-agent-runtime/issues/26495 is available. */
-	private prepareMcpCardConfiguration(
+	private async prepareMcpCardConfiguration(
 		client: ICopilotCustomizationInstallationClient,
 		request: IAgentCustomizationInstallationRequest,
+		card: McpServerCardReference,
 		plan: Extract<Awaited<ReturnType<CopilotClient['rpc']['mcp']['planInstall']>>, { readonly kind: 'planned' }>['plan'],
-		choice: Extract<typeof plan.transportChoices[number], { readonly installMethod: 'remote' }>,
+		choice: typeof plan.transportChoices[number],
 		configuration: typeof plan.configurationChanges[number] | undefined,
-	): IAgentCustomizationInstallationReview {
-		const supportedFields = new Set(['tools', 'type', 'url']);
+	): Promise<IAgentCustomizationInstallationReview> {
+		const supportedFields = new Set(choice.installMethod === 'package' ? ['tools', 'type', 'command', 'args', 'env'] : ['tools', 'type', 'url']);
 		if (plan.policy.decision === 'blocked') {
 			throw new Error(plan.policy.reason ?? localize('copilot.customizationInstallation.mcpPolicyBlocked', "Policy blocked this MCP server installation."));
 		}
@@ -679,9 +700,23 @@ export class CopilotCustomizationInstallations extends Disposable {
 			|| choice.secretPlaceholders.length > 0
 			|| !configuration
 			|| configuration.operation !== 'add'
+			|| configuration.scope !== 'user'
+			|| plan.target.scope !== 'user'
+			|| configuration.configKey !== plan.target.configKey
+			|| configuration.secretReferences.length > 0
 			|| configuration.changedFields.some(field => !supportedFields.has(field))
 		) {
 			throw new Error(localize('copilot.customizationInstallation.mcpProvisionalUnsupported', "This MCP server requires configuration that provisional Gallery installation cannot preserve."));
+		}
+		const config: ICopilotMcpServerConfiguration = choice.installMethod === 'package'
+			? await this.resolveMcpPackageConfiguration(card, plan, choice)
+			: {
+				type: choice.transport === 'sse' ? 'sse' : 'http',
+				url: choice.endpoint,
+				tools: ['*'],
+			};
+		if (!structuralEquals(Object.keys(config).sort(), [...configuration.changedFields].sort())) {
+			throw new Error(localize('copilot.customizationInstallation.mcpConfigurationChanged', "The MCP server configuration does not match the installation plan. Refresh Browse and try again."));
 		}
 		const operationId = generateUuid();
 		const review: IAgentCustomizationInstallationReview = {
@@ -691,7 +726,8 @@ export class CopilotCustomizationInstallations extends Disposable {
 			displayName: request.displayName,
 			serverName: plan.identity.serverName,
 			target: plan.target.configKey,
-			endpoint: choice.endpoint,
+			...(choice.installMethod === 'remote' ? { endpoint: choice.endpoint } : {}),
+			...(config.type === 'stdio' ? { command: config.command, args: config.args, env: config.env } : {}),
 			configurationFields: configuration.changedFields,
 		};
 		const expiresAt = Date.parse(plan.planHandleExpiresAt);
@@ -705,11 +741,7 @@ export class CopilotCustomizationInstallations extends Disposable {
 			async () => {
 				await client.rpc.mcp.config.add({
 					name: plan.identity.serverName,
-					config: {
-						type: choice.transport === 'sse' ? 'sse' : 'http',
-						url: choice.endpoint,
-						tools: ['*'],
-					},
+					config,
 				});
 				return undefined;
 			},
@@ -719,24 +751,74 @@ export class CopilotCustomizationInstallations extends Disposable {
 		return review;
 	}
 
+	private async resolveMcpPackageConfiguration(
+		card: McpServerCardReference,
+		plan: Extract<Awaited<ReturnType<CopilotClient['rpc']['mcp']['planInstall']>>, { readonly kind: 'planned' }>['plan'],
+		choice: Extract<typeof plan.transportChoices[number], { readonly installMethod: 'package' }>,
+	): Promise<ICopilotMcpServerConfiguration> {
+		if (card.kind !== 'url' || !this.requestService) {
+			throw new Error(localize('copilot.customizationInstallation.mcpCardUnavailable', "The MCP server card is unavailable for local configuration."));
+		}
+		const context = await this.requestService.request({
+			type: 'GET',
+			url: card.url,
+			followRedirects: 0,
+			timeout: 30_000,
+			logUrl: false,
+			callSite: 'copilotCustomizationInstallations.resolveMcpPackageConfiguration',
+		}, this.lifetimeToken);
+		let data: unknown;
+		try {
+			if (!isSuccess(context)) {
+				throw new Error(localize('copilot.customizationInstallation.mcpCardFetchFailed', "Could not read the MCP server card (HTTP {0}).", context.res.statusCode));
+			}
+			const text = await raceCancellationError(readBoundedResponse(context, 5 * 1024 * 1024,
+				() => new Error(localize('copilot.customizationInstallation.mcpCardTooLarge', "The MCP server card is too large to install."))), this.lifetimeToken);
+			try {
+				data = JSON.parse(text);
+			} catch {
+				throw new Error(localize('copilot.customizationInstallation.mcpCardInvalid', "The MCP server card contains invalid JSON."));
+			}
+		} finally {
+			context.stream.destroy();
+		}
+		const digest = createHash('sha256').update(stableStringify(data)).digest('hex');
+		if (plan.provenance.cardDigest.algorithm !== 'sha256-rfc8785' || digest !== plan.provenance.cardDigest.value) {
+			throw new Error(localize('copilot.customizationInstallation.mcpCardChanged', "The MCP server card changed after installation review. Refresh Browse and try again."));
+		}
+		const server = parseMcpGalleryServerConfiguration(data);
+		const packages = server?.configuration.packages?.filter(candidate =>
+			candidate.registryType === choice.packageType && candidate.identifier === choice.packageIdentifier
+			&& candidate.transport.type === TransportType.STDIO
+		);
+		if (!server || server.name !== plan.identity.canonicalName || (plan.identity.version !== undefined && server.version !== plan.identity.version) || packages?.length !== 1) {
+			throw new Error(localize('copilot.customizationInstallation.mcpPackageChanged', "The MCP package does not match the installation plan. Refresh Browse and try again."));
+		}
+		const parsed = new McpServerManifestParser().getMcpServerConfigurationFromManifest({ packages }, packages[0].registryType);
+		if (parsed.notices.length || parsed.mcpServerConfiguration.inputs?.length || parsed.mcpServerConfiguration.config.type !== McpServerType.LOCAL) {
+			throw new Error(localize('copilot.customizationInstallation.mcpPackageInputsRequired', "This MCP package requires additional configuration that Browse cannot collect yet."));
+		}
+		return toCopilotMcpServerConfiguration(parsed.mcpServerConfiguration.config);
+	}
+
 	private async prepareUninstall(client: ICopilotCustomizationInstallationClient, policySessionId: string, installationId: string): Promise<IAgentCustomizationInstallationReview> {
 		if (installationId.startsWith(configuredMcpInstallationPrefix)) {
 			const serverName = decodeURIComponent(installationId.slice(configuredMcpInstallationPrefix.length));
 			const configured = await client.rpc.mcp.config.list();
 			if (!Object.hasOwn(configured.servers, serverName)) {
-				throw new Error(localize('copilot.customizationInstallation.notFound', "The SDK no longer owns this customization installation."));
+				throw new Error(localize('copilot.customizationInstallation.notFound', "This customization installation is no longer available."));
 			}
 			return this.prepareConfiguredMcpUninstall(client, serverName);
 		}
 		const inventory = await this.listWithClient(client, policySessionId);
 		const installation = inventory.find(candidate => candidate.installationId === installationId);
 		if (!installation) {
-			throw new Error(localize('copilot.customizationInstallation.notFound', "The SDK no longer owns this customization installation."));
+			throw new Error(localize('copilot.customizationInstallation.notFound', "This customization installation is no longer available."));
 		}
 		if (installation.kind === 'skill') {
 			const result = await client.rpc.skills.planUninstall({ contract: skillInstallationContract, installationId, policySessionId });
 			if (result.kind !== 'outcome' || result.outcome.kind !== 'uninstall-planned') {
-				throw this.resultError(result, localize('copilot.customizationInstallation.skillUninstallPlanFailed', "The SDK could not prepare this skill removal."));
+				throw this.resultError(result, localize('copilot.customizationInstallation.skillUninstallPlanFailed', "Could not prepare this skill removal."));
 			}
 			const plan = result.outcome.plan;
 			const review = this.toSkillReview(generateUuid(), 'uninstall', plan.review);
@@ -759,7 +841,7 @@ export class CopilotCustomizationInstallations extends Disposable {
 
 		const result = await client.rpc.mcp.planUninstall({ contract: mcpInstallationContract, installationId, policySessionId });
 		if (result.kind !== 'outcome' || result.outcome.kind !== 'uninstall-planned') {
-			throw this.resultError(result, localize('copilot.customizationInstallation.mcpUninstallPlanFailed', "The SDK could not prepare this MCP server removal."));
+			throw this.resultError(result, localize('copilot.customizationInstallation.mcpUninstallPlanFailed', "Could not prepare this MCP server removal."));
 		}
 		const plan = result.outcome.plan;
 		const operationId = generateUuid();
@@ -937,7 +1019,7 @@ export class CopilotCustomizationInstallations extends Disposable {
 
 	private getSkillInstallations(result: Awaited<ReturnType<CopilotClient['rpc']['skills']['installations']['list']>>): readonly IAgentCustomizationInstallation[] {
 		if (result.kind !== 'outcome' || result.outcome.kind !== 'listed' && result.outcome.kind !== 'recovered') {
-			throw this.resultError(result, localize('copilot.customizationInstallation.skillInventoryFailed', "The SDK could not list installed skills."));
+			throw this.resultError(result, localize('copilot.customizationInstallation.skillInventoryFailed', "Could not list installed skills."));
 		}
 		return result.outcome.installations.map(installation => {
 			const portable: IPortableInstallationSummary = installation;
@@ -955,7 +1037,7 @@ export class CopilotCustomizationInstallations extends Disposable {
 
 	private getMcpInstallations(result: Awaited<ReturnType<CopilotClient['rpc']['mcp']['installations']['list']>>): readonly IAgentCustomizationInstallation[] {
 		if (result.kind !== 'outcome' || result.outcome.kind !== 'listed' && result.outcome.kind !== 'recovered') {
-			throw this.resultError(result, localize('copilot.customizationInstallation.mcpInventoryFailed', "The SDK could not list installed MCP servers."));
+			throw this.resultError(result, localize('copilot.customizationInstallation.mcpInventoryFailed', "Could not list installed MCP servers."));
 		}
 		return result.outcome.installations.map(installation => {
 			const portable: IPortableInstallationSummary = installation;
@@ -1017,7 +1099,7 @@ export class CopilotCustomizationInstallations extends Disposable {
 	private addOperation(operation: PendingCustomizationInstallation): void {
 		if (!Number.isFinite(operation.expiresAt) || operation.expiresAt <= Date.now()) {
 			operation.dispose();
-			throw new Error(localize('copilot.customizationInstallation.invalidOperation', "The SDK returned an invalid customization installation operation."));
+			throw new Error(localize('copilot.customizationInstallation.invalidOperation', "The customization service returned an invalid installation operation."));
 		}
 		this.operations.set(operation.id, operation);
 	}
@@ -1125,14 +1207,14 @@ export class CopilotCustomizationInstallations extends Disposable {
 	private assertApplied(result: ISdkResult, action: 'install' | 'uninstall'): NonNullable<ISdkResult['outcome']> {
 		if (result.kind !== 'outcome') {
 			throw this.resultError(result, action === 'install'
-				? localize('copilot.customizationInstallation.installFailed', "The SDK could not install this customization.")
-				: localize('copilot.customizationInstallation.uninstallFailed', "The SDK could not remove this customization."));
+				? localize('copilot.customizationInstallation.installFailed', "Could not install this customization.")
+				: localize('copilot.customizationInstallation.uninstallFailed', "Could not remove this customization."));
 		}
 		const outcome = result.outcome!;
 		if (outcome.kind !== (action === 'install' ? 'installed' : 'uninstalled')) {
 			throw new Error(action === 'install'
-				? localize('copilot.customizationInstallation.installNotCompleted', "The SDK did not complete this customization installation.")
-				: localize('copilot.customizationInstallation.uninstallNotCompleted', "The SDK did not complete this customization removal."));
+				? localize('copilot.customizationInstallation.installNotCompleted', "The customization installation did not complete.")
+				: localize('copilot.customizationInstallation.uninstallNotCompleted', "The customization removal did not complete."));
 		}
 		return outcome;
 	}
@@ -1141,7 +1223,7 @@ export class CopilotCustomizationInstallations extends Disposable {
 		const installation = outcome.installation;
 		if (review.kind === 'plugin') {
 			if (!installation?.name || !installation.source?.repository || !installation.source.revision) {
-				throw new Error(localize('copilot.customizationInstallation.pluginIdentityUnavailable', "The SDK installed the plugin without returning its verified installation identity."));
+				throw new Error(localize('copilot.customizationInstallation.pluginIdentityUnavailable', "The plugin was installed without a verified installation identity."));
 			}
 			return {
 				kind: 'plugin',

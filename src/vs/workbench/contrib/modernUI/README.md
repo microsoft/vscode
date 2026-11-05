@@ -151,7 +151,10 @@ Menus and dropdown pickers share closing-motion eligibility: Modern UI or an
 active glass root, with motion enabled on that same root. This includes Agents
 glass overlays without the editor-only Modern UI class and preserves immediate
 dismissal when motion is reduced.
-The glass layer also follows the closing scale without fading. Submenus use the
+The glass layer follows the closing scale and fades out with the menu contents,
+so an empty glass panel never outlives the items. Its opacity is applied to the
+blurred layer itself rather than an ancestor, so the backdrop stays real while it
+fades. Submenus use the
 full theme tint while an ancestor's closing fade isolates their backdrops;
 closing pickers use the same fallback. Glass menus do not
 retain opacity compositor hints after motion finishes.

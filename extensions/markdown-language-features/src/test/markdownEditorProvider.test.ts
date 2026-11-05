@@ -185,6 +185,7 @@ suite('Markdown editor initial state', () => {
 			readonly: true,
 			richLinksEnabled: true,
 			highlightActiveBlock: false,
+			renderWhitespace: true,
 			lineBreak: '\r\n' as const,
 			linkPresentationRules: [],
 		};

@@ -12,9 +12,10 @@ import { Delayer, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError, isCancellationError, onUnexpectedError } from '../../../../../../base/common/errors.js';
+import { Event } from '../../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, observableSignal } from '../../../../../../base/common/observable.js';
+import { autorun, derived, observableSignal } from '../../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../../base/common/platform.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
@@ -66,7 +67,7 @@ import { isCopilotCliSessionType } from './agentHostToolSetEnablementService.js'
 import { BRANCH_PICKER_MAX_VISIBLE_ITEMS, ensureSelectedBranchPickerItem, filterBranchPickerItems } from './agentHostBranchPicker.js';
 import { AgentHostInitialSessionConfig, retrySessionConfigSubscriptionOnCreation } from './agentHostSessionConfigSubscription.js';
 import { getCompactCodicon } from '../../chatIcons.js';
-import { dispatchAgentHostConfigChange, getAgentHostBackendChat, getAgentHostChatConfig, getAgentHostChatConfigChain, readAgentHostChatSandboxState } from './applyAgentHostSessionConfig.js';
+import { dispatchAgentHostConfigChange, getAgentHostBackendChat, getAgentHostChatConfig, hostPublishesCompleteChatConfig, getAgentHostChatConfigChain, readAgentHostChatSandboxState } from './applyAgentHostSessionConfig.js';
 import { IChatPhoneInputPresenter } from '../../widget/input/chatPhoneInputPresenter.js';
 import { AGENT_HOST_PERMISSIONS_SETTINGS_QUERY, createModePickerModeItems, createModePickerPermissionsItems, getModePermissionsPickerAccessibilityProvider, getModePermissionsPickerOptions, getModePickerAriaLabel, getPermissionLevelBadge, getPermissionLevelUnavailablePresentation, IModePickerPermissions, IModePickerTrigger, isWellKnownAutoApproveSchema, MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE, MODE_SECTION_ID, PERMISSIONS_SECTION_ID, renderModePickerTrigger, shouldCombineModeAndPermissions } from './agentHostModePickerPresentation.js';
 import { IPreferencesService } from '../../../../../services/preferences/common/preferences.js';
@@ -448,6 +449,13 @@ export class AgentHostChatInputPicker extends Disposable {
 	private readonly _pickerDisposables = this._register(new DisposableStore());
 	private readonly _draftListeners = this._register(new DisposableStore());
 	private readonly _sandboxConfigChanged = observableSignal(this);
+	readonly sandboxToggleChecked = derived(this, reader => {
+		this._sandboxConfigChanged.read(reader);
+		this._agentHostEnablementService.managedSandboxEnforced.read(reader);
+		this._agentHostEnablementService.managedSandboxAllowsBypass.read(reader);
+		const permissions = this._readContext();
+		return !!permissions && this._canEdit(permissions) && !!getSessionApprovalProperty(permissions.configSchema) && this._getSandboxStandaloneToggle()?.checked === true;
+	});
 	private readonly _filterDelayer = this._register(new Delayer<readonly IActionListItem<IConfigPickerItem>[]>(200));
 	private readonly _subRef = this._register(new MutableDisposable<IDisposable & IConfigPickerTarget & {
 		readonly sub: IAgentSubscription<SessionState>;
@@ -577,6 +585,14 @@ export class AgentHostChatInputPicker extends Disposable {
 		this._renderChip();
 	}
 
+	unrender(): void {
+		this._hidePicker();
+		this._container = undefined;
+		this._trigger = undefined;
+		this._splitTrigger.clear();
+		this._renderDisposables.clear();
+	}
+
 	show(anchor: HTMLElement): void {
 		void this._showPicker(anchor).catch(onUnexpectedError);
 	}
@@ -682,7 +698,10 @@ export class AgentHostChatInputPicker extends Disposable {
 		const localBackend = toAgentHostBackendSessionUri(sessionResource, this._connectionsService);
 		if (localBackend && localProvider && isUntitledChatSession(sessionResource) && !provisionalBackend) {
 			this._subRef.clear();
-			if (!this._initialResolved || this._initialResolved.sessionResource.toString() !== sessionResource.toString()) {
+			const prepared = this._provisional.getResolvedConfig(sessionResource) ?? this._provisional.getPreparedSessionConfig(sessionResource);
+			if (prepared) {
+				this._initialResolved = { sessionResource, result: prepared };
+			} else if (!this._initialResolved || this._initialResolved.sessionResource.toString() !== sessionResource.toString()) {
 				this._initialResolved = undefined;
 				void this._refreshInitialResolved(sessionResource, localProvider, resolution);
 			}
@@ -706,7 +725,15 @@ export class AgentHostChatInputPicker extends Disposable {
 			return;
 		}
 
-		this._initialResolved = undefined;
+		if (!localProvider || !isUntitledChatSession(sessionResource) || !isEqual(this._initialResolved?.sessionResource, sessionResource) || resolution.connection !== this._connectionsService.ambientConnection) {
+			this._initialResolved = undefined;
+		}
+		if (localProvider && isUntitledChatSession(sessionResource) && resolution.connection === this._connectionsService.ambientConnection) {
+			const prepared = this._provisional.getPreparedSessionConfig(sessionResource);
+			if (prepared) {
+				this._initialResolved = { sessionResource, result: prepared };
+			}
+		}
 		this._cancelInitialResolve();
 		const ref = resolution.connection.getSubscription(StateComponents.Session, resolution.backendSession, 'AgentHostChatInputPicker');
 		const sub = ref.object;
@@ -730,7 +757,6 @@ export class AgentHostChatInputPicker extends Disposable {
 					const chatSubscription = store.add(resolution.connection.getSubscription(StateComponents.Chat, URI.parse(member), 'AgentHostChatInputPicker.chat'));
 					store.add(chatSubscription.object.onDidChange(() => {
 						this._renderChip();
-						this._sandboxConfigChanged.trigger(undefined);
 					}));
 					subscriptions.set(member, chatSubscription.object);
 				}
@@ -740,7 +766,7 @@ export class AgentHostChatInputPicker extends Disposable {
 		};
 		syncChat();
 		let availableApprovalModes = sub.value && !(sub.value instanceof Error) ? sub.value.config?.values.availableApprovalModes : undefined;
-		const listener = sub.onDidChange(() => {
+		const listener = Event.any(sub.onDidChange, sub.onDidError ?? Event.None)(() => {
 			syncChat();
 			const available = sub.value && !(sub.value instanceof Error) ? sub.value.config?.values.availableApprovalModes : undefined;
 			if (!equals(availableApprovalModes, available)) {
@@ -748,7 +774,6 @@ export class AgentHostChatInputPicker extends Disposable {
 				this._hidePicker();
 			}
 			this._renderChip();
-			this._sandboxConfigChanged.trigger(undefined);
 		});
 		const creationListener = retrySessionConfigSubscriptionOnCreation(resolution.connection, resolution.backendSession, sub, () => this._reattach());
 		this._subRef.value = {
@@ -767,7 +792,7 @@ export class AgentHostChatInputPicker extends Disposable {
 	}
 
 	private async _refreshInitialResolved(sessionResource: URI, provider: string, resolution: IAgentHostSessionResolution): Promise<void> {
-		const result = await this._initialConfig.resolve(sessionResource, provider, resolution, this._readWorkingDirectory());
+		const result = await this._initialConfig.resolve(sessionResource, provider, resolution, this._readWorkingDirectory(), this._provisional.getInitialSessionConfig());
 		if (result && result === this._initialConfig.value && isEqual(this._widget.viewModel?.sessionResource, sessionResource) && this._initialConfig.isCurrent(sessionResource, resolution)) {
 			this._initialResolved = { sessionResource, result };
 			this._renderChip();
@@ -775,6 +800,7 @@ export class AgentHostChatInputPicker extends Disposable {
 	}
 
 	private _renderChip(): void {
+		this._sandboxConfigChanged.trigger(undefined);
 		if (!this._container || this._renderDisposables.isDisposed) {
 			return;
 		}
@@ -849,6 +875,9 @@ export class AgentHostChatInputPicker extends Disposable {
 			return model.hasActiveRequest.get() || model.isInputBlocked.get();
 		}
 		const target = this._subRef.value;
+		if (target && target.sub.value === undefined) {
+			return true;
+		}
 		if (!target || !isChatConfigProperty(context.configSchema, context.key)) {
 			return false;
 		}
@@ -1012,7 +1041,7 @@ export class AgentHostChatInputPicker extends Disposable {
 			return bound ? { sessionResource, generation: this._sessionGeneration, connection: undefined, backendSession: undefined, provider: CLOUD_SANDBOX_AGENT_PROVIDER, ...bound } : undefined;
 		}
 
-		if (this._subRef.value) {
+		if (this._subRef.value && this._subRef.value.sub.value !== undefined) {
 			const state = this._subRef.value.sub.value;
 			if (!state || state instanceof Error) {
 				return undefined;
@@ -1034,7 +1063,9 @@ export class AgentHostChatInputPicker extends Disposable {
 				values[key] = resolveConfigChipValue(isUntitledChatSession(sessionResource) && !hostOwnedAvailability, hostValues?.[key], overlay?.values[key], schemaSource.properties[key].default);
 			}
 			const bound = this._bindContext(property, schemaSource, values);
-			return bound ? { ...this._subRef.value, provider: state.provider, ...bound } : undefined;
+			if (!bound || !this._isChatConfigResolving(bound) || !isEqual(this._initialResolved?.sessionResource, sessionResource)) {
+				return bound ? { ...this._subRef.value, provider: state.provider, ...bound } : undefined;
+			}
 		}
 
 		if (this._initialResolved && this._initialResolved.sessionResource.toString() === sessionResource.toString()) {
@@ -1042,11 +1073,13 @@ export class AgentHostChatInputPicker extends Disposable {
 			if (!bound) {
 				return undefined;
 			}
-			const backendSession = toAgentHostBackendSessionUri(sessionResource, this._connectionsService);
-			if (!backendSession) {
+			const target = this._subRef.value;
+			const backendSession = target?.backendSession ?? toAgentHostBackendSessionUri(sessionResource, this._connectionsService);
+			const provider = getLocalAgentHostSessionProvider(sessionResource);
+			if (!backendSession || !provider) {
 				return undefined;
 			}
-			return { sessionResource, backendSession, connection: this._connectionsService.ambientConnection, generation: this._sessionGeneration, provider: backendSession.scheme, ...bound };
+			return { sessionResource, backendSession, connection: target?.connection ?? this._connectionsService.ambientConnection, generation: this._sessionGeneration, provider, ...bound };
 		}
 
 		return undefined;
@@ -1368,7 +1401,8 @@ export class AgentHostChatInputPicker extends Disposable {
 	/** The effective config of this picker's chat: its session's, with the chat's own values applied. */
 	private _readChatConfig(state: SessionState): SessionConfigState | undefined {
 		const chat = this._subRef.value?.getChat();
-		return getAgentHostChatConfig(state, chat?.resource, member => chat?.chain.get(member)?.value);
+		const connection = this._subRef.value?.connection;
+		return getAgentHostChatConfig(state, chat?.resource, member => chat?.chain.get(member)?.value, hostPublishesCompleteChatConfig(connection?.rootState?.value));
 	}
 
 	/** Confirms an elevated approval selection before writing through its host binding. */
@@ -1465,7 +1499,7 @@ export class AgentHostChatInputPicker extends Disposable {
 		}
 
 		const state = this._subRef.value?.sub.value;
-		dispatchAgentHostConfigChange(connection, backendSession, this._subRef.value?.getChat()?.resource, state && !(state instanceof Error) ? state : undefined, partial);
+		dispatchAgentHostConfigChange(connection, backendSession, this._subRef.value?.getChat()?.resource, state && !(state instanceof Error) ? state : undefined, partial, state && !(state instanceof Error) ? this._readChatConfig(state) : undefined);
 		if (this._isCurrentTarget(context)) {
 			await this._provisional.refreshResolvedConfig(
 				sessionResource,
@@ -1478,9 +1512,9 @@ export class AgentHostChatInputPicker extends Disposable {
 }
 
 export class AgentHostChatInputPickerActionViewItem extends BaseActionViewItem {
-	constructor(action: IAction, private readonly _picker: AgentHostChatInputPicker, onDidDispose?: () => void) {
+	constructor(action: IAction, private readonly _picker: AgentHostChatInputPicker, onDidDispose?: () => void, retainPicker = false) {
 		super(undefined, action);
-		this._register(this._picker);
+		this._register(retainPicker ? toDisposable(() => this._picker.unrender()) : this._picker);
 		if (onDidDispose) {
 			this._register(toDisposable(onDidDispose));
 		}

@@ -13,8 +13,10 @@ import { isAgentHostTarget, SessionType } from '../../common/chatSessionsService
 import { IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { isCopilotAgentHostSessionType } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
+import type { AgentSessionRefreshReason } from './agentSessionsModel.js';
 
 export const AgentSessionChatContextMenu = new MenuId('AgentSessionChatContext');
+export const AgentSessionChatToolbar = new MenuId('AgentSessionChatToolbar');
 
 export enum AgentSessionProviders {
 	Local = SessionType.Local,
@@ -212,7 +214,7 @@ export interface IAgentSessionsControl {
 
 	readonly element: HTMLElement | undefined;
 
-	refresh(): void;
+	refresh(reason?: AgentSessionRefreshReason): void;
 	openFind(): void;
 
 	reveal(sessionResource: URI): boolean;

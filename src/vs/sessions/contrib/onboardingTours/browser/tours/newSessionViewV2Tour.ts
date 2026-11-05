@@ -82,7 +82,7 @@ const mentalModelAndModelsPayload: ISpotlightPayload = {
 			...modelPickerStep,
 			openTarget: false,
 			title: localize('sessions.onboarding.newSessionViewV2.mentalModelAndModels.model.title', "All your favorite models, one place"),
-			description: localize('sessions.onboarding.newSessionViewV2.mentalModelAndModels.model.description', "Claude, GPT, Gemini, and more—the best models from across the industry are ready to go. Pick your favorite or switch anytime."),
+			description: localize('sessions.onboarding.newSessionViewV2.mentalModelAndModels.model.description', "Claude, GPT, Gemini, and more. The best models from across the industry are ready to go. Pick your favorite or switch anytime."),
 		},
 	],
 };

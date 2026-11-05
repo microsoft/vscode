@@ -43,6 +43,12 @@ export const ARCHIVE_CHAT_COMMAND_ID = 'sessionsViewPane.archiveChat';
 /** Unarchives a chat independently of its session. Registered in `sessionsViewActions.ts`. */
 export const UNARCHIVE_CHAT_COMMAND_ID = 'sessionsViewPane.unarchiveChat';
 
+/** Shows automation sessions in the Sessions list in addition to Automations. Registered in `sessionsViewActions.ts`. */
+export const SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID = 'sessionsViewPane.showAutomationSessionInList';
+
+/** Lists automation sessions only in Automations again. Registered in `sessionsViewActions.ts`. */
+export const HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID = 'sessionsViewPane.hideAutomationSessionFromList';
+
 export const SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID = 'sessionsViewPane.showApplicationFilters';
 
 export {
@@ -75,6 +81,8 @@ export const SESSION_GRID_FOCUS_COMMANDS = {
 
 export const FOCUS_NEW_SESSION_WORKSPACE_PICKER_COMMAND_ID = 'sessions.focusNewSessionWorkspacePicker';
 export const OPEN_REMOTES_EDITOR_COMMAND_ID = 'sessions.openRemotes';
+/** Turns this computer's remote connections on or off from the Agents window. */
+export const TOGGLE_REMOTE_CONNECTIONS_COMMAND_ID = 'sessions.tunnelHost.toggleSharingFromAgents';
 
 export const FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_COMMAND_ID = 'sessions.focusNewSessionEnvironmentPicker';
 
@@ -112,3 +120,12 @@ export const AGENTIC_SIGN_IN_COMMAND_ID = 'workbench.action.agenticSignIn';
 
 /** Opens the managed Files editor. Registered in `addTabActions.ts`. */
 export const NEW_FILE_TAB_COMMAND_ID = 'workbench.action.agentSessions.newFileTab';
+
+/** Opens the Changes tab in the main part of a chat window, for its session. Registered in `chatWindowActions.ts`. */
+export const CHAT_WINDOW_OPEN_CHANGES_COMMAND_ID = 'sessions.chatWindow.openChanges';
+
+/** Opens the Files tab in the main part of a chat window, for its session. Registered in `chatWindowActions.ts`. */
+export const CHAT_WINDOW_OPEN_FILES_COMMAND_ID = 'sessions.chatWindow.openFiles';
+
+/** Opens a browser tab in the main part of a chat window. Registered in `chatWindowActions.ts`. */
+export const CHAT_WINDOW_OPEN_BROWSER_COMMAND_ID = 'sessions.chatWindow.openBrowser';

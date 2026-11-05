@@ -26,6 +26,18 @@ try {
 
 type PageFunction<Arg, T> = (arg: Arg) => T | Promise<T>;
 
+/**
+ * How long {@link PlaywrightDriver.waitForPage} and {@link PlaywrightDriver.waitForNewPage}
+ * wait by default. This matches Playwright's default timeout, which the locator and
+ * navigation waits that follow these calls use.
+ *
+ * Playwright reports an Electron `WebContentsView`, such as an Integrated Browser page, as
+ * a page only after its first navigation commits. That includes starting a renderer and,
+ * for the first page of a fresh browser session, initializing its network stack, so a
+ * tighter budget turns transient slowness of the machine into a missing page.
+ */
+const DEFAULT_PAGE_WAIT_TIMEOUT = 30_000;
+
 export interface AccessibilityScanOptions {
 	/** Specific selector to scan. If not provided, scans the entire page. */
 	selector?: string;
@@ -286,7 +298,7 @@ export class PlaywrightDriver {
 	/**
 	 * Wait for an open window/page whose URL contains the provided pattern.
 	 */
-	async waitForPage(urlPattern: string, timeoutMs: number = 10_000): Promise<playwright.Page> {
+	async waitForPage(urlPattern: string, timeoutMs: number = DEFAULT_PAGE_WAIT_TIMEOUT): Promise<playwright.Page> {
 		const deadline = Date.now() + timeoutMs;
 		do {
 			const page = this.getAllWindows().find(candidate => !candidate.isClosed() && candidate.url().includes(urlPattern));
@@ -297,13 +309,13 @@ export class PlaywrightDriver {
 		} while (Date.now() < deadline);
 
 		const openUrls = this.getAllWindows().map(page => page.url());
-		throw new Error(`Timed out waiting for page matching '${urlPattern}'. Open pages: ${JSON.stringify(openUrls)}`);
+		throw new Error(`Timed out waiting for page matching '${urlPattern}' after ${timeoutMs}ms. Open pages: ${JSON.stringify(openUrls)}. Page targets: ${await this.describePageTargets()}`);
 	}
 
 	/**
 	 * Run an action and wait for a newly opened window/page whose URL contains the provided pattern.
 	 */
-	async waitForNewPage(urlPattern: string, action: () => Promise<unknown>, timeoutMs: number = 10_000): Promise<playwright.Page> {
+	async waitForNewPage(urlPattern: string, action: () => Promise<unknown>, timeoutMs: number = DEFAULT_PAGE_WAIT_TIMEOUT): Promise<playwright.Page> {
 		const existingPages = new Set(this.getAllWindows());
 		await action();
 
@@ -317,7 +329,24 @@ export class PlaywrightDriver {
 		} while (Date.now() < deadline);
 
 		const openUrls = this.getAllWindows().map(page => page.url());
-		throw new Error(`Timed out waiting for new page matching '${urlPattern}'. Open pages: ${JSON.stringify(openUrls)}`);
+		throw new Error(`Timed out waiting for new page matching '${urlPattern}' after ${timeoutMs}ms. Open pages: ${JSON.stringify(openUrls)}. Page targets: ${await this.describePageTargets()}`);
+	}
+
+	/**
+	 * Describe the browser's page targets, including those that are not Playwright pages
+	 * yet because their first navigation has not committed. This tells a slow page apart
+	 * from one that was never created or never reported to Playwright.
+	 */
+	private async describePageTargets(): Promise<string> {
+		try {
+			const targets = await Promise.race([
+				this.getCDPTargets(),
+				wait(5_000).then(() => { throw new Error('Target.getTargets timed out'); })
+			]);
+			return JSON.stringify(targets.filter(target => target.type === 'page').map(({ url, title }) => ({ url, title })));
+		} catch (error) {
+			return `unavailable (${error})`;
+		}
 	}
 
 	/**

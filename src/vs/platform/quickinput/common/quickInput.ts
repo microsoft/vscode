@@ -315,9 +315,6 @@ export const enum QuickInputType {
  * Represents a quick input control that allows users to make selections or provide input quickly.
  */
 export interface IQuickInput extends IDisposable {
-	/** Optional content rendered above the standard input or picker content. */
-	widget?: unknown /* HTMLElement */;
-
 	/**
 	 * The type of the quick input.
 	 */

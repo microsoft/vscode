@@ -233,6 +233,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			override error(message: string | Error): void { logErrors.push(message); }
 		}()));
 		const connection = instantiationService.stub(IAgentHostService, {
+			initializeResult: constObservable(undefined),
 			onAgentHostStart: onAgentHostStart.event,
 			onAgentHostExit: Event.None,
 			getNetworkDiagnosticsInfo: () => {
@@ -419,7 +420,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 				rows: ['Agent mode', 'Interactive', 'Plan', 'Autopilot', ActionListItemKind.Separator, 'Permissions', 'Manual permissions', 'Assisted permissions', 'Allow all', ActionListItemKind.Separator, 'Learn more about permissions'],
 				permissions: [
 					{ label: 'Manual permissions', detail: 'Asks when approval settings don\'t apply', icon: 'key', badge: undefined },
-					{ label: 'Assisted permissions', detail: 'Evaluates risk before running tools', icon: 'sparkle', badge: 'New' },
+					{ label: 'Assisted permissions', detail: 'Evaluates risk before running tools', icon: 'sparkle', badge: 'Recommended' },
 					{ label: 'Allow all', detail: 'Runs tool calls without asking', icon: 'warning', badge: undefined },
 				],
 			},
@@ -522,8 +523,8 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 				restrictedChoices: [
 					{ label: 'Manual permissions', disabled: false, badge: undefined, description: undefined, ariaDescription: undefined },
 					...['Assisted permissions', 'Allow all'].map(label => ({
-						label, disabled: true, badge: undefined, description: '$(briefcase) Disabled by policy',
-						ariaDescription: 'Disabled by policy. Your organization\'s policy doesn\'t allow this permission level.',
+						label, disabled: true, badge: undefined, description: '$(briefcase) Disabled by your organization',
+						ariaDescription: 'Disabled by your organization. Contact your administrator.',
 					})),
 				],
 				restoredChoices: permissionPresentations.map(permission => ({ label: permission.label, disabled: false })),
@@ -818,6 +819,14 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		});
 	});
 
+	test('closes the permissions popup when its button moves into overflow', async () => {
+		const { permissionPicker, actionWidget } = setup(false);
+		await permissionPicker['_showPicker'](permissionPicker.triggerElement!);
+		assert.ok(actionWidget.isVisible);
+		permissionPicker.unrender();
+		assert.strictEqual(actionWidget.isVisible, false);
+	});
+
 	test('readonly or nonmutable native approval properties never become runtime writes', async () => {
 		const rig = setup(false);
 		delete rig.config.schema.properties.autoApprove;
@@ -902,6 +911,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 
 	function createRemoteConnection(getHostInfo: () => Promise<IAgentHostNetworkDiagnosticsInfo>) {
 		return new class extends mock<IAgentConnection>() {
+			override readonly initializeResult = constObservable(undefined);
 			diagnosticsRequests = 0;
 			readonly writes: { channel: string; action: Parameters<IAgentConnection['dispatch']>[1] }[] = [];
 			override getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> {
@@ -1065,9 +1075,13 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		const confirmed = permissionPicker['_getSandboxStandaloneToggle']()!.checked;
 		config.values[SessionConfigKey.SandboxEnabled] = 'off';
 		const optimistic = permissionPicker['_getSandboxStandaloneToggle']()!.checked;
+		const placeholderAfterOptOut = permissionPicker.sandboxToggleChecked.get();
 		config.values[SessionConfigKey.SandboxEnabled] = 'on';
 		const restored = permissionPicker['_getSandboxStandaloneToggle']()!.checked;
-		assert.deepStrictEqual({ confirmed, optimistic, restored }, { confirmed: true, optimistic: false, restored: true });
+		const placeholderAfterOptIn = permissionPicker.sandboxToggleChecked.get();
+		assert.deepStrictEqual({ confirmed, optimistic, restored, placeholderAfterOptOut, placeholderAfterOptIn }, {
+			confirmed: true, optimistic: false, restored: true, placeholderAfterOptOut: false, placeholderAfterOptIn: true,
+		});
 	});
 
 	test('remote sandbox policy updates the open picker and does not leak across hosts', async () => {
@@ -1471,7 +1485,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			});
 		});
 
-		test(`labels Assisted permissions as new without requiring an opt-in setting (${combined ? 'combined' : 'separate'} picker)`, async () => {
+		test(`labels Assisted permissions as recommended without requiring an opt-in setting (${combined ? 'combined' : 'separate'} picker)`, async () => {
 			const { modePicker, permissionPicker, configuration, config, actionWidget, dispatches } = setup(combined);
 			await configuration.setUserConfiguration('chat.assistedPermissions.enabled', false);
 			config.values.autoApprove = 'default';
@@ -1485,7 +1499,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			assert.deepStrictEqual({ levels, beforeSelection, dispatches }, {
 				levels: [
 					{ label: 'Manual permissions', disabled: false, badge: undefined },
-					{ label: 'Assisted permissions', disabled: false, badge: 'New' },
+					{ label: 'Assisted permissions', disabled: false, badge: 'Recommended' },
 					{ label: 'Allow all', disabled: false, badge: undefined },
 				],
 				beforeSelection: [],
@@ -1517,9 +1531,9 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 				description: 'Unavailable',
 				hover: 'The agent host doesn\'t allow this permission level for this session.',
 			} : {
-				ariaDescription: 'Disabled by policy. Your organization\'s policy doesn\'t allow this permission level.',
-				description: '$(briefcase) Disabled by policy',
-				hover: 'Your organization\'s policy doesn\'t allow this permission level.',
+				ariaDescription: 'Disabled by your organization. Contact your administrator.',
+				description: '$(briefcase) Disabled by your organization',
+				hover: 'Your organization doesn\'t allow this permission level. Contact your administrator.',
 			};
 
 			assert.deepStrictEqual({ unattributed, levels, dispatches }, {
@@ -2004,6 +2018,7 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 			override viewModel: IChatViewModel | undefined;
 		}();
 		const connection = new class extends mock<IAgentHostService>() {
+			override readonly initializeResult = constObservable(undefined);
 			override readonly onAgentHostStart = Event.None;
 			override readonly onAgentHostExit = Event.None;
 			override async getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> {
@@ -2112,7 +2127,7 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 						disabled,
 						title: managed
 							? disabled ? 'Sandboxing is required by your organization' : 'Your organization allows you to turn sandboxing off for this session. Changes are subject to runtime approval.'
-							: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. The applied setting is saved for this session and checked against current organization policy when restored.',
+							: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. The applied setting is saved for this session and checked against your organization\'s current requirements when restored.',
 						writes: disabled ? [] : (managed || configured === AgentSandboxEnabledValue.On ? ['off', 'on'] : ['on']).map(value => ({
 							channel: 'copilotcli:/test-session', action: { type: ActionType.SessionConfigChanged, config: { [SessionConfigKey.SandboxEnabled]: value } },
 						})),
@@ -2159,7 +2174,7 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 		assert.deepStrictEqual(visibleStates, [
 			{ disabled: true, title: 'Sandboxing is required by your organization' },
 			{ disabled: false, title: 'Your organization allows you to turn sandboxing off for this session. Changes are subject to runtime approval.' },
-			{ disabled: false, title: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. The applied setting is saved for this session and checked against current organization policy when restored.' },
+			{ disabled: false, title: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. The applied setting is saved for this session and checked against your organization\'s current requirements when restored.' },
 			{ disabled: false, title: 'Your organization allows you to turn sandboxing off for this session. Changes are subject to runtime approval.' },
 			{ disabled: true, title: 'Sandboxing is required by your organization' },
 		]);
@@ -2388,7 +2403,7 @@ suite('AgentHostChatInputPicker - resolveConfigChipValue', () => {
 				policy: text(getConfigPickerItemHover(SessionConfigKey.AutoApprove, { value: 'assisted', label: 'Assisted permissions', disabledByPolicy: true }, true)),
 				unattributed: text(getConfigPickerItemHover(SessionConfigKey.AutoApprove, { value: 'assisted', label: 'Assisted permissions' }, true)),
 			}, {
-				policy: 'Your organization\'s policy doesn\'t allow this permission level.',
+				policy: 'Your organization doesn\'t allow this permission level. Contact your administrator.',
 				unattributed: 'The agent host doesn\'t allow this permission level for this session.',
 			});
 		});

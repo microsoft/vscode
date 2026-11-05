@@ -12,6 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { AgentSession } from '../../common/agent.js';
 import { buildChatUri } from '../../common/state/sessionState.js';
 import { mapSessionEvents } from '../../node/copilot/mapSessionEvents.js';
+import { createCopilotSdkPathMapper, toCopilotWorkspace } from '../../node/copilot/copilotWorkspace.js';
 
 interface BenchmarkResult {
 	readonly readMs: number;
@@ -69,7 +70,7 @@ async function runBenchmarkRound(path: string): Promise<BenchmarkResult> {
 
 	const map = StopWatch.create();
 	const session = AgentSession.uri('copilot', 'event-restoration-benchmark');
-	const restored = await mapSessionEvents(session, undefined, events, URI.parse(buildChatUri(session, 'default')), session);
+	const restored = await mapSessionEvents(session, undefined, events, URI.parse(buildChatUri(session, 'default')), session, createCopilotSdkPathMapper(toCopilotWorkspace(URI.file(process.cwd()))));
 	const mapMs = map.elapsed();
 
 	const serialize = StopWatch.create();

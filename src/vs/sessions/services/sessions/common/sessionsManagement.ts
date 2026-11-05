@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../base/common/event.js';
-import type { IAgentHostWorktreeCleanupStatus } from '../../../../platform/agentHost/common/agentHostWorktreeCleanup.js';
-import { IReference } from '../../../../base/common/lifecycle.js';
+import type { IAgentHostManagedWorktree, IAgentHostWorktreeCleanupStatus } from '../../../../platform/agentHost/common/agentHostWorktreeCleanup.js';
+
+import { IDisposable, IReference } from '../../../../base/common/lifecycle.js';
+import { IChatSessionItemArchiveState } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IArtifactModel } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -13,7 +15,11 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IAutomationSessionTemplate } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionCreationReference, ISessionType, ISessionWorkspace, ISideChatSelection, type SessionCanvasDefinitionSnapshot } from './session.js';
-import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, type INestedChatWorkspace, ISessionChangesetOperationInvokedEvent, ISessionConfigurationSnapshot, ISessionCreationTarget, ISendRequestOptions as ISessionsProviderSendRequestOptions, type SessionResourceResolveReason } from './sessionsProvider.js';
+import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, type INestedChatWorkspace, ISessionChangesetOperationInvokedEvent, ISessionConfigurationSnapshot, ISessionCreationTarget, ISendRequestOptions as ISessionsProviderSendRequestOptions, type SessionResourceResolveReason, ICreateNewChatOptions } from './sessionsProvider.js';
+
+export interface IManagedSessionWorktree extends IAgentHostManagedWorktree {
+	readonly providerId: string;
+}
 
 /** Raised when unattended session creation targets a workspace that requires trust. */
 export class WorkspaceNotTrustedError extends Error {
@@ -143,7 +149,7 @@ export interface ICreateNewSessionOptions {
 /**
  * Options for {@link ISessionsManagementService.createNewChatInSession}.
  */
-export interface ICreateNewChatInSessionOptions {
+export interface ICreateNewChatInSessionOptions extends ICreateNewChatOptions {
 	/**
 	 * Always create a fresh chat instead of reusing an existing untitled one.
 	 * Used to reset the composer right after a background send, where the
@@ -191,6 +197,18 @@ export interface IChatDeletedEvent {
 	readonly session: ISession;
 	readonly sessionResource: URI;
 	readonly chatResource: URI;
+}
+
+/**
+ * The session as a host of the Agents window sees it: an {@link IActiveSession} without the chat selected for every place
+ * that shows it, as the host shows a chat of its own.
+ */
+export type IHostSession = Omit<IActiveSession, 'activeChat' | 'scopedChatResource'>;
+
+/** A chat a host shows, with its session. */
+export interface IShownChat {
+	readonly session: IHostSession;
+	readonly chat: IChat;
 }
 
 /**
@@ -254,6 +272,8 @@ export interface IMarkSessionReadOptions {
 }
 
 export interface ISessionsManagementService {
+	readonly archivedSessionItems: IObservable<IChatSessionItemArchiveState>;
+	acquireArchivedSessionItems(): IDisposable;
 	readonly _serviceBrand: undefined;
 
 	// -- Sessions --
@@ -348,6 +368,13 @@ export interface ISessionsManagementService {
 	resolveWorkspace(workspaceUri: URI, preferredProviderId?: string): { providerId: string; workspace: ISessionWorkspace } | undefined;
 
 	/**
+	 * The label of the remote agent environment hosting `workspace`, for
+	 * identifying it in trust prompts. `undefined` when the workspace is not
+	 * hosted on a remote agent environment.
+	 */
+	getRemoteHostLabel(workspace: ISessionWorkspace, providerId: string): string | undefined;
+
+	/**
 	 * Fires when available session types change (providers added/removed).
 	 */
 	readonly onDidChangeSessionTypes: Event<void>;
@@ -396,7 +423,7 @@ export interface ISessionsManagementService {
 	/**
 	 * Fires when the in-progress new session is discarded via
 	 * {@link discardNewSession}: either the composer draft is abandoned without
-	 * sending, or {@link sendRequest} sends into an existing session (which
+	 * sending, or {@link sendRequest} sends into an existing session in the foreground (which
 	 * discards any pending draft first). Sending the draft itself via
 	 * {@link sendNewChatRequest} clears it without firing this event.
 	 */
@@ -573,6 +600,9 @@ export interface ISessionsManagementService {
 	 */
 	sendRequest(session: ISession, chat: IChat, options: ISendRequestOptions): Promise<void>;
 
+	/** Sends without navigating or discarding composer drafts, awaiting provider submission and propagating errors. */
+	sendRequestInBackground(session: ISession, chat: IChat, options: ISendRequestOptions): Promise<void>;
+
 	// -- Session Actions --
 
 	/** Cancel the current request in a session's main chat. */
@@ -584,11 +614,18 @@ export interface ISessionsManagementService {
 	/** Permanently imports an external session through its provider without sending a message. */
 	importSession(session: ISession): Promise<void>;
 
-	/** Returns the current on-disk size of the session's isolated worktree. */
+	/** Returns the current on-disk size, zero for confirmed absent storage, or undefined when measurement is unavailable. */
 	getSessionWorktreeDiskUsage?(session: ISession, token?: CancellationToken): Promise<number | undefined>;
 
+	/** Cheaply checks the owning host's worktrees. False confirms all roots are absent; undefined means unavailable. */
+	sessionWorktreeExists?(session: ISession, token?: CancellationToken): Promise<boolean | undefined>;
+
 	/** Reports cleanup status, optionally retrying removal without restoring or deleting session history. */
-	sessionWorktreeCleanup?(session: ISession, retry: boolean): Promise<IAgentHostWorktreeCleanupStatus | undefined>;
+	canForceWorktreeCleanup?(owner: ISession | IManagedSessionWorktree): boolean;
+	sessionWorktreeCleanup?(session: ISession, retry: boolean, force?: boolean): Promise<IAgentHostWorktreeCleanupStatus | undefined>;
+	listManagedWorktrees?(knownWorktrees?: readonly IManagedSessionWorktree[]): Promise<IManagedSessionWorktree[]>;
+	cleanupManagedWorktree?(worktree: IManagedSessionWorktree, force?: boolean): Promise<void>;
+	managedWorktreeExists?(worktree: IManagedSessionWorktree): Promise<boolean | undefined>;
 
 	/** Unarchive a session. */
 	unarchiveSession(session: ISession): Promise<void>;
@@ -674,6 +711,32 @@ export interface ISessionsManagementService {
 
 	/** Close one live canvas of a chat through its owning provider, notifying the extension that provides it. */
 	closeCanvas(session: ISession, chat: IChat, canvas: ISessionCanvas): Promise<void>;
+
+	/** Fires after {@link closeCanvas} closed a canvas. */
+	readonly onDidCloseCanvas: Event<ISessionCanvasClosedEvent>;
+
+	/**
+	 * Observe one live canvas of a chat through its owning provider, whether or not its
+	 * session is active. Holding the reference keeps the canvas live, which may keep its
+	 * session resident. `undefined` when the provider cannot observe canvases.
+	 */
+	observeCanvas(session: ISession, chatResource: URI, canvasResource: URI): IReference<IObservable<ISessionCanvas | undefined>> | undefined;
+
+	/**
+	 * Observe the live canvases of a chat through its owning provider, whether or not its
+	 * session is active. Holding the reference may keep the session resident. `undefined`
+	 * when the provider cannot observe the chat's canvases.
+	 */
+	observeChatCanvases(session: ISession, chatResource: URI): IReference<IObservable<readonly ISessionCanvas[] | undefined>> | undefined;
+}
+
+/**
+ * Payload for {@link ISessionsManagementService.onDidCloseCanvas}.
+ */
+export interface ISessionCanvasClosedEvent {
+	readonly session: ISession;
+	readonly chatResource: URI;
+	readonly canvasResource: URI;
 }
 
 export const ISessionsManagementService = createDecorator<ISessionsManagementService>('sessionsManagementService');

@@ -271,29 +271,47 @@ suite('MainThreadTerminalService', () => {
 
 	test('a process exit removes the extension identifier', async () => {
 		await service.$createTerminal('exited-terminal', { name: 'Exited', hideFromUser: true, isExtensionCustomPtyTerminal: true });
-		const terminal = terminals.instances[0];
-		try {
-			await terminal.processReady;
-			const disposed = Event.toPromise(terminal.onDisposed);
-			service.$sendProcessExit(terminal.instanceId, 0);
-			await disposed;
-			await service.$show('exited-terminal', false);
-			assert.strictEqual(terminals.instances.length, 0);
-		} finally {
-			terminal.dispose();
-		}
+		const terminal = store.add(terminals.instances[0]);
+		await terminal.processReady;
+		const disposed = Event.toPromise(terminal.onDisposed);
+		service.$sendProcessExit(terminal.instanceId, 0);
+		await disposed;
+		await service.$show('exited-terminal', false);
+		assert.strictEqual(terminals.instances.length, 0);
 	});
 
 	test('a terminal removed from its group still releases its extension identifier', async () => {
 		await service.$createTerminal('detached-terminal', { name: 'Detached', shellPath: '/test-shell' });
-		const terminal = terminals.instances[0];
+		const terminal = store.add(terminals.instances[0]);
+		groups.getGroupForInstance(terminal)!.removeInstance(terminal);
+		terminal.dispose();
+		await service.$show('detached-terminal', false);
+		assert.strictEqual(terminals.instances.length, 0);
+	});
+
+	test('splits from a parent terminal referenced by its extension identifier', async () => {
+		await service.$createTerminal('parent-terminal', { name: 'Parent', shellPath: '/test-shell' });
+		await service.$createTerminal('child-terminal', { name: 'Child', shellPath: '/test-shell', location: { parentTerminal: 'parent-terminal' } });
+		const [parent, child] = terminals.instances;
 		try {
-			groups.getGroupForInstance(terminal)!.removeInstance(terminal);
-			terminal.dispose();
-			await service.$show('detached-terminal', false);
-			assert.strictEqual(terminals.instances.length, 0);
+			assert.strictEqual(groups.getGroupForInstance(child), groups.getGroupForInstance(parent));
 		} finally {
-			terminal.dispose();
+			child.dispose();
+			parent.dispose();
+		}
+	});
+
+	test('splits from a parent terminal referenced by its instance id', async () => {
+		// Once a terminal has opened, the extension host refers to it by its instance id
+		await service.$createTerminal('parent-terminal', { name: 'Parent', shellPath: '/test-shell' });
+		const parent = terminals.instances[0];
+		await service.$createTerminal('child-terminal', { name: 'Child', shellPath: '/test-shell', location: { parentTerminal: parent.instanceId } });
+		const child = terminals.instances[1];
+		try {
+			assert.strictEqual(groups.getGroupForInstance(child), groups.getGroupForInstance(parent));
+		} finally {
+			child.dispose();
+			parent.dispose();
 		}
 	});
 
