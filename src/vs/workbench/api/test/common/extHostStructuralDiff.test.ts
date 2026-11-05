@@ -217,20 +217,37 @@ suite('ExtHost structural diff', () => {
 		await assert.rejects(provide(), /Provider failed/);
 	});
 
-	test('rejects unknown symbol kinds instead of converting them to a known kind', async () => {
-		await register({
-			provideStructuralDiff: () => {
-				const entity = { name: 'file.ts', kind: types.SymbolKind.File, range: new types.Range(0, 0, 0, 1) };
-				return {
-					root: {
-						id: 'file', original: entity, modified: entity, originalChanges: [], modifiedChanges: [],
-						children: [{ id: 'member', modified: { name: 'member', kind: 99 as vscode.SymbolKind, range: entity.range }, originalChanges: [], modifiedChanges: [], children: [] }],
-					},
-					isIncomplete: true,
-				};
+	function resultWith(member: Partial<vscode.StructuralDiffNode>): vscode.StructuralDiff {
+		const file = { name: 'file.ts', kind: types.SymbolKind.File, range: new types.Range(0, 0, 0, 1) };
+		return {
+			root: {
+				id: 'file', original: file, modified: file, originalChanges: [], modifiedChanges: [],
+				children: [{ id: 'member', originalChanges: [], modifiedChanges: [], children: [], ...member }],
 			},
+			isIncomplete: true,
+		};
+	}
+
+	const member = { name: 'member', kind: types.SymbolKind.Property, range: new types.Range(0, 0, 0, 1) };
+	const change = { textChangeIndex: 0, range: member.range, classification: types.StructuralDiffClassification.Implementation };
+	const nullLine = { start: { line: null, character: 0 }, end: { line: 0, character: 1 } } as unknown as vscode.Range;
+	const convertibleValues: [string, Partial<vscode.StructuralDiffNode>, RegExp][] = [
+		['an unknown kind', { modified: { ...member, kind: 99 as vscode.SymbolKind } }, /Invalid structural diff: node 'member' has an invalid modified entity kind/],
+		['a kind that is a numeric string', { modified: { ...member, kind: '0' as unknown as vscode.SymbolKind } }, /Invalid structural diff: node 'member' has an invalid modified entity kind/],
+		['an entity range with a line that is not a number', { original: { ...member, range: nullLine } }, /Invalid structural diff: node 'member' has an invalid original entity range/],
+		['a selection range with a line that is not a number', { modified: { ...member, selectionRange: nullLine } }, /Invalid structural diff: node 'member' has an invalid modified selection range/],
+		['a change range with a line that is not a number', { modified: member, modifiedChanges: [{ ...change, range: nullLine }] }, /Invalid structural diff: node 'member' has an invalid modified change range/],
+	];
+	for (const [description, node, expected] of convertibleValues) {
+		test(`rejects ${description} instead of converting it to a valid value`, async () => {
+			await register({ provideStructuralDiff: () => resultWith(node) });
+			await assert.rejects(provide(), expected);
 		});
-		await assert.rejects(provide(), /Invalid structural diff: node 'member' has an invalid modified entity kind/);
+	}
+
+	test('passes tags that are not an array on for validation instead of dropping them', async () => {
+		await register({ provideStructuralDiff: () => resultWith({ modified: member, modifiedChanges: [{ ...change, tags: null as unknown as vscode.StructuralDiffTag[] }] }) });
+		assert.strictEqual((await provide())?.root.children[0].modifiedChanges[0].tags, null);
 	});
 
 	test('runtime enum values match the core contract', () => {
