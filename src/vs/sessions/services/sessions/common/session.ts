@@ -346,6 +346,21 @@ export function getSessionWorkspaceKind(workspace: ISessionWorkspace | undefined
 }
 
 /**
+ * The workspace that session-wide presentation (list row, hover, session picker) describes: the
+ * session folder, which is the main chat's. When the session spans more than one folder, the first
+ * folder of {@link ISession.workspace} can be a folder the main chat moved away from or another
+ * chat's, so the main chat's workspace is used, falling back to the session workspace while the
+ * main chat's is unavailable.
+ */
+export function getSessionPresentationWorkspace(session: ISession, reader: IReader | undefined): ISessionWorkspace | undefined {
+	const sessionWorkspace = session.workspace.read(reader);
+	if ((sessionWorkspace?.folders.length ?? 0) <= 1) {
+		return sessionWorkspace;
+	}
+	return session.mainChat.read(reader).workspace.read(reader) ?? sessionWorkspace;
+}
+
+/**
  * The kinds of artifact or reference an agent can record on a session.
  */
 export const enum SessionArtifactKind {

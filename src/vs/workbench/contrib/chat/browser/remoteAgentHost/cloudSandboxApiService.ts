@@ -192,6 +192,9 @@ const DEFAULT_WAKING_RETRY_AFTER_SECONDS = 5;
 /** How many recent tasks to scan for sandbox sessions during discovery, per page. */
 const DISCOVERY_TASK_SCAN_LIMIT = 100;
 
+/** Maximum pages to read per repository/archive task scope during discovery. */
+const DISCOVERY_TASK_SCAN_MAX_PAGES = 3;
+
 /**
  * Max concurrent task-detail fetches during discovery.
  *
@@ -232,6 +235,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	private readonly _sessionResolutionLimiter = this._register(new Limiter<ICloudSandboxDiscoveredSession>(DISCOVERY_TASK_FETCH_CONCURRENCY));
 	private readonly _activeDiscoveryReads = new Set<Map<string, ICachedSandboxTask | undefined>>();
 	private _discoverySince: string | undefined;
+	private _archivedDiscoverySince: string | undefined;
 	private _discoveryGeneration = 0;
 	private _accountGeneration = 0;
 	private _historyRequestId = 0;
@@ -484,6 +488,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		const generation = ++this._accountGeneration;
 		this._discoveryGeneration++;
 		this._discoverySince = undefined;
+		this._archivedDiscoverySince = undefined;
 		this._discoveredTasks.clear();
 		for (const resolution of this._sessionResolutions.values()) {
 			resolution.source.cancel();
@@ -584,7 +589,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		this._discoveryGeneration++;
 	}
 
-	/** Incremental scans preserve absent tasks; full scans also find tasks without environment-kind metadata. */
+	/** Full scans replace the recent task window; incremental scans preserve absent tasks. */
 	async listSessions(token: CancellationToken, options?: ICloudSandboxDiscoveryOptions): Promise<ICloudSandboxDiscoveryResult> {
 		const stopwatch = StopWatch.create();
 		const requestedMode = options?.taskIds !== undefined ? 'targeted' : options?.incremental ? 'incremental' : 'full';
@@ -612,7 +617,11 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	private async _listSessions(token: CancellationToken, options: ICloudSandboxDiscoveryOptions | undefined, updates: ReadonlyMap<string, ICachedSandboxTask | undefined>, telemetry: ICloudSandboxDiscoveryTelemetryData): Promise<ICloudSandboxDiscoveryResult> {
 		const generation = this._discoveryGeneration;
 		const targeted = options?.taskIds !== undefined;
-		const since = !targeted && options?.incremental ? this._discoverySince : undefined;
+		const includeArchived = options?.includeArchived !== false;
+		const checkpointSince = includeArchived
+			? this._discoverySince && this._archivedDiscoverySince && (this._discoverySince < this._archivedDiscoverySince ? this._discoverySince : this._archivedDiscoverySince)
+			: this._discoverySince;
+		const since = !targeted && options?.incremental ? checkpointSince : undefined;
 		telemetry.mode = targeted ? 'targeted' : since ? 'incremental' : 'full';
 		const tasks = new Map<string, IScannedTask>();
 		const details = new Map<string, ITaskDetail>();
@@ -639,6 +648,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		const removedTaskIds: string[] = [];
 		const failedTaskIds = new Set<string>();
 		let truncated = false;
+		let hasUnreadPages = false;
 		let checkpoint: number | undefined;
 		let latestUpdate: number | undefined;
 		if (targeted) {
@@ -674,7 +684,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		// Separate repository scopes include workspace-less sandboxes as well as repository sessions.
 		for (const { withRepository, archived } of targeted ? [] : [
 			{ withRepository: true, archived: false }, { withRepository: false, archived: false },
-			{ withRepository: true, archived: true }, { withRepository: false, archived: true },
+			...(includeArchived ? [{ withRepository: true, archived: true }, { withRepository: false, archived: true }] : []),
 		]) {
 			const query: Record<string, string> = {
 				per_page: String(DISCOVERY_TASK_SCAN_LIMIT),
@@ -686,7 +696,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			};
 			const requestedUrls = new Set<string>();
 			let url: string | undefined = `${this._tasksBaseUrl()}/tasks${toQuery({ ...query, page: '1' })}`;
-			for (let page = 1; url; page++) {
+			for (let page = 1; url && page <= DISCOVERY_TASK_SCAN_MAX_PAGES; page++) {
 				if (token.isCancellationRequested) {
 					throw new CancellationError();
 				}
@@ -714,6 +724,9 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 						}
 					}
 					url = nextTaskPageUrl(context.res.headers?.link, url, query);
+					if (page === DISCOVERY_TASK_SCAN_MAX_PAGES && url) {
+						hasUnreadPages = true;
+					}
 				} catch (error) {
 					if (isCancellationError(error) || token.isCancellationRequested) {
 						throw new CancellationError();
@@ -731,13 +744,13 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		const scannedTaskIds = new Set(tasks.keys());
 		if (since) {
 			for (const [id, cached] of cache) {
-				if (!tasks.has(id) && (cached.needsRefresh || !cached.session || (cached.repositoryId !== undefined && !cached.session.repoName))) {
+				if ((includeArchived || !cached.summary.archived_at) && !tasks.has(id) && (cached.needsRefresh || !cached.session || (cached.repositoryId !== undefined && !cached.session.repoName))) {
 					tasks.set(id, cached.summary);
 				}
 			}
 		}
 		const sandboxTasks: IScannedTask[] = [];
-		const exclusions = { notSandboxCompute: 0, missingSessionBinding: 0, stalledQueuedSession: 0, emptySession: 0, detailFetchFailed: 0 };
+		const exclusions = { notSandboxCompute: 0, missingSessionBinding: 0, stalledQueuedSession: 0, detailFetchFailed: 0 };
 		const logExcludedTask = (taskId: string, reason: keyof typeof exclusions) => {
 			exclusions[reason]++;
 			this._logService.debug(`${LOG_PREFIX} Excluded task ${JSON.stringify({ taskId, reason })}`);
@@ -815,17 +828,23 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			return { kind: 'failed', reason: 'Sandbox discovery was invalidated while listing sessions' };
 		}
 		const partial = unresolved > 0 || truncated;
-		if (!partial && !targeted) {
-			// Browsers may not expose Date through CORS; task timestamps also use the server's clock.
+		if (!truncated && !targeted) {
+			// Failed details are retained by task ID and retried independently of the inventory checkpoint.
 			const nextCheckpoint = checkpoint ?? latestUpdate;
-			if (nextCheckpoint !== undefined) {
-				const nextSince = new Date(nextCheckpoint - DISCOVERY_OVERLAP_MS).toISOString();
-				telemetry.checkpointAdvanced = this._discoverySince === undefined || Date.parse(nextSince) > Date.parse(this._discoverySince);
-				this._discoverySince = nextSince;
+			if (nextCheckpoint === undefined && checkpointSince === undefined) {
+				this._logService.warn(`${LOG_PREFIX} Discovery has no server timestamp; using an epoch checkpoint to retain all subsequent changes.`);
 			}
-			if (!since) {
-				for (const id of cache.keys()) {
-					if (!scannedTaskIds.has(id)) {
+			const nextSince = nextCheckpoint !== undefined
+				? new Date(nextCheckpoint - DISCOVERY_OVERLAP_MS).toISOString()
+				: checkpointSince ?? new Date(0).toISOString();
+			telemetry.checkpointAdvanced = this._discoverySince === undefined || Date.parse(nextSince) > Date.parse(this._discoverySince);
+			this._discoverySince = nextSince;
+			if (includeArchived) {
+				this._archivedDiscoverySince = nextSince;
+			}
+			if (!partial && !since) {
+				for (const [id, cached] of cache) {
+					if (!scannedTaskIds.has(id) && (includeArchived || !cached.summary.archived_at)) {
 						cache.delete(id);
 					}
 				}
@@ -870,9 +889,14 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			if (cached) {
 				this._discoveredTasks.set(id, cached);
 			} else {
-				if (this._discoveredTasks.delete(id)) {
+				if (this._discoveredTasks.delete(id) && !hasUnreadPages && includeArchived) {
 					removed.add(id);
 				}
+			}
+			const observed = scannedTaskIds.has(id) || details.has(id) || updates.has(id);
+			// Window eviction and unobserved cached state cannot invalidate an overlapping read.
+			if (!removed.has(id) && (!cached || !observed)) {
+				continue;
 			}
 			for (const read of this._activeDiscoveryReads) {
 				if (read !== updates) {
@@ -891,9 +915,13 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			})}`);
 		}
 		if (partial) {
-			return { kind: 'partial', sessions, removedTaskIds: [...removed], ...(targeted ? { failedTaskIds: [...failedTaskIds] } : {}) };
+			return { kind: 'partial', sessions, removedTaskIds: [...removed], ...(!targeted && !truncated ? { inventoryComplete: true } : {}), ...(targeted ? { failedTaskIds: [...failedTaskIds] } : {}) };
 		}
-		return targeted || since ? { kind: 'incremental', sessions, removedTaskIds: [...removed] } : { kind: 'complete', sessions };
+		return targeted || since
+			? { kind: 'incremental', sessions, removedTaskIds: [...removed] }
+			: includeArchived
+				? { kind: 'complete', sessions, ...(removed.size ? { removedTaskIds: [...removed] } : {}) }
+				: { kind: 'scoped', sessions, removedTaskIds: [...removed] };
 	}
 
 	async resolveSession(taskId: string, token: CancellationToken): Promise<ICloudSandboxDiscoveredSession> {
@@ -1226,7 +1254,6 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 
 	invalidateSessionHistory(taskId: string, preserveCached = false): void {
 		this._historyCache.invalidate(taskId, false, preserveCached);
-		this._discoveryGeneration++;
 	}
 
 	clearSessionHistory(taskId?: string): void {

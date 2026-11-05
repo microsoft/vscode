@@ -17,6 +17,7 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/virtualSc
 import { IRequestContext, type IHeaders, type IRequestOptions } from '../../../../../../base/parts/request/common/request.js';
 import { CLOUD_SANDBOX_AGENT_SLUG, CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID, CloudSandboxAuthenticationRequiredError, CloudSandboxRequestError, type ICloudSandboxAuthenticationTarget, type ICloudSandboxClientToken, type ICloudSandboxConnectionRequest, type ICloudSandboxPreparedAuthentication, type ICloudSandboxSealTokenRequest } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { SessionStatus } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/common/actions.js';
 import { COPILOT_INTEGRATION_ID } from '../../../../../../platform/endpoint/common/licenseAgreement.js';
 import { IGitHubAccountClient } from '../../../../../../platform/github/common/account/account.js';
 import { ApiRequest, ApiResponse, BufferedApiRequestProvider } from '../../../../../../platform/github/common/client/request.js';
@@ -1214,6 +1215,67 @@ suite('CloudSandboxApiService feed task refresh', () => {
 		assert.deepStrictEqual(await refresh, { kind: 'incremental', sessions: [], removedTaskIds: ['task'] });
 	});
 
+	test('a capped window eviction does not overwrite a successful pending targeted read', async () => {
+		const pending = new DeferredPromise<IRequestContext>();
+		const entered = new DeferredPromise<void>();
+		const original = { ...task('task', 'Original', undefined, 'session', 'environment'), updated_at: '2026-10-18T00:00:00Z' };
+		const tasks: ITestTask[] = [original];
+		let hold = false;
+		const { service } = createService(store, {
+			tasks, repositories: new Map(),
+			onRequest: url => {
+				if (hold && url.pathname === '/agents/tasks/task') {
+					void entered.complete();
+					return pending.p;
+				}
+				return undefined;
+			},
+		});
+		await service.listSessions(CancellationToken.None);
+		hold = true;
+		const targeted = service.listSessions(CancellationToken.None, { taskIds: ['task'] });
+		await entered.p;
+		tasks.unshift(...Array.from({ length: 301 }, (_, i) => ({
+			...task(`new-${i}`, 'Other task', undefined, `s-${i}`, `e-${i}`), compute: { provider: 'other' },
+		})));
+		const scan = await service.listSessions(CancellationToken.None);
+		await pending.complete(jsonResponse(original));
+		const refreshed = await targeted;
+
+		assert.deepStrictEqual({
+			scan,
+			refreshed: refreshed.kind === 'failed' ? refreshed : {
+				kind: refreshed.kind,
+				tasks: refreshed.sessions.map(session => session.taskId),
+				removed: refreshed.removedTaskIds,
+			},
+		}, {
+			scan: { kind: 'complete', sessions: [] },
+			refreshed: { kind: 'incremental', tasks: ['task'], removed: [] },
+		});
+	});
+
+	for (const cached of [false, true]) {
+		test(`keeps summary rows without an execution binding with a cached task: ${cached}`, async () => {
+			const original = { ...task('task', 'Original', undefined, 'session', 'environment'), updated_at: '2026-10-18T00:00:00Z' };
+			const tasks: ITestTask[] = [original];
+			const { service } = createService(store, { tasks, repositories: new Map() });
+			if (cached) {
+				await service.listSessions(CancellationToken.None);
+			}
+			tasks[0] = { ...original, updated_at: '2026-10-18T00:01:00Z', sessions: [] };
+			const full = await service.listSessions(CancellationToken.None);
+			const targeted = await service.listSessions(CancellationToken.None, { taskIds: ['task'] });
+
+			assert.deepStrictEqual([full, targeted].map(result => result.kind === 'failed' ? result : {
+				kind: result.kind, tasks: result.sessions.map(task => task.taskId), removed: result.removedTaskIds ?? [],
+			}), [
+				{ kind: 'complete', tasks: ['task'], removed: [] },
+				{ kind: 'incremental', tasks: ['task'], removed: [] },
+			]);
+		});
+	}
+
 	test('an older full scan retains a task discovered by a concurrent feed read', async () => {
 		const pending = new DeferredPromise<IRequestContext>();
 		const entered = new DeferredPromise<void>();
@@ -1270,7 +1332,7 @@ suite('CloudSandboxApiService feed task refresh', () => {
 		await service.listSessions(CancellationToken.None, { taskIds: ['removed'] });
 		await pending.complete(jsonResponse({ tasks: [known] }));
 		const result = await scan;
-		assert.deepStrictEqual(result, { kind: 'complete', sessions: [] });
+		assert.deepStrictEqual(result, { kind: 'complete', sessions: [], removedTaskIds: ['removed'] });
 	});
 
 	test('concurrent task refreshes retain each other in the discovery cache', async () => {
@@ -2443,6 +2505,135 @@ suite('Mission Control environment discovery', () => {
 	});
 });
 
+suite('CloudSandboxApiService archived discovery', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('bounds active-only discovery and the first archive expansion to three pages per requested partition', async () => {
+		const date = 'Tue, 22 Sep 2026 10:00:00 GMT';
+		const tasks: ITestTask[] = [
+			task('repo', 'Repository', 42, 'repo-session', 'repo-environment'),
+			task('no-repo', 'No repository', undefined, 'no-repo-session', 'no-repo-environment'),
+			{ ...task('archived-repo', 'Archived repository', 42, 'archived-repo-session', 'archived-repo-environment'), archived_at: date },
+			{ ...task('archived-no-repo', 'Archived without repository', undefined, 'archived-no-repo-session', 'archived-no-repo-environment'), archived_at: date },
+		].map(task => ({ ...task, updated_at: '2026-09-22T09:00:00Z' }));
+		const { service, requestedUrls } = createService(store, {
+			tasks, repositories: new Map([[42, { full_name: 'owner/repo' }]]),
+			onRequest: url => {
+				if (url.pathname !== '/agents/tasks') {
+					return undefined;
+				}
+				const archived = url.searchParams.get('is_archived') === 'true';
+				return jsonResponse({
+					tasks: tasks.filter(task => (task.repository !== undefined) === (url.searchParams.get('with_repo') === 'true')
+						&& !!task.archived_at === archived),
+				}, 200, { date, link: `<?page=${Number(url.searchParams.get('page')) + 1}>; rel="next"` });
+			},
+		});
+		const partitions = () => requestedUrls.map(url => new URL(url)).filter(url => url.pathname === '/agents/tasks')
+			.map(url => [url.searchParams.get('with_repo'), url.searchParams.get('is_archived'), url.searchParams.get('page')]);
+		const active = await service.listSessions(CancellationToken.None, { includeArchived: false });
+		const activeRequests = partitions();
+		requestedUrls.length = 0;
+		const expanded = await service.listSessions(CancellationToken.None, { incremental: true, includeArchived: true });
+		assert.deepStrictEqual({
+			kinds: [active.kind, expanded.kind],
+			activeRequests,
+			expandedRequests: partitions(),
+			expandedDetails: requestedUrls.map(url => new URL(url).pathname).filter(path => path.startsWith('/agents/tasks/')),
+		}, {
+			kinds: ['scoped', 'complete'],
+			activeRequests: [true, false].flatMap(withRepository => [1, 2, 3].map(page => [String(withRepository), 'false', String(page)])),
+			expandedRequests: [false, true].flatMap(archived => [true, false].flatMap(withRepository =>
+				[1, 2, 3].map(page => [String(withRepository), String(archived), String(page)]))),
+			expandedDetails: [],
+		});
+	});
+
+	test('active-only window eviction is not confirmed deletion and targeted archive reads still work', async () => {
+		const original = task('changed', 'Changed', undefined, 'session', 'environment');
+		const tasks: ITestTask[] = [original];
+		const { service, requestedUrls } = createService(store, { tasks, repositories: new Map() });
+		await service.listSessions(CancellationToken.None);
+		tasks[0] = { ...original, archived_at: '2026-10-01T00:00:00Z' };
+		requestedUrls.length = 0;
+		const collapsed = await service.listSessions(CancellationToken.None, { includeArchived: false });
+		const collapsedDetails = requestedUrls.filter(url => new URL(url).pathname.startsWith('/agents/tasks/'));
+		requestedUrls.length = 0;
+		const opened = await service.listSessions(CancellationToken.None, { includeArchived: false, taskIds: ['changed'] });
+		assert.deepStrictEqual({
+			collapsed, collapsedDetails,
+			opened: opened.kind === 'failed' ? [] : opened.sessions.map(session => ({ taskId: session.taskId, archived: session.isArchived })),
+			openedRequests: requestedUrls.map(url => new URL(url).pathname),
+		}, {
+			collapsed: { kind: 'scoped', sessions: [], removedTaskIds: [] }, collapsedDetails: [],
+			opened: [{ taskId: 'changed', archived: true }], openedRequests: ['/agents/tasks/changed'],
+		});
+	});
+
+	test('active-only startup reads neither archived inventory nor archived task details', async () => {
+		const { service, requestedUrls } = createService(store, {
+			tasks: [
+				task('active', 'Active', undefined, 'active-session', 'environment'),
+				{ ...task('archived', 'Archived', undefined, 'archived-session', 'environment'), archived_at: '2026-10-01T00:00:00Z' },
+			],
+			repositories: new Map(),
+		});
+		const result = await service.listSessions(CancellationToken.None, { includeArchived: false });
+		assert.deepStrictEqual({
+			kind: result.kind,
+			sessions: result.kind === 'failed' ? [] : result.sessions.map(session => session.taskId),
+			lists: requestedUrls.filter(url => new URL(url).pathname === '/agents/tasks').map(url => new URL(url).searchParams.get('is_archived')),
+			details: requestedUrls.filter(url => new URL(url).pathname.startsWith('/agents/tasks/')).map(url => new URL(url).pathname),
+		}, { kind: 'scoped', sessions: ['active'], lists: ['false', 'false'], details: [] });
+	});
+
+	test('first archived discovery does not reuse an active-only checkpoint and later active refreshes retain its cache', async () => {
+		const archived = {
+			...task('archived', 'Archived', undefined, 'archived-session', 'environment'),
+			archived_at: '2026-09-01T00:00:00Z', updated_at: '2026-09-01T00:00:00Z',
+		};
+		const { service, requestedUrls } = createService(store, {
+			tasks: [archived], repositories: new Map(),
+			discoveryDate: () => '2026-10-01T00:00:00Z',
+		});
+		await service.listSessions(CancellationToken.None, { includeArchived: false });
+		requestedUrls.length = 0;
+		const expanded = await service.listSessions(CancellationToken.None, { incremental: true, includeArchived: true });
+		const expansionLists = requestedUrls.filter(url => new URL(url).pathname === '/agents/tasks').map(url => ({
+			archived: new URL(url).searchParams.get('is_archived'), since: new URL(url).searchParams.get('since'),
+		}));
+		requestedUrls.length = 0;
+		const collapsed = await service.listSessions(CancellationToken.None, { includeArchived: false });
+		const readsWhileCollapsed = [...requestedUrls];
+		requestedUrls.length = 0;
+		const reopened = await service.listSessions(CancellationToken.None, { includeArchived: true });
+		assert.deepStrictEqual({
+			expansion: expanded.kind === 'failed' ? [] : expanded.sessions.map(session => session.taskId),
+			expansionLists, collapsed,
+			readsWhileCollapsed: readsWhileCollapsed.map(url => new URL(url).searchParams.get('is_archived')),
+			reopened: reopened.kind === 'failed' ? [] : reopened.sessions.map(session => session.taskId),
+			reopenedDetails: requestedUrls.filter(url => new URL(url).pathname === '/agents/tasks/archived').length,
+		}, {
+			expansion: ['archived'],
+			expansionLists: ['false', 'false', 'true', 'true'].map(archived => ({ archived, since: null })),
+			collapsed: { kind: 'scoped', sessions: [], removedTaskIds: [] }, readsWhileCollapsed: ['false', 'false'],
+			reopened: ['archived'], reopenedDetails: 0,
+		});
+	});
+
+	test('known archived tasks remain targetable without archived inventory demand', async () => {
+		const { service, requestedUrls } = createService(store, {
+			tasks: [{ ...task('archived', 'Archived', undefined, 'session', 'environment'), archived_at: '2026-10-01T00:00:00Z' }],
+			repositories: new Map(),
+		});
+		const result = await service.listSessions(CancellationToken.None, { includeArchived: false, taskIds: ['archived'] });
+		assert.deepStrictEqual({
+			archived: result.kind === 'failed' ? [] : result.sessions.map(session => session.isArchived),
+			urls: requestedUrls.map(url => new URL(url).pathname),
+		}, { archived: [true], urls: ['/agents/tasks/archived'] });
+	});
+});
+
 suite('CloudSandboxApiService repository resolution', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -2860,9 +3051,8 @@ suite('CloudSandboxApiService repository resolution', () => {
 		});
 	}
 
-	test('scans past the first page and stays complete', async () => {
-		// A full first page means there may be more; a sandbox task on the second must be found.
-		const filler = Array.from({ length: 100 }, (_, i) => task(`filler-${i}`, 'x', undefined, `fs-${i}`, `fe-${i}`));
+	test('discovers sandbox tasks on the third page and stays complete when the scope is exhausted', async () => {
+		const filler = Array.from({ length: 200 }, (_, i) => task(`filler-${i}`, 'x', undefined, `fs-${i}`, `fe-${i}`));
 		const { service, requestedUrls } = createService(store, {
 			tasks: [...filler, task('task-old', 'older sandbox', undefined, 'sess-old', 'env-old')],
 			repositories: new Map(),
@@ -2877,13 +3067,11 @@ suite('CloudSandboxApiService repository resolution', () => {
 		}, {
 			kind: 'complete',
 			found: ['task-old'],
-			listPages: 5,
+			listPages: 6,
 		});
 	});
 
-	test('follows the Link header past a short page', async () => {
-		// Mission Control can return fewer rows than asked for and still advertise a next page, so
-		// page length must not be used to detect the end.
+	test('follows the Link header after an empty first page within the page limit', async () => {
 		const { service, requestedUrls } = createService(store, {
 			tasks: [task('task-old', 'older sandbox', undefined, 'sess-old', 'env-old')],
 			repositories: new Map(),
@@ -2905,8 +3093,8 @@ suite('CloudSandboxApiService repository resolution', () => {
 
 	for (const repositoryId of [undefined, 42]) {
 		for (const archived of [false, true]) {
-			test(`discovers sessions past ten pages (repository=${repositoryId}, archived=${archived})`, async () => {
-				const tasks = Array.from({ length: 1000 }, (_, i) => ({
+			test(`bounds discovery in each scope (repository=${repositoryId}, archived=${archived})`, async () => {
+				const tasks = Array.from({ length: 300 }, (_, i) => ({
 					...task(`filler-${i}`, 'Other task', repositoryId, `s-${i}`, `e-${i}`),
 					agent_collaborators: [{ slug: 'other' }],
 					compute: { provider: 'other' },
@@ -2928,35 +3116,35 @@ suite('CloudSandboxApiService repository resolution', () => {
 					listPages: requestedUrls.filter(u => /[?&]per_page=/.test(u)).length,
 				}, {
 					kind: 'complete',
-					sessions: ['older'],
-					listPages: 14,
+					sessions: [],
+					listPages: 6,
 				});
 			});
 		}
 	}
 
-	test('pagination remains cancellable beyond ten pages', async () => {
+	test('cancellation stops paging and the remaining scope requests', async () => {
 		const cancellation = store.add(new CancellationTokenSource());
 		const { service, requestedUrls } = createService(store, {
 			tasks: [], repositories: new Map(),
 			onRequest: url => {
-				if (url.searchParams.get('page') === '11') {
+				if (url.searchParams.get('page') === '3') {
 					cancellation.cancel();
+					throw new CancellationError();
 				}
 				return jsonResponse({ tasks: [] }, 200, { link: `<?page=${Number(url.searchParams.get('page')) + 1}>; rel="next"` });
 			},
 		});
 
 		await assert.rejects(service.listSessions(cancellation.token), isCancellationError);
-		assert.deepStrictEqual(requestedUrls.map(url => new URL(url).searchParams.get('page')),
-			Array.from({ length: 11 }, (_, i) => String(i + 1)));
+		assert.deepStrictEqual(requestedUrls.map(url => new URL(url).searchParams.get('page')), ['1', '2', '3']);
 	});
 });
 
 suite('CloudSandboxApiService pagination', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('follows relative cursor links through empty pages in every discovery scope', async () => {
+	test('limits cursor pagination to three pages in every scope without resolving executions', async () => {
 		const date = 'Tue, 22 Sep 2026 10:00:00 GMT';
 		const tasks: ITestTask[] = [
 			task('repo', 'Repository', 42, 'repo-session', 'repo-environment'),
@@ -2964,21 +3152,18 @@ suite('CloudSandboxApiService pagination', () => {
 			{ ...task('archived-repo', 'Archived repository', 42, 'archived-repo-session', 'archived-repo-environment'), archived_at: date },
 			{ ...task('archived-no-repo', 'Archived without repository', undefined, 'archived-no-repo-session', 'archived-no-repo-environment'), archived_at: date },
 		];
-		const cursors = ['second+/= opaque', 'third'];
 		const { service, requestedUrls } = createService(store, {
 			tasks, repositories: new Map([[42, { full_name: 'owner/repo' }]]),
 			onRequest: url => {
 				if (url.pathname !== '/agents/tasks') {
 					return undefined;
 				}
-				const page = cursors.indexOf(url.searchParams.get('cursor') ?? '') + 1;
-				if (page === cursors.length) {
-					return jsonResponse({
-						tasks: tasks.filter(task => (task.repository !== undefined) === (url.searchParams.get('with_repo') === 'true')
-							&& !!task.archived_at === (url.searchParams.get('is_archived') === 'true')),
-					}, 200, { date, link: '<?page=1>; rel="first"' });
-				}
-				return jsonResponse({ tasks: [] }, 200, { date, link: ['<?page=1>; rel="first"', `<?cursor=${encodeURIComponent(cursors[page])}>; rel="next"`] });
+				const cursor = url.searchParams.get('cursor');
+				const next = cursor === null ? 'second+/= opaque' : cursor === 'second+/= opaque' ? 'third' : 'fourth';
+				return jsonResponse({
+					tasks: tasks.filter(task => (task.repository !== undefined) === (url.searchParams.get('with_repo') === 'true')
+						&& !!task.archived_at === (url.searchParams.get('is_archived') === 'true')),
+				}, 200, { date, link: ['<?page=1>; rel="first"', `<?cursor=${encodeURIComponent(next)}>; rel="next"`] });
 			},
 		});
 
@@ -2989,15 +3174,17 @@ suite('CloudSandboxApiService pagination', () => {
 			kind: result.kind,
 			tasks: result.kind === 'failed' ? [] : result.sessions.map(session => session.taskId),
 			requests: requests.map(url => [url.origin, url.searchParams.get('with_repo'), url.searchParams.get('is_archived'), url.searchParams.get('page'), url.searchParams.get('cursor')]),
+			details: requestedUrls.map(url => new URL(url).pathname).filter(path => path.startsWith('/agents/tasks/')),
 		}, {
 			kind: 'complete',
 			tasks: tasks.map(task => task.id),
-			requests: [false, true].flatMap(archived => [true, false].flatMap(withRepository => [null, ...cursors].map(cursor =>
+			requests: [false, true].flatMap(archived => [true, false].flatMap(withRepository => [null, 'second+/= opaque', 'third'].map(cursor =>
 				['https://api.githubcopilot.com', String(withRepository), String(archived), cursor ? null : '1', cursor]))),
+			details: [],
 		});
 	});
 
-	test('keeps the API endpoint and omitted scope filters when following a numbered link', async () => {
+	test('follows numbered next-page links while retaining the API endpoint and scope filters', async () => {
 		const older = task('older', 'Older task', undefined, 'older-session', 'older-environment');
 		const { service, requestedUrls } = createService(store, {
 			tasks: [older], repositories: new Map(),
@@ -3100,7 +3287,7 @@ suite('CloudSandboxApiService discovery logs', () => {
 				'[CloudSandboxApi] Accepted task previously excluded by agent slug {"taskId":"different-agent"}',
 				'[CloudSandboxApi] Excluded task {"taskId":"other-compute","reason":"notSandboxCompute"}',
 			],
-			summary: ['[CloudSandboxApi] Discovery filtering {"notSandboxCompute":1,"missingSessionBinding":0,"stalledQueuedSession":0,"emptySession":0,"detailFetchFailed":0,"acceptedWithOtherAgent":1}'],
+			summary: ['[CloudSandboxApi] Discovery filtering {"notSandboxCompute":1,"missingSessionBinding":0,"stalledQueuedSession":0,"detailFetchFailed":0,"acceptedWithOtherAgent":1}'],
 			info: [],
 			exposedPrompt: false,
 		});
@@ -3283,7 +3470,7 @@ suite('CloudSandboxApiService discovery account', () => {
 suite('CloudSandboxApiService task catalog', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('lists 1750 tasks without requesting execution details or recorded history', async () => {
+	test('lists the recent window of 1750 tasks without requesting execution details or recorded history', async () => {
 		const tasks = Array.from({ length: 1750 }, (_, index) => task(`task-${index}`, `Conversation ${index}`, undefined, `session-${index}`, `environment-${index}`));
 		const { service, requestedUrls } = createService(store, { tasks, repositories: new Map() });
 		const result = await service.listSessions(CancellationToken.None);
@@ -3292,7 +3479,7 @@ suite('CloudSandboxApiService task catalog', () => {
 			count: result.kind === 'failed' ? 0 : result.sessions.length,
 			resolved: result.kind === 'failed' ? [] : result.sessions.filter(task => task.sessionId || task.environmentId),
 			detailReads: requestedUrls.filter(url => /\/tasks\/[^/?]+(?:\/events)?$/.test(new URL(url).pathname)),
-		}, { kind: 'complete', count: 1750, resolved: [], detailReads: [] });
+		}, { kind: 'complete', count: 300, resolved: [], detailReads: [] });
 	});
 
 	test('retains old untitled and queued summary rows without probing their history', async () => {
@@ -3339,6 +3526,115 @@ suite('CloudSandboxApiService task catalog', () => {
 			detailReads: requestedUrls.filter(url => new URL(url).pathname.endsWith('/tasks/task')).length,
 		}, { resolved: ['task', 'session', 'environment'], cached: ['task', 'session', 'environment'], detailReads: 1 });
 	});
+});
+
+suite('CloudSandboxApiService discovery without recorded history', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const startTime = Date.UTC(2026, 9, 18, 19);
+	const oneHour = 60 * 60_000;
+
+	function placeholderTask(id: string) {
+		return {
+			...task(id, 'New task', undefined, `session-${id}`, 'shared-environment'),
+			event_type: 'unknown',
+			state: 'idle',
+			updated_at: new Date(startTime - 2 * oneHour).toISOString(),
+			sessions: [{ id: `session-${id}`, environment_id: 'shared-environment', state: 'idle', ahp_resource_uri: `ahp-session:/session-${id}` }],
+		};
+	}
+
+	for (const includeArchived of [false, true]) {
+		test(`lists old idle placeholders without fetching history across renewals and task hints (includeArchived=${includeArchived})`, () => runWithFakedTimers({ useFakeTimers: true, startTime }, async () => {
+			const tasks = [
+				placeholderTask('idle'),
+				{ ...placeholderTask('legacy'), name: 'New Task', repository: { id: 42 } },
+				{ ...placeholderTask('archived'), archived_at: new Date(startTime - oneHour).toISOString() },
+			];
+			const { service, requestedUrls } = createService(store, {
+				tasks, repositories: new Map([[42, { full_name: 'owner/repo' }]]),
+				onRequest: url => url.pathname.endsWith('/events') ? jsonResponse({}, 503) : undefined,
+			});
+			const initial = await service.listSessions(CancellationToken.None, { includeArchived, trigger: 'startup' });
+			const renewed = [];
+			for (let pass = 0; pass < 3; pass++) {
+				await timeout(5 * 60_000);
+				const result = await service.listSessions(CancellationToken.None, { includeArchived, incremental: true, trigger: 'feedRenewal' });
+				renewed.push(result.kind);
+			}
+			const targeted = await service.listSessions(CancellationToken.None, { taskIds: ['idle'], trigger: 'feedChange' });
+			assert.deepStrictEqual({
+				initial: initial.kind === 'failed' ? initial : { kind: initial.kind, tasks: initial.sessions.map(session => session.taskId).sort() },
+				renewed,
+				targeted: targeted.kind === 'failed' ? targeted : targeted.sessions.map(session => session.taskId),
+				unexpectedRequests: requestedUrls.filter(url => !/\/agents\/tasks(?:\?|\/(?:idle|legacy|archived)$)|\/repositories\/42$/.test(url)),
+				queries: requestedUrls.filter(url => new URL(url).pathname === '/agents/tasks').map(url => {
+					const query = new URL(url).searchParams;
+					return [query.get('with_repo'), query.get('is_archived'), query.get('since'), query.get('include_environment_kinds')];
+				}),
+			}, {
+				initial: { kind: includeArchived ? 'complete' : 'scoped', tasks: includeArchived ? ['archived', 'idle', 'legacy'] : ['idle', 'legacy'] },
+				renewed: Array(3).fill('incremental'),
+				targeted: ['idle'],
+				unexpectedRequests: [],
+				queries: [undefined, startTime, startTime + 5 * 60_000, startTime + 10 * 60_000].flatMap(time =>
+					[false, ...(includeArchived ? [true] : [])].flatMap(archived =>
+						['true', 'false'].map(withRepo => [withRepo, String(archived), time === undefined ? null : new Date(time - 60_000).toISOString(), time === undefined ? null : 'managed-sandbox']))),
+			});
+		}));
+	}
+
+	test('explicit conversation history still loads and replays after listing an old placeholder', async () => {
+		const { service, requestedUrls } = createService(store, {
+			tasks: [placeholderTask('idle')], repositories: new Map(),
+			onRequest: url => url.pathname.endsWith('/events') ? jsonResponse({
+				events: [{
+					ns: 'ahp', session_id: 'session-idle', seq: 0, at: new Date(startTime).toISOString(),
+					payload: { kind: 'message', data: { channel: 'ahp-session:/session-idle', serverSeq: 0, action: { type: ActionType.SessionTitleChanged, title: 'Recorded conversation' } } },
+				}],
+				total: 1,
+			}) : undefined,
+		});
+		await service.listSessions(CancellationToken.None);
+		const beforeOpen = requestedUrls.filter(url => url.endsWith('/events')).length;
+		const history = await service.getSessionHistory('idle', CancellationToken.None);
+		assert.deepStrictEqual({
+			beforeOpen,
+			historyRequests: requestedUrls.filter(url => url.endsWith('/events')).map(url => new URL(url).pathname),
+			sessions: history?.sessions.map(session => [session.session, session.state.title]),
+		}, { beforeOpen: 0, historyRequests: ['/agents/tasks/idle/events'], sessions: [['ahp-session:/session-idle', 'Recorded conversation']] });
+	});
+
+	test('live history invalidation cannot invalidate or restart an unrelated inventory pass', async () => {
+		const pending = new DeferredPromise<IRequestContext>();
+		const entered = new DeferredPromise<void>();
+		const { service, requestedUrls } = createService(store, {
+			tasks: [placeholderTask('idle')], repositories: new Map(),
+			onRequest: url => {
+				if (url.pathname === '/agents/tasks' && !entered.isSettled) {
+					void entered.complete();
+					return pending.p;
+				}
+				return undefined;
+			},
+		});
+		const discovery = service.listSessions(CancellationToken.None);
+		await entered.p;
+		service.invalidateSessionHistory('idle');
+		service.invalidateSessionHistory('other');
+		await pending.complete(jsonResponse({ tasks: [] }));
+		const result = await discovery;
+		await service.listSessions(CancellationToken.None, { incremental: true });
+		assert.deepStrictEqual({
+			kind: result.kind,
+			fullRequests: requestedUrls.filter(url => new URL(url).pathname === '/agents/tasks' && !new URL(url).searchParams.has('since')).length,
+			historyRequests: requestedUrls.filter(url => url.endsWith('/events')).length,
+		}, { kind: 'complete', fullRequests: 4, historyRequests: 0 });
+	});
+
+});
+
+suite('CloudSandboxApiService task catalog resolution', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('reuses execution details already read for a targeted feed update', async () => {
 		const { service, requestedUrls } = createService(store, {
@@ -3369,6 +3665,71 @@ suite('CloudSandboxApiService incremental discovery', () => {
 	function updatedTask(id: string, updatedAt = '2026-09-22T09:58:00Z', repositoryId?: number): ITestTask {
 		return { ...task(id, id, repositoryId, `session-${id}`, `env-${id}`), updated_at: updatedAt };
 	}
+
+	test('empty undated inventory establishes a conservative checkpoint without trusting the client clock', async () => {
+		const tasks: ITestTask[] = [];
+		const { service, requestedUrls } = createService(store, {
+			tasks, repositories: new Map(), discoveryDate: () => '',
+		});
+		await service.listSessions(CancellationToken.None, { includeArchived: false });
+		await service.listSessions(CancellationToken.None, { incremental: true, includeArchived: false });
+		tasks.push(updatedTask('new'));
+		const result = await service.listSessions(CancellationToken.None, { incremental: true, includeArchived: false });
+		assert.deepStrictEqual({
+			queries: requestedUrls.filter(url => new URL(url).pathname === '/agents/tasks').map(url => new URL(url).searchParams.get('since')),
+			found: result.kind === 'failed' ? result : result.sessions.map(session => session.taskId),
+		}, { queries: [null, null, ...Array(4).fill('1970-01-01T00:00:00.000Z')], found: ['new'] });
+	});
+
+	test('execution-detail failures do not block summaries or advance task-binding retries', async () => {
+		let date = firstScanDate;
+		let fail = true;
+		const { service, requestedUrls } = createService(store, {
+			tasks: [updatedTask('unresolved')], repositories: new Map(), discoveryDate: () => date,
+			onRequest: url => fail && url.pathname.endsWith('/tasks/unresolved') ? jsonResponse({}, 503) : undefined,
+		});
+		const results = [];
+		for (let pass = 0; pass < 3; pass++) {
+			results.push(await service.listSessions(CancellationToken.None, { incremental: pass > 0, includeArchived: false }));
+			date = 'Tue, 22 Sep 2026 10:05:00 GMT';
+		}
+		fail = false;
+		const recovered = await service.listSessions(CancellationToken.None, { incremental: true, includeArchived: false });
+		assert.deepStrictEqual({
+			results: results.map(result => result.kind === 'failed' ? result : {
+				kind: result.kind, tasks: result.sessions.map(task => task.taskId), removed: result.removedTaskIds ?? [],
+			}),
+			recovered: recovered.kind === 'failed' ? recovered : recovered.sessions.map(session => session.taskId),
+			queries: requestedUrls.filter(url => new URL(url).pathname === '/agents/tasks').map(url => new URL(url).searchParams.get('since')),
+			details: requestedUrls.filter(url => url.endsWith('/tasks/unresolved')).length,
+		}, {
+			results: [
+				{ kind: 'scoped', tasks: ['unresolved'], removed: [] },
+				...Array(2).fill({ kind: 'incremental', tasks: [], removed: [] }),
+			],
+			recovered: [],
+			queries: [null, null, checkpoint, checkpoint, ...Array(4).fill('2026-09-22T10:04:00.000Z')],
+			details: 0,
+		});
+	});
+
+	test('failed list partitions do not advance progress or turn partial inventory into authority', async () => {
+		let fail = true;
+		const { service, requestedUrls } = createService(store, {
+			tasks: [updatedTask('listed', undefined, 42)], repositories: new Map(), discoveryDate: () => firstScanDate,
+			onRequest: url => fail && url.pathname === '/agents/tasks' && url.searchParams.get('with_repo') === 'false' ? jsonResponse({}, 503) : undefined,
+		});
+		const first = await service.listSessions(CancellationToken.None, { includeArchived: false });
+		const second = await service.listSessions(CancellationToken.None, { incremental: true, includeArchived: false });
+		fail = false;
+		const third = await service.listSessions(CancellationToken.None, { incremental: true, includeArchived: false });
+		await service.listSessions(CancellationToken.None, { incremental: true, includeArchived: false });
+		assert.deepStrictEqual({
+			progress: [first, second].map(result => result.kind === 'partial' ? result.inventoryComplete : result.kind),
+			recovered: third.kind,
+			queries: requestedUrls.filter(url => new URL(url).pathname === '/agents/tasks').map(url => new URL(url).searchParams.get('since')),
+		}, { progress: [undefined, undefined], recovered: 'scoped', queries: [...Array(6).fill(null), checkpoint, checkpoint] });
+	});
 
 	test('queries both repository and archive scopes and resolves no task details when nothing changed', async () => {
 		const { service, requestedUrls } = createService(store, {
@@ -3431,7 +3792,7 @@ suite('CloudSandboxApiService incremental discovery', () => {
 		}, { kind: 'incremental', since: '2026-09-22T09:57:00.000Z', requests: 4 });
 	});
 
-	test('preserves incremental filters on every page even when pagination links omit them', async () => {
+	test('preserves incremental filters when pagination links omit them', async () => {
 		const tasks: ITestTask[] = [];
 		const { service, requestedUrls } = createService(store, {
 			tasks, repositories: new Map(), discoveryDate: () => firstScanDate,
@@ -3562,30 +3923,66 @@ suite('CloudSandboxApiService incremental discovery', () => {
 		}, { firstKind: 'incremental', recovered: [], since: '2026-09-22T10:04:00.000Z' });
 	});
 
-	test('does not advance the checkpoint after a later list page fails', async () => {
+	test('advances the checkpoint after refreshing the recent incremental window', async () => {
 		const tasks: ITestTask[] = [];
-		let failSecondPage = false;
 		let date = firstScanDate;
 		const { service, requestedUrls } = createService(store, {
 			tasks, repositories: new Map(), discoveryDate: () => date,
-			onRequest: url => failSecondPage && url.searchParams.get('page') === '2' ? jsonResponse({}, 500) : undefined,
 		});
 		await service.listSessions(CancellationToken.None);
-		tasks.push(...Array.from({ length: 101 }, (_, i) => updatedTask(`new-${i}`, checkpoint)));
+		tasks.push(...Array.from({ length: 301 }, (_, i) => updatedTask(`new-${i}`, checkpoint)));
 		date = 'Tue, 22 Sep 2026 10:05:00 GMT';
-		failSecondPage = true;
-		const partial = await service.listSessions(CancellationToken.None, { incremental: true });
-		failSecondPage = false;
+		const bounded = await service.listSessions(CancellationToken.None, { incremental: true });
 		requestedUrls.length = 0;
 		const recovered = await service.listSessions(CancellationToken.None, { incremental: true });
 
 		assert.deepStrictEqual({
-			firstKind: partial.kind,
+			firstKind: bounded.kind,
+			firstCount: bounded.kind === 'failed' ? 0 : bounded.sessions.length,
 			recovered: recovered.kind === 'failed' ? 0 : recovered.sessions.length,
 			since: new URL(requestedUrls[0]).searchParams.get('since'),
 			details: requestedUrls.filter(url => new URL(url).pathname.startsWith('/agents/tasks/')).length,
-		}, { firstKind: 'partial', recovered: 101, since: checkpoint, details: 0 });
+		}, { firstKind: 'incremental', firstCount: 300, recovered: 0, since: '2026-09-22T10:04:00.000Z', details: 0 });
 	});
+
+	for (const removal of ['deleted', 'outside the window']) {
+		test(`evicts cached tasks ${removal} after a successful capped full refresh and enables incremental reads`, async () => {
+			const cached = updatedTask('cached');
+			const tasks = [cached];
+			let date = firstScanDate;
+			const { service, requestedUrls } = createService(store, {
+				tasks, repositories: new Map(), discoveryDate: () => date,
+			});
+			await service.listSessions(CancellationToken.None);
+			if (removal === 'deleted') {
+				tasks.length = 0;
+			}
+			tasks.unshift(...Array.from({ length: 301 }, (_, i) => ({
+				...updatedTask(`new-${i}`, checkpoint), compute: { provider: 'other' },
+			})));
+			date = 'Tue, 22 Sep 2026 10:05:00 GMT';
+			const bounded = await service.listSessions(CancellationToken.None);
+			requestedUrls.length = 0;
+			await service.listSessions(CancellationToken.None, { incremental: true });
+			const since = new URL(requestedUrls[0]).searchParams.get('since');
+			tasks.splice(0, 301);
+			if (removal === 'deleted') {
+				tasks.push(cached);
+			}
+			requestedUrls.length = 0;
+			const returned = await service.listSessions(CancellationToken.None);
+
+			assert.deepStrictEqual({
+				bounded,
+				since,
+				returned: returned.kind === 'failed' ? returned : returned.sessions.map(session => session.taskId),
+				details: requestedUrls.filter(url => url.endsWith('/tasks/cached')).length,
+			}, {
+				bounded: { kind: 'complete', sessions: [] },
+				since: '2026-09-22T10:04:00.000Z', returned: ['cached'], details: 0,
+			});
+		});
+	}
 
 	test('retries unresolved repository names without retrying execution bindings outside the incremental window', async () => {
 		const tasks = [updatedTask('binding'), updatedTask('repository', undefined, 42)];

@@ -10,13 +10,13 @@ import { Action2, registerAction2 } from '../../../../platform/actions/common/ac
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { ActiveEditorContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../workbench/common/contextkeys.js';
+import { ActiveEditorContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../workbench/common/contextkeys.js';
 import { SessionHasChangesContext, SessionIsCreatedContext, SessionWorkspaceIsVirtualContext, DesktopLayoutContext } from '../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { resolveSessionCommandTarget } from '../../../services/sessions/browser/sessionCommandTarget.js';
 import { CodeReviewService, ICodeReviewService } from './codeReviewService.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { Menus } from '../../../browser/menus.js';
@@ -33,7 +33,6 @@ const desktopCodeReviewWhen = ContextKeyExpr.and(
 	IsSessionsWindowContext,
 	ActiveEditorContext.isEqualTo(SessionChangesEditorInput.EDITOR_ID),
 	desktopDetailPanel,
-	IsAuxiliaryWindowContext.toNegated(),
 	IsTopRightEditorGroupContext,
 	SessionWorkspaceIsVirtualContext.toNegated(),
 	SessionIsCreatedContext,
@@ -53,7 +52,8 @@ class RunSessionCodeReviewAction extends Action2 {
 			icon: Codicon.codeReview,
 			precondition: ContextKeyExpr.or(ChatContextKeys.hasAgentSessionChanges, SessionHasChangesContext),
 			menu: {
-				id: Menus.SessionsEditorTitle,
+				// First in the header row of the Changes editor, before the More Actions menu of its diff actions.
+				id: Menus.SessionsEditorHeaderSecondary,
 				group: 'navigation',
 				order: 10,
 				when: desktopCodeReviewWhen,
@@ -63,13 +63,12 @@ class RunSessionCodeReviewAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor, sessionResource?: URI): Promise<void> {
 		const sessionManagementService = accessor.get(ISessionsManagementService);
-		const sessionsService = accessor.get(ISessionsService);
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const sessionChangesService = accessor.get(ISessionChangesService);
 
 		const candidateResource = URI.isUri(sessionResource)
 			? sessionResource
-			: sessionsService.activeSession.get()?.resource;
+			: resolveSessionCommandTarget(accessor, [])?.session?.resource;
 		const resource = candidateResource
 			? sessionChangesService.getSessionResource(candidateResource) ?? candidateResource
 			: undefined;

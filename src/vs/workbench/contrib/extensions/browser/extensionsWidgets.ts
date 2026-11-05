@@ -152,6 +152,12 @@ export class InstallCountWidget extends ExtensionWidget {
 
 	private readonly disposables = this._register(new DisposableStore());
 
+	/**
+	 * Whether the small widget also shows the install count of installed extensions. The Extensions view only shows it for
+	 * extensions that aren't installed.
+	 */
+	showsInstalledExtensions = false;
+
 	constructor(
 		readonly container: HTMLElement,
 		private small: boolean,
@@ -175,7 +181,7 @@ export class InstallCountWidget extends ExtensionWidget {
 			return;
 		}
 
-		if (this.small && this.extension.state !== ExtensionState.Uninstalled) {
+		if (this.small && !this.showsInstalledExtensions && this.extension.state !== ExtensionState.Uninstalled) {
 			return;
 		}
 
@@ -225,6 +231,12 @@ export class RatingsWidget extends ExtensionWidget {
 	private containerHover: IManagedHover | undefined;
 	private readonly disposables = this._register(new DisposableStore());
 
+	/**
+	 * Whether the small widget also shows the rating of installed extensions. The Extensions view only shows it for
+	 * extensions that aren't installed.
+	 */
+	showsInstalledExtensions = false;
+
 	constructor(
 		readonly container: HTMLElement,
 		private small: boolean,
@@ -254,7 +266,7 @@ export class RatingsWidget extends ExtensionWidget {
 			return;
 		}
 
-		if (this.small && this.extension.state !== ExtensionState.Uninstalled) {
+		if (this.small && !this.showsInstalledExtensions && this.extension.state !== ExtensionState.Uninstalled) {
 			return;
 		}
 

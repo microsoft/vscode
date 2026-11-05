@@ -6,28 +6,32 @@
 import assert from 'assert';
 import { $, append, scheduleAtNextAnimationFrame } from '../../../base/browser/dom.js';
 import { Direction, Grid, ISerializableView, ISerializedGrid, ISerializedNode, LayoutPriority, SerializableGrid, Sizing } from '../../../base/browser/ui/grid/grid.js';
-import { Emitter, type Event as BaseEvent } from '../../../base/common/event.js';
+import { Emitter, Event as BaseEvent } from '../../../base/common/event.js';
 import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { IObservable, observableValue } from '../../../base/common/observable.js';
+import { constObservable, IObservable, observableValue } from '../../../base/common/observable.js';
 import { SashState } from '../../../base/browser/ui/sash/sash.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { TestView } from '../../../base/test/browser/ui/grid/util.js';
 import { StorageScope, StorageTarget } from '../../../platform/storage/common/storage.js';
 import { Part } from '../../../workbench/browser/part.js';
-import { IPartVisibilityChangeEvent, LayoutSettings, ModernUIDensity, PanelAlignment, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
+import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, LayoutSettings, ModernUIDensity, PanelAlignment, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { DockedAuxiliaryBarController, IDockedAuxiliaryBarHost } from '../../browser/dockedAuxiliaryBarController.js';
-import { AgentWorkbenchLayout, ISidePaneState, ISidePaneToggleEvent, Workbench } from '../../browser/workbench.js';
+import { upcastPartial } from '../../../base/test/common/mock.js';
+import { IAuxiliaryWindow, IAuxiliaryWindowOpenEvent } from '../../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
+import { ContentPart } from '../../../workbench/browser/parts/editor/contentPart.js';
+import { addAuxiliaryWindowContainers, AgentWorkbenchLayout, ISidePaneState, ISidePaneToggleEvent, Workbench } from '../../browser/workbench.js';
 import { DesktopWorkbench, DockedEditorSizeMemento } from '../../browser/desktopWorkbench.js';
 import { AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS } from '../../browser/parts/agentsPartCard.js';
+import { SessionActivityBarColumn } from '../../browser/parts/sessionActivityBarHost.js';
 import { DesktopMainEditorPart } from '../../browser/parts/desktopEditorPart.js';
 import { MainEditorPart } from '../../browser/parts/editorPart.js';
 import { EditorParts } from '../../browser/parts/editorParts.js';
-import { DockedEditorInput } from '../../common/dockedEditorInput.js';
+import { DockedEditorInput } from '../../browser/dockedEditorInput.js';
 import { EditorInputCapabilities, IEditorPartOptions, IEditorPartOptionsChangeEvent } from '../../../workbench/common/editor.js';
-import { GroupDirection, GroupOrientation } from '../../../workbench/services/editor/common/editorGroupsService.js';
+import { GroupDirection, GroupOrientation, IEditorGroupsService } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { SESSIONS_LIST_MINIMUM_WIDTH } from '../../browser/parts/sidebarPart.js';
 import { Menus } from '../../browser/menus.js';
 import { DEFAULT_NOTIFICATION_ROW_HEIGHT, onDidChangeNotificationRowHeight, setNotificationRowHeight } from '../../../workbench/browser/parts/notifications/notificationsViewer.js';
@@ -60,12 +64,33 @@ class TestPartView extends TestView implements ISerializableView {
 
 /** Minimal docked editor input for testing the desktop reveal policy. */
 class TestDockedEditorInput extends DockedEditorInput {
+	constructor() {
+		super(upcastPartial<IEditorGroupsService>({ parts: [] }), upcastPartial<IWorkbenchLayoutService>({ onDidChangePartVisibility: BaseEvent.None, isVisible: () => true }));
+	}
 	override get typeId(): string { return 'test.dockedEditor'; }
 	override get resource(): undefined { return undefined; }
 }
 
 suite('Sessions - Workbench', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('the editor parts of a window of content parts, such as a chat window, show while the editor part of the main window hides; those of an editor window follow it', () => {
+		// A chat window is built of content parts; an editor window has an editor part of its own.
+		const chatWindow = { vscodeWindowId: 2 } as Window & { vscodeWindowId: number };
+		const editorWindow = { vscodeWindowId: 3 } as Window & { vscodeWindowId: number };
+		const workbench: { isVisible(part: Parts, targetWindow?: Window): boolean } = Object.assign(Object.create(Workbench.prototype), {
+			_effectiveVisible: () => false,
+			layoutPolicy: { viewportClass: { get: () => 'desktop' } },
+			editorGroupService: { parts: [Object.assign(Object.create(ContentPart.prototype), { windowId: 2 }), { windowId: 3 }] },
+		});
+		assert.deepStrictEqual({
+			mainEditor: workbench.isVisible(Parts.EDITOR_PART, mainWindow),
+			mainEditorWithoutWindow: workbench.isVisible(Parts.EDITOR_PART),
+			chatWindowEditor: workbench.isVisible(Parts.EDITOR_PART, chatWindow),
+			chatWindowPanel: workbench.isVisible(Parts.PANEL_PART, chatWindow),
+			editorWindowEditor: workbench.isVisible(Parts.EDITOR_PART, editorWindow),
+		}, { mainEditor: false, mainEditorWithoutWindow: false, chatWindowEditor: true, chatWindowPanel: false, editorWindowEditor: false });
+	});
 
 	test('leaves native resize to the host window while retaining iOS and phone viewport listeners', () => {
 		const viewport = mainWindow.visualViewport;
@@ -489,7 +514,7 @@ suite('Sessions - Workbench', () => {
 					}
 				},
 			},
-			sessionsService: { activeSession: { get: () => undefined } },
+			sessionsService: { focusActiveSession: () => { focusedSessions++; } },
 			// captures
 			resizes,
 			distributions,
@@ -620,14 +645,14 @@ suite('Sessions - Workbench', () => {
 			grid.appendChild(part);
 			return part;
 		};
-		const sessions = createPart('sessionspart agents-part-card');
+		const sessions = createPart('sessionspart sessions-chat-surface agents-part-card agents-card-surface');
 		const sessionView = document.createElement('div');
 		sessionView.className = 'session-view session-grid-bottom-left session-grid-bottom-right';
 		sessions.appendChild(sessionView);
 		const internalSessionView = document.createElement('div');
 		internalSessionView.className = 'session-view';
 		sessions.appendChild(internalSessionView);
-		const customView = createPart('customviewgrid agents-part-card');
+		const customView = createPart('customviewgrid agents-part-card agents-card-surface');
 		const editor = createPart('editor');
 		const auxiliaryBar = createPart('auxiliarybar');
 		const panel = createPart('panel');
@@ -703,7 +728,7 @@ suite('Sessions - Workbench', () => {
 		const root = document.createElement('div');
 		root.style.cssText = '--vscode-cornerRadius-large: 8px; --vscode-agents-layout-floatingPanelGap: 4px; --vscode-strokeThickness: 1px;';
 		const card = document.createElement('div');
-		card.className = 'part sessionspart agents-part-card';
+		card.className = 'part sessionspart sessions-chat-surface agents-part-card agents-card-surface';
 		const sessionView = document.createElement('div');
 		sessionView.className = 'session-view session-grid-bottom-left session-grid-bottom-right';
 		card.appendChild(sessionView);
@@ -1237,22 +1262,30 @@ suite('Sessions - Workbench', () => {
 		assert.deepStrictEqual({ size: editorNode.size, visible: editorNode.visible }, { size: 300, visible: true });
 	});
 
-	test('desktop descriptor supports spanning and chat-aligned panels', () => {
-		const topology = (alignment: PanelAlignment) => {
-			const host = createHost({ single: true }) as IGridDescriptorTestHarness & { _panelAlignment: PanelAlignment };
+	test('desktop descriptor supports spanning and chat-aligned panels, with the Session Activity Bar column, hidden, last in the content row', () => {
+		const topology = (alignment: PanelAlignment, withColumn = false) => {
+			const host = createHost({ single: true }) as IGridDescriptorTestHarness & { _panelAlignment: PanelAlignment; sessionActivityBarColumn?: { minimumWidth: number } };
 			host._panelAlignment = alignment;
+			host.sessionActivityBarColumn = withColumn ? { minimumWidth: 34 } : undefined;
 			host.layoutPolicy = {
 				getPartSizes: () => ({ sideBarSize: 280, auxiliaryBarSize: 340, panelSize: 300 }),
 				viewportClass: { get: () => 'desktop' },
 			};
 			host.titleBarPartView = { minimumHeight: 30 };
-			return getPartTopology(createDesktopGridDescriptor.call(host, 1200, 800).root);
+			const root = createDesktopGridDescriptor.call(host, 1200, 800).root;
+			const contentRow = root.type === 'branch' ? root.data[1] : undefined;
+			const last = contentRow?.type === 'branch' ? contentRow.data.at(-1) : undefined;
+			return withColumn ? { last: last?.type === 'leaf' ? last.data : undefined, size: last?.size, visible: last?.visible } : getPartTopology(root);
 		};
 
 		assert.deepStrictEqual({
 			justify: topology('justify'),
 			center: topology('center'),
+			justifyColumn: topology('justify', true),
+			centerColumn: topology('center', true),
 		}, {
+			justifyColumn: { last: { type: SessionActivityBarColumn.ID }, size: 34, visible: false },
+			centerColumn: { last: { type: SessionActivityBarColumn.ID }, size: 34, visible: false },
 			justify: [
 				Parts.TITLEBAR_PART,
 				[
@@ -1272,6 +1305,66 @@ suite('Sessions - Workbench', () => {
 					Parts.CUSTOM_VIEW_GRID_PART,
 				],
 			],
+		});
+	});
+
+	test('the Session Activity Bar column is inactive in the phone layout and while a custom view replaces the Sessions Part', () => {
+		const viewportClass = observableValue<string>('viewportClass', 'desktop');
+		const activeCustomViewOpen = observableValue<object | undefined>('activeCustomViewOpen', undefined);
+		const host = { layoutPolicy: { viewportClass }, customViewService: { activeCustomViewOpen } };
+		const active = (Reflect.get(Workbench.prototype, '_isSessionActivityBarColumnActive') as (this: typeof host) => IObservable<boolean>).call(host);
+
+		const desktop = active.get();
+		activeCustomViewOpen.set({}, undefined);
+		const customViewOpen = active.get();
+		activeCustomViewOpen.set(undefined, undefined);
+		const customViewClosed = active.get();
+		viewportClass.set('phone', undefined);
+		const phone = active.get();
+
+		assert.deepStrictEqual({ desktop, customViewOpen, customViewClosed, phone }, { desktop: true, customViewOpen: false, customViewClosed: true, phone: false });
+	});
+
+	test('shows the Session Activity Bar column on the next frame while a strip is in it, and not while a view is maximized', async () => {
+		const column = new SessionActivityBarColumn(constObservable(true));
+		const onDidChangeViewMaximized = store.add(new Emitter<boolean>());
+		const changes: boolean[] = [];
+		let visible = false;
+		let maximized = false;
+		const host = {
+			sessionActivityBarColumn: column,
+			mainContainer: mainWindow.document.body,
+			_register: <T extends IDisposable>(disposable: T) => store.add(disposable),
+			workbenchGrid: {
+				hasMaximizedView: () => maximized,
+				isViewVisible: () => visible,
+				setViewVisible: (_view: object, value: boolean) => { visible = value; changes.push(value); },
+				onDidChangeViewMaximized: onDidChangeViewMaximized.event,
+			},
+		};
+		const nextFrame = () => new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+		(Reflect.get(Workbench.prototype, '_registerSessionActivityBarColumn') as (this: typeof host) => void).call(host);
+		const [first, second] = [{}, {}];
+
+		// A chat switch: one strip leaves as another enters.
+		column.setOccupied(first, true);
+		column.setOccupied(first, false);
+		column.setOccupied(second, true);
+		const beforeFrame = [...changes];
+		await nextFrame();
+		const shown = [...changes];
+		maximized = true;
+		column.setOccupied(second, false);
+		await nextFrame();
+		const whileMaximized = [...changes];
+		maximized = false;
+		onDidChangeViewMaximized.fire(false);
+
+		assert.deepStrictEqual({ beforeFrame, shown, whileMaximized, restored: changes }, {
+			beforeFrame: [],
+			shown: [true],
+			whileMaximized: [true],
+			restored: [true, false],
 		});
 	});
 
@@ -2178,7 +2271,7 @@ suite('Sessions - Workbench', () => {
 			showHeader: true,
 			useModernUITabs: true,
 			headerPrimary: Menus.SessionsEditorHeaderPrimary,
-			headerSecondary: undefined,
+			headerSecondary: Menus.SessionsEditorHeaderSecondary,
 			headerLayout: Menus.SessionsEditorHeaderLayout,
 		});
 	});
@@ -4420,5 +4513,22 @@ suite('Sessions - Workbench', () => {
 			{ desktop: persistedPanel(true), mobile: persistedPanel(false) },
 			{ desktop: true, mobile: undefined }
 		);
+	});
+
+	test('adds the container of each auxiliary window that opens, as the standard workbench does, so that what tracks every container tracks it too', () => {
+		const opened = store.add(new Emitter<IAuxiliaryWindowOpenEvent>());
+		const added = store.add(new Emitter<{ container: HTMLElement; disposables: DisposableStore }>());
+		const containers: HTMLElement[] = [];
+		const releasedWithWindow: boolean[] = [];
+		store.add(added.event(({ container, disposables }) => {
+			containers.push(container);
+			disposables.add(toDisposable(() => releasedWithWindow.push(true)));
+		}));
+		store.add(addAuxiliaryWindowContainers({ onDidOpenAuxiliaryWindow: opened.event }, added));
+		const container = document.createElement('div');
+		const windowDisposables = new DisposableStore();
+		opened.fire({ window: upcastPartial<IAuxiliaryWindow>({ container }), disposables: windowDisposables });
+		windowDisposables.dispose();
+		assert.deepStrictEqual({ added: containers.map(candidate => candidate === container), releasedWithWindow }, { added: [true], releasedWithWindow: [true] });
 	});
 });

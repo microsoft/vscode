@@ -420,7 +420,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 				rows: ['Agent mode', 'Interactive', 'Plan', 'Autopilot', ActionListItemKind.Separator, 'Permissions', 'Manual permissions', 'Assisted permissions', 'Allow all', ActionListItemKind.Separator, 'Learn more about permissions'],
 				permissions: [
 					{ label: 'Manual permissions', detail: 'Asks when approval settings don\'t apply', icon: 'key', badge: undefined },
-					{ label: 'Assisted permissions', detail: 'Evaluates risk before running tools', icon: 'sparkle', badge: 'New' },
+					{ label: 'Assisted permissions', detail: 'Evaluates risk before running tools', icon: 'sparkle', badge: 'Recommended' },
 					{ label: 'Allow all', detail: 'Runs tool calls without asking', icon: 'warning', badge: undefined },
 				],
 			},
@@ -819,6 +819,14 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		});
 	});
 
+	test('closes the permissions popup when its button moves into overflow', async () => {
+		const { permissionPicker, actionWidget } = setup(false);
+		await permissionPicker['_showPicker'](permissionPicker.triggerElement!);
+		assert.ok(actionWidget.isVisible);
+		permissionPicker.unrender();
+		assert.strictEqual(actionWidget.isVisible, false);
+	});
+
 	test('readonly or nonmutable native approval properties never become runtime writes', async () => {
 		const rig = setup(false);
 		delete rig.config.schema.properties.autoApprove;
@@ -1067,9 +1075,13 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		const confirmed = permissionPicker['_getSandboxStandaloneToggle']()!.checked;
 		config.values[SessionConfigKey.SandboxEnabled] = 'off';
 		const optimistic = permissionPicker['_getSandboxStandaloneToggle']()!.checked;
+		const placeholderAfterOptOut = permissionPicker.sandboxToggleChecked.get();
 		config.values[SessionConfigKey.SandboxEnabled] = 'on';
 		const restored = permissionPicker['_getSandboxStandaloneToggle']()!.checked;
-		assert.deepStrictEqual({ confirmed, optimistic, restored }, { confirmed: true, optimistic: false, restored: true });
+		const placeholderAfterOptIn = permissionPicker.sandboxToggleChecked.get();
+		assert.deepStrictEqual({ confirmed, optimistic, restored, placeholderAfterOptOut, placeholderAfterOptIn }, {
+			confirmed: true, optimistic: false, restored: true, placeholderAfterOptOut: false, placeholderAfterOptIn: true,
+		});
 	});
 
 	test('remote sandbox policy updates the open picker and does not leak across hosts', async () => {
@@ -1473,7 +1485,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			});
 		});
 
-		test(`labels Assisted permissions as new without requiring an opt-in setting (${combined ? 'combined' : 'separate'} picker)`, async () => {
+		test(`labels Assisted permissions as recommended without requiring an opt-in setting (${combined ? 'combined' : 'separate'} picker)`, async () => {
 			const { modePicker, permissionPicker, configuration, config, actionWidget, dispatches } = setup(combined);
 			await configuration.setUserConfiguration('chat.assistedPermissions.enabled', false);
 			config.values.autoApprove = 'default';
@@ -1487,7 +1499,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			assert.deepStrictEqual({ levels, beforeSelection, dispatches }, {
 				levels: [
 					{ label: 'Manual permissions', disabled: false, badge: undefined },
-					{ label: 'Assisted permissions', disabled: false, badge: 'New' },
+					{ label: 'Assisted permissions', disabled: false, badge: 'Recommended' },
 					{ label: 'Allow all', disabled: false, badge: undefined },
 				],
 				beforeSelection: [],

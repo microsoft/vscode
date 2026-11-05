@@ -17,6 +17,9 @@ export type SessionRecencyEntry = {
 } | {
 	readonly kind: 'newSession';
 } | {
+	readonly kind: 'canvas';
+	readonly id: string;
+} | {
 	readonly kind: 'customView';
 	readonly id: string;
 	/** What the view showed in this opening, when it shows one of several items. */
@@ -34,6 +37,8 @@ export function getRecencyEntryKey(entry: SessionRecencyEntry): string {
 			return JSON.stringify([entry.kind, getComparisonKey(entry.sessionResource), entry.chatResource && getComparisonKey(entry.chatResource)]);
 		case 'newSession':
 			return entry.kind;
+		case 'canvas':
+			return `${entry.kind}:${entry.id}`;
 		case 'customView':
 			return entry.state === undefined ? `${entry.kind}:${entry.id}` : `${entry.kind}:${entry.id}\u0000${entry.state}`;
 	}

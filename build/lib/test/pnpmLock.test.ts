@@ -109,6 +109,6 @@ suite('pnpmLock', () => {
 	});
 
 	test('lockfile folders of projects', () => {
-		assert.deepStrictEqual(['', '.', 'extensions/git', './extensions/git/', '.vscode/extensions/vscode-extras', './.vscode/extensions/vscode-extras', 'remote', 'build/npm/gyp', 'build/agent-sdk/agents/claude', 'src', '.vscode'].map(getLockfileFolder), ['', '', '', '', '', '', 'remote', 'build/npm/gyp', undefined, undefined, undefined]);
+		assert.deepStrictEqual(['', '.', 'extensions/git', './extensions/git/', 'extensions', '.vscode/extensions/vscode-pr-pinger', './.vscode/extensions/vscode-pr-pinger', 'remote', 'remote/web', 'build', 'build/rspack', 'build/vite/', 'extensions/copilot', 'extensions/copilot/chat-lib', 'test/sanity', 'build/agent-sdk/agents/claude', 'src', '.vscode'].map(getLockfileFolder), ['', '', 'extensions', 'extensions', 'extensions', '', '', 'remote', 'remote', 'build', 'build', 'build', 'extensions/copilot', 'extensions/copilot', 'test/sanity', undefined, undefined, undefined]);
 	});
 });

@@ -28,6 +28,53 @@ suite('SessionsProvidersService', () => {
 		return { service, lifecycleService };
 	}
 
+	test('publishes a coherent large inventory once and batches its removal', () => {
+		const { service } = createService();
+		const registrations = store.add(new DisposableStore());
+		const snapshots: { added: number; removed: number; available: number }[] = [];
+		store.add(service.onDidChangeProviders(event => snapshots.push({
+			added: event.added.length,
+			removed: event.removed.length,
+			available: service.getProviders({ includeSessionBackends: true }).length,
+		})));
+		service.batchProviderChanges(() => {
+			registrations.add(service.registerProvider(provider('cloud')));
+			service.batchProviderChanges(() => {
+				for (let i = 0; i < 150; i++) {
+					registrations.add(service.registerSessionBackend('cloud', provider(`sandbox-${i}`)));
+					registrations.add(service.registerProvider(provider(`native-${i}`)));
+				}
+			});
+		});
+		service.batchProviderChanges(() => registrations.clear());
+		assert.deepStrictEqual(snapshots, [
+			{ added: 301, removed: 0, available: 301 },
+			{ added: 0, removed: 301, available: 0 },
+		]);
+	});
+
+	test('omits transient registrations but reports replacements and flushes after a failed batch', () => {
+		const { service } = createService();
+		const first = provider('same');
+		const replacement = provider('same');
+		const registration = store.add(service.registerProvider(first));
+		const events: { added: readonly ISessionsProvider[]; removed: readonly ISessionsProvider[] }[] = [];
+		store.add(service.onDidChangeProviders(event => events.push(event)));
+		assert.throws(() => service.batchProviderChanges(() => {
+			const transient = store.add(service.registerProvider(provider('transient')));
+			transient.dispose();
+			registration.dispose();
+			store.add(service.registerProvider(replacement));
+			throw new Error('incomplete inventory');
+		}), /incomplete inventory/);
+		const next = provider('next');
+		store.add(service.registerProvider(next));
+		assert.deepStrictEqual(events, [
+			{ added: [replacement], removed: [first] },
+			{ added: [next], removed: [] },
+		]);
+	});
+
 	test('separates logical providers from routable environment backends', () => {
 		const { service } = createService();
 		const cloud = provider('cloud');

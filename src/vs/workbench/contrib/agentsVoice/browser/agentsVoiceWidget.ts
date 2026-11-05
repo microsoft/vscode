@@ -40,7 +40,7 @@ export interface VoiceWidgetCallbacks {
 	/** Select a session as the transcription target. */
 	selectTargetSession(resource: URI | undefined): void;
 	/** Create a new session and set it as transcription target. */
-	newSessionAsTarget(): void;
+	newSessionAsTarget(): Promise<boolean>;
 	getAnalyserNode(): AnalyserNode | null;
 	onResize(): void;
 	openPttKeySettings(): void;

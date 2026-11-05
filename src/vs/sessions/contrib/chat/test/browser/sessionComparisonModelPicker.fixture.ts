@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { constObservable } from '../../../../../base/common/observable.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IStorageService, InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ChatEntitlement } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
@@ -15,8 +17,11 @@ type ComparisonPickerState = 'single' | 'empty' | 'attempts' | 'judge' | 'synthe
 
 function renderComparisonPicker(context: ComponentFixtureContext, state: ComparisonPickerState): Promise<void> {
 	const instantiationService = context.disposableStore.add(new TestInstantiationService());
+	const configurationService = new TestConfigurationService();
+	context.disposableStore.add(configurationService.onDidChangeConfigurationEmitter);
+	instantiationService.stub(IConfigurationService, configurationService);
 	instantiationService.stub(IStorageService, context.disposableStore.add(new InMemoryStorageService()));
-	const selection = context.disposableStore.add(instantiationService.createInstance(SessionComparisonModelSelection, constObservable(true), constObservable(false), undefined, constObservable(state !== 'folderless'), constObservable(true)));
+	const selection = context.disposableStore.add(instantiationService.createInstance(SessionComparisonModelSelection, constObservable(true), undefined, constObservable(state !== 'folderless'), constObservable(true)));
 	if (state !== 'single') {
 		selection.start();
 	}

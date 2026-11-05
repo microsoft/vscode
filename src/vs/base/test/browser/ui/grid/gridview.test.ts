@@ -199,6 +199,30 @@ suite('Gridview', function () {
 		});
 	});
 
+	test('the maximum width of a gridview is its views\' maximum width, not their maximum height', function () {
+		const gridview = createGridView();
+		gridview.layout(800, 600);
+		gridview.addView(store.add(new TestView(50, 700, 50, 100)), 200, [0]);
+		assert.deepStrictEqual([gridview.maximumWidth, gridview.maximumHeight], [700, 100]);
+	});
+
+	test('2x2 sash link is disposed with the gridview', function () {
+		const gridview = createGridView();
+		gridview.layout(200, 200);
+
+		const views = Array.from({ length: 5 }, () => store.add(new TestView(20, Number.POSITIVE_INFINITY, 20, Number.POSITIVE_INFINITY)));
+		gridview.addView(views[0], Sizing.Distribute, [0]);
+		gridview.addView(views[1], Sizing.Distribute, [1]);
+		gridview.addView(views[2], Sizing.Distribute, [0, 1]);
+		gridview.addView(views[3], Sizing.Distribute, [1, 1]);
+
+		// out of 2x2 and back into it
+		gridview.addView(views[4], Sizing.Distribute, [1, 2]);
+		gridview.removeView([1, 2], Sizing.Distribute);
+
+		assert.deepStrictEqual(nodesToArrays(gridview.getView()), [[views[0], views[2]], [views[1], views[3]]]);
+	});
+
 	test('empty gridview is empty', function () {
 		const gridview = createGridView();
 		assert.deepStrictEqual(nodesToArrays(gridview.getView()), []);

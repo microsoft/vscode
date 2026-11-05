@@ -33,6 +33,7 @@ import { ISessionsProvidersService } from '../../../../../services/sessions/brow
 import { IChat, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { AgentHostCodexApprovalsPicker } from '../../browser/agentHostCodexApprovalsPicker.js';
+import { sessionChatSourceOf } from '../../../../../services/sessions/browser/sessionHost.js';
 
 suite('AgentHostCodexApprovalsPicker', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -109,7 +110,7 @@ suite('AgentHostCodexApprovalsPicker', () => {
 		store.add(toDisposable(() => prompt.restore()));
 		instantiation.stub(IDialogService, dialogService);
 		instantiation.stub(IChatWidgetService, { getWidgetBySessionResource: resource => resource.toString() === chat.resource.toString() ? widget : undefined });
-		const picker = store.add(instantiation.createInstance(AgentHostCodexApprovalsPicker, session));
+		const picker = store.add(instantiation.createInstance(AgentHostCodexApprovalsPicker, sessionChatSourceOf(session)));
 		const container = dom.append(document.body, dom.$('div'));
 		store.add(toDisposable(() => container.remove()));
 		picker.render(container);

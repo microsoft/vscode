@@ -12,83 +12,95 @@ import { existsSync } from 'fs';
  */
 export const workspaceMembers = [
 	'',
-	'extensions',
-	'extensions/configuration-editing',
-	'extensions/css-language-features',
-	'extensions/css-language-features/server',
-	'extensions/debug-auto-launch',
-	'extensions/debug-server-ready',
-	'extensions/emmet',
-	'extensions/extension-editing',
-	'extensions/git',
-	'extensions/git-base',
-	'extensions/github',
-	'extensions/github-authentication',
-	'extensions/grunt',
-	'extensions/gulp',
-	'extensions/html-language-features',
-	'extensions/html-language-features/server',
-	'extensions/ipynb',
-	'extensions/jake',
-	'extensions/json-language-features',
-	'extensions/json-language-features/server',
-	'extensions/markdown-language-features',
-	'extensions/markdown-math',
-	'extensions/merge-conflict',
-	'extensions/mermaid-markdown-features',
-	'extensions/microsoft-authentication',
-	'extensions/notebook-renderers',
-	'extensions/npm',
-	'extensions/php-language-features',
-	'extensions/references-view',
-	'extensions/search-result',
-	'extensions/simple-browser',
-	'extensions/tunnel-forwarding',
-	'extensions/terminal-suggest',
-	'extensions/typescript-language-features',
-	'extensions/vscode-api-tests',
-	'extensions/vscode-colorize-tests',
-	'extensions/vscode-colorize-perf-tests',
-	'extensions/vscode-test-resolver',
 	'test/automation',
+	'test/componentFixtures/playwright',
 	'test/integration/browser',
 	'test/monaco',
 	'test/smoke',
 	'test/scenario',
 	'.vscode/extensions/vscode-selfhost-import-aid',
 	'.vscode/extensions/vscode-selfhost-test-provider',
-	'.vscode/extensions/vscode-extras',
 	'.vscode/extensions/vscode-pr-pinger',
+	'src/vs/sessions/test/e2e',
 ];
 
 /**
  * Separate pnpm install roots (each with its own `pnpm-workspace.yaml` and `pnpm-lock.yaml`) that
  * the root postinstall installs after the workspace, in this order. `build` and `remote` build
- * native modules for a different runtime than the workspace (see their `.npmrc` and
- * `.pnpmfile.mjs`). `build/rspack` and `build/vite` are inside `build`: pnpm uses the nearest
- * `pnpm-workspace.yaml` above a folder, so they can't be members of the main workspace.
- * `extensions/copilot` keeps its own `node_modules` because its build scripts and runtime code use
- * paths inside it; it builds native modules for Electron like the workspace.
+ * native modules for a different runtime than the workspace (see the `nativeBuild` field of their
+ * `package.json`, and their `.pnpmfile.mjs`). `extensions` holds the built-in extensions, which the
+ * product build bundles, so the layout of their `node_modules` doesn't ship; its `.pnpmfile.mjs`
+ * builds native modules for Electron like the workspace. `extensions/copilot` keeps its own
+ * `node_modules` because its build scripts and runtime code use paths inside it; it builds native
+ * modules for Electron like the workspace.
  */
 export const separateRoots = [
 	'build',
-	'build/rspack',
-	'build/vite',
 	'remote',
-	'remote/web',
+	'extensions',
 	'extensions/copilot',
 ];
 
 /**
- * Separate pnpm install roots that are installed on demand, not by the root postinstall:
- * `build/npm/gyp` by the root preinstall, the others by the scripts or CI jobs that use them.
+ * Members of the workspaces of separate roots, by root: they share the root's `pnpm-lock.yaml` and
+ * are installed by its `pnpm install`. pnpm uses the nearest `pnpm-workspace.yaml` above a folder,
+ * so folders inside a separate root can't be members of the main workspace. `chat-lib` is extracted
+ * from the Copilot extension's sources and published as an npm package; its dependencies are
+ * Copilot's (see `extract-chat-lib`). `remote/web` holds the dependencies of the web build: the
+ * hoisted layout installs them in `remote/node_modules`, and the web build packages them flat (see
+ * `getFlatProductionDependencies`).
+ */
+export const separateRootMembers: Readonly<Record<string, readonly string[]>> = {
+	'build': ['build/rspack', 'build/vite'],
+	'remote': ['remote/web'],
+	'extensions': [
+		'extensions/configuration-editing',
+		'extensions/css-language-features',
+		'extensions/css-language-features/server',
+		'extensions/debug-auto-launch',
+		'extensions/debug-server-ready',
+		'extensions/emmet',
+		'extensions/extension-editing',
+		'extensions/git',
+		'extensions/git-base',
+		'extensions/github',
+		'extensions/github-authentication',
+		'extensions/grunt',
+		'extensions/gulp',
+		'extensions/html-language-features',
+		'extensions/html-language-features/server',
+		'extensions/ipynb',
+		'extensions/jake',
+		'extensions/json-language-features',
+		'extensions/json-language-features/server',
+		'extensions/markdown-language-features',
+		'extensions/markdown-language-features/test-workspace/checkbox-count-extension',
+		'extensions/markdown-math',
+		'extensions/merge-conflict',
+		'extensions/mermaid-markdown-features',
+		'extensions/microsoft-authentication',
+		'extensions/notebook-renderers',
+		'extensions/npm',
+		'extensions/php-language-features',
+		'extensions/references-view',
+		'extensions/search-result',
+		'extensions/simple-browser',
+		'extensions/tunnel-forwarding',
+		'extensions/terminal-suggest',
+		'extensions/typescript-language-features',
+		'extensions/vscode-api-tests',
+		'extensions/vscode-colorize-tests',
+		'extensions/vscode-colorize-perf-tests',
+		'extensions/vscode-test-resolver',
+	],
+	'extensions/copilot': ['extensions/copilot/chat-lib'],
+};
+
+/**
+ * Separate pnpm install roots that are installed on demand, not by the root postinstall, by the
+ * scripts or CI jobs that use them.
  */
 export const standaloneRoots = [
-	'build/npm/gyp',
-	'extensions/copilot/chat-lib',
-	'extensions/markdown-language-features/test-workspace/checkbox-count-extension',
-	'src/vs/sessions/test/e2e',
-	'test/componentFixtures/playwright',
 	'test/sanity',
 ];
 
@@ -113,10 +125,11 @@ export const distroRoots = existsSync(`${import.meta.dirname}/../../.build/distr
 
 /**
  * Complete list of directories whose dependencies are installed by `pnpm install` at the root:
- * the workspace members, then the separate roots, then the distro roots.
+ * the workspace members, then the separate roots, each followed by its members, then the distro
+ * roots.
  */
 export const dirs = [
 	...workspaceMembers,
-	...separateRoots,
+	...separateRoots.flatMap(folder => [folder, ...separateRootMembers[folder] ?? []]),
 	...distroRoots,
 ];

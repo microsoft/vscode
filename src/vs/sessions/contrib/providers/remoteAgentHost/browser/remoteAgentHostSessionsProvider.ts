@@ -48,11 +48,11 @@ import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browse
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
-import { IAgentHostAutoConnect, IAgentHostConnectProgress, IAgentHostConnectionLabels, IAgentHostGroup } from '../../../../common/agentHostSessionsProvider.js';
+import { IAgentHostAutoConnect, IAgentHostConnectProgress, IAgentHostConnectionLabels, IAgentHostGroup, LocalAgentHostRegistration } from '../../../../common/agentHostSessionsProvider.js';
 import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../../common/agentHostSessionWorkspace.js';
 import { DevContainerIdleTimeoutSettingId } from '../../../../common/devContainerAgentHostService.js';
 import { IGitHubInfo, IChat, isActiveSessionStatus, ISession, ISessionEnvironment, SessionStatus, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService, ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { DevContainerAgentHostSessionsProvider } from '../../agentHost/browser/devContainerAgentHostSessionsProvider.js';
@@ -117,6 +117,7 @@ export interface IRemoteAgentHostSessionsProviderConfig {
 	readonly autoConnect?: IAgentHostAutoConnect;
 	readonly connectionLabels?: IAgentHostConnectionLabels;
 	readonly hostDescription?: IObservable<string>;
+	readonly localRegistration?: IObservable<LocalAgentHostRegistration | undefined>;
 	readonly isVisibleInEnvironmentPicker?: IObservable<boolean>;
 	/** Overrides the stable host key for account-scoped picker preferences. */
 	readonly pickerVisibilityKey?: string;
@@ -210,6 +211,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	readonly connectionLabels?: IAgentHostConnectionLabels;
 	readonly hostDescription?: IObservable<string>;
 	readonly isAvailableInEnvironmentPicker?: IObservable<boolean>;
+	readonly localRegistration?: IObservable<LocalAgentHostRegistration | undefined>;
 	readonly isVisibleInEnvironmentPicker?: IObservable<boolean>;
 	readonly showInEnvironmentPicker: () => void;
 	readonly removeLabel?: string;
@@ -315,7 +317,8 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		@ILogService logService: ILogService,
 		@IGitHubService gitHubService: IGitHubService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@ISessionsService sessionsService: ISessionsService,
+		@ISessionHostService sessionHostService: ISessionHostService,
+		@IFocusedSessionHostService focusedSessionHostService: IFocusedSessionHostService,
 		@IAgentHostActiveClientService activeClientService: IAgentHostActiveClientService,
 		@IAgentHostMcpAppToolsService mcpAppToolsService: IAgentHostMcpAppToolsService,
 		@IDialogService dialogService: IDialogService,
@@ -327,7 +330,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		@INewSessionComposerService private readonly _newSessionComposerService: INewSessionComposerService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
-		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsService, activeClientService, mcpAppToolsService, storageService, dialogService, workspaceTrustManagementService, recentWorkspacesService, uriIdentityService);
+		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionHostService, focusedSessionHostService, activeClientService, mcpAppToolsService, storageService, dialogService, workspaceTrustManagementService, recentWorkspacesService, uriIdentityService);
 
 		this._connectionAuthority = agentHostAuthority(config.address);
 		this._mapSessionResource = config.mapSessionResource;
@@ -367,6 +370,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this.autoConnect = config.autoConnect;
 		this.connectionLabels = config.connectionLabels;
 		this.hostDescription = config.hostDescription;
+		this.localRegistration = config.localRegistration;
 		const pickerVisibility = this._register(new RemoteAgentHostPickerVisibility(storageService));
 		const pickerKey = config.pickerVisibilityKey ?? getRemoteAgentHostPickerKey(config.preferenceKey ?? config.address);
 		const manageRemotes = observableConfigValue(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, true, this._configurationService);

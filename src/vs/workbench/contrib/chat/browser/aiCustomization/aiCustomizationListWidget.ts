@@ -104,10 +104,10 @@ interface IGroupHeaderEntry {
 }
 
 /**
- * Represents an individual file item in the list.
+ * Represents a customization file or skill bundle in the list.
  */
 interface IFileItemEntry {
-	readonly type: 'file-item';
+	readonly type: 'file-item' | 'skill-bundle';
 	readonly item: IAICustomizationListItem;
 }
 
@@ -358,7 +358,9 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		// Hover tooltip: name + source + badge context + plugin source
 		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.container, () => {
 			let content: string;
-			if (element.isBuiltin) {
+			if (entry.type === 'skill-bundle') {
+				content = `${element.name}\n${element.description}`;
+			} else if (element.isBuiltin) {
 				content = `${element.name}\n${localize('builtinSource', "Built-in")}`;
 			} else if (element.extensionId) {
 				content = `${element.name}\n${localize('fromExtension', "Extension: {0}", element.extensionId)}`;
@@ -453,6 +455,11 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 			templateData.description.set('', undefined);
 			templateData.path.set('');
 			templateData.descriptionContainer.style.display = 'none';
+		}
+
+		if (entry.type === 'skill-bundle') {
+			templateData.actionBar.clear();
+			return;
 		}
 
 		// Inline action bar from menu
@@ -682,6 +689,7 @@ export function getMultiRootWorkspaceRelativeFilename(item: IAICustomizationList
 }
 
 export class AICustomizationListWidget extends Disposable {
+	private readonly expandedSkillBundles = new Set<string>();
 
 	readonly element: HTMLElement;
 
@@ -707,6 +715,7 @@ export class AICustomizationListWidget extends Disposable {
 	private allItems: readonly IAICustomizationListItem[] = [];
 	private displayEntries: IListEntry[] = [];
 	private searchQuery: string = '';
+	private skillBundleFilter: string | undefined;
 	private sectionLoading = false;
 	private readonly collapsedGroups = new Set<string>();
 	private _layoutDeferred = false;
@@ -860,6 +869,7 @@ export class AICustomizationListWidget extends Disposable {
 		}));
 
 		this._register(this.searchInput.onDidChange(() => {
+			this.skillBundleFilter = undefined;
 			this.searchQuery = this.searchInput.value;
 			this.delayedFilter.trigger(() => {
 				const matchCount = this.filterItems();
@@ -931,7 +941,7 @@ export class AICustomizationListWidget extends Disposable {
 							return getCustomizationGroupAriaLabel(entry.label, entry.count, entry.description);
 						}
 						const label = getCustomizationItemAriaLabel(entry.item);
-						if (!hasReadableCustomizationContent(entry.item.uri)) {
+						if (entry.type === 'file-item' && !hasReadableCustomizationContent(entry.item.uri)) {
 							return localize('itemAriaLabelNoSourceContent', "{0}, source content unavailable", label);
 						}
 						return label;
@@ -939,22 +949,34 @@ export class AICustomizationListWidget extends Disposable {
 					getWidgetAriaLabel: () => localize('listAriaLabel', "Agent Customizations"),
 				},
 				keyboardNavigationLabelProvider: {
-					getKeyboardNavigationLabel: (entry: IListEntry) => entry.type === 'group-header' ? entry.label : entry.item.name,
+					getKeyboardNavigationLabel: (entry: IListEntry) => entry.type === 'group-header' ? entry.label : entry.item.displayName ?? entry.item.name,
 				},
 				multipleSelectionSupport: false,
 				openOnSingleClick: true,
+				expandOnlyOnTwistieClick: entry => entry.type !== 'skill-bundle',
 			}
 		));
 
 		// Handle item selection (single click opens item, group header toggles)
 		this._register(this.list.onDidOpen(e => {
 			if (e.element) {
-				if (e.element.type === 'group-header') {
+				if (e.element.type !== 'file-item') {
 					return;
 				} else {
 					if (hasReadableCustomizationContent(e.element.item.uri)) {
 						this._onDidSelectItem.fire(e.element.item);
 					}
+				}
+			}
+		}));
+
+		this._register(this.list.onDidChangeCollapseState(event => {
+			const entry = event.node.element;
+			if (entry?.type === 'skill-bundle' && !this.searchQuery.trim()) {
+				if (event.node.collapsed) {
+					this.expandedSkillBundles.delete(entry.item.id);
+				} else {
+					this.expandedSkillBundles.add(entry.item.id);
 				}
 			}
 		}));
@@ -1067,6 +1089,9 @@ export class AICustomizationListWidget extends Disposable {
 	 */
 	async setSection(section: AICustomizationManagementSection): Promise<void> {
 		const loadId = ++this._sectionLoadId;
+		if (section !== this.currentSection) {
+			this.skillBundleFilter = undefined;
+		}
 		this.currentSection = section;
 		this.updateSectionHeader();
 
@@ -1468,6 +1493,9 @@ export class AICustomizationListWidget extends Disposable {
 	 * Applies the search query to items, returning matched items with highlight info.
 	 */
 	private applySearchFilter(items: readonly IAICustomizationListItem[]): IAICustomizationListItem[] {
+		if (this.skillBundleFilter !== undefined) {
+			items = items.filter(item => item.skillBundle?.id === this.skillBundleFilter);
+		}
 		if (!this.searchQuery.trim()) {
 			return items.map(item => ({ ...item, nameMatches: undefined, secondaryTextMatches: undefined }));
 		}
@@ -1483,7 +1511,9 @@ export class AICustomizationListWidget extends Disposable {
 			const descriptionMatches = item.description && item.description !== secondaryText ? matchesCustomizationSearchQuery(query, item.description) : null;
 			const badgeMatches = item.badge ? matchesCustomizationSearchQuery(query, item.badge) : null;
 
-			if (nameMatches || secondaryTextMatches || descriptionMatches || badgeMatches) {
+			const bundleMatches = item.skillBundle && (matchesCustomizationSearchQuery(query, item.skillBundle.name)
+				|| matchesCustomizationSearchQuery(query, item.skillBundle.description));
+			if (nameMatches || secondaryTextMatches || descriptionMatches || badgeMatches || bundleMatches) {
 				matched.push({
 					...item,
 					nameMatches: nameMatches || undefined,
@@ -1560,13 +1590,57 @@ export class AICustomizationListWidget extends Disposable {
 
 	private renderCustomizationTree(groups: readonly ICustomizationTreeGroup<IListEntry>[]): void {
 		this.listContainer.style.display = '';
-		this.displayEntries = groups.flatMap(group => [group.element, ...group.children]);
-		const children: IObjectTreeElement<IListEntry>[] = groups.map(group => ({
-			element: group.element,
-			collapsible: true,
-			collapsed: ObjectTreeElementCollapseState.PreserveOrExpanded,
-			children: group.children.map(element => ({ element })),
-		}));
+		this.displayEntries = [];
+		const children: IObjectTreeElement<IListEntry>[] = groups.map(group => {
+			this.displayEntries.push(group.element);
+			const entries: IObjectTreeElement<IListEntry>[] = [];
+			const bundles = new Map<string, IObjectTreeElement<IListEntry>[]>();
+			for (const element of group.children) {
+				const bundle = element.type === 'file-item' ? element.item.skillBundle : undefined;
+				if (!bundle || element.type !== 'file-item') {
+					entries.push({ element });
+					this.displayEntries.push(element);
+					continue;
+				}
+				let bundleChildren = bundles.get(bundle.id);
+				if (!bundleChildren) {
+					bundleChildren = [];
+					bundles.set(bundle.id, bundleChildren);
+					const id = `skill-bundle:${group.id}:${bundle.id}`;
+					const entry: IFileItemEntry = {
+						type: 'skill-bundle',
+						item: {
+							id,
+							uri: element.item.uri,
+							name: bundle.name,
+							displayName: bundle.name,
+							description: bundle.description,
+							filename: bundle.description,
+							source: element.item.source,
+							promptType: PromptsType.skill,
+							disabled: false,
+							typeIcon: Codicon.server,
+							skillBundle: bundle,
+						},
+					};
+					this.displayEntries.push(entry);
+					entries.push({
+						element: entry,
+						collapsible: true,
+						collapsed: !this.searchQuery.trim() && !this.expandedSkillBundles.has(id),
+						children: bundleChildren,
+					});
+				}
+				bundleChildren.push({ element });
+				this.displayEntries.push(element);
+			}
+			return {
+				element: group.element,
+				collapsible: true,
+				collapsed: ObjectTreeElementCollapseState.PreserveOrExpanded,
+				children: entries,
+			};
+		});
 		this.list.setChildren(null);
 		this.list.setChildren(null, children);
 		this.updateAddButton();
@@ -1856,14 +1930,37 @@ export class AICustomizationListWidget extends Disposable {
 	 * Sets the search query programmatically.
 	 */
 	setSearchQuery(query: string): void {
+		this.skillBundleFilter = undefined;
 		this.searchInput.value = query;
+		this.filterItems();
+	}
+
+	/** Filters to one MCP server's bundle and focuses it expanded, even when server names collide. */
+	showSkillBundle(bundleId: string): void {
+		const bundle = this.allItems.find(item => item.skillBundle?.id === bundleId)?.skillBundle;
+		if (!bundle || this.currentSection !== AICustomizationManagementSection.Skills) {
+			return;
+		}
+		this.searchInput.value = bundle.name;
+		this.skillBundleFilter = bundleId;
+		this.delayedFilter.cancel();
+		this.announceItemCount(this.filterItems());
+		const entry = this.displayEntries.find(entry => entry.type === 'skill-bundle' && entry.item.skillBundle?.id === bundleId);
+		if (entry) {
+			this.list.expandTo(entry);
+			this.list.expand(entry);
+			this.list.reveal(entry);
+			this.list.setFocus([entry]);
+			this.list.setSelection([entry]);
+			this.list.domFocus();
+		}
 	}
 
 	/**
 	 * Clears the search query.
 	 */
 	clearSearch(): void {
-		this.searchInput.value = '';
+		this.setSearchQuery('');
 	}
 
 	/**
@@ -1878,7 +1975,7 @@ export class AICustomizationListWidget extends Disposable {
 	 */
 	focusList(): void {
 		this.list.domFocus();
-		const firstItem = this.displayEntries.find(entry => entry.type === 'file-item');
+		const firstItem = this.displayEntries.find(entry => entry.type !== 'group-header');
 		if (firstItem) {
 			this.list.setFocus([firstItem]);
 		}
@@ -1889,7 +1986,9 @@ export class AICustomizationListWidget extends Disposable {
 	 */
 	revealLastItem(): void {
 		if (this.displayEntries.length > 0) {
-			this.list.reveal(this.displayEntries[this.displayEntries.length - 1]);
+			const entry = this.displayEntries[this.displayEntries.length - 1];
+			this.list.expandTo(entry);
+			this.list.reveal(entry);
 		}
 	}
 
@@ -1904,6 +2003,7 @@ export class AICustomizationListWidget extends Disposable {
 			return false;
 		}
 
+		this.list.expandTo(entry);
 		this.list.reveal(entry);
 		this.list.setFocus([entry]);
 		this.list.setSelection([entry]);

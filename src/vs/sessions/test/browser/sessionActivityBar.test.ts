@@ -29,7 +29,8 @@ import { IConfigurationChangeEvent, IConfigurationService } from '../../../platf
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextMenuMenuDelegate, IContextMenuService, IContextViewService } from '../../../platform/contextview/browser/contextView.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
-import { ChatViewSessionActivityBar, SESSION_ACTIVITY_BAR_COLUMN_WIDTH, SessionActivityBar } from '../../browser/parts/sessionActivityBar.js';
+import { ChatViewSessionActivityBar, SessionActivityBar } from '../../browser/parts/sessionActivityBar.js';
+import { registerSessionActivityBarExternalHost, SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from '../../browser/parts/sessionActivityBarHost.js';
 import { Menus, SessionActivityBarGroup } from '../../browser/menus.js';
 import { TogglePanelAction } from '../../../workbench/browser/parts/panel/panelActions.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../browser/workbench.js';
@@ -41,6 +42,8 @@ import { IconBadge, NumberBadge } from '../../../workbench/services/activity/com
 import { TestContextViewService } from './testContextViewService.js';
 import '../../../base/browser/ui/tree/media/tree.css';
 import '../../browser/parts/media/sessionView.css';
+import { LayoutModeContext } from '../../../workbench/common/contextkeys.js';
+import { IWindowCommandContext } from '../../../workbench/common/windowCommandContext.js';
 
 interface ITestEntry {
 	readonly id: string;
@@ -71,11 +74,13 @@ suite('Sessions - Session Activity Bar', () => {
 		const container = append(root, $('.content'));
 
 		const ran: string[] = [];
+		const ranWith: { readonly id: string; readonly args: unknown[] }[] = [];
 		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
 			override readonly onWillExecuteCommand = Event.None;
 			override readonly onDidExecuteCommand = Event.None;
-			override async executeCommand<R>(id: string): Promise<R | undefined> {
+			override async executeCommand<R>(id: string, ...args: unknown[]): Promise<R | undefined> {
 				ran.push(id);
+				ranWith.push({ id, args });
 				return undefined;
 			}
 		});
@@ -113,7 +118,7 @@ suite('Sessions - Session Activity Bar', () => {
 							const group = entry.group ?? 'navigation';
 							groups.set(group, [...groups.get(group) ?? [], entry.submenu
 								? new SubmenuItemAction({ submenu: MenuId.for(entry.id), title: entry.title, icon: entry.icon }, undefined, entry.submenu.map(item =>
-									instantiationService.createInstance(MenuItemAction, { id: item.id, title: item.title }, undefined, options, undefined, undefined)))
+									instantiationService.createInstance(MenuItemAction, { id: item.id, title: item.title }, undefined, options, undefined, undefined)), entry.checked)
 								: createEntryAction(entry, options)]);
 						}
 						return [...groups];
@@ -146,7 +151,8 @@ suite('Sessions - Session Activity Bar', () => {
 
 		const configurationService = new TestConfigurationService({ [SESSION_ACTIVITY_BAR_SETTING]: true });
 		instantiationService.stub(IConfigurationService, configurationService);
-		instantiationService.stub(IContextKeyService, testStore.add(instantiationService.createInstance(ContextKeyService)));
+		const contextKeyService = testStore.add(instantiationService.createInstance(ContextKeyService));
+		instantiationService.stub(IContextKeyService, contextKeyService);
 
 		const activityService = testStore.add(new SessionActivityBarActivityService());
 		instantiationService.stub(ISessionActivityBarActivityService, activityService);
@@ -167,6 +173,8 @@ suite('Sessions - Session Activity Bar', () => {
 			setLayout: (layout: AgentWorkbenchLayout) => agentWorkbenchLayout = layout,
 			layoutMainContainer: () => onDidLayoutMainContainer.fire({ width: 800, height: 600 }),
 			ran,
+			ranWith,
+			contextKeyService,
 			contextViewService,
 			contextMenus,
 			label: (title: string) => activityBar.element.querySelector<HTMLElement>(`.action-label[aria-label^="${title}"]`)!,
@@ -341,69 +349,32 @@ suite('Sessions - Session Activity Bar', () => {
 		});
 	});
 
-	test('docks at the right of the chat area, shows only while active, and drags up and down within the area', () => {
+	test('docks at the right of the chat area at a fixed distance below its top, without a grip, and shows only while active', () => {
 		const { createDocked, root, setEntries } = createActivityBar(store, [changes, browser]);
 		const docked = createDocked();
 		const element = docked.element!;
-		const handle = element.querySelector<HTMLElement>('.session-activity-bar-drag-handle')!;
 		const state = () => {
 			const style = mainWindow.getComputedStyle(element);
-			return { displayed: style.display !== 'none', top: element.style.top, right: style.right };
-		};
-		let areaHeight = 0;
-		const layout = (height: number) => {
-			areaHeight = height;
-			docked.layout(40, height);
-		};
-		const bottomGap = () => 40 + areaHeight - Number.parseFloat(element.style.top) - element.offsetHeight;
-		const drag = (deltaX: number, deltaY: number) => {
-			const pointer = { pointerId: 1, button: 0, buttons: 1, bubbles: true };
-			handle.dispatchEvent(new PointerEvent('pointerdown', { ...pointer, clientX: 500, clientY: 100 }));
-			// Captured pointer events target the grip; they bubble to the window when capture is unavailable.
-			handle.dispatchEvent(new PointerEvent('pointermove', { ...pointer, clientX: 500 + deltaX, clientY: 100 + deltaY }));
-			handle.dispatchEvent(new PointerEvent('pointerup', { ...pointer, buttons: 0, clientX: 500 + deltaX, clientY: 100 + deltaY }));
+			return { displayed: style.display !== 'none', top: element.style.top, right: style.right, grip: !!element.querySelector('.session-activity-bar-drag-handle') };
 		};
 
-		layout(400);
+		docked.layout(40);
 		const inactive = state().displayed;
 		docked.setActive(true);
 		const active = state();
-		const height = element.offsetHeight;
-		drag(-300, 50);
-		const dragged = state();
-		drag(0, 2000);
-		const draggedToBottom = { top: state().top, bottomGap: bottomGap() };
-		layout(500);
-		const areaGrewAtBottom = bottomGap();
 		setEntries([changes, browser, canvas]);
-		const entryAddedAtBottom = bottomGap();
-		layout(element.offsetHeight + 10);
-		const areaTooShort = state().top;
-		layout(400);
-		drag(0, -2000);
-		const draggedPastTop = state().top;
-		drag(0, 20);
-		layout(600);
-		const areaGrewNearTop = state().top;
-		handle.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
-		const reset = state().top;
+		docked.layout(60);
+		const areaMoved = state().top;
 		root.classList.add('phone-layout');
 		const phoneLayout = state().displayed;
 		root.classList.remove('phone-layout');
 		docked.setActive(false);
 		const deactivated = state().displayed;
 
-		assert.deepStrictEqual({ inactive, active, dragged, draggedToBottom, areaGrewAtBottom, entryAddedAtBottom, areaTooShort, draggedPastTop, areaGrewNearTop, reset, phoneLayout, deactivated }, {
+		assert.deepStrictEqual({ inactive, active, areaMoved, phoneLayout, deactivated }, {
 			inactive: false,
-			active: { displayed: true, top: '44px', right: '2px' },
-			dragged: { displayed: true, top: '94px', right: '2px' },
-			draggedToBottom: { top: `${40 + 400 - height - 30}px`, bottomGap: 30 },
-			areaGrewAtBottom: 30,
-			entryAddedAtBottom: 30,
-			areaTooShort: '40px',
-			draggedPastTop: '40px',
-			areaGrewNearTop: '60px',
-			reset: '44px',
+			active: { displayed: true, top: '44px', right: '2px', grip: false },
+			areaMoved: '64px',
 			phoneLayout: false,
 			deactivated: false,
 		});
@@ -431,7 +402,7 @@ suite('Sessions - Session Activity Bar', () => {
 		// The tree sticky-scroll surface that pins a scrolled chat request to the top of the transcript.
 		const scrollable = append(append(element.parentElement!, $('.monaco-list')), $('.monaco-scrollable-element'));
 		append(append(scrollable, $('.monaco-tree-sticky-container')), $('.sticky-row')).style.cssText = 'height: 300px; background: black;';
-		docked.layout(0, 600);
+		docked.layout(0);
 		docked.setActive(true);
 
 		const bounds = element.getBoundingClientRect();
@@ -443,7 +414,7 @@ suite('Sessions - Session Activity Bar', () => {
 	test('uses a slim shell with minimum-size buttons in a column of its own at the right edge, with an equal 2px gap on either side, the chat to its left', () => {
 		const { createDocked } = createActivityBar(store, [changes, browser]);
 		const docked = createDocked();
-		docked.layout(0, 600);
+		docked.layout(0);
 		docked.setActive(true);
 		const element = docked.element!;
 		const host = element.parentElement!;
@@ -505,10 +476,42 @@ suite('Sessions - Session Activity Bar', () => {
 		});
 	});
 
+	test('shows in a host outside the chat while the host is active, level with its top, which then keeps the column for it, also while the chat is hidden, and beside the chat again otherwise', () => {
+		const { createDocked, root } = createActivityBar(store, [changes]);
+		const hostElement = append(root, $('.external-host'));
+		const active = observableValue('active', false);
+		const occupied: boolean[] = [];
+		store.add(registerSessionActivityBarExternalHost(root, { element: hostElement, active, setOccupied: (_occupant, value) => occupied.push(value) }));
+		const docked = createDocked();
+		const element = docked.element!;
+		const state = () => ({ inHost: hostElement.contains(element), shown: !element.classList.contains('inactive'), reserved: docked.reservedWidth.get() });
+
+		docked.layout(40);
+		docked.setActive(true);
+		const besideChat = state();
+		active.set(true, undefined);
+		const hosted = { ...state(), top: element.style.top };
+		docked.setActive(true, true);
+		const chatHidden = state();
+		active.set(false, undefined);
+		const hostInactiveChatHidden = state();
+		docked.setActive(true);
+		const back = state();
+
+		assert.deepStrictEqual({ besideChat, hosted, chatHidden, hostInactiveChatHidden, back, occupied: occupied.at(-1) }, {
+			besideChat: { inHost: false, shown: true, reserved: SESSION_ACTIVITY_BAR_COLUMN_WIDTH },
+			hosted: { inHost: true, shown: true, reserved: 0, top: '0px' },
+			chatHidden: { inHost: true, shown: true, reserved: 0 },
+			hostInactiveChatHidden: { inHost: false, shown: false, reserved: SESSION_ACTIVITY_BAR_COLUMN_WIDTH },
+			back: { inHost: false, shown: true, reserved: SESSION_ACTIVITY_BAR_COLUMN_WIDTH },
+			occupied: false,
+		});
+	});
+
 	test('right-clicking an entry or the rest of the strip offers to hide the activity bar', () => {
 		const { createDocked, contextMenus } = createActivityBar(store, [changes, browser]);
 		const docked = createDocked();
-		docked.layout(0, 600);
+		docked.layout(0);
 		docked.setActive(true);
 		const element = docked.element!;
 		const rightClick = (target: HTMLElement) => {
@@ -519,14 +522,12 @@ suite('Sessions - Session Activity Bar', () => {
 
 		assert.deepStrictEqual({
 			entry: rightClick(element.querySelector<HTMLElement>('.action-label[aria-label^="Browser"]')!),
-			grip: rightClick(element.querySelector<HTMLElement>('.session-activity-bar-drag-handle')!),
 			strip: rightClick(element),
 			menus: contextMenus,
 		}, {
 			entry: true,
-			grip: true,
 			strip: true,
-			menus: ['SessionActivityBarContext', 'SessionActivityBarContext', 'SessionActivityBarContext'],
+			menus: ['SessionActivityBarContext', 'SessionActivityBarContext'],
 		});
 	});
 
@@ -580,6 +581,65 @@ suite('Sessions - Session Activity Bar', () => {
 			before: { files: { checked: true, pressed: 'true' }, browser: { checked: false, pressed: null }, terminal: { checked: true, pressed: 'true' } },
 			ran: [TOGGLE_SIDE_PANEL_COMMAND_ID, 'test.browser', TogglePanelAction.ID, TOGGLE_SIDE_PANEL_COMMAND_ID],
 		});
+	});
+
+	test('shows a checked Canvas submenu as pressed', () => {
+		const createCanvas = (checked: boolean): ITestEntry => ({
+			...canvas,
+			checked,
+		});
+		const inactive = createActivityBar(store, [createCanvas(false)]);
+		const active = createActivityBar(store, [createCanvas(true)]);
+		const state = (entry: ReturnType<typeof createActivityBar>) => {
+			const element = entry.label('Canvas');
+			return { checked: element.classList.contains('checked'), pressed: element.getAttribute('aria-pressed') };
+		};
+
+		assert.deepStrictEqual({ inactive: state(inactive), active: state(active) }, {
+			inactive: { checked: false, pressed: 'false' },
+			active: { checked: true, pressed: 'true' },
+		});
+	});
+
+	test('in a window with layout modes, such as a chat window, a checked entry hides the editor parts of that window, and the entries of the panel\'s group toggle themselves: never the side panel or the panel of the main window', async () => {
+		const files: ITestEntry = { id: 'test.files', title: 'Files', icon: Codicon.files, group: SessionActivityBarGroup.SidePanel, checked: true };
+		const terminal: ITestEntry = { id: 'test.terminal', title: 'Terminal', icon: Codicon.terminal, group: SessionActivityBarGroup.Panel, checked: true };
+		for (const entry of [files, terminal]) {
+			store.add(MenuRegistry.appendMenuItem(Menus.SessionActivityBar, { command: { id: entry.id, title: entry.title }, group: entry.group }));
+		}
+		const { label, ran, contextKeyService } = createActivityBar(store, [files, terminal]);
+		LayoutModeContext.bindTo(contextKeyService).set('sideBySide');
+
+		for (const title of ['Files', 'Terminal']) {
+			label(title).click();
+			await timeout(0);
+		}
+
+		assert.deepStrictEqual(ran, ['workbench.action.chatWindow.toggleEditor', 'test.terminal']);
+	});
+
+	test('the entries run with the window they are in, which the window that has focus may not be yet: a chat window, or the main window, such as while a chat window has focus', async () => {
+		const files: ITestEntry = { id: 'test.files', title: 'Files', icon: Codicon.files, group: SessionActivityBarGroup.SidePanel, checked: true };
+		const terminal: ITestEntry = { id: 'test.terminal', title: 'Terminal', icon: Codicon.terminal, group: SessionActivityBarGroup.Panel };
+		for (const entry of [files, terminal]) {
+			store.add(MenuRegistry.appendMenuItem(Menus.SessionActivityBar, { command: { id: entry.id, title: entry.title }, group: entry.group }));
+		}
+		const { label, ranWith, contextKeyService } = createActivityBar(store, [files, terminal]);
+
+		label('Terminal').click();
+		await timeout(0);
+		LayoutModeContext.bindTo(contextKeyService).set('sideBySide');
+		for (const title of ['Terminal', 'Files']) {
+			label(title).click();
+			await timeout(0);
+		}
+
+		const context: IWindowCommandContext = { windowId: mainWindow.vscodeWindowId };
+		assert.deepStrictEqual(ranWith, [
+			{ id: 'test.terminal', args: [context] },
+			{ id: 'test.terminal', args: [context] },
+			{ id: 'workbench.action.chatWindow.toggleEditor', args: [context] },
+		]);
 	});
 
 	test('opens the Canvas submenu to the left on hover, click, and keyboard, and runs its items', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

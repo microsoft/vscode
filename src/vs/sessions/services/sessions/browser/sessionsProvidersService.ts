@@ -5,9 +5,12 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { derived, IObservable, observableSignalFromEvent } from '../../../../base/common/observable.js';
+import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILifecycleService } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
+import { ISession } from '../common/session.js';
 import { ISessionsProvider } from '../common/sessionsProvider.js';
 
 export const ISessionsProvidersService = createDecorator<ISessionsProvidersService>('sessionsProvidersService');
@@ -22,6 +25,8 @@ export interface ISessionsProvidersService {
 
 	/** Changes to available providers and their internal session backends, until shutdown is committed. */
 	readonly onDidChangeProviders: Event<ISessionsProvidersChangeEvent>;
+	/** Publishes the net provider changes after a synchronous inventory update, including nested updates. */
+	batchProviderChanges<T>(fn: () => T): T;
 	registerProvider(provider: ISessionsProvider): IDisposable;
 	/** Adds an internal backend for an owner's existing sessions, without advertising another creation target. */
 	registerSessionBackend(ownerProviderId: string, backend: ISessionsProvider): IDisposable;
@@ -34,11 +39,26 @@ export interface ISessionsProvidersService {
 	getProvider<T extends ISessionsProvider>(providerId: string, sessionId?: string): T | undefined;
 }
 
+export function observeSessionSandboxToggle(session: IObservable<ISession | undefined>, chat: IObservable<URI | undefined>, providers: ISessionsProvidersService): IObservable<boolean> {
+	const providersChanged = observableSignalFromEvent('sandboxToggle.providers', providers.onDidChangeProviders);
+	const checked = derived(reader => {
+		const current = session.read(reader);
+		const resource = chat.read(reader);
+		if (!current || !resource) {
+			return undefined;
+		}
+		providersChanged.read(reader);
+		return providers.getProvider(current.providerId, current.sessionId)?.getSandboxToggleChecked?.(current, resource);
+	});
+	return derived(reader => checked.read(reader)?.read(reader) === true);
+}
+
 export class SessionsProvidersService extends Disposable implements ISessionsProvidersService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _providers = new Map<string, ISessionsProvider>();
 	private readonly _sessionBackends = new Map<string, { readonly ownerProviderId: string; readonly backend: ISessionsProvider }>();
+	private _providerBatchDepth = 0;
 
 	private readonly _onDidChangeProviders = this._register(new Emitter<ISessionsProvidersChangeEvent>());
 	readonly onDidChangeProviders: Event<ISessionsProvidersChangeEvent> = this._onDidChangeProviders.event;
@@ -51,8 +71,26 @@ export class SessionsProvidersService extends Disposable implements ISessionsPro
 
 	private _fireDidChangeProviders(event: ISessionsProvidersChangeEvent): void {
 		// Provider teardown must not rebuild consumers while the window is shutting down.
-		if (!this.lifecycleService.willShutdown) {
+		if (!this.lifecycleService.willShutdown && this._providerBatchDepth === 0) {
 			this._onDidChangeProviders.fire(event);
+		}
+	}
+
+	batchProviderChanges<T>(fn: () => T): T {
+		const before = this._providerBatchDepth === 0 ? new Set(this.getProviders({ includeSessionBackends: true })) : undefined;
+		this._providerBatchDepth++;
+		try {
+			return fn();
+		} finally {
+			this._providerBatchDepth--;
+			if (before) {
+				const after = new Set(this.getProviders({ includeSessionBackends: true }));
+				const added = [...after].filter(provider => !before.has(provider));
+				const removed = [...before].filter(provider => !after.has(provider));
+				if (added.length || removed.length) {
+					this._fireDidChangeProviders({ added, removed });
+				}
+			}
 		}
 	}
 

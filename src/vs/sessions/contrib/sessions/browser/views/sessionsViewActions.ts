@@ -46,6 +46,8 @@ import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSetting
 import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { resolveSessionCommandTarget } from '../../../../services/sessions/browser/sessionCommandTarget.js';
+import { getMainWindowHost, ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { registerExternalSessionsFilterMenu } from '../../../../../workbench/contrib/chat/browser/agentSessions/externalSessionsFilterMenu.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
@@ -245,6 +247,7 @@ for (let visibleIndex = 1; visibleIndex <= 9; visibleIndex++) {
 const navigateSessionInList = async (accessor: ServicesAccessor, direction: 'previous' | 'next'): Promise<void> => {
 	const viewsService = accessor.get(IViewsService);
 	const sessionsService = accessor.get(ISessionsService);
+	const sessionHostService = accessor.get(ISessionHostService);
 	const view = viewsService.getViewWithId<SessionsView>(SessionsViewId);
 	const visible = view?.sessionsControl?.getVisibleSessions() ?? [];
 	if (visible.length === 0) {
@@ -253,7 +256,8 @@ const navigateSessionInList = async (accessor: ServicesAccessor, direction: 'pre
 
 	// Locate the active session within the visible list so navigation follows
 	// what the user sees (respecting grouping, filtering, and collapsed sections).
-	const activeResource = sessionsService.activeSession.get()?.resource.toString();
+	// The sessions list is the main window's: navigation starts from the session the main window shows.
+	const activeResource = getMainWindowHost(sessionHostService).session.get()?.resource.toString();
 	const currentIndex = activeResource === undefined
 		? -1
 		: visible.findIndex(session => session.resource.toString() === activeResource);
@@ -729,14 +733,15 @@ async function openNewSessionLike(accessor: ServicesAccessor, session: ISession 
 	const sessionsPartService = accessor.get(ISessionsPartService);
 	const commandService = accessor.get(ICommandService);
 
+	const mainWindowHost = getMainWindowHost(accessor.get(ISessionHostService));
+
 	accessor.get(INewSessionComposerService).notifyUserWorkspaceSelection();
 	await sessionsService.openNewSession();
 
 	const folderUri = session?.workspace.get()?.folders[0]?.root;
-	const newSession = sessionsService.activeSession.get();
 	if (session && folderUri) {
 		const target = inheritableSessionTarget(sessionsManagementService, session, folderUri);
-		sessionsPartService.getSessionView(newSession?.sessionId)?.selectWorkspace(target.folderUri ?? folderUri, { providerId: target.providerId, selectionOrigin: WorkspaceSelectionOrigin.User });
+		sessionsPartService.getSessionView(mainWindowHost.session.get()?.sessionId)?.selectWorkspace(target.folderUri ?? folderUri, { providerId: target.providerId, selectionOrigin: WorkspaceSelectionOrigin.User });
 	}
 
 	// On mobile web, the sidebar drawer covers the viewport; close it so
@@ -746,7 +751,7 @@ async function openNewSessionLike(accessor: ServicesAccessor, session: ISession 
 		commandService.executeCommand(CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID);
 	}
 
-	sessionsPartService.focusSession(newSession);
+	sessionsService.focusActiveSession();
 }
 
 registerAction2(class NewSessionForWorkspaceAction extends Action2 {
@@ -785,16 +790,15 @@ registerAction2(class NewSessionForWorkspaceAction extends Action2 {
 		}
 		// Sections spanning workspaces start like their most recently created available session.
 		const source = context.repository || context.environment
-			? getNewSessionSources(context.sessions, accessor.get(ISessionsProvidersService))
+			? getNewSessionSources(context.sessions, accessor.get(ISessionsProvidersService), accessor.get(ISessionsManagementService))
 				.reduce<ISession | undefined>((latest, { session }) => !latest || session.createdAt.getTime() > latest.createdAt.getTime() ? session : latest, undefined)
 			: undefined;
-		// A section without one, such as one of only cloud sandbox sessions, falls back to a session it can start like, if any.
-		return openNewSessionLike(accessor, source ?? context.sessions.find(canStartNewSessionLike));
+		return openNewSessionLike(accessor, source ?? context.sessions.find(session => canStartNewSessionLike(session, accessor.get(ISessionsManagementService))));
 	}
 });
 
 CommandsRegistry.registerCommand(NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, (accessor, section: ISessionSection, environment: string) => {
-	const source = getNewSessionSources(section.sessions, accessor.get(ISessionsProvidersService)).find(source => source.environment.id === environment);
+	const source = getNewSessionSources(section.sessions, accessor.get(ISessionsProvidersService), accessor.get(ISessionsManagementService)).find(source => source.environment.id === environment);
 	return source ? openNewSessionLike(accessor, source.session) : undefined;
 });
 
@@ -841,15 +845,13 @@ registerAction2(class NewQuickChatAction extends Action2 {
 			sessionsService.unsetNewSession();
 			sessionsPartService.getSessionView(undefined)?.selectNoWorkspace();
 		}
-		const activeSession = sessionsService.activeSession.get();
-
 		// On mobile web, the sidebar drawer covers the viewport; close it so the
 		// new session composer becomes visible after creation.
 		if (isWeb && isMobile) {
 			accessor.get(ICommandService).executeCommand(CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID);
 		}
 
-		sessionsPartService.focusSession(activeSession);
+		sessionsService.focusActiveSession();
 	}
 });
 
@@ -1085,7 +1087,6 @@ registerAction2(class NewSessionInGroupAction extends Action2 {
 			return;
 		}
 		const sessionsService = accessor.get(ISessionsService);
-		const sessionsPartService = accessor.get(ISessionsPartService);
 		const sessionGroupsService = accessor.get(ISessionGroupsService);
 		const commandService = accessor.get(ICommandService);
 
@@ -1099,7 +1100,7 @@ registerAction2(class NewSessionInGroupAction extends Action2 {
 			commandService.executeCommand(CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID);
 		}
 
-		sessionsPartService.focusSession(sessionsService.activeSession.get());
+		sessionsService.focusActiveSession();
 	}
 });
 
@@ -1193,7 +1194,7 @@ function getSessionActionTargets(accessor: ServicesAccessor, context?: ISession 
 		return focusedSessions;
 	}
 
-	const activeSession = accessor.get(ISessionsService).activeSession.get();
+	const activeSession = resolveSessionCommandTarget(accessor, [])?.session;
 	return activeSession ? [activeSession] : [];
 }
 
@@ -1391,9 +1392,8 @@ abstract class BaseUnarchiveSessionAction extends Action2 {
 	}
 	async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		const sessionsService = accessor.get(ISessionsService);
 		if (!context) {
-			const activeSession = sessionsService.activeSession.get();
+			const activeSession = resolveSessionCommandTarget(accessor, [])?.session;
 			if (activeSession) {
 				await sessionsManagementService.unarchiveSession(activeSession);
 			}
@@ -1457,9 +1457,11 @@ abstract class BaseArchiveChatAction extends Action2 {
 		}
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const sessionsPartService = accessor.get(ISessionsPartService);
 		await sessionsManagementService.archiveChat(target.session, target.chat);
 
-		const activeSession = sessionsService.activeSession.get();
+		// The chat leaves the grid's active pane when that pane shows it.
+		const activeSession = sessionsPartService.getActiveSessionView()?.getSession();
 		if (activeSession?.sessionId === target.session.sessionId) {
 			const openChat = activeSession.openChats.get().find(chat => isEqual(chat.resource, target.chat.resource));
 			if (openChat) {
@@ -1848,13 +1850,26 @@ registerAction2(class MarkAllNestedSessionsReadAction extends Action2 {
 	}
 });
 
+for (const [menu, submenu] of [
+	[Menus.SessionItemContextMenu, Menus.SessionItemOpenIn],
+	[Menus.SessionChatItemContext, Menus.SessionChatItemOpenIn],
+]) {
+	MenuRegistry.appendMenuItem(menu, {
+		title: localize2('openIn', "Open in"),
+		submenu,
+		group: 'navigation',
+		order: 1,
+		when: ContextKeyExpr.and(ChatContextKeys.enabled, IsSessionsWindowContext),
+	});
+}
+
 registerAction2(class OpenSessionToTheSideAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessionsViewPane.openToTheSide',
-			title: localize2('openToTheSide', "Open to the Side"),
+			title: localize2('splitView', "Split View"),
 			menu: [{
-				id: SessionItemContextMenuId,
+				id: Menus.SessionItemOpenIn,
 				group: 'navigation',
 				order: 1,
 				when: IsSessionsWindowContext,
@@ -1896,15 +1911,14 @@ abstract class BaseUnarchiveActiveSessionAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
+	async run(accessor: ServicesAccessor, sessionArg?: unknown): Promise<void> {
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		const sessionsService = accessor.get(ISessionsService);
-		const activeSession = sessionsService.activeSession.get();
-		if (!activeSession || activeSession.status.get() === SessionStatus.Untitled) {
+		const session = resolveSessionCommandTarget(accessor, [sessionArg])?.session;
+		if (!session || session.status.get() === SessionStatus.Untitled) {
 			return;
 		}
 
-		await sessionsManagementService.unarchiveSession(activeSession);
+		await sessionsManagementService.unarchiveSession(session);
 	}
 }
 

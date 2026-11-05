@@ -25,13 +25,13 @@ import { IChatMode } from '../../../../../../workbench/contrib/chat/common/chatM
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IWorkbenchLayoutService } from '../../../../../../workbench/services/layout/browser/layoutService.js';
 import { type IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../../common/agentHostSessionsProvider.js';
-import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService } from '../../../../../services/sessions/browser/sessionHost.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { showMobilePickerSheet, IMobilePickerSheetItem } from '../../../../../browser/parts/mobile/mobilePickerSheet.js';
 import { getAgentHostModeIcon } from '../agentHostModeIcon.js';
 import { isWellKnownModeSchema, isWellKnownModeValue } from '../agentHostPermissionPickerDelegate.js';
 import { normalizeModelPickerOptions } from '../../../../chat/browser/sessionModelPickerState.js';
-import { createChatPhoneInputSessionContext, createChatPhoneInputTarget, IChatPhoneInputTarget, matchesChatPhoneInputTarget } from './mobileChatPhoneInputTarget.js';
+import { createChatPhoneInputSessionContext, createChatPhoneInputTarget, IChatPhoneInputTarget, matchesChatPhoneInputTarget } from '../../../../../services/presentation/browser/chatPhoneInputContext.js';
 
 /**
  * Action id passed to the workbench `ToggleAgentModeActionId` command when
@@ -65,7 +65,7 @@ class MobileChatPhoneInputPresenter extends Disposable implements IChatPhonePres
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
-		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@IFocusedSessionHostService private readonly _focusedSessionHostService: IFocusedSessionHostService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@IChatPetService private readonly _chatPetService: IChatPetService,
@@ -264,7 +264,7 @@ class MobileChatPhoneInputPresenter extends Disposable implements IChatPhonePres
 					if (request.kind === 'delegates') {
 						request.modelDelegate.setModel(action.model);
 					} else {
-						request.selectModel(action.model.identifier);
+						request.selectModel?.(action.model.identifier);
 					}
 				}
 				break;
@@ -274,7 +274,7 @@ class MobileChatPhoneInputPresenter extends Disposable implements IChatPhonePres
 	private _getSessionContext(request: ChatPhoneInputPresenterRequest): IChatPhoneInputSessionContext | undefined {
 		return request.kind === 'session'
 			? request.getSessionContext()
-			: createChatPhoneInputSessionContext(this._sessionsService.activeSession.get());
+			: createChatPhoneInputSessionContext(this._focusedSessionHostService.focusedHost.get().session.get(), this._focusedSessionHostService.focusedHost.get().chat.get());
 	}
 }
 

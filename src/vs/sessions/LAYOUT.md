@@ -36,9 +36,10 @@ Startup phone windows retain the existing mobile behavior.
 Title bar
 Content
 ├── Sidebar
-└── Main region
-    ├── Sessions Part | Editor | Auxiliary Bar | Custom View Grid
-    └── Panel
+├── Main region
+│   ├── Sessions Part | Editor | Auxiliary Bar | Custom View Grid
+│   └── Panel
+└── Session Activity Bar column (desktop)
 ```
 
 The workbench omits the standard Activity Bar, Status Bar, and Banner. Part positions are fixed by the Agents Window rather than user settings.
@@ -52,6 +53,7 @@ The workbench omits the standard Activity Bar, Status Bar, and Banner. Part posi
 | Auxiliary Bar | Session details such as changes and files |
 | Panel | Terminal and other panel views |
 | Custom View Grid | Full-surface contributed views that replace session content |
+| Session Activity Bar column | The active chat's Session Activity Bar; a fixed-width grid view, not a part, shown only while that strip is in it |
 
 ### Window canvases
 
@@ -151,6 +153,10 @@ Custom views may handle an unparameterized New Session action through their desc
 Content-sized composer hosts measure and observe `AbstractChatView.inputContentElement` rather than querying the hosted widget's DOM structure. The element remains owned by the view and must not be reparented. Input-only chat views retain the editor's intrinsic height limit instead of deriving it from the host's previous content height; full conversation and standalone New Session layouts are unchanged.
 
 Back and Forward history records each opening of a custom view. A view that shows one of several items, such as the pinned canvas page, names the item as the opening's `state`; history reopens the view with that state. Through `acceptsState`, the view declines states it can no longer show, which history then skips.
+
+## Session-scoped actions
+
+UI acts on the session and chat of the session host it is in (see [Session hosts](SESSIONS.md#session-hosts)). A window, pane, or Changes view of its own provides its host through a child instantiation service, and the Changes view and the title bar session actions read their session from it. Each host binds the session action context keys on its own scoped context key service (`bindSessionActionContextKeys`). Session action commands resolve their target with `resolveSessionCommandTarget`: the session or host their menu passes, else the focused host for keybindings and the Command Palette.
 
 ## Part lifecycle
 

@@ -127,7 +127,6 @@
 
 .interactive-session .interactive-item-container.chat-sticky-progress:not(:empty) {
 	padding-block: var(--vscode-spacing-size20);
-	background-color: var(--vscode-chat-list-background, var(--vscode-editor-background));
 	border-radius: var(--vscode-cornerRadius-medium);
 
 	> .chat-working-progress {
@@ -135,13 +134,21 @@
 	}
 }
 
+/* Mask the backing surface rather than the progress text or the transcript. */
 .interactive-session .chat-sticky-progress:not(:empty)::before {
-	bottom: 100%;
-	height: var(--vscode-spacing-size160);
+	content: '';
+	position: absolute;
+	inset: calc(-1 * var(--vscode-spacing-size320)) 0 0;
+	z-index: -1;
+	pointer-events: none;
+	border-radius: inherit;
+	background-color: var(--vscode-chat-list-background, var(--vscode-editor-background));
+	mask-image: linear-gradient(to bottom, transparent, black var(--vscode-spacing-size320));
 }
 
 .hc-black .interactive-session .chat-sticky-progress:not(:empty),
 .hc-light .interactive-session .chat-sticky-progress:not(:empty) {
+	background-color: var(--vscode-chat-list-background, var(--vscode-editor-background));
 	outline: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder);
 	outline-offset: -1px;
 }
@@ -149,6 +156,7 @@
 .hc-black .interactive-session .chat-sticky-progress:not(:empty)::before,
 .hc-light .interactive-session .chat-sticky-progress:not(:empty)::before {
 	content: none;
+	mask-image: none;
 }
 
 .interactive-item-container {
@@ -2503,11 +2511,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 /* Separate floating controls from transcript content without masking the list,
-	so the treatment remains stable while content streams or scrolls. During the
-	pet's run cycle, the overlay paints the same fade beneath the pet. */
-.interactive-session .chat-sticky-progress:not(:empty)::before,
-.interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content.chat-persistent-content-visible::before,
-.interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-pet-overlay.chat-pet-run-layer::before {
+	so the treatment remains stable while content streams or scrolls. */
+.interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content.chat-persistent-content-visible::before {
 	content: '';
 	position: absolute;
 	inset-inline: 0;
@@ -2525,24 +2530,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	bottom: 0;
 }
 
-.interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-pet-overlay.chat-pet-run-layer::before {
-	bottom: calc(100% - var(--vscode-spacing-size40));
-	height: calc(var(--vscode-chat-persistent-content-height, 0px) + var(--vscode-spacing-size160));
-}
-
-.interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-pet-overlay.chat-pet-run-layer ~ .chat-input-persistent-content.chat-persistent-content-visible::before {
-	content: none;
-}
-
 .interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content > * {
 	position: relative;
 	z-index: 1;
 }
 
 .hc-black .interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content.chat-persistent-content-visible::before,
-.hc-light .interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content.chat-persistent-content-visible::before,
-.hc-black .interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-pet-overlay.chat-pet-run-layer::before,
-.hc-light .interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-pet-overlay.chat-pet-run-layer::before {
+.hc-light .interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content.chat-persistent-content-visible::before {
 	background: var(--vscode-chat-list-background, var(--vscode-editor-background));
 	border-top: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder);
 	box-sizing: border-box;
@@ -2569,6 +2563,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border: var(--vscode-strokeThickness) solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
 	border-radius: var(--vscode-cornerRadius-small);
 	height: 18px;
+	/* Centers the label in the pill rather than in the line height of its surroundings, such as the text of a request. */
+	line-height: 18px;
 	max-width: 100%;
 	width: fit-content;
 }

@@ -481,23 +481,34 @@ export interface ICloudSandboxApiService {
 	clearSessionHistory(taskId?: string): void;
 }
 
-export const cloudSandboxDiscoveryTriggers = ['startup', 'poll', 'focus', 'selection', 'accountChange', 'configurationChange', 'manual', 'feedChange', 'feedRenewal', 'feedReconnect'] as const;
+export const cloudSandboxDiscoveryTriggers = ['startup', 'automatic', 'poll', 'focus', 'selection', 'accountChange', 'configurationChange', 'manual', 'feedChange', 'feedRenewal', 'feedReconnect'] as const;
 export type CloudSandboxDiscoveryTrigger = typeof cloudSandboxDiscoveryTriggers[number];
 
 export interface ICloudSandboxDiscoveryOptions {
 	readonly incremental?: boolean;
+	/** Defaults to including archived inventory. False omits archived discovery, not targeted reads of known tasks. */
+	readonly includeArchived?: boolean;
 	readonly taskIds?: readonly string[];
 	readonly trigger?: CloudSandboxDiscoveryTrigger;
 }
 
-/** Only a complete scan permits removing absent sessions; other results may name explicit removals. */
+/** Successful recent-window refreshes permit eviction only within their requested scope; removal IDs report confirmed changes. */
 export type ICloudSandboxDiscoveryResult =
-	/** Every inventory page was scanned; absent tasks really are gone. */
-	| { readonly kind: 'complete'; readonly sessions: readonly ICloudSandboxTask[] }
+	/** A successful recent-window refresh; absent cached sessions may be evicted. Removal IDs report confirmed changes, not window eviction. */
+	| { readonly kind: 'complete'; readonly sessions: readonly ICloudSandboxTask[]; readonly removedTaskIds?: readonly string[] }
+	/** A successful non-archived recent-window refresh; absent cached archives must be retained. */
+	| { readonly kind: 'scoped'; readonly sessions: readonly ICloudSandboxTask[]; readonly removedTaskIds: readonly string[] }
 	/** Changes only; sessions absent from this result must be retained. */
 	| { readonly kind: 'incremental'; readonly sessions: readonly ICloudSandboxTask[]; readonly removedTaskIds: readonly string[] }
-	/** Some pages or targeted task reads failed; only explicit removals may be dropped. */
-	| { readonly kind: 'partial'; readonly sessions: readonly ICloudSandboxTask[]; readonly removedTaskIds?: readonly string[]; readonly failedTaskIds?: readonly string[] }
+	/** Some tasks could not be resolved; only explicitly removed tasks may be dropped. */
+	| {
+		readonly kind: 'partial';
+		readonly sessions: readonly ICloudSandboxTask[];
+		readonly removedTaskIds?: readonly string[];
+		readonly failedTaskIds?: readonly string[];
+		/** The recent inventory window was enumerated; unresolved details are retained for per-task retries. Does not authorize absence pruning. */
+		readonly inventoryComplete?: boolean;
+	}
 	/** Discovery could not run (auth not ready, request failed). Existing state must be left alone. */
 	| { readonly kind: 'failed'; readonly reason: string };
 

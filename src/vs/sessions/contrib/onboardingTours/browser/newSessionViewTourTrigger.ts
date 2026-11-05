@@ -13,6 +13,7 @@ import { isOnboardingDeveloperModeEnabled, IOnboardingScenarioService } from '..
 import { ChatEntitlement, IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { SessionWorkspacePickerVisibleContext } from '../../../common/contextkeys.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { IHostSession } from '../../../services/sessions/common/sessionsManagement.js';
 
 const MAX_REQUESTS_FOR_TOUR = 1;
 /** Drives a new-session view tour using the V2 eligibility and readiness criteria. */
@@ -24,7 +25,9 @@ export class NewSessionViewTourTrigger extends Disposable {
 	constructor(
 		private readonly _tourId: string,
 		private readonly _onboardingScenarioService: IOnboardingScenarioService,
-		private readonly _sessionsService: ISessionsService,
+		private readonly _sessionsService: Pick<ISessionsService, 'initialRestoreComplete'>,
+		/** The session the main window shows, whose new-session view the tour guides through. */
+		private readonly _mainWindowSession: IObservable<IHostSession | undefined>,
 		storageService: IStorageService,
 		private readonly _configurationService: IConfigurationService,
 		private readonly _contextKeyService: IContextKeyService,
@@ -44,7 +47,7 @@ export class NewSessionViewTourTrigger extends Disposable {
 			if (this._isTriggeredOrShown()) {
 				return;
 			}
-			const activeSession = this._sessionsService.activeSession.read(reader);
+			const activeSession = this._mainWindowSession.read(reader);
 			const newSessionViewOpen = !activeSession || !activeSession.isCreated.read(reader);
 			const loggedIn = this._chatEntitlementService.entitlementObs.read(reader) !== ChatEntitlement.Unknown;
 			if (!newSessionViewOpen || !loggedIn) {
@@ -69,7 +72,7 @@ export class NewSessionViewTourTrigger extends Disposable {
 	}
 
 	private _isReady(): boolean {
-		const activeSession = this._sessionsService.activeSession.get();
+		const activeSession = this._mainWindowSession.get();
 		const newSessionViewOpen = !activeSession || !activeSession.isCreated.get();
 		return this._sessionsService.initialRestoreComplete.get()
 			&& newSessionViewOpen

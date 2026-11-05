@@ -18,11 +18,11 @@ import { agentHostAuthority } from '../../../../../platform/agentHost/common/age
 import { remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { SessionStatus } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { ChatSessionStatus, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta } from '../../common/chatSessionsService.js';
+import { ChatSessionRefreshReason, ChatSessionStatus, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta } from '../../common/chatSessionsService.js';
 import { CloudSandboxSessionListController } from './cloudSandboxSessionListController.js';
 
 interface ITaskListActions {
-	refresh(token: CancellationToken): Promise<void>;
+	refresh(token: CancellationToken, reason?: ChatSessionRefreshReason): Promise<void>;
 	delete(taskId: string): Promise<void>;
 	archive(taskId: string, archived: boolean): Promise<void>;
 	archiveChat(resource: URI, archived: boolean): void;
@@ -144,7 +144,7 @@ export class CloudSandboxTaskListController extends Disposable implements IChatS
 		}
 	}
 
-	refresh(token: CancellationToken): Promise<void> { return this._actions.refresh(token); }
+	refresh(token: CancellationToken, reason?: ChatSessionRefreshReason): Promise<void> { return this._actions.refresh(token, reason); }
 	getPreviousSessionResource(resource: URI): URI | undefined {
 		const task = this._tasks.get(resource.path.slice(1));
 		return task?.environmentId && task.sessionId

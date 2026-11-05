@@ -115,6 +115,11 @@
 	--chat-input-notice-severity: var(--vscode-editorWarning-foreground);
 }
 
+.chat-input-notice.chat-input-notice-notification.severity-warning,
+.chat-input-notice.chat-input-notice-notification.severity-error {
+	border-bottom: var(--vscode-strokeThickness) solid var(--chat-input-notice-severity);
+}
+
 .chat-input-notice.chat-input-notice-notification.severity-error {
 	--chat-input-notice-severity: var(--vscode-editorError-foreground);
 }

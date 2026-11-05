@@ -14,8 +14,8 @@ import { Schemas } from '../../../../../../base/common/network.js';
 import { autorun, type IObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { basename, dirname, extUri, extUriBiasedIgnorePathCase, isEqual } from '../../../../../../base/common/resources.js';
-import { getCustomizationDisabledReason, isCustomizationEnabled, type CustomizationDisabledReason } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
-import { hasReadableCustomizationContent, isAgentBuiltinCustomizationUri } from '../../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
+import { getCustomizationDisabledReason, getSkillCustomizations, isCustomizationEnabled, type CustomizationDisabledReason } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
+import { getMcpSkillNamePrefix, hasReadableCustomizationContent, isAgentBuiltinCustomizationUri } from '../../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
 import { CustomizationLoadStatus, CustomizationType, type AgentCustomization, type ChildCustomization, type ClientPluginCustomization, type Customization, type CustomizationLoadState, type DirectoryCustomization, PluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
@@ -25,6 +25,7 @@ import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../services/agentHost/c
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { getAgentHostCustomizationUri } from '../../../common/agentHostSessionCustomizations.js';
+import { readMcpServerDisplayName, readMcpServerSource } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import { readAgentCustomizationMeta } from '../../../../../../platform/agentHost/common/meta/agentCustomizationMeta.js';
 import { readCustomizationDiscoveryMeta } from '../../../../../../platform/agentHost/common/meta/customizationDiscoveryMeta.js';
 import { AICustomizationSource, AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
@@ -38,6 +39,8 @@ import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { ChatModeKind } from '../../../common/constants.js';
 import { localize } from '../../../../../../nls.js';
 import { getAgentHostPluginEnablementActions } from '../../agentPluginActions.js';
+import type { ICustomizationSkillItem } from '../../aiCustomization/aiCustomizationItemSource.js';
+import { getMcpCustomizationSource } from '../../aiCustomization/mcpCustomizationSource.js';
 
 
 const REMOTE_HOST_GROUP = 'remote-host';
@@ -283,14 +286,15 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		}
 
 		const agents = this.getCustomAgents(sessionResource);
-		const sourceLabels = await this.getAgentSourceLabels(sessionResource, agents, token);
+		const sources = await this.getAgentSources(sessionResource, agents, token);
 		if (token.isCancellationRequested) {
 			return [];
 		}
 		const sessionTypes = [getChatSessionType(sessionResource)];
 		const drafts = this._draftCustomAgents?.get() ?? [];
 		return agents.map((agent, index) => {
-			const isAsk = readAgentCustomizationMeta(agent)['vscode.chatMode'] === 'ask';
+			const meta = readAgentCustomizationMeta(agent);
+			const isAsk = meta['vscode.chatMode'] === 'ask';
 			const uri = drafts.includes(agent) ? URI.parse(agent.uri) : this.toRemoteUri(agent.uri);
 			return {
 				id: uri.toString(),
@@ -302,16 +306,15 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 				enabled: true,
 				// fill default/empty values for all other properties they will not be used by the UI
 				// when making a request, all that's needed is the agent id.
-				source: {
-					storage: isAsk ? PromptStorage.builtIn : PromptStorage.local,
-					...(sourceLabels[index] !== undefined ? { label: sourceLabels[index] } : {}),
-				} satisfies IAgentSource,
+				source: sources[index],
 				tools: undefined,
 				agents: undefined,
 				argumentHint: undefined,
 				handOffs: undefined,
 				hooks: undefined,
-				model: undefined,
+				model: meta['vscode.models'] ?? (agent.model ? [agent.model] : undefined),
+				reasoningEffort: meta['vscode.reasoningEffort'],
+				modelPolicy: meta['vscode.modelPolicy'],
 				agentInstructions: { content: '', toolReferences: [] },
 				visibility: {
 					agentInvocable: true,
@@ -327,11 +330,15 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		if (token.isCancellationRequested) {
 			return undefined;
 		}
+		await this._customAgentsService.whenCustomizationsReady(sessionResource, token);
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
 		return this._customAgentsService.getAgentFileToolInventory?.(sessionResource);
 	}
 
 	async provideChatSessionCustomizations(sessionResource: URI, token: CancellationToken): Promise<ICustomizationItem[]> {
-		const items = new Map<string, ICustomizationItem>();
+		const items = new Map<string, ICustomizationSkillItem>();
 		const workingDirectories = this._customAgentsService.getWorkingDirectories(sessionResource);
 
 		// Build parent plugin items keyed by customization ref
@@ -422,6 +429,40 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			}
 		}
 
+		let hostConfiguredMcpServers: ReadonlySet<string> | undefined;
+		for (const { skill, container, containerEnabled } of getSkillCustomizations(customizations)) {
+			if (container.type !== CustomizationType.McpServer || !containerEnabled) {
+				continue;
+			}
+			const plugin = customizations.find((customization): customization is PluginCustomization =>
+				customization.type === CustomizationType.Plugin && customization.children?.includes(container) === true);
+			const source = readMcpServerSource(container);
+			if (!plugin && source === undefined) {
+				hostConfiguredMcpServers ??= new Set(this._customAgentsService.getMcpServers(sessionResource).filter(server => server.hostConfiguration !== undefined).map(server => server.name));
+			}
+			const groupKey = plugin ? this.toBadge(plugin, plugin.clientId !== undefined).groupKey : getMcpCustomizationSource(source, hostConfiguredMcpServers?.has(container.name));
+			items.set(skill.id, {
+				itemKey: skill.id,
+				uri: getAgentHostCustomizationUri(URI.parse(skill.uri), this._connection)!,
+				type: PromptsType.skill,
+				name: skill.name,
+				description: skill.description,
+				// MCP resource content stays read-only regardless of its server's configuration scope.
+				source: AICustomizationSources.plugin,
+				groupKey,
+				skillBundle: {
+					id: container.id,
+					name: localize('mcpSkillBundleName', "Skills from {0}", readMcpServerDisplayName(container) ?? container.name),
+					description: localize('mcpSkillBundleDescription', "MCP Server"),
+					namePrefix: getMcpSkillNamePrefix(container.name),
+				},
+				enabled: skill.enabled !== false,
+				userInvocable: skill.disableUserInvocation !== true,
+				extensionId: undefined,
+				pluginUri: undefined,
+			});
+		}
+
 		const disabledBuiltinSkills = this._promptsService.getDisabledPromptFiles(PromptsType.skill);
 		const builtinSkills = await this._promptsService.listPromptFilesForStorage(PromptsType.skill, PromptStorage.builtIn, token);
 		if (token.isCancellationRequested) {
@@ -454,7 +495,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		return sessionAgents.length > 0 ? sessionAgents : this._draftCustomAgents?.get() ?? [];
 	}
 
-	private async getAgentSourceLabels(sessionResource: URI, agents: readonly AgentCustomization[], token: CancellationToken): Promise<readonly (string | undefined)[]> {
+	private async getAgentSources(sessionResource: URI, agents: readonly AgentCustomization[], token: CancellationToken): Promise<readonly IAgentSource[]> {
 		let extensionFiles: readonly IPromptPath[] = [];
 		try {
 			extensionFiles = await this._promptsService.listPromptFilesForStorage(PromptsType.agent, PromptStorage.extension, token);
@@ -486,6 +527,10 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			const origin = clientSource ? this._resolveSyncedOrigin?.(clientSource) : undefined;
 			return [agent, origin ?? this._resolveSyncedOrigin?.(agentUris.get(agent)!)] as const;
 		}));
+		const extensionIds = new Map(agents.map(agent => [agent,
+			(origins.get(agent)?.source === AICustomizationSources.extension ? origins.get(agent)?.extensionId : undefined)
+			?? (drafts.includes(agent) ? extensionIdsByUri.get(URI.parse(agent.uri)) : undefined),
+		]));
 		const roots = this._customAgentsService.getWorkingDirectories(sessionResource);
 		const labels = agents.map(agent => {
 			if (readAgentCustomizationMeta(agent)['vscode.chatMode'] === 'ask') {
@@ -494,9 +539,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			const uri = URI.parse(agent.uri);
 			const published = containers.find(candidate => candidate.children?.some(child => child.type === CustomizationType.Agent && isEqual(URI.parse(child.uri), uri)));
 			const isDraft = drafts.some(candidate => isEqual(URI.parse(candidate.uri), uri));
-			const origin = origins.get(agent);
-			const extensionId = (origin?.source === AICustomizationSources.extension ? origin.extensionId : undefined)
-				?? (isDraft ? extensionIdsByUri.get(uri) : undefined);
+			const extensionId = extensionIds.get(agent);
 			const extensionLabel = extensionId
 				? localize('agentSource.extension', "Extension: {0}", extensionLabels.get(ExtensionIdentifier.toKey(extensionId)) ?? extensionId)
 				: undefined;
@@ -530,7 +573,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		const getSourceUri = (agent: AgentCustomization): URI => {
 			return origins.get(agent)?.uri ?? agentUris.get(agent)!;
 		};
-		return labels.map((label, index) => {
+		const disambiguatedLabels = labels.map((label, index) => {
 			if (label === undefined) {
 				return undefined;
 			}
@@ -546,6 +589,13 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 				location = shorten(locations, locations.some(path => path.includes('\\')) ? '\\' : '/')[0];
 			}
 			return localize('agentSource.location', "{0} ({1})", label, location);
+		});
+		return agents.map((agent, index) => {
+			const extensionId = extensionIds.get(agent);
+			const source: IAgentSource = extensionId
+				? { storage: PromptStorage.extension, extensionId: new ExtensionIdentifier(extensionId) }
+				: { storage: readAgentCustomizationMeta(agent)['vscode.chatMode'] === 'ask' ? PromptStorage.builtIn : PromptStorage.local };
+			return { ...source, label: disambiguatedLabels[index] };
 		});
 	}
 

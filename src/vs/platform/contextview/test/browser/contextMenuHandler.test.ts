@@ -10,15 +10,30 @@ import { Action, Separator } from '../../../../base/common/actions.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { MenuItemAction } from '../../../actions/common/actions.js';
+import { NullCommandService } from '../../../commands/test/common/nullCommandService.js';
 import { ContextMenuHandler } from '../../browser/contextMenuHandler.js';
 import { IContextViewDelegate, IContextViewService } from '../../browser/contextView.js';
 import { ContextViewDOMPosition } from '../../../../base/browser/ui/contextview/contextview.js';
-import { MockKeybindingService } from '../../../keybinding/test/common/mockKeybindingService.js';
+import { MockContextKeyService, MockKeybindingService } from '../../../keybinding/test/common/mockKeybindingService.js';
 import { TestNotificationService } from '../../../notification/test/common/testNotificationService.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 
 suite('ContextMenuHandler', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	/**
+	 * Appends a fixed-position element at the top of the page. Elements appended to the end of the body can be below the
+	 * fold, and focusing them, or the menu shown in them, would scroll the page for the test files that run after this one.
+	 */
+	function appendFixed<T extends HTMLElement>(element: T): T {
+		element.style.position = 'fixed';
+		element.style.top = '0';
+		element.style.left = '0';
+		mainWindow.document.body.appendChild(element);
+		store.add(toDisposable(() => element.remove()));
+		return element;
+	}
 
 	for (const [selection, expected] of [
 		[undefined, undefined],
@@ -34,8 +49,7 @@ suite('ContextMenuHandler', () => {
 		[3, undefined],
 	] as const) {
 		test(`normalizes HTML menu selection ${selection} to ${expected}`, () => {
-			const container = mainWindow.document.body.appendChild($('div'));
-			store.add(toDisposable(() => container.remove()));
+			const container = appendFixed($('div'));
 			const contextViewService = upcastPartial<IContextViewService>({
 				showContextView: delegate => {
 					store.add(delegate.render(container));
@@ -57,9 +71,8 @@ suite('ContextMenuHandler', () => {
 
 	suite('popover hosting', () => {
 		function showMenu(domPosition: ContextViewDOMPosition | undefined, hostAsPopover: boolean | undefined) {
-			const container = mainWindow.document.body.appendChild($('div'));
-			const previous = mainWindow.document.body.appendChild($('input')) as HTMLInputElement;
-			store.add(toDisposable(() => { container.remove(); previous.remove(); }));
+			const container = appendFixed($('div'));
+			const previous = appendFixed($('input')) as HTMLInputElement;
 			previous.focus();
 			const delegates: IContextViewDelegate[] = [];
 			let close: () => void = () => { };
@@ -121,5 +134,32 @@ suite('ContextMenuHandler', () => {
 			}
 		});
 
+	});
+
+	test('shows the group titles of menu actions as headers and still selects the requested action', () => {
+		const container = appendFixed($('div'));
+		const contextViewService = upcastPartial<IContextViewService>({
+			showContextView: delegate => {
+				store.add(delegate.render(container));
+				delegate.focus?.();
+				return { close: () => delegate.onHide?.() };
+			},
+		});
+		const handler = new ContextMenuHandler(contextViewService, NullTelemetryService, new TestNotificationService(), new MockKeybindingService());
+		const action = (id: string, title: string, groupTitle: string) => new MenuItemAction({ id, title }, undefined, { groupTitle }, undefined, undefined, new MockContextKeyService(), NullCommandService);
+		const actions = [action('first', 'First', 'Recent'), new Separator(), action('second', 'Second', 'Discover More')];
+		handler.showContextMenu({
+			getAnchor: () => container,
+			getActions: () => actions,
+			autoSelectItem: 2,
+		});
+
+		assert.deepStrictEqual({
+			rows: Array.from(container.querySelectorAll('.actions-container > .action-item'), row => row.querySelector('.menu-header-title')?.textContent ?? row.querySelector('.action-label')?.textContent),
+			focused: getActiveElement()?.closest('.action-item')?.textContent,
+		}, {
+			rows: ['Recent', 'First', 'Discover More', 'Second'],
+			focused: 'Second',
+		});
 	});
 });

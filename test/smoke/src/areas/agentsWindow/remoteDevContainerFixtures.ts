@@ -927,6 +927,14 @@ async function createWslFixture(options: IRemoteDevContainerFixtureOptions, reso
 		}
 	}
 	await run(`test -x ${shellQuote(nodePath)} && test -f ${shellQuote(`${serverPath}/out/${server ? 'server-main.js' : 'bootstrap-fork.js'}`)}${copilotRuntimePath ? ` && test -x ${shellQuote(copilotRuntimePath)}` : ''}`);
+	if (server && options.appOptions.codePath) {
+		// The server refuses a built client of another commit.
+		const clientCommit: string | undefined = JSON.parse(fs.readFileSync(getBuildProductPath(options.appOptions.codePath), 'utf8')).commit;
+		const serverCommit: string | undefined = JSON.parse(await run(`cat ${shellQuote(`${serverPath}/product.json`)}`)).commit;
+		if (clientCommit && serverCommit && clientCommit !== serverCommit) {
+			throw new Error(`The remote editor window needs a WSL server of the client's commit ${clientCommit}, but ${serverPath} is ${serverCommit}.`);
+		}
+	}
 	// Published servers bundle their NLS messages; a source checkout runs in development mode.
 	const sourceCheckout = (await run(`if [ -f ${shellQuote(`${serverPath}/out/nls.messages.json`)} ]; then echo bundled; fi`)) !== 'bundled';
 	const copiedLogs = path.join(resources.root, 'wsl-logs');

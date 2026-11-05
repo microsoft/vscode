@@ -12,6 +12,7 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { AgentSession } from '../../../../../platform/agentHost/common/agent.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { ChangesetKind } from '../../../../../platform/agentHost/common/changesetUri.js';
 import { CLOUD_SANDBOX_AGENT_PROVIDER, CLOUD_SANDBOX_SESSION_SCHEME, cloudSandboxAddress, cloudSandboxTaskResource, ICloudSandboxAgentHostService, ICloudSandboxApiService, ICloudSandboxCreatedSession, ICloudSandboxCreateSessionRequest, ICloudSandboxDraftPreparationService, ICloudSandboxTask } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -87,6 +88,7 @@ export class CloudSandboxAgentHostContribution extends CloudSandboxSessionContri
 		@IHostService hostService: IHostService,
 		@IStorageService storageService: IStorageService,
 		@IWorkspaceTrustManagementService workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IAgentHostConnectionsService private readonly _agentHostConnectionsService: IAgentHostConnectionsService,
 	) {
 		super(cloudSandboxService, apiService, draftPreparationService, _remoteService, _sandboxConnectionCustomizations, configurationService, instantiationService, chatSessionsService, logService, chatEntitlementService, hostService, storageService, workspaceTrustManagementService);
 		this._updateRegistration();
@@ -186,6 +188,11 @@ export class CloudSandboxAgentHostContribution extends CloudSandboxSessionContri
 			this._providerInstances.get(address)?.setTaskRenameHandler(rawId, title => this._renameSandboxSession(address, rawId, title));
 			this._providerInstances.get(address)?.setTaskArchiveHandler(rawId, archived => this._setSandboxSessionArchived(address, rawId, archived));
 		}
+	}
+
+	protected override _batchProviderChanges<T>(fn: () => T): T {
+		return this._agentHostConnectionsService.batchSessionResolutionChanges(() =>
+			this._sessionsProvidersService.batchProviderChanges(fn));
 	}
 
 	protected override _createProvider(env: ICloudSandboxSessionEnvironment, store: DisposableStore): CloudSandboxSessionsProvider {
