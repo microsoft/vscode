@@ -6,7 +6,8 @@
 import assert from 'assert';
 import type { CopilotClient, CopilotSession } from '@github/copilot-sdk';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
-import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
@@ -415,6 +416,43 @@ suite('Copilot account context', () => {
 		await assert.rejects(f.context.verifySessionContext(f.session, original));
 	});
 
+	for (const automatic of [false, true]) {
+		test(`authenticates a new session using the pinned identity (${automatic ? 'automatic completion' : 'explicit service selection'})`, async () => {
+			const f = fixture();
+			await f.discover();
+			await f.select('m365');
+			const context = f.context.requireReady();
+			const requests: Array<Parameters<CopilotSession['rpc']['accounts']['login']['begin']>[0] | Parameters<CopilotSession['rpc']['accounts']['login']['advance']>[0]> = [];
+			const selected = choices[0];
+			const session = new class extends mock<CopilotSession>() {
+				override readonly sessionId = 'new-chat';
+				override get rpc() {
+					return upcastPartial<CopilotSession['rpc']>({
+						accounts: {
+							login: {
+								begin: async request => { requests.push(request); return { flowId: 'new-flow', step: automatic ? { kind: 'completed', result: { status: 'completed', host: selected.host, login: selected.login } } : both }; },
+								advance: async request => { requests.push(request); return { kind: 'completed', result: { status: 'completed' } }; },
+								cancel: async () => { },
+							},
+							get: async () => ({ kind: 'activeAccount', authSelectionId: selected.selectionId, account: { ...selected, selectionId: undefined, active: true, derivedFrom: 'new-runtime-base' } }),
+							enumerate: async () => ({ kind: 'accounts', items: [] }),
+							set: async () => { throw new Error('Unexpected switch'); },
+						},
+					});
+				}
+			}();
+			const client = new class extends mock<CopilotClient>() {
+				override async createSession() { return session; }
+			}();
+			const created = await f.context.openSession(client, { kind: 'create', sessionId: session.sessionId, workingDirectory: '/new-workspace', enableSessionStore: false }, context, CancellationToken.None);
+			assert.deepStrictEqual({ sessionId: created.sessionId, requests, sourceUnchanged: f.context.requireReady() === context }, {
+				sessionId: session.sessionId,
+				requests: [{ kind: 'entra', accountId: 'opaque-runtime-base' }, ...(automatic ? [] : [{ flowId: 'new-flow', input: 'opaque-m365' }])],
+				sourceUnchanged: true,
+			});
+		});
+	}
+
 	test('does not expose the setup session after its account changes', async () => {
 		const f = fixture();
 		await f.discover();
@@ -424,6 +462,53 @@ suite('Copilot account context', () => {
 		f.state.activeSelection = 'opaque-emu';
 		await assert.rejects(f.context.getSession(context), /intended Copilot account/);
 	});
+
+	for (const scenario of ['cancel', 'wrong-service', 'restore'] as const) {
+		test(`rejects ${scenario} without replacing the shared account or rebinding restored history`, async () => {
+			const f = fixture();
+			await f.discover();
+			await f.select('m365');
+			const context = f.context.requireReady();
+			const started = new DeferredPromise<void>();
+			const advance = new DeferredPromise<LoginStep>();
+			const cancellation = store.add(new CancellationTokenSource());
+			const calls: string[] = [];
+			const session = upcastPartial<CopilotSession>({
+				sessionId: 'target-chat',
+				disconnect: async () => { calls.push('disconnect'); },
+				rpc: upcastPartial<CopilotSession['rpc']>({
+					accounts: upcastPartial<CopilotSession['rpc']['accounts']>({
+						login: {
+							begin: async () => { calls.push('login'); return { flowId: 'target-flow', step: { kind: 'awaiting' } }; },
+							advance: async () => {
+								started.complete();
+								return scenario === 'cancel' ? advance.p : { kind: 'completed', result: { status: 'completed' } };
+							},
+							cancel: async () => { calls.push('cancel'); },
+						},
+						get: async () => ({ kind: 'activeAccount', account: { ...choices[1], active: true, derivedFrom: 'other-base' } }),
+					}),
+				}),
+			});
+			const client = new class extends mock<CopilotClient>() {
+				override async createSession() { return session; }
+				override async resumeSession() { calls.push('resume'); return session; }
+				override async deleteSession() { calls.push('delete'); }
+			}();
+			const opening = f.context.openSession(client, { kind: scenario === 'restore' ? 'resume' : 'create', sessionId: session.sessionId, enableSessionStore: false }, context, cancellation.token);
+			const rejected = assert.rejects(opening, scenario === 'cancel' ? isCancellationError : /intended Copilot account/);
+			if (scenario === 'cancel') {
+				await started.p;
+				cancellation.cancel();
+			}
+			await rejected;
+			advance.complete({ kind: 'completed', result: { status: 'completed' } });
+			assert.deepStrictEqual({ calls, sourceUnchanged: f.context.requireReady() === context }, {
+				calls: scenario === 'restore' ? ['resume', 'disconnect'] : ['login', 'cancel', 'disconnect', 'delete'],
+				sourceUnchanged: true,
+			});
+		});
+	}
 
 	test('gate-off exposes no Microsoft bridge and rejects programmatic setup', async () => {
 		const f = fixture(false);

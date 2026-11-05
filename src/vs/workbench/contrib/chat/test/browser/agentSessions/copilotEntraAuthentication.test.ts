@@ -224,6 +224,22 @@ suite('Agent Host Microsoft credential acquisition', () => {
 		}]);
 	});
 
+	test('chat-start authentication keeps the cached host-selected account without another sign-in', async () => {
+		const f = fixture();
+		f.defaults.currentDefaultAccount = null;
+		const cache = new AgentHostAuthTokenCache();
+		await cache.authenticate(resource.resource, resource.scopes_supported, selected.accessToken, async () => { },
+			authenticationAccountId({ providerId: 'microsoft', accountId: selected.account.id }), undefined, undefined, { sessionId: selected.id, accountId: selected.account.id });
+		const forwarded: IAgentHostAuthenticateRequest[] = [];
+		const signedIn = await f.instantiation.invokeFunction(resolveAuthenticationInteractively, [resource], {
+			logPrefix: '[test]', microsoftAccountId: selected.account.id, authTokenCache: cache,
+			authenticate: async request => { forwarded.push(request); },
+		});
+		assert.deepStrictEqual({ signedIn, forwarded, interactive: f.authentication.created }, {
+			signedIn: true, forwarded: [], interactive: [],
+		});
+	});
+
 	for (const defaultProvider of ['none', 'github'] as const) {
 		test(`preserves the host-selected M365 account on a later token request with ${defaultProvider} as the window default`, async () => {
 			const f = fixture();

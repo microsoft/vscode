@@ -711,6 +711,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		}
 		return this._instantiationService.invokeFunction(resolveAuthenticationInteractively, protectedResources, {
 			authTokenCache,
+			microsoftAccountId: this._copilotAccountContext(connection)?.entraAccountId,
 			logPrefix: '[RemoteAgentHost]',
 			authenticate: this._authenticateCallback(address, connection),
 		});
