@@ -741,6 +741,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
+			experiment: { mode: 'auto' },
 			markdownDescription: localize('sessions.chat.compareAgents.tools.enabled', "Enable experimental tools for agents to discover models, launch comparisons, and read comparison results and conversation references. Requires `#sessions.chat.compareAgents.enabled#`. Disabling these tools does not affect manual comparisons or existing Judge and Synthesizer tools."),
 		},
 		[HIDE_INACTIVE_COMPARISON_INPUTS_SETTING]: {
