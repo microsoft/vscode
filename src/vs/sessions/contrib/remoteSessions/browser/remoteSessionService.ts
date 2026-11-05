@@ -290,12 +290,11 @@ export class RemoteSessionService implements IRemoteSessionService {
 				...(options.workspace ? {
 					isolationMode: options.workspace.isolation === 'folder' ? 'workspace' : 'worktree',
 					branch: options.workspace.branch,
-					worktreeCreateNewBranch: options.workspace.isolation === 'worktree',
 				} : {}),
 			};
 			const request = {
 				query: options.prompt,
-				metadata: toRemoteSessionMessageMetadata(origin),
+				metadata: toRemoteSessionMessageMetadata(origin.session, source.sourceChat),
 				title: options.title,
 				background: true,
 			};

@@ -11,6 +11,7 @@ import { CompressibleObjectTree, ICompressibleTreeRenderer, ObjectTree } from '.
 import { ObjectTreeModel } from '../../../../browser/ui/tree/objectTreeModel.js';
 import { ITreeNode, ITreeRenderer } from '../../../../browser/ui/tree/tree.js';
 import { mainWindow } from '../../../../browser/window.js';
+import { timeout } from '../../../../common/async.js';
 import { Emitter, Event } from '../../../../common/event.js';
 import { SetMap } from '../../../../common/map.js';
 import { runWithFakedTimers } from '../../../common/timeTravelScheduler.js';
@@ -559,6 +560,49 @@ suite('ObjectTree', function () {
 		assert.deepStrictEqual(tree.getFocus(), [101]);
 	});
 
+	test('rendered selection stays in sync with the tree selection when selected rows are spliced', function () {
+		const container = document.createElement('div');
+		container.style.width = '200px';
+		container.style.height = '400px';
+
+		const tree = new ObjectTree<number>('test', container, new Delegate(), [new Renderer()], { identityProvider: new IdentityProvider(), multipleSelectionSupport: true });
+		const getState = () => ({
+			selection: tree.getSelection(),
+			renderedSelection: [...container.querySelectorAll('.monaco-list-row.selected')]
+				.sort((a, b) => parseInt(a.getAttribute('data-index')!) - parseInt(b.getAttribute('data-index')!))
+				.map(row => Number(row.querySelector('.monaco-tl-contents')!.textContent))
+		});
+
+		try {
+			tree.layout(400);
+			tree.setChildren(null, [
+				{ element: 1, children: [{ element: 11 }, { element: 12 }] },
+				{ element: 2, children: [{ element: 21 }, { element: 22 }] },
+				{ element: 3, children: [{ element: 31 }, { element: 32 }] },
+			]);
+			tree.setSelection([11, 21, 31]);
+
+			tree.setChildren(1, [{ element: 11 }, { element: 12 }, { element: 13 }]);
+			const afterSetChildren = getState();
+
+			tree.rerender(31);
+			tree.rerender(21);
+			tree.rerender(11);
+			const afterRerender = getState();
+
+			clickElement(container.querySelector('.monaco-list-row[data-index="0"]') as HTMLElement);
+			const afterClick = getState();
+
+			assert.deepStrictEqual({ afterSetChildren, afterRerender, afterClick }, {
+				afterSetChildren: { selection: [11, 21, 31], renderedSelection: [11, 21, 31] },
+				afterRerender: { selection: [11, 21, 31], renderedSelection: [11, 21, 31] },
+				afterClick: { selection: [1], renderedSelection: [1] }
+			});
+		} finally {
+			tree.dispose();
+		}
+	});
+
 	test('updateOptions preserves wrapped identity provider in view options', function () {
 		const container = document.createElement('div');
 		container.style.width = '200px';
@@ -596,7 +640,7 @@ suite('ObjectTree', function () {
 		}
 	});
 
-	test('updateOptions preserves wrapped accessibility provider for type navigation re-announce', async function () {
+	test('updateOptions preserves wrapped accessibility provider for type navigation re-announce', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const container = document.createElement('div');
 		container.style.width = '200px';
 		container.style.height = '200px';
@@ -621,21 +665,20 @@ suite('ObjectTree', function () {
 		});
 
 		try {
-			await runWithFakedTimers({ useFakeTimers: true }, async () => {
-				tree.layout(200);
-				tree.setChildren(null, [{ element: 0 }]);
-				tree.setFocus([0]);
-				tree.domFocus();
+			tree.layout(200);
+			tree.setChildren(null, [{ element: 0 }]);
+			tree.setFocus([0]);
+			tree.domFocus();
 
-				tree.updateOptions({ indent: 12 });
+			tree.updateOptions({ indent: 12 });
 
-				dispatchKeydown(tree.getHTMLElement(), 'a', 'KeyA', 65);
-				await Promise.resolve();
-			});
+			dispatchKeydown(tree.getHTMLElement(), 'a', 'KeyA', 65);
+			// Let the type navigation clear debounce re-announce the focused element before disposing
+			await timeout(800);
 		} finally {
 			tree.dispose();
 		}
-	});
+	}));
 });
 
 suite('CompressibleObjectTree', function () {

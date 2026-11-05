@@ -7,9 +7,7 @@ import assert from 'assert';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
-import { FileService } from '../../../../../../platform/files/common/fileService.js';
-import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { createInMemoryFileService } from '../../../../../../platform/files/test/common/inMemoryFileService.js';
 import { collectConnectionLogs, selectConnectionLogLines } from '../../browser/connectionDiagnosticsLogs.js';
 
 suite('Connection diagnostics log excerpt', () => {
@@ -45,8 +43,7 @@ suite('Connection diagnostics log excerpt', () => {
 	});
 
 	test('reads only the bounded tail and fails explicitly when the Window log is absent', async () => {
-		const service = store.add(new FileService(new NullLogService()));
-		store.add(service.registerProvider('test', store.add(new InMemoryFileSystemProvider())));
+		const service = createInMemoryFileService(store, 'test');
 		const file = URI.parse('test:/window.log');
 		const missing = await collectConnectionLogs(service, file);
 		assert.strictEqual(missing.entries.at(-1)?.label, 'Log collection failed');

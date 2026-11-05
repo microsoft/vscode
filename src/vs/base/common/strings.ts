@@ -396,7 +396,10 @@ export function compareSubstringIgnoreCase(a: string, b: string, aStart: number 
 
 		if (codeA >= 128 || codeB >= 128) {
 			// not ASCII letters -> fallback to lower-casing strings
-			return compareSubstring(a.toLowerCase(), b.toLowerCase(), aStart, aEnd, bStart, bEnd);
+			return compare(
+				a.substring(aStart, aEnd).toLowerCase(),
+				b.substring(bStart, bEnd).toLowerCase()
+			);
 		}
 
 		// mapper lower-case ascii letter onto upper-case varinats

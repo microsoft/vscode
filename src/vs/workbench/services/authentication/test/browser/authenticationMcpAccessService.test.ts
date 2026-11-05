@@ -467,23 +467,19 @@ suite('AuthenticationMcpAccessService', () => {
 			let eventFired = false;
 			let eventData: { providerId: string; accountName: string } | undefined;
 
-			const disposable = authenticationMcpAccessService.onDidChangeMcpSessionAccess(event => {
+			disposables.add(authenticationMcpAccessService.onDidChangeMcpSessionAccess(event => {
 				eventFired = true;
 				eventData = event;
-			});
+			}));
 
-			try {
-				authenticationMcpAccessService.updateAllowedMcpServers('github', 'user@example.com', [
-					{ id: 'server1', name: 'Server 1', allowed: true }
-				]);
+			authenticationMcpAccessService.updateAllowedMcpServers('github', 'user@example.com', [
+				{ id: 'server1', name: 'Server 1', allowed: true }
+			]);
 
-				assert.strictEqual(eventFired, true);
-				assert.ok(eventData);
-				assert.strictEqual(eventData.providerId, 'github');
-				assert.strictEqual(eventData.accountName, 'user@example.com');
-			} finally {
-				disposable.dispose();
-			}
+			assert.strictEqual(eventFired, true);
+			assert.ok(eventData);
+			assert.strictEqual(eventData.providerId, 'github');
+			assert.strictEqual(eventData.accountName, 'user@example.com');
 		});
 	});
 
@@ -533,21 +529,17 @@ suite('AuthenticationMcpAccessService', () => {
 			let eventFired = false;
 			let eventData: { providerId: string; accountName: string } | undefined;
 
-			const disposable = authenticationMcpAccessService.onDidChangeMcpSessionAccess(event => {
+			disposables.add(authenticationMcpAccessService.onDidChangeMcpSessionAccess(event => {
 				eventFired = true;
 				eventData = event;
-			});
+			}));
 
-			try {
-				authenticationMcpAccessService.removeAllowedMcpServers('github', 'user@example.com');
+			authenticationMcpAccessService.removeAllowedMcpServers('github', 'user@example.com');
 
-				assert.strictEqual(eventFired, true);
-				assert.ok(eventData);
-				assert.strictEqual(eventData.providerId, 'github');
-				assert.strictEqual(eventData.accountName, 'user@example.com');
-			} finally {
-				disposable.dispose();
-			}
+			assert.strictEqual(eventFired, true);
+			assert.ok(eventData);
+			assert.strictEqual(eventData.providerId, 'github');
+			assert.strictEqual(eventData.accountName, 'user@example.com');
 		});
 
 		test('handles removal of non-existent data gracefully', () => {
@@ -562,59 +554,50 @@ suite('AuthenticationMcpAccessService', () => {
 		test('event is fired for each update operation', () => {
 			const events: Array<{ providerId: string; accountName: string }> = [];
 
-			const disposable = authenticationMcpAccessService.onDidChangeMcpSessionAccess(event => {
+			disposables.add(authenticationMcpAccessService.onDidChangeMcpSessionAccess(event => {
 				events.push(event);
-			});
+			}));
 
-			try {
-				// Should fire for update
-				authenticationMcpAccessService.updateAllowedMcpServers('github', 'user@example.com', [
-					{ id: 'server1', name: 'Server 1', allowed: true }
-				]);
+			// Should fire for update
+			authenticationMcpAccessService.updateAllowedMcpServers('github', 'user@example.com', [
+				{ id: 'server1', name: 'Server 1', allowed: true }
+			]);
 
-				// Should fire for remove
-				authenticationMcpAccessService.removeAllowedMcpServers('github', 'user@example.com');
+			// Should fire for remove
+			authenticationMcpAccessService.removeAllowedMcpServers('github', 'user@example.com');
 
-				// Should fire for different account
-				authenticationMcpAccessService.updateAllowedMcpServers('microsoft', 'admin@company.com', [
-					{ id: 'server2', name: 'Server 2', allowed: false }
-				]);
+			// Should fire for different account
+			authenticationMcpAccessService.updateAllowedMcpServers('microsoft', 'admin@company.com', [
+				{ id: 'server2', name: 'Server 2', allowed: false }
+			]);
 
-				assert.strictEqual(events.length, 3);
-				assert.strictEqual(events[0].providerId, 'github');
-				assert.strictEqual(events[0].accountName, 'user@example.com');
-				assert.strictEqual(events[1].providerId, 'github');
-				assert.strictEqual(events[1].accountName, 'user@example.com');
-				assert.strictEqual(events[2].providerId, 'microsoft');
-				assert.strictEqual(events[2].accountName, 'admin@company.com');
-			} finally {
-				disposable.dispose();
-			}
+			assert.strictEqual(events.length, 3);
+			assert.strictEqual(events[0].providerId, 'github');
+			assert.strictEqual(events[0].accountName, 'user@example.com');
+			assert.strictEqual(events[1].providerId, 'github');
+			assert.strictEqual(events[1].accountName, 'user@example.com');
+			assert.strictEqual(events[2].providerId, 'microsoft');
+			assert.strictEqual(events[2].accountName, 'admin@company.com');
 		});
 
 		test('multiple listeners receive events', () => {
 			let listener1Fired = false;
 			let listener2Fired = false;
 
-			const disposable1 = authenticationMcpAccessService.onDidChangeMcpSessionAccess(() => {
+			disposables.add(authenticationMcpAccessService.onDidChangeMcpSessionAccess(() => {
 				listener1Fired = true;
-			});
+			}));
 
-			const disposable2 = authenticationMcpAccessService.onDidChangeMcpSessionAccess(() => {
+			disposables.add(authenticationMcpAccessService.onDidChangeMcpSessionAccess(() => {
 				listener2Fired = true;
-			});
+			}));
 
-			try {
-				authenticationMcpAccessService.updateAllowedMcpServers('github', 'user@example.com', [
-					{ id: 'server1', name: 'Server 1', allowed: true }
-				]);
+			authenticationMcpAccessService.updateAllowedMcpServers('github', 'user@example.com', [
+				{ id: 'server1', name: 'Server 1', allowed: true }
+			]);
 
-				assert.strictEqual(listener1Fired, true);
-				assert.strictEqual(listener2Fired, true);
-			} finally {
-				disposable1.dispose();
-				disposable2.dispose();
-			}
+			assert.strictEqual(listener1Fired, true);
+			assert.strictEqual(listener2Fired, true);
 		});
 	});
 

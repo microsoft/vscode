@@ -390,6 +390,11 @@ export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRem
 			}
 		};
 		const onChildExit = (code: number | null, signal: NodeJS.Signals | null) => {
+			// The CLI exits successfully after starting or reusing a detached host and printing its URL.
+			if (code === 0 && url) {
+				this._logService.debug(`${LOG_PREFIX} Agent host launcher in '${distro}' completed successfully.`);
+				return;
+			}
 			onChildFailure(new Error(`${LOG_PREFIX} Agent host in '${distro}' exited (code=${code}, signal=${signal}).\nOutput: ${outputLines.join('\n')}`));
 		};
 		const onChildError = (err: Error) => {

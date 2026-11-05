@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { aggregateResponsesSse, parseSseEvents, responsesMessageToSse, summarizeResponsesRequest, type IAnthropicMessage } from './e2e/harness/capiWireCodec.js';
+import { aggregateResponsesJson, aggregateResponsesSse, parseSseEvents, responsesMessageToJson, responsesMessageToSse, summarizeResponsesRequest, type IAnthropicMessage } from './e2e/harness/capiWireCodec.js';
 import { projectModelRequest } from './e2e/harness/modelRequestProjection.js';
 
 suite('Agent Host E2E Responses wire codec', () => {
@@ -13,19 +13,19 @@ suite('Agent Host E2E Responses wire codec', () => {
 
 	const patch = '*** Begin Patch\n*** Update File: empty.txt\n@@\n-\n+fixed\n*** End Patch';
 
-	test('recognizes system prompts in instructions and system-role input messages', () => {
+	test('recognizes system prompts in instructions and system or developer input messages', () => {
 		const userMessage = { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'Hello' }] };
 		const requests = [
 			{ instructions: 'System prompt', input: [userMessage] },
 			{ input: [{ type: 'message', role: 'system', content: [{ type: 'input_text', text: 'System prompt' }] }, userMessage] },
-			{ input: [{ type: 'message', role: 'developer', content: [{ type: 'input_text', text: 'Environment preamble' }] }, userMessage] },
+			{ input: [{ type: 'message', role: 'developer', content: [{ type: 'input_text', text: 'Developer prompt' }] }, userMessage] },
 			{ input: [userMessage] },
 			{ input: 'Hello' },
 		];
 		assert.deepStrictEqual(requests.map(request => summarizeResponsesRequest(JSON.stringify({ model: 'test-model', ...request }))), [
 			{ model: 'test-model', system: '${system}', messages: [{ role: 'user', content: 'Hello' }] },
 			{ model: 'test-model', system: '${system}', messages: [{ role: 'user', content: 'Hello' }] },
-			{ model: 'test-model', system: '', messages: [{ role: 'user', content: 'Hello' }] },
+			{ model: 'test-model', system: '${system}', messages: [{ role: 'user', content: 'Hello' }] },
 			{ model: 'test-model', system: '', messages: [{ role: 'user', content: 'Hello' }] },
 			{ model: 'test-model', system: '', messages: [{ role: 'user', content: 'Hello' }] },
 		]);
@@ -76,6 +76,27 @@ suite('Agent Host E2E Responses wire codec', () => {
 			{ role: 'user', content: [{ type: 'tool_result', tool_use_id: 'call_patch', content: 'Patched' }] },
 		]);
 		assert.deepStrictEqual(projection.messages[0], request.messages[0]);
+	});
+
+	test('round-trips non-streaming judge replies without retaining opaque reasoning', () => {
+		const message = aggregateResponsesJson(JSON.stringify({
+			object: 'response', status: 'completed',
+			output: [
+				{ type: 'reasoning', encrypted_content: 'opaque-reasoning', summary: [{ type: 'summary_text', text: 'private-summary' }] },
+				{ type: 'message', content: [{ type: 'output_text', text: 'ALLOW: Explicit read request.' }] },
+			],
+			usage: { input_tokens: 5, output_tokens: 3 },
+		}));
+		assert.ok(message);
+		assert.deepStrictEqual({
+			message,
+			replayed: aggregateResponsesJson(responsesMessageToJson(message)),
+			invalid: ['{"error":{"message":"unavailable"}}', '{"object":"response","status":"incomplete","output":[]}'].map(aggregateResponsesJson),
+		}, {
+			message: { content: [{ type: 'text', text: 'ALLOW: Explicit read request.' }], stopReason: 'end_turn', usage: { inputTokens: 5, outputTokens: 3 } },
+			replayed: message,
+			invalid: [undefined, undefined],
+		});
 	});
 
 	test('rejects malformed custom tool input rather than silently dropping the call', () => {

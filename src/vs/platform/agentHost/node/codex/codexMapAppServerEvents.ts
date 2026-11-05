@@ -338,6 +338,10 @@ export function codexImageGenerationLabels(status?: string): { readonly displayN
 	};
 }
 
+export function codexImageGenerationToolInput(revisedPrompt: string | null): string | undefined {
+	return revisedPrompt ? JSON.stringify({ prompt: revisedPrompt }) : undefined;
+}
+
 function jsonValueToText(value: JsonValue): string {
 	return typeof value === 'string' ? value : JSON.stringify(value, null, 2);
 }
@@ -739,7 +743,7 @@ function mapItemStartedBody(
 				turnId: params.turnId,
 				toolCallId,
 				invocationMessage: labels.invocationMessage,
-				toolInput: JSON.stringify({ prompt: params.item.revisedPrompt ?? labels.displayName }),
+				toolInput: codexImageGenerationToolInput(params.item.revisedPrompt),
 				confirmed: ToolCallConfirmationReason.NotNeeded,
 			},
 		];
@@ -1163,7 +1167,19 @@ export function mapItemCompleted(
 	if (params.item.type === 'imageGeneration') {
 		const success = params.item.status === 'completed' && params.item.result.length > 0;
 		const labels = codexImageGenerationLabels(params.item.status);
-		return [{
+		const actions: ChatAction[] = [];
+		const toolInput = codexImageGenerationToolInput(params.item.revisedPrompt);
+		if (toolInput !== undefined) {
+			actions.push({
+				type: ActionType.ChatToolCallReady,
+				turnId: entry.turnId,
+				toolCallId: entry.toolCallId,
+				invocationMessage: labels.invocationMessage,
+				toolInput,
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			});
+		}
+		actions.push({
 			type: ActionType.ChatToolCallComplete,
 			turnId: entry.turnId,
 			toolCallId: entry.toolCallId,
@@ -1177,7 +1193,8 @@ export function mapItemCompleted(
 				}] : undefined,
 				...(success ? {} : { error: { message: labels.errorMessage } }),
 			},
-		}];
+		});
+		return actions;
 	}
 	if (params.item.type === 'fileChange') {
 		const output = fileChangeOutput(params.item.changes) || entry.output;

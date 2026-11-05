@@ -227,12 +227,21 @@ export class ExtHostTreeViews extends Disposable implements ExtHostTreeViewsShap
 			return Promise.reject(new NoTreeViewError(sourceViewId));
 		}
 
-		const treeDataTransfer = await this._addAdditionalTransferItems(new extHostTypes.DataTransfer(), treeView, sourceTreeItemHandles, token, operationUuid);
-		if (!treeDataTransfer || token.isCancellationRequested) {
-			return;
+		try {
+			const treeDataTransfer = await this._addAdditionalTransferItems(new extHostTypes.DataTransfer(), treeView, sourceTreeItemHandles, token, operationUuid);
+			if (!treeDataTransfer || token.isCancellationRequested) {
+				this.$releaseDragOperation(operationUuid);
+				return;
+			}
+			return await DataTransfer.from(treeDataTransfer);
+		} catch (error) {
+			this.$releaseDragOperation(operationUuid);
+			throw error;
 		}
+	}
 
-		return DataTransfer.from(treeDataTransfer);
+	$releaseDragOperation(operationUuid: string): void {
+		this._treeDragAndDropService.removeDragOperationTransfer(operationUuid);
 	}
 
 	async $hasResolve(treeViewId: string): Promise<boolean> {

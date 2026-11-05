@@ -1,0 +1,59 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember DEFAULT_NOT_IN_PEER. Reply exactly "READY".
+    response:
+      content: READY
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember SIBLING_NOT_IN_PEER. Reply exactly "READY".
+    response:
+      content: READY
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use your file editing tool exactly once to replace FIRST_BEFORE with FIRST_AFTER in first-peer.txt. Do not inspect or search for files and do not run a shell command. Then reply exactly "EDIT_DONE".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: edit
+          input:
+            path: ${workdir}/first-peer.txt
+            old_str: FIRST_BEFORE
+            new_str: FIRST_AFTER
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use your file editing tool exactly once to replace FIRST_BEFORE with FIRST_AFTER in first-peer.txt. Do not inspect or search for files and do not run a shell command. Then reply exactly "EDIT_DONE".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: edit
+              input:
+                path: ${workdir}/first-peer.txt
+                old_str: FIRST_BEFORE
+                new_str: FIRST_AFTER
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: File ${workdir}/first-peer.txt updated with changes.
+    response:
+      content: EDIT_DONE
+      stopReason: end_turn

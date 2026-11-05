@@ -5,12 +5,14 @@
 
 import { VSBuffer, encodeBase64 } from '../../../base/common/buffer.js';
 import { Event } from '../../../base/common/event.js';
+import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { getMediaOrTextMime } from '../../../base/common/mime.js';
 import { Schemas } from '../../../base/common/network.js';
 import { URI } from '../../../base/common/uri.js';
 import { IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { FileOperationError, FileOperationResult, IFileContent, IFileService } from '../../files/common/files.js';
+import { IBrowserResourceService } from '../../files/common/browserResourceService.js';
 import { IMainProcessService } from '../../ipc/common/mainProcessService.js';
 import { NODE_REMOTE_RESOURCE_CHANNEL_NAME, NODE_REMOTE_RESOURCE_IPC_METHOD_NAME, NodeRemoteResourceResponse } from '../common/electronRemoteResources.js';
 
@@ -19,6 +21,7 @@ export class ElectronRemoteResourceLoader extends Disposable {
 		private readonly windowId: number,
 		@IMainProcessService mainProcessService: IMainProcessService,
 		@IFileService private readonly fileService: IFileService,
+		@IBrowserResourceService private readonly browserResourceService: IBrowserResourceService,
 	) {
 		super();
 
@@ -40,7 +43,22 @@ export class ElectronRemoteResourceLoader extends Disposable {
 	}
 
 	private async doRequest(uri: URI): Promise<NodeRemoteResourceResponse> {
+		if (uri.scheme !== Schemas.vscodeManagedRemoteResource || uri.authority !== `window:${this.windowId}`) {
+			return { statusCode: 404, body: '' };
+		}
 		const params = new URLSearchParams(uri.query);
+		const resourceId = params.get('resourceId');
+		if (resourceId !== null) {
+			try {
+				const result = await this.browserResourceService.read(resourceId);
+				return result ? { statusCode: 200, body: encodeBase64(result.content), mimeType: result.mimeType } : { statusCode: 404, body: '' };
+			} catch (error) {
+				return {
+					statusCode: error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_NOT_FOUND ? 404 : 500,
+					body: encodeBase64(VSBuffer.fromString(toErrorMessage(error))),
+				};
+			}
+		}
 		const authority = params.get('authority');
 		if (!authority) {
 			return { statusCode: 404, body: '' };
@@ -74,4 +92,12 @@ export class ElectronRemoteResourceLoader extends Disposable {
 			query: new URLSearchParams({ authority: uri.authority, scheme: uri.scheme }).toString(),
 		});
 	}
+}
+
+export function createBrowserResourceUriProvider(windowId: number): (resourceId: string, resource: URI) => URI {
+	return (resourceId, resource) => resource.with({
+		scheme: Schemas.vscodeManagedRemoteResource,
+		authority: `window:${windowId}`,
+		query: new URLSearchParams({ resourceId }).toString(),
+	});
 }

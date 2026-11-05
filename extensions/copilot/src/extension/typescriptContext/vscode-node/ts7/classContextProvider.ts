@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Project, Symbol as NativeSymbol } from '@typescript/native/unstable/async';
-import { isClassDeclaration, SyntaxKind, type ClassDeclaration, type Node, type SourceFile, HeritageClauseElement, isExpressionWithTypeArguments } from '@typescript/native/unstable/ast';
+import type { Project, Symbol as NativeSymbol } from '@typescript/native/async';
+import { isClassDeclaration, SyntaxKind, type ClassDeclaration, type Node, type SourceFile, HeritageClauseElement, isExpressionWithTypeArguments } from '@typescript/native/ast';
 import { CodeSnippetBuilder } from './code';
 import { AbstractContextRunnable, ComputeCost, ContextProvider, Search, SnippetLocation, type ComputeContextSession, type ContextResult, type ContextRunnableCollector, type RequestContext, type RunnableResult } from './contextProvider';
 import * as protocol from '../../common/serverProtocol';

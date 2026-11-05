@@ -4,12 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../../../nls.js';
+import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { ChatConfiguration } from '../../../../common/constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
+import { resolveConfiguredModel } from '../../../../common/modelSelection.js';
 
 export const organizationDefaultLabel = localize('chat.modelPicker.organizationDefault', "Org default");
 
 export function getOrganizationDefaultDescription(modelName: string): string {
 	return localize('chat.modelPicker.organizationDefaultDescription', "Your organization sets {0} as the default for new chats. You can choose another model for this chat.", modelName);
+}
+
+export function getOrganizationDefaultModel(configurationService: IConfigurationService, models: readonly ILanguageModelChatMetadataAndIdentifier[]): ILanguageModelChatMetadataAndIdentifier | undefined {
+	return models.find(model => model.metadata.managedModelDefaults?.model)
+		?? resolveConfiguredModel(configurationService.inspect<string>(ChatConfiguration.DefaultModel).policyValue?.trim(), models);
 }
 
 /** Color treatment for a model-row badge. */

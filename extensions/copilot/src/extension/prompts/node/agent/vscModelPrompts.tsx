@@ -684,11 +684,7 @@ class VSCModelPromptD extends PromptElement<DefaultAgentPromptProps> {
 
 class VSCModelPromptE extends VSCModelPromptD { }
 
-const VSC_MODEL_F_SYSTEM_PROMPT = `You are an expert AI programming assistant, working with a user in the VS Code editor.
-Follow Microsoft content policies.
-Avoid content that violates copyrights.
-If you are asked to generate content that is harmful, hateful, racist, sexist, lewd, or violent, only respond with "Sorry, I can't assist with that."
-<coding_agent_instructions>
+const VSC_MODEL_F_SYSTEM_PROMPT = `<coding_agent_instructions>
 You are a coding agent running in VS Code. You and the user share one workspace, and your job is to collaborate with them until their goal is genuinely handled.
 
 </coding_agent_instructions>

@@ -22,8 +22,13 @@
 }
 
 .icon-select-box .icon-select-icons-container > .icon-container.focused {
-	background-color: var(--vscode-quickInputList-focusBackground);
-	color: var(--vscode-quickInputList-focusForeground);
+	background-color: var(--vscode-list-inactiveSelectionBackground);
+	color: var(--vscode-list-inactiveSelectionForeground);
+}
+
+.icon-select-box .icon-select-icons-container:focus-visible > .icon-container.focused {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
 }
 
 .icon-select-box .icon-select-icons-container > .icon-container:hover:not(.focused) {

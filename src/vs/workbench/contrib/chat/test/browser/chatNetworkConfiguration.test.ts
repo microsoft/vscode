@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { stub } from 'sinon';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AgentNetworkDomainSettingId } from '../../../../../platform/networkFilter/common/settings.js';
 import { AgentSandboxSettingId } from '../../../../../platform/sandbox/common/settings.js';
@@ -12,6 +13,34 @@ import { chatNetworkDomainConfigurationMigrations, chatNetworkDomainConfiguratio
 
 suite('Chat network configuration', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('tags network allow and deny lists as chat permissions', () => {
+		assert.deepStrictEqual(
+			Object.entries(chatNetworkDomainConfigurationProperties).map(([key, setting]) => ({ key, tags: setting.tags })),
+			[
+				{ key: AgentNetworkDomainSettingId.AllowedNetworkDomains, tags: ['chatPermissions'] },
+				{ key: AgentNetworkDomainSettingId.DeniedNetworkDomains, tags: ['chatPermissions'] },
+			],
+		);
+	});
+
+	test('presents valid managed allowed hosts and ignores invalid values', () => {
+		const presentation = chatNetworkDomainConfigurationProperties[AgentNetworkDomainSettingId.AllowedNetworkDomains].managedSettingsPresentation!;
+		const consoleWarn = stub(console, 'warn');
+		try {
+			const values = [undefined, '["example.com"]', '[]', '', '[', 'null', '{}', '[123]', true, 123]
+				.map(value => presentation(() => value));
+			assert.deepStrictEqual({
+				values,
+				warnings: consoleWarn.callCount,
+			}, {
+				values: [undefined, ['example.com'], [], undefined, undefined, undefined, undefined, undefined, undefined, undefined],
+				warnings: 7,
+			});
+		} finally {
+			consoleWarn.restore();
+		}
+	});
 
 	test('orders sandbox domain settings after user-configured paths and preserves policy names', () => {
 		const properties = {
@@ -31,6 +60,20 @@ suite('Chat network configuration', () => {
 			{ key: 'chat.agent.sandbox.network.allowedDomains', order: 66, policy: 'ChatAgentAllowedNetworkDomains' },
 			{ key: 'chat.agent.sandbox.network.deniedDomains', order: 67, policy: 'ChatAgentDeniedNetworkDomains' },
 		]);
+	});
+
+	test('does not log malformed managed allowed hosts or parse errors', () => {
+		const presentation = chatNetworkDomainConfigurationProperties[AgentNetworkDomainSettingId.AllowedNetworkDomains].managedSettingsPresentation!;
+		const consoleWarn = stub(console, 'warn');
+		try {
+			const value = presentation(() => 'private.enterprise.example');
+			assert.deepStrictEqual({ value, warnings: consoleWarn.args }, {
+				value: undefined,
+				warnings: [['Failed to parse managed sandbox allowed hosts; ignoring the presentation override.']],
+			});
+		} finally {
+			consoleWarn.restore();
+		}
 	});
 
 	for (const [oldKey, newKey] of [

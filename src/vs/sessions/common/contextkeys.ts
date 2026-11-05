@@ -6,10 +6,16 @@
 import { localize } from '../../nls.js';
 import { ContextKeyExpr, RawContextKey } from '../../platform/contextkey/common/contextkey.js';
 import { AuxiliaryBarFocusContext, EditorAreaFocusContext } from '../../workbench/common/contextkeys.js';
+import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from './sessionConfig.js';
+
+export function sessionActivityBarChatActionContext(commandId: string): RawContextKey<boolean> {
+	return new RawContextKey<boolean>(`sessionActivityBar.chatAction.${commandId}`, false);
+}
 
 //#region < --- Active Session --- >
 
 export const IsNewChatSessionContext = new RawContextKey<boolean>('isNewChatSession', true);
+export const NewSessionComposerFocusContext = new RawContextKey<boolean>('newSessionComposerFocus', false, localize('newSessionComposerFocus', "Whether focus is within the new-session composer or its pickers"));
 export const NewSessionOnboardingHandoffContext = new RawContextKey<boolean>('newSessionOnboardingHandoff', false);
 export const SessionIdContext = new RawContextKey<string>('sessionId', '', localize('sessionId', "The identifier of the session in scope (the active session globally, or a specific session within an isolated component such as the session view or a context menu overlay)"));
 export const SessionProviderIdContext = new RawContextKey<string>('sessionProviderId', '', localize('sessionProviderId', "The provider ID of the session in scope (the active session globally, or a specific session within an isolated component such as the session view or a context menu overlay)"));
@@ -18,7 +24,6 @@ export const SessionWorkspaceIsVirtualContext = new RawContextKey<boolean>('sess
 export const SessionHasGitRepositoryContext = new RawContextKey<boolean>('sessionHasGitRepository', false, localize('sessionHasGitRepository', "Whether the session has a usable git repository"));
 export const SessionUsesCombinedConfigPickerContext = new RawContextKey<boolean>('sessionUsesCombinedConfigPicker', false, localize('sessionUsesCombinedConfigPicker', "Whether the session's provider offers a combined mode and model configuration picker (used on phone layouts in place of the standalone pickers)"));
 export const SessionUsesExperimentalComposerLayoutContext = new RawContextKey<boolean>('sessionUsesExperimentalComposerLayout', false, localize('sessionUsesExperimentalComposerLayout', "Whether the session chat input uses the experimental composer layout"));
-export const SessionAgentPickerInAttachContext = new RawContextKey<boolean>('sessionAgentPickerInAttachContext', false, localize('sessionAgentPickerInAttachContext', "Whether the active session's Agent picker is shown in Add Context instead of the input toolbar"));
 export const SessionSupportsRenameContext = new RawContextKey<boolean>('sessionSupportsRename', false, localize('sessionSupportsRename', "Whether the session can be renamed"));
 export const SessionSupportsDeleteContext = new RawContextKey<boolean>('sessionSupportsDelete', false, localize('sessionSupportsDelete', "Whether the session can be deleted"));
 export const SessionItemIsMultiSelectionContext = new RawContextKey<boolean>('sessionItem.isMultiSelection', false, localize('sessionItem.isMultiSelection', "Whether multiple sessions are selected in the sessions list"));
@@ -35,6 +40,7 @@ export const SessionSupportsForkContext = new RawContextKey<boolean>('sessionSup
 export const SessionSupportsSideChatContext = new RawContextKey<boolean>('sessionSupportsSideChat', false, localize('sessionSupportsSideChat', "Whether the session view's session supports creating a side chat from a turn (via /btw)"));
 export const SessionHasMultipleCommittedChatsContext = new RawContextKey<boolean>('sessionHasMultipleCommittedChats', false, localize('sessionHasMultipleCommittedChats', "Whether the session view's session has more than one committed (non-draft) chat, which drives the Chats dropdown visibility"));
 export const SessionActiveChatResourceContext = new RawContextKey<string>('sessionActiveChatResource', '', localize('sessionActiveChatResource', "The resource of the chat represented by the session or chat header"));
+export const SessionActiveChatCanvasReferenceKeysContext = new RawContextKey<string[]>('sessionActiveChatCanvasReferenceKeys', [], localize('sessionActiveChatCanvasReferenceKeys', "The live Canvas references owned by the chat represented by the session view"));
 export const SessionActiveChatHasSideChatsContext = new RawContextKey<boolean>('sessionActiveChatHasSideChats', false, localize('sessionActiveChatHasSideChats', "Whether the chat represented by the session or chat header has side chats"));
 export const SessionShouldShowChatTabsContext = new RawContextKey<boolean>('sessionShouldShowChatTabs', false, localize('sessionShouldShowChatTabs', "Whether the session view's chat tab strip is shown, i.e. the session has more than one chat actually showing as a tab. A single visible tab always hides the strip"));
 export const SessionHasMultipleOpenChatsContext = new RawContextKey<boolean>('sessionHasMultipleOpenChats', false, localize('sessionHasMultipleOpenChats', "Whether the session view's session has more than one open chat (the tabs shown in the strip, including in-composer drafts). Used to scope chat-to-chat navigation (next/previous chat, the Ctrl+Tab chat switcher)"));
@@ -44,12 +50,13 @@ export const SessionActiveChatIsUntitledContext = new RawContextKey<boolean>('se
 export const SessionToolbarShowsSessionContext = new RawContextKey<boolean>('sessionToolbarShowsSession', false, localize('sessionToolbarShowsSession', "Whether the session toolbar represents the whole session rather than a side-by-side chat group"));
 export const SessionHeaderShowsChatContext = new RawContextKey<boolean>('sessionHeaderShowsChat', false, localize('sessionHeaderShowsChat', "Whether the session-style header represents one chat in a side-by-side chat group rather than the whole session"));
 export const SessionHeaderTargetsChatContext = new RawContextKey<boolean>('sessionHeaderTargetsChat', false, localize('sessionHeaderTargetsChat', "Whether nested-session lifecycle actions in the session-style header target the represented chat rather than the whole session"));
+export const SessionInChatEditorContext = new RawContextKey<boolean>('sessionInChatEditor', false, localize('sessionInChatEditor', "Whether the session shows in a chat editor, scoped to its chat, rather than in the main window's grid"));
 export const SessionHeaderActiveChatIsPinnedContext = new RawContextKey<boolean>('sessionHeaderActiveChatIsPinned', false, localize('sessionHeaderActiveChatIsPinned', "Whether the chat represented by a side-by-side chat group header is pinned"));
 export const SessionFocusedChatIsRenameTargetContext = new RawContextKey<boolean>('sessionFocusedChatIsRenameTarget', false, localize('sessionFocusedChatIsRenameTarget', "Whether the focused chat group's visible chat is a non-main chat that should receive the chat-specific rename command instead of the session rename command"));
 export const SessionActiveChatIsDeletableContext = new RawContextKey<boolean>('sessionActiveChatIsDeletable', false, localize('sessionActiveChatIsDeletable', "Whether the session's active chat can be permanently deleted from the tab strip, i.e. it is a real, user-created non-main chat (not the main chat and not a tool-spawned subagent chat, which are transient children). Used to scope the delete-chat keybinding"));
 export const SessionIsReadContext = new RawContextKey<boolean>('sessionIsRead', true, localize('sessionIsRead', "Whether the session's main chat has been marked as read"));
 export const SessionIsArchivedContext = new RawContextKey<boolean>('sessionIsArchived', false, localize('sessionIsArchived', "Whether the session in scope is archived/marked as done (the active session globally, or a specific session within an isolated component such as the session view or a context menu overlay)"));
-export const SessionIsActiveContext = new RawContextKey<boolean>('sessionIsActive', false, localize('sessionIsActive', "Whether the session in scope is in progress or needs input"));
+export const SessionIsActiveContext = new RawContextKey<boolean>('sessionIsActive', false, localize('sessionIsActive', "Whether the session in scope is in progress or needs attention"));
 export const SessionHasChangesContext = new RawContextKey<boolean>('sessionHasChanges', false, localize('sessionHasChanges', "Whether the session view's session has pending changes (insertions or deletions)"));
 export const SessionHasCachedChangesContext = new RawContextKey<boolean>('sessionHasCachedChanges', false, localize('sessionHasCachedChanges', "Whether the session view's session has remembered changes from the last time its changes pill was shown, while it has not reported its own changes yet. Used to render the changes pill optimistically when a session opens"));
 export const SessionHasPullRequestContext = new RawContextKey<boolean>('sessionHasPullRequest', false, localize('sessionHasPullRequest', "Whether the session view's session is associated with a GitHub pull request"));
@@ -60,6 +67,9 @@ export const SessionWorktreeCleanupEditorFocusedContext = new RawContextKey<bool
 export const SessionsChatBackgroundConfiguredContext = new RawContextKey<boolean>('sessionsChatBackgroundConfigured', false, localize('sessionsChatBackgroundConfigured', "Whether a chat background is configured for the current color theme"));
 export const SessionsChatBackgroundImageConfiguredContext = new RawContextKey<boolean>('sessionsChatBackgroundImageConfigured', false, localize('sessionsChatBackgroundImageConfigured', "Whether a chat background image is configured for the current color theme"));
 export const IsQuickChatSessionContext = new RawContextKey<boolean>('isQuickChatSession', false, localize('isQuickChatSession', "Whether the session in scope is a workspace-less quick chat"));
+
+/** Whether the session in scope has a workspace, as the Changes and Files tabs of a chat window need. */
+export const SessionWithWorkspaceContext = ContextKeyExpr.and(SessionHasWorkspaceContext, IsQuickChatSessionContext.negate())!;
 
 //#endregion
 
@@ -78,12 +88,14 @@ export const SessionsHasClosedItemContext = new RawContextKey<boolean>('sessions
  * commands defer to those commands while this holds.
  */
 export const SessionsEditorScopeContext = ContextKeyExpr.or(EditorAreaFocusContext, AuxiliaryBarFocusContext)!;
+export const ActiveSessionCanvasReferenceContext = new RawContextKey<string>('activeSessionCanvasReference', '', localize('activeSessionCanvasReference', "The reference key of the active session Canvas editor"));
 
 //#endregion
 
 //#region < --- Custom View Grid --- >
 
 export const CustomViewVisibleContext = new RawContextKey<boolean>('customViewVisible', false, localize('customViewVisible', "Whether a custom view is shown in place of the sessions grid. The side panel and the panel are hidden while it is."));
+export const InboxCanvasFocusContext = new RawContextKey<boolean>('inboxCanvasFocus', false, localize('inboxCanvasFocus', "Whether the Inbox canvas has keyboard focus"));
 export const AutomationsCustomViewFocusContext = new RawContextKey<boolean>('automationsCustomViewFocus', false, localize('automationsCustomViewFocus', "Whether the Automations custom view has keyboard focus"));
 export const AutomationsHasItemsContext = new RawContextKey<boolean>('automationsHasItems', false, localize('automationsHasItems', "Whether there is at least one automation"));
 
@@ -121,7 +133,8 @@ export const SessionsWelcomeVisibleContext = new RawContextKey<boolean>('session
 //#region < --- Experiments --- >
 
 export const SessionsTitleBarNewSessionEnabledContext = new RawContextKey<boolean>('sessionsTitleBarNewSessionEnabled', false, localize('sessionsTitleBarNewSessionEnabled', "Whether the new-session button is shown in the titlebar when the sessions list is hidden (A/B experiment)"));
-export const SessionsListPromoteNewChatActionContext = new RawContextKey<boolean>('sessionsListPromoteNewChatAction', false, localize('sessionsListPromoteNewChatAction', "Whether New Nested Session replaces Pin or Unpin as the primary action on session rows (A/B experiment)"));
+export const SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT = true;
+export const SessionsListPromoteNewChatActionContext = new RawContextKey<boolean>('sessionsListPromoteNewChatAction', SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT, localize('sessionsListPromoteNewChatAction', "Whether New Nested Session replaces Pin or Unpin as the primary action on session rows (A/B experiment)"));
 export const SessionsListRearrangeContext = new RawContextKey<boolean>('sessionsListRearrange', false, localize('sessionsListRearrange', "Whether the sessions list uses the experimental navigation arrangement"));
 
 //#endregion
@@ -136,6 +149,10 @@ export const SessionWorkspacePickerGroupContext = new RawContextKey<string>('ses
 
 export const NewSessionCreationProviderIdContext = new RawContextKey<string>('newSessionCreationProviderId', '', localize('newSessionCreationProviderId', "The provider selected for new session creation before a draft exists"));
 export const SessionWorkspacePickerVisibleContext = new RawContextKey<boolean>('sessionWorkspacePickerVisible', false, localize('sessionWorkspacePickerVisible', "Whether the new-session view's workspace picker is rendered (as opposed to being replaced by the no-agent-host empty state)"));
+export const SessionEnvironmentPickerVisibleContext = new RawContextKey<boolean>('sessionEnvironmentPickerVisible', false, localize('sessionEnvironmentPickerVisible', "Whether the new-session view's environment picker is visible"));
+export const SessionBranchPickerVisibleContext = new RawContextKey<boolean>('sessionBranchPickerVisible', false, localize('sessionBranchPickerVisible', "Whether the new-session view's branch picker is visible"));
+export const SessionWorktreePickerVisibleContext = new RawContextKey<boolean>('sessionWorktreePickerVisible', false, localize('sessionWorktreePickerVisible', "Whether the new-session view's worktree picker is visible"));
+export const SessionSyncActionVisibleContext = new RawContextKey<boolean>('sessionSyncActionVisible', false, localize('sessionSyncActionVisible', "Whether the new-session view's sync action is visible"));
 export const SessionHarnessPickerVisibleContext = new RawContextKey<boolean>('sessionHarnessPickerVisible', false, localize('sessionHarnessPickerVisible', "Whether the new-session view's harness (session type) picker is visible — it is hidden when at most one harness can serve the selected workspace"));
 export const SessionIsolationPickerVisibleContext = new RawContextKey<boolean>('sessionIsolationPickerVisible', false, localize('sessionIsolationPickerVisible', "Whether the new-session view's isolation picker is visible — it is shown only when the isolation option is enabled and the workspace has a git repository"));
 export const AgentHostSessionTypesAvailableContext = new RawContextKey<boolean>('agentHostSessionTypesAvailable', false, localize('agentHostSessionTypesAvailable', "Whether at least one connected agent-host provider has advertised session types"));
@@ -186,5 +203,19 @@ export const DesktopFilesTabAvailableContext = new RawContextKey<boolean>('agent
 
 export const IsPhoneLayoutContext = new RawContextKey<boolean>('sessionsIsPhoneLayout', false, localize('sessionsIsPhoneLayout', "Whether the current layout is the phone layout"));
 export const KeyboardVisibleContext = new RawContextKey<boolean>('sessionsKeyboardVisible', false, localize('sessionsKeyboardVisible', "Whether the virtual keyboard is visible"));
+
+/**
+ * Whether the desktop layout shows the Session Activity Bar with its layout actions. It then hosts
+ * the Toggle Side Panel and Toggle Panel actions in place of the title bar. The activity bar is
+ * hidden while the editor is maximized (which hides the Sessions part) and in the phone layout, so
+ * the title bar keeps the toggles then.
+ */
+export const SessionActivityBarLayoutActionsContext = ContextKeyExpr.and(
+	DesktopLayoutContext,
+	IsPhoneLayoutContext.negate(),
+	EditorMaximizedContext.negate(),
+	ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_SETTING}`, true),
+	ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING}`, true),
+)!;
 
 //#endregion

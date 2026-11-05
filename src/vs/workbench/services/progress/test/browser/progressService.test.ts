@@ -24,11 +24,16 @@ import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService } from '../
 import { IUserActivityService } from '../../../userActivity/common/userActivityService.js';
 import { IViewsService } from '../../../views/common/viewsService.js';
 import { ProgressService } from '../../browser/progressService.js';
+import { extensionNotificationTelemetry, NotificationTelemetryId } from '../../../../../platform/notification/common/notificationTelemetry.js';
+import { NotificationActionRunner } from '../../../../browser/parts/notifications/notificationsCommands.js';
+import { logNotificationShown } from '../../../../common/notificationTelemetry.js';
+import { TestNotificationTelemetryService } from '../../../../test/common/testNotificationTelemetry.js';
 
 suite('ProgressService notification messages', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function createServices() {
+		const telemetry = new TestNotificationTelemetryService();
 		const notifications = store.add(new NotificationService(store.add(new InMemoryStorageService())));
 		store.add(toDisposable(() => {
 			for (const notification of [...notifications.model.notifications]) {
@@ -58,8 +63,100 @@ suite('ProgressService notification messages', () => {
 			},
 			new class extends mock<IHostService>() { },
 		));
-		return { notifications, progressService, statusEntries };
+		const actionRunner = store.add(new NotificationActionRunner(undefined, telemetry, notifications));
+		return { notifications, progressService, statusEntries, telemetry, actionRunner };
 	}
+
+	for (const cancel of [false, true]) {
+		test(`${cancel ? 'explicit cancellation' : 'automatic completion'} of attributed progress`, () => runWithFakedTimers({}, async () => {
+			const { notifications, progressService, telemetry, actionRunner } = createServices();
+			const deferred = new DeferredPromise<void>();
+			let cancellations = 0;
+			const promise = progressService.withProgress({
+				location: ProgressLocation.Notification,
+				telemetry: NotificationTelemetryId.AuthenticationSignIn,
+				title: 'private server name',
+				cancellable: 'Private cancellation label',
+			}, () => deferred.p, () => {
+				cancellations++;
+				deferred.complete();
+			});
+			const item = notifications.model.notifications[0];
+			const created = [...telemetry.events];
+			logNotificationShown(telemetry, item, 'toast');
+			if (cancel) {
+				await actionRunner.run(item.actions!.primary![0], item);
+			} else {
+				await deferred.complete();
+			}
+			await promise;
+			await timeout(1000);
+			assert.deepStrictEqual({
+				created,
+				source: item.telemetry,
+				flags: telemetry.shown.map(event => [event.hasProgress, event.cancellable]),
+				interactions: telemetry.interactions.map(event => [event.interaction, event.actionId, event.actionRole]),
+				cancellations,
+				remaining: notifications.model.notifications.length,
+				privatePayload: JSON.stringify([...telemetry.shown, ...telemetry.interactions]).includes('private')
+			}, {
+				created: [],
+				source: { origin: 'core', notificationId: 'authentication.signIn', extensionId: 'none' },
+				flags: [[true, true]],
+				interactions: cancel ? [['progressCancel', 'progress.cancel', 'primary']] : [],
+				cancellations: cancel ? 1 : 0,
+				remaining: 0,
+				privatePayload: false
+			});
+		}));
+	}
+
+	test('delayed progress that completes before its delay never creates a notification', () => runWithFakedTimers({}, async () => {
+		const { notifications, progressService, telemetry } = createServices();
+		const options = {
+			location: ProgressLocation.Notification, telemetry: NotificationTelemetryId.PluginRepositoryClone, title: 'Private repository', delay: 500, cancellable: true
+		};
+		const promise = progressService.withProgress(options, () => timeout(100));
+		await promise;
+		await timeout(500);
+		assert.deepStrictEqual({ remaining: notifications.model.notifications.length, events: telemetry.events }, { remaining: 0, events: [] });
+	}));
+
+	test('delayed extension progress preserves attribution through updates and Window fallback', () => runWithFakedTimers({}, async () => {
+		const { notifications, progressService, telemetry } = createServices();
+		const deferred = new DeferredPromise<void>();
+		let reporter: IProgress<IProgressStep> | undefined;
+		const promise = progressService.withProgress({
+			location: ProgressLocation.Window,
+			telemetry: extensionNotificationTelemetry('Publisher.Extension', 'progress'),
+			title: 'private title', cancellable: true
+		}, progress => {
+			reporter = progress;
+			return deferred.p;
+		});
+		await timeout(100);
+		const beforeDelay = notifications.model.notifications.length;
+		reporter!.report({ message: 'private report', increment: 20 });
+		await timeout(100);
+		const item = notifications.model.notifications[0];
+		const beforeExposure = [...telemetry.events];
+		logNotificationShown(telemetry, item, 'center');
+		reporter!.report({ message: 'another private report', increment: 30 });
+		logNotificationShown(telemetry, item, 'center');
+		await deferred.complete();
+		await promise;
+		await timeout(1000);
+		assert.deepStrictEqual({
+			beforeDelay, beforeExposure,
+			exposures: telemetry.shown.map(event => [event.notificationId, event.extensionId, event.surface, event.cancellable]),
+			interactions: telemetry.interactions,
+			remaining: notifications.model.notifications.length
+		}, {
+			beforeDelay: 0, beforeExposure: [],
+			exposures: [['extension.progress', 'publisher.extension', 'center', true]],
+			interactions: [], remaining: 0
+		});
+	}));
 
 	test('keeps core progress titles and updates literal', () => runWithFakedTimers({}, async () => {
 		const { notifications, progressService } = createServices();

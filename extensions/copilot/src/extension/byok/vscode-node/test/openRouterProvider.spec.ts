@@ -4,8 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { describe, expect, it, vi } from 'vitest';
+import { ModelSupportedEndpoint } from '../../../../platform/endpoint/common/endpointProvider';
+import { IFetcherService } from '../../../../platform/networking/common/fetcherService';
+import { createFakeResponse } from '../../../../platform/test/node/fetcher';
+import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { BYOKModelCapabilities } from '../../common/byokProvider';
-import { OpenRouterLMProvider } from '../openRouterProvider';
+import { OpenRouterEndpoint, OpenRouterLMProvider } from '../openRouterProvider';
 
 /**
  * Tests for issue #324671:
@@ -23,7 +27,7 @@ class TestableOpenRouterLMProvider extends OpenRouterLMProvider {
 	}
 }
 
-function createProvider(): TestableOpenRouterLMProvider {
+function createProvider(fetch: IFetcherService['fetch'] = vi.fn(), createInstance = vi.fn().mockReturnValue({})): TestableOpenRouterLMProvider {
 	const logService = {
 		trace: vi.fn(), debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(),
 		show: vi.fn(), createSubLogger: vi.fn(), withExtraTarget: vi.fn(),
@@ -33,13 +37,72 @@ function createProvider(): TestableOpenRouterLMProvider {
 
 	return new TestableOpenRouterLMProvider(
 		{ getAPIKey: vi.fn().mockResolvedValue(undefined), storeAPIKey: vi.fn(), deleteAPIKey: vi.fn() } as any,
-		{ fetch: vi.fn() } as any,
+		{ fetch } as any,
 		logService as any,
-		{ createInstance: vi.fn().mockReturnValue({}) } as any,
+		{ createInstance } as any,
 		{ isConfigured: vi.fn().mockReturnValue(false), getConfig: vi.fn(), setConfig: vi.fn() } as any,
 		{} as any,
 	);
 }
+
+describe('OpenRouterLMProvider model discovery', () => {
+	it('requests tool-capable models and preserves returned alias IDs and capabilities', async () => {
+		const modelData = [
+			{ id: '~anthropic/claude-fable-latest', name: 'Anthropic: Claude Fable Latest', supported_parameters: ['tools', 'reasoning'] },
+			{ id: '~google/gemini-flash-latest', name: 'Google: Gemini Flash Latest', supported_parameters: ['tools'] },
+			{ id: 'openai/gpt-chat-latest', name: 'OpenAI: GPT Chat Latest', supported_parameters: ['tools'] },
+		].map(model => ({
+			...model,
+			context_length: 200000,
+			top_provider: { context_length: 200000, max_completion_tokens: 16000 },
+		}));
+		const fetch = vi.fn<IFetcherService['fetch']>().mockImplementation(async () => createFakeResponse(200, { data: modelData }));
+		const provider = createProvider(fetch);
+
+		const models = await provider.provideLanguageModelChatInformation({ silent: false }, CancellationToken.None);
+
+		expect({
+			urls: fetch.mock.calls.map(([url]) => url),
+			models: models.map(model => ({ id: model.id, name: model.name, toolCalling: model.capabilities.toolCalling })),
+		}).toEqual({
+			urls: ['https://openrouter.ai/api/v1/models?supported_parameters=tools'],
+			models: [
+				{ id: '~anthropic/claude-fable-latest', name: 'Anthropic: Claude Fable Latest', toolCalling: true },
+				{ id: '~google/gemini-flash-latest', name: 'Google: Gemini Flash Latest', toolCalling: true },
+				{ id: 'openai/gpt-chat-latest', name: 'OpenAI: GPT Chat Latest', toolCalling: true },
+			],
+		});
+	});
+
+	it.each([
+		{ id: 'anthropic/claude-fable-5.1', path: 'messages', supportedEndpoints: [ModelSupportedEndpoint.Messages] },
+		{ id: '~anthropic/claude-fable-latest', path: 'messages', supportedEndpoints: [ModelSupportedEndpoint.Messages] },
+		{ id: 'example/anthropic/claude-fable-latest', path: 'messages', supportedEndpoints: [ModelSupportedEndpoint.Messages] },
+		{ id: 'openai/gpt-chat-latest', path: 'chat/completions', supportedEndpoints: undefined },
+		{ id: '~google/gemini-flash-latest', path: 'chat/completions', supportedEndpoints: undefined },
+	])('routes $id without rewriting the model ID', async ({ id, path, supportedEndpoints }) => {
+		const fetch = vi.fn<IFetcherService['fetch']>().mockImplementation(async () => createFakeResponse(200, {
+			data: [{
+				id,
+				name: id,
+				supported_parameters: ['tools'],
+				context_length: 200000,
+				top_provider: { context_length: 200000 },
+			}],
+		}));
+		const createInstance = vi.fn().mockReturnValue({});
+		const provider = createProvider(fetch, createInstance);
+
+		await provider.provideLanguageModelChatInformation({ silent: false }, CancellationToken.None);
+
+		expect(createInstance).toHaveBeenLastCalledWith(
+			OpenRouterEndpoint,
+			expect.objectContaining({ id, supported_endpoints: supportedEndpoints }),
+			'',
+			`https://openrouter.ai/api/v1/${path}`,
+		);
+	});
+});
 
 describe('OpenRouterLMProvider context window (issue #324671)', () => {
 	it('derives maxInputTokens from the model-level context_length, not top_provider', () => {

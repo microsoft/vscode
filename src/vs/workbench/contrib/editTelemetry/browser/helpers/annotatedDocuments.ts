@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { onUnexpectedError } from '../../../../../base/common/errors.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, mapObservableArrayCached, derived, derivedObservableWithCache, observableFromEvent, observableSignalFromEvent, IReader } from '../../../../../base/common/observable.js';
 import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -87,11 +88,18 @@ export class AnnotatedDocument extends Disposable {
 		super();
 
 		let processedDoc: IDocumentWithAnnotatedEdits<EditSourceData> = this._store.add(new DocumentWithSourceAnnotatedEdits(document));
-		// Combine streaming edits into one and make edit smaller
-		processedDoc = this._store.add(this._instantiationService.createInstance((CombineStreamedChanges<EditSourceData>), processedDoc));
+		const processingStore = new DisposableStore();
+		// Diff streamed chat edits and individual disk reloads before tracking attribution.
+		processedDoc = processingStore.add(this._instantiationService.createInstance((CombineStreamedChanges<EditSourceData>), processedDoc));
 		// Remove common suffix and prefix from edits
-		processedDoc = this._store.add(new MinimizeEditsProcessor(processedDoc));
+		processedDoc = processingStore.add(new MinimizeEditsProcessor(processedDoc));
 
 		this.documentWithAnnotations = processedDoc;
+		this._register(toDisposable(() => {
+			void processedDoc.waitForQueue(() => processingStore.dispose()).catch(error => {
+				processingStore.dispose();
+				onUnexpectedError(error);
+			});
+		}));
 	}
 }

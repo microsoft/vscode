@@ -26,8 +26,11 @@
 	flex: 1;
 	min-width: 0;
 	overflow: hidden;
+	overflow-wrap: anywhere;
 	text-overflow: ellipsis;
-	white-space: nowrap;
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
 }
 
 .sessions-list-notification > .monaco-button {

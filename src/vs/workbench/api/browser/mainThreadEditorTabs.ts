@@ -18,6 +18,7 @@ import { SideBySideEditorInput } from '../../common/editor/sideBySideEditorInput
 import { AbstractTextResourceEditorInput } from '../../common/editor/textResourceEditorInput.js';
 import { ChatEditorInput } from '../../contrib/chat/browser/widgetHosts/editor/chatEditorInput.js';
 import { CustomEditorInput } from '../../contrib/customEditor/browser/customEditorInput.js';
+import { isCustomEditorCompatibleInput } from '../../contrib/customEditor/common/customEditor.js';
 import { InteractiveEditorInput } from '../../contrib/interactive/browser/interactiveEditorInput.js';
 import { MergeEditorInput } from '../../contrib/mergeEditor/browser/mergeEditorInput.js';
 import { MultiDiffEditorInput } from '../../contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
@@ -47,6 +48,8 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 	private readonly _tabInfoLookup: Map<string, TabInfo> = new Map();
 	// Tracks resource-change listeners for currently open multi-diff tabs
 	private readonly _multiDiffEditorInputListeners: DisposableMap<string> = new DisposableMap();
+	// The group that the extension host knows as the active one
+	private _activeGroupId: number | undefined;
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -69,6 +72,14 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 		}));
 
 		this._dispoables.add(this._multiDiffEditorInputListeners);
+
+		// Focus moving to another editor part, such as one of another window, changes the active group
+		// without that group activating within its part
+		this._dispoables.add(this._editorGroupsService.onDidChangeActiveGroup(() => {
+			if (this._editorGroupsService.activeGroup.id !== this._activeGroupId) {
+				this._onDidGroupActivate();
+			}
+		}));
 
 		// Structural group changes (add, remove, move, etc) are difficult to patch.
 		// Since they happen infrequently we just rebuild the entire model
@@ -155,6 +166,15 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 			return {
 				kind: TabInputKind.CustomEditorInput,
 				viewType: editor.viewType,
+				uri: editor.resource,
+			};
+		}
+
+		// Checked before webviews, since some of these inputs are webviews
+		if (isCustomEditorCompatibleInput(editor)) {
+			return {
+				kind: TabInputKind.CustomEditorInput,
+				viewType: editor.customEditorViewType,
 				uri: editor.resource,
 			};
 		}
@@ -252,6 +272,7 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 		if (activeGroup) {
 			// Ok not to loop as exthost accepts last active group
 			activeGroup.isActive = true;
+			this._activeGroupId = activeGroupId;
 			this._proxy.$acceptTabGroupUpdate(activeGroup);
 		}
 	}
@@ -538,6 +559,7 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 			tabs = [];
 		}
 		// notify the ext host of the new model
+		this._activeGroupId = this._editorGroupsService.activeGroup.id;
 		this._proxy.$acceptEditorTabModel(this._tabGroupModel);
 	}
 

@@ -59,6 +59,9 @@ export interface IAgentHostNativeOTelConfig {
 export interface IAgentHostOTelService {
 	readonly _serviceBrand: undefined;
 
+	/** Whether the resolved Agent Host configuration enables OTel, independent of export success. */
+	readonly enabled: boolean;
+
 	/** Whether content-free diagnostics have an enabled, supported destination. */
 	readonly diagnosticsEnabled: boolean;
 	emitTurnTiming(diagnostic: IAgentHostTurnTimingDiagnostic): void;
@@ -114,6 +117,7 @@ export const IAgentHostOTelService = createDecorator<IAgentHostOTelService>('age
 
 export const NullAgentHostOTelService: IAgentHostOTelService = {
 	_serviceBrand: undefined,
+	enabled: false,
 	diagnosticsEnabled: false,
 	emitTurnTiming: () => { },
 	emitFirstResponse: () => { },

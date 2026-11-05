@@ -37,6 +37,7 @@ import { getFlatContextMenuActions } from '../../../platform/actions/browser/men
 import { IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { Extensions } from '../../../workbench/browser/panecomposite.js';
 import { mainWindow } from '../../../base/browser/window.js';
+import { getSidePaneBottomFrameInset } from './agentsPartCard.js';
 
 /**
  * Auxiliary bar part specifically for agent sessions workbench.
@@ -306,7 +307,9 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 		const borderTotal = compact ? 0 : 2;
 		const editorVisible = this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow);
 		const paddingLeft = editorVisible && !compact ? AuxiliaryBarPart.CONTENT_PADDING_LEFT : 0;
-		const marginBottom = AuxiliaryBarPart.MARGIN_BOTTOM;
+		const marginBottom = !this.layoutService.mainContainer.classList.contains('dock-detail-panel')
+			? getSidePaneBottomFrameInset(this.layoutService.mainContainer)
+			: AuxiliaryBarPart.MARGIN_BOTTOM;
 
 		super.layout(
 			width - borderTotal - paddingLeft,

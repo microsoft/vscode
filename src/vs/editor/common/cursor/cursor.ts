@@ -389,6 +389,10 @@ export class CursorsController extends Disposable {
 		if (opResult.shouldPushStackElementAfter) {
 			this._model.pushStackElement();
 		}
+
+		if (result && opResult.followUp) {
+			this._executeEditOperation(opResult.followUp(this.getSelections()), editReason);
+		}
 	}
 
 	private _interpretCommandResult(cursorState: Selection[] | null): void {
