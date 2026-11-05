@@ -200,10 +200,44 @@ export interface IChatDeletedEvent {
 }
 
 /**
- * The session as a host of the Agents window sees it: an {@link IActiveSession} without the chat selected for every place
- * that shows it, as the host shows a chat of its own.
+ * The session as a host of the Agents window sees it: the provider's session, one object for every host that shows it. A
+ * host shows a chat of its own; the state of the pane that shows it, such as its pin and tab strip, is the pane's
+ * ({@link IPaneViewState}).
  */
-export type IHostSession = Omit<IActiveSession, 'activeChat' | 'scopedChatResource'>;
+export type IHostSession = ISession;
+
+/** The tab strip a pane of the grid shows. A detached pane shows its one chat. */
+export interface ISessionPaneTabs {
+	/** The chats shown as tabs, without closed ones. */
+	readonly openChats: IObservable<readonly IChat[]>;
+	/** The closed, still reopenable chats. */
+	readonly closedChats: IObservable<readonly IChat[]>;
+	/** The most recently closed chat, or `undefined` if none. */
+	readonly lastClosedChat: IChat | undefined;
+	/** The tabs of {@link openChats}, with subagent chats hidden until explicitly opened. */
+	readonly visibleChatTabs: IObservable<readonly IChat[]>;
+	/** Whether the tab strip shows. */
+	readonly shouldShowChatTabs: IObservable<boolean>;
+}
+
+/** The state of a pane of the grid that its views and context keys show, apart from the session and chat it shows. */
+export interface IPaneViewState {
+	/** Whether the pane is pinned in the grid. */
+	readonly sticky: IObservable<boolean>;
+	/** The tab strip the pane shows. */
+	readonly tabs: ISessionPaneTabs;
+	/** Whether the pane shows one chat of its session apart from the session's slot. */
+	readonly isDetached: boolean;
+}
+
+/**
+ * The pane state an {@link IActiveSession} carries, the grid's view of a session in a pane.
+ *
+ * @deprecated Transitional: views take the state of their pane instead.
+ */
+export function paneViewStateOfActiveSession(session: IActiveSession): IPaneViewState {
+	return { sticky: session.sticky, tabs: session, isDetached: !!session.scopedChatResource };
+}
 
 /** A chat a host shows, with its session. */
 export interface IShownChat {

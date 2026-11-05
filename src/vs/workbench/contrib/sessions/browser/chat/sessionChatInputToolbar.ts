@@ -47,8 +47,8 @@ import { IGitHubService } from '../github/githubService.js';
 import { IResolvedSessionPullRequest, SessionPullRequestPresentationModel } from '../github/pullRequestIconStatus.js';
 import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS, SessionChatPillKind } from '../../../chat/common/sessionChatPills.js';
 import { ISessionsService } from '../sessionsService.js';
-import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, IChat, SESSION_CHANGES_CHANGESET_ID, type IGitHubIssueRef, type IGitHubPullRequestRef, type ISessionWorkspace } from '../../common/session.js';
-import { IActiveSession, IHostSession, ISessionsManagementService } from '../../common/sessionsManagement.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, IChat, ISession, SESSION_CHANGES_CHANGESET_ID, type IGitHubIssueRef, type IGitHubPullRequestRef, type ISessionWorkspace } from '../../common/session.js';
+import { IHostSession, ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { logSessionArtifactOpen } from '../../common/sessionsTelemetry.js';
 import { isAgentHostProvider, isAgentHostProviderId } from '../../common/agentHostSessionsProvider.js';
@@ -56,7 +56,7 @@ import { SessionBackgroundActivitiesControl } from './sessionBackgroundActivitie
 import { SessionBackgroundShellsControl } from '../../../chat/browser/sessionBackgroundShellsControl.js';
 import { SessionBrowsersControl } from './sessionBrowsersControl.js';
 import type { ISessionChatPillsDebugData } from './sessionChatInputToolbarDebug.js';
-import { SessionActivatingActionRunner } from '../sessionActionRunner.js';
+import { activateSessionPane, SessionActivatingActionRunner } from '../sessionActionRunner.js';
 import { computePullRequestIcon } from '../../../../common/chatPullRequest.js';
 import { ISessionChangesStatsCache, readChatChangesStats, readLoadedChatChangesStats } from '../../common/sessionChangesStatsCache.js';
 import { ISessionChangesService } from '../changes/sessionChangesService.js';
@@ -135,7 +135,7 @@ interface IRecordedArtifactActions {
 type CreateCopyAction = (key: string, label: string, copy: () => Promise<void>) => IAction;
 
 /** Builds Agents Window pull request pill entries, enriching them when live details are available. */
-export function buildSessionPullRequestSections(pullRequests: readonly IResolvedSessionPullRequest[], session: IActiveSession | undefined, commandService: ICommandService, clipboardService: IClipboardService, openerService: IOpenerService, sessionsService: ISessionsService, artifactActions?: IRecordedArtifactActions, hoverCache?: ChatPillHoverCache, createCopyAction?: CreateCopyAction): readonly IChatPullRequestPillSection[] {
+export function buildSessionPullRequestSections(pullRequests: readonly IResolvedSessionPullRequest[], session: ISession | undefined, commandService: ICommandService, clipboardService: IClipboardService, openerService: IOpenerService, sessionsService: ISessionsService, artifactActions?: IRecordedArtifactActions, hoverCache?: ChatPillHoverCache, createCopyAction?: CreateCopyAction): readonly IChatPullRequestPillSection[] {
 	const entries = pullRequests.map(({ ref, pullRequest, icon, status, ciStatus }) => {
 		const { entry: presentation, resourceLabel } = getChatReferencePillPresentation('pullRequest', `#${ref.number}`, pullRequest?.title, ref.title);
 		const recordedReferenceId = ref.recordedReferenceId;
@@ -180,7 +180,7 @@ export function buildSessionPullRequestSections(pullRequests: readonly IResolved
 			}), chatPillRemoveArtifactHoverLabel) : undefined,
 			toolbarActions: [createOpenPullRequestChangesAction(ref, () => {
 				if (session) {
-					sessionsService.setActive(session);
+					activateSessionPane(sessionsService, session);
 				}
 				return commandService.executeCommand(OPEN_PULL_REQUEST_CHANGES_ACTION_ID, { pullRequest: ref });
 			}), withChatPillHoverLabel(createCopyAction?.(
@@ -202,7 +202,7 @@ export function buildSessionPullRequestSections(pullRequests: readonly IResolved
 			...(createHover && !hoverCache ? createChatPillHover({ fallback: resourceLabel, createContent: createHover }) : {}),
 			open: () => {
 				if (session) {
-					sessionsService.setActive(session);
+					activateSessionPane(sessionsService, session);
 				}
 				void commandService.executeCommand(OPEN_PULL_REQUEST_ACTION_ID, { pullRequest: ref });
 				if (recordedReferenceId) {
@@ -237,7 +237,7 @@ function getSessionIssueUri(ref: IGitHubIssueRef): URI {
 }
 
 /** Builds one pill entry per issue, grouping comment links and enriching entries with live details. */
-export function buildSessionIssueSections(issues: readonly IResolvedSessionIssue[], session: IActiveSession | undefined, commandService: ICommandService, clipboardService: IClipboardService, openerService: IOpenerService, sessionsService: ISessionsService, artifactActions?: IRecordedArtifactActions, hoverCache?: ChatPillHoverCache, createCopyAction?: CreateCopyAction): readonly IChatPillSection[] {
+export function buildSessionIssueSections(issues: readonly IResolvedSessionIssue[], session: ISession | undefined, commandService: ICommandService, clipboardService: IClipboardService, openerService: IOpenerService, sessionsService: ISessionsService, artifactActions?: IRecordedArtifactActions, hoverCache?: ChatPillHoverCache, createCopyAction?: CreateCopyAction): readonly IChatPillSection[] {
 	const entries = groupSessionIssues(issues).map(({ ref, issue, recordedReferenceIds }) => {
 		const uri = getSessionIssueUri(ref);
 		const { entry: presentation, resourceLabel } = getChatReferencePillPresentation('issue', `#${ref.number}`, issue?.title, ref.title);
@@ -278,7 +278,7 @@ export function buildSessionIssueSections(issues: readonly IResolvedSessionIssue
 			...(createHover && !hoverCache ? createChatPillHover({ fallback: resourceLabel, createContent: createHover }) : {}),
 			open: () => {
 				if (session) {
-					sessionsService.setActive(session);
+					activateSessionPane(sessionsService, session);
 				}
 				void commandService.executeCommand(OPEN_ISSUE_ACTION_ID, { issue: { ...ref, uri } });
 				if (recordedReferenceId) {
@@ -418,7 +418,7 @@ export class SessionChatInputToolbar extends Disposable {
 	private _inputElement: HTMLElement | undefined;
 
 	/** Sentinel distinguishing "no override" from an explicit `undefined` session. */
-	private readonly _sessionOverride = observableValue<IActiveSession | undefined | 'unset'>(this, 'unset');
+	private readonly _sessionOverride = observableValue<ISession | undefined | 'unset'>(this, 'unset');
 	/** The chat whose last-turn changes are reflected. */
 	private readonly _chat = observableValue<IChat | undefined>(this, undefined);
 	private readonly _debugData = observableValue<ISessionChatPillsDebugData | undefined>(this, undefined);
@@ -432,7 +432,7 @@ export class SessionChatInputToolbar extends Disposable {
 	private readonly _activityBarOpenerCheck = this._register(new MutableDisposable());
 
 	/** The session that owns the reflected chat, from an explicit override or resolved from the chat. */
-	private readonly _session: IObservable<IActiveSession | undefined> = derived(reader => {
+	private readonly _session: IObservable<ISession | undefined> = derived(reader => {
 		const override = this._sessionOverride.read(reader);
 		if (override !== 'unset') {
 			return override;
@@ -464,7 +464,7 @@ export class SessionChatInputToolbar extends Disposable {
 		compact: ChatPillsCompactMode,
 		focusFallback: (() => void) | undefined,
 		/** The session of the pane that hosts the chat, such as a chat editor's session scoped to its chat. */
-		private readonly _paneSession: IObservable<IActiveSession | undefined> | undefined,
+		private readonly _paneSession: IObservable<ISession | undefined> | undefined,
 		@IClipboardService clipboardService: IClipboardService,
 		@ICommandService commandService: ICommandService,
 		@IGitHubService gitHubService: IGitHubService,
@@ -535,7 +535,7 @@ export class SessionChatInputToolbar extends Disposable {
 		};
 		const pullRequestRefs = derivedOpts<readonly IGitHubPullRequestRef[]>({ owner: this, equalsFn: structuralEquals }, reader => gitHubReferences.read(reader).pullRequests);
 		const pullRequestPresentation = this._register(new SessionPullRequestPresentationModel(pullRequestRefs, gitHubService));
-		const artifactActions = (session: IActiveSession, reader: IReader): IRecordedArtifactActions => {
+		const artifactActions = (session: ISession, reader: IReader): IRecordedArtifactActions => {
 			const artifactsById = new Map((session.artifacts?.read(reader) ?? []).map(artifact => [artifact.id, artifact]));
 			return {
 				recordOpen: id => {
@@ -832,7 +832,7 @@ export class SessionChatInputToolbar extends Disposable {
 	 * resolution. Intended for component fixtures and callers that already hold
 	 * both.
 	 */
-	setSession(session: IActiveSession | undefined, chat: IChat | undefined): void {
+	setSession(session: ISession | undefined, chat: IChat | undefined): void {
 		this.setDebugData(undefined);
 		this._sessionOverride.set(session, undefined);
 		this._chat.set(chat, undefined);
@@ -855,11 +855,12 @@ export class SessionChatInputToolbar extends Disposable {
  * sessions the main window shows list all chats of their session, including those shown in other windows; then the
  * panes of the grid, its active pane among them.
  */
-export function findSessionOfChat(paneSession: IActiveSession | undefined, sessionsService: Pick<ISessionsService, 'visibleSessionPanes'>, chatResource: URI, reader: IReader | undefined): IActiveSession | undefined {
+export function findSessionOfChat(paneSession: ISession | undefined, sessionsService: Pick<ISessionsService, 'panes'>, chatResource: URI, reader: IReader | undefined): ISession | undefined {
 	if (paneSession?.chats.read(reader).some(c => isEqual(c.resource, chatResource))) {
 		return paneSession;
 	}
-	for (const session of sessionsService.visibleSessionPanes.read(reader)) {
+	for (const pane of sessionsService.panes.read(reader)) {
+		const session = pane.session.read(reader);
 		if (session?.chats.read(reader).some(c => isEqual(c.resource, chatResource))) {
 			return session;
 		}

@@ -12,7 +12,7 @@ import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposa
 import { ResourceMap } from '../../../../base/common/map.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { IHostService } from '../../../services/host/browser/host.js';
-import { IObservable, IReader, autorun, constObservable, observableValue, transaction } from '../../../../base/common/observable.js';
+import { IObservable, IReader, autorun, constObservable, derived, observableValue, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -42,7 +42,7 @@ import { isAgentHostProvider } from '../common/agentHostSessionsProvider.js';
 import { Direction } from '../../../../base/browser/ui/grid/grid.js';
 import { ISessionGridState, isSessionGridState, projectSessionGrid } from './sessionGridState.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
-import { ActiveSessionHost, ISessionGridPanes, ISessionHost, SessionHostKind } from './sessionHost.js';
+import { ISessionGridPanes, ISessionHost, SessionHost, SessionHostKind } from './sessionHost.js';
 import { ISessionGridPane, SessionGridPaneKind } from './sessionGridPane.js';
 
 const ACTIVE_SESSION_STATES_KEY = 'agentSessions.activeSessionStates';
@@ -560,10 +560,11 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this.slotPanes = this._visibility.slotPanes;
 		this.activePane = this._visibility.activePane;
 		this.activeSession = this._visibility.activeSession;
-		this.gridHost = new ActiveSessionHost({
+		this.gridHost = new SessionHost({
 			kind: SessionHostKind.MainWindow,
 			parent: undefined,
-			session: this._visibility.activeSession,
+			session: derived(reader => this._visibility.activePane.read(reader)?.session.read(reader)),
+			chat: derived(reader => this._visibility.activePane.read(reader)?.chat.read(reader)),
 			contextKeyService: this.contextKeyService,
 			windowId: constObservable(mainWindow.vscodeWindowId),
 		});

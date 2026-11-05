@@ -5,26 +5,13 @@
 
 import { IObservable } from '../../../../base/common/observable.js';
 import { IChat, ISession } from '../common/session.js';
+import { IPaneViewState, ISessionPaneTabs } from '../common/sessionsManagement.js';
 
 export const enum SessionGridPaneKind {
 	/** A session's own slot, with its tab strip; or the new-session slot, without a session. */
 	Slot = 'slot',
 	/** A pane of the grid that shows one chat of its session apart from the session's slot. */
 	Detached = 'detached',
-}
-
-/** The tab strip a pane of the grid shows. A detached pane shows its one chat. */
-export interface ISessionPaneTabs {
-	/** The chats shown as tabs, without closed ones. */
-	readonly openChats: IObservable<readonly IChat[]>;
-	/** The closed, still reopenable chats. */
-	readonly closedChats: IObservable<readonly IChat[]>;
-	/** The most recently closed chat, or `undefined` if none. */
-	readonly lastClosedChat: IChat | undefined;
-	/** The tabs of {@link openChats}, with subagent chats hidden until explicitly opened. */
-	readonly visibleChatTabs: IObservable<readonly IChat[]>;
-	/** Whether the tab strip shows. */
-	readonly shouldShowChatTabs: IObservable<boolean>;
 }
 
 /**
@@ -43,4 +30,9 @@ export interface ISessionGridPane {
 	/** Whether it is pinned in the grid. Always `false` for detached panes and the new-session slot. */
 	readonly sticky: IObservable<boolean>;
 	readonly tabs: ISessionPaneTabs;
+}
+
+/** The state of `pane` that the views and context keys of its host show: its pin, its tab strip, and whether it is detached. */
+export function paneViewStateOf(pane: ISessionGridPane): IPaneViewState {
+	return { sticky: pane.sticky, tabs: pane.tabs, isDetached: pane.kind === SessionGridPaneKind.Detached };
 }

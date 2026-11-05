@@ -44,13 +44,14 @@ import { ToolDataSource } from '../../../../chat/common/tools/languageModelTools
 import { ChatConfiguration } from '../../../../chat/common/constants.js';
 import { IWorkbenchGitHubService } from '../../../../../services/github/common/githubService.js';
 import { buildSessionArtifactSections, sessionArtifactLocationText, SessionArtifacts, type ISessionArtifactActions } from '../../../browser/chat/sessionArtifacts.js';
-import { type IChat, type IGitHubInfo, type ISessionArtifact, type ISessionWorkspace, SessionArtifactKind } from '../../../common/session.js';
+import { type IChat, type IGitHubInfo, type ISession, type ISessionArtifact, type ISessionWorkspace, SessionArtifactKind } from '../../../common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../common/sessionsManagement.js';
 import { hashSessionIdForTelemetry } from '../../../common/sessionsTelemetry.js';
 import { IGitHubService as ISessionsGitHubService } from '../../../browser/github/githubService.js';
 import { OPEN_PULL_REQUEST_CHANGES_ACTION_ID } from '../../../common/github/types.js';
 import { getSessionGitHubReferences } from '../../../common/github/sessionGitHubReferences.js';
 import { ISessionsService } from '../../../browser/sessionsService.js';
+import { ISessionGridPane } from '../../../browser/sessionGridPane.js';
 
 suite('Session Artifacts', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -106,7 +107,7 @@ suite('Session Artifacts', () => {
 		const downloadedResources: URI[] = [];
 		const savedImages: { resource: URI; data: string }[] = [];
 		const executedCommands: { id: string; args: unknown[] }[] = [];
-		const activatedSessions: (IActiveSession | undefined)[] = [];
+		const activatedSessions: (ISession | undefined)[] = [];
 		const resourceDownloads: { resource: URI; name: string; isDirectory: boolean }[][] = [];
 		let cancelDownload = false;
 		let downloadError: Error | undefined;
@@ -227,7 +228,11 @@ suite('Session Artifacts', () => {
 					return undefined;
 				}
 			}(),
-			upcastPartial<ISessionsService>({ setActive: session => { activatedSessions.push(session); } }),
+			upcastPartial<ISessionsService>({
+				// The pane of the grid that shows the session.
+				panes: constObservable([upcastPartial<ISessionGridPane>({ session })]),
+				activatePane: pane => { activatedSessions.push(pane?.session.get()); },
+			}),
 		));
 		return {
 			presentation, session, chat, chatModels, openedImages, openedResources, configurationService, artifacts, loading, workspace, gitHubInfo, gitHubReferences, browserUrls, removed, errors, telemetryEvents, downloadedResources, savedImages, executedCommands, activatedSessions, resourceDownloads,

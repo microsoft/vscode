@@ -42,7 +42,7 @@ import {
 } from './contextkeys.js';
 import { ChatOriginKind, getChatCapabilities, IChat, isActiveSessionStatus, isSessionCreated, isSideChatOf, ISession, SessionStatus } from './session.js';
 import { ISessionChangesStatsCache, readChatChangesStats, readSessionChangesStats } from './sessionChangesStatsCache.js';
-import { IActiveSession, IHostSession } from './sessionsManagement.js';
+import { IActiveSession, IHostSession, IPaneViewState, paneViewStateOfActiveSession } from './sessionsManagement.js';
 
 /**
  * The set of session context keys bound to a single {@link IContextKeyService}.
@@ -208,19 +208,20 @@ function setSessionContextKeysUnbuffered(session: ISession | undefined, contextK
  * See {@link setSessionContextKeys} for the `reader` and `undefined` semantics.
  */
 export function setActiveSessionContextKeys(session: IActiveSession | undefined, contextKeyService: IContextKeyService, reader: IReader | undefined, changesStatsCache?: ISessionChangesStatsCache): void {
-	setHostSessionContextKeys(session, session?.activeChat.read(reader), contextKeyService, reader, changesStatsCache);
+	setHostSessionContextKeys(session, session?.activeChat.read(reader), session && paneViewStateOfActiveSession(session), contextKeyService, reader, changesStatsCache);
 }
 
 /**
- * Sets the keys of {@link setActiveSessionContextKeys} for the session a host shows and the chat it shows of it, which
- * the session does not select for every place that shows it.
+ * Sets the keys of {@link setActiveSessionContextKeys} for the session a host shows, the chat it shows of it, which the
+ * session does not select for every place that shows it, and the state of the pane that shows it. Without a pane, as for
+ * a chat window or a composer, the session is not pinned and shows no tab strip.
  */
-export function setHostSessionContextKeys(session: IHostSession | undefined, chat: IChat | undefined, contextKeyService: IContextKeyService, reader: IReader | undefined, changesStatsCache?: ISessionChangesStatsCache): void {
+export function setHostSessionContextKeys(session: IHostSession | undefined, chat: IChat | undefined, paneState: IPaneViewState | undefined, contextKeyService: IContextKeyService, reader: IReader | undefined, changesStatsCache?: ISessionChangesStatsCache): void {
 	contextKeyService.bufferChangeEvents(() => {
 		setSessionContextKeysUnbuffered(session, contextKeyService, reader, changesStatsCache);
 		const keys = getBoundKeys(contextKeyService);
 		keys.isCreated.set(isSessionCreated(session, reader));
-		keys.sticky.set(session?.sticky.read(reader) ?? false);
+		keys.sticky.set(paneState?.sticky.read(reader) ?? false);
 		const focusedChat = chat;
 		const activeChatStats = focusedChat ? readChatChangesStats(focusedChat, reader) : undefined;
 		const worktreePending = session?.worktreePending?.read(reader) ?? false;
@@ -240,12 +241,12 @@ export function setHostSessionContextKeys(session: IHostSession | undefined, cha
 
 		// The tab strip is shown when the session has more than one chat (counting
 		// closed chats) or its single remaining chat's title diverged from the session title.
-		keys.shouldShowChatTabs.set(session?.shouldShowChatTabs.read(reader) ?? false);
+		keys.shouldShowChatTabs.set(paneState?.tabs.shouldShowChatTabs.read(reader) ?? false);
 
 		// More than one open chat tab (incl. drafts): scopes chat-to-chat navigation
 		// so it stays a no-op when only a single open chat remains (e.g. a single
 		// chat with a diverged title, or one open + one closed chat).
-		keys.hasMultipleOpenChats.set((session?.visibleChatTabs.read(reader).length ?? 0) > 1);
+		keys.hasMultipleOpenChats.set((paneState?.tabs.visibleChatTabs.read(reader).length ?? 0) > 1);
 
 		// The active chat can be closed (hidden) from the tab strip when it is a
 		// non-main chat — including read-only subagent chats, which surface as

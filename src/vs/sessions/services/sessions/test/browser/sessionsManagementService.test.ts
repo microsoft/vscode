@@ -659,6 +659,27 @@ suite('SessionsManagementService', () => {
 			});
 		});
 
+		test('the hosts of a slot and a detached pane of one session, and the grid host, show the provider\'s session object, each with its own chat', async () => {
+			const session = created('parent');
+			const main = session.mainChat.get();
+			const child = { ...main, resource: main.resource.with({ fragment: 'child' }) };
+			const parent = { ...session, chats: constObservable([main, child]) };
+			const { view, part } = harness([parent]);
+			await view.openSession(parent.resource);
+			await view.moveChatToGrid(parent.sessionId, child.resource, (Reflect.get(view, '_visibility') as VisibleSessions).getGridSlots()[0].id, 'right');
+			const [slot, detached] = view.visibleSessionPanes.get();
+			const hosts = [view.gridHost, part.getViewOfSession(slot!)!.host, part.getViewOfSession(detached!)!.host];
+
+			assert.deepStrictEqual(hosts.map(host => ({
+				provider: host.session.get() === parent,
+				chat: host.chat.get()?.resource.fragment || 'main',
+			})), [
+				{ provider: true, chat: 'child' },
+				{ provider: true, chat: 'main' },
+				{ provider: true, chat: 'child' },
+			]);
+		});
+
 		test('the grid host is one instance: the one the host lookups register and the main window\'s UI injects, showing the grid\'s active pane; the root has none', async () => {
 			const a = created('a');
 			const b = created('b');

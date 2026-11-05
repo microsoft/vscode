@@ -23,8 +23,9 @@ import { AbstractChatView, IChatViewOptions, ISessionViewHostOptions } from './c
 import { ChatGroupsView } from './chatGroupsView.js';
 import { SessionHeader, SessionViewFloatingToolbar } from './sessionHeader.js';
 import { ChatViewSessionActivityBar } from './sessionActivityBar.js';
-import { ActiveSessionHost, createSessionHostServices, ISessionHost, ISessionHostService, SessionHostKind } from '../sessionHost.js';
+import { createSessionHostServices, ISessionHost, ISessionHostService, SessionHost, SessionHostKind } from '../sessionHost.js';
 import { autorun, derived, disposableObservableValue, IObservable, observableValue, runOnChange } from '../../../../../base/common/observable.js';
+import { canonicalSessionOf } from '../visibleSessions.js';
 import { SessionIsMaximizedContext } from '../../common/contextkeys.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../common/layoutConstants.js';
 import { setActiveSessionContextKeys } from '../../common/sessionContextKeys.js';
@@ -154,7 +155,14 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 
 		// Scoped service exposing this view's session so toolbars and contributed
 		// action view items (e.g. the changes diff stats in the header) can read it.
-		this.host = new ActiveSessionHost({ kind: SessionHostKind.Pane, parent: parentHost, session: this._sessionObs, contextKeyService: scopedContextKeyService });
+		// The host shows the session the grid's view of it is a view of: the one object every host of the session shows.
+		this.host = new SessionHost({
+			kind: SessionHostKind.Pane,
+			parent: parentHost,
+			session: this._sessionObs.map(session => session && canonicalSessionOf(session)),
+			chat: derived(reader => this._sessionObs.read(reader)?.activeChat.read(reader)),
+			contextKeyService: scopedContextKeyService,
+		});
 		this._register(sessionHostService.registerHost(this.host));
 		this._scopedInstantiationService = this._scopedServices.add(instantiationService.createChild(createSessionHostServices(scopedContextKeyService, this.host)));
 

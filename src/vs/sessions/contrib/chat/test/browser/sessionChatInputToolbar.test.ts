@@ -55,6 +55,7 @@ import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_PREFIX } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISessionGridPane } from '../../../../../workbench/contrib/sessions/browser/sessionGridPane.js';
 import { ISessionChangesStatsCache } from '../../../../../workbench/contrib/sessions/common/sessionChangesStatsCache.js';
 import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, SESSION_CHANGES_CHANGESET_ID, SessionArtifactKind, SessionStatus, type IChat, type IGitHubIssueRef, type IGitHubPullRequestRef, type ISessionArtifact, type ISessionCanvas, type ISessionChangeset, type ISessionFileChange, type ISessionFolder, type ISessionGitRepository, type ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
@@ -177,6 +178,7 @@ suite('SessionChatInputToolbar', () => {
 			revealEditorPartExplicitly: () => { paneVisible = true; stateChanged.fire(); },
 		}));
 		stubSessionsHostLayout(instantiationService);
+		instantiationService.stub(ISessionsService, 'panes', constObservable([]));
 		instantiationService.stub(ISessionsService, 'setActive', (target: IActiveSession) => assert.strictEqual(target, session));
 		instantiationService.stub(ICommandService, upcastPartial<ICommandService>({
 			executeCommand: async (command, context: { pullRequest?: IGitHubPullRequestRef; issue?: IGitHubIssueRef }) => {
@@ -208,7 +210,7 @@ suite('SessionChatInputToolbar', () => {
 		const inChatWindow = upcastPartial<IChat>({ resource: URI.parse('chat:window') });
 		const gridSession = upcastPartial<IActiveSession>({ sessionId: 'grid', chats: constObservable([inMainWindow, inChatWindow]) });
 		const editorSession = upcastPartial<IActiveSession>({ sessionId: 'editor', scopedChatResource: inChatWindow.resource, chats: constObservable([inMainWindow, inChatWindow]) });
-		const sessionsService = { visibleSessionPanes: constObservable([gridSession]) };
+		const sessionsService = { panes: constObservable([upcastPartial<ISessionGridPane>({ session: constObservable(gridSession) })]) };
 		assert.deepStrictEqual({
 			inPane: findSessionOfChat(editorSession, sessionsService, inChatWindow.resource, undefined)?.sessionId,
 			withoutPane: findSessionOfChat(undefined, sessionsService, inMainWindow.resource, undefined)?.sessionId,
@@ -837,8 +839,10 @@ suite('SessionChatInputToolbar', () => {
 					workspace,
 				});
 				const calls: { action: string; resource?: URI; options?: ISessionChangesEditorOptions }[] = [];
-				instantiationService.stub(ISessionsService, 'setActive', (session: IActiveSession | undefined) => {
-					calls.push({ action: 'activate', resource: session?.resource });
+				// The pane of the grid that shows the session.
+				instantiationService.stub(ISessionsService, 'panes', constObservable([upcastPartial<ISessionGridPane>({ session: constObservable(session) })]));
+				instantiationService.stub(ISessionsService, 'activatePane', (pane: ISessionGridPane | undefined) => {
+					calls.push({ action: 'activate', resource: pane?.session.get()?.resource });
 				});
 				instantiationService.stub(IAgentWorkbenchLayoutService, upcastPartial<IAgentWorkbenchLayoutService>({
 					// The dropdowns of the pills show in the container of their window.
@@ -933,6 +937,7 @@ suite('SessionChatInputToolbar', () => {
 				workspace,
 			});
 			const opened: (string | undefined)[] = [];
+			instantiationService.stub(ISessionsService, 'panes', constObservable([]));
 			instantiationService.stub(ISessionsService, 'setActive', () => { });
 			instantiationService.stub(IAgentWorkbenchLayoutService, upcastPartial<IAgentWorkbenchLayoutService>({
 				// The dropdowns of the pills show in the container of their window.
@@ -1016,6 +1021,7 @@ suite('SessionChatInputToolbar', () => {
 			workspace,
 		});
 		const opened: (string | undefined)[] = [];
+		instantiationService.stub(ISessionsService, 'panes', constObservable([]));
 		instantiationService.stub(ISessionsService, 'setActive', () => { });
 		instantiationService.stub(IAgentWorkbenchLayoutService, upcastPartial<IAgentWorkbenchLayoutService>({
 			// The dropdowns of the pills show in the container of their window.
@@ -1104,7 +1110,7 @@ suite('SessionChatInputToolbar', () => {
 		});
 		const clipboardService = upcastPartial<IClipboardService>({ writeText: async value => { clipboardWrites.push(value); } });
 		const openerService = upcastPartial<IOpenerService>({ open: async () => true });
-		const sessionsService = upcastPartial<ISessionsService>({ setActive: () => { } });
+		const sessionsService = upcastPartial<ISessionsService>({ setActive: () => { }, panes: constObservable([]) });
 		const pullRequestRef: IGitHubPullRequestRef = {
 			owner: 'microsoft',
 			repo: 'vscode',
@@ -1499,7 +1505,7 @@ suite('SessionChatInputToolbar', () => {
 			upcastPartial<ICommandService>({ executeCommand: async () => undefined }),
 			upcastPartial<IClipboardService>({ writeText: async () => { } }),
 			upcastPartial<IOpenerService>({ open: async () => true }),
-			upcastPartial<ISessionsService>({ setActive: () => { } }), undefined, cache,
+			upcastPartial<ISessionsService>({ setActive: () => { }, panes: constObservable([]) }), undefined, cache,
 		)[0].entries[0].hover!;
 		const first = build(issue);
 		const content = first.content;
@@ -1544,7 +1550,7 @@ suite('SessionChatInputToolbar', () => {
 			upcastPartial<ICommandService>({ executeCommand: async () => undefined }),
 			upcastPartial<IClipboardService>({ writeText: async value => { copied.push(value); } }),
 			upcastPartial<IOpenerService>({ open: async () => true }),
-			upcastPartial<ISessionsService>({ setActive: () => { } }),
+			upcastPartial<ISessionsService>({ setActive: () => { }, panes: constObservable([]) }),
 			{ remove: async () => { removed.push(title); } },
 			cache,
 		);
@@ -2499,6 +2505,7 @@ suite('SessionChatInputToolbar', () => {
 						}));
 					},
 				}));
+				instantiationService.stub(ISessionsService, 'panes', constObservable([]));
 				instantiationService.stub(ISessionsService, 'setActive', () => { });
 				const opened: object[] = [];
 				instantiationService.stub(ICommandService, upcastPartial<ICommandService>({
@@ -2798,6 +2805,7 @@ suite('SessionChatInputToolbar', () => {
 			})),
 		}));
 		let opened = 0;
+		instantiationService.stub(ISessionsService, 'panes', constObservable([]));
 		instantiationService.stub(ISessionsService, 'setActive', () => { });
 		instantiationService.stub(ICommandService, upcastPartial<ICommandService>({ executeCommand: async () => { opened++; return undefined; } }));
 		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined));

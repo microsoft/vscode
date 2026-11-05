@@ -7,12 +7,12 @@ import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable }
 import { IObservable, IReader, ISettableObservable, ITransaction, autorun, derived, observableValue, subtransaction, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IActiveSession, IHostSession } from '../common/sessionsManagement.js';
+import { IActiveSession, IHostSession, ISessionPaneTabs } from '../common/sessionsManagement.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../common/session.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { Direction } from '../../../../base/browser/ui/grid/grid.js';
 import { ISessionGridSlot } from './sessionsPartService.js';
-import { ISessionGridPane, ISessionPaneTabs, SessionGridPaneKind } from './sessionGridPane.js';
+import { ISessionGridPane, SessionGridPaneKind } from './sessionGridPane.js';
 
 /**
  * Wraps an {@link ISession} with an active chat observable to form an
@@ -331,6 +331,15 @@ export class VisibleSession extends Disposable implements IActiveSession {
 
 	/** The wrapped session, which outlives this wrapper. */
 	get session(): ISession { return this._session; }
+}
+
+/**
+ * The session `session` is a view of: the provider's session for the grid's view of it, else `session` itself.
+ *
+ * @deprecated Transitional: views take the session of their pane instead.
+ */
+export function canonicalSessionOf(session: IActiveSession): ISession {
+	return session instanceof VisibleSession ? session.session : session;
 }
 
 /**

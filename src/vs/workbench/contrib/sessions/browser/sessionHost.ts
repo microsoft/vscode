@@ -15,7 +15,7 @@ import { createDecorator, IInstantiationService } from '../../../../platform/ins
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { GroupIdentifier } from '../../../common/editor.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
-import { IChat, isSessionCreated } from '../common/session.js';
+import { IChat, ISession, isSessionCreated } from '../common/session.js';
 import { IActiveSession, IHostSession, IShownChat } from '../common/sessionsManagement.js';
 import type { ISessionGridPane } from './sessionGridPane.js';
 
@@ -282,29 +282,29 @@ let hostIds = 0;
 export interface ISessionHostOptions {
 	readonly kind: SessionHostKind;
 	readonly parent: ISessionHost | undefined;
-	readonly session: IObservable<IActiveSession | undefined>;
+	/** The session it shows: the provider's, which it does not own. */
+	readonly session: IObservable<ISession | undefined>;
+	/** The chat it shows of {@link session}; its main chat while `undefined`. */
+	readonly chat: IObservable<IChat | undefined>;
 	readonly contextKeyService: IContextKeyService | (() => IContextKeyService);
 	/** A window host's window; nested hosts take their parent's. */
 	readonly windowId?: IObservable<number | undefined>;
 	/** The chat a host shows before its session is known; see {@link SessionHostContent}. */
 	readonly loadingChat?: IObservable<URI | undefined>;
-	/** The chat the host shows of its session, when not the session's active chat. */
-	readonly chat?: IObservable<IChat | undefined>;
 }
 
 /**
- * A host that shows the selected chat of an {@link IActiveSession}.
- *
- * @internal Transitional: hosts own their chat once the chat-window session copy is gone, which removes this class.
+ * A host that shows a session and a chat of it, observing both without owning them: disposing what made it never disposes
+ * the provider's session.
  */
-export class ActiveSessionHost implements ISessionHost {
+export class SessionHost implements ISessionHost {
 	declare readonly _serviceBrand: undefined;
 
 	readonly id: string;
 	readonly kind: SessionHostKind;
 	readonly parent: ISessionHost | undefined;
 	readonly windowId: IObservable<number | undefined>;
-	/** @internal Transitional: the session with its selected chat, for the legacy aliases and resolvers only. */
+	/** @internal What it shows: a chat of a session, a new session's composer, a loading chat, or nothing. */
 	readonly content: IObservable<SessionHostContent>;
 	readonly chatResource: IObservable<URI | undefined>;
 	readonly chat: IObservable<IChat | undefined>;
@@ -333,7 +333,7 @@ export class ActiveSessionHost implements ISessionHost {
 			if (!isSessionCreated(session, reader)) {
 				return { kind: 'newSession', draft: session };
 			}
-			return { kind: 'chat', session, chat: options.chat?.read(reader) ?? session.activeChat.read(reader) };
+			return { kind: 'chat', session, chat: options.chat.read(reader) ?? session.mainChat.read(reader) };
 		});
 		this.chat = derived(this, reader => {
 			const content = this.content.read(reader);
@@ -359,6 +359,23 @@ export class ActiveSessionHost implements ISessionHost {
 
 	get contextKeyService(): IContextKeyService {
 		return typeof this._contextKeyService === 'function' ? this._contextKeyService() : this._contextKeyService;
+	}
+}
+
+export interface IActiveSessionHostOptions extends Omit<ISessionHostOptions, 'session' | 'chat'> {
+	readonly session: IObservable<IActiveSession | undefined>;
+	/** The chat the host shows of its session, when not the session's active chat. */
+	readonly chat?: IObservable<IChat | undefined>;
+}
+
+/**
+ * A host that shows the selected chat of an {@link IActiveSession}, and the session it is a view of.
+ *
+ * @internal Transitional: hosts own their chat once the chat-window session copy is gone, which removes this class.
+ */
+export class ActiveSessionHost extends SessionHost {
+	constructor(options: IActiveSessionHostOptions) {
+		super({ ...options, chat: derived(reader => options.chat?.read(reader) ?? options.session.read(reader)?.activeChat.read(reader)) });
 	}
 }
 
