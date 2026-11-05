@@ -5,5 +5,5 @@
 
 export type { ClientPluginMcpDefaultCwds } from './vscode/clientPluginCustomizationMeta.js';
 export type { ClientPluginAgentIdentities } from './vscode/clientPluginCustomizationMeta.js';
-export { getClientAgentDefinitionId, toClientPluginAgentIdentitiesMeta, readClientPluginAgentIdentities } from './vscode/clientPluginCustomizationMeta.js';
+export { getClientAgentDefinitionId, isClientAgentDefinitionId, toClientPluginAgentIdentitiesMeta, readClientPluginAgentIdentities } from './vscode/clientPluginCustomizationMeta.js';
 export { toClientPluginMcpDefaultCwdsMeta, hasClientPluginMcpDefaultCwds, hasClientPluginMcpDefaultCwd, readClientPluginMcpDefaultCwd, toClientPluginStandaloneMeta, isClientPluginStandalone } from './vscode/clientPluginCustomizationMeta.js';

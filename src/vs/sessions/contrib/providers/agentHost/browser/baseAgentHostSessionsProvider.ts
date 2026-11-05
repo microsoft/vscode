@@ -58,6 +58,7 @@ import { observableConfigValue } from '../../../../../platform/observable/common
 import { readAgentDevContainerWorktreeMetadata, withAgentDevContainerWorktreeMetadata, type IAgentDevContainerWorktreeMetadata } from '../../../../../platform/agentHost/common/meta/agentDevContainerWorktreeMeta.js';
 import { readAgentMessageDelegationMeta } from '../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
 import { readAgentCustomizationMeta } from '../../../../../platform/agentHost/common/meta/agentCustomizationMeta.js';
+import { isClientAgentDefinitionId, readClientPluginAgentIdentities } from '../../../../../platform/agentHost/common/meta/clientPluginCustomizationMeta.js';
 import { readAgentHeadBranchPullRequest, toAgentHeadBranchPullRequestMeta } from '../../../../../platform/agentHost/common/meta/agentSessionGitHubReferences.js';
 import { readRemoteSessionOrigin, withRemoteSessionOrigin, type IRemoteSessionOrigin } from '../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { getLegacySessionInitiator, readSessionInitiator, withSessionInitiator, SESSION_INITIATOR_METADATA_KEY } from '../../../../../platform/agentHost/common/meta/agentSessionInitiatorMeta.js';
@@ -3390,6 +3391,7 @@ class NewSession extends Disposable {
 	private _selectedModelId: string | undefined;
 	private _selectedAgent: ISessionAgentRef | undefined;
 	private _selectedAgentSource: ISessionAgentRef | undefined;
+	private _selectedAgentDefinitionBound = false;
 
 	observeClientCustomAgents(customAgents: IObservable<readonly AgentCustomization[]>, onDidChange: () => void): void {
 		let previous = customAgents.get();
@@ -3653,6 +3655,9 @@ class NewSession extends Disposable {
 	/** Untitled skeleton title used until the first request commits the session. */
 	get untitledTitle(): string { return this._kind.untitledTitle; }
 	setSelectedAgent(agent: ISessionAgentRef | undefined, source: ISessionAgentRef | undefined = agent): void {
+		if (!agent?.id || agent.id !== this._selectedAgent?.id) {
+			this._selectedAgentDefinitionBound = false;
+		}
 		this._selectedAgent = agent;
 		this._selectedAgentSource = source;
 		this._mode.set(agent ? { id: agent.uri, kind: AGENT_MODE_KIND } : undefined, undefined);
@@ -3660,10 +3665,13 @@ class NewSession extends Disposable {
 
 	getSelectedAgent(): ISessionAgentRef | undefined { return this._selectedAgent; }
 	getSelectedAgentSource(): ISessionAgentRef | undefined { return this._selectedAgentSource ?? this._selectedAgent; }
+	markSelectedAgentDefinitionBound(): void { this._selectedAgentDefinitionBound = true; }
+	get selectedAgentDefinitionBound(): boolean { return this._selectedAgentDefinitionBound; }
 	getInitialSessionTemplate(): IAutomationSessionTemplate | undefined { return this._initialSessionTemplate; }
 	clearSelectedAgent(): void {
 		this._selectedAgent = undefined;
 		this._selectedAgentSource = undefined;
+		this._selectedAgentDefinitionBound = false;
 		this._mode.set(undefined, undefined);
 	}
 
@@ -7173,12 +7181,17 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const newSession = this._getNewSession(sessionId);
 		if (newSession) {
 			const published = getEffectiveAgents(this._lastSessionStates.get(sessionId)?.customizations);
-			const sources = agent ? newSession.getClientCustomAgents().filter(source =>
-				isEqual(URI.parse(this._resolvePublishedDraftAgent(newSession, source, published)?.uri ?? source.uri), URI.parse(agent.uri))) : [];
+			const definition = agent && this.getCustomAgents(sessionId).find(candidate => isEqual(URI.parse(candidate.uri), URI.parse(agent.uri)));
 			const previous = newSession.getSelectedAgent();
+			const sameSelection = agent && previous && isEqual(URI.parse(agent.uri), URI.parse(previous.uri));
+			const definitionId = definition?.id ?? (sameSelection ? previous.id : undefined);
+			const selection = agent && !agent.id && isClientAgentDefinitionId(definitionId) ? { ...agent, id: definitionId } : agent;
+			const sources = selection ? newSession.getClientCustomAgents().filter(source =>
+				isClientAgentDefinitionId(selection.id) ? source.id === selection.id
+					: isEqual(URI.parse(this._resolvePublishedDraftAgent(newSession, source, published)?.uri ?? source.uri), URI.parse(selection.uri))) : [];
 			const source = sources.length === 1 ? sources[0]
-				: agent && previous && isEqual(URI.parse(agent.uri), URI.parse(previous.uri)) ? newSession.getSelectedAgentSource() : agent;
-			newSession.setSelectedAgent(agent, source);
+				: selection && previous && isEqual(URI.parse(selection.uri), URI.parse(previous.uri)) ? newSession.getSelectedAgentSource() : selection;
+			newSession.setSelectedAgent(selection, source);
 			this._reconcileNewSessionAgent(newSession);
 			// _sendNewSessionRequest forwards the reconciled selection in modeInstructions.
 			return;
@@ -7216,15 +7229,23 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	private _resolvePublishedDraftAgent(newSession: NewSession, agent: ISessionAgentRef, published: readonly AgentCustomization[]): AgentCustomization | undefined {
+		if (isClientAgentDefinitionId(agent.id)) {
+			const matches = published.filter(candidate => candidate.id === agent.id);
+			if (matches.length > 0) {
+				return matches.length === 1 ? matches[0] : undefined;
+			}
+		}
 		const uri = URI.parse(agent.uri);
-		const exact = published.find(candidate => isEqual(URI.parse(candidate.uri), uri));
+		const compatible = (candidate: AgentCustomization) =>
+			!isClientAgentDefinitionId(agent.id) || !isClientAgentDefinitionId(candidate.id) || candidate.id === agent.id;
+		const exact = published.find(candidate => isEqual(URI.parse(candidate.uri), uri) && compatible(candidate));
 		if (exact) {
 			return exact;
 		}
 		const source = newSession.getClientAgentSourceUri(uri);
 		const matches = published.filter(candidate => {
 			const sourceUri = readAgentCustomizationMeta(candidate)['vscode.sourceUri'];
-			return sourceUri !== undefined && isEqual(URI.parse(sourceUri), source);
+			return sourceUri !== undefined && isEqual(URI.parse(sourceUri), source) && compatible(candidate);
 		});
 		return matches.length === 1 ? matches[0] : undefined;
 	}
@@ -7246,9 +7267,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		const published = getEffectiveAgents(this._lastSessionStates.get(newSession.sessionId)?.customizations);
 		const source = newSession.getSelectedAgentSource() ?? selected;
-		const resolved = this._resolvePublishedDraftAgent(newSession, source, published);
+		const resolved = this._resolvePublishedDraftAgent(newSession, { ...source, ...(selected.id ? { id: selected.id } : {}) }, published);
+		if (resolved && isClientAgentDefinitionId(selected.id) && resolved.id === selected.id) {
+			newSession.markSelectedAgentDefinitionBound();
+		}
 		if (resolved && !isEqual(URI.parse(resolved.uri), URI.parse(selected.uri))) {
-			newSession.setSelectedAgent({ uri: resolved.uri, name: resolved.name }, source);
+			newSession.setSelectedAgent({ uri: resolved.uri, name: resolved.name, ...(selected.id ? { id: selected.id } : {}) }, source);
 		}
 	}
 
@@ -8630,7 +8654,15 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const selectedAgent = newSession.getSelectedAgent();
 		if (selectedAgent) {
 			const source = newSession.getClientAgentSourceUri(URI.parse((newSession.getSelectedAgentSource() ?? selectedAgent).uri));
-			if (this.getCustomizations(newSession.sessionId).some(customization =>
+			const customizations = this.getCustomizations(newSession.sessionId);
+			const published = getEffectiveAgents(customizations);
+			const definitionId = selectedAgent.id;
+			const identityAdvertised = isClientAgentDefinitionId(definitionId) && (newSession.selectedAgentDefinitionBound || customizations.some(customization =>
+				customization.type === CustomizationType.Plugin
+				&& Object.values(readClientPluginAgentIdentities(customization)).includes(definitionId)));
+			if ((identityAdvertised && !this._resolvePublishedDraftAgent(newSession, {
+				...(newSession.getSelectedAgentSource() ?? selectedAgent), id: selectedAgent.id,
+			}, published)) || customizations.some(customization =>
 				customization.type === CustomizationType.Plugin
 				&& customization.load?.kind === CustomizationLoadStatus.Error
 				&& isEqualOrParent(source, URI.parse(customization.uri)))) {

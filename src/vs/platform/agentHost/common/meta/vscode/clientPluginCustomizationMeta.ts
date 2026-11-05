@@ -21,6 +21,10 @@ export function getClientAgentDefinitionId(source: URI): string {
 	return `vscode-agent-definition-${hash.digest()}`;
 }
 
+export function isClientAgentDefinitionId(id: string | undefined): id is string {
+	return id !== undefined && /^vscode-agent-definition-[a-f0-9]{40}$/.test(id);
+}
+
 export function toClientPluginAgentIdentitiesMeta(identities: ClientPluginAgentIdentities): Record<string, unknown> {
 	return Object.keys(identities).length > 0 ? { [agentIdentitiesKey]: identities } : {};
 }
@@ -35,7 +39,7 @@ export function readClientPluginAgentIdentities(customization: ClientPluginCusto
 	for (const [path, id] of entries) {
 		if (!path || path.includes('\\') || path.includes('%') || path.includes('?') || path.includes('#') || path.includes(':')
 			|| path.split('/').some(part => !part || part === '.' || part === '..')
-			|| typeof id !== 'string' || !/^vscode-agent-definition-[a-f0-9]{40}$/.test(id) || ids.has(id)) {
+			|| typeof id !== 'string' || !isClientAgentDefinitionId(id) || ids.has(id)) {
 			return {};
 		}
 		ids.add(id);

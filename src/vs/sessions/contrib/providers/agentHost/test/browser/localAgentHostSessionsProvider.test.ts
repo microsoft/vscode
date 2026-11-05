@@ -9,6 +9,7 @@ import { agentModelConfigurationReportKey } from '../../../../../../platform/age
 import { resolveSignedOutWindowGate, SignedOutWindowGate } from '../../../../../browser/sessionsAuthGate.js';
 import { withSessionSandboxPolicy } from '../../../../../../platform/agentHost/common/meta/agentSandboxPolicyMeta.js';
 import { withChatSandboxState, withSessionSandboxState } from '../../../../../../platform/agentHost/common/meta/agentSandboxStateMeta.js';
+import { getClientAgentDefinitionId, toClientPluginAgentIdentitiesMeta } from '../../../../../../platform/agentHost/common/meta/clientPluginCustomizationMeta.js';
 import { spy, stub } from 'sinon';
 import { renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
 import { DeferredPromise, raceCancellationError, raceTimeout, timeout } from '../../../../../../base/common/async.js';
@@ -4526,6 +4527,77 @@ suite('LocalAgentHostSessionsProvider', () => {
 			assert.deepStrictEqual({ sentWhileLoading, sent }, {
 				sentWhileLoading: 0,
 				sent: outcome === 'error' ? [] : [outcome === 'clear' ? undefined : hosts('new')[outcome === 'switch' ? 1 : 0].uri],
+			});
+		});
+	}
+
+	for (const outcome of ['refresh', 'stale-reference', 'switch', 'clear', 'missing', 'removed', 'ambiguous', 'disabled', 'legacy'] as const) {
+		test(`prototype draft selection follows definition ID without source provenance: ${outcome}`, async () => {
+			const clients: AgentCustomization[] = ['first', 'second'].map(key => {
+				const uri = URI.parse(`client-definition:/${key}`);
+				return { type: CustomizationType.Agent, id: getClientAgentDefinitionId(uri), uri: uri.toString(), name: 'Reviewer' };
+			});
+			const hosts = (revision: string): AgentCustomization[] => clients.map((agent, index) => ({
+				...agent, uri: `other-host:/unrelated/${revision}/${index}`,
+			}));
+			const sent: (string | undefined)[] = [];
+			const provider = createProvider(disposables, agentHost, undefined, {
+				activeClientAgents: constObservable(clients), openSession: true,
+				sendRequest: async (resource, _message, options) => {
+					sent.push(options?.modeInfo?.modeInstructions?.uri?.toString());
+					agentHost.addSession(createSession(AgentSession.id(resource), { summary: 'ID Selection' }));
+					return { kind: 'sent', data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
+				},
+			});
+			const session = provider.createNewSession(URI.parse('file:///home/user/proj'), provider.sessionTypes[0].id);
+			const chat = await provider.createNewChat(session.sessionId);
+			await timeout(0);
+			const publish = (children: AgentCustomization[], loading = false, enabled = true) => agentHost.setSessionState(AgentSession.id(session.resource), 'copilotcli', {
+				provider: 'copilotcli', title: '', status: ProtocolSessionStatus.Idle, lifecycle: SessionLifecycle.Ready,
+				activeClients: [], chats: [], customizations: outcome === 'removed' && !loading && children.length === 0 ? [] : [{
+					type: CustomizationType.Plugin, id: 'opaque-container', uri: 'client-definition:/', name: 'Plugin',
+					enablement: [{ kind: CustomizationEnablementKind.Global, enabled }],
+					load: { kind: loading ? CustomizationLoadStatus.Loading : CustomizationLoadStatus.Loaded },
+					_meta: outcome === 'missing' ? undefined : toClientPluginAgentIdentitiesMeta(Object.fromEntries(clients.map((agent, index) => [`agents/${index}.md`, agent.id]))),
+					children,
+				}],
+			});
+			provider.setAgent(session.sessionId, { uri: clients[0].uri, name: clients[0].name });
+			publish(hosts('old'));
+			const initial = provider.getCustomAgents(session.sessionId).map(agent => ({ id: agent.id, uri: agent.uri }));
+			const firstBinding = session.mode.get()?.id;
+			// A repeated UI selection of the advertised row must retain its definition ID.
+			provider.setAgent(session.sessionId, outcome === 'stale-reference'
+				? { id: clients[0].id, uri: 'other-host:/previous-cache/0', name: 'Reviewer' }
+				: { uri: hosts('old')[0].uri, name: 'Reviewer' });
+			publish([], true);
+			provider.setAgent(session.sessionId, { uri: hosts('old')[0].uri, name: 'Reviewer' });
+			const sending = provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+			const rejects = ['missing', 'removed', 'ambiguous', 'disabled'].includes(outcome);
+			const rejected = rejects ? assert.rejects(sending, /selected agent could not be loaded/) : undefined;
+			await timeout(0);
+			const sentWhileLoading = sent.length;
+			if (outcome === 'switch') {
+				provider.setAgent(session.sessionId, { uri: clients[1].uri, name: 'Reviewer' });
+			} else if (outcome === 'clear') {
+				provider.setAgent(session.sessionId, undefined);
+			}
+			const next = outcome === 'removed' ? [] : outcome === 'missing' ? hosts('new').slice(1)
+				: outcome === 'ambiguous' ? [...hosts('new'), { ...hosts('new')[0], uri: 'other-host:/duplicate' }]
+					: outcome === 'legacy' ? hosts('new').map((agent, index) => ({
+						...agent, id: `legacy-${index}`, _meta: { 'vscode.sourceUri': clients[index].uri },
+					})) : hosts('new');
+			publish(next, false, outcome !== 'disabled');
+			if (rejected) {
+				await rejected;
+			} else {
+				await sending;
+			}
+			assert.deepStrictEqual({ initial, firstBinding, sentWhileLoading, sent }, {
+				initial: hosts('old').map(agent => ({ id: agent.id, uri: agent.uri })),
+				firstBinding: hosts('old')[0].uri,
+				sentWhileLoading: 0,
+				sent: rejects ? [] : [outcome === 'clear' ? undefined : hosts('new')[outcome === 'switch' ? 1 : 0].uri],
 			});
 		});
 	}

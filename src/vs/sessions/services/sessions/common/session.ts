@@ -688,13 +688,13 @@ export interface ISessionChangesetCapabilities {
 }
 
 /**
- * A custom agent reference used by session-level selection. Mirrors the Agent
- * Host protocol's `AgentSelection` shape but lives in the sessions layer so the
- * sessions service API does not leak the protocol type to non-Agent-Host
- * consumers.
+ * A custom agent reference used by session-level selection. Providers may retain
+ * a definition identity while adapting its resource URI to their wire contract.
  */
 export interface ISessionAgentRef {
-	/** Stable agent URI (matches the contributing customization's agent ref). */
+	/** Optional definition identity; the provider resolves its current resource URI before dispatch. */
+	readonly id?: string;
+	/** Current agent resource URI (matches the contributing customization's agent ref). */
 	readonly uri: string;
 	/** Agent name. */
 	readonly name: string;
