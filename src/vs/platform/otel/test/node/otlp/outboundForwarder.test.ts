@@ -54,13 +54,13 @@ function makeResult(spans: ICompletedSpanData[]): IDecodeResult {
 
 interface IFakeUpstream {
 	port: number;
-	received: { body: Buffer; contentType: string; auth?: string; path: string }[];
+	received: { body: Buffer; contentType: string; contentLength: string | null; auth?: string; path: string }[];
 	dispose(): Promise<void>;
 }
 
 async function startFakeUpstream(behavior: 'ok' | 'fail' = 'ok'): Promise<IFakeUpstream> {
 	const httpModule = await import('http');
-	const received: { body: Buffer; contentType: string; auth?: string; path: string }[] = [];
+	const received: IFakeUpstream['received'] = [];
 	const server = httpModule.createServer((req, res) => {
 		const chunks: Buffer[] = [];
 		req.on('data', (chunk: Buffer) => chunks.push(chunk));
@@ -68,6 +68,7 @@ async function startFakeUpstream(behavior: 'ok' | 'fail' = 'ok'): Promise<IFakeU
 			received.push({
 				body: Buffer.concat(chunks),
 				contentType: (req.headers['content-type'] ?? '').toString(),
+				contentLength: req.headers['content-length'] ? req.headers['content-length'].toString() : null,
 				auth: req.headers['authorization']?.toString(),
 				path: req.url ?? '',
 			});
@@ -112,6 +113,7 @@ suite('platform/otel - outboundForwarder', () => {
 		strictEqual(upstream.received.length, 1);
 		strictEqual(upstream.received[0].body.toString('utf8'), '{"resourceSpans":[]}');
 		ok(upstream.received[0].contentType.includes('application/json'));
+		strictEqual(upstream.received[0].contentLength, String(body.length));
 		strictEqual(upstream.received[0].auth, 'Bearer test-token');
 		strictEqual(logger.messages.filter(m => m.level === 'Warning').length, 0);
 	});
@@ -136,6 +138,8 @@ suite('platform/otel - outboundForwarder', () => {
 			url: captured?.input,
 			method: captured?.init?.method,
 			contentType: new Headers(captured?.init?.headers).get('content-type'),
+			// content-length must be absent: it is a forbidden Fetch header name and
+			// the runtime computes it from the body. Our fix must not set it.
 			contentLength: new Headers(captured?.init?.headers).get('content-length'),
 			authorization: new Headers(captured?.init?.headers).get('authorization'),
 			body: [...new Uint8Array(captured?.init?.body as ArrayBuffer)],
@@ -143,11 +147,36 @@ suite('platform/otel - outboundForwarder', () => {
 			url: 'https://collector.example.com/v1/traces',
 			method: 'POST',
 			contentType: 'application/x-protobuf',
-			contentLength: '4',
+			contentLength: null,   // must be absent — runtime sets this, not us
 			authorization: 'Bearer test-token',
 			body: [0, 1, 2, 255],
 		});
 	});
+
+	test('OtlpHttpForwarder strips caller-supplied content-length (any casing) from fetch headers', async () => {
+		// Guards the case-insensitive filter: if a caller passes Content-Length
+		// (mixed case, as produced by OTEL_EXPORTER_OTLP_HEADERS env var parsing),
+		// it must still be filtered out before reaching the Fetch runtime.
+		const logger = store.add(new CapturingLogger());
+		let captured: { input: string | URL | Request; init?: RequestInit } | undefined;
+		const fetchFn: typeof globalThis.fetch = async (input, init) => {
+			captured = { input, init };
+			return new Response(undefined, { status: 200 });
+		};
+		const fwd = store.add(new OtlpHttpForwarder({
+			endpoint: 'https://collector.example.com/v1/traces',
+			// Caller provides Content-Length with mixed casing — must be stripped
+			headers: { 'Content-Length': '9999', 'authorization': 'Bearer tok' },
+		}, logger, fetchFn));
+
+		fwd.forwardRaw(Buffer.from([1, 2, 3]), 'application/x-protobuf');
+		await fwd.flush();
+
+		const h = new Headers(captured?.init?.headers);
+		strictEqual(h.get('content-length'), null, 'content-length must not be forwarded regardless of casing');
+		strictEqual(h.get('authorization'), 'Bearer tok', 'other headers must still be forwarded');
+	});
+
 
 	test('OtlpHttpForwarder logs warning on upstream 500 and does not throw', async () => {
 		const upstream = await startFakeUpstream('fail');
