@@ -1903,9 +1903,15 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		// Set border BOTTOM if theme defined color
 		if (isActive) {
-			const activeTabBorderColorBottom = this.getColor(isGroupActive ? TAB_ACTIVE_BORDER : TAB_UNFOCUSED_ACTIVE_BORDER);
+			const activeTabBorderBottom = this.theme.getColor(isGroupActive ? TAB_ACTIVE_BORDER : TAB_UNFOCUSED_ACTIVE_BORDER);
+			const activeTabBorderColorBottom = activeTabBorderBottom?.toString();
 			tabContainer.classList.toggle('tab-border-bottom', !!activeTabBorderColorBottom);
-			tabContainer.style.setProperty('--tab-border-bottom-color', activeTabBorderColorBottom ?? '');
+			// A theme whose active tab border has the editor's background color, at any opacity, joins the tab to its editor:
+			// with connected tabs, it joins the surface the tab flows into, which a part whose editors have a surface of their
+			// own sets.
+			const editorBackgroundColor = this.theme.getColor(editorBackground);
+			const joinsEditor = !!activeTabBorderBottom && !!editorBackgroundColor && activeTabBorderBottom.rgba.r === editorBackgroundColor.rgba.r && activeTabBorderBottom.rgba.g === editorBackgroundColor.rgba.g && activeTabBorderBottom.rgba.b === editorBackgroundColor.rgba.b;
+			tabContainer.style.setProperty('--tab-border-bottom-color', joinsEditor ? `var(--modern-ui-connected-tab-surface, ${activeTabBorderColorBottom})` : activeTabBorderColorBottom ?? '');
 		}
 
 		// Set border TOP if theme defined color

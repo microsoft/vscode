@@ -21,8 +21,8 @@
 	--part-grid-card-background: var(--vscode-editor-background);
 }
 
-/* With connected tabs, the groups of the main part draw their frames, as those of the main window's side pane do: its card leaves its frame to them. */
-.monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs.dock-detail-panel:not(.phone-layout) .agents-chat-window .part-grid-cell:is([data-part-grid-cell="main"], [data-part-grid-created]) > .part-grid-card {
+/* With connected tabs, the groups of the parts draw their frames, around their tabs and their editors, as those of the main window's side pane do: the cards leave their frames to them. */
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs.dock-detail-panel:not(.phone-layout) .agents-chat-window .part-grid-cell:is([data-part-grid-cell="main"], [data-part-grid-cell="chat"], [data-part-grid-created]) > .part-grid-card {
 	--part-grid-card-frame-owner: content;
 	--part-grid-card-border-color: transparent;
 }
@@ -37,18 +37,15 @@
 	border: 0;
 }
 
-/* The chat draws its frame, as in the main window: the chat's card leaves its frame to it, the session view's. */
-.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) .agents-chat-window .part-grid-cell[data-part-grid-cell="chat"] > .part-grid-card {
-	--part-grid-card-frame-owner: content;
-	--part-grid-card-border-color: transparent;
-	/* The room for the frame shows the window, as around the main window's session view. */
-	background-clip: padding-box;
-}
-
 /* The chat's card is the chat's surface, as the main window's is: the editor part that holds the chat, and its editor, show it through. */
 .monaco-workbench .agents-chat-window .part-grid-cell[data-part-grid-cell="chat"] > .part-grid-card :is(.part.editor, .part.editor > .content, .editor-container) {
 	/* Over the inline backgrounds of the part and of its editor. */
 	background-color: transparent !important;
+}
+
+/* The active tab of the chat's part flows into the chat, as an editor's tab flows into the editor: it has the chat's surface. */
+.monaco-workbench .agents-chat-window .part-grid-cell[data-part-grid-cell="chat"] > .part-grid-card {
+	--modern-ui-connected-tab-surface: var(--part-grid-card-background);
 }
 
 /* The title row and the strip are not cards: they take the chat's background. */
@@ -68,8 +65,8 @@
 	--part-grid-card-radius: 0;
 }
 
-/* The cards of the chat and of the terminals frame them, and the groups of their parts, as groups of the main window's editor area would, draw none. */
-.monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs.dock-detail-panel:not(.phone-layout) .agents-chat-window .part-grid-cell:is([data-part-grid-cell="chat"], [data-part-grid-cell="terminals"]) .part.editor.editor-tabs-multiple:not(.modal-editor-part) > .content .editor-group-container::after {
+/* The card of the terminals frames them, and the groups of its part, as groups of the main window's panel would, draw none. */
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs.dock-detail-panel:not(.phone-layout) .agents-chat-window .part-grid-cell[data-part-grid-cell="terminals"] .part.editor.editor-tabs-multiple:not(.modal-editor-part) > .content .editor-group-container::after {
 	content: none;
 }
 

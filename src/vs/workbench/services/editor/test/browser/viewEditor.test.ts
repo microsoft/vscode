@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { timeout } from '../../../../../base/common/async.js';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -14,24 +14,27 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
-import { MockScopableContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { MockContextKeyService, MockScopableContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { DraggedEditorIdentifier, registerContentDropTarget } from '../../../../browser/dnd.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../../browser/editor.js';
-import { IEditorGroupView } from '../../../../browser/parts/editor/editor.js';
+import { IEditorGroupView, IEditorPaneTitleMenu } from '../../../../browser/parts/editor/editor.js';
 import { ViewEditorInput } from '../../../../browser/parts/editor/viewEditorInput.js';
 import { ViewEditorPane } from '../../../../browser/parts/editor/viewEditorPane.js';
 import { IViewEditorRegistry, IViewEditorView, ViewEditorExtensions } from '../../../../browser/parts/editor/viewEditorRegistry.js';
 import { EditorExtensions, EditorInputCapabilities, EditorsOrder, IEditorFactoryRegistry } from '../../../../common/editor.js';
 import { SideBySideEditorInput } from '../../../../common/editor/sideBySideEditorInput.js';
-import { createEditorParts, registerTestEditor, TestEditorParts, TestFileEditorInput, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { createEditorParts, registerTestEditor, TestEditorParts, TestFileEditorInput, TestMenuService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IAuxiliaryWindowService } from '../../../auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { IStatusbarService } from '../../../statusbar/browser/statusbar.js';
 import { EditorService } from '../../browser/editorService.js';
 import { GroupDirection, IContentPart, IEditorGroup, IEditorGroupsService } from '../../common/editorGroupsService.js';
 import { ACTIVE_GROUP, IEditorService } from '../../common/editorService.js';
 import { isEqual } from '../../../../../base/common/resources.js';
-import { MenuId } from '../../../../../platform/actions/common/actions.js';
+import { IMenu, IMenuActionOptions, IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+
+const TEST_VIEW_TITLE_MENU = MenuId.for('test.viewEditor.viewTitle');
 
 class TestView implements IViewEditorView {
 
@@ -47,11 +50,21 @@ class TestView implements IViewEditorView {
 
 	readonly dragHandle: HTMLElement | undefined;
 
+	/** Whether it shows its own title, as its group last said; undefined until then. */
+	providedTitleVisible: boolean | undefined;
+
+	readonly titleMenu: IEditorPaneTitleMenu | undefined;
+
 	constructor(readonly providesTitle: boolean, readonly instantiationService: IInstantiationService, private readonly log: string[], private readonly name: string) {
 		log.push(`create ${name}`);
 		if (providesTitle) {
 			this.dragHandle = this.element.appendChild(mainWindow.document.createElement('div'));
+			this.titleMenu = { menuId: TEST_VIEW_TITLE_MENU, contextKeyService: new MockContextKeyService(), options: { args: [name] } };
 		}
+	}
+
+	setProvidedTitleVisible(visible: boolean): void {
+		this.providedTitleVisible = visible;
 	}
 
 	saveViewState(): void {
@@ -121,8 +134,11 @@ suite('View Editors', () => {
 		return disposables.add(new ViewEditorInput(viewType, path ? URI.file(path) : undefined));
 	}
 
-	async function createServices() {
+	async function createServices(menuService?: IMenuService) {
 		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+		if (menuService) {
+			instantiationService.stub(IMenuService, menuService);
+		}
 		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
 		instantiationService.stub(IAuxiliaryWindowService, new class extends mock<IAuxiliaryWindowService>() { override getWindow() { return undefined; } }());
 		const parts = await createEditorParts(instantiationService, disposables);
@@ -224,6 +240,76 @@ suite('View Editors', () => {
 			afterClosingSecond: false,
 			onlyUntitledView: true,
 			mainPart: true
+		});
+	});
+
+	test('a view that provides its title shows it while alone in its group, and not while the group shows its title, also a view created or shown again then; a view without a title is not told', async () => {
+		const { part } = await createServices();
+		const titled = createViewInput('test.titled', '/chat/a');
+		await part.activeGroup.openEditor(titled, { pinned: true });
+		const alone = views[0].providedTitleVisible;
+
+		const file = disposables.add(new TestFileEditorInput(URI.file('/beside.txt'), TEST_EDITOR_INPUT_ID));
+		await part.activeGroup.openEditor(file, { pinned: true });
+		await part.activeGroup.openEditor(titled);
+		const besideAnotherEditor = views[0].providedTitleVisible;
+
+		const second = createViewInput('test.titled', '/chat/b');
+		await part.activeGroup.openEditor(second, { pinned: true });
+		const createdBesideOthers = views[1].providedTitleVisible;
+
+		await part.activeGroup.closeEditor(file);
+		await part.activeGroup.closeEditor(second);
+		await part.activeGroup.openEditor(titled);
+		const aloneAgain = views[0].providedTitleVisible;
+
+		await part.activeGroup.openEditor(createViewInput('test.untitled', '/chat/c'), { pinned: true });
+
+		assert.deepStrictEqual({ alone, besideAnotherEditor, createdBesideOthers, aloneAgain, untitled: views[2].providedTitleVisible }, {
+			alone: true,
+			besideAnotherEditor: false,
+			createdBesideOthers: false,
+			aloneAgain: true,
+			untitled: undefined,
+		});
+	});
+
+	test('the tab bar shows the actions of the active view\'s own title menu, in its context and with its arguments, and follows it as another view shows; other editors, and other menus of the group, keep the group\'s', async () => {
+		const created: { readonly menu: string; readonly ownContext: boolean; options?: IMenuActionOptions }[] = [];
+		const menuService = new class extends TestMenuService {
+			override createMenu(id: MenuId, contextKeyService: IContextKeyService): IMenu {
+				const entry: { readonly menu: string; readonly ownContext: boolean; options?: IMenuActionOptions } = { menu: id.id, ownContext: views.some(view => view.titleMenu?.contextKeyService === contextKeyService) };
+				created.push(entry);
+				return { onDidChange: Event.None, dispose: () => { }, getActions: options => { entry.options = options; return []; } };
+			}
+		}();
+		const { parts, part } = await createServices(menuService);
+		const group = groupViewOf(parts, part.activeGroup);
+		const read = (menuId: MenuId, useEditorTitleMenu: boolean) => {
+			const store = disposables.add(new DisposableStore());
+			created.length = 0;
+			let changes = 0;
+			store.add(group.createEditorActions(store, menuId, { useEditorTitleMenu }).onDidChange(() => changes++));
+			const [menu] = created;
+			return { menu: menu.menu, ownContext: menu.ownContext, args: menu.options?.args, changes: () => changes };
+		};
+
+		await part.activeGroup.openEditor(createViewInput('test.titled', '/chat/a'), { pinned: true });
+		const tabBar = read(MenuId.EditorTitle, true);
+		await part.activeGroup.openEditor(createViewInput('test.titled', '/chat/b'), { pinned: true });
+		const changedAsAnotherViewShows = tabBar.changes() > 0;
+		const secondView = read(MenuId.EditorTitle, true);
+		const otherMenu = read(MenuId.EditorTitleLayout, false);
+		await part.activeGroup.openEditor(disposables.add(new TestFileEditorInput(URI.file('/beside.txt'), TEST_EDITOR_INPUT_ID)), { pinned: true });
+		const fileEditor = read(MenuId.EditorTitle, true);
+
+		const strip = (actions: ReturnType<typeof read>) => ({ menu: actions.menu, ownContext: actions.ownContext, args: actions.args });
+		assert.deepStrictEqual({ tabBar: strip(tabBar), changedAsAnotherViewShows, secondView: strip(secondView), otherMenu: strip(otherMenu), fileEditor: strip(fileEditor) }, {
+			tabBar: { menu: TEST_VIEW_TITLE_MENU.id, ownContext: true, args: ['view1'] },
+			changedAsAnotherViewShows: true,
+			secondView: { menu: TEST_VIEW_TITLE_MENU.id, ownContext: true, args: ['view2'] },
+			otherMenu: { menu: MenuId.EditorTitleLayout.id, ownContext: false, args: undefined },
+			fileEditor: { menu: MenuId.EditorTitle.id, ownContext: false, args: undefined },
 		});
 	});
 

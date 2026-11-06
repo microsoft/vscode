@@ -128,7 +128,7 @@ import { IOpenAICustomizationsCommandOptions, OPEN_AI_CUSTOMIZATIONS_COMMAND_ID 
 import { NEW_SESSION_ACTION_ID } from '../../common/chatConstants.js';
 import { Menus } from '../menus.js';
 import { getSessionConversationStatusAriaLabel } from '../sessionConversationGroups.js';
-import { getAgentMergeAwarePullRequestIcon, getSessionAgentMergeConfigurationObservable, ISessionAgentMergeConfiguration, isAgentMergePullRequestIcon } from '../sessionAgentMerge.js';
+import { getAgentMergeAwarePullRequestIcon, getChatCompletedStateIcon, getSessionAgentMergeConfigurationObservable, ISessionAgentMergeConfiguration, isAgentMergePullRequestIcon } from '../sessionAgentMerge.js';
 import { BlockedSessionReason, BlockedSessions } from '../blockedSessions.js';
 import { ChatInboxEnabledContext, INBOX_CANVAS_ID, SHOW_INBOX_NOTIFICATIONS_COMMAND_ID } from '../inboxNotificationsConstants.js';
 import { WindowCanvasInput } from '../windowCanvas.js';
@@ -1060,19 +1060,7 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 			const status = element.chat.status.read(reader);
 			const isArchived = element.chat.isArchived.read(reader);
 			const isRead = element.chat.isRead.read(reader);
-			const pullRequestIcon = element.chat.completedStateIcon
-				? element.chat.completedStateIcon.read(reader)
-				// Without provider attribution, only a multi-folder session's chats have pull requests of their own.
-				: (element.session.workspace.read(reader)?.folders.length ?? 0) > 1
-					? getHighestPriorityPullRequestIcon(
-						element.chat.workspace.read(reader)?.folders.flatMap(folder =>
-							getGitHubPullRequestRefs(folder.gitRepository?.gitHubInfo.read(reader)).map(pullRequest => pullRequest.icon)
-						) ?? []
-					)
-					: undefined;
-			const completedStateIcon = pullRequestIcon && isAgentMergePullRequestIcon(pullRequestIcon)
-				? getAgentMergeAwarePullRequestIcon(pullRequestIcon, (agentMergeConfiguration ??= this.getAgentMergeConfiguration(element)).read(reader))
-				: pullRequestIcon;
+			const completedStateIcon = getChatCompletedStateIcon(element.session, element.chat, reader, () => agentMergeConfiguration ??= this.getAgentMergeConfiguration(element));
 			const capabilities = getChatCapabilities(element.chat, element.session, reader);
 			template.canArchiveContext.set(capabilities.canArchive);
 			template.canDeleteContext.set(capabilities.canDelete);
