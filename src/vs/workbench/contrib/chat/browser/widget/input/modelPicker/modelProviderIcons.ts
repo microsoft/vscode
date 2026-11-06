@@ -7,7 +7,7 @@ import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../../nls.js';
 import { registerIcon } from '../../../../../../../platform/theme/common/iconRegistry.js';
-import { ILanguageModelChatMetadataAndIdentifier, isAutoLanguageModel } from '../../../../common/languageModels.js';
+import { getLanguageModelProviderIcon, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isAutoLanguageModel, LanguageModelProviderIcon } from '../../../../common/languageModels.js';
 import { getCompactCodicon } from '../../../chatIcons.js';
 import { isHydraFusionModel } from './modelPickerPresentation.js';
 
@@ -74,5 +74,53 @@ export function getModelPickerIcon(model: ILanguageModelChatMetadataAndIdentifie
 
 export function getCompactModelPickerIcon(model: ILanguageModelChatMetadataAndIdentifier): ThemeIcon {
 	const icon = getModelPickerIcon(model);
+	return icon.id === genericModelProviderIcon.id ? genericModelProviderCompactIcon : getCompactCodicon(icon);
+}
+
+/**
+ * Icon for the chat input's selected-model control.
+ *
+ * Precedence (see #339167):
+ * 1. `statusIcon` (warnings / model state — not brand)
+ * 2. Built-in brand matching when it is not the generic sparkle
+ * 3. The extension's contributed provider `icon` from `languageModelChatProviders` (#341578)
+ * 4. Generic sparkle
+ *
+ * Step 3 is required because extension-contributed models are marked `isBYOK`, so step 2
+ * always returns the sparkle before the vendor icon would otherwise be considered.
+ */
+export function getModelIdentityIcon(
+	model: ILanguageModelChatMetadataAndIdentifier,
+	languageModelsService: ILanguageModelsService,
+): LanguageModelProviderIcon {
+	if (model.metadata.statusIcon) {
+		return model.metadata.statusIcon;
+	}
+
+	const matched = getModelProviderIcon(model);
+	if (matched.id !== genericModelProviderIcon.id) {
+		return matched;
+	}
+
+	const vendorIcon = getLanguageModelProviderIcon(languageModelsService, model.metadata.vendor);
+	if (vendorIcon) {
+		return vendorIcon;
+	}
+
+	return matched;
+}
+
+/**
+ * Compact ThemeIcon for the input bar when {@link getModelIdentityIcon} resolved to a ThemeIcon.
+ * Image vendor icons are rendered separately by the picker widget.
+ */
+export function getCompactModelIdentityThemeIcon(
+	model: ILanguageModelChatMetadataAndIdentifier,
+	languageModelsService: ILanguageModelsService,
+): ThemeIcon | undefined {
+	const icon = getModelIdentityIcon(model, languageModelsService);
+	if (!ThemeIcon.isThemeIcon(icon)) {
+		return undefined;
+	}
 	return icon.id === genericModelProviderIcon.id ? genericModelProviderCompactIcon : getCompactCodicon(icon);
 }
