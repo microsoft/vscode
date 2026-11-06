@@ -6,9 +6,10 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
 import { ExtensionIdentifier } from '../../../../../../../../platform/extensions/common/extensions.js';
-import { ChatEntitlement } from '../../../../../../../services/chat/common/chatEntitlementService.js';
+import { ChatEntitlement, IChatEntitlementService, IChatSentiment } from '../../../../../../../services/chat/common/chatEntitlementService.js';
+import { shouldShowManageModelsAction } from '../../../../../browser/widget/input/modelPicker/modelPickerItems.js';
 import { getAutoModeTierLabel, getFusionAutoModeTierLabel } from '../../../../../../../../platform/agentHost/common/autoModeTiers.js';
-import { getFusionTierLabel, getModelPickerUnavailableReason, isAutoModel, isHydraFusionModel, ModelPickerUnavailableReason, modelPickerRequiresSetup, shouldShowCacheBreakHint } from '../../../../../browser/widget/input/modelPicker/modelPickerPresentation.js';
+import { getFusionTierLabel, getModelPickerEntitlement, getModelPickerUnavailableReason, isAutoModel, isModelPickerUsageBased, isHydraFusionModel, ModelPickerUnavailableReason, modelPickerRequiresSetup, shouldShowCacheBreakHint } from '../../../../../browser/widget/input/modelPicker/modelPickerPresentation.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../common/languageModels.js';
 
 function model(identifier: string, metadataId: string): ILanguageModelChatMetadataAndIdentifier {
@@ -129,6 +130,59 @@ suite('ModelPickerPresentation', () => {
 			'EDU': false,
 			'Enterprise': false,
 		});
+	});
+
+	test('ignores the GitHub entitlement only while Microsoft 365 is the active service', () => {
+		const entitlementFor = (entitlement: ChatEntitlement, copilotService: 'github' | 'm365' | undefined) =>
+			getModelPickerEntitlement({ entitlement, sentiment: { copilotService } as IChatSentiment });
+
+		assert.deepStrictEqual({
+			m365: entitlementFor(ChatEntitlement.Free, 'm365'),
+			github: entitlementFor(ChatEntitlement.Free, 'github'),
+			unselected: entitlementFor(ChatEntitlement.Pro, undefined),
+		}, {
+			m365: ChatEntitlement.Unknown,
+			github: ChatEntitlement.Free,
+			unselected: ChatEntitlement.Pro,
+		});
+	});
+
+	test('derives Manage Models visibility and usage billing from the active service', () => {
+		const service = (entitlement: ChatEntitlement, copilotService: 'github' | 'm365' | undefined, byok = false, usageBasedBilling = true): IChatEntitlementService => ({
+			entitlement,
+			sentiment: { copilotService } as IChatSentiment,
+			clientByokEnabled: byok,
+			hasByokModels: false,
+			isInternal: false,
+			quotas: { usageBasedBilling },
+		} as IChatEntitlementService);
+
+		assert.deepStrictEqual({
+			m365GitHubPlan: shouldShowManageModelsAction(service(ChatEntitlement.Pro, 'm365')),
+			m365Byok: shouldShowManageModelsAction(service(ChatEntitlement.Pro, 'm365', true)),
+			github: shouldShowManageModelsAction(service(ChatEntitlement.Pro, 'github')),
+			gateOff: shouldShowManageModelsAction(service(ChatEntitlement.Pro, undefined)),
+			gateOffUnknown: shouldShowManageModelsAction(service(ChatEntitlement.Unknown, undefined)),
+			m365Usage: isModelPickerUsageBased(service(ChatEntitlement.Pro, 'm365')),
+			githubUsage: isModelPickerUsageBased(service(ChatEntitlement.Pro, 'github')),
+			gateOffUsage: isModelPickerUsageBased(service(ChatEntitlement.Pro, undefined)),
+		}, {
+			m365GitHubPlan: false,
+			m365Byok: true,
+			github: true,
+			gateOff: true,
+			gateOffUnknown: false,
+			m365Usage: false,
+			githubUsage: true,
+			gateOffUsage: true,
+		});
+	});
+
+	test('restores GitHub presentation when the Microsoft 365 context is lost', () => {
+		const state = { entitlement: ChatEntitlement.Pro, sentiment: { copilotService: 'm365' } as IChatSentiment };
+		const before = getModelPickerEntitlement(state);
+		state.sentiment = { copilotService: undefined } as IChatSentiment;
+		assert.deepStrictEqual({ before, after: getModelPickerEntitlement(state) }, { before: ChatEntitlement.Unknown, after: ChatEntitlement.Pro });
 	});
 
 	test('shows cache-break hint only for a warm usable cache', () => {

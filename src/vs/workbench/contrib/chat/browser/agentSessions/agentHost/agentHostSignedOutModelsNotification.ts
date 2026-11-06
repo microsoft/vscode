@@ -106,6 +106,7 @@ export class AgentHostSignedOutModelsNotificationContribution extends Disposable
 		});
 		this._register(Event.any(
 			this._chatEntitlementService.onDidChangeEntitlement,
+			this._chatEntitlementService.onDidChangeSentiment,
 			this._languageModelsService.onDidChangeLanguageModels,
 			this._languageModelsService.onDidChangeModelVisibility,
 			this._languageModelsConfigurationService.onDidChangeLanguageModelGroups,
@@ -141,7 +142,8 @@ export class AgentHostSignedOutModelsNotificationContribution extends Disposable
 		const entitlement = this._chatEntitlementService.entitlement;
 		const entitlementResolved = entitlement !== ChatEntitlement.Unresolved;
 		const signedIn = this._defaultAccountService.currentDefaultAccount !== null
-			|| (entitlementResolved && entitlement !== ChatEntitlement.Unknown);
+			|| (entitlementResolved && entitlement !== ChatEntitlement.Unknown)
+			|| this._chatEntitlementService.sentiment.copilotService !== undefined;
 		const configuredByokVendors = new Set(this._languageModelsConfigurationService.getLanguageModelsProviderGroups()
 			.map(group => group.vendor)
 			.filter(vendor => vendor !== COPILOT_VENDOR_ID));

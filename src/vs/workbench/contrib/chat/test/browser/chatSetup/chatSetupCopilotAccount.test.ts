@@ -377,6 +377,21 @@ suite('Microsoft Copilot setup UI', () => {
 		]);
 	});
 
+	test('publishes the active service only while the host confirms a ready account', () => {
+		const f = fixture();
+		const states: (CopilotAccountContext | undefined)[] = [
+			ready(), undefined, ready(choices[0]), offered,
+			{ kind: 'activating', entraAccountId: 'account-a', discoveryId: 'discovery-a', choice: choices[1] },
+			ready(), { kind: 'error', entraAccountId: 'account-a', stage: 'discovery' },
+			{ kind: 'incomplete', entraAccountId: 'account-a' }, { kind: 'signedOut' },
+		];
+		const observed = states.map(state => {
+			f.setContext(state);
+			return f.context.state.copilotService;
+		});
+		assert.deepStrictEqual(observed, ['m365', undefined, 'github', undefined, undefined, 'm365', undefined, undefined, undefined]);
+	});
+
 	test('pre-canceled setup never acquires credentials or starts discovery', async () => {
 		const f = fixture();
 		const cancellation = store.add(new CancellationTokenSource());

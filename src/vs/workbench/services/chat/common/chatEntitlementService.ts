@@ -35,6 +35,7 @@ import { IDefaultAccountService } from '../../../../platform/defaultAccount/comm
 import { IDefaultAccount, IEntitlementsData } from '../../../../base/common/defaultAccount.js';
 import { isInternalAccount } from '../../../../platform/assignment/common/assignment.js';
 import { canCompleteCopilotAccountSetup, CopilotAccountContextView } from '../../agentHost/common/copilotAccountContext.js';
+import { ICopilotServiceChoice } from '../../../../platform/agentHost/common/copilotAccountContext.js';
 
 export namespace ChatEntitlementContextKeys {
 
@@ -48,6 +49,7 @@ export namespace ChatEntitlementContextKeys {
 		registered: new RawContextKey<boolean>('chatSetupRegistered', false, true), // True when the user has registered as Free or Pro user.
 		completed: new RawContextKey<boolean>('chatSetupCompleted', false, true),	// True when the user has completed the setup flow, regardless of the outcome.
 		copilotAccountReady: new RawContextKey<boolean | undefined>('chatSetupCopilotAccountReady', undefined, true),
+		copilotService: new RawContextKey<string | undefined>('chatSetupCopilotService', undefined, true),	// The service of the host's confirmed ready Copilot account, if any.
 	};
 
 	export const Entitlement = {
@@ -107,6 +109,9 @@ export enum ChatEntitlement {
 export interface IChatSentiment {
 	/** Undefined for the legacy flow; otherwise derived from the host's confirmed account context. */
 	copilotAccountReady?: boolean;
+
+	/** The service of the host's confirmed ready Copilot account; undefined for the legacy flow or until confirmed. */
+	copilotService?: ICopilotServiceChoice['service'];
 
 	/**
 	 * Whether the user has completed the setup flow or not, regardless of the outcome
@@ -448,6 +453,7 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 				this.contextKeyService.onDidChangeContext, e => e.affectsSome(new Set([
 					ChatEntitlementContextKeys.Setup.completed.key,
 					ChatEntitlementContextKeys.Setup.copilotAccountReady.key,
+					ChatEntitlementContextKeys.Setup.copilotService.key,
 					ChatEntitlementContextKeys.Setup.hidden.key,
 					ChatEntitlementContextKeys.Setup.disabled.key,
 					ChatEntitlementContextKeys.Setup.untrusted.key,
@@ -693,6 +699,7 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 	get sentiment(): IChatSentiment {
 		return {
 			copilotAccountReady: this.context?.rawValue?.state.copilotAccountReady,
+			copilotService: this.context?.rawValue?.state.copilotService,
 			completed: this.contextKeyService.getContextKeyValue<boolean>(ChatEntitlementContextKeys.Setup.completed.key) === true,
 			installed: this.contextKeyService.getContextKeyValue<boolean>(ChatEntitlementContextKeys.Setup.installed.key) === true,
 			hidden: this.contextKeyService.getContextKeyValue<boolean>(ChatEntitlementContextKeys.Setup.hidden.key) === true,
@@ -1442,6 +1449,7 @@ export class ChatEntitlementContext extends Disposable {
 
 	private readonly completedContext: IContextKey<boolean>;
 	private readonly copilotAccountReadyContext: IContextKey<boolean | undefined>;
+	private readonly copilotServiceContext: IContextKey<string | undefined>;
 	private copilotAccountContext: IObservable<CopilotAccountContextView> | undefined;
 	private readonly copilotAccountContextListener = this._register(new MutableDisposable());
 	private readonly hiddenContext: IContextKey<boolean>;
@@ -1471,6 +1479,7 @@ export class ChatEntitlementContext extends Disposable {
 		super();
 
 		this.copilotAccountReadyContext = ChatEntitlementContextKeys.Setup.copilotAccountReady.bindTo(contextKeyService);
+		this.copilotServiceContext = ChatEntitlementContextKeys.Setup.copilotService.bindTo(contextKeyService);
 		this.canSignUpContextKey = ChatEntitlementContextKeys.Entitlement.canSignUp.bindTo(contextKeyService);
 		this.signedOutContextKey = ChatEntitlementContextKeys.Entitlement.signedOut.bindTo(contextKeyService);
 
@@ -1540,7 +1549,8 @@ export class ChatEntitlementContext extends Disposable {
 		const accountContext = this.copilotAccountContext?.get();
 		if (accountContext !== undefined) {
 			const ready = canCompleteCopilotAccountSetup(accountContext);
-			state = { ...state, copilotAccountReady: ready, completed: !!state.completed && ready };
+			const copilotService = typeof accountContext === 'object' && !(accountContext instanceof Error) && accountContext.kind === 'ready' ? accountContext.choice.service : undefined;
+			state = { ...state, copilotAccountReady: ready, copilotService, completed: !!state.completed && ready };
 		}
 		if (this._forceHidden || this.configurationService.getValue(ChatAIDisabledSettingId) === true) {
 			return {
@@ -1648,6 +1658,7 @@ export class ChatEntitlementContext extends Disposable {
 
 		this.completedContext.set(!!state.completed);
 		this.copilotAccountReadyContext.set(state.copilotAccountReady);
+		this.copilotServiceContext.set(state.copilotService);
 		this.hiddenContext.set(!!state.hidden);
 		this.disabledInWorkspaceContext.set(!!state.disabledInWorkspace);
 		this.laterContext.set(!!state.later);

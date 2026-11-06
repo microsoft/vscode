@@ -13,6 +13,7 @@ import { ICommandService } from '../../../../../../../platform/commands/common/c
 import { ChatEntitlement, IChatEntitlementService, isProUser } from '../../../../../../services/chat/common/chatEntitlementService.js';
 import { MANAGE_CHAT_COMMAND_ID } from '../../../../common/constants.js';
 import { IModelControlEntry, ILanguageModelChatMetadataAndIdentifier, IModelsControlManifest } from '../../../../common/languageModels.js';
+import { isMicrosoft365ServiceActive } from './modelPickerPresentation.js';
 
 export function getControlModelsForEntitlement(manifest: IModelsControlManifest, entitlement: ChatEntitlement): IStringDictionary<IModelControlEntry> {
 	return isProUser(entitlement) && entitlement !== ChatEntitlement.EDU ? manifest.paid : manifest.free;
@@ -46,6 +47,10 @@ export function getModelPickerControlModels(
 }
 
 export function shouldShowManageModelsAction(chatEntitlementService: IChatEntitlementService): boolean {
+	if (isMicrosoft365ServiceActive(chatEntitlementService)) {
+		// GitHub plans do not apply to Microsoft 365; only bring-your-own-key models can be managed.
+		return chatEntitlementService.clientByokEnabled || chatEntitlementService.hasByokModels || chatEntitlementService.isInternal;
+	}
 	return chatEntitlementService.clientByokEnabled ||
 		chatEntitlementService.hasByokModels ||
 		chatEntitlementService.entitlement === ChatEntitlement.Free ||

@@ -32,7 +32,7 @@ import { TelemetryTrustedValue } from '../../../../../../../../platform/telemetr
 import { IUpdateService, StateType } from '../../../../../../../../platform/update/common/update.js';
 import { IUriIdentityService } from '../../../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../../../../platform/workspace/common/workspaceTrust.js';
-import { ChatEntitlement, IChatEntitlementService } from '../../../../../../../services/chat/common/chatEntitlementService.js';
+import { ChatEntitlement, IChatEntitlementService, IChatSentiment } from '../../../../../../../services/chat/common/chatEntitlementService.js';
 import { TestChatEntitlementService, TestWorkspaceTrustManagementService } from '../../../../../../../test/common/workbenchTestServices.js';
 import { IModelConfigurationAccess, withoutFusionEffortLevel } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
 import { ModelPickerTelemetrySession } from '../../../../../browser/widget/input/modelPicker/modelPickerTelemetry.js';
@@ -104,6 +104,7 @@ suite('ModelPickerTelemetry', () => {
 		let trustRequests = 0;
 		let renderWelcome: () => HTMLElement | undefined = () => assert.fail('Tabbed picker has not opened');
 		let tabBarActionIds: string[] = [];
+		let tabLabels: (string | undefined)[] = [];
 		let listLabels: (string | undefined)[] = [];
 		const configurationAccess: IModelConfigurationAccess = {
 			getModelConfiguration: id => configurations.get(id),
@@ -196,6 +197,7 @@ suite('ModelPickerTelemetry', () => {
 				contextViewLayer = options.contextViewLayer;
 				let activeTab = options.initialTab;
 				tabBarActionIds = options.tabBarActions?.map(action => action.id) ?? [];
+				tabLabels = options.tabs.map(tab => tab.label);
 				renderWelcome = () => {
 					const body = dom.$('div');
 					const rendered = options.renderEmpty?.(body, activeTab);
@@ -303,8 +305,11 @@ suite('ModelPickerTelemetry', () => {
 		}());
 		instantiationService.stub(IProductService, { version: '1.100.0' });
 		const entitlementChanged = store.add(new Emitter<void>());
+		const sentimentChanged = store.add(new Emitter<void>());
 		const entitlementService = new class extends TestChatEntitlementService {
 			override readonly onDidChangeEntitlement = entitlementChanged.event;
+			override readonly onDidChangeSentiment = sentimentChanged.event;
+			override sentiment: IChatSentiment = {};
 		}();
 		entitlementService.entitlement = entitlement;
 		instantiationService.stub(IChatEntitlementService, entitlementService);
@@ -342,6 +347,7 @@ suite('ModelPickerTelemetry', () => {
 			get tabbedShows() { return tabbedShows; },
 			get trustRequests() { return trustRequests; },
 			get tabBarActionIds() { return tabBarActionIds; },
+			get tabLabels() { return tabLabels; },
 			get listLabels() { return listLabels; },
 			setTrusted: (trusted: boolean) => workspaceTrustManagementService.setWorkspaceTrust(trusted),
 			/** The welcome shown in place of the active tab's list, as its title, message, and action. */
@@ -357,6 +363,10 @@ suite('ModelPickerTelemetry', () => {
 				entitlementService.entitlement = entitlement;
 				entitlementChanged.fire();
 			},
+			setCopilotService: (copilotService: IChatSentiment['copilotService']) => {
+				entitlementService.sentiment = { copilotService };
+				sentimentChanged.fire();
+			},
 			selectItem: (label: string) => selectItem(label),
 			selectTab: (label: string) => selectTab(label),
 			hide: () => hideTabbedPicker(),
@@ -368,6 +378,41 @@ suite('ModelPickerTelemetry', () => {
 			},
 		};
 	}
+
+	test('a service change closes the assembled picker and reopening projects its native catalog without changing the remembered selection', () => {
+		const hydraFusion = createModel('hydrafusion', { modelGroup: { id: 'copilotcli' } });
+		const result = createPicker(autoModel, undefined, [autoModel, hydraFusion, thirdPartyModel], ChatEntitlement.Free);
+		const github = [...result.listLabels];
+		result.setCopilotService('m365');
+		const closedAfterChange = !result.visible;
+		result.picker.show(result.container);
+		const m365 = [...result.listLabels];
+		const m365Tabs = [...result.tabLabels];
+		result.selectTab('Third-party');
+		const unrelated = [...result.listLabels];
+		result.setCopilotService(undefined);
+		const closedAfterLoss = !result.visible;
+		result.picker.show(result.container);
+		result.selectTab('GitHub Copilot');
+
+		assert.deepStrictEqual({
+			github, m365, m365Tabs, unrelated, restored: result.listLabels, closedAfterChange, closedAfterLoss,
+			selected: result.picker.selectedModel?.identifier,
+			selections: result.delegateSelections,
+			programmatic: result.programmaticDelegateSelections,
+		}, {
+			github: ['auto', 'Upgrade for More Models', 'hydrafusion'],
+			m365: ['auto', 'hydrafusion'],
+			m365Tabs: ['Copilot', 'Third-party'],
+			unrelated: ['private-model'],
+			restored: ['auto', 'Upgrade for More Models', 'hydrafusion'],
+			closedAfterChange: true,
+			closedAfterLoss: true,
+			selected: autoModel.identifier,
+			selections: [],
+			programmatic: [],
+		});
+	});
 
 	for (const entitlement of [ChatEntitlement.Free, ChatEntitlement.EDU]) {
 		test(`${ChatEntitlement[entitlement]} entitlement replaces a persisted HydraFusion selection when the picker is constructed`, () => {
@@ -406,6 +451,22 @@ suite('ModelPickerTelemetry', () => {
 			list: [],
 			welcome: ['Copilot', 'Models will appear here once they are available.'],
 			tabBarActions: [],
+		});
+	});
+
+	test('a ready Microsoft 365 account with an empty catalog does not offer GitHub setup or upgrades and still respects workspace trust', async () => {
+		const result = createPicker(model, undefined, [], ChatEntitlement.Free, true, false);
+		await timeout(0);
+		result.setCopilotService('m365');
+		result.picker.show(result.container);
+		const empty = { welcome: result.welcome()?.text, setupRequired: result.picker.isSetupRequired() };
+		result.setTrusted(false);
+		result.picker.show(result.container);
+
+		assert.deepStrictEqual({ empty, restricted: result.welcome()?.text, openedLinks: result.openedLinks }, {
+			empty: { welcome: ['Copilot', 'No models are available.'], setupRequired: false },
+			restricted: ['Restricted Mode', 'Trust this workspace to enable models.', 'Trust Workspace'],
+			openedLinks: [],
 		});
 	});
 

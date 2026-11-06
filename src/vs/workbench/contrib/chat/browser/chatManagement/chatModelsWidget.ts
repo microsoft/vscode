@@ -6,6 +6,7 @@
 import './media/chatModelsWidget.css';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { Emitter } from '../../../../../base/common/event.js';
+import { observableFromEvent, runOnChange } from '../../../../../base/common/observable.js';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
@@ -31,6 +32,7 @@ import { SuggestEnabledInput } from '../../../codeEditor/browser/suggestEnabledI
 import { Delayer } from '../../../../../base/common/async.js';
 import { settingsTextInputBorder } from '../../../preferences/common/settingsEditorColorRegistry.js';
 import { IChatEntitlementService, ChatEntitlement } from '../../../../services/chat/common/chatEntitlementService.js';
+import { getModelPickerEntitlement, isMicrosoft365ServiceActive, isModelPickerUsageBased } from '../widget/input/modelPicker/modelPickerPresentation.js';
 import { DropdownMenuActionViewItem } from '../../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { AnchorAlignment } from '../../../../../base/browser/ui/contextview/contextview.js';
@@ -1320,6 +1322,11 @@ export class ChatModelsWidget extends Disposable {
 			this.updateAddModelsButton();
 			this.createTable();
 		}));
+		const copilotService = observableFromEvent(this, this.chatEntitlementService.onDidChangeSentiment, () => this.chatEntitlementService.sentiment.copilotService);
+		this._register(runOnChange(copilotService, () => {
+			this.updateAddModelsButton();
+			this.createTable();
+		}));
 		this._register(this.chatEntitlementService.onDidChangeUsageBasedBilling(() => this.createTable()));
 		this._register(this.languageModelsService.onDidChangeLanguageModelVendors(() => this.updateAddModelsButton()));
 		this._register(this.languageModelsService.onDidChangePinnedModels(() => this.viewModel.refresh()));
@@ -1380,7 +1387,7 @@ export class ChatModelsWidget extends Disposable {
 			}
 		];
 
-		const isUBB = this.chatEntitlementService.quotas.usageBasedBilling === true;
+		const isUBB = isModelPickerUsageBased(this.chatEntitlementService);
 		columns.push(
 			{
 				label: localize('tokenLimits', 'Context Size'),
@@ -1656,7 +1663,7 @@ export class ChatModelsWidget extends Disposable {
 
 		const configurableVendors = this.languageModelsService.getVendors().filter(vendor => vendor.managementCommand || vendor.configuration);
 
-		const entitlement = this.chatEntitlementService.entitlement;
+		const entitlement = getModelPickerEntitlement(this.chatEntitlementService);
 		const isManagedEntitlement = entitlement === ChatEntitlement.Business || entitlement === ChatEntitlement.Enterprise;
 		const supportsAddingModels = this.chatEntitlementService.isInternal
 			|| this.chatEntitlementService.clientByokEnabled
@@ -1668,7 +1675,7 @@ export class ChatModelsWidget extends Disposable {
 			configurableVendors,
 			supportsAddingModels,
 			vendor => this.addModelsForVendor(vendor),
-			this.defaultAccountResolved && this.defaultAccountService.currentDefaultAccount === null
+			this.defaultAccountResolved && this.defaultAccountService.currentDefaultAccount === null && !isMicrosoft365ServiceActive(this.chatEntitlementService)
 				? () => this.commandService.executeCommand(CHAT_SETUP_ACTION_ID)
 				: undefined,
 		);
