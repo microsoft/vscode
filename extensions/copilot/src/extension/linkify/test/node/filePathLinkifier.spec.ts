@@ -192,6 +192,28 @@ suite('File Path Linkifier', () => {
 		);
 	});
 
+	test(`Should not resolve absolute paths as workspace-relative when stat fails`, async () => {
+		// When an absolute path like /foo/file.ts doesn't exist, the linkifier
+		// should NOT fall through and resolve it as workspace-relative (workspace/foo/file.ts).
+		// This prevents linking to the wrong file when a workspace file happens to have
+		// the same relative structure.
+		const linkifier = createTestLinkifierService(
+			'foo/isfile.ts', // This file exists at workspace/foo/isfile.ts
+		);
+
+		// /foo/isfile.ts (absolute) does NOT exist, but workspace/foo/isfile.ts does.
+		// The linkifier must NOT link to the workspace file.
+		const absolutePath = isWindows ? 'c:\\foo\\isfile.ts' : '/foo/isfile.ts';
+		assertPartsEqual(
+			(await linkify(linkifier,
+				`\`${absolutePath}\``
+			)).parts,
+			[
+				`\`${absolutePath}\``,  // Should remain as plain text, not linked
+			]
+		);
+	});
+
 	test(`Should not linkify some common ambagious short paths`, async () => {
 		const linkifier = createTestLinkifierService();
 		assertPartsEqual(
