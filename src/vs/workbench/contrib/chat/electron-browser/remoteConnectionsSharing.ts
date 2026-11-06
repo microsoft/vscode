@@ -41,6 +41,9 @@ export type GitHubEnvironmentsAvailability = 'enabled' | 'policyDisabled' | 'una
 /** Where the connection method is chosen: the Agents window title bar, the chat input, or the Remote Environments editor. */
 export type RemoteConnectionsSource = 'titleBar' | 'chatInput' | 'remotesEditor';
 
+/** The outcome of toggling sharing: `failed` when an error was reported, otherwise `completed`, even when sharing stays off, e.g. because sign-in was canceled. */
+export type RemoteConnectionsToggleResult = 'completed' | 'failed';
+
 type RemoteConnectionsSelectionResult = 'applied' | 'unchanged' | 'unavailable' | 'disabled' | 'failed';
 
 type RemoteConnectionsSelectMethodEvent = {
@@ -167,6 +170,9 @@ export class RemoteConnectionsSharing extends Disposable {
 	private _namesLoaded = false;
 	private _nameRequest = 0;
 
+	/**
+	 * @param _toggle Toggles sharing with the configured connection method and resolves to its {@link RemoteConnectionsToggleResult}.
+	 */
 	constructor(
 		private readonly _state: IRemoteConnectionsStateSource,
 		private readonly _toggle: () => Promise<unknown>,
@@ -266,11 +272,7 @@ export class RemoteConnectionsSharing extends Disposable {
 		const state = this.getState();
 		const enabled = state.isSharing || state.isConnecting;
 		if (method === 'off') {
-			if (!enabled) {
-				return 'unchanged';
-			}
-			await this._toggle();
-			return 'applied';
+			return enabled ? this._toggleSharing() : 'unchanged';
 		}
 		if (this.usesGitHubEnvironment !== isGitHubEnvironmentBackend(method)) {
 			await this._configurationService.updateValue(AgentHostRemoteConnectionsSettingId, method, ConfigurationTarget.USER);
@@ -278,8 +280,11 @@ export class RemoteConnectionsSharing extends Disposable {
 		} else if (enabled) {
 			return 'unchanged';
 		}
-		await this._toggle();
-		return 'applied';
+		return this._toggleSharing();
+	}
+
+	private async _toggleSharing(): Promise<RemoteConnectionsSelectionResult> {
+		return (await this._toggle()) === 'failed' ? 'failed' : 'applied';
 	}
 
 	async rename(): Promise<void> {

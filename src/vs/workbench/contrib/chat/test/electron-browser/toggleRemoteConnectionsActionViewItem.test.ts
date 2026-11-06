@@ -245,7 +245,12 @@ suite('RemoteConnectionsActionViewItem', () => {
 		store.add(instantiation.createInstance(TunnelHostContribution));
 
 		const run = stub().callsFake(() => instantiation.invokeFunction(accessor => executeToggleRemoteConnections(accessor)));
-		const action = store.add(new Action('test.toggleRemoteConnections', 'Toggle Remote Connections', undefined, true, run));
+		// Unlike `Action`, which discards its callback's result, menu actions return the command's toggle result.
+		const action = store.add(new class extends Action {
+			override run(): Promise<void> {
+				return run();
+			}
+		}('test.toggleRemoteConnections', 'Toggle Remote Connections', undefined, true));
 		const viewItem = store.add(instantiation.createInstance(RemoteConnectionsActionViewItem, action, options.isChatInput ?? false, { getManagementAction: () => options.managementAction }));
 		const container = dom.append(document.body, dom.$('div'));
 		store.add(toDisposable(() => container.remove()));
@@ -661,14 +666,15 @@ suite('RemoteConnectionsActionViewItem', () => {
 	});
 
 	test('reports an enable failure and leaves Off selected', async () => {
-		const { openMenu, closeMenu, sharing, notifications } = fixture('githubEnvironment');
+		const { openMenu, closeMenu, sharing, notifications, selectMethodEvents } = fixture('githubEnvironment');
 		const error = new Error('Unable to enable sharing');
 		stub(sharing, 'setEnabled').rejects(error);
 		const notify = stub(notifications, 'error');
 		await openMenu().find(action => action.id === 'remoteConnections.githubEnvironment')!.run();
 		closeMenu();
-		assert.deepStrictEqual({ errors: notify.args, checked: openMenu().map(action => action.checked) }, {
+		assert.deepStrictEqual({ errors: notify.args, checked: openMenu().map(action => action.checked), events: selectMethodEvents() }, {
 			errors: [[error]], checked: [true, false, false],
+			events: [{ source: 'titleBar', method: 'githubEnvironment', previousMethod: 'off', activeMethod: 'off', result: 'failed', gitHubEnvironments: 'enabled' }],
 		});
 	});
 
