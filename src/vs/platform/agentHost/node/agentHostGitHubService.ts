@@ -140,11 +140,11 @@ export class AgentHostGitHubService extends GitHubService implements IAgentHostG
 
 	/** An explicit operation sponsor takes precedence; otherwise monitoring follows the chat's execution sponsor. */
 	getAgentMergeCredentialSource(chat: string): IAgentHostCredentialSource | undefined {
-		return this.getAgentMergeCredentialBinding(chat) ?? this._authenticationService.getSessionCredentialSource(chat);
+		return this._authenticationService.getSessionCredentialSource(chat, 'agentMerge') ?? this._authenticationService.getSessionCredentialSource(chat);
 	}
 
 	getAgentMergeCredentialBinding(chat: string): IAgentHostCredentialSource | undefined {
-		return this._authenticationService.getSessionCredentialSource(chat, 'agentMerge');
+		return this._authenticationService.getSessionCredentialBinding(chat, 'agentMerge');
 	}
 
 	bindAgentMergeCredentialSource(session: string, chat: string, source: IAgentHostCredentialSource | undefined): void {

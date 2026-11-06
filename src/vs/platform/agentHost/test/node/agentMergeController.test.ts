@@ -428,6 +428,38 @@ suite('AgentMergeController', () => {
 		}, { explicit: undefined, effectiveToken: 'second' });
 	});
 
+	test('configuration rollback restores the original binding before local credentials are disabled', () => {
+		const changed = disposables.add(new Emitter<void>());
+		let local = true;
+		const endpoint = createTestGitHubEndpointService();
+		const authentication = disposables.add(new AgentHostAuthenticationService(new NullLogService(), async () => assert.fail('Unexpected identity validation'), {
+			isEnabled: () => local,
+			getResources: () => [endpoint.getRepoResource(), endpoint.getCopilotResource()],
+			onDidChange: changed.event,
+		}));
+		const github = disposables.add(new AgentHostGitHubService({}, authentication, endpoint, new NullLogService(), NullTelemetryService));
+		const { stateManager, controller, session } = createControllerHarness(disposables, undefined, Event.None, github);
+		const chat = buildDefaultChatUri(session);
+		const principal = { apiOrigin: endpoint.getApiBaseUri(), userId: '1' };
+		const first: IAgentHostCredentialSource = {
+			principal, getCredential: request => ({ resource: request.resource, token: 'original-token', revision: 1, expiresAt: undefined }),
+		};
+		const second: IAgentHostCredentialSource = {
+			principal, getCredential: request => ({ resource: request.resource, token: 'replacement-token', revision: 2, expiresAt: undefined }),
+		};
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
+		github.bindAgentMergeCredentialSource(session, chat, first);
+		assert.throws(() => controller.dispatchConfigurationWithCredentials(session, {
+			[SessionConfigKey.AgentMerge]: { enabled: true },
+		}, second, () => { throw new Error('Configuration rejected'); }), /Configuration rejected/);
+		local = false;
+		changed.fire();
+		assert.deepStrictEqual({
+			sameBinding: github.getAgentMergeCredentialBinding(chat) === first,
+			token: github.getAgentMergeCredentialSource(chat)?.getCredential({ resource: endpoint.getRepoResource().resource })?.token,
+		}, { sameBinding: true, token: 'original-token' });
+	});
+
 	test('elevates a multi-root chat for any of its folders, and session-wide for a folder no chat has', () => {
 		const { stateManager, configurationService, session } = createControllerHarness(disposables);
 		configurationService.updateSessionConfig(session, { [SessionConfigKey.Mode]: 'interactive', [SessionConfigKey.AutoApprove]: 'default' });

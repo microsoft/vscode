@@ -250,9 +250,6 @@ async function fixture(store: DisposableStore, initial = createPullRequestArtifa
 		reauthenticate: () => {
 			credentialError = undefined;
 			acquireError = undefined;
-			authentication?.bindSessionCredentials(session, {
-				principal, getCredential: request => ({ resource: request.resource, token: 'test-token', revision: 1, expiresAt: undefined }),
-			}, chat);
 			invalidated.fire({ reason: 'replacement' });
 		},
 		onRefresh: (hook: () => void | Promise<void>) => { refreshHook = hook; },
@@ -558,22 +555,18 @@ suite('GitHub pull request artifact integration', () => {
 		}));
 	}
 
-	test('a client-mode session without a sponsor offers card sign-in without global authentication requests', () => run(async store => {
+	test('a client-mode session without a sponsor asks to resume or reconnect instead of offering repository sign-in', () => run(async store => {
 		const f = await fixture(store, undefined, { missingSponsor: true });
 		const before = f.model.snapshot.get().contributions[0].view.availability;
-		const recovery = await f.model.requestAuthentication(gitHubPullRequestArtifactIntegrationId);
-		f.reauthenticate();
-		await waitForState(f.model.snapshot, snapshot => snapshot.contributions[0]?.view.availability.kind === 'available');
+		const authentication = f.model.snapshot.get().contributions[0].authentication;
 		assert.deepStrictEqual({
 			before,
-			recovery,
+			authentication,
 			requests: f.authenticationRequests,
-			after: f.model.snapshot.get().contributions[0].view.availability,
 		}, {
-			before: { kind: 'authenticationRequired', reason: 'Sign in to GitHub to see the state of this pull request.' },
-			recovery: { resource: f.endpoint.getRepoResource().resource, authorizationServers: f.endpoint.getRepoResource().authorization_servers, scopes: f.endpoint.getRepoResource().scopes_supported },
+			before: { kind: 'error', reason: 'Resume this session or reconnect its client to restore access to this pull request.' },
+			authentication: undefined,
 			requests: [],
-			after: { kind: 'available' },
 		});
 	}));
 

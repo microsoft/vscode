@@ -38,6 +38,7 @@ export interface IAgentHostAuthenticationService {
 	getSharedCredential(request: IAgentHostAuthTokenRequest): IAgentHostScopedCredential | undefined;
 	getAuthToken(request: IAgentHostAuthTokenRequest, source?: IAgentHostCredentialSource): string | undefined;
 	getAuthAccount(request: IAgentHostAuthTokenRequest): IAgentAuthenticationAccount | undefined;
+	getSessionCredentialBinding(session: string, usage?: 'execution' | 'agentMerge'): IAgentHostCredentialSource | undefined;
 	getSessionCredentialSource(session: string, usage?: 'execution' | 'agentMerge'): IAgentHostCredentialSource | undefined;
 	getSessionCredentialPrincipal(session: string): IAgentHostCredentialPrincipal | undefined;
 	bindSessionCredentials(session: string, source: IAgentHostCredentialSource | undefined, chat?: string, usage?: 'execution' | 'agentMerge'): void;
@@ -315,7 +316,7 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 	}
 
 	getSessionCredentialSource(session: string, usage: 'execution' | 'agentMerge' = 'execution'): IAgentHostCredentialSource | undefined {
-		const source = (usage === 'agentMerge' ? this._agentMergeCredentials : this._sessionCredentials).get(session);
+		const source = this.getSessionCredentialBinding(session, usage);
 		if (usage === 'agentMerge' && !source) {
 			return undefined;
 		}
@@ -348,6 +349,10 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 
 	getSessionCredentialPrincipal(session: string): IAgentHostCredentialPrincipal | undefined {
 		return this._sessionPrincipals.get(this._credentialOwners.get(session) ?? session);
+	}
+
+	getSessionCredentialBinding(session: string, usage: 'execution' | 'agentMerge' = 'execution'): IAgentHostCredentialSource | undefined {
+		return (usage === 'agentMerge' ? this._agentMergeCredentials : this._sessionCredentials).get(session);
 	}
 
 	bindSessionCredentials(session: string, source: IAgentHostCredentialSource | undefined, chat?: string, usage: 'execution' | 'agentMerge' = 'execution'): void {
@@ -509,11 +514,11 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 	}
 
 	getSharedCredential(request: IAgentHostAuthTokenRequest): IAgentHostScopedCredential | undefined {
-		if (!this.useLocalCredentials || !this._localCredentials?.getResources().some(resource => resource.resource === request.resource)) {
+		const resource = this._localCredentials?.getResources().find(resource => resource.resource === request.resource);
+		if (!this.useLocalCredentials || !resource) {
 			return undefined;
 		}
-		const stored = this._getAuthToken(request, false)
-			?? [...this._tokens.values()].find(candidate => !candidate.target && candidate.resource === request.resource && !isExpired(candidate.expiresAt));
+		const stored = this._getAuthToken({ ...request, scopes: request.scopes ?? resource.scopes_supported }, false);
 		if (!stored) {
 			return undefined;
 		}

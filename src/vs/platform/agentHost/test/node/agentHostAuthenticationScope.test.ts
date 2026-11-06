@@ -64,6 +64,31 @@ suite('AgentHostAuthenticationScope', () => {
 		});
 	}
 
+	test('shared captures use the same advertised scope slots as ordinary host requests', async () => {
+		const configured = [{ resource, scopes_supported: ['read:user'] }, { resource: repository, scopes_supported: ['repo'] }];
+		const service = store.add(new AgentHostAuthenticationService(new NullLogService(), async () => assert.fail('Unexpected identity validation'), {
+			isEnabled: () => true, getResources: () => configured, onDidChange: Event.None,
+		}));
+		const provider = new class extends mock<IAgent>() {
+			override getProtectedResources() { return configured; }
+			override async authenticate() { return true; }
+		}();
+		for (const metadata of configured) {
+			await service.authenticate({ resource: metadata.resource, token: 'unscoped-token' }, [provider]);
+			await service.authenticate({ resource: metadata.resource, scopes: ['other-scope'], token: 'other-scope-token' }, [provider]);
+			await service.authenticate({ resource: metadata.resource, scopes: metadata.scopes_supported, token: `${metadata.resource}-selected` }, [provider]);
+		}
+		service.restoreSessionCredentialPrincipal('agent:/restored', principal);
+		const captured = captureCredentialSource(service.getSessionCredentialSource('agent:/restored')!, configured);
+		assert.deepStrictEqual({
+			captured: configured.map(metadata => captured.getCredential({ resource: metadata.resource })?.token),
+			host: configured.map(metadata => service.getAuthToken({ resource: metadata.resource, scopes: metadata.scopes_supported })),
+		}, {
+			captured: [`${resource}-selected`, `${repository}-selected`],
+			host: [`${resource}-selected`, `${repository}-selected`],
+		});
+	});
+
 	test('restored local sources use the shared token regardless of the recorded owner', async () => {
 		const service = store.add(new AgentHostAuthenticationService(new NullLogService(), async () => assert.fail('Shared token selection must not validate the session owner'), {
 			isEnabled: () => true,

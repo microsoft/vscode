@@ -59,6 +59,9 @@ async function withAuthenticationRecovery<T>(operation: () => Promise<T>, owner:
 			throw new CancellationError();
 		}
 		if (isAuthRequiredError(error)) {
+			if (!isArtifactDataObject(error.data) || !Array.isArray(error.data.resources) || error.data.resources.length === 0) {
+				throw new Error(localize('prArtifact.sessionCredentialsUnavailable', "Resume this session or reconnect its client to restore access to this pull request."));
+			}
 			throw new GitHubRequestError(authenticationRequiredMessage(owner, error.message), 'authentication');
 		}
 		if (error instanceof GitHubRequestError && (error.kind === 'authentication' || error.kind === 'authorization')) {

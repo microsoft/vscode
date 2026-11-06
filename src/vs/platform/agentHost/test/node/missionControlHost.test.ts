@@ -142,7 +142,7 @@ suite('Mission Control host integration', () => {
 			return Response.json({ id: 123, type: 'User' });
 		}, {
 			isEnabled: () => rootValues[MissionControlUseLocalCredentialsConfigKey] === true,
-			getResources: () => [{ resource: 'https://api.github.com' }, { resource: 'https://api.github.com/repos' }],
+			getResources: () => [{ resource: 'https://api.github.com', scopes_supported: ['read:user'] }, { resource: 'https://api.github.com/repos', scopes_supported: ['repo'] }],
 			onDidChange: rootConfigChanged.event,
 		}));
 		instantiation.stub(IAgentHostAuthenticationService, authentication);
