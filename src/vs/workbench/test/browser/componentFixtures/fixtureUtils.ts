@@ -110,6 +110,8 @@ import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, IAgentFeedbackService } from '../.
 import { IChatEditingService } from '../../../contrib/chat/common/editing/chatEditingService.js';
 import { ISessionsManagementService } from '../../../contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../contrib/sessions/browser/sessionsService.js';
+import { ISessionsHostLayoutService } from '../../../contrib/sessions/browser/sessionsHostLayoutService.js';
+import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { ActiveSessionHost, SessionHostKind } from '../../../contrib/sessions/browser/sessionHost.js';
 import { ISessionChangesStatsCache, SessionChangesStatsCache } from '../../../contrib/sessions/common/sessionChangesStatsCache.js';
 import { ICodeReviewService, PRReviewStateKind } from '../../../contrib/sessions/browser/codeReviewService.js';
@@ -858,6 +860,17 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 			serviceIdentifiers.push(id);
 		},
 	});
+
+	// The Agents workbench is its own session host layout, with itself as the docked side pane. Unless a fixture defines
+	// one, resolve the host layout to the fixture's workbench layout service the same way, when it is first used.
+	if (!services.has(ISessionsHostLayoutService)) {
+		services.set(ISessionsHostLayoutService, new Proxy({}, {
+			get: (_target, property) => {
+				const layout = instantiationService.get(IWorkbenchLayoutService);
+				return property === 'sidePane' ? layout : Reflect.get(layout, property);
+			}
+		}) as ISessionsHostLayoutService);
+	}
 
 	// Pass `_properDispose: true` so the underlying `InstantiationService`'s
 	// dispose runs, which disposes services it instantiated lazily from
