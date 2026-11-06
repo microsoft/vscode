@@ -17,7 +17,8 @@ import { derived, IObservable, observableValue } from '../../../../../base/commo
 import { DEFAULT_EDITOR_PART_OPTIONS } from '../../../../browser/parts/editor/editor.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISessionCapabilities, SessionStatus } from '../../../../contrib/sessions/common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../contrib/sessions/common/sessionsManagement.js';
+import { ISessionsManagementService } from '../../../../contrib/sessions/common/sessionsManagement.js';
+import { ITestSessionWithChat } from '../../../../contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsProvidersService } from '../../../../contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsListModelService } from '../../../../contrib/sessions/browser/sessionsListModelService.js';
 import { ChatCompositeBar, IChatCompositeBarDelegate } from '../../../../contrib/sessions/browser/parts/chatCompositeBar.js';
@@ -58,8 +59,11 @@ function createMockChat(options: IMockChatOptions): IChat {
 	}();
 }
 
-function createMockSession(chats: readonly IChat[], activeChat: IChat, sessionTitle = 'Session'): IActiveSession {
-	return new class extends mock<IActiveSession>() {
+/** A session fake with the tab strip the bar shows. */
+type IMockSession = ITestSessionWithChat & { readonly shouldShowChatTabs: IObservable<boolean> };
+
+function createMockSession(chats: readonly IChat[], activeChat: IChat, sessionTitle = 'Session'): IMockSession {
+	return new class extends mock<IMockSession>() {
 		override readonly sessionId = 'mock:session';
 		override readonly title: IObservable<string> = observableValue('title', sessionTitle);
 		override readonly openChats: IObservable<readonly IChat[]> = observableValue('openChats', chats);
@@ -79,7 +83,7 @@ function createMockSession(chats: readonly IChat[], activeChat: IChat, sessionTi
 	}();
 }
 
-function createMockDelegate(session: IActiveSession, chats: readonly IChat[], activeChat: IChat): IChatCompositeBarDelegate {
+function createMockDelegate(session: IMockSession, chats: readonly IChat[], activeChat: IChat): IChatCompositeBarDelegate {
 	return {
 		session,
 		isDetached: false,

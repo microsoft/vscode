@@ -12,7 +12,8 @@ import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { SessionHeader } from '../../../../contrib/sessions/browser/parts/sessionHeader.js';
 import { ISessionsListModelService } from '../../../../contrib/sessions/browser/sessionsListModelService.js';
 import { IChat, ISessionCapabilities, SessionStatus } from '../../../../contrib/sessions/common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../contrib/sessions/common/sessionsManagement.js';
+import { ISessionsManagementService } from '../../../../contrib/sessions/common/sessionsManagement.js';
+import { ITestSessionWithChat, testPaneContentOf } from '../../../../contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 
 import '../../../../contrib/sessions/browser/parts/media/chatCompositeBar.css';
@@ -25,7 +26,7 @@ interface IMockSessionOptions {
 	readonly supportsRename?: boolean;
 }
 
-function createMockSession(options: IMockSessionOptions): IActiveSession {
+function createMockSession(options: IMockSessionOptions): ITestSessionWithChat {
 	const capabilities: ISessionCapabilities = {
 		supportsMultipleChats: false,
 		supportsRename: options.supportsRename ?? true,
@@ -38,7 +39,7 @@ function createMockSession(options: IMockSessionOptions): IActiveSession {
 		override readonly capabilities = constObservable({ canRename: options.supportsRename ?? true, canArchive: false, canDelete: false });
 	}();
 
-	return new class extends mock<IActiveSession>() {
+	return new class extends mock<ITestSessionWithChat>() {
 		override readonly sessionId = `local:${options.title}`;
 		override readonly resource = URI.parse(`vscode-session://session/${Math.random().toString(36).slice(2)}`);
 		override readonly capabilities = constObservable(capabilities);
@@ -75,7 +76,7 @@ function createMockListModelService(): ISessionsListModelService {
 	}();
 }
 
-function renderHeader(ctx: ComponentFixtureContext, session: IActiveSession, withBackground = false): void {
+function renderHeader(ctx: ComponentFixtureContext, session: ITestSessionWithChat, withBackground = false): void {
 	const { container, disposableStore } = ctx;
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: ctx.theme,
@@ -106,7 +107,7 @@ function renderHeader(ctx: ComponentFixtureContext, session: IActiveSession, wit
 	}
 
 	const header = disposableStore.add(instantiationService.createInstance(SessionHeader));
-	header.setSession(session);
+	header.setSession(testPaneContentOf(session, () => { }));
 	headerHost.appendChild(header.element);
 }
 

@@ -40,8 +40,8 @@ import { AGENTS_FLOATING_PANEL_GAP } from '../../../../../workbench/contrib/sess
 import { ISessionActivityBarActivityService, SessionActivityBarActivityService } from '../../../../../workbench/contrib/sessions/common/sessionActivityBarActivityService.js';
 import { SESSION_ACTIVITY_BAR_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { stubSessionHosts, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ITestSessionWithChat, stubSessionHosts, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { IWorkbenchLayoutService, LayoutSettings, ModernUIDensity } from '../../../../../workbench/services/layout/browser/layoutService.js';
@@ -149,7 +149,7 @@ class ChatWindowMenuService extends mock<IMenuService>() {
 }
 
 /** The session of the window's active chat. */
-function createSession(): IActiveSession {
+function createSession(): ITestSessionWithChat {
 	const workspace = new class extends mock<ISessionWorkspace>() {
 		override readonly label = 'vscode';
 		override readonly folders = [{
@@ -171,7 +171,7 @@ function createSession(): IActiveSession {
 		override readonly title: IObservable<string> = constObservable(SESSION_TITLE);
 		override readonly workspace: IObservable<ISessionWorkspace | undefined> = constObservable(workspace);
 	}();
-	return new class extends mock<IActiveSession>() {
+	return new class extends mock<ITestSessionWithChat>() {
 		override readonly icon = Codicon.copilot;
 		override readonly title: IObservable<string> = constObservable(SESSION_TITLE);
 		override readonly workspace: IObservable<ISessionWorkspace | undefined> = constObservable(workspace);
@@ -222,8 +222,8 @@ function renderChatWindow(context: ComponentFixtureContext, options: IFixtureOpt
 				override readonly onDidChangeActiveWindow = Event.None;
 			}());
 			reg.defineInstance(ISessionsService, new class extends mock<ISessionsService>() {
-				override readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> = constObservable<readonly (IActiveSession | undefined)[]>([]);
-				override readonly slotPanes = testGridPanes(this.visibleSessions);
+				readonly gridShown: IObservable<readonly (ITestSessionWithChat | undefined)[]> = constObservable<readonly (ITestSessionWithChat | undefined)[]>([]);
+				override readonly slotPanes = testGridPanes(this.gridShown);
 			}());
 			reg.defineInstance(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 				override readonly onDidChangeSessions = Event.None;
