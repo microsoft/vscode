@@ -242,7 +242,10 @@ export function stubSessionHostsFromSessionsService(instantiationService: TestIn
 	});
 	const focusedHost = derived(reader => {
 		const active = activeSession.read(reader);
-		return readChatWindows(reader).find(([windowHost]) => !!active && windowHost.session.read(reader) === sessionOfShown(active))?.[0] ?? mainHost;
+		const windows = readChatWindows(reader);
+		// The window of the active entry: two windows can show the same session, so a window is never found by its session.
+		const index = active ? (sessionsService?.windowSessions?.read(reader) ?? []).indexOf(active) : -1;
+		return index >= 0 ? windows[index][0] : mainHost;
 	});
 	const focusedSessionHostService = upcastPartial<IFocusedSessionHostService>({ focusedHost, getFocusedHost: () => focusedHost.get() });
 	if (!onlyMissing || isMissingOrDerived(instantiationService, ISessionHostService)) {

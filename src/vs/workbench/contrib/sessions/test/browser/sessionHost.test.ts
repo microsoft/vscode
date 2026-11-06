@@ -11,12 +11,14 @@ import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
-import { getMainWindowHost, getWindowHost, ISessionHost, SessionHost, SessionHostKind, shownChatOf } from '../../browser/sessionHost.js';
+import { getMainWindowHost, getWindowHost, IFocusedSessionHostService, ISessionHost, SessionHost, SessionHostKind, shownChatOf } from '../../browser/sessionHost.js';
 import { FocusedSessionHostService, SessionHostService } from '../../browser/sessionHostService.js';
 import { IChat, ISession } from '../../common/session.js';
-import { chatOfShown, ITestShownChat, sessionOfShown, sessionsServiceWithGridHost, withCreatedStatus } from './sessionHostTestUtils.js';
+import { ISessionsService } from '../../browser/sessionsService.js';
+import { chatOfShown, ITestSessionsService, ITestShownChat, sessionOfShown, sessionsServiceWithGridHost, stubSessionHostsFromSessionsService, TestShown, withCreatedStatus } from './sessionHostTestUtils.js';
 
 function chat(path: string): IChat {
 	return upcastPartial<IChat>({ resource: URI.parse(`chat:/${path}`) });
@@ -301,5 +303,32 @@ suite('SessionHost', () => {
 		const withFocus = describe(focused.getFocusedHost());
 
 		assert.deepStrictEqual({ inBackground, withFocus }, { inBackground: SessionHostKind.ChatWindow, withFocus: SessionHostKind.MainWindow });
+	});
+});
+
+suite('stubSessionHostsFromSessionsService', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('the focused host is the window of the active entry, also while two windows show one session', () => {
+		const inB = session('S', chat('b'));
+		const inC: ITestShownChat = { session: inB.session, chat: chat('c') };
+		const active = observableValue<TestShown | undefined>('active', inB);
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({ activeSession: active, windowSessions: constObservable([inB, inC]) }));
+		stubSessionHostsFromSessionsService(instantiationService);
+		const focusedSessionHostService = instantiationService.get(IFocusedSessionHostService);
+		const focused = () => {
+			const host = focusedSessionHostService.getFocusedHost();
+			return { kind: host.kind, window: host.windowId.get(), chat: host.chat.get()?.resource.path };
+		};
+
+		const before = focused();
+		active.set(inC, undefined);
+
+		assert.deepStrictEqual({ before, after: focused() }, {
+			before: { kind: SessionHostKind.ChatWindow, window: 1000, chat: '/b' },
+			after: { kind: SessionHostKind.ChatWindow, window: 1001, chat: '/c' },
+		});
 	});
 });
