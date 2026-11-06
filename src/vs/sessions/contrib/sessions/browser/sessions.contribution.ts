@@ -18,7 +18,10 @@ import { NEW_SESSION_BUTTON_STYLE_SETTING, NEW_SESSION_BUTTON_STYLE_TREATMENT, N
 import { SessionsView, SessionsViewId } from '../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { AutomationsCustomViewContribution } from './views/automationsView.js';
 import './views/sessionsViewActions.js';
-import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { getEnabledViewContainerContextKey } from '../../../../workbench/services/views/browser/viewsService.js';
+import { ChatViewContainerId, ChatViewOpenKeybindings } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationNode, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsListStateMigrationContribution } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { SessionsMouseNavigationContribution } from './sessionsMouseNavigation.js';
@@ -46,12 +49,21 @@ const agentSessionsViewContainer: ViewContainer = Registry.as<IViewContainersReg
 	openCommandActionDescriptor: {
 		id: SessionsContainerId,
 		mnemonicTitle: localize({ key: 'miSessions', comment: ['&& denotes a mnemonic'] }, "&&Sessions"),
-		// Like Focus Side Bar in editor windows, and next to Ctrl/Cmd+1..9, which focus the sessions in the grid.
-		keybindings: { primary: KeyMod.CtrlCmd | KeyCode.Digit0 },
 		order: 0
 	},
 	windowEnablement: WindowEnablement.Sessions
 }, ViewContainerLocation.Sidebar, { isDefault: true });
+
+// Like View: Toggle Chat in editor windows, including the keybindings the user gives it. Registered here rather than with the
+// open command, whose keybindings are WorkbenchContrib, so that it outranks Open Chat, which the Agents window also registers.
+const sessionsContainerKeybindingWhen = ContextKeyExpr.has(getEnabledViewContainerContextKey(SessionsContainerId));
+KeybindingsRegistry.registerKeybindingRule({
+	...ChatViewOpenKeybindings,
+	id: SessionsContainerId,
+	weight: KeybindingWeight.SessionsContrib,
+	when: sessionsContainerKeybindingWhen,
+});
+KeybindingsRegistry.registerKeybindingAlias({ command: SessionsContainerId, source: ChatViewContainerId, when: sessionsContainerKeybindingWhen });
 
 const sessionsViewPaneDescriptor: IViewDescriptor = {
 	id: SessionsViewId,

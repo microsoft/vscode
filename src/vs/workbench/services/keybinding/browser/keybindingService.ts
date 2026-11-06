@@ -441,8 +441,9 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 	protected _getResolver(): KeybindingResolver {
 		if (!this._cachedResolver) {
-			const defaults = this._resolveKeybindingItems(KeybindingsRegistry.getDefaultKeybindings(), true);
-			const overrides = this._resolveUserKeybindingItems(this.userKeybindings.keybindings, false);
+			const aliases = KeybindingsRegistry.getKeybindingAliases();
+			const defaults = KeybindingResolver.applyAliases(this._resolveKeybindingItems(KeybindingsRegistry.getDefaultKeybindings(), true), aliases);
+			const overrides = KeybindingResolver.applyAliases(this._resolveUserKeybindingItems(this.userKeybindings.keybindings, false), aliases);
 			this._cachedResolver = new KeybindingResolver(defaults, overrides, (str) => this._log(str));
 		}
 		return this._cachedResolver;

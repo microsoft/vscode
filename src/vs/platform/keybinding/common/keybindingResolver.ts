@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ContextKeyExpression, ContextKeyExprType, IContext, IContextKeyService, implies } from '../../contextkey/common/contextkey.js';
+import { IKeybindingAlias } from './keybindingsRegistry.js';
 import { ResolvedKeybindingItem } from './resolvedKeybindingItem.js';
 
 //#region resolution-result
@@ -169,6 +170,30 @@ export class KeybindingResolver {
 			if (!isRemoved) {
 				result.push(rule);
 				continue;
+			}
+		}
+		return result;
+	}
+
+	/**
+	 * Binds the command of each alias to the keybindings of its source, right after them, so that it outranks the source
+	 * where the alias applies. The bindings are defaults of the alias's command, which the user can remove or rebind.
+	 */
+	public static applyAliases(rules: ResolvedKeybindingItem[], aliases: readonly IKeybindingAlias[]): ResolvedKeybindingItem[] {
+		if (aliases.length === 0) {
+			return rules;
+		}
+
+		const result: ResolvedKeybindingItem[] = [];
+		for (const rule of rules) {
+			result.push(rule);
+			for (const alias of aliases) {
+				if (rule.command === alias.source) {
+					result.push(new ResolvedKeybindingItem(rule.resolvedKeybinding, alias.command, undefined, alias.when, true, rule.extensionId, rule.isBuiltinExtension));
+				} else if (rule.command === `-${alias.source}`) {
+					// The removal's when clause describes where the source applies, so it removes the binding wherever the alias applies.
+					result.push(new ResolvedKeybindingItem(rule.resolvedKeybinding, `-${alias.command}`, undefined, undefined, rule.isDefault, rule.extensionId, rule.isBuiltinExtension));
+				}
 			}
 		}
 		return result;

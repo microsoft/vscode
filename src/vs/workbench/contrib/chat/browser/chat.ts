@@ -5,6 +5,7 @@
 
 import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
 import { Event } from '../../../../base/common/event.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { isMobile, isWeb } from '../../../../base/common/platform.js';
@@ -18,6 +19,7 @@ import { EditDeltaInfo } from '../../../../editor/common/textModelEditSource.js'
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindings } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { PreferredGroup } from '../../../services/editor/common/editorService.js';
 import type { IChatPillSection } from '../../../browser/chatPills.js';
 import { IChatRequestVariableEntry } from '../common/attachments/chatVariableEntries.js';
@@ -667,6 +669,14 @@ export interface IChatCodeBlockContextProviderService {
 
 export const ChatViewId = `workbench.panel.chat.view.${CHAT_PROVIDER_ID}`;
 export const ChatViewContainerId = 'workbench.panel.chat';
+
+/** The default keybindings of {@link ChatViewContainerId}, which toggles the Chat view. */
+export const ChatViewOpenKeybindings: IKeybindings = {
+	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyI,
+	mac: {
+		primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KeyI
+	}
+};
 
 export const HasInstalledAgentPluginsContext = new RawContextKey<boolean>('hasInstalledAgentPlugins', false);
 export const InstalledAgentPluginsViewId = 'workbench.views.agentPlugins.installed';

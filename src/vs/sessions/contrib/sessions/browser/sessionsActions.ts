@@ -382,19 +382,14 @@ registerAction2(class FocusActiveSessionAction extends Action2 {
 			f1: true,
 			category: SessionsCategories.Sessions,
 			keybinding: {
-				// Must outrank the workbench `workbench.action.chat.open` binding
+				// Like Open Chat (Agent) in editor windows. Must outrank its binding
 				// (WorkbenchContrib) so that in the sessions window the chord
 				// focuses the active session. Using the normal open chat action will not work for new session views.
+				// The Open Chat and Toggle Chat chord opens the Sessions view instead.
 				weight: KeybindingWeight.SessionsContrib,
-				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyI,
-				secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyI],
-				mac: {
-					primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KeyI,
-					secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyI]
-				},
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyI,
 				linux: {
-					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyI,
-					secondary: [KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.KeyI]
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.KeyI
 				},
 			},
 		});

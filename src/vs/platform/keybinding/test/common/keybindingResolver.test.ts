@@ -366,6 +366,49 @@ suite('KeybindingResolver', () => {
 		});
 	});
 
+	suite('keybinding aliases', () => {
+
+		const alias = { command: 'sessions', source: 'toggleChat', when: ContextKeyExpr.has('agentsWindow') };
+		const toggleChatWhen = ContextKeyExpr.has('chatViewVisible');
+
+		function resolveCommands(defaults: ResolvedKeybindingItem[], overrides: ResolvedKeybindingItem[], keybindings: number[]) {
+			const resolver = new KeybindingResolver(KeybindingResolver.applyAliases(defaults, [alias]), KeybindingResolver.applyAliases(overrides, [alias]), () => { });
+			const resolve = (context: object) => keybindings.map(keybinding => {
+				const result = resolver.resolve(createContext(context), [], getDispatchStr(createSimpleKeybinding(keybinding, OS)));
+				return result.kind === ResultKind.KbFound ? result.commandId : null;
+			});
+			return { agentsWindow: resolve({ agentsWindow: true }), editorWindow: resolve({ chatViewVisible: true }) };
+		}
+
+		test('binds the alias to the keybindings of its source, including the user\'s, where the alias applies, outranking the source', () => {
+			const defaults = [kbItem(KeyCode.KeyA, 'toggleChat', null, toggleChatWhen, true)];
+			const overrides = [kbItem(KeyCode.KeyB, 'toggleChat', null, undefined, false)];
+
+			assert.deepStrictEqual(resolveCommands(defaults, overrides, [KeyCode.KeyA, KeyCode.KeyB]), {
+				agentsWindow: ['sessions', 'sessions'],
+				editorWindow: ['toggleChat', 'toggleChat'],
+			});
+		});
+
+		test('removes the keybindings removed from its source, and lets the user remove the keybindings it inherits', () => {
+			const defaults = [
+				kbItem(KeyCode.KeyA, 'openChat', null, undefined, true),
+				kbItem(KeyCode.KeyA, 'sessions', null, alias.when, true),
+			];
+			const overrides = [
+				kbItem(KeyCode.KeyA, '-toggleChat', null, toggleChatWhen, false),
+				kbItem(KeyCode.KeyB, 'toggleChat', null, toggleChatWhen, false),
+				kbItem(KeyCode.KeyC, 'toggleChat', null, toggleChatWhen, false),
+				kbItem(KeyCode.KeyC, '-sessions', null, undefined, false),
+			];
+
+			assert.deepStrictEqual(resolveCommands(defaults, overrides, [KeyCode.KeyA, KeyCode.KeyB, KeyCode.KeyC]), {
+				agentsWindow: ['openChat', 'sessions', null],
+				editorWindow: ['openChat', 'toggleChat', 'toggleChat'],
+			});
+		});
+	});
+
 	suite('resolve command', () => {
 
 		function _kbItem(keybinding: number | number[], command: string, when: ContextKeyExpression | undefined): ResolvedKeybindingItem {
