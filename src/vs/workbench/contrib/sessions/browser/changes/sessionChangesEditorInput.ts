@@ -16,7 +16,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { MultiDiffEditorViewModel } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
-import { DockedEditorInput } from '../dockedEditorInput.js';
+import { DockedEditorInput } from '../../../../browser/parts/editor/dockedEditorInput.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { getSessionChangesFileCountLabel } from '../../common/changes.js';
 import { ISessionChangesService } from '../../common/sessionChangesService.js';
