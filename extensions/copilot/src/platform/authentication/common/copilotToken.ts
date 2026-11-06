@@ -128,7 +128,9 @@ export class CopilotToken {
 
 	/** Who pays for the user's Copilot, as a universal key such as `ea:dotcom:42`. Undefined when the server doesn't send it. */
 	get billableOwnerUniversalKey(): string | undefined {
-		return this._info.billable_owner?.universal_key;
+		// Lenient token parsing keeps fields that fail validation, so check the type here.
+		const key: unknown = this._info.billable_owner?.universal_key;
+		return typeof key === 'string' && key.length > 0 ? key : undefined;
 	}
 
 	get endpoints(): Endpoints | undefined {
