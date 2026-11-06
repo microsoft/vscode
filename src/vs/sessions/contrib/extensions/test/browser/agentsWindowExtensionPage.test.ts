@@ -11,6 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IExtensionInfo } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
 import { ExtensionEditorTab, ExtensionState, IExtension, IExtensionsWorkbenchService, InstallExtensionOptions } from '../../../../../workbench/contrib/extensions/common/extensions.js';
 import { IExtensionEditorOptions } from '../../../../../workbench/contrib/extensions/common/extensionsInput.js';
+import { EnablementState } from '../../../../../workbench/services/extensionManagement/common/extensionManagement.js';
 import { AgentsWindowExtensionPageWorkbenchService } from '../../browser/agentsWindowExtensionPage.js';
 
 function anExtension(id: string, state: ExtensionState): IExtension {
@@ -33,6 +34,7 @@ suite('AgentsWindowExtensionPageWorkbenchService', () => {
 	 */
 	function createService(confirmsUninstall = true) {
 		const calls: string[] = [];
+		const enablements: EnablementState[] = [];
 		const describe = (extension: IExtension, flags: readonly (string | false | undefined)[]) => {
 			const set = flags.filter(flag => !!flag);
 			return set.length ? `${extension.identifier.id} (${set.join(', ')})` : extension.identifier.id;
@@ -51,6 +53,9 @@ suite('AgentsWindowExtensionPageWorkbenchService', () => {
 			override async uninstall(extension: IExtension) {
 				calls.push(`uninstall ${extension.identifier.id}`);
 			}
+			override async setEnablement(extensions: IExtension | IExtension[], enablementState: EnablementState) {
+				enablements.push(enablementState);
+			}
 		};
 		const service = new AgentsWindowExtensionPageWorkbenchService(delegate, {
 			openExtensionPage: (extension, options: IExtensionEditorOptions | undefined) => calls.push(`open page ${describe(extension, [options?.tab && `tab ${options.tab}`])}`),
@@ -64,7 +69,7 @@ suite('AgentsWindowExtensionPageWorkbenchService', () => {
 			},
 			didInstall: extension => calls.push(`installed ${extension.identifier.id}`),
 		});
-		return { service, calls };
+		return { service, calls, enablements };
 	}
 
 	test('opens the pages of extensions, which it looks up by identifier, and searches extensions, in the section', async () => {
@@ -98,6 +103,16 @@ suite('AgentsWindowExtensionPageWorkbenchService', () => {
 			'installed pub.formatter',
 			'install pub.tools',
 		]);
+	});
+
+	test('enables and disables extensions only in the Agents window, like the section, which uses its dedicated workspace', async () => {
+		const { service, enablements } = createService();
+
+		for (const state of [EnablementState.EnabledGlobally, EnablementState.DisabledGlobally, EnablementState.EnabledWorkspace, EnablementState.DisabledWorkspace]) {
+			await service.setEnablement(installedTools, state);
+		}
+
+		assert.deepStrictEqual(enablements, [EnablementState.EnabledWorkspace, EnablementState.DisabledWorkspace, EnablementState.EnabledWorkspace, EnablementState.DisabledWorkspace]);
 	});
 
 	test('uninstalls extensions once users confirm it, and cancels uninstalling them otherwise', async () => {

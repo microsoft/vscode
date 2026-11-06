@@ -152,6 +152,12 @@ export class AgentsWindowExtensionPageWorkbenchService implements IExtensionsWor
 	}
 
 	setEnablement(extensions: IExtension | IExtension[], enablementState: EnablementState): Promise<void> {
+		// Like the section, changes only apply to the Agents window, which has a dedicated workspace, while the page's Enable
+		// and Disable actions would also enable or disable extensions in editor windows.
+		switch (enablementState) {
+			case EnablementState.EnabledGlobally: enablementState = EnablementState.EnabledWorkspace; break;
+			case EnablementState.DisabledGlobally: enablementState = EnablementState.DisabledWorkspace; break;
+		}
 		return this.delegate.setEnablement(extensions, enablementState);
 	}
 
