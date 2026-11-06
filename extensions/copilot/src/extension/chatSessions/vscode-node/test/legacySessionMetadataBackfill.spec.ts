@@ -16,7 +16,9 @@ import { ILogService } from '../../../../platform/log/common/logService';
 import { NullTelemetryService } from '../../../../platform/telemetry/common/nullTelemetryService';
 import { TelemetryEventMeasurements, TelemetryEventProperties } from '../../../../platform/telemetry/common/telemetry';
 import { mock } from '../../../../util/common/test/simpleMock';
+import { DeferredPromise } from '../../../../util/vs/base/common/async';
 import { ChatSessionWorktreeProperties } from '../../common/chatSessionWorktreeService';
+import { sessionMetadataFileWriteSequencer } from '../../common/sessionMetadataFileWriteSequencer';
 import { getCopilotCLISessionDir } from '../../copilotcli/node/cliHelpers';
 import { LegacySessionMetadataBackfill, writeFileIfAbsent, WriteFileIfAbsentFileSystem } from '../legacySessionMetadataBackfill';
 
@@ -299,6 +301,41 @@ describe('LegacySessionMetadataBackfill', () => {
 			},
 			globalStateEntryCount: 5,
 			globalStateOnlyCount: 4,
+		});
+		backfill.dispose();
+	});
+
+	it('waits for a session metadata store write to the same session in this window', async () => {
+		mockFs.mockFile(BULK_METADATA_FILE, JSON.stringify({
+			'session': { origin: 'vscode', workspaceFolder: { folderPath: '/stale', timestamp: 1 }, modified: 1 },
+		}));
+		mockSessionDirectories('session');
+		const storeContent = JSON.stringify({ origin: 'vscode', customTitle: 'Written by the store', modified: 99 });
+		const storeWriteStarted = new DeferredPromise<void>();
+		const storeWrite = sessionMetadataFileWriteSequencer.queue('session', async () => {
+			await storeWriteStarted.p;
+			await mockFs.writeFile(sessionMetadataFileUri('session'), new TextEncoder().encode(storeContent));
+		});
+
+		const backfill = await createBackfill();
+		let done = false;
+		void backfill.whenSessionMetadataBackfilled().then(() => done = true);
+		await vi.advanceTimersByTimeAsync(60_000);
+		const whileStoreWrites = { done, file: await readSessionFile('session') };
+		storeWriteStarted.complete();
+		await storeWrite;
+		await backfill.whenSessionMetadataBackfilled();
+
+		expect({
+			whileStoreWrites,
+			file: await readSessionFile('session'),
+			existingFileCount: backfillEvents()[0]?.measurements?.existingFileCount,
+			writtenCount: backfillEvents()[0]?.measurements?.writtenCount,
+		}).toEqual({
+			whileStoreWrites: { done: false, file: undefined },
+			file: JSON.parse(storeContent),
+			existingFileCount: 1,
+			writtenCount: 0,
 		});
 		backfill.dispose();
 	});

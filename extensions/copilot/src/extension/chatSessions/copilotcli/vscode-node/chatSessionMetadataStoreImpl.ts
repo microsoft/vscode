@@ -16,6 +16,7 @@ import { ChatSessionMetadataFile, IChatSessionMetadataStore, RepositoryPropertie
 import { ChatSessionWorktreeProperties } from '../../common/chatSessionWorktreeService';
 import { isUntitledSessionId } from '../../common/utils';
 import { IWorkspaceInfo } from '../../common/workspaceInfo';
+import { sessionMetadataFileWriteSequencer } from '../../common/sessionMetadataFileWriteSequencer';
 import { getCopilotBulkMetadataFile, getCopilotCLISessionDir } from '../../copilotcli/node/cliHelpers';
 import { ICopilotCLIAgents } from '../../copilotcli/node/copilotCli';
 
@@ -63,7 +64,6 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 	private readonly _updateStorageDebouncer = this._register(new ThrottledDelayer<void>(1_000));
 	private readonly _requestMappingWriteSequencer = new SequencerByKey<string>();
 	private readonly _requestMappingReadSequencer = new SequencerByKey<string>();
-	private readonly _metadataWriteSequencer = new SequencerByKey<string>();
 	private readonly _metadataReadSequencer = new SequencerByKey<string>();
 	private readonly _requestDetailsCache = new Map<string, RequestDetails[]>();
 	/** Per-session eviction timers for {@link _requestDetailsCache}. Keyed by sessionId so a new timer replaces (and disposes) the previous one and entries are dropped on fire. */
@@ -496,7 +496,7 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 			return;
 		}
 
-		await this._metadataWriteSequencer.queue(sessionId, async () => {
+		await sessionMetadataFileWriteSequencer.queue(sessionId, async () => {
 			const fileUri = this.getMetadataFileUri(sessionId);
 			const dirUri = dirname(fileUri);
 

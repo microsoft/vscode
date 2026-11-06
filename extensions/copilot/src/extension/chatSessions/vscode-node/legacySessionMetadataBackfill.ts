@@ -19,6 +19,7 @@ import { dirname } from '../../../util/vs/base/common/resources';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
 import { ChatSessionMetadataFile, WorkspaceFolderEntry } from '../common/chatSessionMetadataStore';
 import { ChatSessionWorktreeData, ChatSessionWorktreeProperties } from '../common/chatSessionWorktreeService';
+import { sessionMetadataFileWriteSequencer } from '../common/sessionMetadataFileWriteSequencer';
 import { isUntitledSessionId } from '../common/utils';
 import { getCopilotBulkMetadataFile, getCopilotCLISessionDir } from '../copilotcli/node/cliHelpers';
 
@@ -211,8 +212,9 @@ export class LegacySessionMetadataBackfill extends Disposable {
 				return;
 			}
 			checked++;
-			// Create-only, so a concurrent write from the session metadata store, in this or another window, always wins.
-			const result = await this.backfillSessionMetadataFile(sessionId, entry, counts.failed < SESSION_METADATA_BACKFILL_MAX_LOGGED_FAILURES);
+			// Queued behind the session metadata store's writes in this window; create-only, so the
+			// store's data (from this or another window) always wins.
+			const result = await sessionMetadataFileWriteSequencer.queue(sessionId, () => this.backfillSessionMetadataFile(sessionId, entry, counts.failed < SESSION_METADATA_BACKFILL_MAX_LOGGED_FAILURES));
 			counts[result]++;
 			consecutiveFailures = result === 'failed' ? consecutiveFailures + 1 : 0;
 			if (consecutiveFailures >= SESSION_METADATA_BACKFILL_MAX_CONSECUTIVE_FAILURES) {
