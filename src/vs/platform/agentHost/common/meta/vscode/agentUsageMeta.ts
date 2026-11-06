@@ -304,7 +304,6 @@ function readModelRoutedInfo(value: unknown): IModelRoutedInfo | undefined {
 		...(typeof raw.switchedFrom === 'string' ? { switchedFrom: raw.switchedFrom } : {}),
 		...(raw.defaulted === true ? { defaulted: true } : {}),
 		...(raw.kept === true ? { kept: true } : {}),
-		...(typeof raw.heldSwitchTo === 'string' ? { heldSwitchTo: raw.heldSwitchTo } : {}),
 	};
 }
 

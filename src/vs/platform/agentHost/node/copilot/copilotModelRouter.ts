@@ -88,8 +88,6 @@ export const modelRouterSwitchPolicy = {
 	minPickProbability: 0.6,
 	/** How far the new model must lead the current one, so a near tie does not move the chat. */
 	minLead: 0.25,
-	/** Above this much context added by the chat, a switch re-reads more than the better fit is likely to save. */
-	maxAddedContextTokens: 60_000,
 	/** Turns to stay put after a switch, so one chat cannot flap between models. */
 	cooldownTurns: 2,
 	maxSwitchesPerChat: 3,
@@ -115,32 +113,30 @@ export interface IModelRouterEffortInput {
 	readonly current: string | undefined;
 	readonly score: number | undefined;
 	readonly supported: readonly ModelRouterEffortLevel[];
-	readonly addedContextTokens: number;
 }
 
-/** The effort for a follow-up on the same model. It holds steady unless the request clearly differs, and in long chats. */
-export function decideModelRouterEffort({ current, score, supported, addedContextTokens }: IModelRouterEffortInput): string | undefined {
+/** The effort for a follow-up on the same model. It holds steady unless the request clearly differs. */
+export function decideModelRouterEffort({ current, score, supported }: IModelRouterEffortInput): string | undefined {
 	if (current === undefined || !supported.includes(current as ModelRouterEffortLevel)) {
 		return closestEffort(supported, score);
 	}
-	if (score === undefined || addedContextTokens >= modelRouterSwitchPolicy.maxAddedContextTokens || Math.abs(score - reasoningEffortRank(current as ModelRouterEffortLevel)) < EFFORT_CHANGE_MARGIN) {
+	if (score === undefined || Math.abs(score - reasoningEffortRank(current as ModelRouterEffortLevel)) < EFFORT_CHANGE_MARGIN) {
 		return current;
 	}
 	return closestEffort(supported, score);
 }
 
-export type ModelRouterSwitchDecision = 'stay' | 'switch' | 'hold';
+export type ModelRouterSwitchDecision = 'stay' | 'switch';
 
 export interface IModelRouterSwitchInput {
 	readonly currentModel: string;
 	readonly pick: IModelRouterPick;
-	readonly addedContextTokens: number;
 	readonly turnsSinceSwitch: number | undefined;
 	readonly switches: number;
 }
 
-/** Decides whether a follow-up moves the chat. `hold` means a switch is warranted but too expensive to do unasked. */
-export function decideModelRouterSwitch({ currentModel, pick, addedContextTokens, turnsSinceSwitch, switches }: IModelRouterSwitchInput): ModelRouterSwitchDecision {
+/** Decides whether a follow-up moves the chat. */
+export function decideModelRouterSwitch({ currentModel, pick, turnsSinceSwitch, switches }: IModelRouterSwitchInput): ModelRouterSwitchDecision {
 	const policy = modelRouterSwitchPolicy;
 	if (!pick.model || pick.model === currentModel || !pick.scope || pick.scope.kind === 'same' || pick.scope.probability < policy.minScopeProbability) {
 		return 'stay';
@@ -152,7 +148,7 @@ export function decideModelRouterSwitch({ currentModel, pick, addedContextTokens
 	if (switches >= policy.maxSwitchesPerChat || (turnsSinceSwitch !== undefined && turnsSinceSwitch < policy.cooldownTurns)) {
 		return 'stay';
 	}
-	return addedContextTokens >= policy.maxAddedContextTokens ? 'hold' : 'switch';
+	return 'switch';
 }
 
 // ---- The engine ----------------------------------------------------------------
@@ -294,25 +290,14 @@ export class CopilotModelRouter {
 			this._logService.warn(`[ModelRouter] ${request.chat}: follow-up pick failed; staying on ${current.model.id}`, error);
 			return stay;
 		}
-		const contextTokens = lastTurn?.usage?.inputTokens ?? 0;
-		// Every chat starts with the same prompt, instructions and tools, which can be most of the context in a large repo. Only what this chat added should hold it back.
-		const addedContextTokens = Math.max(0, contextTokens - (previousTurns[0]?.usage?.inputTokens ?? 0));
-		const outcome = decideModelRouterSwitch({ currentModel: current.model.id, pick, addedContextTokens, ...switchHistory(previousTurns) });
-		this._logService.info(`[ModelRouter] ${request.chat}: follow-up ${outcome}; current=${current.model.id} pick=${pick.model} scope=${pick.scope?.kind}/${pick.scope?.probability} context=${contextTokens} added=${addedContextTokens}`);
+		const outcome = decideModelRouterSwitch({ currentModel: current.model.id, pick, ...switchHistory(previousTurns) });
+		this._logService.info(`[ModelRouter] ${request.chat}: follow-up ${outcome}; current=${current.model.id} pick=${pick.model} scope=${pick.scope?.kind}/${pick.scope?.probability}`);
 		const effort = router.effort === 'auto' && !current.effort
-			? decideModelRouterEffort({ current: currentEffort, score: pick.effortScore, supported: current.supportedEfforts, addedContextTokens })
+			? decideModelRouterEffort({ current: currentEffort, score: pick.effortScore, supported: current.supportedEfforts })
 			: this._effortFor(context, current, undefined);
 		const target = routes.find(route => route.model.id === pick.model);
 		if (outcome === 'stay' || !target || !pick.scope) {
 			return decision(router, current, { kept: true }, [], effort);
-		}
-		if (outcome === 'hold') {
-			const alreadyAdvised = previousTurns.some(turn => readUsageInfoMeta(turn.usage).modelRouted?.heldSwitchTo === target.model.id);
-			return decision(router, current, { kept: true, heldSwitchTo: target.model.id }, alreadyAdvised ? [] : [localize(
-				'modelRouter.holdSwitch',
-				"This work looks like a better fit for {0}, but switching now would re-read about {1}K tokens without the prompt cache, so the model router {2} stayed on {3}. To switch anyway, pick {0} in the model picker or start a new chat.",
-				target.model.name, Math.round(contextTokens / 1000), router.name, current.model.name,
-			)], effort);
 		}
 		return decision(router, target, { switchedFrom: current.model.id, ...preferenceOf(target) }, [describeSwitch(router.name, pick.scope.kind, target.model.name)], this._effortFor(context, target, pick.effortScore));
 	}

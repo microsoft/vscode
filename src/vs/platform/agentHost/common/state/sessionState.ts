@@ -274,8 +274,6 @@ export interface IModelRoutedInfo {
 	readonly defaulted?: boolean;
 	/** The chat stayed on the model it was already running. */
 	readonly kept?: boolean;
-	/** A model the router would have moved to, but held back because switching would cost too much. */
-	readonly heldSwitchTo?: string;
 }
 
 export interface IAutoModeResolvedInfo {

@@ -106,11 +106,10 @@ suite('CopilotModelRouter', () => {
 	test('the switch policy stays on near ties and holds in long chats', () => {
 		const pick: IModelRouterPick = { model: 'haiku', confidence: 0.9, probabilities: { haiku: 0.9, opus: 0.1 }, scope: { kind: 'expanded', probability: 0.9 } };
 		assert.deepStrictEqual([
-			decideModelRouterSwitch({ currentModel: 'opus', pick, addedContextTokens: 0, turnsSinceSwitch: undefined, switches: 0 }),
-			decideModelRouterSwitch({ currentModel: 'opus', pick, addedContextTokens: 100_000, turnsSinceSwitch: undefined, switches: 0 }),
-			decideModelRouterSwitch({ currentModel: 'opus', pick: { ...pick, probabilities: { haiku: 0.6, opus: 0.5 } }, addedContextTokens: 0, turnsSinceSwitch: undefined, switches: 0 }),
-			decideModelRouterSwitch({ currentModel: 'opus', pick, addedContextTokens: 0, turnsSinceSwitch: 1, switches: 1 }),
-		], ['switch', 'hold', 'stay', 'stay']);
+			decideModelRouterSwitch({ currentModel: 'opus', pick, turnsSinceSwitch: undefined, switches: 0 }),
+			decideModelRouterSwitch({ currentModel: 'opus', pick: { ...pick, probabilities: { haiku: 0.6, opus: 0.5 } }, turnsSinceSwitch: undefined, switches: 0 }),
+			decideModelRouterSwitch({ currentModel: 'opus', pick, turnsSinceSwitch: 1, switches: 1 }),
+		], ['switch', 'stay', 'stay']);
 	});
 
 	test('switching to this router, from another router or a hand-picked model, routes afresh', async () => {

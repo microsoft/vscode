@@ -192,13 +192,13 @@ export interface IAgentHostFusionTurnTelemetry {
 }
 
 /** What a model router did for a turn. */
-export type ModelRouterOutcome = 'picked' | 'defaulted' | 'kept' | 'switched' | 'held' | 'failed';
-const modelRouterOutcomes: ReadonlySet<string> = new Set<ModelRouterOutcome>(['picked', 'defaulted', 'kept', 'switched', 'held', 'failed']);
+export type ModelRouterOutcome = 'picked' | 'defaulted' | 'kept' | 'switched' | 'failed';
+const modelRouterOutcomes: ReadonlySet<string> = new Set<ModelRouterOutcome>(['picked', 'defaulted', 'kept', 'switched', 'failed']);
 
 export type IAgentHostFusionTurnClassification = {
 	autoTier?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Auto tier selected for the turn, e.g. balance, or hydrafusion or hydrafusion-max for Copilot Fusion High or Max; other for an unrecognized tier. Set only for Copilot turns on Auto. A tier override setting or managed policy can change the tier that runs; fusionModel reports what ran.' };
 	fusionModel?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The HydraFusion model (hydrafusion or hydrafusion-max) the runtime routed the turn with. Absent when the turn did not route through HydraFusion, or was cancelled before routing completed.' };
-	modelRouterOutcome?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How a user-defined model router chose the turn\'s model: picked (the decision model chose a route), defaulted (its first route), kept (stayed on the chat\'s model), switched (moved the chat to another route), held (a switch fit but was skipped to keep the prompt cache), or failed (the chat kept its model). Absent when the turn did not select a model router. Router names are never sent.' };
+	modelRouterOutcome?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How a user-defined model router chose the turn\'s model: picked (the decision model chose a route), defaulted (its first route), kept (stayed on the chat\'s model), switched (moved the chat to another route), or failed (the chat kept its model). Absent when the turn did not select a model router. Router names are never sent.' };
 };
 
 /** Bounds a selected Auto tier to its known values, mapping anything else to `other`. */

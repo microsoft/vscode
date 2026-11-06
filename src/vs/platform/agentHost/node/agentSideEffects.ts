@@ -2674,5 +2674,5 @@ function modelRouterOutcomeOf(routed: IModelRoutedInfo | undefined): ModelRouter
 	if (!routed) {
 		return 'failed';
 	}
-	return routed.switchedFrom ? 'switched' : routed.heldSwitchTo ? 'held' : routed.kept ? 'kept' : routed.defaulted ? 'defaulted' : 'picked';
+	return routed.switchedFrom ? 'switched' : routed.kept ? 'kept' : routed.defaulted ? 'defaulted' : 'picked';
 }
