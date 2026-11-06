@@ -707,6 +707,48 @@ suite('Chat window', () => {
 		assert.deepStrictEqual({ resolved, exactShared: exact === duplicate }, { resolved: [undefined, true], exactShared: true });
 	});
 
+	test('an exact and a default open of one session that resolve to the same chat while its window opens give one window, which the second reveals', async () => {
+		const { service } = createService(['a']);
+		const main = URI.parse('test:/session');
+		const windows = Reflect.get(service, '_windows') as ISettableObservable<ChatWindow[]>;
+		const events: string[] = [];
+		const gate = new DeferredPromise<void>();
+		const created = upcastPartial<ChatWindow>({
+			isGoingAway: false,
+			chats: constObservable([main]),
+			revealChat: () => { events.push('reveal'); },
+		});
+		Reflect.set(service, '_openWindow', async (_provider: unknown, _content: unknown, _firstChat: unknown, _options: unknown, store: DisposableStore) => {
+			disposables.add(store);
+			events.push('create');
+			await gate.p;
+			windows.set([...windows.get(), created], undefined);
+			return created;
+		});
+		disposables.add(service.registerProvider(upcastPartial<IChatWindowProvider>({
+			onDidRemoveChats: Event.None,
+			restoreEnabled: constObservable(false),
+			resolveContent: async () => new class extends mock<IChatWindowContent>() {
+				// Both the default and the exact resolution give the main chat
+				override async resolveChat() {
+					return new class extends mock<IChatWindowChat>() {
+						override readonly chat = constObservable(main);
+						override dispose() { }
+					}();
+				}
+				override dispose() { }
+			}(),
+		})));
+
+		const generic = service.open(main);
+		const exact = service.open(main, { exactChat: true });
+		await timeout(0);
+		gate.complete();
+		const [first, second] = await Promise.all([generic, exact]);
+
+		assert.deepStrictEqual({ events, same: first === created && second === created }, { events: ['create', 'reveal'], same: true });
+	});
+
 	test('a click in the chat of a group that is not the active one makes that chat the active chat of the window, so a link opens as a tab of its group', async () => {
 		const { service, events, windows: [target] } = createService(['a']);
 		await service.open(URI.parse('test:/c'), { window: target.window });
