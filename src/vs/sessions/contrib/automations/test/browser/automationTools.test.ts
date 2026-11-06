@@ -946,12 +946,13 @@ suite('AutomationTools', () => {
 			new FakeSessionsManagementService(createSession({ workspace: FOLDER })),
 			createConfigurationService(),
 		);
+		const createParameters = {
+			name: 'Morning review',
+			prompt: 'Review open pull requests',
+			schedule: { interval: 'daily' },
+		};
 		const createPrepared = await tool.prepareToolInvocation!({
-			parameters: {
-				name: 'Morning review',
-				prompt: 'Review open pull requests',
-				schedule: { interval: 'daily' },
-			},
+			parameters: createParameters,
 			toolCallId: 'create-call',
 			chatSessionResource: SESSION_RESOURCE,
 		}, CancellationToken.None);
@@ -982,7 +983,7 @@ suite('AutomationTools', () => {
 			create: {
 				title: 'Create Automation?',
 				message: 'Create the automation **Morning review**?',
-				toolSpecificData: undefined,
+				toolSpecificData: { kind: 'input', rawInput: createParameters, editable: false },
 			},
 			update: {
 				title: 'Update Automation?',
