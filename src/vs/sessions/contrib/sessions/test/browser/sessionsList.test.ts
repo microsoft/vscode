@@ -6291,6 +6291,29 @@ suite('Sessions - SessionsList', () => {
 				restartedValue: 'Group',
 			});
 		});
+
+		test('disposes a focused group rename editor without committing its draft', () => {
+			const group: ISessionGroup = { id: 'group', name: 'Group', createdAt: 1 };
+			const harness = createListHarness(disposables, [], { groups: [group] });
+			const renameGroup = harness.instantiationService.spy(ISessionGroupsService, 'renameGroup');
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Workspace,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+			list.beginRenameGroup(group.id);
+			const input = container.querySelector<HTMLInputElement>('.session-group-input input');
+			assert.ok(input);
+			input.value = 'Uncommitted draft';
+			input.dispatchEvent(new InputEvent('input', { bubbles: true }));
+			const focused = mainWindow.document.activeElement === input;
+
+			list.dispose();
+
+			assert.deepStrictEqual({ focused, renames: renameGroup.args }, { focused: true, renames: [] });
+		});
 	});
 
 	suite('nested custom groups', () => {

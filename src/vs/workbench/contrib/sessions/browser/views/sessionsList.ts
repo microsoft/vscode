@@ -4849,6 +4849,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.inboxFooterPreferredSize = Math.max(this.inboxFooterMinimumSize, Math.min(size, this.inboxFooterMaximumSize));
 			this.layoutInbox();
 		}));
+		// Dispose tree editors before SplitView detaches their focused inputs and fires blur.
+		const treeDisposables = this._register(new DisposableStore());
 		this.inboxSplitView = this._register(new SplitView(this.listContainer, { orientation: Orientation.VERTICAL, proportionalLayout: false }));
 		this.inboxSplitView.addView({
 			element: this.primaryContainer,
@@ -5189,7 +5191,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this._register(runOnChange(pinnedCanvases.entries, () => this.update()));
 		}
 
-		const createTree = (container: HTMLElement, label: string) => this._register(treeInstantiationService.createInstance(
+		const createTree = (container: HTMLElement, label: string) => treeDisposables.add(treeInstantiationService.createInstance(
 			WorkbenchObjectTree<SessionListItem, FuzzyScore>,
 			'SessionsListTree',
 			container,
