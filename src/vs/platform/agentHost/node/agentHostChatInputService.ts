@@ -79,6 +79,9 @@ export class AgentHostChatInputService extends Disposable implements IAgentHostC
 			|| (isChatReadOnly(state.interactivity, false) && !previous)) {
 			return Promise.resolve();
 		}
+		if (!previous && provider.chats.getInputRestriction && !provider.chats.getInputRestriction(chat)) {
+			return Promise.resolve();
+		}
 		const existing = this._pending.get(chat);
 		if (existing && existing.marker === previous) {
 			return existing.promise;
