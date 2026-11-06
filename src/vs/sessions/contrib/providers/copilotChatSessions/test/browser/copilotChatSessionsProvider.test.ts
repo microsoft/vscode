@@ -80,10 +80,9 @@ import { IDefaultAccountService } from '../../../../../../platform/defaultAccoun
 import { IChatEntitlementService } from '../../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IWorkbenchGitHubService } from '../../../../../../workbench/services/github/common/githubService.js';
 import { SessionModelSelection } from '../../../../../../workbench/contrib/sessions/browser/chat/sessionModelSelection.js';
-import { VisibleSession } from '../../../../../../workbench/contrib/sessions/browser/visibleSessions.js';
 import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { stubSessionsHostLayout } from '../../../../../test/browser/sessionsHostLayoutTestUtils.js';
-import { testChatSourceOf } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestShownChat, testChatSourceOf } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 // ---- Helpers ----------------------------------------------------------------
 
@@ -2670,7 +2669,7 @@ suite('CopilotChatSessionsProvider', () => {
 		test('shared model selection captures raw Cloud models for automation drafts', async () => {
 			const { provider, configurationService, rawModel } = await createAutomationProvider();
 			const draft = provider.createNewSession(workspace, CopilotCloudSessionType.id, { isAutomationDraft: true });
-			const session = disposables.add(new VisibleSession(draft, draft.mainChat.get()));
+			const session: ITestShownChat = { session: draft, chat: draft.mainChat.get() };
 			const providers = upcastPartial<ISessionsProvidersService>({
 				onDidChangeProviders: Event.None,
 				getProvider: <T extends ISessionsProvider>(id: string) => {
