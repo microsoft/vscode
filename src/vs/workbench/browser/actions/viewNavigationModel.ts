@@ -161,9 +161,11 @@ function getScopedEntries(
 	anchor: INavigationEntry,
 	scope: ViewNavigationScope
 ): readonly INavigationEntry[] {
+	// A container may temporarily be represented in two locations during a move.
+	// Its ID alone is insufficient to identify the current navigation scope.
 	return scope === 'workbench'
 		? entries
-		: entries.filter(entry => entry.containerId === anchor.containerId);
+		: entries.filter(entry => entry.containerId === anchor.containerId && entry.location === anchor.location);
 }
 
 /**
@@ -192,8 +194,7 @@ export function resolveViewNavigationTarget(
 	// anchor can silently move container-scoped navigation to another pane.
 	const scoped = getScopedEntries(entries, anchor, request.scope);
 	const eligible = request.includeCollapsed === false
-		? getNavigableViewEntries(snapshot, false).filter(entry =>
-			request.scope === 'workbench' || entry.containerId === anchor.containerId)
+		? getScopedEntries(getNavigableViewEntries(snapshot, false), anchor, request.scope)
 		: scoped;
 	if (eligible.length === 0) {
 		return undefined;
