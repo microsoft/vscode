@@ -42,7 +42,7 @@ type AppliedPluginIdentity = Extract<IAgentCustomizationInstallationApplyResult,
 const maxPromptLabelLength = 200;
 
 /** Marks the part of a command preview that the current step fills in. */
-const currentCommandPartMarker = '▶';
+const currentCommandPartMarker = '\u25B6';
 /** How much of a long command preview to keep before the marked part. */
 const commandPreviewLeadingContext = 80;
 
