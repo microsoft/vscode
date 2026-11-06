@@ -27,6 +27,11 @@ export class DiffItemSource {
 
 export interface IDocumentDiffItem {
 	/**
+	 * Resolves the contents on demand. Until resolved, sources carry only their URIs.
+	 */
+	readonly resolve?: () => Promise<RefCounted<IDocumentDiffItem>>;
+
+	/**
 	 * undefined if the file was created.
 	 */
 	readonly original: DiffItemSource | undefined;
