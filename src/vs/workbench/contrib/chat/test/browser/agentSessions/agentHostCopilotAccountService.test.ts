@@ -116,6 +116,24 @@ suite('Agent Host Copilot account setup', () => {
 		return f;
 	}
 
+	test('forwards millisecond credential lifetimes as seconds throughout discovery and selection', async () => {
+		const results: (number | undefined)[][] = [];
+		for (const expiresAfter of [undefined, 1, 1501, 60_000]) {
+			const f = preparingFixture();
+			f.identity.expiresAfter = expiresAfter;
+			await f.service.discover(f.connection, f.identity.id);
+			f.root.agents[0].protectedResources = choices.map(choice => ({ resource: choice.resource, scopes_supported: [`${copilotEntraM365Audience}/.default`] }));
+			await f.service.select(f.connection, 'opaque-flow', 'selection-A');
+			results.push(f.requests.map(request => request.expiresIn));
+		}
+		assert.deepStrictEqual(results, [
+			[undefined, undefined, undefined, undefined, undefined, undefined],
+			[1, 1, 1, 1, 1, 1],
+			[2, 2, 2, 2, 2, 2],
+			[60, 60, 60, 60, 60, 60],
+		]);
+	});
+
 	test('waits for accepted same-account delivery before one discovery retry and skips an optional EMU miss silently', async () => {
 		const f = preparingFixture();
 		f.state.missingScopes.push(`${copilotEntraEmuAudience}/user_impersonation`);

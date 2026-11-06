@@ -11,7 +11,6 @@ import { URI } from '../../../../../../base/common/uri.js';
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { readCopilotAccountContext, type CopilotAccountContext } from '../../../../../../platform/agentHost/common/copilotAccountContext.js';
 import { copilotEntraAuthorizationServer, copilotEntraClientId, copilotEntraDiscoveryResource, copilotEntraEmuAudience, copilotEntraM365Audience, copilotEntraResources, isCopilotEntraResource } from '../../../../../../platform/agentHost/common/copilotEntraAuthentication.js';
-import { authenticationAccountMeta } from '../../../../../../platform/agentHost/common/meta/agentAuthenticationAccount.js';
 import { copilotAccountOperationMeta, type CopilotAccountOperation } from '../../../../../../platform/agentHost/common/meta/copilotAccountOperation.js';
 import type { ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
@@ -22,6 +21,7 @@ import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { localize } from '../../../../../../nls.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { ChatConfiguration } from '../../../common/constants.js';
+import { toAuthenticateRequest } from './agentHostAuth.js';
 
 export const IAgentHostCopilotAccountService = createDecorator<IAgentHostCopilotAccountService>('agentHostCopilotAccountService');
 
@@ -232,11 +232,11 @@ export class AgentHostCopilotAccountService extends Disposable implements IAgent
 		}
 		const previousAccountId = binding.accountId;
 		this.bindAccount(binding, account.id);
+		const request = toAuthenticateRequest(resource.resource, resource.scopes_supported, credential, 'microsoft');
 		const result = await connection.authenticate({
-			resource: resource.resource, scopes: resource.scopes_supported, token: credential.accessToken,
-			expiresIn: credential.expiresAfter,
+			...request,
 			_meta: {
-				...authenticationAccountMeta({ providerId: 'microsoft', accountId: account.id, label: credential.account.label }),
+				...request._meta,
 				...(operation ? copilotAccountOperationMeta(operation) : {}),
 			},
 		});
