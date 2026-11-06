@@ -118,6 +118,7 @@ export class EditorWorkerService extends Disposable implements IEditorWorkerServ
 			identical: result.identical,
 			quitEarly: result.quitEarly,
 			validity: result.validity,
+			fallback: result.fallback,
 			changes: toLineRangeMappings(result.changes),
 			moves: result.moves.map(m => new MovedText(
 				new LineRangeMapping(new LineRange(m[0], m[1]), new LineRange(m[2], m[3])),
