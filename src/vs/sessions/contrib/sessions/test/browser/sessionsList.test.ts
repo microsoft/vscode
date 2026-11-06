@@ -8411,6 +8411,8 @@ suite('Sessions - SessionsList', () => {
 			};
 			const provider = new class extends mock<IAgentHostSessionsProvider>() {
 				override readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
+				override readonly onDidChangeSessions = Event.None;
+				override readonly onDidChangeSessionConfig = Event.None;
 				override getAgentMergeClientStateObservable(sessionId: string) { return getEnablementObservable(sessionId); }
 			};
 			const completedStateIcon = observableValue('completedStateIcon', computePullRequestIcon(GitHubPullRequestState.Open, { hasFailingChecks: true }));
