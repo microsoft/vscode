@@ -16,8 +16,6 @@ import { Direction, ISerializedGrid } from '../../../../../base/browser/ui/grid/
 import { Part } from '../../../../browser/part.js';
 import { ActiveSessionsContext, MultipleSessionsVisibleContext, SessionsFocusContext } from '../../common/contextkeys.js';
 import { $, addDisposableGenericMouseDownListener, addDisposableListener, EventType, isAncestor, isAncestorOfActiveElement, isHTMLElement, trackFocus } from '../../../../../base/browser/dom.js';
-import { IActiveSession } from '../../common/sessionsManagement.js';
-import { ISession } from '../../common/session.js';
 import { SessionView } from './sessionView.js';
 import { DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, derived, observableSignal } from '../../../../../base/common/observable.js';
@@ -34,6 +32,7 @@ import { isPhoneLayout } from '../mobileLayout.js';
 import { SessionsChatSurface } from '../sessionsChatSurface.js';
 import { noSessionPickerVisibility, SessionPickerVisibilityContextKeys } from '../../common/sessionPickerVisibility.js';
 import { ISessionGridSlot, SessionGridRequest } from '../sessionsPartService.js';
+import { ISessionGridPane, SessionGridPaneKind } from '../sessionGridPane.js';
 import type { ISessionHost } from '../sessionHost.js';
 import { SessionGridLayout } from './sessionGridLayout.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../../common/layoutConstants.js';
@@ -46,7 +45,18 @@ interface IGridSlot {
 	readonly disposables: DisposableStore;
 	/** Session currently bound to this slot, or `undefined` for the new-session placeholder. */
 	boundSessionId: string | undefined;
-	session?: IActiveSession;
+	/** The pane of the grid the slot shows. */
+	pane?: ISessionGridPane;
+}
+
+/** Whether `slot` shows one chat of its session apart from the session's slot. */
+function isDetachedSlot(slot: IGridSlot): boolean {
+	return slot.pane?.kind === SessionGridPaneKind.Detached;
+}
+
+/** The chat a detached pane of the grid shows, by which it is told apart from the session's slot. */
+function detachedChatOf(slot: IGridSlot): URI | undefined {
+	return slot.pane?.kind === SessionGridPaneKind.Detached ? slot.pane.chat.get()?.resource : undefined;
 }
 
 export class SessionsPart extends Part {
@@ -187,13 +197,26 @@ export class SessionsPart extends Part {
 	private _findTargetView(child: HTMLElement): { readonly sessionId: string | undefined; readonly gridSlotId: string; readonly chatResource?: URI; readonly element: HTMLElement } | undefined {
 		for (const slot of this._slots) {
 			if (isAncestor(child, slot.view.element)) {
-				return { sessionId: slot.boundSessionId, gridSlotId: slot.id, chatResource: slot.session?.scopedChatResource, element: slot.view.element };
+				return { sessionId: slot.boundSessionId, gridSlotId: slot.id, chatResource: detachedChatOf(slot), element: slot.view.element };
 			}
 		}
 		return undefined;
 	}
 
-	updateVisibleSessions(visible: readonly (IActiveSession | undefined)[], active: IActiveSession | undefined, gridSlots?: readonly ISessionGridSlot[], request?: SessionGridRequest): void {
+	/**
+	 * Renders the panes of the grid, in the order of `gridSlots`, with `activePane` active: the view of each pane's grid slot
+	 * shows that pane, and binds again to its session as the pane shows another, such as a replacement of it.
+	 */
+	updatePanes(panes: readonly ISessionGridPane[], activePane: ISessionGridPane | undefined, gridSlots?: readonly ISessionGridSlot[], request?: SessionGridRequest): void {
+		this._reconcile(panes.map(pane => ({
+			id: pane.id,
+			sessionId: pane.session.get()?.sessionId,
+			pane,
+			open: view => view.openPane(pane, {}),
+		})), slots => slots.find(slot => slot.pane === activePane), gridSlots, request);
+	}
+
+	private _reconcile(entries: readonly { readonly id: string; readonly sessionId: string | undefined; readonly pane?: ISessionGridPane; readonly open: (view: SessionView) => void }[], findActive: (slots: readonly IGridSlot[]) => IGridSlot | undefined, gridSlots: readonly ISessionGridSlot[] | undefined, request: SessionGridRequest | undefined): void {
 		if (!this._gridWidget) {
 			return;
 		}
@@ -201,25 +224,20 @@ export class SessionsPart extends Part {
 		// Rebinding or disposing the old slot must not publish an intermediate active-view state.
 		this._activeViewPickerVisibility.clear();
 
-		const sessions = visible.length ? visible : [undefined];
 		const oldSlots = new Map(this._slots.map(slot => [slot.id, slot]));
-		const next = sessions.map((session, index) => {
-			const id = gridSlots?.[index].id ?? session?.sessionId ?? 'initial';
-			const slot = oldSlots.get(id) ?? this._createSlot(id);
-			oldSlots.delete(id);
-			slot.boundSessionId = session?.sessionId;
-			slot.session = session;
-			slot.view.openSession(session, {});
+		const next = entries.map(entry => {
+			const slot = oldSlots.get(entry.id) ?? this._createSlot(entry.id);
+			oldSlots.delete(entry.id);
+			slot.boundSessionId = entry.sessionId;
+			slot.pane = entry.pane;
+			entry.open(slot.view);
 			return slot;
 		});
 		this._slots.splice(0, this._slots.length, ...next);
 		this._slotsChanged.trigger(undefined);
 
 		// Mark the active session's element for styling/focus indication.
-		const activeId = active?.sessionId;
-		const activeSlot = this._slots.find(slot => slot.session === active)
-			?? this._slots.find(slot => slot.boundSessionId === activeId)
-			?? (this._slots.length === 1 ? this._slots[0] : undefined);
+		const activeSlot = findActive(this._slots) ?? (this._slots.length === 1 ? this._slots[0] : undefined);
 		this._activeSlot = activeSlot;
 		for (const slot of this._slots) {
 			const isActive = slot === activeSlot;
@@ -245,14 +263,14 @@ export class SessionsPart extends Part {
 			this.layout(width, height, top, left);
 		}
 
-		this._updateContextKeys(visible);
+		this._updateContextKeys(entries.length);
 		this._activeViewPickerVisibility.value = autorun(reader => {
 			this._pickerVisibilityContextKeys.set(activeSlot?.view.pickerVisibility.read(reader) ?? noSessionPickerVisibility);
 		});
 	}
 
-	private _updateContextKeys(visible: readonly (IActiveSession | undefined)[]): void {
-		this._multipleSessionsVisibleKey.set(visible.length > 1);
+	private _updateContextKeys(paneCount: number): void {
+		this._multipleSessionsVisibleKey.set(paneCount > 1);
 	}
 
 	/**
@@ -278,10 +296,18 @@ export class SessionsPart extends Part {
 	 * the call was a no-op.
 	 */
 	toggleMaximizeSession(sessionId: string | undefined): boolean | undefined {
+		return this._toggleMaximized(this._findSessionSlot(sessionId));
+	}
+
+	/** Toggles the maximized state of the view of `pane`; see {@link toggleMaximizeSession}. */
+	toggleMaximizePane(pane: ISessionGridPane): boolean | undefined {
+		return this._toggleMaximized(this._slots.find(slot => slot.id === pane.id));
+	}
+
+	private _toggleMaximized(slot: IGridSlot | undefined): boolean | undefined {
 		if (!this._gridWidget) {
 			return undefined;
 		}
-		const slot = this._findSessionSlot(sessionId);
 		if (!slot) {
 			return undefined;
 		}
@@ -295,17 +321,21 @@ export class SessionsPart extends Part {
 
 	getGridLayout(): ISerializedGrid | undefined { return this._gridWidget?.serialize(); }
 
-	getSessionAtPosition(index: number): IActiveSession | null | undefined {
+	/** The pane at `index` in visual grid order (`-1` for the last), or `undefined` if there is none. */
+	getPaneAtPosition(index: number): ISessionGridPane | undefined {
 		const id = this._gridWidget?.order.at(index);
-		const slot = this._slots.find(slot => slot.id === id);
-		return slot ? slot.session ?? null : undefined;
+		return this._slots.find(slot => slot.id === id)?.pane;
 	}
 
-	getNeighborSession(sessionId: string | undefined, direction: Direction): IActiveSession | null | undefined {
-		const slot = this._findSessionSlot(sessionId);
-		const neighbor = slot && this._gridWidget?.neighbor(slot.id, direction);
-		const target = this._slots.find(slot => slot.id === neighbor);
-		return target ? target.session ?? null : undefined;
+	/** The pane next to `pane` in `direction`, or `undefined` if there is none. */
+	getNeighborPane(pane: ISessionGridPane, direction: Direction): ISessionGridPane | undefined {
+		const neighbor = this._gridWidget?.neighbor(pane.id, direction);
+		return this._slots.find(slot => slot.id === neighbor)?.pane;
+	}
+
+	/** The view of the grid slot of `pane`. */
+	getViewOfPane(pane: ISessionGridPane): SessionView | undefined {
+		return this._slots.find(slot => slot.id === pane.id)?.view;
 	}
 
 	getSessionPlacement(sessionId: string): { sessionId: string | undefined; direction: Direction } | undefined {
@@ -321,7 +351,15 @@ export class SessionsPart extends Part {
 	}
 
 	resizeSession(sessionId: string | undefined, direction: Direction, amount: number): void {
-		const slot = this._findSessionSlot(sessionId);
+		this._resize(this._findSessionSlot(sessionId), direction, amount);
+	}
+
+	/** Resizes the view of `pane` by `amount` in `direction`. */
+	resizePane(pane: ISessionGridPane, direction: Direction, amount: number): void {
+		this._resize(this._slots.find(slot => slot.id === pane.id), direction, amount);
+	}
+
+	private _resize(slot: IGridSlot | undefined, direction: Direction, amount: number): void {
 		const size = slot && this._gridWidget?.getSize(slot.id);
 		if (slot && size) {
 			this._onDidInteractWithGrid.fire();
@@ -340,14 +378,9 @@ export class SessionsPart extends Part {
 		return this._findSessionSlot(sessionId)?.view;
 	}
 
-	/** The view of exactly `session`, of those it shows, such as one of a chat it shows in a pane of its own. */
-	getViewOfSession(session: ISession): SessionView | undefined {
-		return this._slots.find(slot => slot.session === session)?.view;
-	}
-
 	private _findSessionSlot(sessionId: string | undefined): IGridSlot | undefined {
 		return this._slots.find(slot => slot.boundSessionId === sessionId && slot.view.element.classList.contains('is-active'))
-			?? this._slots.find(slot => slot.boundSessionId === sessionId && !slot.session?.scopedChatResource);
+			?? this._slots.find(slot => slot.boundSessionId === sessionId && !isDetachedSlot(slot));
 	}
 
 	getFocusedSessionView(): SessionView | undefined {
@@ -374,7 +407,7 @@ export class SessionsPart extends Part {
 	 * the grid when it is only partially visible. No-op if no matching slot exists.
 	 */
 	focusSession(sessionId: string | undefined, chatResource?: URI): void {
-		const slot = this._slots.find(s => s.boundSessionId === sessionId && s.session?.scopedChatResource?.toString() === chatResource?.toString());
+		const slot = this._slots.find(s => s.boundSessionId === sessionId && detachedChatOf(s)?.toString() === chatResource?.toString());
 		if (!slot) {
 			return;
 		}
@@ -392,9 +425,9 @@ export class SessionsPart extends Part {
 		slot.view.focus();
 	}
 
-	/** Moves keyboard focus into the view of exactly `session`, of those the grid shows, first revealing it like {@link focusSession}. */
-	focusSessionView(session: ISession): void {
-		const slot = this._slots.find(candidate => candidate.session === session);
+	/** Moves keyboard focus into the view whose host is `host`, of those the grid shows, first revealing it like {@link focusSession}. */
+	focusViewOfHost(host: ISessionHost): void {
+		const slot = this._slots.find(candidate => candidate.view.host === host);
 		if (!slot) {
 			return;
 		}

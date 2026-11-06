@@ -19,7 +19,7 @@ import { ISessionChangesService } from '../../../common/sessionChangesService.js
 import { ISessionsService } from '../../../browser/sessionsService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../common/sessionsManagement.js';
 import { IChangesSessionObservables, IChangesViewService } from '../../../common/changesViewService.js';
-import { sessionHostServiceOf } from '../sessionHostTestUtils.js';
+import { sessionHostServiceOf, testGridPanes } from '../sessionHostTestUtils.js';
 
 function noSessions(): ISessionsService {
 	return new class extends mock<ISessionsService>() {
@@ -27,6 +27,7 @@ function noSessions(): ISessionsService {
 		readonly mainWindowActiveSession = constObservable<IActiveSession | undefined>(undefined);
 		readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
 		override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([]);
+		override readonly slotPanes = testGridPanes(this.visibleSessions);
 	}();
 }
 
@@ -93,6 +94,7 @@ suite('ChangesMultiDiffSourceResolver', () => {
 			readonly mainWindowActiveSession = constObservable<IActiveSession | undefined>(undefined);
 			readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
 			override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([visibleSession]);
+			override readonly slotPanes = testGridPanes(this.visibleSessions);
 		}();
 		const changesViewService = new class extends mock<IChangesViewService>() {
 			override readonly viewModeObs = observableValue<ChangesViewMode>(this, ChangesViewMode.List);
@@ -190,6 +192,7 @@ suite('ChangesMultiDiffSourceResolver', () => {
 			readonly mainWindowActiveSession = mainWindowActiveSession;
 			readonly windowSessions = windowSessions;
 			override readonly visibleSessions = visibleSessions;
+			override readonly slotPanes = testGridPanes(this.visibleSessions);
 		}();
 		const management = new class extends mock<ISessionsManagementService>() {
 			override readonly onDidChangeSessions = Event.None;

@@ -251,7 +251,9 @@ export function testGridPane(session: IActiveSession | undefined, chat: IChat | 
 		kind: session?.scopedChatResource ? SessionGridPaneKind.Detached : SessionGridPaneKind.Slot,
 		session: constObservable(session),
 		chat: constObservable(chat),
-		sticky: constObservable(false),
+		// A test's view of a session carries the pin and the tab strip of its pane.
+		sticky: session?.sticky ?? constObservable(false),
+		tabs: session,
 	});
 }
 
@@ -269,7 +271,8 @@ export function testGridPanes(sessions: IObservable<readonly (IActiveSession | u
 				kind: session?.scopedChatResource ? SessionGridPaneKind.Detached : SessionGridPaneKind.Slot,
 				session: constObservable(session),
 				chat: session?.activeChat ?? constObservable(undefined),
-				sticky: constObservable(false),
+				sticky: session?.sticky ?? constObservable(false),
+				tabs: session,
 			});
 			panes.set(session, pane);
 		}

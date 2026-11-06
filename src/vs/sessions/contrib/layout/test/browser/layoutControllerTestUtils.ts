@@ -34,7 +34,7 @@ import { IDecorationsService } from '../../../../../workbench/services/decoratio
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { GroupModelChangeKind, IEditorWillOpenEvent, IUntypedEditorInput, isResourceEditorInput } from '../../../../../workbench/common/editor.js';
 import { IActiveSession, IChatDeletedEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { focusedSessionHostServiceOf, sessionHostServiceOf, stubSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { focusedSessionHostServiceOf, sessionHostServiceOf, stubSessionHostsFromSessionsService, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionsPartService } from '../../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
 import { SESSIONS_LAYOUT_SCOPE_SETTING, ChatLayoutMode, ChatLayoutPresentation } from '../../../../common/chatLayout.js';
@@ -490,6 +490,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		readonly activeSession = harness.activeSessionObs;
 		readonly mainWindowActiveSession = harness.activeSessionObs;
 		override readonly visibleSessions = harness.visibleSessionsObs;
+		override readonly slotPanes = testGridPanes(harness.visibleSessionsObs);
 		readonly windowSessions = constObservable([]);
 	});
 	stubSessionHostsFromSessionsService(instaService);

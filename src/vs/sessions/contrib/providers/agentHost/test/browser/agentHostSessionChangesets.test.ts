@@ -1748,6 +1748,7 @@ suite('AgentHostSessionChangesets', () => {
 				readonly activeSession = constObservable(session);
 				readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
 				override readonly visibleSessions = constObservable([session]);
+				override readonly slotPanes = testGridPanes(this.visibleSessions);
 				override readonly visibleSessionPanes = constObservable([session]);
 				override readonly panes = testGridPanes(constObservable([session]));
 			}();

@@ -66,7 +66,7 @@ import { ISessionGridSlot, ISessionsPartService, SessionGridRequest } from '../.
 import { AbstractCustomView, ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { CustomViewService } from '../../../customView/browser/customViewService.js';
 import { IWindowCanvasDescriptor, IWindowCanvasService } from '../../../../../workbench/contrib/sessions/browser/windowCanvas.js';
-import { ISessionGridPane } from '../../../../../workbench/contrib/sessions/browser/sessionGridPane.js';
+import { ISessionGridPane, SessionGridPaneKind } from '../../../../../workbench/contrib/sessions/browser/sessionGridPane.js';
 import { TestWindowCanvasService } from '../../../canvas/test/browser/testWindowCanvasService.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService, SessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
@@ -336,12 +336,15 @@ class TestSessionsPartService extends mock<ISessionsPartService>() {
 	override readonly onDidToggleMaximizeSession = Event.None;
 	override get onDidInteractWithGrid() { return this.part?.onDidInteractWithGrid ?? Event.None; }
 	override getGridLayout() { return this.part?.getGridLayout(); }
-	override getSessionAtPosition(index: number) { return this.part?.getSessionAtPosition(index); }
+	override getPaneAtPosition(index: number) { return this.part?.getPaneAtPosition(index); }
+	override getNeighborPane(pane: ISessionGridPane, direction: Direction) { return this.part?.getNeighborPane(pane, direction); }
+	override getViewOfPane(pane: ISessionGridPane) { return this.part?.getViewOfPane(pane); }
+	override toggleMaximizePane(pane: ISessionGridPane): void { this.part?.toggleMaximizePane(pane); }
+	override resizePane(pane: ISessionGridPane, direction: Direction, amount: number): void { this.part?.resizePane(pane, direction, amount); }
 	override getSessionPlacement(id: string) { return this.part?.getSessionPlacement(id); }
-	override getNeighborSession(id: string | undefined, direction: Direction) { return this.part?.getNeighborSession(id, direction); }
 	override resizeSession(id: string | undefined, direction: Direction, amount: number): void { this.part?.resizeSession(id, direction, amount); }
-	override updateVisibleSessions(visible: readonly (IActiveSession | undefined)[], active: IActiveSession | undefined, slots?: readonly ISessionGridSlot[], request?: SessionGridRequest): void {
-		this.part?.updateVisibleSessions(visible, active, slots, request);
+	override updatePanes(panes: readonly ISessionGridPane[], activePane: ISessionGridPane | undefined, slots?: readonly ISessionGridSlot[], request?: SessionGridRequest): void {
+		this.part?.updatePanes(panes, activePane, slots, request);
 	}
 	override focusSession(session: IActiveSession | undefined): void {
 		this.focusedSessions.push(session?.sessionId);
@@ -359,6 +362,19 @@ class TestSessionsPartService extends mock<ISessionsPartService>() {
 	override getActiveSessionView(): SessionView | undefined { return this.part?.getActiveSessionView(); }
 	override getSessionViewOfHost(host: ISessionHost): SessionView | undefined { return this.part?.getSessionViewOfHost(host); }
 	override getPaneIdOfHost(host: ISessionHost): string | undefined { return this.part?.getPaneIdOfHost(host); }
+}
+
+/** The view of the grid's pane that shows `shown`, a view of a session the grid shows. */
+function viewOfShown(grid: Pick<ISessionsService, 'panes' | 'visibleSessionPanes'>, part: SessionsPart, shown: IActiveSession): SessionView | undefined {
+	const index = grid.visibleSessionPanes.get().indexOf(shown);
+	const pane = index >= 0 ? grid.panes.get()[index] : undefined;
+	return pane && part.getViewOfPane(pane);
+}
+
+/** The id of the session the pane next to the slot of `sessionId` shows, in `direction`. */
+function neighborOfSlot(grid: Pick<ISessionsService, 'slotPanes'>, part: SessionsPart, sessionId: string, direction: Direction): string | undefined {
+	const pane = grid.slotPanes.get().find(candidate => candidate.session.get()?.sessionId === sessionId);
+	return pane && part.getNeighborPane(pane, direction)?.session.get()?.sessionId;
 }
 
 class TestCustomView extends AbstractCustomView {
@@ -617,8 +633,8 @@ suite('SessionsManagementService', () => {
 			assert.deepStrictEqual({
 				empty,
 				grid: of(view.gridHost),
-				slot: of(part.getViewOfSession(slot!)?.host),
-				detached: of(part.getViewOfSession(detached!)?.host),
+				slot: of(viewOfShown(view, part, slot!)?.host),
+				detached: of(viewOfShown(view, part, detached!)?.host),
 				chatWindow: of(chatWindow),
 			}, {
 				empty: { grid: { active: true, detached: false, grid: true, pane: 'slot:new session:no chat' }, emptySlot: { active: true, detached: false, grid: true, pane: 'slot:new session:no chat' } },
@@ -640,7 +656,7 @@ suite('SessionsManagementService', () => {
 			await view.moveChatToGrid(a.sessionId, child.resource, view.slotPanes.get()[0].id, 'right');
 			const name = (pane: ISessionGridPane | undefined) => pane && `${pane.kind}:${pane.session.get()?.sessionId}`;
 			const paneB = view.slotPanes.get().find(pane => pane.session.get()?.sessionId === 'b')!;
-			const hostOfA = part.getViewOfSession(view.visibleSessionPanes.get().find(shown => shown?.sessionId === 'a' && !shown.scopedChatResource)!)!.host;
+			const hostOfA = viewOfShown(view, part, view.visibleSessionPanes.get().find(shown => shown?.sessionId === 'a' && !shown.scopedChatResource)!)!.host;
 			const hostIn = (kind: SessionHostKind, parent: ISessionHost | undefined) => new SessionHost({ kind, parent, session: constObservable(a), chat: constObservable(undefined), contextKeyService: upcastPartial<IContextKeyService>({}) });
 			const run = async (host: ISessionHost, target?: { session: ISession; chatResource: URI }) => {
 				view.activatePane(paneB);
@@ -717,7 +733,7 @@ suite('SessionsManagementService', () => {
 			const grid = () => view.panes.get().map(pane => `${pane.kind}:${pane.session.get()?.sessionId ?? 'new session'}${pane.kind === 'detached' ? `:${pane.chat.get()?.resource.fragment}` : ''}`);
 			const contentOf = (sessionId: string, detached = false) => {
 				const pane = view.visibleSessionPanes.get().find(candidate => candidate?.sessionId === sessionId && !!candidate.scopedChatResource === detached);
-				return (Reflect.get(part.getViewOfSession(pane!)!, '_contentObs') as IObservable<ISessionPaneContent | undefined>).get()!;
+				return (Reflect.get(viewOfShown(view, part, pane!)!, '_contentObs') as IObservable<ISessionPaneContent | undefined>).get()!;
 			};
 			const detachedContent = contentOf('parent', true);
 			const before = grid();
@@ -755,7 +771,7 @@ suite('SessionsManagementService', () => {
 			await view.openSession(parent.resource);
 			await view.moveChatToGrid(parent.sessionId, child.resource, (Reflect.get(view, '_visibility') as VisibleSessions).getGridSlots()[0].id, 'right');
 			const [slot, detached] = view.visibleSessionPanes.get();
-			const hosts = [view.gridHost, part.getViewOfSession(slot!)!.host, part.getViewOfSession(detached!)!.host];
+			const hosts = [view.gridHost, viewOfShown(view, part, slot!)!.host, viewOfShown(view, part, detached!)!.host];
 
 			assert.deepStrictEqual(hosts.map(host => ({
 				provider: host.session.get() === parent,
@@ -874,7 +890,7 @@ suite('SessionsManagementService', () => {
 				owners: view.visibleSessions.get().map(session => session?.sessionId),
 				panes: container.querySelectorAll('.session-view').length,
 				owner: detached?.getSession()?.sessionId,
-				chat: detached?.getSession()?.scopedChatResource?.toString(),
+				chat: detached?.pane.get()?.kind === SessionGridPaneKind.Detached ? detached.pane.get()?.chat.get()?.resource.toString() : undefined,
 				parent: child.origin?.parentChat?.toString(),
 				shown: part.shownChatCount.get(),
 			}, {
@@ -1513,7 +1529,7 @@ suite('SessionsManagementService', () => {
 				await view.moveChatToGrid(parent.sessionId, child.resource, visibility.getGridSlots()[0].id, 'down');
 				const childSlot = visibility.getRenderedGridSlots().find(slot => visibility.getGridSession(slot.id))!.id;
 				const childPane = visibility.getGridSession(childSlot)!;
-				const childView = part.getViewOfSession(childPane);
+				const childView = viewOfShown(view, part, childPane);
 				view.setActive(activePane === 'child' ? childPane : view.visibleSessions.get()[0]);
 
 				disposables.add(view.hideChatFromGrid(parent, main.resource));
@@ -1522,7 +1538,7 @@ suite('SessionsManagementService', () => {
 					roots: view.visibleSessions.get().length,
 					slots: visibility.getRenderedGridSlots().map(slot => slot.id),
 					child: visibility.getGridSession(childSlot) === childPane && childPane.scopedChatResource?.toString(),
-					view: part.getViewOfSession(childPane) === childView && childView?.element.isConnected,
+					view: viewOfShown(view, part, childPane) === childView && childView?.element.isConnected,
 					panes: container.querySelectorAll('.session-view').length,
 					active: view.activeSession.get() === childPane,
 				}, { roots: 0, slots: [childSlot], child: child.resource.toString(), view: true, panes: 1, active: true });
@@ -1913,7 +1929,7 @@ suite('SessionsManagementService', () => {
 				visible: view.visibleSessions.get().map(session => session?.sessionId),
 				sticky: view.visibleSessions.get().map(session => session?.sticky.get()),
 				active: view.activeSession.get()?.sessionId,
-				above: part.getNeighborSession('a', Direction.Up)?.sessionId,
+				above: neighborOfSlot(view, part, 'a', Direction.Up),
 				same: part.getSessionView('a') === aView,
 				disposed: aChat.disposed, input: aChat.input.value,
 			}, { visible: ['b', 'a', 'c'], sticky: [false, true, false], active: 'a', above: 'b', same: true, disposed: false, input: 'still here' });
@@ -2191,7 +2207,7 @@ suite('SessionsManagementService', () => {
 			await view.reopenLastClosedItem();
 			assert.deepStrictEqual({
 				visible: view.visibleSessions.get().map(session => session?.sessionId),
-				above: part.getNeighborSession('c', Direction.Up)?.sessionId,
+				above: neighborOfSlot(view, part, 'c', Direction.Up),
 				active: view.activeSession.get()?.sessionId,
 			}, { visible: ['a', 'b', 'c'], above: 'b', active: 'c' });
 		});
@@ -2351,7 +2367,7 @@ suite('SessionsManagementService', () => {
 			await view.restoreVisibleSessions();
 			assert.deepStrictEqual({
 				visible: view.visibleSessions.get().map(session => ({ id: session?.sessionId, sticky: session?.sticky.get() })),
-				active: view.activeSession.get()?.sessionId, right: part.getNeighborSession('a', Direction.Right)?.sessionId,
+				active: view.activeSession.get()?.sessionId, right: neighborOfSlot(view, part, 'a', Direction.Right),
 			}, { visible: [{ id: 'a', sticky: true }, { id: 'b', sticky: false }], active: 'b', right: 'b' });
 		});
 

@@ -19,6 +19,7 @@ import { ISessionsService } from '../../../../../workbench/contrib/sessions/brow
 import { ISession, ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import '../../browser/agentHostDelegation.js';
+import { testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Sessions - Agent Host delegation', () => {
 
@@ -44,6 +45,7 @@ suite('Sessions - Agent Host delegation', () => {
 		}));
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			override readonly visibleSessions = constObservable(gridSessions);
+			override readonly slotPanes = testGridPanes(this.visibleSessions);
 			override insertAt(_session: ISession | undefined, targetSessionId: string | undefined) { result.anchor = targetSessionId; }
 		});
 		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {

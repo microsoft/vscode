@@ -162,7 +162,7 @@ class SessionDropOverlay extends Themable {
 		}
 
 		if (data.length === 1) {
-			const draft = this._sessionsService.visibleSessions.get().find(session => session?.sessionId === data[0].sessionId);
+			const draft = this._sessionsService.slotPanes.get().map(pane => pane.session.get()).find(session => session?.sessionId === data[0].sessionId);
 			// Provider drafts can be visible before they appear in the session list.
 			if (draft && !isSessionCreated(draft)) {
 				this._sessionsService.insertAt(draft, this.targetSessionId, side, true, this._targetGridSlotId);

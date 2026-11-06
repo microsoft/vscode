@@ -45,7 +45,7 @@ import { IWorkbenchAssignmentService } from '../../../../../workbench/services/a
 import { Menus, SessionHeaderMenus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { SESSION_CONVERSATION_SIDE_CHATS_GROUP } from '../../../../../workbench/contrib/sessions/browser/sessionConversationGroups.js';
 import { SessionView } from '../../../../../workbench/contrib/sessions/browser/parts/sessionView.js';
-import { createSessionsPartTestHarness, createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
+import { createSessionsPartTestHarness, createTestActiveSession, renderTestPanes } from '../../../../test/browser/sessionViewTestUtils.js';
 import { ISessionsPartService } from '../../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
 import { type IOpenNewSessionOptions, type IOpenNewSessionResult, type IOpenSessionOptions, type IOpenSessionsOptions, ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
@@ -80,7 +80,7 @@ import { resolveOnboardingTarget } from '../../../../../workbench/contrib/onboar
 import { ICustomViewService, ICustomViewDescriptor } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { WindowCanvasInput, IWindowCanvasService } from '../../../../../workbench/contrib/sessions/browser/windowCanvas.js';
 import { ITestSessionsService, stubMissingSessionHostsFromSessionsService, stubPaneHost, testGridPane, testGridPanes, withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
-import { ISessionGridPane } from '../../../../../workbench/contrib/sessions/browser/sessionGridPane.js';
+import { ISessionGridPane, SessionGridPaneKind } from '../../../../../workbench/contrib/sessions/browser/sessionGridPane.js';
 
 suite('Sessions - Actions', () => {
 
@@ -424,7 +424,7 @@ suite('Sessions - Actions', () => {
 			}
 		});
 		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
-			override getActiveSessionView() { return upcastPartial<SessionView>({ getSession: () => activeSession }); }
+			override getActiveSessionView() { return upcastPartial<SessionView>({ getSession: () => activeSession, pane: constObservable(testGridPane(activeSession)) }); }
 		});
 
 		await instantiationService.invokeFunction(accessor => new ArchiveChatAction().run(accessor, { session: activeSession, chat: side }));
@@ -663,6 +663,7 @@ suite('Sessions - Actions', () => {
 		const opens: IOpenSessionOptions[] = [];
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			override readonly visibleSessions = constObservable([activeSession]);
+			override readonly slotPanes = testGridPanes(this.visibleSessions);
 			override async openSessionToSide(_session: ISession, options?: IOpenSessionOptions): Promise<void> {
 				if (options) {
 					opens.push(options);
@@ -693,6 +694,7 @@ suite('Sessions - Actions', () => {
 		const opens: { sessions: readonly ISession[]; reference: string | undefined; direction: string; options: IOpenSessionsOptions | undefined }[] = [];
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			override readonly visibleSessions = constObservable([reference]);
+			override readonly slotPanes = testGridPanes(this.visibleSessions);
 			override async openSessionsAt(...[sessions, reference, direction, options]: Parameters<ISessionsService['openSessionsAt']>): Promise<void> {
 				opens.push({ sessions, reference, direction, options });
 			}
@@ -1114,7 +1116,7 @@ suite('Sessions - Actions', () => {
 		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
 			override getSessionView() { calls.push('view'); return undefined; }
 			override getActiveSessionView() { calls.push('activeView'); return undefined; }
-			override getSessionAtPosition() { calls.push('position'); return undefined; }
+			override getPaneAtPosition() { calls.push('position'); return undefined; }
 			override focusSession() { calls.push('focusSession'); }
 			override toggleMaximizeSession() { calls.push('maximize'); }
 		});
@@ -1327,33 +1329,33 @@ suite('Sessions - Actions', () => {
 		};
 		const other = createTestActiveSession('other');
 		part.layout(1202, 802, 0, 0);
-		part.updateVisibleSessions([parent, other, child], parent, [
+		renderTestPanes(part, [parent, other, child], parent, [
 			{ id: 'parent' }, { id: 'other' }, { id: 'child', placement: { reference: 'other', direction: Direction.Left } },
 		]);
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IFocusedSessionHostService, upcastPartial<IFocusedSessionHostService>({ getFocusedHost: () => upcastPartial<ISessionHost>({ kind: SessionHostKind.MainWindow }) }));
 		const selected: (string | undefined)[] = [];
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override setActive(session: IActiveSession | undefined): void {
-				selected.push(session?.scopedChatResource ? 'child' : session?.sessionId);
+			override activatePane(pane: ISessionGridPane | undefined): void {
+				selected.push(pane?.kind === SessionGridPaneKind.Detached ? 'child' : pane?.session.get()?.sessionId);
 			}
 		});
 		stubMissingSessionHostsFromSessionsService(instantiationService);
 		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
-			override getSessionAtPosition(index: number) { return part.getSessionAtPosition(index); }
-			override focusSession(session: IActiveSession | undefined): void { part.focusSession(session?.sessionId, session?.scopedChatResource); }
+			override getPaneAtPosition(index: number) { return part.getPaneAtPosition(index); }
+			override focusPane(pane: ISessionGridPane): void { part.focusPane(pane.id); }
 		});
 		for (const position of [2, 9, 8]) {
 			await CommandsRegistry.getCommand(`sessions.focusSessionInGrid${position}`)!.handler(instantiationService);
 		}
-		part.updateVisibleSessions([child], child, [{ id: 'child' }]);
+		renderTestPanes(part, [child], child, [{ id: 'child' }]);
 		for (const position of [1, 9]) {
 			await CommandsRegistry.getCommand(`sessions.focusSessionInGrid${position}`)!.handler(instantiationService);
 		}
 		assert.deepStrictEqual({
 			selected,
 			panes: container.querySelectorAll('.session-view').length,
-			focused: part.getFocusedSessionView()?.getSession()?.scopedChatResource?.toString(),
+			focused: part.getFocusedSessionView()?.pane.get()?.chat.get()?.resource.toString(),
 		}, { selected: ['child', 'other', 'child', 'child'], panes: 1, focused: chat.resource.toString() });
 	});
 
@@ -2697,7 +2699,7 @@ suite('Sessions - Actions', () => {
 
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IChatWindowService, chatWindowService);
-		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({ visibleSessions: constObservable([]) }));
+		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({ slotPanes: constObservable([]) }));
 		instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({ mainPart: upcastPartial<IEditorGroupsService['mainPart']>({ groups: [] }) }));
 		instantiationService.stub(IAgentWorkbenchLayoutService, upcastPartial<IAgentWorkbenchLayoutService>({}));
 		instantiationService.stub(ISessionHostService, upcastPartial<ISessionHostService>({ getHostOfWindow: () => upcastPartial<ISessionHost>({ kind: SessionHostKind.MainWindow, session: constObservable(undefined), chat: constObservable(undefined) }) }));

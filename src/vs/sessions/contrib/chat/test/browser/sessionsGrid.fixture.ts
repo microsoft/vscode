@@ -25,7 +25,7 @@ import { ISessionHost } from '../../../../../workbench/contrib/sessions/browser/
 import { ChatOriginKind, IChat, ISession, ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionGridPane, SessionGridPaneKind } from '../../../../../workbench/contrib/sessions/browser/sessionGridPane.js';
-import { createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
+import { createTestActiveSession, renderTestPanes } from '../../../../test/browser/sessionViewTestUtils.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../../../../../workbench/contrib/sessions/common/layoutConstants.js';
 import { SessionsChatTabsMode } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { createSessionsWorkbenchFixture } from './sessionsWorkbenchFixtureUtils.js';
@@ -33,6 +33,7 @@ import { createSessionsWorkbenchFixture } from './sessionsWorkbenchFixtureUtils.
 import '../../../../browser/media/style.css';
 import '../../../../browser/parts/media/editorPart.css';
 import '../../../../../workbench/contrib/sessions/browser/chat/media/chatView.css';
+import { testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 class FixtureChatView extends AbstractChatView {
 	private chat: IChat | undefined;
@@ -212,6 +213,7 @@ async function renderSessionsGrid(context: ComponentFixtureContext, options: { b
 	const sessionsService = new class extends mock<ISessionsService>() {
 		readonly activeSession = observableValue<IActiveSession | undefined>(this, left);
 		override readonly visibleSessions = observableValue<readonly IActiveSession[]>(this, sessions);
+		override readonly slotPanes = testGridPanes(this.visibleSessions);
 		override setActive(session: IActiveSession | undefined): void {
 			this.activeSession.set(session, undefined);
 		}
@@ -291,7 +293,7 @@ async function renderSessionsGrid(context: ComponentFixtureContext, options: { b
 		];
 	context.disposableStore.add(autorun(reader => {
 		const visible = sessionsService.visibleSessions.read(reader);
-		part.updateVisibleSessions(visible, sessionsService.activeSession.read(reader), slots.filter(slot => visible.some(session => session.sessionId === slot.id)));
+		renderTestPanes(part, visible, sessionsService.activeSession.read(reader), slots.filter(slot => visible.some(session => session.sessionId === slot.id)));
 	}));
 	layout();
 	const sidePaneDivider = sidePane

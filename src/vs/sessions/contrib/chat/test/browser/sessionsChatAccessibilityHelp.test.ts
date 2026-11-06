@@ -46,6 +46,7 @@ import { DevContainerAgentHostEnabledSettingId, DevContainerSamplesEnabledSettin
 import { getCloudSandboxPreparationAccessibilityHelp } from '../../../../../workbench/contrib/chat/browser/actions/chatAccessibilityHelp.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../../../chatWindow/common/chatWindows.js';
 import type { SessionView } from '../../../../../workbench/contrib/sessions/browser/parts/sessionView.js';
+import { testGridPane } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 suite('SessionsChatAccessibilityHelp', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -1295,7 +1296,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			activeChat: constObservable(upcastPartial<IChat>({ resource: judgeResource })),
 		});
 		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
-			override getActiveSessionView() { return upcastPartial<SessionView>({ getSession: () => judgePane, focus: () => { } }); }
+			override getActiveSessionView() { return upcastPartial<SessionView>({ getSession: () => judgePane, pane: constObservable(testGridPane(judgePane)), focus: () => { } }); }
 		}());
 		instantiationService.stub(ISessionComparisonService, new class extends mock<ISessionComparisonService>() {
 			override readonly comparisons = constObservable([comparison]);

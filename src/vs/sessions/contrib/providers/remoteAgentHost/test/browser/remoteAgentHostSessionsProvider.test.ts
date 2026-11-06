@@ -91,7 +91,7 @@ import { IObservable, autorun, constObservable, observableValue } from '../../..
 import { IActiveSession, WorkspaceNotTrustedError } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionHostService } from '../../../../../../workbench/contrib/sessions/browser/sessionHost.js';
-import { sessionHostServiceOf, stubFocusedSessionHostFromSessionsService } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { sessionHostServiceOf, stubFocusedSessionHostFromSessionsService, testGridPanes } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsRecentWorkspacesService } from '../../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
 import { MockLabelService } from '../../../../../../workbench/services/label/test/common/mockLabelService.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -421,6 +421,7 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 		readonly activeSession = overrides?.activeSession ?? constObservable<IActiveSession | undefined>(undefined);
 		readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
 		override readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> = constObservable<readonly (IActiveSession | undefined)[]>([]);
+		override readonly slotPanes = testGridPanes(this.visibleSessions);
 	}());
 	instantiationService.stub(ISessionHostService, sessionHostServiceOf(disposables, instantiationService.get(ISessionsService)));
 	stubFocusedSessionHostFromSessionsService(instantiationService);

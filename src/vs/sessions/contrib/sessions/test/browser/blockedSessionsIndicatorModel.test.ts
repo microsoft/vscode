@@ -22,6 +22,7 @@ import { ISessionsService } from '../../../../../workbench/contrib/sessions/brow
 import { BlockedSessionReason, BlockedSessions, IBlockedSession } from '../../../../../workbench/contrib/sessions/browser/blockedSessions.js';
 import { BlockedSessionsCIFixModel } from '../../browser/blockedSessionsCIFixModel.js';
 import { BlockedSessionsIndicatorModel, RequiresInputKind } from '../../browser/blockedSessionsIndicatorModel.js';
+import { testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('BlockedSessionsIndicatorModel', () => {
 
@@ -853,6 +854,7 @@ class TestCIFixModel {
 
 class TestSessionsService {
 	readonly visibleSessions = observableValue<readonly (IActiveSession | undefined)[]>('visible', []);
+	readonly slotPanes = testGridPanes(this.visibleSessions);
 
 	setVisible(sessions: readonly TestSession[]): void {
 		this.visibleSessions.set(sessions as unknown as readonly IActiveSession[], undefined);

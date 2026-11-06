@@ -15,7 +15,7 @@ import { IEditorService } from '../../../../../workbench/services/editor/common/
 import { IChat, ISessionChangeset, ISessionFileChange } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { ChangesetReviewAction } from '../../browser/changesetReviewActions.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { stubSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { stubSessionHostsFromSessionsService, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IChangesSessionObservables, IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
 
@@ -48,6 +48,7 @@ suite('ChangesetReviewAction', () => {
 		const sessionsService = new class extends mock<ISessionsService>() {
 			readonly activeSession = constObservable<IActiveSession | undefined>(upcastPartial<IActiveSession>({ sessionId: 'active', resource: URI.parse('agent-host:active') }));
 			override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([]);
+			override readonly slotPanes = testGridPanes(this.visibleSessions);
 		}();
 		const editorService = new class extends mock<IEditorService>() {
 			override readonly activeEditorPane = undefined;

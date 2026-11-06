@@ -38,7 +38,7 @@ import { IChangesSessionObservables, IChangesSessionScope, IChangesViewService }
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
-import { stubSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { stubSessionHostsFromSessionsService, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Changes Actions', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -62,6 +62,7 @@ suite('Changes Actions', () => {
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			readonly activeSession = constObservable<IActiveSession | undefined>(upcastPartial<IActiveSession>({ sessionId: 'active', resource: URI.parse('agent-host:active') }));
 			override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([]);
+			override readonly slotPanes = testGridPanes(this.visibleSessions);
 		});
 		stubSessionHostsFromSessionsService(instantiationService);
 		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {

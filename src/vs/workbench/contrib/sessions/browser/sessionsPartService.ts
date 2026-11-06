@@ -37,6 +37,8 @@ export type SessionGridRequest = { readonly type: 'arrange' } | { readonly type:
 export interface ISessionView {
 	/** The host of the session the view shows. */
 	readonly host: ISessionHost;
+	/** The pane of the grid it shows, while it shows one. */
+	readonly pane: IObservable<ISessionGridPane | undefined>;
 
 	focus(): void;
 	focusWorkspacePicker(): void;
@@ -56,7 +58,8 @@ export interface ISessionView {
 	startFocusedChatTitleEditing(): boolean;
 	startChatTitleEditing(chatResource: URI): boolean;
 
-	getSession(): IActiveSession | undefined;
+	/** The provider's session the pane it shows shows. */
+	getSession(): ISession | undefined;
 	getFocusedChat(): IChat | undefined;
 	getActiveChat(): IChat | undefined;
 	reopenChat(resource: URI): Promise<void>;
@@ -88,7 +91,7 @@ export const ISessionsPartService = createDecorator<ISessionsPartService>('sessi
  * Payload for {@link ISessionsPartService.onDidToggleMaximizeSession}.
  */
 export interface IToggleMaximizeSessionEvent {
-	readonly session: IActiveSession;
+	readonly session: ISession;
 	/** The session view's maximized state after the toggle. */
 	readonly maximized: boolean;
 }
@@ -105,15 +108,19 @@ export interface ISessionsPartService {
 	 * visible sessions or active session change. The part is a passive renderer:
 	 * it does not observe the model itself.
 	 */
-	updateVisibleSessions(visible: readonly (IActiveSession | undefined)[], active: IActiveSession | undefined, slots?: readonly ISessionGridSlot[], request?: SessionGridRequest): void;
+	updatePanes(panes: readonly ISessionGridPane[], activePane: ISessionGridPane | undefined, slots?: readonly ISessionGridSlot[], request?: SessionGridRequest): void;
 
 	getGridLayout(): ISerializedGrid | undefined;
-	/** Returns a pane in visual grid order (`-1` for last), `null` for the composer, or `undefined` if absent. */
-	getSessionAtPosition(index: number): IActiveSession | null | undefined;
-	/** `null` identifies the empty composer; `undefined` means there is no neighbor. */
-	getNeighborSession(sessionId: string | undefined, direction: Direction): IActiveSession | null | undefined;
+	/** The pane at `index` in visual grid order (`-1` for the last), including the new-session slot's, or `undefined` if absent. */
+	getPaneAtPosition(index: number): ISessionGridPane | undefined;
+	/** The pane next to `pane` in `direction`, or `undefined` if there is none. */
+	getNeighborPane(pane: ISessionGridPane, direction: Direction): ISessionGridPane | undefined;
+	/** The view of the grid slot of `pane`. */
+	getViewOfPane(pane: ISessionGridPane): ISessionView | undefined;
 	getSessionPlacement(sessionId: string): { readonly sessionId: string | undefined; readonly direction: Direction } | undefined;
 	resizeSession(sessionId: string | undefined, direction: Direction, amount: number): void;
+	/** Resizes the view of `pane` by `amount` in `direction`. */
+	resizePane(pane: ISessionGridPane, direction: Direction, amount: number): void;
 	readonly onDidInteractWithGrid: Event<void>;
 
 	/**
@@ -132,6 +139,9 @@ export interface ISessionsPartService {
 	 * in the sessions part's grid.
 	 */
 	toggleMaximizeSession(session: IActiveSession | undefined): void;
+
+	/** Toggles the maximized state of the view of `pane` in the grid. */
+	toggleMaximizePane(pane: ISessionGridPane): void;
 
 	/**
 	 * Fires after the maximized state of a session view was toggled via
@@ -166,11 +176,8 @@ export interface ISessionsPartService {
 	 */
 	getFocusedSessionView(): ISessionView | undefined;
 
-	/**
-	 * Moves keyboard focus into the view that shows exactly `session`, such as a pane's session, first revealing it in the
-	 * grid when it is only partially visible. No-op when the grid does not show it.
-	 */
-	focusSessionView(session: ISession): void;
+	/** Moves keyboard focus into the view of the grid whose host is `host`, a pane's view, first revealing it in the grid. */
+	focusViewOfHost(host: ISessionHost): void;
 
 	/**
 	 * The view of the grid's active pane: the pane commands without arguments act on while the main window is the

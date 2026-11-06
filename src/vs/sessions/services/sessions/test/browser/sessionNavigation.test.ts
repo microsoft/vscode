@@ -24,6 +24,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { INestedChatWorkspace, ISendRequestOptions } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { TestWindowCanvasService } from '../../../canvas/test/browser/testWindowCanvasService.js';
 import { IWindowCanvasDescriptor } from '../../../../../workbench/contrib/sessions/browser/windowCanvas.js';
+import { testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 const stubChat = {
 	resource: URI.parse('test:///chat'),
@@ -104,6 +105,7 @@ class MockSessionStore implements ISessionsManagementService {
 
 	readonly activeSession = observableValue<IActiveSession | undefined>('test.activeSession', undefined);
 	readonly visibleSessions = observableValue<readonly IActiveSession[]>('test.visibleSessions', []);
+	readonly slotPanes = testGridPanes(this.visibleSessions);
 	readonly onDidChangeSessions = Event.None;
 	readonly onDidStartSession = Event.None;
 	readonly onDidChangeSessionTypes = Event.None;

@@ -52,7 +52,7 @@ import { SESSIONS_FILES_CONTAINER_ID } from '../../../files/browser/files.contri
 import { NewChangesTabAction, NewFileTabAction } from '../../../editor/browser/addTabActions.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IFocusedSessionHostService, ISessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
-import { focusedSessionHostServiceOf, sessionHostServiceOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { focusedSessionHostServiceOf, sessionHostServiceOf, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { addPeerChat, createTestHarness, ICreateOptions, ITestLayoutHarness, makeChange, makeSession, setActiveChat, TestStubEditorInput } from './layoutControllerTestUtils.js';
 import '../../../editor/browser/editor.contribution.js';
 
@@ -119,6 +119,7 @@ suite('DesktopLayoutController', () => {
 		harness.instaService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			readonly activeSession = constObservable(sessionB);
 			override readonly visibleSessions = harness.visibleSessionsObs;
+			override readonly slotPanes = testGridPanes(harness.visibleSessionsObs);
 			readonly windowSessions = constObservable([]);
 		});
 		harness.instaService.stub(ISessionHostService, sessionHostServiceOf(store, { mainWindowActiveSession: harness.activeSessionObs, visibleSessions: constObservable([]), windowSessions: constObservable([sessionB]) }));

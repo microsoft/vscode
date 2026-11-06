@@ -55,7 +55,7 @@ import { IEditorGroupViewOptions } from '../../../../../workbench/browser/parts/
 import { EditorInputCapabilities, GroupModelChangeKind } from '../../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { IGroupModelChangeEvent } from '../../../../../workbench/common/editor/editorGroupModel.js';
-import { stubSessionHosts } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { stubSessionHosts, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionHost } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { ITitleService } from '../../../../../workbench/services/title/browser/titleService.js';
 import { IAuxiliaryTitlebarPart } from '../../../../../workbench/browser/parts/titlebar/titlebarPart.js';
@@ -143,6 +143,7 @@ suite('Sessions chat window provider', () => {
 		}());
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			override readonly visibleSessions = visibleSessions;
+			override readonly slotPanes = testGridPanes(this.visibleSessions);
 			override readonly initialRestoreComplete = constObservable(true);
 			readonly mainWindowActiveSession = mainWindowActiveSession;
 			override async openMovedChats(chats: readonly { readonly session: ISession; readonly chatResource: URI }[]) {

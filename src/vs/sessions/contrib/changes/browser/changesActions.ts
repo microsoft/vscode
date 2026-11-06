@@ -43,6 +43,7 @@ import { getChangesFileUri, isChangesFileResource } from '../../../../workbench/
 import { ISessionActionContextKeysSource, registerSessionActionContextKeyBinder } from '../../../../workbench/contrib/sessions/browser/changes/sessionActionContextKeys.js';
 import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
 import { mainWindowChangesOwner } from '../../../../workbench/contrib/sessions/browser/changes/changesViewService.js';
+import { readPaneSessions } from '../../../../workbench/contrib/sessions/browser/sessionGridPane.js';
 
 function getWorkspaceResource(resource: URI, changes: readonly ISessionFileChange[]): URI {
 	const change = changes.find(change => isChangesFileResource(change, resource));
@@ -265,10 +266,10 @@ class SessionChangesStatsCacheContribution extends Disposable implements IWorkbe
 		super();
 
 		this._register(autorun(reader => {
-			for (const session of sessionsService.visibleSessions.read(reader)) {
+			for (const session of readPaneSessions(sessionsService.slotPanes, reader)) {
 				// While the worktree is pending the reported changes belong to the
 				// checkout the session was started from, not to the session.
-				if (!session || session.worktreePending?.read(reader)) {
+				if (session.worktreePending?.read(reader)) {
 					continue;
 				}
 				const stats = readSessionChangesStats(session, reader);

@@ -12,6 +12,7 @@ import { resolveSessionCommandTarget } from '../../../../workbench/contrib/sessi
 import { ISessionsPartService } from '../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { readPaneSessions } from '../../../../workbench/contrib/sessions/browser/sessionGridPane.js';
 
 // Agent host delegation ("Continue in…") for the Agents window.
 //
@@ -34,8 +35,8 @@ CommandsRegistry.registerCommand(CHAT_DELEGATE_TO_AGENT_HOST_SESSION_COMMAND_ID,
 	// The session the user delegates from: the focused host's.
 	const sourceSession = resolveSessionCommandTarget(accessor, [])?.session;
 	// The new session opens beside it when the grid shows it, else beside the grid's active pane.
-	const gridSessions = sessionsService.visibleSessions.get();
-	const anchorSessionId = sourceSession && gridSessions.some(visible => visible?.sessionId === sourceSession.sessionId)
+	const gridSessions = readPaneSessions(sessionsService.slotPanes, undefined);
+	const anchorSessionId = sourceSession && gridSessions.some(visible => visible.sessionId === sourceSession.sessionId)
 		? sourceSession.sessionId
 		: accessor.get(ISessionsPartService).getActiveSessionView()?.getSession()?.sessionId;
 	if (!sourceSession) {

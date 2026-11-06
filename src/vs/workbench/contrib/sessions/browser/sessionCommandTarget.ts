@@ -130,6 +130,13 @@ export function resolveGridCommandView(accessor: ServicesAccessor): ISessionView
 	return host && getWindowHost(host).kind === SessionHostKind.MainWindow ? accessor.get(ISessionsPartService).getActiveSessionView() : undefined;
 }
 
+/** The pane of the grid a command without arguments acts on, with its session: the grid's active pane, while it shows one. */
+export function resolveGridCommandPane(accessor: ServicesAccessor): { readonly pane: ISessionGridPane; readonly session: ISession } | undefined {
+	const pane = resolveGridCommandView(accessor)?.pane.get();
+	const session = pane?.session.get();
+	return pane && session ? { pane, session } : undefined;
+}
+
 /** What a pane command acts on; see {@link resolvePaneCommandTarget}. */
 export interface IPaneCommandTarget {
 	/** The host the arguments name, or the host of the grid's active pane. */

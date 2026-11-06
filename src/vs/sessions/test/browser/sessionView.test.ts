@@ -670,9 +670,10 @@ suite('Sessions - Session View', () => {
 		const scopedInstantiationService = new class extends mock<IInstantiationService>() { }();
 		const view: SessionView = Object.assign(Object.create(SessionView.prototype), {
 			_headerHeight: observableValue('headerHeight', 0),
-			_hasOpenedSession: false,
-			_currentSession: undefined,
+			_bound: undefined,
 			_sessionObs: observableValue<IActiveSession | undefined>('session', undefined),
+			_chatObs: observableValue('chat', undefined),
+			_paneObs: observableValue('pane', undefined),
 			_contentObs: observableValue<ISessionPaneContent | undefined>('content', undefined),
 			_isVisibleObs: hostVisible,
 			_openSessionDisposables: openSessionDisposables,

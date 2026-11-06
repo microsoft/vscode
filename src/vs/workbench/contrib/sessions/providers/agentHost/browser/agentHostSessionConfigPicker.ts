@@ -88,6 +88,7 @@ import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IUncommittedChangesListItem, IWorktreeSuggestion, IWorktreeSuggestionService } from '../../../browser/worktreeSuggestion/worktreeSuggestionService.js';
 import { getChangedFileUri, getUncommittedFilesDescription, getUncommittedFilesSectionLabel } from '../../../browser/worktreeSuggestion/worktreeSuggestionPresentation.js';
 import { WorktreeSuggestionVariant } from '../../../common/worktreeSuggestion.js';
+import { readPaneSessions } from '../../../browser/sessionGridPane.js';
 
 const ExperimentalSessionComposerLayout = SessionUsesExperimentalComposerLayoutContext;
 const LegacySessionComposerLayout = SessionUsesExperimentalComposerLayoutContext.negate();
@@ -2053,7 +2054,7 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 		// callbacks, which run at `AfterRestored` — well after both
 		// modules have finished evaluating.
 		this._register(autorun(reader => {
-			this._sessionsService.visibleSessions.read(reader);
+			readPaneSessions(this._sessionsService.slotPanes, reader);
 			this._refreshRepositoryMenuItems(actionViewItemService);
 		}));
 		this._watchProviders(this._sessionsProvidersService.getProviders({ includeSessionBackends: true }), actionViewItemService);
@@ -2143,7 +2144,7 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 			}
 			// Menu items are derived only from visible sessions; refreshing them recreates the repository pickers.
 			this._providerListeners.set(provider.id, provider.onDidChangeSessionConfig(sessionId => {
-				if (this._sessionsService.visibleSessions.get().some(session => session?.sessionId === sessionId)) {
+				if (readPaneSessions(this._sessionsService.slotPanes, undefined).some(session => session.sessionId === sessionId)) {
 					this._refreshRepositoryMenuItems(actionViewItemService);
 				}
 			}));
@@ -2152,7 +2153,8 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 
 	private _refreshRepositoryMenuItems(actionViewItemService: IActionViewItemService): void {
 		this._repositoryMenuItems.clear();
-		for (const session of this._sessionsService.visibleSessions.get()) {
+		for (const pane of this._sessionsService.slotPanes.get()) {
+			const session = pane.session.get();
 			if (!session) {
 				continue;
 			}
@@ -2160,7 +2162,7 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 			if (!provider || !isAgentHostProvider(provider)) {
 				continue;
 			}
-			const config = provider.getSessionConfig(session.sessionId, session.activeChat.get().resource);
+			const config = provider.getSessionConfig(session.sessionId, (pane.chat.get() ?? session.mainChat.get()).resource);
 			if (!config) {
 				continue;
 			}

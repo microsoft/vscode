@@ -41,7 +41,7 @@ import { GitHubPullRequestCIModel } from '../../../../contrib/sessions/browser/g
 import { IGitHubService } from '../../../../contrib/sessions/browser/github/githubService.js';
 import { GitHubCheckConclusion, GitHubCheckStatus, GitHubCIOverallStatus, IGitHubCICheck } from '../../../../contrib/sessions/common/github/types.js';
 import { IFocusedSessionHostService } from '../../../../contrib/sessions/browser/sessionHost.js';
-import { focusedSessionHostServiceOf, stubSessionHosts } from '../../../../contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { focusedSessionHostServiceOf, stubSessionHosts, testGridPanes } from '../../../../contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsService } from '../../../../contrib/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../contrib/sessions/common/sessionsManagement.js';
 import { BRANCH_CHANGES_CHANGESET_ID, IChat, IGitHubInfo, ISessionCapabilities, ISessionChangeset, ISessionChangesetOperation, ISessionChangesSummary, ISessionFileChange, ISessionGitRepository, ISessionWorkspace, SessionStatus } from '../../../../contrib/sessions/common/session.js';
@@ -422,6 +422,7 @@ function renderChangesView(ctx: ComponentFixtureContext, options: IChangesViewFi
 			reg.defineInstance(ISessionsService, new class extends mock<ISessionsService>() {
 				readonly activeSession = constObservable<IActiveSession | undefined>(session);
 				override readonly visibleSessions = constObservable([session]);
+				override readonly slotPanes = testGridPanes(this.visibleSessions);
 				override readonly onDidToggleSessionStickiness = Event.None;
 			}());
 			reg.defineInstance(IDecorationsService, new class extends mock<IDecorationsService>() { override onDidChangeDecorations = Event.None; }());

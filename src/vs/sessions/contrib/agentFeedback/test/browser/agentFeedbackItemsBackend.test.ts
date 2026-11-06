@@ -45,6 +45,7 @@ suite('AnnotationsAgentFeedbackItemsBackend', () => {
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			readonly activeSession = activeSession;
 			override readonly visibleSessions = visibleSessions;
+			override readonly slotPanes = testGridPanes(this.visibleSessions);
 			override readonly visibleSessionPanes = visibleSessionPanes;
 			override readonly panes = testGridPanes(visibleSessionPanes);
 		}());

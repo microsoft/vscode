@@ -16,8 +16,8 @@ import { IAgentsWindowDraft } from '../../../../../platform/window/common/window
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
-import { IActiveSession, ISessionPaneContent } from '../../common/sessionsManagement.js';
-import { IChat, isSessionCreated } from '../../common/session.js';
+import { IActiveSession, IPaneViewState, ISessionPaneContent, paneViewStateOfActiveSession } from '../../common/sessionsManagement.js';
+import { IChat, ISession, isSessionCreated } from '../../common/session.js';
 import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../common/workspaceSelection.js';
 import { AbstractChatView, IChatViewOptions, ISessionViewHostOptions } from './chatView.js';
 import { ChatGroupsView } from './chatGroupsView.js';
@@ -25,11 +25,12 @@ import { SessionHeader, SessionViewFloatingToolbar } from './sessionHeader.js';
 import { ChatViewSessionActivityBar } from './sessionActivityBar.js';
 import { createSessionHostServices, ISessionHost, ISessionHostService, SessionHost, SessionHostKind } from '../sessionHost.js';
 import { autorun, derived, disposableObservableValue, IObservable, observableValue, runOnChange, transaction } from '../../../../../base/common/observable.js';
-import { canonicalSessionOf, paneContentOf } from '../visibleSessions.js';
+import { canonicalSessionOf } from '../visibleSessions.js';
+import { ISessionGridPane, paneViewStateOf } from '../sessionGridPane.js';
 import { ISessionsService } from '../sessionsService.js';
 import { SessionIsMaximizedContext } from '../../common/contextkeys.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../common/layoutConstants.js';
-import { setActiveSessionContextKeys } from '../../common/sessionContextKeys.js';
+import { setHostSessionContextKeys } from '../../common/sessionContextKeys.js';
 import { ISessionChangesStatsCache } from '../../common/sessionChangesStatsCache.js';
 import { applySessionViewThemeColors } from './sessionBarStyles.js';
 import { IChatViewFactory } from '../chatViewFactory.js';
@@ -82,8 +83,8 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 	private _contentGap = 0;
 
 	private _openSessionDisposables = this._register(new DisposableStore());
-	private _currentSession: IActiveSession | undefined;
-	private _hasOpenedSession = false;
+	/** What it binds: the pane of the grid it shows and that pane's session, or (deprecated) a view of a session. */
+	private _bound: { readonly source: ISessionGridPane | IActiveSession | undefined; readonly session: ISession | undefined } | undefined;
 
 	private readonly _sessionIsMaximizedKey: IContextKey<boolean>;
 	private readonly _scopedContextKeyService: IContextKeyService;
@@ -101,9 +102,14 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 	/** Whether this leaf is visible within the part's internal grid. */
 	private _isLeafVisible = true;
 
-	private readonly _sessionObs = observableValue<IActiveSession | undefined>(this, undefined);
-	/** The chat the pane it shows shows: its active chat. */
-	private readonly _paneChat = derived(this, reader => this._sessionObs.read(reader)?.activeChat.read(reader));
+	/** The provider's session the pane it shows shows. */
+	private readonly _sessionObs = observableValue<ISession | undefined>(this, undefined);
+	private readonly _chatObs = observableValue<IObservable<IChat | undefined> | undefined>(this, undefined);
+	/** The chat the pane it shows shows: a slot's active tab, a detached pane's chat. */
+	private readonly _paneChat = derived(this, reader => this._chatObs.read(reader)?.read(reader));
+	private readonly _paneObs = observableValue<ISessionGridPane | undefined>(this, undefined);
+	/** The pane of the grid it shows, while it shows one. */
+	readonly pane: IObservable<ISessionGridPane | undefined> = this._paneObs;
 	/** The content of the pane it shows: the provider's session, its chat and the pane's state. */
 	private readonly _contentObs = observableValue<ISessionPaneContent | undefined>(this, undefined);
 	/** The host of what this view shows, nested in the host of its window. */
@@ -165,8 +171,8 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 		this.host = new SessionHost({
 			kind: SessionHostKind.Pane,
 			parent: parentHost,
-			session: this._sessionObs.map(session => session && canonicalSessionOf(session)),
-			chat: derived(reader => this._sessionObs.read(reader)?.activeChat.read(reader)),
+			session: this._sessionObs,
+			chat: this._paneChat,
 			contextKeyService: scopedContextKeyService,
 		});
 		this._register(sessionHostService.registerHost(this.host));
@@ -237,28 +243,57 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 		}));
 	}
 
-	openSession(session: IActiveSession | undefined, options: ISessionViewOptions): void {
-		if (this._hasOpenedSession && this._currentSession === session) {
+	/**
+	 * Shows `pane`, a pane of the grid: the session it shows, which it binds again as the pane shows another session, such as
+	 * a replacement of it, and the chat and state of the pane, which it follows. The new-session composer while `pane` shows
+	 * no session.
+	 */
+	openPane(pane: ISessionGridPane | undefined, options: ISessionViewOptions): void {
+		const session = pane?.session.get();
+		if (this._bound && this._bound.source === pane && this._bound.session === session) {
 			return;
 		}
+		this._bind(pane, session, pane?.chat, pane && paneViewStateOf(pane), options);
+	}
+
+	/**
+	 * Shows `session`, a view of a session in a pane of the grid.
+	 *
+	 * @deprecated Transitional: the grid's views show its panes ({@link openPane}). Kept for tests that give a view of a
+	 * session, until views of sessions are removed.
+	 */
+	openSession(session: IActiveSession | undefined, options: ISessionViewOptions): void {
+		if (this._bound && this._bound.source === session) {
+			return;
+		}
+		this._bind(session, session && canonicalSessionOf(session), session?.activeChat, session && paneViewStateOfActiveSession(session), options);
+	}
+
+	private _bind(source: ISessionGridPane | IActiveSession | undefined, session: ISession | undefined, chat: IObservable<IChat | undefined> | undefined, state: IPaneViewState | undefined, options: ISessionViewOptions): void {
+		const bound = this._bound = { source, session };
 		options = { ...options, hostVisible: this._isVisibleObs, session: this._sessionObs, chat: this._paneChat };
-		this._hasOpenedSession = true;
-		this._currentSession = session;
 		// Closing closes this view's pane of the grid, while the view still shows this content: a content kept past a rebind,
 		// or past its pane leaving the grid, closes nothing.
-		const content: ISessionPaneContent | undefined = session && paneContentOf(session, () => {
-			const pane = this._contentObs.get() === content ? this._sessionsService.getPaneOfHost(this.host) : undefined;
-			if (pane) {
-				this._sessionsService.closePane(pane);
-			}
-		});
+		const content: ISessionPaneContent | undefined = session && state && {
+			session,
+			chat: derived(reader => chat?.read(reader) ?? session.mainChat.read(reader)),
+			state,
+			close: () => {
+				const pane = this._contentObs.get() === content ? this._sessionsService.getPaneOfHost(this.host) : undefined;
+				if (pane) {
+					this._sessionsService.closePane(pane);
+				}
+			},
+		};
 		transaction(tx => {
+			this._paneObs.set(isGridPane(source) ? source : undefined, tx);
 			this._sessionObs.set(session, tx);
+			this._chatObs.set(chat, tx);
 			this._contentObs.set(content, tx);
 		});
 		this._openSessionDisposables.clear();
 
-		this._openSessionDisposables.add(this._handleContextKeys(session));
+		this._openSessionDisposables.add(this._handleContextKeys(content));
 
 		this._header.setSession(content);
 		if (session && content && !isSessionCreated(session)) {
@@ -276,7 +311,7 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 			let restoreComposerFocus = false;
 			const hasPreparationProgress = derived(reader => !!session.preparationProgress?.read(reader));
 			this._openSessionDisposables.add(autorun(reader => {
-				if (this._currentSession !== session) {
+				if (this._bound !== bound) {
 					return;
 				}
 				if (isSessionCreated(session, reader)) {
@@ -347,12 +382,12 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 		return this._preparationView.get() ?? this._standaloneView.get();
 	}
 
-	private _handleContextKeys(session: IActiveSession | undefined): IDisposable {
+	private _handleContextKeys(content: ISessionPaneContent | undefined): IDisposable {
 		// A single autorun re-applies every session-derived context key on the
 		// scoped service whenever the session's observable properties change.
 		// Passing `undefined` resets the keys to their defaults.
 		return autorun(reader => {
-			setActiveSessionContextKeys(session, this._scopedContextKeyService, reader, this._changesStatsCache);
+			setHostSessionContextKeys(content?.session, content?.chat.read(reader), content?.state, this._scopedContextKeyService, reader, this._changesStatsCache);
 		});
 	}
 
@@ -487,8 +522,9 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 		return this._groupsView.closeChatGroup(chatResource);
 	}
 
-	getSession(): IActiveSession | undefined {
-		return this._currentSession;
+	/** The provider's session it shows. */
+	getSession(): ISession | undefined {
+		return this._sessionObs.get();
 	}
 
 	selectWorkspace(folderUri: URI, options?: ISelectWorkspaceOptions): WorkspaceSelectionResult {
@@ -651,4 +687,8 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 		super.dispose();
 		this._scopedServices.dispose();
 	}
+}
+
+function isGridPane(source: ISessionGridPane | IActiveSession | undefined): source is ISessionGridPane {
+	return !!source && typeof (source as Partial<ISessionGridPane>).kind === 'string' && !!(source as Partial<ISessionGridPane>).tabs;
 }

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IObservable } from '../../../../base/common/observable.js';
+import { IObservable, IReader } from '../../../../base/common/observable.js';
 import { IChat, ISession } from '../common/session.js';
 import { IPaneViewState, ISessionPaneTabs } from '../common/sessionsManagement.js';
 
@@ -35,4 +35,16 @@ export interface ISessionGridPane {
 /** The state of `pane` that the views and context keys of its host show: its pin, its tab strip, and whether it is detached. */
 export function paneViewStateOf(pane: ISessionGridPane): IPaneViewState {
 	return { sticky: pane.sticky, tabs: pane.tabs, isDetached: pane.kind === SessionGridPaneKind.Detached };
+}
+
+/** The sessions `panes` show, in order, without the new-session slot; read with `reader`, also each pane's session. */
+export function readPaneSessions(panes: IObservable<readonly ISessionGridPane[]>, reader: IReader | undefined): readonly ISession[] {
+	const sessions: ISession[] = [];
+	for (const pane of panes.read(reader)) {
+		const session = pane.session.read(reader);
+		if (session) {
+			sessions.push(session);
+		}
+	}
+	return sessions;
 }

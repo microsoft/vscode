@@ -48,6 +48,7 @@ import { RemoteAgentHostAutoConnectSettingId, RemoteAgentHostsEnabledSettingId }
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { areDevContainerSamplesEnabled } from '../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { readPaneSessions } from '../../../../workbench/contrib/sessions/browser/sessionGridPane.js';
 export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly priority = 120;
 	readonly name = 'sessionsChat';
@@ -298,7 +299,8 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 			? localize('sessionsChat.sessionsListChatsAsSessionView', "Sessions with multiple user-facing chats show those chats nested beneath the session in the Sessions list. Use the arrow keys to navigate the list and Enter to show a chat as the session view. Side chats and subagent chats are omitted from this nested list: side chats are reachable from the Side Chats dropdown in the session's overflow menu, and subagent chats open from their pills in the chat transcript.")
 			: localize('sessionsChat.sessionsListChatsAsTabs', "Sessions with multiple user-facing chats show those chats nested beneath the session in the Sessions list. Use the arrow keys to navigate the list and Enter to open a chat as a tab. Side chats and subagent chats are omitted from this nested list: side chats are reachable from the Side Chats dropdown in the session's overflow menu, and subagent chats open from their pills in the chat transcript."));
 		// Only where it applies: a shown session lets its new chats choose among its harnesses.
-		if (accessor.get(ISessionsService).visibleSessions?.get().some(session => (session?.capabilities.get().supportsChatHarnesses?.length ?? 0) > 1)) {
+		const sessionsService = accessor.get(ISessionsService);
+		if (sessionsService.slotPanes && readPaneSessions(sessionsService.slotPanes, undefined).some(session => (session.capabilities.get().supportsChatHarnesses?.length ?? 0) > 1)) {
 			content.push(localize('sessionsChat.newChatAgentPicker', "When a session offers more than one harness for its chats, the New Nested Session composer shows the Harness for New Chat picker in its session options, where New Session shows its harness picker, listing those harnesses. When the session options are collapsed, use the session options toggle to show them. Use Tab to reach the picker and Enter or Space to open it, then the arrow keys and Enter to choose the harness for the new chat; a harness that is not available is disabled and describes why. Choosing another harness replaces the unsent new chat. A chat keeps its harness; forks and side chats use the harness of the chat they come from. A chat tab whose harness differs from the session's names that harness, and a Sessions list row whose chats use different harnesses says so."));
 		}
 		const promoteNewChatAction = SessionsListPromoteNewChatActionContext.getValue(accessor.get(IContextKeyService)) ?? SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT;
@@ -378,9 +380,11 @@ export class SessionComparisonAccessibleView implements IAccessibleViewImplement
 
 	getProvider(accessor: ServicesAccessor): AccessibleContentProvider | undefined {
 		// Comparisons show in the grid: the comparison of its active pane.
-		const session = accessor.get(ISessionsPartService).getActiveSessionView()?.getSession();
-		const comparison = session
-			? accessor.get(ISessionComparisonService).comparisons.get().find(candidate => isJudgeSession(candidate, session, session.activeChat.get().resource))
+		const view = accessor.get(ISessionsPartService).getActiveSessionView();
+		const session = view?.getSession();
+		const chat = view?.pane.get()?.chat.get() ?? session?.mainChat.get();
+		const comparison = session && chat
+			? accessor.get(ISessionComparisonService).comparisons.get().find(candidate => isJudgeSession(candidate, session, chat.resource))
 			: undefined;
 		if (!comparison?.verdict) {
 			return undefined;

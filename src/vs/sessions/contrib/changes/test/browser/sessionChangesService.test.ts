@@ -9,7 +9,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IFocusedSessionHostService, ISessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
-import { focusedSessionHostServiceOf, ITestSessionsService, sessionHostServiceOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { focusedSessionHostServiceOf, ITestSessionsService, sessionHostServiceOf, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -46,6 +46,7 @@ function noSessions(active?: IActiveSession): ISessionsService {
 		readonly mainWindowActiveSession = constObservable<IActiveSession | undefined>(active);
 		readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
 		override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([]);
+		override readonly slotPanes = testGridPanes(this.visibleSessions);
 	}();
 }
 
@@ -144,6 +145,7 @@ suite('SessionChangesService', () => {
 			readonly mainWindowActiveSession = constObservable<IActiveSession | undefined>(undefined);
 			readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
 			override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([otherSession]);
+			override readonly slotPanes = testGridPanes(this.visibleSessions);
 		}();
 		const changesViewService = new class extends mock<IChangesViewService>() {
 			override readonly activeSessionResourceObs = noActiveSessionResource;
@@ -180,6 +182,7 @@ suite('SessionChangesService', () => {
 			readonly mainWindowActiveSession = constObservable<IActiveSession | undefined>(undefined);
 			readonly windowSessions = constObservable<readonly IActiveSession[]>([first, second]);
 			override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([]);
+			override readonly slotPanes = testGridPanes(this.visibleSessions);
 		}();
 		const changesViewService = new class extends mock<IChangesViewService>() {
 			override readonly activeSessionResourceObs = noActiveSessionResource;

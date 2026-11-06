@@ -179,9 +179,7 @@ export class SessionSyncChangesActionViewItem extends ActionViewItem {
 			// Back to the surface of the host it is in: a pane of the grid, else its own chat's input, such as a chat
 			// editor's, never the grid's pane of the same session in another window.
 			if (this.sessionHost.kind === SessionHostKind.Pane && getWindowHost(this.sessionHost).kind === SessionHostKind.MainWindow) {
-				if (session) {
-					this.sessionsPartService.focusSessionView(session);
-				}
+				this.sessionsPartService.focusViewOfHost(this.sessionHost);
 			} else if (chat) {
 				this.chatWidgetService.getWidgetBySessionResource(chat.resource)?.focusInput();
 			}

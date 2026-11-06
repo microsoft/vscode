@@ -19,7 +19,7 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { findOnboardingTarget, markOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { IOnboardingScenarioService } from '../../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { ChatEntitlement, ChatEntitlementContextKeys, IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { createSessionsPartTestHarness, createTestActiveSession, getSessionPickerVisibility } from '../../../../test/browser/sessionViewTestUtils.js';
+import { createSessionsPartTestHarness, createTestActiveSession, getSessionPickerVisibility, renderTestPanes } from '../../../../test/browser/sessionViewTestUtils.js';
 import { NewSessionViewTourTrigger } from '../../browser/newSessionViewTourTrigger.js';
 import { createNewSessionViewTour } from '../../browser/tours/newSessionViewTour.js';
 import { createNewSessionViewV2Tour, NEW_SESSION_VIEW_V2_TOUR_ID } from '../../browser/tours/newSessionViewV2Tour.js';
@@ -61,7 +61,7 @@ suite('NewSessionViewTourTrigger', () => {
 		)));
 		const open = (visible: readonly (IActiveSession | undefined)[], active: IActiveSession | undefined) => {
 			activeSession.set(active, undefined);
-			part.updateVisibleSessions(visible, active);
+			renderTestPanes(part, visible, active);
 		};
 		return { ...fixture, initialRestoreComplete, entitlement, triggers, open, signals: () => triggers.map(trigger => trigger.signal.get()) };
 	}

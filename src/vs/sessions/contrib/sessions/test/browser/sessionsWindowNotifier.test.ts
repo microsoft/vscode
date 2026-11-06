@@ -54,6 +54,7 @@ class TestSessionsService extends mock<ISessionsService>() {
 	readonly opened: URI[] = [];
 	readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
 	override readonly visibleSessions = observableValue<readonly IActiveSession[]>('visibleSessions', []);
+	override readonly slotPanes = testGridPanes(this.visibleSessions);
 	override readonly visibleSessionPanes = this.visibleSessions;
 	override readonly panes = testGridPanes(this.visibleSessionPanes);
 

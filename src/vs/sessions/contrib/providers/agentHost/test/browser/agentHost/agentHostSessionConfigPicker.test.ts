@@ -71,6 +71,7 @@ import '../../../../../../../workbench/contrib/sessions/browser/chat/media/chatW
 // The actions and menu items of the pickers, which the tests of their placement read, as the workbench registers them
 import '../../../browser/agentHostSessionConfigPicker.contribution.js';
 import { InSessionHostScopeContext, ISessionHost, sessionChatSourceOf } from '../../../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { testGridPanes } from '../../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 const SESSION_ID = 'local-agent-host:s1';
 const SESSION_RESOURCE = URI.parse('agent-session:/s1');
@@ -692,6 +693,7 @@ suite('Agent Host Session Config Picker', () => {
 		}());
 		services.instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			override readonly visibleSessions = constObservable([services.activeSession]);
+			override readonly slotPanes = testGridPanes(this.visibleSessions);
 		}());
 		store.add(services.instantiationService.createInstance(AgentHostSessionConfigPickerContribution));
 
@@ -731,6 +733,7 @@ suite('Agent Host Session Config Picker', () => {
 		}());
 		services.instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			override readonly visibleSessions = constObservable([services.activeSession]);
+			override readonly slotPanes = testGridPanes(this.visibleSessions);
 		}());
 		services.instantiationService.stub(ISessionHost, upcastPartial<ISessionHost>(sessionChatSourceOf(constObservable(services.activeSession))));
 		store.add(services.instantiationService.createInstance(AgentHostSessionConfigPickerContribution));
@@ -758,6 +761,7 @@ suite('Agent Host Session Config Picker', () => {
 		}());
 		services.instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			override readonly visibleSessions = constObservable([services.activeSession]);
+			override readonly slotPanes = testGridPanes(this.visibleSessions);
 		}());
 		store.add(services.instantiationService.createInstance(AgentHostSessionConfigPickerContribution));
 		const repositoryItems = () => MenuRegistry.getMenuItems(Menus.NewSessionRepositoryConfig)

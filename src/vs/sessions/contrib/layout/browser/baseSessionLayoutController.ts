@@ -361,20 +361,21 @@ export abstract class BaseLayoutController extends Disposable {
 		});
 
 		this.multipleSessionsVisibleObs = derived<boolean>(reader => {
-			return this._sessionsService.visibleSessions.read(reader).length > 1;
+			return this._sessionsService.slotPanes.read(reader).length > 1;
 		});
 		this.multipleChatsVisibleObs = this._sessionsPartService.shownChatCount.map(count => count > 1);
 
 		this._register(autorun(reader => {
-			const visibleSessions = this._sessionsService.visibleSessions.read(reader);
-			if (visibleSessions.length <= 1 || this._chatLayoutActive(reader)) {
+			const panes = this._sessionsService.slotPanes.read(reader);
+			if (panes.length <= 1 || this._chatLayoutActive(reader)) {
 				return;
 			}
-			for (const session of visibleSessions) {
+			for (const pane of panes) {
+				const session = pane.session.read(undefined);
 				if (!session) {
 					continue;
 				}
-				const ownerKey = this._ownerKeyFor({ session, chat: session.activeChat.read(undefined) });
+				const ownerKey = this._ownerKeyFor({ session, chat: pane.chat.read(undefined) ?? session.mainChat.read(undefined) });
 				if (!ownerKey) {
 					continue;
 				}
@@ -1174,7 +1175,7 @@ export abstract class BaseLayoutController extends Disposable {
 	private _saveState(): void {
 		const shown = this._shownByMainWindow();
 		const activeSession = shown?.session;
-		const multipleVisible = this._sessionsService.visibleSessions.get().length > 1;
+		const multipleVisible = this._sessionsService.slotPanes.get().length > 1;
 		const ownerKey = shown && this._ownerKeyFor(shown);
 
 		// [B4] Capture current state for the active session (skip multiple-visible and untitled).
@@ -1288,7 +1289,7 @@ export abstract class BaseLayoutController extends Disposable {
 			// change the visibility of the editor part: the editor area is shared
 			// across the visible sessions and its visibility is controlled by the
 			// user (and by direct editor open/close events outside this path).
-			if (this._sessionsService.visibleSessions.get().length > 1) {
+			if (this._sessionsService.slotPanes.get().length > 1) {
 				const suppression = this._layoutService.suppressEditorPartAutoVisibility();
 				try {
 					await this._editorGroupsService.applyWorkingSet(workingSet, { preserveFocus });

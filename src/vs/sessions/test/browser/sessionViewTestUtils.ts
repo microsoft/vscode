@@ -28,7 +28,7 @@ import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../workb
 import { ISessionsChatBackground, ISessionsChatBackgroundService } from '../../../workbench/contrib/sessions/browser/chatBackgroundService.js';
 import { IChatViewFactory } from '../../../workbench/contrib/sessions/browser/chatViewFactory.js';
 import { ISessionsListModelService } from '../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
-import { ISessionsPartService } from '../../../workbench/contrib/sessions/browser/sessionsPartService.js';
+import { ISessionGridSlot, ISessionsPartService, SessionGridRequest } from '../../../workbench/contrib/sessions/browser/sessionsPartService.js';
 import { ISessionsProvidersService } from '../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ChatInteractivity, IChat, ISessionCapabilities, ISessionPreparationProgress, SessionStatus } from '../../../workbench/contrib/sessions/common/session.js';
@@ -36,7 +36,8 @@ import { stubSessionHosts } from '../../../workbench/contrib/sessions/test/brows
 import { ChatHostOpenerService, IChatHostOpenerService } from '../../../workbench/contrib/sessions/browser/chatHostOpener.js';
 import { ISessionChangesStatsCache } from '../../../workbench/contrib/sessions/common/sessionChangesStatsCache.js';
 import { SessionInputPickerVisibility } from '../../../workbench/contrib/sessions/common/sessionPickerVisibility.js';
-import { IActiveSession, ISessionsManagementService } from '../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IActiveSession, ISessionPaneTabs, ISessionsManagementService } from '../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionGridPane, SessionGridPaneKind } from '../../../workbench/contrib/sessions/browser/sessionGridPane.js';
 import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { MobileSessionsPart } from '../../browser/parts/mobile/mobileSessionsPart.js';
 import { stubSessionsHostLayout } from './sessionsHostLayoutTestUtils.js';
@@ -230,4 +231,41 @@ export function getSessionPickerVisibility(contextKeyService: IContextKeyService
 		worktree: value(SessionWorktreePickerVisibleContext.key),
 		sync: value(SessionSyncActionVisibleContext.key),
 	};
+}
+
+const noTabs: ISessionPaneTabs = { openChats: constObservable([]), closedChats: constObservable([]), lastClosedChat: undefined, visibleChatTabs: constObservable([]), shouldShowChatTabs: constObservable(false) };
+const testPanes = new WeakMap<object, Map<string, { readonly session: IActiveSession | undefined; readonly pane: ISessionGridPane }>>();
+
+/**
+ * Renders `visible`, a test's views of sessions, in `part` as the panes of its grid, with `active` active: each a pane whose
+ * id is its slot's (`slots`), else its session's id, else `'initial'`. Rendering the same session in the same slot again gives
+ * the same pane, as the grid keeps its panes.
+ */
+export function renderTestPanes(part: { updatePanes(panes: readonly ISessionGridPane[], activePane: ISessionGridPane | undefined, slots?: readonly ISessionGridSlot[], request?: SessionGridRequest): void }, visible: readonly (IActiveSession | undefined)[], active: IActiveSession | undefined, slots?: readonly ISessionGridSlot[], request?: SessionGridRequest): readonly ISessionGridPane[] {
+	let known = testPanes.get(part);
+	if (!known) {
+		known = new Map();
+		testPanes.set(part, known);
+	}
+	const sessions = visible.length ? visible : [undefined];
+	const panes = sessions.map((session, index) => {
+		const id = slots?.[index]?.id ?? session?.sessionId ?? 'initial';
+		const existing = known!.get(id);
+		if (existing && existing.session === session) {
+			return existing.pane;
+		}
+		const pane: ISessionGridPane = {
+			id,
+			kind: session?.scopedChatResource ? SessionGridPaneKind.Detached : SessionGridPaneKind.Slot,
+			session: constObservable(session),
+			chat: session?.activeChat ?? constObservable(undefined),
+			sticky: session?.sticky ?? constObservable(false),
+			tabs: session ?? noTabs,
+		};
+		known!.set(id, { session, pane });
+		return pane;
+	});
+	const activeIndex = sessions.indexOf(active);
+	part.updatePanes(panes, activeIndex >= 0 ? panes[activeIndex] : (active ? panes.find(pane => pane.session.get()?.sessionId === active.sessionId) : undefined), slots, request);
+	return panes;
 }

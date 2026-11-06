@@ -28,7 +28,7 @@ import { ISessionGridPane } from '../../../workbench/contrib/sessions/browser/se
  * before the workbench starts laying out parts.
  *
  * The part is a passive renderer: the {@link ISessionsService} drives the
- * grid via {@link updateVisibleSessions}/{@link focusSession} and listens to
+ * grid via {@link updatePanes}/{@link focusPane} and listens to
  * {@link onDidFocusPane}. The part observes neither the model nor the view.
  */
 export class SessionsParts extends Disposable implements ISessionsPartService {
@@ -62,15 +62,18 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 		this._mainPart = this._register(mainWindowInstantiationService.createInstance(isPhoneLayout ? MobileSessionsPart : SessionsPart));
 	}
 
-	updateVisibleSessions(visible: readonly (IActiveSession | undefined)[], active: IActiveSession | undefined, slots?: readonly ISessionGridSlot[], request?: SessionGridRequest): void {
-		this._mainPart.updateVisibleSessions(visible, active, slots, request);
+	updatePanes(panes: readonly ISessionGridPane[], activePane: ISessionGridPane | undefined, slots?: readonly ISessionGridSlot[], request?: SessionGridRequest): void {
+		this._mainPart.updatePanes(panes, activePane, slots, request);
 	}
 
+
 	getGridLayout() { return this._mainPart.getGridLayout(); }
-	getSessionAtPosition(index: number) { return this._mainPart.getSessionAtPosition(index); }
-	getNeighborSession(sessionId: string | undefined, direction: Direction) { return this._mainPart.getNeighborSession(sessionId, direction); }
+	getPaneAtPosition(index: number) { return this._mainPart.getPaneAtPosition(index); }
+	getNeighborPane(pane: ISessionGridPane, direction: Direction) { return this._mainPart.getNeighborPane(pane, direction); }
+	getViewOfPane(pane: ISessionGridPane) { return this._mainPart.getViewOfPane(pane); }
 	getSessionPlacement(sessionId: string) { return this._mainPart.getSessionPlacement(sessionId); }
 	resizeSession(sessionId: string | undefined, direction: Direction, amount: number): void { this._mainPart.resizeSession(sessionId, direction, amount); }
+	resizePane(pane: ISessionGridPane, direction: Direction, amount: number): void { this._mainPart.resizePane(pane, direction, amount); }
 	get onDidInteractWithGrid(): Event<void> { return this._mainPart.onDidInteractWithGrid; }
 
 	setContentVisible(visible: boolean): void {
@@ -88,6 +91,14 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 		}
 	}
 
+	toggleMaximizePane(pane: ISessionGridPane): void {
+		const maximized = this._mainPart.toggleMaximizePane(pane);
+		const session = pane.session.get();
+		if (maximized !== undefined && session) {
+			this._onDidToggleMaximizeSession.fire({ session, maximized });
+		}
+	}
+
 	focusSession(session: IActiveSession | undefined): void {
 		this._mainPart.focusSession(session?.sessionId, session?.scopedChatResource);
 	}
@@ -97,17 +108,6 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 	}
 
 	getSessionView(session: string | ISession | undefined): SessionView | undefined {
-		if (typeof session === 'object') {
-			const shown = this._mainPart.getViewOfSession(session);
-			if (shown) {
-				return shown;
-			}
-			// A session scoped to a chat that no part shows a view of, such as one of a chat window's editors: none, not the
-			// main window's view of another chat of its session.
-			if ((session as Partial<IActiveSession>).scopedChatResource) {
-				return undefined;
-			}
-		}
 		const sessionId = typeof session === 'object' ? session.sessionId : session;
 		return this._mainPart.getSessionView(sessionId);
 	}
@@ -116,8 +116,8 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 		return this._mainPart.getFocusedSessionView();
 	}
 
-	focusSessionView(session: ISession): void {
-		this._mainPart.focusSessionView(session);
+	focusViewOfHost(host: ISessionHost): void {
+		this._mainPart.focusViewOfHost(host);
 	}
 
 	getActiveSessionView(): SessionView | undefined {

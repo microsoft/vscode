@@ -49,7 +49,7 @@ import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { setActiveSessionContextKeys } from '../../../../../workbench/contrib/sessions/common/sessionContextKeys.js';
 import { createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
 import { IFocusedSessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
-import { stubSessionHosts, stubSessionHostsFromSessionsService, withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { stubSessionHosts, stubSessionHostsFromSessionsService, testGridPanes, withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IChat, ISessionChangeset, ISessionChangesSummary, ISessionFolder, ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
@@ -147,6 +147,7 @@ suite('Changes View Actions', () => {
 				readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
 				readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
 				override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>(visible);
+				override readonly slotPanes = testGridPanes(this.visibleSessions);
 			});
 			stubSessionHostsFromSessionsService(instantiationService);
 			instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({

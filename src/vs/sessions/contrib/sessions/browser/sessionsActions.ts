@@ -43,12 +43,12 @@ import { SessionsCategories } from '../../../../workbench/contrib/sessions/commo
 import { CanGoBackContext, CanGoForwardContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionFocusedChatIsRenameTargetContext, SessionActiveChatIsDeletableContext, SessionActiveChatIsUntitledContext, SessionChatsPickerVisibleContext, SessionActiveChatHasSideChatsContext, SessionActiveChatResourceContext, SessionsEditorScopeContext, SessionsHasClosedItemContext, IsNewChatSessionContext, SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT, SessionsListPromoteNewChatActionContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionHeaderTargetsChatContext, SessionInChatEditorContext, SessionItemIsMultiSelectionContext, IsPhoneLayoutContext, SessionToolbarShowsSessionContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { SessionsTitleBarNewSessionEnabledContext } from '../../../common/agentsWindowContextKeys.js';
 import { ARRANGE_SESSIONS_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, DETACH_CHAT_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SESSION_GRID_FOCUS_COMMANDS, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { getWindowHost, IFocusedSessionHostService, ISessionHost, SessionHostKind } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatHostOpenerService } from '../../../../workbench/contrib/sessions/browser/chatHostOpener.js';
-import { ISessionCommandTarget, resolveGridCommandView, resolvePaneCommandTarget, resolveSessionCommandTarget } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
+import { ISessionCommandTarget, resolveGridCommandPane, resolveGridCommandView, resolvePaneCommandTarget, resolveSessionCommandTarget } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
 import { WindowCanvasInput } from '../../../../workbench/contrib/sessions/browser/windowCanvas.js';
 import { ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionPresentationWorkspace, getSessionWorkspaceKind, getUntitledSessionTitle, IChat, isSideChatOf, ISession, SessionStatus, SessionWorkspaceKind } from '../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsPartService } from '../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
@@ -625,14 +625,12 @@ for (let index = 0; index < 9; index++) {
 			const sessionsService = accessor.get(ISessionsService);
 			const sessionsPartService = accessor.get(ISessionsPartService);
 
-			const target = sessionsPartService.getSessionAtPosition(isLast ? -1 : index);
-			if (target === undefined) {
+			const pane = sessionsPartService.getPaneAtPosition(isLast ? -1 : index);
+			if (!pane) {
 				return;
 			}
-
-			const session = target ?? undefined;
-			sessionsService.setActive(session);
-			sessionsPartService.focusSession(session);
+			sessionsService.activatePane(pane);
+			sessionsPartService.focusPane(pane);
 		}
 	});
 }
@@ -760,7 +758,7 @@ registerAction2(class RenameChatAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, context?: IChatRenameContext | IActiveSession, chat?: IChat, ...rest: unknown[]): Promise<void> {
+	override async run(accessor: ServicesAccessor, context?: IChatRenameContext | ISession, chat?: IChat, ...rest: unknown[]): Promise<void> {
 		let renameContext: IChatRenameContext | undefined;
 		if (context && hasKey(context, { session: true })) {
 			renameContext = context;
@@ -1071,8 +1069,12 @@ registerAction2(class AddChatToSessionAction extends Action2 {
 			return;
 		}
 		await sessionsService.openNewChatInSession(target);
-		const activeSession = sessionsPartService.getActiveSessionView()?.getSession();
-		sessionsPartService.focusSession(activeSession?.sessionId === target.sessionId ? activeSession : undefined);
+		const activePane = sessionsService.activePane.get();
+		if (activePane && activePane.session.get()?.sessionId === target.sessionId) {
+			sessionsPartService.focusPane(activePane);
+		} else {
+			sessionsPartService.focusSession(undefined);
+		}
 	}
 });
 
@@ -1080,21 +1082,22 @@ function navigateChatTab(accessor: ServicesAccessor, direction: 'next' | 'previo
 	const sessionsService = accessor.get(ISessionsService);
 	const sessionsPartService = accessor.get(ISessionsPartService);
 	const extUri = accessor.get(IUriIdentityService).extUri;
-	const session = resolveGridCommandView(accessor)?.getSession();
-	if (!session) {
+	const target = resolveGridCommandPane(accessor);
+	if (!target) {
 		return;
 	}
-	const tabs = session.visibleChatTabs.get();
+	const { pane, session } = target;
+	const tabs = pane.tabs.visibleChatTabs.get();
 	if (tabs.length < 2) {
 		return;
 	}
-	const activeChat = session.activeChat.get();
+	const activeChat = pane.chat.get();
 	const currentIndex = activeChat ? tabs.findIndex(chat => extUri.isEqual(chat.resource, activeChat.resource)) : -1;
 	const from = currentIndex === -1 ? 0 : currentIndex;
 	const delta = direction === 'next' ? 1 : -1;
-	const target = tabs[(from + delta + tabs.length) % tabs.length];
-	sessionsService.openChat(session, target.resource);
-	sessionsPartService.focusSession(session);
+	const next = tabs[(from + delta + tabs.length) % tabs.length];
+	sessionsService.openChat(session, next.resource);
+	sessionsPartService.focusPane(pane);
 }
 
 registerAction2(class NavigateNextChatAction extends Action2 {
@@ -1171,7 +1174,7 @@ registerAction2(class CloseChatAction extends Action2 {
 			}))],
 		});
 	}
-	override async run(accessor: ServicesAccessor, sessionArg: IActiveSession | undefined, chat?: IChat, ...rest: unknown[]): Promise<void> {
+	override async run(accessor: ServicesAccessor, sessionArg: ISession | undefined, chat?: IChat, ...rest: unknown[]): Promise<void> {
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const extUri = accessor.get(IUriIdentityService).extUri;
@@ -1256,13 +1259,14 @@ registerAction2(class CloseAllChatsAction extends Action2 {
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const extUri = accessor.get(IUriIdentityService).extUri;
-		const session = resolveGridCommandView(accessor)?.getSession();
-		if (!session) {
+		const target = resolveGridCommandPane(accessor);
+		if (!target) {
 			return;
 		}
+		const { pane, session } = target;
 
 		const mainResource = session.mainChat.get().resource;
-		const chatsToClose = session.openChats.get().filter(chat => !extUri.isEqual(chat.resource, mainResource));
+		const chatsToClose = pane.tabs.openChats.get().filter(chat => !extUri.isEqual(chat.resource, mainResource));
 		for (const chat of chatsToClose) {
 			if (chat.status.get() === SessionStatus.Untitled) {
 				await sessionsManagementService.deleteChat(session, chat.resource, { skipConfirmation: true });
@@ -1305,13 +1309,15 @@ registerAction2(class DeleteChatAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, session?: IActiveSession, chat?: IChat): Promise<void> {
+	override async run(accessor: ServicesAccessor, session?: ISession, chat?: IChat): Promise<void> {
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		session ??= resolveGridCommandView(accessor)?.getSession();
+		const target = !session || !chat ? resolveGridCommandPane(accessor) : undefined;
+		session ??= target?.session;
 		if (!session) {
 			return;
 		}
-		chat ??= session.activeChat.get();
+		// Without a chat, the chat the grid's active pane shows of the session.
+		chat ??= target?.session === session ? target.pane.chat.get() : undefined;
 		// The main chat and worker (subagent) chats report `canDelete: false`.
 		if (!chat || !getChatCapabilities(chat, session, undefined).canDelete) {
 			return;
@@ -1338,16 +1344,16 @@ registerAction2(class ReopenLastClosedChatAction extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
-		const session = resolveGridCommandView(accessor)?.getSession();
-		if (!session) {
+		const target = resolveGridCommandPane(accessor);
+		if (!target) {
 			return;
 		}
-		const lastClosed = session.lastClosedChat;
+		const lastClosed = target.pane.tabs.lastClosedChat;
 		if (!lastClosed) {
 			return;
 		}
-		await sessionsService.openChat(session, lastClosed.resource);
-		sessionsPartService.focusSession(session);
+		await sessionsService.openChat(target.session, lastClosed.resource);
+		sessionsPartService.focusPane(target.pane);
 	}
 });
 
@@ -1408,10 +1414,11 @@ function openChatsPicker(accessor: ServicesAccessor, mru?: { readonly backward: 
 	const contextKeyService = accessor.get(IContextKeyService);
 	const keybindingService = accessor.get(IKeybindingService);
 
-	const session = resolveGridCommandView(accessor)?.getSession();
-	if (!session) {
+	const target = resolveGridCommandPane(accessor);
+	if (!target) {
 		return;
 	}
+	const { pane, session } = target;
 	const extUri = accessor.get(IUriIdentityService).extUri;
 
 	interface IChatPickItem extends IQuickPickItem {
@@ -1433,13 +1440,13 @@ function openChatsPicker(accessor: ServicesAccessor, mru?: { readonly backward: 
 	// searchable palette flow instead skips untitled drafts (no meaningful title,
 	// mirroring the Side Chats dropdown) and adds the closed chats below.
 	const openItems = (mru
-		? session.visibleChatTabs.get()
-		: session.visibleChatTabs.get().filter(chat => chat.status.get() !== SessionStatus.Untitled)
+		? pane.tabs.visibleChatTabs.get()
+		: pane.tabs.visibleChatTabs.get().filter(chat => chat.status.get() !== SessionStatus.Untitled)
 	).map(toItem);
 	// Closed chats are hidden from the tab strip but still reopenable. They are
 	// only offered in the searchable palette flow — not the Ctrl+Tab MRU switcher,
 	// which mirrors the editor switcher and cycles open items only.
-	const closedItems = mru ? [] : session.closedChats.get()
+	const closedItems = mru ? [] : pane.tabs.closedChats.get()
 		.filter(chat => chat.status.get() !== SessionStatus.Untitled && chat.origin?.kind !== ChatOriginKind.Tool)
 		.map(toItem);
 
@@ -1458,7 +1465,7 @@ function openChatsPicker(accessor: ServicesAccessor, mru?: { readonly backward: 
 			...closedItems,
 		];
 
-	const activeChat = session.activeChat.get();
+	const activeChat = pane.chat.get();
 	const activeIndex = Math.max(0, activeChat ? pickItems.findIndex(item => extUri.isEqual(item.chat.resource, activeChat.resource)) : -1);
 	// MRU style starts on the adjacent chat so a single tap+release switches to
 	// it; palette invocation (non-MRU) focuses the active chat.
@@ -1490,7 +1497,7 @@ function openChatsPicker(accessor: ServicesAccessor, mru?: { readonly backward: 
 		const [selected] = picker.selectedItems;
 		if (selected) {
 			sessionsService.openChat(session, selected.chat.resource);
-			sessionsPartService.focusSession(session);
+			sessionsPartService.focusPane(pane);
 		}
 		picker.hide();
 	}));
@@ -1993,7 +2000,7 @@ export class SessionConversationActionsContribution extends Disposable implement
 						},
 					});
 				}
-				override async run(accessor: ServicesAccessor, forwardedSession?: IActiveSession, ...rest: unknown[]): Promise<void> {
+				override async run(accessor: ServicesAccessor, forwardedSession?: ISession, ...rest: unknown[]): Promise<void> {
 					const target = forwardedSession ?? session;
 					const targetChat = target.chats.get().find(c => extUri.isEqual(c.resource, chatResource));
 					if (!targetChat) {
@@ -2191,7 +2198,7 @@ registerAction2(class RenameSessionHeaderAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, sessionArg: IActiveSession | undefined, ...rest: unknown[]): Promise<void> {
+	override async run(accessor: ServicesAccessor, sessionArg: ISession | undefined, ...rest: unknown[]): Promise<void> {
 		const target = resolvePaneCommandTarget(accessor, [sessionArg, ...rest]);
 		// The session a host outside the grid shows, such as a chat editor's, which has no title to edit in the grid.
 		const session = target?.pane?.session.get() ?? (target && !target.view ? sessionArg : undefined);
@@ -2399,8 +2406,11 @@ registerAction2(class ToggleMaximizeSessionViewAction extends Action2 {
 		if (!target?.view) {
 			return;
 		}
+		if (!target.pane) {
+			return;
+		}
 		accessor.get(ISessionsService).activatePane(target.pane);
-		accessor.get(ISessionsPartService).toggleMaximizeSession(target.view.getSession());
+		accessor.get(ISessionsPartService).toggleMaximizePane(target.pane);
 	}
 });
 

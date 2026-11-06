@@ -41,7 +41,7 @@ import { ISessionComparisonService } from '../../../../../workbench/contrib/sess
 import { IsWorkspaceGroupCappedContext, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { Menus, SessionHeaderMenus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
-import { IActiveSession, inheritableSessionTarget, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { inheritableSessionTarget, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWording, SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
@@ -1446,7 +1446,7 @@ abstract class BaseArchiveChatAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, context?: ISessionChatItem | IActiveSession, chat?: IChat): Promise<void> {
+	override async run(accessor: ServicesAccessor, context?: ISessionChatItem | ISession, chat?: IChat): Promise<void> {
 		let target: ISessionChatItem | undefined;
 		if (context && chat && hasKey(context, { sessionId: true })) {
 			target = { session: context, chat };
@@ -1462,9 +1462,10 @@ abstract class BaseArchiveChatAction extends Action2 {
 		await sessionsManagementService.archiveChat(target.session, target.chat);
 
 		// The chat leaves the grid's active pane when that pane shows it.
-		const activeSession = sessionsPartService.getActiveSessionView()?.getSession();
-		if (activeSession?.sessionId === target.session.sessionId) {
-			const openChat = activeSession.openChats.get().find(chat => isEqual(chat.resource, target.chat.resource));
+		const activePane = sessionsPartService.getActiveSessionView()?.pane.get();
+		const activeSession = activePane?.session.get();
+		if (activePane && activeSession?.sessionId === target.session.sessionId) {
+			const openChat = activePane.tabs.openChats.get().find(chat => isEqual(chat.resource, target.chat.resource));
 			if (openChat) {
 				await sessionsService.closeChat(activeSession, openChat);
 			}
@@ -1886,7 +1887,7 @@ registerAction2(class OpenSessionToTheSideAction extends Action2 {
 		if (sessions.length === 1) {
 			await sessionsService.openSessionToSide(sessions[0], { source: 'sessionsList', forceMainChat: true });
 		} else {
-			const reference = sessionsService.visibleSessions.get().at(-1);
+			const reference = sessionsService.slotPanes.get().at(-1)?.session.get();
 			await sessionsService.openSessionsAt(sessions, reference?.sessionId, 'right', { source: 'sessionsList', activate: 'last', forceMainChat: true });
 		}
 	}

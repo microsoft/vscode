@@ -26,6 +26,7 @@ import { IActiveSession } from '../../../../../workbench/contrib/sessions/common
 import { ISessionGridPane, SessionGridPaneKind } from '../../../../../workbench/contrib/sessions/browser/sessionGridPane.js';
 import { SessionComparisonGridController } from '../../browser/sessionComparisonGridController.js';
 import { HIDE_INACTIVE_COMPARISON_INPUTS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionComparisonConstants.js';
+import { testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Session comparison grid controller', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -130,6 +131,7 @@ suite('Session comparison grid controller', () => {
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			readonly activeSession = activeSession;
 			override readonly visibleSessions = visibleSessions;
+			override readonly slotPanes = testGridPanes(this.visibleSessions);
 			override readonly panes = panes;
 			override readonly activePane = derived(reader => {
 				const active = activeSession.read(reader);

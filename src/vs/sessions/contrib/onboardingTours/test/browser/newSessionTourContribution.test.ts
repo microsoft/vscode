@@ -23,6 +23,7 @@ import { ISession } from '../../../../../workbench/contrib/sessions/common/sessi
 import { IActiveSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { NewSessionTourContribution } from '../../browser/newSessionTourContribution.js';
 import { NEW_SESSION_TOUR_ID } from '../../browser/tours/newSessionTour.js';
+import { testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('NewSessionTourContribution', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -61,6 +62,7 @@ suite('NewSessionTourContribution', () => {
 				onboardingService,
 				new class extends mock<ISessionsService>() {
 					override readonly visibleSessions = visibleSessions;
+					override readonly slotPanes = testGridPanes(this.visibleSessions);
 				}(),
 				storage,
 				new TestConfigurationService(),
@@ -120,6 +122,7 @@ suite('NewSessionTourContribution', () => {
 				}(),
 				new class extends mock<ISessionsService>() {
 					override readonly visibleSessions = visibleSessions;
+					override readonly slotPanes = testGridPanes(this.visibleSessions);
 				}(),
 				disposables.add(new InMemoryStorageService()),
 				new TestConfigurationService(),

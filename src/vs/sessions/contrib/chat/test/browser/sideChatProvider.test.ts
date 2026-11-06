@@ -10,7 +10,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, derived, observableValue } from '../../../../../base/common/observable.js';
 import { ISessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
-import { ITestSessionsService, sessionHostServiceOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionsService, sessionHostServiceOf, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -122,6 +122,7 @@ suite('SessionsSideChatProviderContribution', () => {
 		}));
 		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
 			visibleSessions: constObservable([session]),
+			slotPanes: testGridPanes(constObservable([session])),
 			activeSession,
 			navigationRequest,
 			openChat: async (_session, chatUri) => {

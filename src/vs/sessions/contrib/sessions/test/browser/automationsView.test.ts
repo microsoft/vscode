@@ -86,6 +86,7 @@ import { HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID, MARK_SESSION_READ_COMMAND
 import { TestCommandService } from './sessionsListTestUtils.js';
 import { TestDataTelemetryService } from '../../../../../platform/telemetry/test/common/testTelemetryService.js';
 import { stubSessionsHostLayout } from '../../../../test/browser/sessionsHostLayoutTestUtils.js';
+import { testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 
 const AUTOMATION_ID = 'automation-1';
@@ -438,6 +439,7 @@ class FakeRunner extends mock<IAutomationRunner>() {
 
 class FakeSessionsService extends mock<ISessionsService>() {
 	override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([]);
+	override readonly slotPanes = testGridPanes(this.visibleSessions);
 	readonly activeSession = constObservable<IActiveSession | undefined>(undefined);
 	readonly openGate = new DeferredPromise<void>();
 	openCalls = 0;

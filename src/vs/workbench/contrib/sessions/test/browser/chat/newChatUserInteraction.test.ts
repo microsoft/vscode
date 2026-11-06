@@ -22,6 +22,7 @@ import { IChatResponseModel, serializeSendOptions } from '../../../../chat/commo
 import { ToolInvocationPresentation } from '../../../../chat/common/tools/languageModelToolsService.js';
 import { createChatUserInteractionTestHarness } from '../../../../chat/test/browser/chatUserInteractionTestUtils.js';
 import { ISessionsService } from '../../../browser/sessionsService.js';
+import { testGridPanes } from '../sessionHostTestUtils.js';
 import { IChat, ISession, SessionStatus } from '../../../common/session.js';
 import { IActiveSession, ISendRequestOptions, ISessionsManagementService, shownChatOf } from '../../../common/sessionsManagement.js';
 import { SharedChatInputComposer } from '../../../browser/chat/sharedChatInputComposer.js';
@@ -49,7 +50,7 @@ suite('Sessions - New chat user-perceived TTFP', () => {
 		const replaced = disposables.add(new Emitter<{ from: ISession; to: ISession }>());
 		const replacedDraft = disposables.add(new Emitter<{ from: ISession; to: ISession }>());
 		h.instantiationService.stub(ISessionsManagementService, { onDidReplaceSession: replaced.event, onDidReplaceNewDraftSession: replacedDraft.event });
-		h.instantiationService.stub(ISessionsService, { visibleSessions });
+		h.instantiationService.stub(ISessionsService, { visibleSessions, slotPanes: testGridPanes(visibleSessions) });
 		const added = disposables.add(new Emitter<IChatWidget>());
 		const removed = disposables.add(new Emitter<IChatWidget>());
 		const widgets: IChatWidget[] = [];
