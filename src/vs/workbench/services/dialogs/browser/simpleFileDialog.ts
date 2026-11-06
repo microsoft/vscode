@@ -501,10 +501,10 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 			this.filePickBox.show();
 			this.contextKey.set(true);
 			this.updateItems(homedir, true, this.trailing).then(() => {
-				if (this.trailing) {
-					this.filePickBox.valueSelection = [this.filePickBox.value.length - this.trailing.length, this.filePickBox.value.length - ext.length];
-				} else if (this.shouldSelectInitialValue()) {
+				if (!isSave && this.shouldSelectInitialValue()) {
 					this.filePickBox.valueSelection = [0, this.filePickBox.value.length];
+				} else if (this.trailing) {
+					this.filePickBox.valueSelection = [this.filePickBox.value.length - this.trailing.length, this.filePickBox.value.length - ext.length];
 				} else {
 					this.filePickBox.valueSelection = [this.filePickBox.value.length, this.filePickBox.value.length];
 				}
