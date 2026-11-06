@@ -397,7 +397,7 @@ suite('ChatStatusPromo', () => {
 		assert.strictEqual(f.storage.get('chat.dismissedPromoIds', StorageScope.APPLICATION), undefined);
 	});
 
-	suite('Copilot Fusion sale', () => {
+	suite('Auto tier sale', () => {
 		const day = 24 * 60 * 60 * 1000;
 		const iso = (offset: number) => new Date(Date.now() + offset).toISOString();
 		function fusion(promotion: Partial<IAutoModelTierPromotion> = {}, metadata: Partial<ILanguageModelChatMetadata> = {}): Parameters<typeof fixture>[0] {
@@ -430,7 +430,8 @@ suite('ChatStatusPromo', () => {
 			'a sale when the effort level cannot be changed': [fusion({}, {
 				configurationSchema: { properties: { tier: { type: 'string', group: 'navigation', enum: ['balance', 'hydrafusion', 'hydrafusion-max'], default: 'balance', readOnly: true } } },
 			}), undefined],
-			'Auto that is not Fusion': [fusion({}, { autoModelFusion: undefined }), undefined],
+			'a sale on a model that is not Fusion': [fusion({}, { autoModelFusion: undefined }), 'Get 30% off Fusion High and Max. Open the sale offer.'],
+			'a model without tier sales': [fusion({}, { autoModelTierPromotions: undefined }), undefined],
 			'a dismissed sale': [{ ...fusion({ id: 'sale' }), storedKey: 'chat.dismissedPromoIds' }, undefined],
 		};
 		for (const [name, [options, ariaLabel]] of Object.entries(cases)) {
@@ -441,7 +442,7 @@ suite('ChatStatusPromo', () => {
 		}
 
 		for (const [current, selected] of [[undefined, [['copilot:model', { tier: 'hydrafusion' }]]], [{ tier: 'hydrafusion-max' }, []]] as const) {
-			test(`Try selects Fusion ${current ? 'and keeps a discounted effort level' : 'at a discounted effort level'}`, async () => {
+			test(`Try selects the model ${current ? 'and keeps a discounted effort level' : 'at a discounted effort level'}`, async () => {
 				const f = fixture(fusion());
 				const view = chatView(f, SessionType.AgentHostCopilot, undefined, current);
 				const action = f.entry!.tooltip.commands[0];
