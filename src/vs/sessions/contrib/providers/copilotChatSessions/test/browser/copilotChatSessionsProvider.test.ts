@@ -9,6 +9,7 @@ import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { IDefaultAccount, IEntitlementsData } from '../../../../../../base/common/defaultAccount.js';
 import { DisposableStore, ImmortalReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -83,6 +84,7 @@ import { SessionModelSelection } from '../../../../../../workbench/contrib/sessi
 import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { stubSessionsHostLayout } from '../../../../../test/browser/sessionsHostLayoutTestUtils.js';
 import { ITestShownChat, testChatSourceOf } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { getSessionCreationEnvironments } from '../../../../../../workbench/contrib/sessions/browser/chat/sessionEnvironmentPicker.js';
 
 // ---- Helpers ----------------------------------------------------------------
 
@@ -219,6 +221,7 @@ function serializeCreationReference(reference: ISessionCreationReference | undef
 }
 
 interface ICreateProviderOptions {
+	readonly defaultAccountService?: IDefaultAccountService;
 	readonly draftPreparation?: ICloudSandboxDraftPreparationService;
 	readonly chatModels?: IChatService['chatModels'];
 	readonly providerMode?: 'default' | 'sandbox';
@@ -362,7 +365,7 @@ function createProviderWithConfig(
 ): { provider: CopilotChatSessionsProvider; configService: TestConfigurationService; labelService: MockLabelService } {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	instantiationService.stubInstance(CloudSandboxModels, upcastPartial<CloudSandboxModels>({ models: [], ready: true, onDidChange: Event.None, load: () => { }, dispose: () => { } }));
-	instantiationService.stub(IDefaultAccountService, { currentDefaultAccount: null, onDidChangeDefaultAccount: Event.None, getDefaultAccount: async () => null });
+	instantiationService.stub(IDefaultAccountService, opts?.defaultAccountService ?? { currentDefaultAccount: null, onDidChangeDefaultAccount: Event.None, getDefaultAccount: async () => null });
 	instantiationService.stub(IChatEntitlementService, { sentiment: {}, onDidChangeSentiment: Event.None });
 	instantiationService.stub(IWorkbenchGitHubService, { onDidChangeDefaultClient: Event.None });
 
@@ -1191,6 +1194,85 @@ suite('CopilotChatSessionsProvider', () => {
 	});
 
 	// ---- getSessionTypes -------
+
+	for (const providerMode of ['default', 'sandbox'] as const) {
+		test(`cloud session entitlement updates creation choices without removing history (${providerMode})`, async () => {
+			let cloudSessionsEnabled: boolean | undefined;
+			const accountChanged = disposables.add(new Emitter<IDefaultAccount | null>());
+			const defaultAccountService = new class extends mock<IDefaultAccountService>() {
+				override readonly onDidChangeDefaultAccount = accountChanged.event;
+				override get currentDefaultAccount(): IDefaultAccount {
+					return upcastPartial<IDefaultAccount>({
+						entitlementsData: upcastPartial<IEntitlementsData>({ cloud_sessions_enabled: cloudSessionsEnabled }),
+					});
+				}
+				override async getDefaultAccount() { return this.currentDefaultAccount; }
+			}();
+			model.addSession(createMockAgentSession(URI.from({ scheme: AgentSessionProviders.Cloud, path: '/existing' })));
+			const { provider, configService } = createProviderWithConfig(disposables, model, { providerMode, defaultAccountService });
+			await configService.setUserConfiguration(CloudSandboxEnabledSettingId, true);
+			await configService.setUserConfiguration(RemoteAgentHostsEnabledSettingId, true);
+			const existing = provider.getSessions();
+			let sessionTypeChanges = 0;
+			let capabilityChanges = 0;
+			disposables.add(provider.onDidChangeSessionTypes(() => sessionTypeChanges++));
+			disposables.add(provider.onDidChangeCapabilities(() => capabilityChanges++));
+			const workspace = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: '/owner/repo/HEAD' });
+			const availability = () => ({
+				environments: getSessionCreationEnvironments([provider]).map(environment => environment.id),
+				sessionTypes: provider.getSessionTypes(workspace).map(type => type.id),
+				quickChats: provider.supportsQuickChats,
+				history: provider.getSessions().map(session => session.sessionId),
+			});
+			const snapshots = [availability()];
+			for (const enabled of [false, true, undefined]) {
+				cloudSessionsEnabled = enabled;
+				accountChanged.fire(defaultAccountService.currentDefaultAccount);
+				snapshots.push(availability());
+			}
+			const available = {
+				environments: ['cloud'],
+				sessionTypes: [providerMode === 'sandbox' ? CopilotSandboxSessionType.id : CopilotCloudSessionType.id],
+				quickChats: true,
+				history: existing.map(session => session.sessionId),
+			};
+			assert.deepStrictEqual({
+				snapshots, sessionTypeChanges, capabilityChanges,
+			}, {
+				snapshots: [available, { environments: [], sessionTypes: [], quickChats: false, history: available.history }, available, available],
+				sessionTypeChanges: 3, capabilityChanges: 3,
+			});
+		});
+
+		test(`disabled cloud session entitlement rejects new and stale drafts (${providerMode})`, async () => {
+			let cloudSessionsEnabled = true;
+			const defaultAccountService = new class extends mock<IDefaultAccountService>() {
+				override readonly onDidChangeDefaultAccount = Event.None;
+				override get currentDefaultAccount(): IDefaultAccount {
+					return upcastPartial<IDefaultAccount>({
+						entitlementsData: upcastPartial<IEntitlementsData>({ cloud_sessions_enabled: cloudSessionsEnabled }),
+					});
+				}
+				override async getDefaultAccount() { return this.currentDefaultAccount; }
+			}();
+			const draftPreparation = createDraftPreparationStub();
+			const prepare = spy(draftPreparation, 'prepare');
+			const { provider, configService } = createProviderWithConfig(disposables, model, { providerMode, defaultAccountService, draftPreparation });
+			await configService.setUserConfiguration(CloudSandboxEnabledSettingId, true);
+			await configService.setUserConfiguration(RemoteAgentHostsEnabledSettingId, true);
+			const workspace = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: '/owner/repo/HEAD' });
+			const sessionType = providerMode === 'sandbox' ? CopilotSandboxSessionType.id : CopilotCloudSessionType.id;
+			const draft = provider.createNewSession(workspace, sessionType);
+			cloudSessionsEnabled = false;
+
+			assert.throws(() => provider.createNewSession(workspace, sessionType), /Cloud session creation is not available for your account/);
+			assert.throws(() => provider.createQuickChat(sessionType), /Cloud session creation is not available for your account/);
+			provider.prepareNewSessionWhileComposing(draft.sessionId);
+			await assert.rejects(provider.prepareNewSession(draft.sessionId, CancellationToken.None, 'hello'), /Cloud session creation is not available for your account/);
+			await assert.rejects(provider.sendRequest(draft.sessionId, draft.mainChat.get().resource, { query: 'hello' }), /Cloud session creation is not available for your account/);
+			assert.deepStrictEqual({ preparations: prepare.callCount, draftRetained: provider.getSession(draft.sessionId) !== undefined }, { preparations: 0, draftRetained: true });
+		});
+	}
 
 	test('getSessionTypes returns only Cloud for a remote workspace', () => {
 		const provider = createProvider(disposables, model);
