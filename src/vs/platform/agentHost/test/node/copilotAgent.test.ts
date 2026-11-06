@@ -23980,6 +23980,33 @@ suite('CopilotAgent', () => {
 		for (const promotion of ['user.message', 'session.idle'] as const) {
 			test(`admits sequential steering after ${promotion} promotes the previous steering`, async () => {
 				const h = await createHarness();
+				const sends: Array<{ prompt: string; mode?: string }> = [];
+				const promotedMessageIds: string[] = [];
+				const promotedTurnIds: string[] = [];
+				const responseTurnIds: string[] = [];
+				const send = stub(h.newRuntime, 'send').callsFake(async (options?: Parameters<CopilotSession['send']>[0]) => {
+					assert.ok(options);
+					sends.push({ prompt: options.prompt, mode: options.mode });
+					return '';
+				});
+				const listener = disposables.add(h.agent.onDidChatProgress(signal => {
+					if (signal.kind === 'action' && signal.action.type === ActionType.ChatTurnStarted && signal.action.queuedMessageId) {
+						promotedMessageIds.push(signal.action.queuedMessageId);
+						promotedTurnIds.push(signal.action.turnId);
+					} else if (signal.kind === 'action' && signal.action.type === ActionType.ChatResponsePart) {
+						responseTurnIds.push(signal.action.turnId);
+					}
+				}));
+				const echoSteering = (id: string) => h.newRuntime.emit({
+					id: `${id}-user-message`, timestamp: new Date().toISOString(), parentId: null,
+					type: 'user.message',
+					data: { content: `${id} steering`, messageId: `sdk-${id}`, turnId: 'sdk-turn', delivery: 'steering' },
+				});
+				const respondToSteering = (id: string) => h.newRuntime.emit({
+					id: `${id}-response`, timestamp: new Date().toISOString(), parentId: null, ephemeral: true,
+					type: 'assistant.message_delta',
+					data: { messageId: `${id}-response`, deltaContent: `continuing after ${id}` },
+				});
 				try {
 					await h.agent.chats.sendMessage(h.chat, 'original', undefined, undefined, 'turn-original', undefined, h.context);
 					h.newRuntime.emit({
@@ -23991,42 +24018,52 @@ suite('CopilotAgent', () => {
 					const firstAdmitted = await h.agent.sendSteeringMessage(h.chat, {
 						id: 'steer-first', message: { text: 'first steering', origin: { kind: MessageKind.User } },
 					});
-					const firstEcho: SessionEventPayload<'user.message'> = {
-						id: 'steering-user-message', timestamp: new Date().toISOString(), parentId: null,
-						type: 'user.message',
-						data: { content: 'first steering', messageId: 'sdk-steering', turnId: 'sdk-turn', delivery: 'steering' },
-					};
 					if (promotion === 'session.idle') {
 						h.newRuntime.emit({
 							id: 'original-idle', timestamp: new Date().toISOString(), parentId: null,
 							type: 'session.idle', ephemeral: true, data: {},
 						});
 					} else {
-						h.newRuntime.emit(firstEcho);
+						echoSteering('first');
 					}
 					const readyAfterPromotion = h.live().hasRunningTurn;
 					const secondAdmitted = await h.agent.sendSteeringMessage(h.chat, {
 						id: 'steer-second', message: { text: 'second steering', origin: { kind: MessageKind.User } },
 					});
 					if (promotion === 'session.idle') {
-						h.newRuntime.emit(firstEcho);
+						echoSteering('first');
 					}
-					h.newRuntime.emit({
-						id: 'second-steering-user-message', timestamp: new Date().toISOString(), parentId: null,
-						type: 'user.message',
-						data: { content: 'second steering', messageId: 'sdk-steering-second', turnId: 'sdk-turn', delivery: 'steering' },
-					});
+					respondToSteering('first');
+					echoSteering('second');
+					respondToSteering('second');
 					const readyAfterSecondPromotion = h.live().hasRunningTurn;
 					const thirdAdmitted = await h.agent.sendSteeringMessage(h.chat, {
 						id: 'steer-third', message: { text: 'third steering', origin: { kind: MessageKind.User } },
 					});
+					echoSteering('third');
+					respondToSteering('third');
 
 					assert.deepStrictEqual({
-						initiallyReady, firstAdmitted, readyAfterPromotion, secondAdmitted, readyAfterSecondPromotion, thirdAdmitted, sdkSends: h.newRuntime.sendCalls,
+						admitted: [firstAdmitted, secondAdmitted, thirdAdmitted],
+						ready: [initiallyReady, readyAfterPromotion, readyAfterSecondPromotion, h.live().hasRunningTurn],
+						promotedMessageIds,
+						responseTurnIndices: responseTurnIds.map(id => promotedTurnIds.indexOf(id)),
+						sends,
 					}, {
-						initiallyReady: true, firstAdmitted: true, readyAfterPromotion: true, secondAdmitted: true, readyAfterSecondPromotion: true, thirdAdmitted: true, sdkSends: 4,
+						admitted: [true, true, true],
+						ready: [true, true, true, true],
+						promotedMessageIds: ['steer-first', 'steer-second', 'steer-third'],
+						responseTurnIndices: [0, 1, 2],
+						sends: [
+							{ prompt: 'original', mode: undefined },
+							{ prompt: 'first steering', mode: 'immediate' },
+							{ prompt: 'second steering', mode: 'immediate' },
+							{ prompt: 'third steering', mode: 'immediate' },
+						],
 					});
 				} finally {
+					listener.dispose();
+					send.restore();
 					await disposeAgent(h.agent);
 				}
 			});
