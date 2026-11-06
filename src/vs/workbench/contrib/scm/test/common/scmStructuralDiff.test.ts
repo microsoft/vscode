@@ -609,13 +609,34 @@ suite('SCM structural diff model', () => {
 		});
 	});
 
-	test('surfaces resolution errors as a status row and releases acquired models', async () => {
+	test('surfaces resolution errors as a status row and keeps the documents it resolved', async () => {
 		resolver.failModified = true;
 		const children = await model.getChildren(resource);
 		assert.deepStrictEqual({
 			labels: children.map(getSCMStructuralDiffLabel), errors, released: resolver.released, expandable: model.hasChildren(resource),
-		}, { labels: ['Unable to load structural changes'], errors: 1, released: [original.uri], expandable: true });
+		}, { labels: ['Unable to load structural changes'], errors: 1, released: [], expandable: true });
 	});
+
+	for (const failure of ['error', 'timedOut'] as const) {
+		test(`analyzes a file again when a document it resolved changes after a status of ${failure}`, async () => {
+			resolver.failModified = failure === 'error';
+			textDiffTimedOut = failure === 'timedOut';
+			const failed = await model.getChildren(resource);
+			const releasedAfterFailure = [...resolver.released];
+			resolver.failModified = false;
+			textDiffTimedOut = false;
+			// The modified document cannot be resolved after an error, so the original document reports the edit.
+			const edited = failure === 'error' ? original : modified;
+			edited.setValue(edited.getValue().replace(/return \d/, 'return 3'));
+			const recovered = await model.getChildren(resource);
+			assert.deepStrictEqual({
+				failed: failed.map(getSCMStructuralDiffLabel), releasedAfterFailure, recovered: recovered.map(getSCMStructuralDiffLabel),
+			}, {
+				failed: [failure === 'error' ? 'Unable to load structural changes' : 'Structural changes took too long to load'],
+				releasedAfterFailure: [], recovered: ['Calculator'],
+			});
+		});
+	}
 
 	test('preserves partial results and shows their incomplete status', async () => {
 		provider.result = { ...createResult(), isIncomplete: true };
@@ -841,7 +862,7 @@ suite('SCM structural diff model', () => {
 			errors,
 		}, {
 			labels: ['Structural changes took too long to load'], elapsed: 30000, providerCancelled: true,
-			released: [original.uri, modified.uri], cached: true, calls: 1, errors: 0,
+			released: [], cached: true, calls: 1, errors: 0,
 		});
 	}));
 
@@ -852,7 +873,7 @@ suite('SCM structural diff model', () => {
 		assert.deepStrictEqual({
 			labels: children.map(getSCMStructuralDiffLabel), errors, calls: provider.calls, budgets: textDiffTimeBudgets, released: resolver.released,
 		}, {
-			labels: ['Structural changes took too long to load'], errors: 0, calls: 0, budgets: [1234], released: [original.uri, modified.uri],
+			labels: ['Structural changes took too long to load'], errors: 0, calls: 0, budgets: [1234], released: [],
 		});
 	});
 });
