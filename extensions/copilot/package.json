@@ -23,7 +23,11 @@
   "icon": "assets/copilot.png",
   "pricing": "Trial",
   "engines": {
+<<<<<<< HEAD
     "vscode": "^1.146.0",
+=======
+    "vscode": "^1.145.2",
+>>>>>>> c4453f8ea43 ([1.145] Drop unrecognized restricted events and bump to 1.145.2 (#346418))
     "npm": ">=9.0.0",
     "node": ">=22.14.0"
   },
