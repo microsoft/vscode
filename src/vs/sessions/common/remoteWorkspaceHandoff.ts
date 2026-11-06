@@ -27,9 +27,14 @@ export type RemoteAgentHostHandoffResult =
 		readonly connectionAuthority: string;
 		/** Resolves to whether the host is connected once its connection settles. The service reports connection failures. */
 		readonly connected: Promise<boolean>;
+		/**
+		 * Whether the remote's editor windows use the connected host as their own agent host. Only a tunnel's editor
+		 * windows do, unless its gateway selected the agent host of an editor on the tunnel's machine instead.
+		 */
+		readonly sharesEditorWindowAgentHost: () => boolean;
 		readonly unavailableReason?: undefined;
 	}
-	| { readonly connectionAuthority?: undefined; readonly connected?: undefined; readonly unavailableReason: string };
+	| { readonly connectionAuthority?: undefined; readonly connected?: undefined; readonly sharesEditorWindowAgentHost?: undefined; readonly unavailableReason: string };
 
 export const IRemoteWorkspaceHandoffService = createDecorator<IRemoteWorkspaceHandoffService>('remoteWorkspaceHandoffService');
 
