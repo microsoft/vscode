@@ -19,6 +19,7 @@ import { FileService } from '../../../../../platform/files/common/fileService.js
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IQuickInputService, IQuickPick, IQuickPickItem, ItemActivation } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IOpenDialogOptions } from '../../../../../platform/dialogs/common/dialogs.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { SimpleFileDialog } from '../../browser/simpleFileDialog.js';
@@ -71,6 +72,29 @@ suite('SimpleFileDialog', () => {
 			assert.ok(picker && !picker.busy);
 			return { picker, result };
 		}
+
+		test('selects the pre-filled path only when enabled', async () => {
+			const results: Record<string, [number, number] | undefined> = {};
+			for (const setting of ['off', 'on', 'auto']) {
+				await fileService.createFolder(childFolder).catch(() => undefined);
+				const instantiationService = workbenchInstantiationService({ fileService: () => fileService }, disposables);
+				instantiationService.get(IConfigurationService).getValue = (() => setting) as IConfigurationService['getValue'];
+				const quickInputService = instantiationService.get(IQuickInputService);
+				const dialog = disposables.add(instantiationService.createInstance(SimpleFileDialog));
+				const result = dialog.showOpenDialog({ defaultUri: root, canSelectFiles: true, canSelectFolders: false, canSelectMany: false });
+				await timeout(0);
+				const picker = quickInputService.currentQuickInput as IQuickPick<ResourceItem>;
+				results[setting] = picker.valueSelection as [number, number] | undefined;
+				const length = picker.value.length;
+				if (setting === 'on') {
+					assert.deepStrictEqual(results[setting], [0, length]);
+				} else {
+					assert.deepStrictEqual(results[setting], [length, length]);
+				}
+				picker.hide();
+				await result;
+			}
+		});
 
 		test('returns all checked files through the real quick pick', async () => {
 			const { picker, result } = await openDialog();
