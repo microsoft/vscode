@@ -27,6 +27,7 @@ import { WindowCanvasInput, IWindowCanvasService } from '../windowCanvas.js';
 import { inheritableSessionTarget, ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { NEW_SESSION_ACTION_ID } from '../../common/chatConstants.js';
 import { INewSessionComposerService } from '../newSessionComposerService.js';
+import { isSessionCreated } from '../../common/session.js';
 
 export class NewChatInSessionsWindowAction extends Action2 {
 
@@ -108,7 +109,7 @@ export class NewChatInSessionsWindowAction extends Action2 {
 		}
 		// Clear the no-workspace latch before unsetNewSession(), or the replacement composer recreates the quick chat.
 		const isQuickChat = activeSession?.isQuickChat?.get() ?? false;
-		if (isQuickChat && activeSession?.isCreated?.get() === false && !options?.toSide) {
+		if (isQuickChat && activeSession && !isSessionCreated(activeSession) && !options?.toSide) {
 			const recentWorkspacesService = accessor.get(ISessionsRecentWorkspacesService);
 			const partService = accessor.get(ISessionsPartService);
 			if (recentWorkspacesService.isNoWorkspaceChecked()) {
@@ -122,7 +123,7 @@ export class NewChatInSessionsWindowAction extends Action2 {
 		}
 		const activeFolderUri = isQuickChat ? undefined : activeSession?.workspace.get()?.uri;
 		const activeProvider = activeFolderUri && activeSession
-			? accessor.get(ISessionsProvidersService).getProvider(activeSession.providerId)
+			? accessor.get(ISessionsProvidersService).getProvider(activeSession.providerId, activeSession.sessionId)
 			: undefined;
 		const devContainerSource = resolveDevContainerSourceWorkspace(activeProvider);
 		const folderUri = devContainerSource?.folderUri ?? activeFolderUri;

@@ -92,7 +92,7 @@ import { IWorktreeSuggestionService } from '../../../../../workbench/contrib/ses
 import { NullWorktreeSuggestionService } from '../../../../../workbench/contrib/sessions/test/browser/worktreeSuggestion/worktreeSuggestionTestUtils.js';
 import { IRecentWorkspace, ISessionsRecentWorkspacesService } from '../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ChatModelSource, IChat, ISession, ISessionWorkspace, ISessionType, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE, SessionStatus, SessionTypeAuthRequirement } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionComparisonService } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
@@ -122,7 +122,7 @@ import { ChatSubmitAction } from '../../../../../workbench/contrib/chat/browser/
 import { ChatVoiceInputModeAction } from '../../../../../workbench/contrib/chat/browser/voiceInputMode/voiceInputModeActionViewItem.js';
 import { ModelPickerToolbarsContribution } from '../../browser/modelPicker.js';
 import { COMPOSER_SESSION_CONTROLS_ACTION_ID, SharedChatInputComposerContribution } from '../../browser/sharedChatInputComposer.contribution.js';
-import { focusedSessionHostServiceOf, stubSessionHosts } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { focusedSessionHostServiceOf, ITestSessionWithChat, stubSessionHosts } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 const DEFAULT_WIDTH = 800;
 const DEFAULT_HEIGHT = 560;
@@ -459,7 +459,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	const models = withConfiguredModel ? [createFixtureConfiguredModel()] : withAutoModel ? [createFixtureAutoModel()] : [];
 	const provider = createFixtureProvider(workspace, sessionTypes, models, disposableStore, withControlPickers);
 	const activeSession = promptOptions || withWorkspace || withRemoteWorkspace || withAttachedContext ? createFixtureActiveSession(workspace, sessionTypes[0], migrationCount > 0, provider.id) : undefined;
-	const activeSessionObservable = observableValue<IActiveSession | undefined>('activeSession', activeSession);
+	const activeSessionObservable = observableValue<ITestSessionWithChat | undefined>('activeSession', activeSession);
 	const composerService = disposableStore.add(new NewSessionComposerService());
 	const sessionsService = new class extends mock<ISessionsService>() {
 		override readonly initialRestoreComplete = constObservable(true);
@@ -2004,7 +2004,7 @@ function createAttachedRepositoryWorkspace(): ISessionWorkspace {
 	};
 }
 
-function createFixtureActiveSession(workspace: ISessionWorkspace, sessionType: ISessionType, withMigrations = false, providerId = 'fixture-provider'): IActiveSession {
+function createFixtureActiveSession(workspace: ISessionWorkspace, sessionType: ISessionType, withMigrations = false, providerId = 'fixture-provider'): ITestSessionWithChat {
 	const activeChat = new class extends mock<IChat>() {
 		override readonly resource = URI.parse('fixture-chat://new-session');
 		// Read by model selection: an untitled chat with no model of its own.
@@ -2014,7 +2014,7 @@ function createFixtureActiveSession(workspace: ISessionWorkspace, sessionType: I
 		override readonly mode = constObservable(undefined);
 		override readonly changesets = constObservable(undefined);
 	}();
-	return new class extends mock<IActiveSession>() {
+	return new class extends mock<ITestSessionWithChat>() {
 		override readonly resource = URI.from({ scheme: withMigrations ? 'agent-host-copilotcli' : 'fixture-session', path: '/fixture-session' });
 		override readonly sessionId = 'fixture-session';
 		override readonly providerId = providerId;

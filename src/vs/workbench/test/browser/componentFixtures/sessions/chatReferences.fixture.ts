@@ -204,9 +204,7 @@ async function renderReferences(ctx: ComponentFixtureContext, scenario: Scenario
 			},
 			additionalServices: reg => {
 				reg.define(IContextMenuService, ContextMenuService);
-				reg.define(ISessionsService, class extends mock<ISessionsService>() {
-					override setActive(): void { }
-				});
+				reg.define(ISessionsService, class extends mock<ISessionsService>() { });
 				const gitHubService = createFixtureGitHubService(
 					pullRequests.map(pullRequest => ({ owner: 'microsoft', repo: 'vscode', pullRequest })),
 					issues.map(issue => ({ owner: 'microsoft', repo: 'vscode', issue })),

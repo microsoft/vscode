@@ -15,8 +15,9 @@ import { createDecorator, IInstantiationService } from '../../../../platform/ins
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { GroupIdentifier } from '../../../common/editor.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
-import { IChat } from '../common/session.js';
-import { IActiveSession, IHostSession, IShownChat } from '../common/sessionsManagement.js';
+import { IChat, ISession, isSessionCreated } from '../common/session.js';
+import { IShownChat } from '../common/sessionsManagement.js';
+import type { ISessionGridPane } from './sessionGridPane.js';
 
 export const enum SessionHostKind {
 	/** The main window of the Agents window. */
@@ -33,9 +34,9 @@ export const enum SessionHostKind {
 
 /** What a host shows. */
 export type SessionHostContent =
-	| { readonly kind: 'chat'; readonly session: IHostSession; readonly chat: IChat }
+	| { readonly kind: 'chat'; readonly session: ISession; readonly chat: IChat }
 	/** The new-session composer, with its draft once the provider created it. */
-	| { readonly kind: 'newSession'; readonly draft: IHostSession | undefined }
+	| { readonly kind: 'newSession'; readonly draft: ISession | undefined }
 	/** A chat whose session is not known yet, such as a restored chat window. */
 	| { readonly kind: 'loading'; readonly chatResource: URI }
 	/** Nothing, or a custom view. */
@@ -55,13 +56,8 @@ export function isSessionHostCommandContext(value: unknown): value is ISessionHo
  * that binds to another chat than its host shows.
  */
 export interface ISessionChatSource {
-	readonly session: IObservable<IHostSession | undefined>;
+	readonly session: IObservable<ISession | undefined>;
 	readonly chat: IObservable<IChat | undefined>;
-}
-
-/** A source of the selected chat of `session`, for UI given an {@link IActiveSession} rather than a host. */
-export function sessionChatSourceOf(session: IObservable<IActiveSession | undefined>): ISessionChatSource {
-	return { session, chat: derived(reader => session.read(reader)?.activeChat.read(reader)) };
 }
 
 /**
@@ -87,7 +83,7 @@ export interface ISessionHost extends ISessionChatSource {
 	readonly chatResource: IObservable<URI | undefined>;
 	readonly chat: IObservable<IChat | undefined>;
 	/** The session of {@link chat}, or the draft of the new-session composer. */
-	readonly session: IObservable<IHostSession | undefined>;
+	readonly session: IObservable<ISession | undefined>;
 
 	/** Where the keys of the host's session are bound. */
 	readonly contextKeyService: IContextKeyService;
@@ -141,16 +137,23 @@ export function getFocusedSessionChatSource(focusedSessionHostService: IFocusedS
 }
 
 /**
- * What only the main window's grid knows of its panes, which hosts do not show. A pane is named by its own session: the
- * session of its pane host, a view of the session with the pane's own state, such as the chats its tab strip shows.
+ * What only the main window's grid knows of its panes, which hosts do not show. A pane is named by the host that stands for
+ * it: the grid host for the active pane, the host of a pane's view for that pane.
  */
 export interface ISessionGridPanes {
-	/** Whether `pane` is the grid's active pane. */
-	isActivePane(pane: IHostSession | undefined): boolean;
-	/** Whether `pane` is a pane of the grid that shows one chat of its session apart from the session's own slot. */
-	isDetachedPane(pane: IHostSession | undefined): boolean;
-	/** Whether `pane` is a pane of the grid, a slot or a detached pane, rather than of another surface, such as a chat editor. */
-	isGridPane(pane: IHostSession | undefined): boolean;
+	/**
+	 * The pane of the grid `host` stands for: the active pane, including the new-session slot, for the grid host; the pane of
+	 * its view for the host of a slot's or detached pane's view. `undefined` for the hosts of chat windows, chat editors,
+	 * composers and dialogs, and for hosts that are gone.
+	 */
+	getPaneOfHost(host: ISessionHost, reader?: IReader): ISessionGridPane | undefined;
+	/**
+	 * Whether `host` stands for the grid's active pane: the grid host, which shows the active pane, or the host of the
+	 * active pane's view. `false` for other hosts, such as a chat window's.
+	 */
+	isActivePane(host: ISessionHost): boolean;
+	/** Whether `host` stands for a detached pane: the host of a detached pane's view, or the grid host while one is active. */
+	isDetachedPane(host: ISessionHost): boolean;
 }
 
 /**
@@ -169,13 +172,13 @@ export function getHostOfSession(sessionHostService: ISessionHostService, gridPa
 		return inWindow[0];
 	}
 	const isActive = (host: ISessionHost) => preferredWindowHost?.kind === SessionHostKind.MainWindow
-		? gridPanes.isActivePane(host.session.get())
+		? gridPanes.isActivePane(host)
 		: isEqual(host.chatResource.get(), preferredWindowHost?.chatResource.get());
 	const active = inWindow.filter(isActive);
 	if (active.length === 1) {
 		return active[0];
 	}
-	const ofGrid = inWindow.filter(host => !gridPanes.isDetachedPane(host.session.get()));
+	const ofGrid = inWindow.filter(host => !gridPanes.isDetachedPane(host));
 	return ofGrid.length === 1 ? ofGrid[0] : undefined;
 }
 
@@ -228,6 +231,15 @@ export function shownChatOf(host: ISessionHost, reader?: IReader): IShownChat | 
 	return session && chat ? { session, chat } : undefined;
 }
 
+/**
+ * The arguments of the menus of a pane's session header and chat tabs: the session, the chat they act on, if any, and the
+ * command context of `host`, by which pane commands, such as Pin or Close, find the pane rather than by the session object.
+ * Session-level commands, which the sessions list shares, read the session and chat.
+ */
+export function sessionMenuArgs(session: ISession, chat: IChat | undefined, host: ISessionHost): unknown[] {
+	return [session, chat, host.commandContext];
+}
+
 /** The menu options of the toolbars and button bars a host creates, so their commands act on the host. */
 export function createHostMenuOptions(host: ISessionHost): { readonly arg: ISessionHostCommandContext; readonly shouldForwardArgs: true } {
 	return { arg: host.commandContext, shouldForwardArgs: true };
@@ -265,33 +277,33 @@ let hostIds = 0;
 export interface ISessionHostOptions {
 	readonly kind: SessionHostKind;
 	readonly parent: ISessionHost | undefined;
-	readonly session: IObservable<IActiveSession | undefined>;
+	/** The session it shows: the provider's, which it does not own. */
+	readonly session: IObservable<ISession | undefined>;
+	/** The chat it shows of {@link session}; its main chat while `undefined`. */
+	readonly chat: IObservable<IChat | undefined>;
 	readonly contextKeyService: IContextKeyService | (() => IContextKeyService);
 	/** A window host's window; nested hosts take their parent's. */
 	readonly windowId?: IObservable<number | undefined>;
 	/** The chat a host shows before its session is known; see {@link SessionHostContent}. */
 	readonly loadingChat?: IObservable<URI | undefined>;
-	/** The chat the host shows of its session, when not the session's active chat. */
-	readonly chat?: IObservable<IChat | undefined>;
 }
 
 /**
- * A host that shows the selected chat of an {@link IActiveSession}.
- *
- * @internal Transitional: hosts own their chat once the chat-window session copy is gone, which removes this class.
+ * A host that shows a session and a chat of it, observing both without owning them: disposing what made it never disposes
+ * the provider's session.
  */
-export class ActiveSessionHost implements ISessionHost {
+export class SessionHost implements ISessionHost {
 	declare readonly _serviceBrand: undefined;
 
 	readonly id: string;
 	readonly kind: SessionHostKind;
 	readonly parent: ISessionHost | undefined;
 	readonly windowId: IObservable<number | undefined>;
-	/** @internal Transitional: the session with its selected chat, for the legacy aliases and resolvers only. */
+	/** @internal What it shows: a chat of a session, a new session's composer, a loading chat, or nothing. */
 	readonly content: IObservable<SessionHostContent>;
 	readonly chatResource: IObservable<URI | undefined>;
 	readonly chat: IObservable<IChat | undefined>;
-	readonly session: IObservable<IHostSession | undefined>;
+	readonly session: IObservable<ISession | undefined>;
 	readonly commandContext: ISessionHostCommandContext;
 	private readonly _contextKeyService: IContextKeyService | (() => IContextKeyService);
 
@@ -313,10 +325,10 @@ export class ActiveSessionHost implements ISessionHost {
 				// A composer shows the new-session composer before its draft exists; other hosts show nothing.
 				return options.kind === SessionHostKind.Composer ? { kind: 'newSession', draft: undefined } : { kind: 'empty' };
 			}
-			if (!session.isCreated.read(reader)) {
+			if (!isSessionCreated(session, reader)) {
 				return { kind: 'newSession', draft: session };
 			}
-			return { kind: 'chat', session, chat: options.chat?.read(reader) ?? session.activeChat.read(reader) };
+			return { kind: 'chat', session, chat: options.chat.read(reader) ?? session.mainChat.read(reader) };
 		});
 		this.chat = derived(this, reader => {
 			const content = this.content.read(reader);

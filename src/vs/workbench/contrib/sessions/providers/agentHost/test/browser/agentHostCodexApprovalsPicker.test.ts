@@ -31,9 +31,8 @@ import { IChatViewModel } from '../../../../../chat/common/model/chatViewModel.j
 import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../browser/sessionsProvidersService.js';
 import { IChat, SessionStatus } from '../../../../common/session.js';
-import { IActiveSession } from '../../../../common/sessionsManagement.js';
 import { AgentHostCodexApprovalsPicker } from '../../browser/agentHostCodexApprovalsPicker.js';
-import { sessionChatSourceOf } from '../../../../browser/sessionHost.js';
+import { ITestSessionWithChat, testChatSourceOf } from '../../../../test/browser/sessionHostTestUtils.js';
 
 suite('AgentHostCodexApprovalsPicker', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -62,7 +61,7 @@ suite('AgentHostCodexApprovalsPicker', () => {
 			override readonly status = constObservable(status);
 		}();
 		const activeChat = observableValue<IChat>('chat', chat);
-		const session = observableValue<IActiveSession | undefined>('session', new class extends mock<IActiveSession>() {
+		const session = observableValue<ITestSessionWithChat | undefined>('session', new class extends mock<ITestSessionWithChat>() {
 			override readonly providerId = provider.id;
 			override readonly sessionId = 'session';
 			override readonly activeChat = activeChat;
@@ -110,7 +109,7 @@ suite('AgentHostCodexApprovalsPicker', () => {
 		store.add(toDisposable(() => prompt.restore()));
 		instantiation.stub(IDialogService, dialogService);
 		instantiation.stub(IChatWidgetService, { getWidgetBySessionResource: resource => resource.toString() === chat.resource.toString() ? widget : undefined });
-		const picker = store.add(instantiation.createInstance(AgentHostCodexApprovalsPicker, sessionChatSourceOf(session)));
+		const picker = store.add(instantiation.createInstance(AgentHostCodexApprovalsPicker, testChatSourceOf(session)));
 		const container = dom.append(document.body, dom.$('div'));
 		store.add(toDisposable(() => container.remove()));
 		picker.render(container);

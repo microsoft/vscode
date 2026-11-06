@@ -746,6 +746,7 @@ type TestCopilotSessionMetadata = Awaited<ReturnType<ITestCopilotClient['listSes
 
 interface ITestCopilotSessionOptions {
 	readonly clientName?: string;
+	readonly lastClientName?: string;
 	readonly repository?: string;
 	readonly modifiedTime?: Date;
 }
@@ -1754,6 +1755,7 @@ function sdkSession(sessionId: string, cwd?: string, options?: ITestCopilotSessi
 			}
 		} : {}),
 		...(options?.clientName !== undefined ? { clientName: options.clientName } : {}),
+		...(options?.lastClientName !== undefined ? { lastClientName: options.lastClientName } : {}),
 	};
 }
 
@@ -31617,11 +31619,11 @@ suite('CopilotAgent', () => {
 			);
 		});
 
-		function createImportedChat(inUse: boolean, runtimeSelection?: Awaited<ReturnType<NonNullable<IFakeAgentSession['readRuntimeSelection']>>>) {
+		function createImportedChat(inUse: boolean, runtimeSelection?: Awaited<ReturnType<NonNullable<IFakeAgentSession['readRuntimeSelection']>>>, lastClientName?: string) {
 			const sessionId = 'cli-import';
 			const session = AgentSession.uri('copilotcli', sessionId);
 			const chat = defaultChatUri(session);
-			const client = new TestCopilotClient([sdkSession(sessionId, '/workspace', { clientName: 'github/cli', modifiedTime: new Date() })]);
+			const client = new TestCopilotClient([sdkSession(sessionId, '/workspace', { clientName: 'github/cli', lastClientName, modifiedTime: new Date() })]);
 			if (inUse) {
 				client.inUseSessionIds.add(sessionId);
 			}
@@ -31707,6 +31709,42 @@ suite('CopilotAgent', () => {
 				await disposeAgent(agent);
 			}
 		}));
+
+		for (const { lastClientName, backgroundWork, reloads } of [
+			{ lastClientName: 'github/cli', backgroundWork: undefined, reloads: true },
+			// A runtime that doesn't record the client that last ran a session.
+			{ lastClientName: undefined, backgroundWork: undefined, reloads: true },
+			{ lastClientName: 'vscode-agent-host', backgroundWork: undefined, reloads: false },
+			{ lastClientName: 'github/cli', backgroundWork: 'subagent', reloads: false },
+			{ lastClientName: 'github/cli', backgroundWork: 'detached shell', reloads: false },
+		] as const) {
+			test(`re-importing a chat this host has loaded ${reloads ? 'reloads it from storage' : 'keeps its loaded copy'} when ${lastClientName ?? 'an unknown client'} ran it last${backgroundWork ? ` and a ${backgroundWork} is running` : ''}`, async () => {
+				const { agent, chat, context, adoptions } = createImportedChat(false, undefined, lastClientName);
+				try {
+					await agent.authenticate('https://api.github.com', 'token');
+					await agent.materializeChat(chat, context, undefined);
+					const destroyed: string[] = [];
+					setLiveChatStub(agent, 'cli-import', {
+						sessionId: 'cli-import',
+						hasActiveTurn: false,
+						hasActiveSubagents: backgroundWork === 'subagent',
+						hasRunningDetachedShells: async () => backgroundWork === 'detached shell',
+						adoptRuntimeModes: async () => { adoptions.push('loaded'); },
+						readRuntimeSelection: async () => ({ model: {}, agentName: undefined }),
+						destroySession: async () => { destroyed.push('loaded'); },
+					}, chat);
+					const imported = await agent.importChat(chat, context, { reloadIfStale: true });
+					assert.deepStrictEqual({ destroyed, resumes: agent.resumeCalls, adoptions, reloaded: imported?.reloaded }, {
+						destroyed: reloads ? ['loaded'] : [],
+						resumes: reloads ? ['cli-import'] : [],
+						adoptions: [reloads ? 'cli-import' : 'loaded'],
+						reloaded: reloads ? true : undefined,
+					});
+				} finally {
+					await disposeAgent(agent);
+				}
+			});
+		}
 
 		test('adopts a session whose recorded working directory no longer exists into the workspaceless scratch directory', async () => {
 			// A legacy session whose original folder or worktree was deleted on disk

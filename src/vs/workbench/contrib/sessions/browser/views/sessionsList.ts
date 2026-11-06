@@ -78,7 +78,7 @@ import { createSessionActionViewItemProvider, getSessionArchiveActionViewItemOpt
 import { HoverStyle, IDelayedHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { inheritableSessionTarget, ISessionsManagementService, IActiveSession, IShownChat } from '../../common/sessionsManagement.js';
+import { inheritableSessionTarget, ISessionsManagementService, IShownChat } from '../../common/sessionsManagement.js';
 import { getMainWindowHost, ISessionHostService, shownChatOf } from '../sessionHost.js';
 import { getSessionComparisonChat, getSessionComparisonHarnessLabel, getSessionComparisonParticipantsInDisplayOrder, ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../common/sessionComparison.js';
 import { ISessionsService } from '../sessionsService.js';
@@ -137,6 +137,7 @@ import { getExtensionSuggestionsBadgeDescription } from '../agentsWindowExtensio
 import { KeybindingLabel } from '../../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { IPinnedCanvas, IPinnedCanvasService, PINNED_CANVAS_PAGE_ID, PinnedCanvasConnectedContext, PinnedCanvasState } from '../pinnedCanvases.js';
 import { logSessionsInteraction } from '../../common/sessionsTelemetry.js';
+import { ISessionGridPane } from '../sessionGridPane.js';
 
 const $ = DOM.$;
 
@@ -1674,7 +1675,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 
 	constructor(
 		private readonly options: {
-			grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRenderedInCustomGroup?: (session: ISession) => boolean; getGroupConnectorPosition?: (session: ISession) => SessionGroupConnectorPosition | undefined; getComparisonAttemptLabel?: (session: ISession) => string | undefined; shouldShowComparisonAttemptStatus?: (session: ISession, reader: IReader) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; getMultiSelectedSessions: (session: ISession) => ISession[]; showHover: boolean; useCompactQuickChatRows: boolean; compact: () => boolean; approvalRowMaxLines: number; aggregateChatApprovals: boolean; toolbarMenuId: MenuId | undefined; toolbarTelemetrySource: string; inlineRename: boolean; contextViewService?: IContextViewService; handleToolbarAction?: (action: IAction, session: ISession) => boolean | Promise<boolean>; onDidDoubleClickRename?: (session: ISession) => void; onDidFinishRename?: () => void; onDidRequestRename?: (session: ISession) => void; activeGuideSessionIds?: IObservable<ReadonlySet<string>>;
+			grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRenderedInCustomGroup?: (session: ISession) => boolean; getGroupConnectorPosition?: (session: ISession) => SessionGroupConnectorPosition | undefined; getComparisonAttemptLabel?: (session: ISession) => string | undefined; shouldShowComparisonAttemptStatus?: (session: ISession, reader: IReader) => boolean; slotPanes: IObservable<readonly ISessionGridPane[]>; getMultiSelectedSessions: (session: ISession) => ISession[]; showHover: boolean; useCompactQuickChatRows: boolean; compact: () => boolean; approvalRowMaxLines: number; aggregateChatApprovals: boolean; toolbarMenuId: MenuId | undefined; toolbarTelemetrySource: string; inlineRename: boolean; contextViewService?: IContextViewService; handleToolbarAction?: (action: IAction, session: ISession) => boolean | Promise<boolean>; onDidDoubleClickRename?: (session: ISession) => void; onDidFinishRename?: () => void; onDidRequestRename?: (session: ISession) => void; activeGuideSessionIds?: IObservable<ReadonlySet<string>>;
 			/** Whether status presentation derives from the main chat instead of the aggregate session. */
 			deriveStatusFromMainChat?: boolean;
 			/** The chat the main window shows, whose row is the open one. */
@@ -1979,10 +1980,10 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			template.container.classList.toggle('session-hierarchy-guides-visible', showGuides);
 		}));
 
-		// Sticky styling — reactive on the wrapper's sticky observable
+		// Sticky styling — reactive on the sticky observable of the session's slot
 		template.elementDisposables.add(autorun(reader => {
-			const wrapper = this.options.visibleSessions.read(reader).find(s => s?.sessionId === element.sessionId);
-			const isSticky = wrapper ? wrapper.sticky.read(reader) : false;
+			const pane = this.options.slotPanes.read(reader).find(candidate => candidate.session.read(reader)?.sessionId === element.sessionId);
+			const isSticky = pane ? pane.sticky.read(reader) : false;
 			template.container.classList.toggle('sticky', isSticky);
 		}));
 
@@ -4827,7 +4828,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				shouldShowComparisonAttemptStatus: (s, reader) => this.shouldShowComparisonAttemptStatus(s, reader),
 				isRenderedInExternalSection: s => this.isRenderedInExternalSection(s),
 				getEnvironmentBadgeLabel: s => this.getEnvironmentBadgeLabel(s),
-				visibleSessions: this._sessionsService.visibleSessions,
+				slotPanes: this._sessionsService.slotPanes,
 				getMultiSelectedSessions: s => this.getMultiSelectedSessions(s),
 				showHover: true,
 				useCompactQuickChatRows: true,
@@ -8687,7 +8688,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (session.environment === 'local' || !getSessionRepository(session)) {
 			return undefined;
 		}
-		return this._sessionsProvidersService.getProvider(session.providerId)?.environment.label;
+		return this._sessionsProvidersService.getProvider(session.providerId, session.sessionId)?.environment.label;
 	}
 
 	/**
@@ -8845,7 +8846,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			add('pullRequest', pullRequest);
 		}
 		if (session.environment !== 'local' && session.environment !== 'cloud') {
-			add('host', this._sessionsProvidersService.getProvider(session.providerId)?.environment.label);
+			add('host', this._sessionsProvidersService.getProvider(session.providerId, session.sessionId)?.environment.label);
 		}
 		return {
 			title: this.getComparisonAttemptLabel(session) ?? session.title.get(),
@@ -9753,7 +9754,7 @@ export function getNewSessionSources(sessions: readonly ISession[], sessionsProv
 		if (!canStartNewSessionLike(session, sessionsManagementService)) {
 			continue;
 		}
-		const environment = sessionsProvidersService.getProvider(session.providerId)?.environment;
+		const environment = sessionsProvidersService.getProvider(session.providerId, session.sessionId)?.environment;
 		if (!environment || environment.isConnected?.get() === false) {
 			continue;
 		}
@@ -9935,7 +9936,7 @@ export class SessionsFlatList extends Disposable {
 			{
 				grouping: () => SessionsGrouping.Date,
 				isPinned: s => this._sessionsListModelService.isSessionPinned(s),
-				visibleSessions: this._sessionsService.visibleSessions,
+				slotPanes: this._sessionsService.slotPanes,
 				getMultiSelectedSessions: s => [s],
 				showHover: this.options.showSessionHover ?? true,
 				useCompactQuickChatRows,

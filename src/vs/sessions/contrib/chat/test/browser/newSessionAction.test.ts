@@ -24,12 +24,12 @@ import { IWindowCanvasService } from '../../../../../workbench/contrib/sessions/
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { IActiveSession, ICreateNewSessionOptions, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ICreateNewSessionOptions, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { INewSessionComposerService } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { NewChatInSessionsWindowAction } from '../../../../../workbench/contrib/sessions/browser/chat/newSessionAction.js';
 import { NEW_SESSION_ACTION_ID } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { appendNewSessionTitleBarMenuItem } from '../../browser/newSessionTitleBarMenu.js';
-import { ITestSessionsService, stubMissingSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionsService, ITestSessionWithChat, stubMissingSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('NewChatInSessionsWindowAction', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -46,13 +46,13 @@ suite('NewChatInSessionsWindowAction', () => {
 			isQuickChatTargetAvailable: () => options.available ?? true,
 		});
 		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
-			activeSession: constObservable(options.active ? upcastPartial<IActiveSession>({
+			activeSession: constObservable(options.active ? upcastPartial<ITestSessionWithChat>({
 				providerId: 'other-provider',
 				sessionType: 'other-agent',
 			}) : undefined),
 			openQuickChat: (target, preserveNavigation) => {
 				opened.push({ target, preserveNavigation });
-				return options.creationFailed ? undefined : upcastPartial<IActiveSession>({ resource });
+				return options.creationFailed ? undefined : upcastPartial<NonNullable<ReturnType<ISessionsService['openQuickChat']>>>({ resource });
 			},
 		}));
 		stubMissingSessionHostsFromSessionsService(instantiationService);
@@ -136,13 +136,13 @@ suite('NewChatInSessionsWindowAction', () => {
 			isNewSessionTargetAvailable: (folder, target) => isEqual(folder, creationTarget.folderUri) && target?.providerId === creationTarget.providerId,
 		});
 		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
-			activeSession: constObservable(upcastPartial<IActiveSession>({
+			activeSession: constObservable(upcastPartial<ITestSessionWithChat>({
 				providerId: 'sandbox-backend', sessionType: 'copilot', resource: backendResource,
 				workspace: constObservable(upcastPartial<ISessionWorkspace>({ uri: backendFolder })),
 			})),
 			openNewSession: async options => {
 				opened.push(options);
-				return { session: upcastPartial<IActiveSession>({ resource }), trustDeclined: false };
+				return { session: upcastPartial<ITestSessionWithChat>({ resource }), trustDeclined: false };
 			},
 		}));
 		stubMissingSessionHostsFromSessionsService(instantiationService);

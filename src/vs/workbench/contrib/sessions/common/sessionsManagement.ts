@@ -9,7 +9,7 @@ import type { IAgentHostManagedWorktree, IAgentHostWorktreeCleanupStatus } from 
 import { IDisposable, IReference } from '../../../../base/common/lifecycle.js';
 import { IChatSessionItemArchiveState } from '../../chat/common/chatSessionsService.js';
 import { IArtifactModel } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
-import { IObservable } from '../../../../base/common/observable.js';
+import { derived, IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -199,59 +199,55 @@ export interface IChatDeletedEvent {
 	readonly chatResource: URI;
 }
 
-/**
- * The session as a host of the Agents window sees it: an {@link IActiveSession} without the chat selected for every place
- * that shows it, as the host shows a chat of its own.
- */
-export type IHostSession = Omit<IActiveSession, 'activeChat' | 'scopedChatResource'>;
+/** The tab strip a pane of the grid shows. A detached pane shows its one chat. */
+export interface ISessionPaneTabs {
+	/** The chats shown as tabs, without closed ones. */
+	readonly openChats: IObservable<readonly IChat[]>;
+	/** The closed, still reopenable chats. */
+	readonly closedChats: IObservable<readonly IChat[]>;
+	/** The most recently closed chat, or `undefined` if none. */
+	readonly lastClosedChat: IChat | undefined;
+	/** The tabs of {@link openChats}, with subagent chats hidden until explicitly opened. */
+	readonly visibleChatTabs: IObservable<readonly IChat[]>;
+	/** Whether the tab strip shows. */
+	readonly shouldShowChatTabs: IObservable<boolean>;
+}
 
-/** A chat a host shows, with its session. */
-export interface IShownChat {
-	readonly session: IHostSession;
-	readonly chat: IChat;
+/** The state of a pane of the grid that its views and context keys show, apart from the session and chat it shows. */
+export interface IPaneViewState {
+	/** Whether the pane is pinned in the grid. */
+	readonly sticky: IObservable<boolean>;
+	/** The tab strip the pane shows. */
+	readonly tabs: ISessionPaneTabs;
+	/** Whether the pane shows one chat of its session apart from the session's slot. */
+	readonly isDetached: boolean;
 }
 
 /**
- * An active session extends {@link ISession} with the currently focused chat.
+ * What the views of a pane show, and how they close it: the provider's session, the chat the pane shows of it, and the
+ * pane's state. A pane of the grid, or the pane of a chat window's editor.
  */
-export interface IActiveSession extends ISession {
-	/** A standalone chat pane; identity and provider ownership remain with the session. */
-	readonly scopedChatResource?: URI;
-
-	/** The currently active chat within this session. */
-	readonly activeChat: IObservable<IChat>;
-
-	readonly isCreated: IObservable<boolean>;
-
-	/** Whether this session is sticky in the sessions part's grid. */
-	readonly sticky: IObservable<boolean>;
-
+export interface ISessionPaneContent {
+	readonly session: ISession;
+	/** The chat the pane shows: a slot's active tab, a detached pane's chat, a chat editor's chat. */
+	readonly chat: IObservable<IChat>;
+	readonly state: IPaneViewState;
 	/**
-	 * The chats shown as tabs in the tab strip ({@link ISession.chats} minus
-	 * closed ones). Read-only view state: closing/reopening is a view operation
-	 * driven through the sessions (view) service, like {@link sticky}.
+	 * Closes the pane: a detached pane returns its chat to its session's slot, a slot leaves the grid, keeping its session's
+	 * detached panes, and the pane of another surface, such as a chat editor's, closes there.
 	 */
-	readonly openChats: IObservable<readonly IChat[]>;
+	close(): void;
+}
 
-	/** The closed (hidden from the tab strip) but still reopenable chats. Deleted chats drop out. */
-	readonly closedChats: IObservable<readonly IChat[]>;
+/** The chat a surface shows of `session`: `chat`, which the surface is given, else the session's main chat. */
+export function shownChatOf(session: IObservable<ISession | undefined>, chat: IObservable<IChat | undefined> | undefined): IObservable<IChat | undefined> {
+	return derived(reader => chat?.read(reader) ?? session.read(reader)?.mainChat.read(reader));
+}
 
-	/** The most recently closed chat, or `undefined` if none. */
-	readonly lastClosedChat: IChat | undefined;
-
-	/**
-	 * The chats shown as tabs in the tab strip: {@link openChats} with subagent
-	 * (tool-origin) chats hidden by default, in the provider's order. A subagent
-	 * surfaces as a tab only once explicitly opened.
-	 */
-	readonly visibleChatTabs: IObservable<readonly IChat[]>;
-
-	/**
-	 * Whether the chat tab strip should be shown: the session has more than one
-	 * chat (counting closed, non-tool chats), or its single remaining chat has a
-	 * title that diverged from the session title.
-	 */
-	readonly shouldShowChatTabs: IObservable<boolean>;
+/** A chat a host shows, with its session. */
+export interface IShownChat {
+	readonly session: ISession;
+	readonly chat: IChat;
 }
 
 /**

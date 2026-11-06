@@ -162,7 +162,7 @@ export class SessionBrowserNetworkContribution extends Disposable implements IWo
 			return identity.connectionAuthority;
 		}
 		// Drafts are not yet known to the host; use their provider's host.
-		const provider = this._sessionsProvidersService.getProvider(session.providerId);
+		const provider = this._sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 		if (provider && isAgentHostProvider(provider)) {
 			return provider.remoteAddress ? agentHostAuthority(provider.remoteAddress) : AMBIENT_AGENT_HOST_AUTHORITY;
 		}

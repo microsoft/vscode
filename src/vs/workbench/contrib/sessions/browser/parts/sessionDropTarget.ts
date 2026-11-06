@@ -15,7 +15,7 @@ import { IThemeService, Themable } from '../../../../../platform/theme/common/th
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../../common/theme.js';
 import { DraggedSessionIdentifier, getChatReferenceDropClipPath, getSessionChatDragData, isChatReferenceInputDrop, isSessionChatDrag } from '../dnd.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { ISession } from '../../common/session.js';
+import { ISession, isSessionCreated } from '../../common/session.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { ISessionsService, SessionGridDirection } from '../sessionsService.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
@@ -162,9 +162,9 @@ class SessionDropOverlay extends Themable {
 		}
 
 		if (data.length === 1) {
-			const draft = this._sessionsService.visibleSessions.get().find(session => session?.sessionId === data[0].sessionId);
+			const draft = this._sessionsService.slotPanes.get().map(pane => pane.session.get()).find(session => session?.sessionId === data[0].sessionId);
 			// Provider drafts can be visible before they appear in the session list.
-			if (draft && !draft.isCreated.get()) {
+			if (draft && !isSessionCreated(draft)) {
 				this._sessionsService.insertAt(draft, this.targetSessionId, side, true, this._targetGridSlotId);
 				return;
 			}

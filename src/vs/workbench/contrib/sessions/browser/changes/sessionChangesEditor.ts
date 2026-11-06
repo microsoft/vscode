@@ -47,13 +47,13 @@ import { Menus } from '../menus.js';
 import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../sessionsHostLayoutService.js';
 import { ActiveSessionContextKeys, SessionChangesEditorFileListContext } from '../../common/changes.js';
 import { ISessionHost, ISessionHostService } from '../sessionHost.js';
-import { IHostSession, ISessionsManagementService } from '../../common/sessionsManagement.js';
+import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { getChangesEditorChanges } from './changesMultiDiffSourceResolver.js';
 import { IChangesSessionScope, IChangesViewService } from '../../common/changesViewService.js';
 import { ChangesActionsBar, createChangesSessionScope } from './changesView.js';
 import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
 import { ISessionChangesService } from './sessionChangesService.js';
-import { ISessionFileChange } from '../../common/session.js';
+import { ISessionFileChange, ISession } from '../../common/session.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { IAction } from '../../../../../base/common/actions.js';
 import { IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
@@ -753,7 +753,7 @@ export const CHANGESET_REVIEW_ACTION_ID = 'changeset.review';
 
 /** What the actions of the toolbar of a file of a Changes editor get after the file: the session and editor it shows in. */
 export interface IChangesEditorFileActionContext {
-	readonly session: IHostSession | undefined;
+	readonly session: ISession | undefined;
 	readonly editor: SessionChangesEditor;
 }
 

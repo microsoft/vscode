@@ -31,12 +31,12 @@ import { ISessionSectionOrderService } from '../../../../../workbench/contrib/se
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionsWindowUsageService } from '../../../../services/sessions/browser/sessionsWindowUsageService.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IChat, ISession, ISessionCapabilities, ISessionChangesSummary, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionComparison, ISessionComparisonService } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { IDeleteChatOptions } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { getSessionApplication } from '../../../../../workbench/contrib/sessions/common/sessionApplication.js';
-import { stubSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionWithChat, stubSessionHostsFromSessionsService, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 const ITestAgentSessionsService = createDecorator<object>('agentSessions');
 
@@ -289,7 +289,7 @@ export interface IListHarnessOptions {
 	/** Apply pinSession changes and fire change events, as the real service does. */
 	readonly livePins?: boolean;
 	/** The active session, whose open chat the list selects. */
-	readonly activeSession?: IObservable<IActiveSession | undefined>;
+	readonly activeSession?: IObservable<ITestSessionWithChat | undefined>;
 	readonly liveGroups?: boolean;
 	readonly comparisons?: readonly ISessionComparison[];
 	/** Custom groups the user capped with "Show less" in an earlier window; groups otherwise list every session. */
@@ -331,8 +331,9 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 	instantiationService.stub(ISessionsListPresentation, new DefaultSessionsListPresentation());
 	instantiationService.stub(ICommandService, commandService);
 	instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-		override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([]);
-		readonly activeSession = options.activeSession ?? constObservable<IActiveSession | undefined>(undefined);
+		readonly gridShown = constObservable<readonly (ITestSessionWithChat | undefined)[]>([]);
+		override readonly slotPanes = testGridPanes(this.gridShown);
+		readonly activeSession = options.activeSession ?? constObservable<ITestSessionWithChat | undefined>(undefined);
 	});
 	instantiationService.stub(ISessionsListModelService, new class extends mock<ISessionsListModelService>() {
 		override readonly onDidChange = onDidChangeListModel.event;

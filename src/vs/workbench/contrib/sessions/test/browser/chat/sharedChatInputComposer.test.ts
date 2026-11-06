@@ -26,7 +26,7 @@ import { ChatRequestParser } from '../../../../chat/common/requestParser/chatReq
 import { INewChatComposerInputOptions, INewChatInputSendRequest } from '../../../browser/chat/newChatComposerInput.js';
 import { SharedChatInputComposer } from '../../../browser/chat/sharedChatInputComposer.js';
 import { IChat } from '../../../common/session.js';
-import { IActiveSession } from '../../../common/sessionsManagement.js';
+import { ITestSessionWithChat } from '../sessionHostTestUtils.js';
 
 suite('SharedChatInputComposer', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -227,9 +227,11 @@ suite('SharedChatInputComposer', () => {
 		});
 	});
 
-	test('binds the host\'s chat when it has one, otherwise the session\'s active chat', () => {
+	test('binds the host\'s chat when it has one, otherwise the session\'s main chat', () => {
+		const mainChat = upcastPartial<IChat>({ resource: URI.parse('chat:/main') });
+		// The active chat of a session fake is not the chat of a composer that is given none.
 		const activeChat = upcastPartial<IChat>({ resource: URI.parse('chat:/active') });
-		const session = constObservable(upcastPartial<IActiveSession>({ activeChat: constObservable(activeChat) }));
+		const session = constObservable(upcastPartial<ITestSessionWithChat>({ mainChat: constObservable(mainChat), activeChat: constObservable(activeChat) }));
 		const bindings = (options: Pick<INewChatComposerInputOptions, 'session' | 'chat'>, update?: () => void) => {
 			const bound: (string | undefined)[] = [];
 			const composer = Object.assign(Object.create(SharedChatInputComposer.prototype), {
@@ -247,7 +249,7 @@ suite('SharedChatInputComposer', () => {
 			draft: bindings({ session }),
 			hostChat: bindings({ session, chat: hostChat }, () => hostChat.set(upcastPartial<IChat>({ resource: URI.parse('chat:/composer') }), undefined)),
 		}, {
-			draft: ['chat:/active'],
+			draft: ['chat:/main'],
 			hostChat: [undefined, 'chat:/composer'],
 		});
 	});

@@ -176,7 +176,7 @@ export function getChatRespondent(session: ISession, chatResource: URI, sessions
 	if (!chat || !harness || harness === session.harness) {
 		return undefined;
 	}
-	const provider = sessionsProvidersService.getProvider(session.providerId);
+	const provider = sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 	if (provider) {
 		readProviderModelsChanged(provider, reader);
 	}
@@ -905,7 +905,7 @@ export class ChatView extends AbstractChatView {
 
 		if (session && preparationInput) {
 			this._loadCts.value?.cancel();
-			this._showPreparationInput(preparationInput, session);
+			this._showPreparationInput(preparationInput, session, chat);
 			this._setLoading(false);
 			this._layoutChatWidget();
 		} else {
@@ -921,8 +921,8 @@ export class ChatView extends AbstractChatView {
 			: Promise.resolve();
 	}
 
-	private _showPreparationInput(input: Pick<ISendRequestOptions, 'query' | 'attachedContext'>, session: ISession): void {
-		const snapshot = this.sessionsProvidersService.getProvider(session.providerId)?.getModelsSnapshot(session.sessionId, session.modelId.get());
+	private _showPreparationInput(input: Pick<ISendRequestOptions, 'query' | 'attachedContext'>, session: ISession, chat: IChat): void {
+		const snapshot = this.sessionsProvidersService.getProvider(session.providerId, session.sessionId)?.getModelsSnapshot(session.sessionId, chat.modelId.get());
 		// Keep this view-owned model in the draft's pool without registering it or reusing the backend resource.
 		const model = this.instantiationService.createInstance(ChatModel, undefined, {
 			initialLocation: ChatAgentLocation.Chat,

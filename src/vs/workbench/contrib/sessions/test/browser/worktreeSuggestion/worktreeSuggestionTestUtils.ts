@@ -8,10 +8,10 @@ import { basename } from '../../../../../../base/common/resources.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ActionListItemKind, IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { ISessionFileChange } from '../../../common/session.js';
-import { IActiveSession } from '../../../common/sessionsManagement.js';
 import { WorktreeSuggestionVariant } from '../../../common/worktreeSuggestion.js';
 import { getChangedFileUri } from '../../../browser/worktreeSuggestion/worktreeSuggestionPresentation.js';
 import { IUncommittedChangesListItem, IWorktreeSuggestion, IWorktreeSuggestionService, WorktreeSpotlightChoice } from '../../../browser/worktreeSuggestion/worktreeSuggestionService.js';
+import { ITestSessionWithChat } from '../sessionHostTestUtils.js';
 
 /** A worktree suggestion service that never suggests, for tests of the surfaces that host suggestions. */
 export class NullWorktreeSuggestionService extends mock<IWorktreeSuggestionService>() {
@@ -52,7 +52,7 @@ export class TestWorktreeSuggestionService extends mock<IWorktreeSuggestionServi
 		this._changes.set(changes, undefined);
 	}
 
-	override getSuggestion(session: IActiveSession | undefined): IWorktreeSuggestion | undefined {
+	override getSuggestion(session: ITestSessionWithChat | undefined): IWorktreeSuggestion | undefined {
 		return session && { session, uncommittedChanges: this._uncommittedChanges, branchName: 'main' };
 	}
 	override reportWouldShow(): void {
