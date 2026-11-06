@@ -71,7 +71,9 @@ suite('Chat window', () => {
 		private _active: EditorInput | undefined;
 		override get activeEditor() { return this._active && this.testEditors.includes(this._active) ? this._active : this.testEditors.at(-1) ?? null; }
 		override get count() { return this.testEditors.length; }
-		override async openEditor(editor: EditorInput) {
+		/** As a group opens an editor beside the active one, unless given an index. */
+		insertsAfterActive = false;
+		override async openEditor(editor: EditorInput, options?: { index?: number }) {
 			if (this.beforeOpen) {
 				await this.beforeOpen();
 			}
@@ -81,7 +83,11 @@ suite('Chat window', () => {
 			// As a group does, an editor that matches one it has, such as another view of the same chat, shows that one
 			const existing = this.testEditors.find(candidate => candidate.matches(editor));
 			if (!existing) {
+				const at = options?.index ?? (this.insertsAfterActive && this._active ? this.testEditors.indexOf(this._active) + 1 : undefined);
 				this.open(editor);
+				if (at !== undefined) {
+					this.testEditors.splice(at, 0, this.testEditors.pop()!);
+				}
 			}
 			this._active = existing ?? editor;
 			this.onActiveEditorChange.fire({ editor: this._active });
@@ -688,6 +694,36 @@ suite('Chat window', () => {
 
 		const names = (group: TestGroup) => group.testEditors.map(editor => (editor as ChatViewInput).chatResource.path);
 		assert.deepStrictEqual({ clicked: clicked.path, first: names(target.chat.group), split: names(split) }, { clicked: '/a', first: ['/c'], split: ['/a', '/d'] });
+	});
+
+	test('the chats of a window are stored in the order of its tabs, also after a chat opened as a tab of a chat that is not the last', async () => {
+		const { service, windows: [target] } = createService(['a']);
+		target.chat.group.insertsAfterActive = true;
+		await service.open(URI.parse('test:/b'), { window: target.window });
+		// A click in `a`, the first tab, makes it the active tab
+		await target.chat.group.openEditor(target.input);
+		await service.open(URI.parse('test:/c'), { window: target.window, tabOf: URI.parse('test:/a') });
+
+		assert.deepStrictEqual({
+			tabs: target.chat.group.testEditors.map(input => (input as ChatViewInput).chatResource.path),
+			joined: target.window.chats.get().map(chat => chat.path),
+			stored: target.window.chatsInTabOrder().map(chat => chat.path),
+		}, { tabs: ['/a', '/c', '/b'], joined: ['/a', '/b', '/c'], stored: ['/a', '/c', '/b'] });
+	});
+
+	test('chats restored into a group open behind the chat restored before them, so that their tabs are in the stored order', async () => {
+		const { service, windows: [target] } = createService(['a']);
+		target.chat.group.insertsAfterActive = true;
+		const addChat = Reflect.get(service, '_addChat').bind(service) as (window: ChatWindow, chat: URI, options: unknown, group: unknown, opening: boolean, leaving: undefined, replacing: undefined, after: unknown) => Promise<unknown>;
+		let previous: EditorInput = target.input;
+		for (const name of ['c', 'b']) {
+			await addChat(target.window, URI.parse(`test:/${name}`), { preserveFocus: true }, target.chat.group, true, undefined, undefined, previous);
+			previous = target.window.chatInputs.at(-1)!;
+			// As an inactive open leaves the first chat active
+			await target.chat.group.openEditor(target.input);
+		}
+
+		assert.deepStrictEqual(target.chat.group.testEditors.map(input => (input as ChatViewInput).chatResource.path), ['/a', '/c', '/b']);
 	});
 
 	/** The chats a window has, and the chats of the editors it shows: always the same ones. */

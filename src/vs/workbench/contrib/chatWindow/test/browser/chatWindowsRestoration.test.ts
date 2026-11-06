@@ -40,7 +40,7 @@ suite('ChatWindowsRestoration', () => {
 		}();
 	}
 
-	function createRestoration(options: { stored?: object[]; restoreEnabled?: boolean; registered?: boolean; gone?: string[]; canRestore?: (chat: URI) => Promise<boolean>; createdParts?: (window: IChatWindow) => readonly IContentPart[]; windowState?: (window: IChatWindow) => IChatWindowBounds | undefined }) {
+	function createRestoration(options: { stored?: object[]; restoreEnabled?: boolean; registered?: boolean; gone?: string[]; order?: (window: IChatWindow) => readonly URI[] | undefined; canRestore?: (chat: URI) => Promise<boolean>; createdParts?: (window: IChatWindow) => readonly IContentPart[]; windowState?: (window: IChatWindow) => IChatWindowBounds | undefined }) {
 		const storageService = disposables.add(new TestStorageService());
 		if (options.stored) {
 			storageService.store(OPEN_CHAT_WINDOWS_STORAGE_KEY, JSON.stringify(options.stored), StorageScope.WORKSPACE, StorageTarget.MACHINE);
@@ -67,6 +67,7 @@ suite('ChatWindowsRestoration', () => {
 				return createWindow(chat.toString());
 			},
 			activateChat: (_window: IChatWindow, chat: URI) => activated.push(chat.toString()),
+			chatsInOrder: window => options.order?.(window),
 			terminalsShown: () => true,
 			chatPart: window => window.chat.get().path === '/split' ? { state: { serializedGrid: {} }, chatGroup: 1 } : undefined,
 			createdParts: window => options.createdParts?.(window) ?? [],
@@ -91,6 +92,15 @@ suite('ChatWindowsRestoration', () => {
 			opened: [{ chat: 'test:/a', chats: ['test:/b'] }, { chat: 'test:/session', chats: undefined }, { chat: 'test:/c', chats: undefined }],
 			stored: [{ chat: 'test:/x', chats: ['test:/y'], activeChat: 'test:/y' }, { chat: 'test:/z', chats: undefined, activeChat: undefined }],
 		});
+	});
+
+	test('stores the chats of a window in the order of its tabs rather than the order they joined in', async () => {
+		const { storageService, windows, read } = createRestoration({ order: () => ['test:/a', 'test:/c', 'test:/b'].map(chat => URI.parse(chat)) });
+		await flush();
+		windows.set([createWindow('test:/a', ['test:/b', 'test:/c'])], undefined);
+		storageService.willSave();
+
+		assert.deepStrictEqual(JSON.parse(read()!).map((entry: { chat: string; chats?: string[] }) => [entry.chat, ...(entry.chats ?? [])]), [['test:/a', 'test:/c', 'test:/b']]);
 	});
 
 	test('restores the active chat of a window of several chats, also when it is the first', async () => {

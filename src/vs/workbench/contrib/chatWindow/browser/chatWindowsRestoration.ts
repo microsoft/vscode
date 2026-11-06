@@ -86,6 +86,8 @@ export interface IChatWindowsRestorationHost {
 	chatPart(window: IChatWindow): IChatWindowChatPart | undefined;
 	/** The parts `window` created, such as for editors dropped on its edges, so that it shows them again. */
 	createdParts(window: IChatWindow): readonly IContentPart[];
+	/** The chats of `window` in the order its tabs show them, so that they open again in it; by default the order they joined in. */
+	chatsInOrder?(window: IChatWindow): readonly URI[] | undefined;
 	/** Makes `chat`, one of `window`'s chats, its active chat without focusing it, as it was when it last closed. */
 	activateChat?(window: IChatWindow, chat: URI): void;
 	/** Where on the screen `window` shows, so that it shows there again. */
@@ -193,7 +195,7 @@ export class ChatWindowsRestoration extends Disposable {
 		}
 		this._keepStored = false;
 		this._write(windows.map(window => {
-			const [chat, ...chats] = window.chats.get().map(candidate => candidate.toString());
+			const [chat, ...chats] = (this._host.chatsInOrder?.(window) ?? window.chats.get()).map(candidate => candidate.toString());
 			return {
 				chat,
 				chats: chats.length ? chats : undefined,

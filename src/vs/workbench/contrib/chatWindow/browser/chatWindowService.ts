@@ -197,12 +197,31 @@ export class ChatWindow extends Disposable implements IChatWindow {
 	captureChatPart(): IChatWindowChatPart | undefined {
 		// While the chats are there, else as the chat part was as the last chat left it, such as for another window: its
 		// group, with the tabs that were beside it, or the groups split beside it, also when its group went with it, take it back
-		return captureChatPart(this.chatPart, this.chatInputs) ?? (this._findChatGroup() ? undefined : this._chatPartAsChatLeft);
+		return captureChatPart(this.chatPart, this.chatInputsInOrder) ?? (this._findChatGroup() ? undefined : this._chatPartAsChatLeft);
 	}
 
 	/** The editors of its chats, in their order. */
 	get chatInputs(): readonly EditorInput[] {
 		return this._chats.get().map(chat => chat.input);
+	}
+
+	/** The editors of its chats as its tabs show them: by group, as they appear, then in the group, which is how they open again. */
+	get chatInputsInOrder(): readonly EditorInput[] {
+		const groups = this.chatPart.getGroups(GroupsOrder.GRID_APPEARANCE);
+		const position = (input: EditorInput) => {
+			const group = groups.findIndex(candidate => candidate.contains(input));
+			return group === -1 ? { group: Infinity, index: 0 } : { group, index: groups[group].getIndexOfEditor(input) };
+		};
+		// An editor that shows nowhere goes last
+		return this.chatInputs.map((input, order) => ({ input, order, at: position(input) }))
+			.sort((a, b) => (a.at.group === b.at.group ? a.at.index - b.at.index : a.at.group < b.at.group ? -1 : 1) || a.order - b.order)
+			.map(({ input }) => input);
+	}
+
+	/** Its chats, not released, in the order its tabs show them. */
+	chatsInTabOrder(): readonly URI[] {
+		const released = this._released.get();
+		return this.chatInputsInOrder.map(input => this._chatOf(input)).filter((chat): chat is IChatWindowChat => !!chat && !released.has(chat)).map(chat => chat.chat.get());
 	}
 
 	/** Its chats as the provider resolved them, in their order. */
@@ -312,7 +331,7 @@ export class ChatWindow extends Disposable implements IChatWindow {
 		if (this._closing || this._capturingChatPart || !this.chatPart.groups.includes(group)) {
 			return;
 		}
-		this._chatPartAsChatLeft = captureChatPart(this.chatPart, this.chatInputs);
+		this._chatPartAsChatLeft = captureChatPart(this.chatPart, this.chatInputsInOrder);
 		this._capturingChatPart = true;
 		queueMicrotask(() => this._capturingChatPart = false);
 	}
@@ -778,6 +797,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			windows: this._windows,
 			open: (chat: URI, options: IChatWindowOpenOptions) => this.open(chat, options),
 			terminalsShown: window => window.terminalsVisible.get(),
+			chatsInOrder: window => this._windows.get().find(candidate => candidate === window)?.chatsInTabOrder(),
 			chatPart: window => this._windows.get().find(candidate => candidate === window)?.captureChatPart(),
 			createdParts: window => this._grids.get(window)?.createdParts ?? [],
 			activateChat: (window, chat) => this._windows.get().find(candidate => candidate === window)?.activateChat(chat),
@@ -865,7 +885,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 	 * Its editor there replaces `replacing`, the editor of `leaving` the chat moved into that group with, once nothing stops
 	 * it: the two are views of the same chat, so the group would otherwise keep that one rather than open the window's own.
 	 */
-	private async _addChat(window: ChatWindow, chat: URI, options: IChatWindowOpenOptions | undefined, group?: IEditorGroup, opening = false, leaving?: ChatWindow, replacing?: EditorInput): Promise<IChatWindow | undefined> {
+	private async _addChat(window: ChatWindow, chat: URI, options: IChatWindowOpenOptions | undefined, group?: IEditorGroup, opening = false, leaving?: ChatWindow, replacing?: EditorInput, after?: EditorInput): Promise<IChatWindow | undefined> {
 		const added = await window.content.resolveChat(chat);
 		if (!added) {
 			return undefined;
@@ -892,7 +912,8 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			}
 			return undefined;
 		}
-		let index: number | undefined;
+		// Behind `after`, the chat restored before it in this group, as inactive editors open beside the active one, in reverse
+		let index: number | undefined = after && group?.contains(after, { strictEquals: true }) ? group.getIndexOfEditor(after) + 1 : undefined;
 		if (replacing && group?.contains(replacing, { strictEquals: true })) {
 			index = group.getIndexOfEditor(replacing);
 			// Unless its close is vetoed, and while the window is still there to take the chat once it closed
@@ -917,7 +938,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		const given = group && this._editorGroupsService.parts.some(part => part.groups.includes(group)) ? group : undefined;
 		const target = given ?? this._besideGroup(window, options?.beside) ?? this._groupOfChat(window, options?.tabOf) ?? window.chatPart.groups.find(candidate => candidate.contains(window.chatEditor)) ?? window.chatPart.activeGroup;
 		try {
-			await target.openEditor(added.input, { pinned: true, preserveFocus: options?.preserveFocus, inactive: options?.preserveFocus, index: target === group ? index : undefined });
+			await target.openEditor(added.input, { pinned: true, preserveFocus: options?.preserveFocus, inactive: options?.preserveFocus, index: target === group || (after && index !== undefined) ? index : undefined });
 		} catch (error) {
 			drop();
 			throw error;
@@ -1144,8 +1165,11 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		// First in its group, before the editors beside it there, as tabs, if any
 		await chatGroup.openEditor(firstChat.input, { pinned: true, preserveFocus: options?.preserveFocus, index: 0 });
 		// Its other chats, in theirs, behind the one it opens for
+		// each behind the one restored before it in its group, so that the tabs are in their stored order
+		let previous: EditorInput = firstChat.input;
 		for (const [index, other] of (options?.chats ?? []).entries()) {
-			await this._addChat(chatWindow, other, { preserveFocus: true }, getRestoredChatGroup(chatPart, options?.chatPart, index), true);
+			await this._addChat(chatWindow, other, { preserveFocus: true }, getRestoredChatGroup(chatPart, options?.chatPart, index), true, undefined, undefined, previous);
+			previous = chatWindow.chatInputs[chatWindow.chatInputs.length - 1] ?? previous;
 		}
 		await this._openEditors(options?.editors, mainPart);
 		await this._openCreatedParts(options?.createdParts, mainPart, grid);
