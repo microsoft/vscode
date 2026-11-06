@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { LanguageModelToolApprovalClassification, LanguageModelToolInvokedClassification, LanguageModelToolInvokedEvent } from '../../telemetry/common/languageModelToolTelemetry.js';
-import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { ITelemetryService, normalizeModelRouterTelemetryId } from '../../telemetry/common/telemetry.js';
 import { TelemetryTrustedValue } from '../../telemetry/common/telemetryUtils.js';
 import { hash } from '../../../base/common/hash.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
@@ -1304,7 +1304,7 @@ export function toTelemetryModel(model: string | undefined, modelTelemetryKind: 
 		return undefined;
 	}
 	if (modelTelemetryKind === 'trusted') {
-		return new TelemetryTrustedValue(model);
+		return new TelemetryTrustedValue(normalizeModelRouterTelemetryId(model));
 	}
 	return modelTelemetryKind === 'byok' ? 'byokModel' : 'unknown';
 }

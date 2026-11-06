@@ -37,7 +37,7 @@ import { asJson, IRequestService } from '../../../../platform/request/common/req
 import { IQuickInputService, IQuickPickItem, QuickInputHideReason } from '../../../../platform/quickinput/common/quickInput.js';
 import { ISecretStorageService } from '../../../../platform/secrets/common/secrets.js';
 import { isProfileUsingDefaultStorage, IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { ITelemetryService, MODEL_ROUTER_TELEMETRY_ID, normalizeModelRouterTelemetryId } from '../../../../platform/telemetry/common/telemetry.js';
 import { TelemetryTrustedValue } from '../../../../platform/telemetry/common/telemetryUtils.js';
 import { IUserDataProfile } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
@@ -1125,7 +1125,10 @@ export function getTelemetryModelIdentifier(
 	model: ILanguageModelChatMetadataAndIdentifier | undefined,
 	languageModelsService: ILanguageModelsService,
 ): string | TelemetryTrustedValue<string> {
-	return model && !isUserProvidedModel(model, languageModelsService) ? new TelemetryTrustedValue(model.identifier) : 'unknown';
+	if (!model || isUserProvidedModel(model, languageModelsService)) {
+		return 'unknown';
+	}
+	return new TelemetryTrustedValue(normalizeModelRouterTelemetryId(model.metadata.id) === MODEL_ROUTER_TELEMETRY_ID ? MODEL_ROUTER_TELEMETRY_ID : model.identifier);
 }
 
 export function isAutoLanguageModel(model: ILanguageModelChatMetadataAndIdentifier | undefined): boolean {
