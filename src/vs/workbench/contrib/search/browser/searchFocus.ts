@@ -4,11 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * A focus-only action must not re-import macOS's global Find clipboard.
- * The third SearchWidget.focus argument suppresses that import on focus.
+ * Focusing Search must preserve the current query, including when macOS's
+ * global Find clipboard has changed. The widget consumes its suppression
+ * flag on a new focus event.
+ *
+ * If the input is already focused, no new focus event fires. In that case,
+ * passing suppression would leave the flag set and accidentally suppress a
+ * later, ordinary focus that should read the global Find clipboard.
  */
 export function focusSearchInputPreservingQuery(widget: {
 	focus(select?: boolean, focusReplace?: boolean, suppressGlobalSearchBuffer?: boolean): void;
-}): void {
-	widget.focus(true, false, true);
+}, alreadyFocused = false): void {
+	widget.focus(true, false, !alreadyFocused);
 }
