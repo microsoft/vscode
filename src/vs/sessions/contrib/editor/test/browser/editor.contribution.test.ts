@@ -65,7 +65,6 @@ import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.j
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { NEW_FILE_TAB_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { ISessionFileChange, ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionChangesService } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesService.js';
 import { SessionChangesEditorInput } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesEditorInput.js';
@@ -93,7 +92,7 @@ import '../../../../../workbench/contrib/search/browser/searchQuickAccess.contri
 import '../../../../browser/media/workbench.css';
 import '../../../../../workbench/contrib/sessions/browser/parts/media/chatCompositeBar.css';
 import '../../../../browser/parts/media/editorPart.css';
-import { stubSessionHostsFromSessionsService, withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionWithChat, stubSessionHostsFromSessionsService, withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 /** The editor parts of a Files tab of the main window: no part other than the main part. */
 const noOtherEditorParts = upcastPartial<IEditorGroupsService>({ parts: [] });
@@ -582,7 +581,7 @@ suite('Sessions - Editor Contribution', () => {
 				activeChat: constObservable({
 					workspace: constObservable(chatWorkspace),
 				}),
-			} as IActiveSession);
+			} as ITestSessionWithChat);
 		});
 		stubSessionHostsFromSessionsService(instantiationService);
 
@@ -1794,7 +1793,7 @@ suite('Sessions - Editor Contribution', () => {
 		const resource = URI.parse('session:1');
 		stubEditorGroupCount(instantiationService, 5);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			readonly activeSession = constObservable({ resource, ...withCreatedStatus(constObservable(true)) } as IActiveSession);
+			readonly activeSession = constObservable({ resource, ...withCreatedStatus(constObservable(true)) } as ITestSessionWithChat);
 		});
 		stubSessionHostsFromSessionsService(instantiationService);
 		const opened: { resource: URI; index: number | undefined }[] = [];
@@ -1819,7 +1818,7 @@ suite('Sessions - Editor Contribution', () => {
 		const resource = URI.parse('session:new');
 		stubEditorGroupCount(instantiationService, 2);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			readonly activeSession = constObservable({ resource, ...withCreatedStatus(constObservable(false)) } as IActiveSession);
+			readonly activeSession = constObservable({ resource, ...withCreatedStatus(constObservable(false)) } as ITestSessionWithChat);
 		});
 		stubSessionHostsFromSessionsService(instantiationService);
 		const opened: { resource: URI; index: number | undefined }[] = [];
@@ -1873,7 +1872,7 @@ suite('Sessions - Editor Contribution', () => {
 				resource,
 				...withCreatedStatus(constObservable(true)),
 				activeChat: constObservable({ workspace: constObservable(workspace) }),
-			} as unknown as IActiveSession);
+			} as unknown as ITestSessionWithChat);
 		});
 		stubSessionHostsFromSessionsService(instantiationService);
 		const opened: { readonly kind: string; readonly index: number | undefined }[] = [];

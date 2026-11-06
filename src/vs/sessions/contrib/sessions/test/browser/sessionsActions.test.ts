@@ -50,7 +50,7 @@ import { ISessionsPartService } from '../../../../../workbench/contrib/sessions/
 import { ISessionsRecentWorkspacesService } from '../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
 import { type IOpenNewSessionOptions, type IOpenNewSessionResult, type IOpenSessionOptions, type IOpenSessionsOptions, ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { IActiveSession, ICreateNewSessionOptions, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ICreateNewSessionOptions, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { VisibleSessions } from '../../../../../workbench/contrib/sessions/browser/visibleSessions.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 
@@ -79,7 +79,7 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { resolveOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { ICustomViewService, ICustomViewDescriptor } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { WindowCanvasInput, IWindowCanvasService } from '../../../../../workbench/contrib/sessions/browser/windowCanvas.js';
-import { ITestSessionsService, stubMissingSessionHostsFromSessionsService, stubPaneHost, testGridPane, testGridPanes, withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionsService, ITestSessionWithChat, stubMissingSessionHostsFromSessionsService, stubPaneHost, testGridPane, testGridPanes, withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionGridPane, SessionGridPaneKind } from '../../../../../workbench/contrib/sessions/browser/sessionGridPane.js';
 
 suite('Sessions - Actions', () => {
@@ -403,7 +403,7 @@ suite('Sessions - Actions', () => {
 			capabilities: constObservable({ canRename: true, canArchive: true, canDelete: true }),
 		};
 		const peer: IChat = { ...side, resource: session.resource.with({ fragment: 'peer' }), origin: { kind: ChatOriginKind.User } };
-		const activeSession = upcastPartial<IActiveSession>({
+		const activeSession = upcastPartial<ITestSessionWithChat>({
 			...session,
 			chats: constObservable([main, peer, side]),
 			openChats: constObservable([main, peer, side]),
@@ -471,7 +471,7 @@ suite('Sessions - Actions', () => {
 		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
 		// One session object for both panes, as once hosts share it: only the host tells the panes apart.
 		const { session: model } = createTestSession('two-panes');
-		const session = upcastPartial<IActiveSession>({ ...model, activeChat: model.mainChat });
+		const session = upcastPartial<ITestSessionWithChat>({ ...model, activeChat: model.mainChat });
 		const calls: string[] = [];
 		const viewOf = (name: string) => upcastPartial<SessionView>({ toggleActiveChatPin: () => { calls.push(`pin chat in ${name}`); } });
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
@@ -654,7 +654,7 @@ suite('Sessions - Actions', () => {
 	test('the main session context menu opens its main chat to the side', async () => {
 		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
 		const { session } = createTestSession('Session');
-		const activeSession = upcastPartial<IActiveSession>({
+		const activeSession = upcastPartial<ITestSessionWithChat>({
 			...session,
 			activeChat: session.mainChat,
 			isCreated: constObservable(true),
@@ -662,8 +662,8 @@ suite('Sessions - Actions', () => {
 		});
 		const opens: IOpenSessionOptions[] = [];
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly visibleSessions = constObservable([activeSession]);
-			override readonly slotPanes = testGridPanes(this.visibleSessions);
+			readonly gridShown = constObservable([activeSession]);
+			override readonly slotPanes = testGridPanes(this.gridShown);
 			override async openSessionToSide(_session: ISession, options?: IOpenSessionOptions): Promise<void> {
 				if (options) {
 					opens.push(options);
@@ -685,7 +685,7 @@ suite('Sessions - Actions', () => {
 	test('the multi-session context menu batches side-opens and selects the last main chat', async () => {
 		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
 		const sessions = [createTestSession('First').session, createTestSession('Last').session];
-		const reference = upcastPartial<IActiveSession>({
+		const reference = upcastPartial<ITestSessionWithChat>({
 			...sessions[1],
 			activeChat: sessions[1].mainChat,
 			isCreated: constObservable(true),
@@ -693,8 +693,8 @@ suite('Sessions - Actions', () => {
 		});
 		const opens: { sessions: readonly ISession[]; reference: string | undefined; direction: string; options: IOpenSessionsOptions | undefined }[] = [];
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly visibleSessions = constObservable([reference]);
-			override readonly slotPanes = testGridPanes(this.visibleSessions);
+			readonly gridShown = constObservable([reference]);
+			override readonly slotPanes = testGridPanes(this.gridShown);
 			override async openSessionsAt(...[sessions, reference, direction, options]: Parameters<ISessionsService['openSessionsAt']>): Promise<void> {
 				opens.push({ sessions, reference, direction, options });
 			}
@@ -981,9 +981,9 @@ suite('Sessions - Actions', () => {
 		const run = async (quickChatAvailable = true) => {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			instantiationService.stub(INewSessionComposerService, disposables.add(new NewSessionComposerService()));
-			const quickChat = upcastPartial<IActiveSession>({ sessionId: 'quick-chat' });
-			const existingSession = upcastPartial<IActiveSession>({ sessionId: 'existing-session' });
-			const activeSession = observableValue<IActiveSession | undefined>('activeSession', existingSession);
+			const quickChat = upcastPartial<ITestSessionWithChat>({ sessionId: 'quick-chat' });
+			const existingSession = upcastPartial<ITestSessionWithChat>({ sessionId: 'existing-session' });
+			const activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', existingSession);
 			let unsetNewSessionCalls = 0;
 			let openQuickChatCalls = 0;
 			let selectNoWorkspaceCalls = 0;
@@ -1003,7 +1003,7 @@ suite('Sessions - Actions', () => {
 				override openQuickChat() {
 					openQuickChatCalls++;
 					activeSession.set(quickChat, undefined);
-					return quickChat;
+					return quickChat as NonNullable<ReturnType<ISessionsService['openQuickChat']>>;
 				}
 				override focusActiveSession() {
 					focusedSessionId = activeSession.get()?.sessionId;
@@ -1023,7 +1023,7 @@ suite('Sessions - Actions', () => {
 						}
 					};
 				}
-				override focusSession(session: IActiveSession | undefined): void {
+				override focusSession(session: ITestSessionWithChat | undefined): void {
 					focusedSessionId = session?.sessionId;
 				}
 			});
@@ -1099,12 +1099,12 @@ suite('Sessions - Actions', () => {
 		const calls: string[] = [];
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			readonly activeSession = constObservable<IActiveSession | undefined>(active);
-			override setActive() { calls.push('setActive'); }
+			readonly activeSession = constObservable<ITestSessionWithChat | undefined>(active);
+			override activatePane() { calls.push('activatePane'); }
 			override arrangeSessions() { calls.push('arrange'); }
-			override focusSessionInDirection() { calls.push('focus'); }
-			override moveSessionInDirection() { calls.push('move'); }
-			override resizeSession() { calls.push('resize'); }
+			override focusPaneInDirection() { calls.push('focusPaneInDirection'); }
+			override movePaneInDirection() { calls.push('movePaneInDirection'); }
+			override resizePaneInDirection() { calls.push('resizePaneInDirection'); }
 			override async detachChat() { calls.push('detach'); }
 			override async openChat() { calls.push('openChat'); }
 			override async closeChat() { calls.push('closeChat'); }
@@ -1118,7 +1118,8 @@ suite('Sessions - Actions', () => {
 			override getActiveSessionView() { calls.push('activeView'); return undefined; }
 			override getPaneAtPosition() { calls.push('position'); return undefined; }
 			override focusSession() { calls.push('focusSession'); }
-			override toggleMaximizeSession() { calls.push('maximize'); }
+			override focusPane() { calls.push('focusPane'); }
+			override toggleMaximizePane() { calls.push('toggleMaximizePane'); }
 		});
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({ deleteChat: async () => { calls.push('deleteChat'); return true; } }));
 		instantiationService.stub(IUriIdentityService, upcastPartial<IUriIdentityService>({ extUri }));
@@ -1162,7 +1163,7 @@ suite('Sessions - Actions', () => {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 				override focusActiveSession() { calls.push(`${kind}: grid focus`); }
-				override setActive() { calls.push(`${kind}: grid setActive`); }
+				override activatePane() { calls.push(`${kind}: grid activatePane`); }
 			});
 			stubMissingSessionHostsFromSessionsService(instantiationService);
 			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
@@ -1189,11 +1190,11 @@ suite('Sessions - Actions', () => {
 	test('the header of a chat editor closes the chat\'s editor, and leaves the main window\'s grid alone, which shows the same session: Close and Close Session close the editor; Pin, which pins in the grid, does not show and does nothing', async () => {
 		const { session } = createTestSession('editor');
 		const chat: IChat = { ...session.mainChat.get(), resource: URI.parse('test-chat:/in-editor') };
-		const editorSession = upcastPartial<IActiveSession>({ ...session, activeChat: constObservable(chat), scopedChatResource: chat.resource });
+		const editorSession = upcastPartial<ITestSessionWithChat>({ ...session, activeChat: constObservable(chat), scopedChatResource: chat.resource });
 		const calls: string[] = [];
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			readonly activeSession = constObservable<IActiveSession | undefined>(createTestActiveSession('grid'));
+			readonly activeSession = constObservable<ITestSessionWithChat | undefined>(createTestActiveSession('grid'));
 			override async closeChat() { calls.push('grid closeChat'); }
 			override closeSession() { calls.push('grid closeSession'); }
 			override toggleSessionStickiness() { calls.push('grid pin'); }
@@ -1244,7 +1245,7 @@ suite('Sessions - Actions', () => {
 		const calls: string[] = [];
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			readonly activeSession = constObservable<IActiveSession | undefined>(pane);
+			readonly activeSession = constObservable<ITestSessionWithChat | undefined>(pane);
 			override closePane() { calls.push('grid closeSession'); }
 			override toggleSessionStickiness() { calls.push('grid pin'); }
 			override focusActiveSession() { }
@@ -1282,7 +1283,7 @@ suite('Sessions - Actions', () => {
 	test('the Detach Chat command is keyboard-discoverable and detaches the active child', async () => {
 		const { session } = createTestSession('detach-child');
 		const child: IChat = { ...session.mainChat.get(), resource: URI.parse('test-chat:/child') };
-		const active = upcastPartial<IActiveSession>({ ...session, activeChat: constObservable(child) });
+		const active = upcastPartial<ITestSessionWithChat>({ ...session, activeChat: constObservable(child) });
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IFocusedSessionHostService, upcastPartial<IFocusedSessionHostService>({ getFocusedHost: () => upcastPartial<ISessionHost>({ kind: SessionHostKind.MainWindow, session: constObservable(active), chat: constObservable(child) }) }));
 		const viewHost = upcastPartial<ISessionHost>({ kind: SessionHostKind.Pane });
@@ -1324,7 +1325,7 @@ suite('Sessions - Actions', () => {
 		const { part, container } = createSessionsPartTestHarness(disposables);
 		const parent = createTestActiveSession('parent', true, { chatCount: 2 });
 		const chat = parent.chats.get()[1];
-		const child: IActiveSession = {
+		const child: ITestSessionWithChat = {
 			...parent, scopedChatResource: chat.resource, activeChat: constObservable(chat), visibleChatTabs: constObservable([chat]),
 		};
 		const other = createTestActiveSession('other');
@@ -1573,15 +1574,15 @@ suite('Sessions - Actions', () => {
 	test('closes the active session when invoked from its keybinding', async () => {
 		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
 		const { session } = createTestSession('close-active-session');
-		const activeSession = upcastPartial<IActiveSession>({ ...session, activeChat: session.mainChat });
+		const activeSession = upcastPartial<ITestSessionWithChat>({ ...session, activeChat: session.mainChat });
 		instantiationService.stub(IChatHostOpenerService, new ChatHostOpenerService());
-		const closedSessions: Array<IActiveSession | undefined> = [];
+		const closedSessions: Array<ITestSessionWithChat | undefined> = [];
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			readonly activeSession = constObservable(activeSession);
 			// The grid's active pane.
 			override getPaneOfHost() { return testGridPane(activeSession); }
 			override closePane(pane: ISessionGridPane): void {
-				closedSessions.push(pane.session.get() as IActiveSession | undefined);
+				closedSessions.push(pane.session.get() as ITestSessionWithChat | undefined);
 			}
 			override focusActiveSession(): void { }
 		});
@@ -1604,7 +1605,7 @@ suite('Sessions - Actions', () => {
 	test('closes the active main chat group before the session when invoked from its keybinding', async () => {
 		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
 		const { session } = createTestSession('close-active-main-group');
-		const activeSession = upcastPartial<IActiveSession>({ ...session, activeChat: session.mainChat });
+		const activeSession = upcastPartial<ITestSessionWithChat>({ ...session, activeChat: session.mainChat });
 		instantiationService.stub(IChatHostOpenerService, new ChatHostOpenerService());
 		let closeSessionCalls = 0;
 		const closedGroups: string[] = [];
@@ -1663,7 +1664,7 @@ suite('Sessions - Actions', () => {
 			resource: URI.parse('test-chat://tab-chat'),
 			title: constObservable('Tab Chat'),
 		};
-		const activeSession = upcastPartial<IActiveSession>({
+		const activeSession = upcastPartial<ITestSessionWithChat>({
 			...session,
 			activeChat: constObservable(mainChat),
 		});
@@ -1723,7 +1724,7 @@ suite('Sessions - Actions', () => {
 				title: constObservable('Untitled Chat'),
 				status: constObservable(SessionStatus.Untitled),
 			};
-			const activeSession = upcastPartial<IActiveSession>({
+			const activeSession = upcastPartial<ITestSessionWithChat>({
 				...session,
 				activeChat: constObservable(untitledChat),
 			});
@@ -1774,7 +1775,7 @@ suite('Sessions - Actions', () => {
 			title: constObservable('Header Chat'),
 			status: constObservable(SessionStatus.Completed),
 		};
-		const activeSession = upcastPartial<IActiveSession>(session);
+		const activeSession = upcastPartial<ITestSessionWithChat>(session);
 		const renamedChats: string[] = [];
 		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
 			override getSessionView(): SessionView {
@@ -1797,7 +1798,7 @@ suite('Sessions - Actions', () => {
 	test('pins the chat represented by a chat group header', async () => {
 		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
 		const { session } = createTestSession('pin-header-chat');
-		const activeSession = upcastPartial<IActiveSession>({ ...session, activeChat: session.mainChat });
+		const activeSession = upcastPartial<ITestSessionWithChat>({ ...session, activeChat: session.mainChat });
 		let toggleCalls = 0;
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			readonly activeSession = constObservable(activeSession);
@@ -1832,7 +1833,7 @@ suite('Sessions - Actions', () => {
 		const subagentChat: IChat = { ...mainChat, resource: URI.parse('test-chat://subagent'), title: constObservable('Subagent chat'), origin: { kind: ChatOriginKind.Tool, parentChat: mainChat.resource } };
 		const allChats = [mainChat, peerChat, mainSideChat, peerSideChat, orphanSideChat, subagentChat];
 
-		const activeSession = upcastPartial<IActiveSession>({
+		const activeSession = upcastPartial<ITestSessionWithChat>({
 			...session,
 			chats: constObservable(allChats),
 			activeChat: constObservable(mainChat),
@@ -1840,9 +1841,8 @@ suite('Sessions - Actions', () => {
 			sticky: constObservable(false),
 		});
 
-		const panes = observableValue<readonly IActiveSession[]>('panes', [activeSession]);
+		const panes = observableValue<readonly ITestSessionWithChat[]>('panes', [activeSession]);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly visibleSessionPanes = panes;
 			override readonly panes = testGridPanes(panes);
 		});
 		stubMissingSessionHostsFromSessionsService(instantiationService);
@@ -1992,20 +1992,20 @@ suite('Sessions - Actions', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(INewSessionComposerService, disposables.add(new NewSessionComposerService()));
 		const { session } = createTestSession('prompted');
-		const activeSession = upcastPartial<IActiveSession>(session);
-		const quickChat = upcastPartial<IActiveSession>({ ...session, sessionId: 'quick-chat' });
-		const currentSession = observableValue<IActiveSession | undefined>('activeSession', activeSession);
+		const activeSession = upcastPartial<ITestSessionWithChat>(session);
+		const quickChat = upcastPartial<ITestSessionWithChat>({ ...session, sessionId: 'quick-chat' });
+		const currentSession = observableValue<ITestSessionWithChat | undefined>('activeSession', activeSession);
 		const quickChatRequests: { options: ICreateNewSessionOptions | undefined; preserveNavigation: boolean | undefined }[] = [];
 		let openNewSessionCalls = 0;
 		let accessorValid = true;
 		let targetAvailable = true;
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			readonly activeSession = currentSession;
-			override openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation?: boolean): IActiveSession {
+			override openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation?: boolean): ReturnType<ISessionsService['openQuickChat']> {
 				quickChatRequests.push({ options, preserveNavigation });
 				currentSession.set(quickChat, undefined);
 				accessorValid = false;
-				return quickChat;
+				return quickChat as NonNullable<ReturnType<ISessionsService['openQuickChat']>>;
 			}
 			override async openNewSession(): Promise<IOpenNewSessionResult> {
 				openNewSessionCalls++;
@@ -2071,7 +2071,7 @@ suite('Sessions - Actions', () => {
 					override getProvider<T extends ISessionsProvider>(): T | undefined { return undefined; }
 				});
 				const { session } = createTestSession('active');
-				const activeSession = upcastPartial<IActiveSession>({
+				const activeSession = upcastPartial<ITestSessionWithChat>({
 					...session,
 					isQuickChat: constObservable(scenario.isQuickChat),
 				});
@@ -2136,7 +2136,7 @@ suite('Sessions - Actions', () => {
 					requiresWorkspaceTrust: false,
 					isVirtualWorkspace: false,
 				};
-				const activeSession = observableValue('activeSession', upcastPartial<IActiveSession>({
+				const activeSession = observableValue('activeSession', upcastPartial<ITestSessionWithChat>({
 					...session,
 					providerId: `agenthost-${agentHostAuthority(containerAddress)}`,
 					sessionType: 'copilotcli',
@@ -2162,7 +2162,7 @@ suite('Sessions - Actions', () => {
 					override async openNewSession(options?: IOpenNewSessionOptions): Promise<IOpenNewSessionResult> {
 						requests.push(options);
 						requested.delete(activeSession.get().sessionId);
-						const draft = upcastPartial<IActiveSession>({
+						const draft = upcastPartial<ITestSessionWithChat>({
 							...session,
 							sessionId: `draft-${requests.length}`,
 							providerId: sourceProviderId,
@@ -2221,7 +2221,7 @@ suite('Sessions - Actions', () => {
 			const composerService = disposables.add(new NewSessionComposerService());
 			instantiationService.stub(INewSessionComposerService, composerService);
 			const { session } = createTestSession('quick-chat-draft');
-			const activeSession = observableValue<IActiveSession | undefined>('activeSession', upcastPartial<IActiveSession>({
+			const activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', upcastPartial<ITestSessionWithChat>({
 				...session,
 				...withCreatedStatus(constObservable(false)),
 				isQuickChat: constObservable(true),
@@ -2401,7 +2401,7 @@ suite('Sessions - Actions', () => {
 					repository: grouping === 'repository' ? { owner: 'owner', name: 'repo' } : undefined,
 					environment: grouping === 'environment' ? environment : undefined,
 				});
-				const draft = upcastPartial<IActiveSession>({ sessionId: 'new-draft' });
+				const draft = upcastPartial<ITestSessionWithChat>({ sessionId: 'new-draft' });
 				const selections: { folder: URI; options?: ISelectWorkspaceOptions }[] = [];
 				const sources: { providerId: string; resource: URI }[] = [];
 				const focused: (ISession | undefined)[] = [];
@@ -2419,7 +2419,7 @@ suite('Sessions - Actions', () => {
 				instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
 					activeSession: constObservable(draft),
 					openNewSession: async () => ({ session: draft, trustDeclined: false }),
-					focusActiveSession: () => instantiationService.get(ISessionsPartService).focusSession(draft),
+					focusActiveSession: () => instantiationService.get(ISessionsPartService).focusSession(draft as Parameters<ISessionsPartService['focusSession']>[0]),
 				}));
 				stubMissingSessionHostsFromSessionsService(instantiationService);
 				instantiationService.stub(ISessionsPartService, {

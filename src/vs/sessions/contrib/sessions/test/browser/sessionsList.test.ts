@@ -84,7 +84,7 @@ import { ISessionGroup, ISessionGroupsChangeEvent, ISessionGroupsService, Sessio
 import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../../workbench/contrib/sessions/browser/sessionSectionOrderService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionChangeset, ISessionChangesSummary, ISessionFileChange, ISessionFolder, ISessionType, SessionArtifactKind, SessionStatus, SessionTypeAuthRequirement } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { IActiveSession, ICreateNewSessionOptions, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ICreateNewSessionOptions, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionChangeEvent, ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
@@ -111,7 +111,7 @@ import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.j
 import { buildTestSession } from '../../../../../workbench/contrib/sessions/test/common/testSessionBuilder.js';
 import { TestSessionsList } from '../../../../../workbench/contrib/sessions/test/browser/views/testSessionsList.js';
 import { getSessionEnvironments } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListFilters.js';
-import { testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionWithChat, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 function clickRow(row: HTMLElement): void {
 	row.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
@@ -852,7 +852,7 @@ suite('Sessions - SessionsList', () => {
 		test('keeps New Session inactive when Automations opens', () => {
 			const activeCustomView = observableValue<ICustomViewDescriptor | undefined>(disposables, undefined);
 			const draftSession = createTestSession('draft').session;
-			const activeSession = observableValue<IActiveSession | undefined>(disposables, upcastPartial<IActiveSession>({
+			const activeSession = observableValue<ITestSessionWithChat | undefined>(disposables, upcastPartial<ITestSessionWithChat>({
 				...draftSession,
 				isCreated: constObservable(false),
 				activeChat: draftSession.mainChat,
@@ -869,8 +869,8 @@ suite('Sessions - SessionsList', () => {
 				});
 				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 					readonly activeSession = activeSession;
-					override readonly visibleSessions = constObservable<readonly IActiveSession[]>([]);
-					override readonly slotPanes = testGridPanes(this.visibleSessions);
+					readonly gridShown = constObservable<readonly ITestSessionWithChat[]>([]);
+					override readonly slotPanes = testGridPanes(this.gridShown);
 				});
 			});
 			const container = harness.createContainer();
@@ -9906,12 +9906,12 @@ suite('Sessions - SessionsList', () => {
 				};
 			};
 			const multiFolderSession = withChanges(createMultiFolderSession([first, second], [undefined, [second]]));
-			const activeSession = observableValue<IActiveSession | undefined>('active-session', undefined);
+			const activeSession = observableValue<ITestSessionWithChat | undefined>('active-session', undefined);
 			const multiFolderContainer = renderSessionChatsList(multiFolderSession, undefined, false, true, false, instantiationService => {
 				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 					readonly activeSession = activeSession;
-					override readonly visibleSessions = constObservable<readonly IActiveSession[]>([]);
-					override readonly slotPanes = testGridPanes(this.visibleSessions);
+					readonly gridShown = constObservable<readonly ITestSessionWithChat[]>([]);
+					override readonly slotPanes = testGridPanes(this.gridShown);
 				});
 			}).container;
 			const singleFolderContainer = renderSessionChats(withChanges(createMultiFolderSession([first], [undefined])));
@@ -9924,7 +9924,7 @@ suite('Sessions - SessionsList', () => {
 			};
 
 			const beforeOpen = getDiff(multiFolderContainer);
-			activeSession.set(upcastPartial<IActiveSession>({
+			activeSession.set(upcastPartial<ITestSessionWithChat>({
 				...multiFolderSession,
 				activeChat: multiFolderSession.mainChat,
 			}), undefined);
@@ -9966,13 +9966,13 @@ suite('Sessions - SessionsList', () => {
 					chats: constObservable([mainChat, ...base.chats.get().slice(1)]),
 					mainChat: constObservable(mainChat),
 				};
-				const activeSession = observableValue<IActiveSession | undefined>('active-session', undefined);
+				const activeSession = observableValue<ITestSessionWithChat | undefined>('active-session', undefined);
 				const hovers = new Map<HTMLElement, () => IDelayedHoverOptions>();
 				const { container } = renderSessionChatsList(session, undefined, false, true, compact, instantiationService => {
 					instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 						readonly activeSession = activeSession;
-						override readonly visibleSessions = constObservable<readonly IActiveSession[]>([]);
-						override readonly slotPanes = testGridPanes(this.visibleSessions);
+						readonly gridShown = constObservable<readonly ITestSessionWithChat[]>([]);
+						override readonly slotPanes = testGridPanes(this.gridShown);
 					});
 					instantiationService.stub(IHoverService, {
 						...NullHoverService,
@@ -9996,7 +9996,7 @@ suite('Sessions - SessionsList', () => {
 				};
 
 				const beforeOpen = read();
-				activeSession.set(upcastPartial<IActiveSession>({ ...session, activeChat: session.mainChat }), undefined);
+				activeSession.set(upcastPartial<ITestSessionWithChat>({ ...session, activeChat: session.mainChat }), undefined);
 				const whileOpen = read();
 				activeSession.set(undefined, undefined);
 				const afterSwitch = read();
@@ -11679,12 +11679,12 @@ suite('Sessions - SessionsList', () => {
 		test('marks the row of a session pinned in the grid as sticky, and only that row', async () => {
 			const pinned = createTestSession('Pinned').session;
 			const other = createTestSession('Other').session;
-			const inGrid = (session: ISession, sticky: boolean) => upcastPartial<IActiveSession>({ ...session, sticky: constObservable(sticky) });
+			const inGrid = (session: ISession, sticky: boolean) => upcastPartial<ITestSessionWithChat>({ ...session, sticky: constObservable(sticky) });
 			const harness = createListHarness(disposables, [pinned, other], instantiationService => {
 				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 					readonly activeSession = constObservable(undefined);
-					override readonly visibleSessions = constObservable([inGrid(pinned, true), inGrid(other, false)]);
-					override readonly slotPanes = testGridPanes(this.visibleSessions);
+					readonly gridShown = constObservable([inGrid(pinned, true), inGrid(other, false)]);
+					override readonly slotPanes = testGridPanes(this.gridShown);
 				});
 			});
 
@@ -11716,7 +11716,7 @@ suite('Sessions - SessionsList', () => {
 				mainChat: constObservable(main),
 				capabilities: constObservable({ supportsMultipleChats: true }),
 			};
-			const activeSession = upcastPartial<IActiveSession>({
+			const activeSession = upcastPartial<ITestSessionWithChat>({
 				...session,
 				activeChat,
 				sticky: constObservable(false),
@@ -11726,8 +11726,8 @@ suite('Sessions - SessionsList', () => {
 			const harness = createListHarness(disposables, [session], instantiationService => {
 				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 					readonly activeSession = constObservable(activeSession);
-					override readonly visibleSessions = constObservable([activeSession]);
-					override readonly slotPanes = testGridPanes(this.visibleSessions);
+					readonly gridShown = constObservable([activeSession]);
+					override readonly slotPanes = testGridPanes(this.gridShown);
 				});
 			});
 
@@ -11814,7 +11814,7 @@ suite('Sessions - SessionsList', () => {
 				mainChat: constObservable(main),
 				capabilities: constObservable({ supportsMultipleChats: true }),
 			};
-			const activeSession = upcastPartial<IActiveSession>({
+			const activeSession = upcastPartial<ITestSessionWithChat>({
 				...session,
 				activeChat,
 				sticky: constObservable(false),
@@ -11824,8 +11824,8 @@ suite('Sessions - SessionsList', () => {
 			const harness = createListHarness(disposables, [session], instantiationService => {
 				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 					readonly activeSession = constObservable(activeSession);
-					override readonly visibleSessions = constObservable([activeSession]);
-					override readonly slotPanes = testGridPanes(this.visibleSessions);
+					readonly gridShown = constObservable([activeSession]);
+					override readonly slotPanes = testGridPanes(this.gridShown);
 				});
 			});
 			const container = harness.createContainer();
@@ -11849,7 +11849,7 @@ suite('Sessions - SessionsList', () => {
 			const peer = createChat('Peer chat', ChatOriginKind.User);
 			const activeSessionBase = createTestSession('Session').session;
 			const session: ISession = { ...activeSessionBase, chats: constObservable([main, peer]), mainChat: constObservable(main) };
-			const activeSession = upcastPartial<IActiveSession>({
+			const activeSession = upcastPartial<ITestSessionWithChat>({
 				...session,
 				activeChat: constObservable(peer),
 				sticky: constObservable(false),
@@ -11859,8 +11859,8 @@ suite('Sessions - SessionsList', () => {
 			const harness = createListHarness(disposables, [session], instantiationService => {
 				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 					readonly activeSession = constObservable(activeSession);
-					override readonly visibleSessions = constObservable([activeSession]);
-					override readonly slotPanes = testGridPanes(this.visibleSessions);
+					readonly gridShown = constObservable([activeSession]);
+					override readonly slotPanes = testGridPanes(this.gridShown);
 				});
 			});
 			const container = harness.createContainer();
@@ -12169,7 +12169,7 @@ suite('Sessions - SessionsList', () => {
 					mainChat: constObservable(createChat('Other main chat')),
 					capabilities: constObservable({ supportsMultipleChats: true }),
 				};
-				const activeSession = upcastPartial<IActiveSession>({
+				const activeSession = upcastPartial<ITestSessionWithChat>({
 					...session,
 					activeChat: constObservable(peer),
 					sticky: constObservable(false),
@@ -12180,8 +12180,8 @@ suite('Sessions - SessionsList', () => {
 					if (activePeer) {
 						instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 							readonly activeSession = constObservable(activeSession);
-							override readonly visibleSessions = constObservable([activeSession]);
-							override readonly slotPanes = testGridPanes(this.visibleSessions);
+							readonly gridShown = constObservable([activeSession]);
+							override readonly slotPanes = testGridPanes(this.gridShown);
 						});
 					}
 				});
@@ -13595,7 +13595,7 @@ suite('Sessions - SessionsList', () => {
 			for (const active of [false, true]) {
 				test(`${flat ? 'flat' : 'main'} list ${active ? 'preserves an active session unread mark' : 'marks an inactive session read'} when opening a row`, async () => {
 					const { session } = createTestSession('Unread', { isRead: false });
-					const activeSession = active ? upcastPartial<IActiveSession>({
+					const activeSession = active ? upcastPartial<ITestSessionWithChat>({
 						...session,
 						activeChat: session.mainChat,
 						sticky: constObservable(false),
@@ -13605,8 +13605,8 @@ suite('Sessions - SessionsList', () => {
 					const harness = createListHarness(disposables, [session], instantiationService => {
 						instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 							readonly activeSession = constObservable(activeSession);
-							override readonly visibleSessions = constObservable(activeSession ? [activeSession] : []);
-							override readonly slotPanes = testGridPanes(this.visibleSessions);
+							readonly gridShown = constObservable(activeSession ? [activeSession] : []);
+							override readonly slotPanes = testGridPanes(this.gridShown);
 						});
 					});
 					const container = harness.createContainer();

@@ -9,8 +9,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IFocusedSessionHostService, ISessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
-import { focusedSessionHostServiceOf, ITestSessionsService, sessionHostServiceOf, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
-import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { focusedSessionHostServiceOf, ITestSessionsService, ITestSessionWithChat, sessionHostServiceOf, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -40,13 +39,13 @@ function hostsOf(store: Pick<DisposableStore, 'add'>, sessionsService: Partial<I
 	return [sessionHostServiceOf(store, sessionsService), focusedSessionHostServiceOf(sessionsService.activeSession ?? constObservable(undefined)), gridPanes];
 }
 
-function noSessions(active?: IActiveSession): ISessionsService {
+function noSessions(active?: ITestSessionWithChat): ISessionsService {
 	return new class extends mock<ISessionsService>() {
-		readonly activeSession = constObservable<IActiveSession | undefined>(active);
-		readonly mainWindowActiveSession = constObservable<IActiveSession | undefined>(active);
-		readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
-		override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([]);
-		override readonly slotPanes = testGridPanes(this.visibleSessions);
+		readonly activeSession = constObservable<ITestSessionWithChat | undefined>(active);
+		readonly mainWindowActiveSession = constObservable<ITestSessionWithChat | undefined>(active);
+		readonly windowSessions = constObservable<readonly ITestSessionWithChat[]>([]);
+		readonly gridShown = constObservable<readonly (ITestSessionWithChat | undefined)[]>([]);
+		override readonly slotPanes = testGridPanes(this.gridShown);
 	}();
 }
 
@@ -138,19 +137,19 @@ suite('SessionChangesService', () => {
 	});
 
 	test('selects the changeset of the visible non-active session the editor opens for', async () => {
-		const selections: { readonly changesetId: string | undefined; readonly session: IActiveSession | undefined }[] = [];
-		const otherSession = upcastPartial<IActiveSession>({ sessionId: 'other', resource: URI.parse('agent-host:other-session'), activeChat: constObservable(upcastPartial<IChat>({})) });
+		const selections: { readonly changesetId: string | undefined; readonly session: ITestSessionWithChat | undefined }[] = [];
+		const otherSession = upcastPartial<ITestSessionWithChat>({ sessionId: 'other', resource: URI.parse('agent-host:other-session'), activeChat: constObservable(upcastPartial<IChat>({})) });
 		const sessionsService = new class extends mock<ISessionsService>() {
-			readonly activeSession = constObservable<IActiveSession | undefined>(upcastPartial<IActiveSession>({ sessionId: 'active', resource: URI.parse('agent-host:active-session'), activeChat: constObservable(upcastPartial<IChat>({})) }));
-			readonly mainWindowActiveSession = constObservable<IActiveSession | undefined>(undefined);
-			readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
-			override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([otherSession]);
-			override readonly slotPanes = testGridPanes(this.visibleSessions);
+			readonly activeSession = constObservable<ITestSessionWithChat | undefined>(upcastPartial<ITestSessionWithChat>({ sessionId: 'active', resource: URI.parse('agent-host:active-session'), activeChat: constObservable(upcastPartial<IChat>({})) }));
+			readonly mainWindowActiveSession = constObservable<ITestSessionWithChat | undefined>(undefined);
+			readonly windowSessions = constObservable<readonly ITestSessionWithChat[]>([]);
+			readonly gridShown = constObservable<readonly (ITestSessionWithChat | undefined)[]>([otherSession]);
+			override readonly slotPanes = testGridPanes(this.gridShown);
 		}();
 		const changesViewService = new class extends mock<IChangesViewService>() {
 			override readonly activeSessionResourceObs = noActiveSessionResource;
 			override readonly activeSessionChangesObs = noChanges;
-			override setChangesetId(changesetId: string | undefined, session?: IActiveSession): void {
+			override setChangesetId(changesetId: string | undefined, session?: ITestSessionWithChat): void {
 				selections.push({ changesetId, session });
 			}
 		}();
@@ -170,24 +169,24 @@ suite('SessionChangesService', () => {
 	});
 
 	test('opens the Changes editor of the chat of a window of its own, whichever chat of its session is active', async () => {
-		const selections: { readonly changesetId: string | undefined; readonly session: IActiveSession | undefined }[] = [];
+		const selections: { readonly changesetId: string | undefined; readonly session: ITestSessionWithChat | undefined }[] = [];
 		const opened: { readonly resource: URI; readonly options: object | undefined }[] = [];
 		const sessionResource = URI.parse('agent-host:test-session');
 		const firstChat = URI.parse('agent-host:test-session/first');
 		const secondChat = URI.parse('agent-host:test-session/second');
-		const first = upcastPartial<IActiveSession>({ sessionId: 'session', resource: sessionResource, scopedChatResource: firstChat, activeChat: constObservable(upcastPartial<IChat>({})) });
-		const second = upcastPartial<IActiveSession>({ sessionId: 'session', resource: sessionResource, scopedChatResource: secondChat, activeChat: constObservable(upcastPartial<IChat>({})) });
+		const first = upcastPartial<ITestSessionWithChat>({ sessionId: 'session', resource: sessionResource, scopedChatResource: firstChat, activeChat: constObservable(upcastPartial<IChat>({})) });
+		const second = upcastPartial<ITestSessionWithChat>({ sessionId: 'session', resource: sessionResource, scopedChatResource: secondChat, activeChat: constObservable(upcastPartial<IChat>({})) });
 		const sessionsService = new class extends mock<ISessionsService>() {
-			readonly activeSession = constObservable<IActiveSession | undefined>(first);
-			readonly mainWindowActiveSession = constObservable<IActiveSession | undefined>(undefined);
-			readonly windowSessions = constObservable<readonly IActiveSession[]>([first, second]);
-			override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([]);
-			override readonly slotPanes = testGridPanes(this.visibleSessions);
+			readonly activeSession = constObservable<ITestSessionWithChat | undefined>(first);
+			readonly mainWindowActiveSession = constObservable<ITestSessionWithChat | undefined>(undefined);
+			readonly windowSessions = constObservable<readonly ITestSessionWithChat[]>([first, second]);
+			readonly gridShown = constObservable<readonly (ITestSessionWithChat | undefined)[]>([]);
+			override readonly slotPanes = testGridPanes(this.gridShown);
 		}();
 		const changesViewService = new class extends mock<IChangesViewService>() {
 			override readonly activeSessionResourceObs = noActiveSessionResource;
 			override readonly activeSessionChangesObs = noChanges;
-			override setChangesetId(changesetId: string | undefined, session?: IActiveSession): void {
+			override setChangesetId(changesetId: string | undefined, session?: ITestSessionWithChat): void {
 				selections.push({ changesetId, session });
 			}
 		}();
@@ -229,7 +228,7 @@ suite('SessionChangesService', () => {
 		const changesViewService = new class extends mock<IChangesViewService>() {
 			override readonly activeSessionResourceObs = noActiveSessionResource;
 			override readonly activeSessionChangesObs = noChanges;
-			override setChangesetId(changesetId: string | undefined, session?: IActiveSession): void {
+			override setChangesetId(changesetId: string | undefined, session?: ITestSessionWithChat): void {
 				selections.push({ changesetId, session });
 			}
 		}();
@@ -238,7 +237,7 @@ suite('SessionChangesService', () => {
 			disposables.add(new TestInstantiationService()),
 			new class extends mock<IAgentWorkbenchLayoutService>() { override readonly agentWorkbenchLayout = AgentWorkbenchLayout.Mobile; }(),
 			changesViewService,
-			...hostsOf(disposables, noSessions(upcastPartial<IActiveSession>({ sessionId: 'active', resource: URI.parse('agent-host:active-session'), activeChat: constObservable(upcastPartial<IChat>({})) }))),
+			...hostsOf(disposables, noSessions(upcastPartial<ITestSessionWithChat>({ sessionId: 'active', resource: URI.parse('agent-host:active-session'), activeChat: constObservable(upcastPartial<IChat>({})) }))),
 			emptyDecorationsService,
 			new NullLogService(),
 		));
@@ -281,7 +280,7 @@ suite('SessionChangesService', () => {
 			disposables.add(new TestInstantiationService()),
 			layoutService,
 			changesViewService,
-			...hostsOf(disposables, noSessions(upcastPartial<IActiveSession>({ sessionId: 'active', resource: URI.parse('agent-host:test-session'), activeChat: constObservable(upcastPartial<IChat>({})) }))),
+			...hostsOf(disposables, noSessions(upcastPartial<ITestSessionWithChat>({ sessionId: 'active', resource: URI.parse('agent-host:test-session'), activeChat: constObservable(upcastPartial<IChat>({})) }))),
 			emptyDecorationsService,
 			new NullLogService(),
 		));
@@ -354,7 +353,7 @@ suite('SessionChangesService', () => {
 		}();
 		instantiationService.stub(IWorkbenchLayoutService, layoutService);
 		instantiationService.stub(IChangesViewService, changesViewService);
-		const service = disposables.add(new SessionChangesService(editorService, instantiationService, layoutService, changesViewService, ...hostsOf(disposables, noSessions(upcastPartial<IActiveSession>({ sessionId: 'active', resource: URI.parse('agent-host:test-session'), activeChat: constObservable(upcastPartial<IChat>({})) }))), emptyDecorationsService, new NullLogService()));
+		const service = disposables.add(new SessionChangesService(editorService, instantiationService, layoutService, changesViewService, ...hostsOf(disposables, noSessions(upcastPartial<ITestSessionWithChat>({ sessionId: 'active', resource: URI.parse('agent-host:test-session'), activeChat: constObservable(upcastPartial<IChat>({})) }))), emptyDecorationsService, new NullLogService()));
 		instantiationService.stub(ISessionChangesService, service);
 
 		await service.openChangesEditor(URI.parse('agent-host:test-session'), {

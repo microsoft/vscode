@@ -12,7 +12,6 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IsNewChatSessionContext, SessionHasWorkspaceContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { AgentHostSessionTypesAvailableContext } from '../../../../common/agentsWindowContextKeys.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { noSessionPickerVisibility } from '../../../../../workbench/contrib/sessions/common/sessionPickerVisibility.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -25,6 +24,7 @@ import { createNewSessionViewTour } from '../../browser/tours/newSessionViewTour
 import { createNewSessionViewV2Tour, NEW_SESSION_VIEW_V2_TOUR_ID } from '../../browser/tours/newSessionViewV2Tour.js';
 import { createNewSessionViewV3Tour, NEW_SESSION_VIEW_V3_TOUR_ID } from '../../browser/tours/newSessionViewV3Tour.js';
 import { TOTAL_SESSIONS_KEY } from '../../../sessions/browser/sessionsLifecycleTracker.js';
+import { ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('NewSessionViewTourTrigger', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -33,7 +33,7 @@ suite('NewSessionViewTourTrigger', () => {
 		const fixture = createSessionsPartTestHarness(disposables);
 		const { configurationService, contextKeyService, part } = fixture;
 		const initialRestoreComplete = observableValue('initialRestoreComplete', options.restored ?? true);
-		const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+		const activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', undefined);
 		const sessionsService = new class extends mock<ISessionsService>() {
 			readonly activeSession = activeSession;
 			override readonly initialRestoreComplete = initialRestoreComplete;
@@ -59,7 +59,7 @@ suite('NewSessionViewTourTrigger', () => {
 			contextKeyService,
 			entitlementService,
 		)));
-		const open = (visible: readonly (IActiveSession | undefined)[], active: IActiveSession | undefined) => {
+		const open = (visible: readonly (ITestSessionWithChat | undefined)[], active: ITestSessionWithChat | undefined) => {
 			activeSession.set(active, undefined);
 			renderTestPanes(part, visible, active);
 		};

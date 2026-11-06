@@ -35,11 +35,17 @@ export interface ITestShownChat {
 }
 
 /**
- * A legacy fake shape: a session fake that also carries `activeChat`, the chat its host shows, as tests modelled the grid's
- * active session when the grid gave a view of a session. Production only ever sees it as an {@link ISession}. New tests use
- * {@link ITestShownChat} instead.
+ * The pane state a legacy fake may carry, as the grid's view of a session in a pane did: its tab strip, its pin, whether it
+ * is created, and the chat of a fake of a detached pane.
  */
-export type ITestSessionWithChat = ISession & { readonly activeChat: IObservable<IChat> };
+type LegacyFakePaneMembers = Partial<ISessionPaneTabs> & { readonly sticky?: IObservable<boolean>; readonly isCreated?: IObservable<boolean>; readonly scopedChatResource?: URI };
+
+/**
+ * A legacy fake shape: a session fake that also carries `activeChat`, the chat its host shows, and may carry the pane state of
+ * the grid's view of a session, as tests modelled the grid's active session when the grid gave such views. Production only
+ * ever sees it as an {@link ISession}. New tests use {@link ITestShownChat} instead.
+ */
+export type ITestSessionWithChat = ISession & { readonly activeChat: IObservable<IChat> } & LegacyFakePaneMembers;
 
 /** What a test's host or pane shows: an {@link ITestShownChat}, or a legacy {@link ITestSessionWithChat}. */
 export type TestShown = ITestShownChat | ITestSessionWithChat;
@@ -294,11 +300,8 @@ export function stubMissingSessionHostsFromSessionsService(instantiationService:
 
 let paneHostIds = 0;
 
-/**
- * A legacy {@link ITestSessionWithChat} with the pane state it may carry: its pin, its tab strip, and the chat a fake of a
- * detached pane shows.
- */
-export type LegacyFakePaneState = ISession & { readonly activeChat?: IObservable<IChat> } & Partial<ISessionPaneTabs> & { readonly sticky?: IObservable<boolean>; readonly scopedChatResource?: URI };
+/** A legacy {@link ITestSessionWithChat} that may lack `activeChat`, such as a partial fake: its host shows its main chat then. */
+export type LegacyFakePaneState = ISession & { readonly activeChat?: IObservable<IChat> } & LegacyFakePaneMembers;
 
 /** A pane of the grid with `id` that shows `shown`, and `chat` when given; see {@link testGridPane}. */
 function paneOfShown(shown: TestShown | undefined, id: string, chat?: IChat): ISessionGridPane {

@@ -79,7 +79,7 @@ function createSession(name: string, withWorkspace = true, scheme = 'agent-host-
 				override readonly workingDirectory = URI.file(`/worktrees/${name}`);
 			}()];
 		}() : undefined);
-		readonly isCreated = constObservable(false);
+		override readonly isCreated = constObservable(false);
 		override readonly status = this.isCreated.map(created => created ? SessionStatus.Completed : SessionStatus.Untitled);
 		override readonly loading = constObservable(false);
 	}();

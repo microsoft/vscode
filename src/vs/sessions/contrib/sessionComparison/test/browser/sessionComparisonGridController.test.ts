@@ -22,11 +22,10 @@ import { ISessionsPartService } from '../../../../../workbench/contrib/sessions/
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { IChat, ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionGridPane, SessionGridPaneKind } from '../../../../../workbench/contrib/sessions/browser/sessionGridPane.js';
 import { SessionComparisonGridController } from '../../browser/sessionComparisonGridController.js';
 import { HIDE_INACTIVE_COMPARISON_INPUTS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionComparisonConstants.js';
-import { testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionWithChat, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Session comparison grid controller', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -40,14 +39,14 @@ suite('Session comparison grid controller', () => {
 		readonly comparisonArchived?: boolean;
 	}) {
 		const judgeChat = observableValue('judgeChat', upcastPartial<IChat>({ resource: URI.parse('test:///judge') }));
-		const judge = upcastPartial<IActiveSession>({
+		const judge = upcastPartial<ITestSessionWithChat>({
 			sessionId: 'judge', resource: URI.parse('test:///judge'),
 			activeChat: judgeChat,
 		});
-		const attempt = upcastPartial<IActiveSession>({ sessionId: 'attempt', resource: URI.parse('test:///attempt') });
-		const attempt2 = upcastPartial<IActiveSession>({ sessionId: 'attempt-2', resource: URI.parse('test:///attempt-2') });
-		const attempt3 = upcastPartial<IActiveSession>({ sessionId: 'attempt-3', resource: URI.parse('test:///attempt-3') });
-		const unrelated = upcastPartial<IActiveSession>({ sessionId: 'unrelated', resource: URI.parse('test:///unrelated') });
+		const attempt = upcastPartial<ITestSessionWithChat>({ sessionId: 'attempt', resource: URI.parse('test:///attempt') });
+		const attempt2 = upcastPartial<ITestSessionWithChat>({ sessionId: 'attempt-2', resource: URI.parse('test:///attempt-2') });
+		const attempt3 = upcastPartial<ITestSessionWithChat>({ sessionId: 'attempt-3', resource: URI.parse('test:///attempt-3') });
+		const unrelated = upcastPartial<ITestSessionWithChat>({ sessionId: 'unrelated', resource: URI.parse('test:///unrelated') });
 		const comparison: ISessionComparison = {
 			id: 'comparison',
 			groupId: 'group',
@@ -79,8 +78,8 @@ suite('Session comparison grid controller', () => {
 			}],
 		};
 		const focused = store.add(new Emitter<string>());
-		const activeSession = observableValue<IActiveSession | undefined>('activeSession', attempt);
-		const visibleSessions = observableValue<readonly (IActiveSession | undefined)[]>('visibleSessions', options?.attemptsOnly
+		const activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', attempt);
+		const visibleSessions = observableValue<readonly (ITestSessionWithChat | undefined)[]>('visibleSessions', options?.attemptsOnly
 			? [attempt, attempt2, attempt3].slice(0, options.attemptCount ?? 2)
 			: [judge, attempt]);
 		const comparisons = observableValue<readonly ISessionComparison[]>('comparisons', options?.comparisonAvailable === false ? [] : [comparison]);
@@ -113,8 +112,8 @@ suite('Session comparison grid controller', () => {
 		}());
 		// The panes of the grid, one per session it shows: a detached pane shows one chat of its session. Its id is the chat it
 		// shows of its own, else its session, else the new-session slot's.
-		const paneObjects = new Map<IActiveSession | undefined, ISessionGridPane>();
-		const paneOf = (session: IActiveSession | undefined) => {
+		const paneObjects = new Map<ITestSessionWithChat | undefined, ISessionGridPane>();
+		const paneOf = (session: ITestSessionWithChat | undefined) => {
 			let pane = paneObjects.get(session);
 			if (!pane) {
 				pane = upcastPartial<ISessionGridPane>({
@@ -130,8 +129,8 @@ suite('Session comparison grid controller', () => {
 		const panes = derived(reader => visibleSessions.read(reader).map(paneOf));
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			readonly activeSession = activeSession;
-			override readonly visibleSessions = visibleSessions;
-			override readonly slotPanes = testGridPanes(this.visibleSessions);
+			readonly gridShown = visibleSessions;
+			override readonly slotPanes = testGridPanes(this.gridShown);
 			override readonly panes = panes;
 			override readonly activePane = derived(reader => {
 				const active = activeSession.read(reader);
@@ -141,7 +140,7 @@ suite('Session comparison grid controller', () => {
 				this.closeSession(pane.session.get());
 			}
 			override collapseToPane(pane: ISessionGridPane): void {
-				this.collapseToSession(pane.session.get() as IActiveSession | undefined);
+				this.collapseTo(pane.session.get() as ITestSessionWithChat | undefined);
 			}
 			override closeSession(session: ISession | undefined): void {
 				if (session) {
@@ -160,7 +159,7 @@ suite('Session comparison grid controller', () => {
 				shownOnly.push(session.sessionId);
 				activeSession.set(session, undefined);
 			}
-			override collapseToSession(session: IActiveSession | undefined): void {
+			collapseTo(session: ITestSessionWithChat | undefined): void {
 				collapsedTo.push(session?.sessionId);
 				transaction(tx => {
 					visibleSessions.set([session], tx);
@@ -283,7 +282,7 @@ suite('Session comparison grid controller', () => {
 	test('distinguishes nested attempt and Judge panes sharing one session', async () => {
 		const fixture = setup();
 		const resource = URI.parse('test:/parent');
-		const pane = (id: string) => upcastPartial<IActiveSession>({
+		const pane = (id: string) => upcastPartial<ITestSessionWithChat>({
 			sessionId: 'parent', resource,
 			scopedChatResource: resource.with({ fragment: id }),
 			activeChat: constObservable(upcastPartial<IChat>({ resource: resource.with({ fragment: id }) })),
@@ -315,8 +314,8 @@ suite('Session comparison grid controller', () => {
 		const fixture = setup();
 		const resource = URI.parse('test:/parent');
 		const chat = (id: string) => upcastPartial<IChat>({ resource: resource.with({ fragment: id }) });
-		const parent = upcastPartial<IActiveSession>({ sessionId: 'parent', resource, activeChat: constObservable(chat('attempt')) });
-		const judge = upcastPartial<IActiveSession>({
+		const parent = upcastPartial<ITestSessionWithChat>({ sessionId: 'parent', resource, activeChat: constObservable(chat('attempt')) });
+		const judge = upcastPartial<ITestSessionWithChat>({
 			sessionId: 'parent', resource, scopedChatResource: chat('judge').resource, activeChat: constObservable(chat('judge')),
 		});
 		transaction(tx => {
@@ -346,8 +345,8 @@ suite('Session comparison grid controller', () => {
 			const resource = URI.parse('test:/parent');
 			const chat = (id: string) => upcastPartial<IChat>({ resource: resource.with({ fragment: id }) });
 			const currentChat = observableValue('chat', chat('attempt-2'));
-			const parent = upcastPartial<IActiveSession>({ sessionId: 'parent', resource, activeChat: currentChat });
-			const attempt = upcastPartial<IActiveSession>({
+			const parent = upcastPartial<ITestSessionWithChat>({ sessionId: 'parent', resource, activeChat: currentChat });
+			const attempt = upcastPartial<ITestSessionWithChat>({
 				sessionId: 'parent', resource, scopedChatResource: chat('attempt').resource, activeChat: constObservable(chat('attempt')),
 			});
 			transaction(tx => {

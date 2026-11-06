@@ -29,7 +29,6 @@ import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.j
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionsHostLayoutService } from '../../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IChat, ISessionChangeset, ISessionChangesetOperation, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { bindChangesetOperations, ChangesHeaderChangesetOperationsActionContribution } from '../../browser/changesActions.js';
 import { SessionChangesEditor } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesEditor.js';
@@ -38,7 +37,7 @@ import { IChangesSessionObservables, IChangesSessionScope, IChangesViewService }
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
-import { stubSessionHostsFromSessionsService, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionWithChat, stubSessionHostsFromSessionsService, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Changes Actions', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -60,9 +59,9 @@ suite('Changes Actions', () => {
 			}]);
 		});
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			readonly activeSession = constObservable<IActiveSession | undefined>(upcastPartial<IActiveSession>({ sessionId: 'active', resource: URI.parse('agent-host:active') }));
-			override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([]);
-			override readonly slotPanes = testGridPanes(this.visibleSessions);
+			readonly activeSession = constObservable<ITestSessionWithChat | undefined>(upcastPartial<ITestSessionWithChat>({ sessionId: 'active', resource: URI.parse('agent-host:active') }));
+			readonly gridShown = constObservable<readonly (ITestSessionWithChat | undefined)[]>([]);
+			override readonly slotPanes = testGridPanes(this.gridShown);
 		});
 		stubSessionHostsFromSessionsService(instantiationService);
 		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
@@ -259,7 +258,7 @@ suite('Changes Actions', () => {
 				invokeOperation: async operationId => { invoked.push(`${name}:${operationId}`); },
 			});
 			return upcastPartial<IChangesSessionScope>({
-				session: constObservable<IActiveSession | undefined>(upcastPartial<IActiveSession>({ resource: URI.parse(`test-session:${name}`), status: constObservable(SessionStatus.Completed) })),
+				session: constObservable<ITestSessionWithChat | undefined>(upcastPartial<ITestSessionWithChat>({ resource: URI.parse(`test-session:${name}`), status: constObservable(SessionStatus.Completed) })),
 				chat: constObservable(undefined),
 				changes: upcastPartial<IChangesSessionObservables>({ changesetObs: constObservable<ISessionChangeset | undefined>(changeset), changesetOperationsObs: operations }),
 			});
@@ -343,7 +342,7 @@ suite('Changes Actions', () => {
 		const chat = upcastPartial<IChat>({
 			changesets: constObservable([changeset]),
 		});
-		const activeSession = observableValue<IActiveSession | undefined>('test.activeSession', upcastPartial<IActiveSession>({
+		const activeSession = observableValue<ITestSessionWithChat | undefined>('test.activeSession', upcastPartial<ITestSessionWithChat>({
 			resource: URI.parse('test-session:draft'),
 			status,
 			workspace,

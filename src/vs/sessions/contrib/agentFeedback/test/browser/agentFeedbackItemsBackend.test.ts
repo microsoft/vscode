@@ -23,30 +23,29 @@ import { IAgentHostSessionsProvider } from '../../../../../workbench/contrib/ses
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { AnnotationsAgentFeedbackItemsBackend } from '../../browser/agentFeedbackItemsBackend.js';
 import { AgentFeedbackKind, AgentFeedbackState } from '../../../../../workbench/contrib/sessions/browser/agentFeedbackModel.js';
-import { stubFocusedSessionHostFromSessionsService, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionWithChat, stubFocusedSessionHostFromSessionsService, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('AnnotationsAgentFeedbackItemsBackend', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	/**
-	 * Renders the given panes in the window, as {@link ISessionsService.visibleSessionPanes}.
-	 * The main session slots in {@link ISessionsService.visibleSessions} exclude standalone child panes.
+	 * Renders the given panes in the window, as {@link ISessionsService.panes}.
+	 * The main session slots in {@link ISessionsService.slotPanes} exclude standalone child panes.
 	 */
 	function stubVisibleSessions(
 		instantiationService: TestInstantiationService,
-		visibleSessionPanes: IObservable<readonly IActiveSession[]>,
-		visibleSessions: IObservable<readonly IActiveSession[]> = visibleSessionPanes,
-		activeSession: IObservable<IActiveSession | undefined> = constObservable(undefined),
+		visibleSessionPanes: IObservable<readonly ITestSessionWithChat[]>,
+		visibleSessions: IObservable<readonly ITestSessionWithChat[]> = visibleSessionPanes,
+		activeSession: IObservable<ITestSessionWithChat | undefined> = constObservable(undefined),
 	): void {
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			readonly activeSession = activeSession;
-			override readonly visibleSessions = visibleSessions;
-			override readonly slotPanes = testGridPanes(this.visibleSessions);
-			override readonly visibleSessionPanes = visibleSessionPanes;
+			readonly gridShown = visibleSessions;
+			override readonly slotPanes = testGridPanes(this.gridShown);
 			override readonly panes = testGridPanes(visibleSessionPanes);
 		}());
 		stubFocusedSessionHostFromSessionsService(instantiationService);
@@ -63,7 +62,7 @@ suite('AnnotationsAgentFeedbackItemsBackend', () => {
 	function createConnectedBackend(sessionCount: number) {
 		const clientId = 'client';
 		const resourceUris = createAgentHostResourceUriMapper('test');
-		const sessions = Array.from({ length: sessionCount }, (_, i) => new class extends mock<IActiveSession>() {
+		const sessions = Array.from({ length: sessionCount }, (_, i) => new class extends mock<ITestSessionWithChat>() {
 			override readonly resource = URI.parse(`agent-host-test:/s${i + 1}`);
 			override readonly providerId = 'agenthost-test';
 			override readonly sessionId = `s${i + 1}`;
@@ -132,13 +131,13 @@ suite('AnnotationsAgentFeedbackItemsBackend', () => {
 				return provider as unknown as T;
 			}
 		});
-		const visibleSessionPanes = observableValue<readonly IActiveSession[]>('visibleSessionPanes', []);
-		const visibleSessions = observableValue<readonly IActiveSession[]>('visibleSessions', []);
-		const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+		const visibleSessionPanes = observableValue<readonly ITestSessionWithChat[]>('visibleSessionPanes', []);
+		const visibleSessions = observableValue<readonly ITestSessionWithChat[]>('visibleSessions', []);
+		const activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', undefined);
 		stubVisibleSessions(instantiationService, visibleSessionPanes, visibleSessions, activeSession);
 		const backend = store.add(instantiationService.createInstance(AnnotationsAgentFeedbackItemsBackend));
 		/** Renders `panes`, of which `mainSlots` are main session slots, and focuses `active`. */
-		const showPanes = (panes: readonly IActiveSession[], mainSlots = panes, active = panes[0]) => transaction(tx => {
+		const showPanes = (panes: readonly ITestSessionWithChat[], mainSlots = panes, active = panes[0]) => transaction(tx => {
 			visibleSessionPanes.set(panes, tx);
 			visibleSessions.set(mainSlots, tx);
 			activeSession.set(active, tx);
@@ -196,7 +195,7 @@ suite('AnnotationsAgentFeedbackItemsBackend', () => {
 				getSession: () => deleted ? undefined : session,
 			});
 			instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() { }(), 'getProvider', () => provider);
-			stubVisibleSessions(instantiationService, constObservable([session as IActiveSession]));
+			stubVisibleSessions(instantiationService, constObservable([session as ITestSessionWithChat]));
 			const backend = store.add(instantiationService.createInstance(AnnotationsAgentFeedbackItemsBackend));
 			backend.getItems(sessionResource);
 			await timeout(0);
@@ -573,14 +572,14 @@ suite('AnnotationsAgentFeedbackItemsBackend', () => {
 				return provider as unknown as T;
 			}
 		});
-		const visibleSessions = observableValue<readonly IActiveSession[]>('visibleSessions', []);
+		const visibleSessions = observableValue<readonly ITestSessionWithChat[]>('visibleSessions', []);
 		stubVisibleSessions(instantiationService, visibleSessions);
 		const backend = store.add(instantiationService.createInstance(AnnotationsAgentFeedbackItemsBackend));
 		const changed: string[] = [];
 		store.add(backend.onDidChangeItems(resource => changed.push(resource.toString())));
 		// Opens a session and reads its feedback, as the Changes view does.
 		const show = (session: ISession) => {
-			visibleSessions.set([session as IActiveSession], undefined);
+			visibleSessions.set([session as ITestSessionWithChat], undefined);
 			return backend.getItems(session.resource).map(item => item.text);
 		};
 		const archive = (session: ISession) => changes.fire({ added: [], changed: [session], removed: [] });
@@ -654,7 +653,7 @@ suite('AnnotationsAgentFeedbackItemsBackend', () => {
 
 	test('keeps a standalone child pane subscribed after its parent pane closes', async () => {
 		const { backend, host, sessions: [parent, other], showPanes } = createConnectedBackend(2);
-		const child = new class extends mock<IActiveSession>() {
+		const child = new class extends mock<ITestSessionWithChat>() {
 			override readonly resource = parent.resource;
 			override readonly providerId = parent.providerId;
 			override readonly sessionId = parent.sessionId;

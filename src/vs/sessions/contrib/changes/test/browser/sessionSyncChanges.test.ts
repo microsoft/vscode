@@ -32,14 +32,13 @@ import { ISessionHost, SessionHostKind } from '../../../../../workbench/contrib/
 import { ISessionsPartService } from '../../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IChat, ISession, ISessionChangeset, ISessionChangesetOperation, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionChangesetOperationScope, SessionChangesetOperationStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionInputPickerVisibility, SessionInputPickerVisibility } from '../../../../../workbench/contrib/sessions/common/sessionPickerVisibility.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { SessionSyncChangesActionViewItem, SessionSyncChangesContribution } from '../../browser/sessionSyncChanges.js';
 import '../../../../../base/browser/ui/actionbar/actionbar.css';
 import '../../../../../workbench/browser/media/style.css';
 import '../../../../../workbench/contrib/sessions/browser/chat/media/chatWidget.css';
-import { stubMissingSessionHostsFromSessionsService, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionWithChat, stubMissingSessionHostsFromSessionsService, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { createSessionsPartTestHarness, createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
 import { VisibleSessions } from '../../../../../workbench/contrib/sessions/browser/visibleSessions.js';
@@ -48,12 +47,12 @@ import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources
 
 
 /** A host of `kind` that shows the active chat of `session`. */
-function hostOf(kind: SessionHostKind, session: IObservable<IActiveSession | undefined>, parent?: ISessionHost): ISessionHost {
+function hostOf(kind: SessionHostKind, session: IObservable<ITestSessionWithChat | undefined>, parent?: ISessionHost): ISessionHost {
 	return upcastPartial<ISessionHost>({ kind, parent, session, chat: derived(reader => session.read(reader)?.activeChat.read(reader)) });
 }
 
 /** The host of a pane that shows `session`: of the main window's grid, or a chat editor of a chat window. */
-function gridPaneHost(session: IActiveSession, chatWindow?: boolean): ISessionHost {
+function gridPaneHost(session: ITestSessionWithChat, chatWindow?: boolean): ISessionHost {
 	return hostOf(SessionHostKind.Pane, constObservable(session), hostOf(chatWindow ? SessionHostKind.ChatWindow : SessionHostKind.MainWindow, constObservable(session)));
 }
 suite('Session Sync Changes', () => {
@@ -99,7 +98,7 @@ suite('Session Sync Changes', () => {
 			changesets,
 			workspace,
 		});
-		const session = upcastPartial<IActiveSession>({
+		const session = upcastPartial<ITestSessionWithChat>({
 			sessionId: id,
 			resource: URI.parse(`test-session:/${id}`),
 			workspace,
@@ -109,13 +108,12 @@ suite('Session Sync Changes', () => {
 		return { session, operation, operations, enabled, changeset, changesets, invocations, workspace, worktreePending };
 	}
 
-	function setup(sessions: readonly IActiveSession[]) {
-		const visibleSessions = observableValue<readonly (IActiveSession | undefined)[]>('visibleSessions', sessions);
-		const activeSession = observableValue<IActiveSession | undefined>('activeSession', sessions[0]);
+	function setup(sessions: readonly ITestSessionWithChat[]) {
+		const visibleSessions = observableValue<readonly (ITestSessionWithChat | undefined)[]>('visibleSessions', sessions);
+		const activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', sessions[0]);
 		const sessionsService = new class extends mock<ISessionsService>() {
-			override readonly visibleSessions = visibleSessions;
-			override readonly slotPanes = testGridPanes(this.visibleSessions);
-			override readonly visibleSessionPanes = visibleSessions;
+			readonly gridShown = visibleSessions;
+			override readonly slotPanes = testGridPanes(this.gridShown);
 			override readonly panes = testGridPanes(visibleSessions);
 			readonly activeSession = activeSession;
 		}();
@@ -144,7 +142,7 @@ suite('Session Sync Changes', () => {
 		return MenuRegistry.getMenuItems(Menus.NewSessionRepositoryConfig).filter(isIMenuItem).filter(item => item.command.id === commandId);
 	}
 
-	function getVisibleEntries(session: IActiveSession, aiEnabled = true) {
+	function getVisibleEntries(session: ITestSessionWithChat, aiEnabled = true) {
 		const context = new Context(1, null);
 		context.setValue(SessionIdContext.key, session.sessionId);
 		context.setValue(SessionActiveChatResourceContext.key, session.activeChat.get().resource.toString());
@@ -189,7 +187,7 @@ suite('Session Sync Changes', () => {
 		const parent = createSession('parent');
 		const first = createSession('first-child');
 		const second = createSession('second-child');
-		const childPane = (session: IActiveSession): IActiveSession => ({
+		const childPane = (session: ITestSessionWithChat): ITestSessionWithChat => ({
 			...session, sessionId: parent.session.sessionId, resource: parent.session.resource, scopedChatResource: session.activeChat.get().resource,
 		});
 		const children = [childPane(first.session), childPane(second.session)];
@@ -423,7 +421,7 @@ suite('Session Sync Changes', () => {
 		const second = createSession('second');
 		second.operations.set([{ ...second.operation, description: undefined }], undefined);
 		const { invoke, getFactory, activeSession } = setup([first.session, second.session]);
-		const session = observableValue<IActiveSession | undefined>('session', second.session);
+		const session = observableValue<ITestSessionWithChat | undefined>('session', second.session);
 		const activation = new DeferredPromise<void>();
 		const commandArguments: unknown[][] = [];
 		const commandService = new class extends mock<ICommandService>() {
@@ -562,7 +560,7 @@ suite('Session Sync Changes', () => {
 	});
 
 	/** Removes the focused action of a sync button in the host `hostOf` makes for a session, and reports where focus went. */
-	function focusAfterRemovingAction(hostOfSession: (session: IActiveSession) => ISessionHost, removeAction: (data: ReturnType<typeof createSession>) => void) {
+	function focusAfterRemovingAction(hostOfSession: (session: ITestSessionWithChat) => ISessionHost, removeAction: (data: ReturnType<typeof createSession>) => void) {
 		const data = createSession('first');
 		const action = store.add(new Action(commandId, 'Sync Changes'));
 		const widget = document.createElement('div');

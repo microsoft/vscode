@@ -16,13 +16,13 @@ import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } fro
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { ViewContainerLocation } from '../../../../../workbench/common/views.js';
-import { IActiveSession, IChatDeletedEvent } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IChatDeletedEvent } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IChat, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { DesktopLayoutController } from '../../browser/desktopLayoutController.js';
 import { EmptyFileEditorInput } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
 import { ChatLayoutOwnerKeyRegistry } from '../../browser/chatLayoutOwnerKeys.js';
 import { addPeerChat, createTestHarness, ICreateOptions, ITestLayoutHarness, makePaneComposite, makeSession, setActiveChat, TestStubEditorInput } from './layoutControllerTestUtils.js';
-import { withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionWithChat, withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 const SIDE_PANE_COMPOSITION_STORAGE_KEY = 'sessions.chatLayout.sidePaneComposition';
 const SIDE_PANE_PRE_HIDE_COMPOSITION_STORAGE_KEY = 'sessions.chatLayout.sidePanePreHideComposition';
@@ -41,7 +41,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 	}
 
 	class TestDesktopController extends DesktopLayoutController {
-		ownerKeyFor(session: IActiveSession): URI {
+		ownerKeyFor(session: ITestSessionWithChat): URI {
 			const key = this._ownerKeyFor({ session, chat: session.activeChat.get() });
 			assert.ok(key, 'expected an owner key while chat layout is active');
 			return key;
@@ -63,7 +63,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		}
 	}
 
-	function createDesktopController(options: ICreateOptions = {}, initialSession?: IActiveSession): TestDesktopController {
+	function createDesktopController(options: ICreateOptions = {}, initialSession?: ITestSessionWithChat): TestDesktopController {
 		harness = createTestHarness(store, { desktopLayout: true, workspaceFolders: [{ uri: URI.file('/repo') }], ...options });
 		if (initialSession) {
 			harness.activeSessionObs.set(initialSession, undefined);

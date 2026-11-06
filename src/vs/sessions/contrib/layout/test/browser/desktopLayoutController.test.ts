@@ -29,7 +29,6 @@ import { IViewsService } from '../../../../../workbench/services/views/common/vi
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { DesktopChangesEditorTransitionContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { DesktopChangesTabAvailableContext, DesktopChangesTabMissingContext, HasDockedDetailsContext, DesktopFilesTabAvailableContext, DesktopFilesTabMissingContext } from '../../../../common/agentsWindowContextKeys.js';
 import { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
@@ -52,7 +51,7 @@ import { SESSIONS_FILES_CONTAINER_ID } from '../../../files/browser/files.contri
 import { NewChangesTabAction, NewFileTabAction } from '../../../editor/browser/addTabActions.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IFocusedSessionHostService, ISessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
-import { focusedSessionHostServiceOf, sessionHostServiceOf, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { focusedSessionHostServiceOf, ITestSessionWithChat, sessionHostServiceOf, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { addPeerChat, createTestHarness, ICreateOptions, ITestLayoutHarness, makeChange, makeSession, setActiveChat, TestStubEditorInput } from './layoutControllerTestUtils.js';
 import '../../../editor/browser/editor.contribution.js';
 
@@ -76,7 +75,7 @@ suite('DesktopLayoutController', () => {
 			const shown = this._shownByMainWindow();
 			return shown && { session: shown.session.resource.toString(), chat: shown.chat.resource.toString() };
 		}
-		getComposition(session: IActiveSession) {
+		getComposition(session: ITestSessionWithChat) {
 			const key = this._ownerKeyFor({ session, chat: session.activeChat.get() });
 			return key && this._compositionStore?.get(key);
 		}
@@ -118,11 +117,11 @@ suite('DesktopLayoutController', () => {
 		// sessions service's active session would see B.
 		harness.instaService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			readonly activeSession = constObservable(sessionB);
-			override readonly visibleSessions = harness.visibleSessionsObs;
+			readonly gridShown = harness.visibleSessionsObs;
 			override readonly slotPanes = testGridPanes(harness.visibleSessionsObs);
 			readonly windowSessions = constObservable([]);
 		});
-		harness.instaService.stub(ISessionHostService, sessionHostServiceOf(store, { mainWindowActiveSession: harness.activeSessionObs, visibleSessions: constObservable([]), windowSessions: constObservable([sessionB]) }));
+		harness.instaService.stub(ISessionHostService, sessionHostServiceOf(store, { mainWindowActiveSession: harness.activeSessionObs, gridShown: constObservable([]), windowSessions: constObservable([sessionB]) }));
 		harness.instaService.stub(IFocusedSessionHostService, focusedSessionHostServiceOf(constObservable(sessionB)));
 		const controller = store.add(harness.instaService.createInstance(TestDesktopController));
 		harness.activeSessionObs.set(sessionA, undefined);

@@ -26,8 +26,8 @@ import { IAgentFeedbackService } from '../../../../../workbench/contrib/sessions
 import { constObservable } from '../../../../../base/common/observable.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ISessionHostService, SessionHost, SessionHostKind } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
-import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IChat, ISession, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('AgentFeedbackEditorOverlay', () => {
 
@@ -37,7 +37,7 @@ suite('AgentFeedbackEditorOverlay', () => {
 	 * The host of the main window, showing `main`, and that of a chat window, showing `inWindow`, which the groups of
 	 * `windowParts` are in.
 	 */
-	function stubHosts(instantiationService: TestInstantiationService, main: IActiveSession | undefined, inWindow?: IActiveSession, windowParts: readonly IEditorPart[] = []): void {
+	function stubHosts(instantiationService: TestInstantiationService, main: ITestSessionWithChat | undefined, inWindow?: ITestSessionWithChat, windowParts: readonly IEditorPart[] = []): void {
 		const contextKeyService = upcastPartial<IContextKeyService>({});
 		const mainHost = new SessionHost({ kind: SessionHostKind.MainWindow, parent: undefined, session: constObservable(main), chat: constObservable(main?.activeChat?.get()), contextKeyService });
 		const chatWindowHost = new SessionHost({ kind: SessionHostKind.ChatWindow, parent: undefined, session: constObservable(inWindow), chat: constObservable(inWindow?.activeChat?.get()), contextKeyService });
@@ -46,8 +46,8 @@ suite('AgentFeedbackEditorOverlay', () => {
 		}));
 	}
 
-	function session(id: string): IActiveSession {
-		return new class extends mock<IActiveSession>() {
+	function session(id: string): ITestSessionWithChat {
+		return new class extends mock<ITestSessionWithChat>() {
 			override readonly sessionId = id;
 			override readonly resource = URI.parse(`local-agent-host:/${id}`);
 			override readonly isCreated = constObservable(true);

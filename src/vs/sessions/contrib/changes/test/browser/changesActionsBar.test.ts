@@ -28,11 +28,12 @@ import { NullTelemetryService } from '../../../../../platform/telemetry/common/t
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IChatPetService } from '../../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IChat, ISessionChangeset, ISessionChangesetOperation, ISessionWorkspace, ISessionFolder, SessionChangesetOperationScope, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IChangesSessionObservables, IChangesSessionScope, IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { actionsNamingSession, ChangesActionsBar, createChangesSessionScope } from '../../../../../workbench/contrib/sessions/browser/changes/changesView.js';
 import { SessionHost, SessionHostKind } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('ChangesActionsBar', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -40,7 +41,7 @@ suite('ChangesActionsBar', () => {
 	/** The command context of the window host of the bar's session. */
 	const barHostContext = { sessionHostId: 'bar-window' };
 
-	function describeArg(arg: unknown, session: IActiveSession): unknown {
+	function describeArg(arg: unknown, session: ITestSessionWithChat): unknown {
 		return Array.isArray(arg) ? arg.map(item => describeArg(item, session))
 			: arg === session ? 'session'
 				: arg === session.resource ? 'resource'
@@ -71,7 +72,7 @@ suite('ChangesActionsBar', () => {
 		instantiationService.stub(ILayoutService, upcastPartial<ILayoutService>({ onDidLayoutContainer: Event.None, mainContainer: document.createElement('div'), getContainer: () => document.createElement('div') }));
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({}));
 		// A created session whose folder, a worktree, is not the mounted workspace: that of the main window's session.
-		const session = upcastPartial<IActiveSession>({
+		const session = upcastPartial<ITestSessionWithChat>({
 			providerId,
 			resource: URI.parse('session:/bar'),
 			status: constObservable(operations.length > 0 ? SessionStatus.Completed : SessionStatus.Untitled),
@@ -158,9 +159,9 @@ suite('ChangesActionsBar', () => {
 			getSessionChanges: (session, chat) => { requested.push(session, chat); return otherChanges; },
 		});
 		const contextKeyService = upcastPartial<IContextKeyService>({});
-		const mainHost = new SessionHost({ kind: SessionHostKind.MainWindow, parent: undefined, session: constObservable<IActiveSession | undefined>(undefined), chat: constObservable(undefined), contextKeyService });
-		const pane = new SessionHost({ kind: SessionHostKind.Pane, parent: mainHost, session: constObservable<IActiveSession | undefined>(undefined), chat: constObservable(undefined), contextKeyService });
-		const chatWindowHost = new SessionHost({ kind: SessionHostKind.ChatWindow, parent: undefined, session: constObservable<IActiveSession | undefined>(undefined), chat: constObservable(undefined), contextKeyService });
+		const mainHost = new SessionHost({ kind: SessionHostKind.MainWindow, parent: undefined, session: constObservable<ITestSessionWithChat | undefined>(undefined), chat: constObservable(undefined), contextKeyService });
+		const pane = new SessionHost({ kind: SessionHostKind.Pane, parent: mainHost, session: constObservable<ITestSessionWithChat | undefined>(undefined), chat: constObservable(undefined), contextKeyService });
+		const chatWindowHost = new SessionHost({ kind: SessionHostKind.ChatWindow, parent: undefined, session: constObservable<ITestSessionWithChat | undefined>(undefined), chat: constObservable(undefined), contextKeyService });
 
 		const mainScope = createChangesSessionScope(changesViewService, pane);
 		const windowScope = createChangesSessionScope(changesViewService, chatWindowHost);
