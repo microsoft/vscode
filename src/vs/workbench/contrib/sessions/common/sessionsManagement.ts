@@ -258,49 +258,6 @@ export interface IShownChat {
 }
 
 /**
- * An active session extends {@link ISession} with the currently focused chat.
- */
-export interface IActiveSession extends ISession {
-	/** A standalone chat pane; identity and provider ownership remain with the session. */
-	readonly scopedChatResource?: URI;
-
-	/** The currently active chat within this session. */
-	readonly activeChat: IObservable<IChat>;
-
-	readonly isCreated: IObservable<boolean>;
-
-	/** Whether this session is sticky in the sessions part's grid. */
-	readonly sticky: IObservable<boolean>;
-
-	/**
-	 * The chats shown as tabs in the tab strip ({@link ISession.chats} minus
-	 * closed ones). Read-only view state: closing/reopening is a view operation
-	 * driven through the sessions (view) service, like {@link sticky}.
-	 */
-	readonly openChats: IObservable<readonly IChat[]>;
-
-	/** The closed (hidden from the tab strip) but still reopenable chats. Deleted chats drop out. */
-	readonly closedChats: IObservable<readonly IChat[]>;
-
-	/** The most recently closed chat, or `undefined` if none. */
-	readonly lastClosedChat: IChat | undefined;
-
-	/**
-	 * The chats shown as tabs in the tab strip: {@link openChats} with subagent
-	 * (tool-origin) chats hidden by default, in the provider's order. A subagent
-	 * surfaces as a tab only once explicitly opened.
-	 */
-	readonly visibleChatTabs: IObservable<readonly IChat[]>;
-
-	/**
-	 * Whether the chat tab strip should be shown: the session has more than one
-	 * chat (counting closed, non-tool chats), or its single remaining chat has a
-	 * title that diverged from the session title.
-	 */
-	readonly shouldShowChatTabs: IObservable<boolean>;
-}
-
-/**
  * Sessions split into recently opened and other (never opened) groups, used to
  * populate the sessions picker.
  */

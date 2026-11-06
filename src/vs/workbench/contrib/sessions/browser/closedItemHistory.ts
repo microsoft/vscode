@@ -115,8 +115,8 @@ export class ClosedItemHistory extends Disposable {
 		// the command would stay enabled while permanently doing nothing.
 		this._item.set(undefined, undefined);
 
-		// The recorded session may be a wrapper that was disposed along with its
-		// grid slot, and a provider can drop it from its catalog without ever
+		// The recorded session may be a stale incarnation that left the grid with
+		// its slot, and a provider can drop it from its catalog without ever
 		// firing `onDidDeleteSession`.
 		const session = this._sessionsManagementService.getSessions().find(s => s.sessionId === item.session.sessionId);
 		if (!session) {

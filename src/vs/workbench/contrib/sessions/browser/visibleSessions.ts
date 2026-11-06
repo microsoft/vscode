@@ -4,31 +4,38 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, IReader, ISettableObservable, ITransaction, autorun, derived, observableValue, subtransaction, transaction } from '../../../../base/common/observable.js';
+import { IObservable, IReader, ISettableObservable, ITransaction, autorun, constObservable, derived, observableValue, subtransaction, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IActiveSession, ISessionPaneTabs } from '../common/sessionsManagement.js';
-import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../common/session.js';
+import { ISessionPaneTabs } from '../common/sessionsManagement.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISession } from '../common/session.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { Direction } from '../../../../base/browser/ui/grid/grid.js';
 import { ISessionGridSlot } from './sessionsPartService.js';
 import { ISessionGridPane, SessionGridPaneKind } from './sessionGridPane.js';
 
 /**
- * Wraps an {@link ISession} with an active chat observable to form an
- * {@link IActiveSession}. Delegates all {@link ISession} property accesses
- * to the wrapped session so the active session always reflects the latest
- * session state without a stale shallow copy.
- *
- * One instance exists per session currently in the visibility model
- * (active, transient, or sticky). Each instance owns its own active-chat
- * observable so visible-but-not-active sessions retain their per-session
- * chat selection.
+ * The state of a pane for one incarnation of the session it shows: the chat it shows and its tab strip. Replacing the
+ * session, such as a draft graduating, gives the pane a new state, seeded from the persisted state of the session.
  */
-export class VisibleSession extends Disposable implements IActiveSession {
+interface IPaneState {
+	readonly session: ISession;
+	readonly sessionId: string;
+	readonly activeChat: IObservable<IChat>;
+	readonly sticky: IObservable<boolean>;
+	readonly openChats: IObservable<readonly IChat[]>;
+	readonly closedChats: IObservable<readonly IChat[]>;
+	readonly lastClosedChat: IChat | undefined;
+	readonly visibleChatTabs: IObservable<readonly IChat[]>;
+	readonly shouldShowChatTabs: IObservable<boolean>;
+}
 
-	private readonly _isCreated;
-	readonly isCreated: IObservable<boolean>;
+/**
+ * The state of the slot of a session: its active chat, and its tab strip with the chats closed in it, the subagent chats
+ * shown in it and the chats it excludes because another pane or window shows them. Each slot keeps its own, so a slot that
+ * is not active retains its chat selection.
+ */
+class SessionSlotState extends Disposable implements IPaneState {
 
 	private readonly _sticky = observableValue<boolean>('activeSessionSticky', false);
 	readonly sticky: IObservable<boolean> = this._sticky;
@@ -36,15 +43,6 @@ export class VisibleSession extends Disposable implements IActiveSession {
 	private readonly _activeChat: ISettableObservable<IChat>;
 	readonly activeChat: IObservable<IChat>;
 	private _fallenBack: { readonly from: URI; readonly to: URI } | undefined;
-
-	/**
-	 * Model and mode are scoped to the active chat so the Agents window pickers
-	 * read and write the selection of the currently focused chat, not the
-	 * session/default chat. Sessions with multiple peer chats keep an
-	 * independent model/agent per chat.
-	 */
-	private readonly _activeChatModelId: IObservable<string | undefined>;
-	private readonly _activeChatMode: IObservable<{ readonly id: string; readonly kind: string } | undefined>;
 
 	/** Resource strings of chats that have been closed (hidden from the tab strip). */
 	private readonly _closedChatUris: ISettableObservable<ReadonlySet<string>>;
@@ -68,14 +66,10 @@ export class VisibleSession extends Disposable implements IActiveSession {
 		initialChat: IChat,
 		initialClosedChatUris?: Iterable<string>,
 		initialShownRelatedChatUris?: Iterable<string>,
-		readonly scopedChatResource?: URI,
 	) {
 		super();
 		this._activeChat = observableValue<IChat>(`activeChat-${_session.sessionId}`, initialChat);
 		this.activeChat = this._activeChat;
-
-		this._activeChatModelId = derived(this, reader => this._activeChat.read(reader).modelId.read(reader));
-		this._activeChatMode = derived(this, reader => this._activeChat.read(reader).mode.read(reader));
 
 		// Seed the closed set from persisted state, but never hide the chat that
 		// is being restored as active, nor the main chat (which can never be
@@ -96,19 +90,15 @@ export class VisibleSession extends Disposable implements IActiveSession {
 		}
 		this._shownRelatedChatUris = observableValue<ReadonlySet<string>>('shownRelatedChatUris', shownRelatedChats);
 
-		this._isCreated = _session.status.map(status => status !== SessionStatus.Untitled);
-		this.isCreated = this._isCreated;
-
 		this.openChats = derived(this, reader => {
 			const closed = this._closedChatUris.read(reader);
 			const chats = this._session.chats.read(reader);
 			const detached = this._detachedChats.read(reader);
 			const inWindow = this._windowChats.read(reader);
-			const isScoped = (c: IChat) => c.resource.toString() === this.scopedChatResource!.toString();
 			// Hidden chats are internal workers that must never be surfaced in the
 			// conversation tab strip; closed chats are user-dismissed.
 			return chats.filter(c =>
-				(this.scopedChatResource ? isScoped(c) : !detached.has(c.resource.toString()) && !inWindow.has(c.resource.toString())) &&
+				!detached.has(c.resource.toString()) && !inWindow.has(c.resource.toString()) &&
 				c.interactivity.read(reader) !== ChatInteractivity.Hidden &&
 				!closed.has(c.resource.toString()));
 		});
@@ -136,7 +126,7 @@ export class VisibleSession extends Disposable implements IActiveSession {
 		// strip; side chats remain reachable from the Side Chats menu in the
 		// session header, and subagents from their chat-transcript pills.
 		this.shouldShowChatTabs = derived(this, reader => {
-			return !!this.scopedChatResource || this._detachedChats.read(reader).size > 0 || this.visibleChatTabs.read(reader).length > 1;
+			return this._detachedChats.read(reader).size > 0 || this.visibleChatTabs.read(reader).length > 1;
 		});
 	}
 
@@ -286,63 +276,60 @@ export class VisibleSession extends Disposable implements IActiveSession {
 		this._sticky.set(value, undefined);
 	}
 
-	/** Register a disposable that lives as long as this wrapper. */
+	/** Register a disposable that lives as long as this slot state. */
 	addDisposable(disposable: IDisposable): IDisposable {
 		return this._register(disposable);
 	}
 
-	get sessionId() { return this._session.sessionId; }
-	get resource() { return this._session.resource; }
-	get providerId() { return this._session.providerId; }
-	get sessionType() { return this._session.sessionType; }
-	get harness() { return this._session.harness; }
-	get environment() { return this._session.environment; }
-	get application() { return this._session.application; }
-	get icon() { return this._session.icon; }
-	get createdAt() { return this._session.createdAt; }
-	get workspace() { return this._session.workspace; }
-	get hasGitRepository() { return this._session.hasGitRepository; }
-	get worktreePending() { return this._session.worktreePending; }
-	get isQuickChat() { return this._session.isQuickChat; }
-	get isAutomation() { return this._session.isAutomation; }
-	get isExternal() { return this._session.isExternal; }
-	get remoteConnectionStatus() { return this._session.remoteConnectionStatus; }
-	get createdBySession() { return this._session.createdBySession; }
-	get title() { return this._session.title; }
-	get updatedAt() { return this._session.updatedAt; }
-	get status() { return this._session.status; }
-	get completedStateIcon() { return this._session.completedStateIcon; }
-	get changesSummary() { return this._session.changesSummary; }
-	get artifacts() { return this._session.artifacts; }
-	get modelId() { return this._activeChatModelId; }
-	get mode() { return this._activeChatMode; }
-	get permissionLevel() { return this._session.permissionLevel; }
-	get branch() { return this._session.branch; }
-	get loading() { return this._session.loading; }
-	get isNewSessionRequestInProgress() { return this._session.isNewSessionRequestInProgress; }
-	get preparationProgress() { return this._session.preparationProgress; }
-	get isArchived() { return this._session.isArchived; }
-	get isRead() { return this._session.isRead; }
-	get description() { return this._session.description; }
-	get lastTurnEnd() { return this._session.lastTurnEnd; }
-	get chats() { return this._session.chats; }
-	get mainChat() { return this._session.mainChat; }
-	get capabilities() { return this._session.capabilities; }
+	get sessionId(): string { return this._session.sessionId; }
 
-	/** The wrapped session, which outlives this wrapper. */
+	/** The session of the slot, which outlives this state. */
 	get session(): ISession { return this._session; }
 }
 
 /**
- * A pane of the grid: its grid slot, which shows the session of its current {@link VisibleSession}, the adapter of the session
- * incarnation it shows. A replacement of the session, such as a draft graduating, gives the pane another adapter, and keeps
- * the pane and its id.
+ * The state of a detached pane: the one chat of its session it shows apart from the session's slot. Its tab strip is that
+ * chat while the session lists it and it is not hidden. Nothing closes, opens or selects another chat in it.
+ */
+class DetachedChatState implements IPaneState {
+
+	readonly activeChat: IObservable<IChat>;
+	readonly sticky: IObservable<boolean> = constObservable(false);
+	readonly openChats: IObservable<readonly IChat[]>;
+	readonly closedChats: IObservable<readonly IChat[]> = constObservable([]);
+	readonly lastClosedChat = undefined;
+	readonly visibleChatTabs: IObservable<readonly IChat[]>;
+	readonly shouldShowChatTabs: IObservable<boolean> = constObservable(true);
+
+	constructor(
+		readonly session: ISession,
+		readonly chat: IChat,
+	) {
+		this.activeChat = constObservable(chat);
+		const key = chat.resource.toString();
+		this.openChats = derived(this, reader => session.chats.read(reader).filter(candidate =>
+			candidate.resource.toString() === key && candidate.interactivity.read(reader) !== ChatInteractivity.Hidden));
+		this.visibleChatTabs = this.openChats;
+	}
+
+	get sessionId(): string { return this.session.sessionId; }
+}
+
+/** The chat `state` shows apart from its session's slot: a detached pane's chat; `undefined` for a slot. */
+function detachedChatOf(state: IPaneState | undefined): URI | undefined {
+	return state instanceof DetachedChatState ? state.chat.resource : undefined;
+}
+
+/**
+ * A pane of the grid: its grid slot, which shows the session of its current state, the state of the session incarnation it
+ * shows. A replacement of the session, such as a draft graduating, gives the pane another state, and keeps the pane and its
+ * id.
  */
 class SessionGridPane implements ISessionGridPane {
 
-	private readonly _adapter = observableValue<VisibleSession | undefined>(this, undefined);
-	/** The adapter of the session incarnation the pane shows; `undefined` for the new-session slot. */
-	readonly adapter: IObservable<VisibleSession | undefined> = this._adapter;
+	private readonly _state = observableValue<IPaneState | undefined>(this, undefined);
+	/** The state of the session incarnation the pane shows; `undefined` for the new-session slot. */
+	readonly state: IObservable<IPaneState | undefined> = this._state;
 
 	readonly session: IObservable<ISession | undefined>;
 	readonly chat: IObservable<IChat | undefined>;
@@ -353,21 +340,21 @@ class SessionGridPane implements ISessionGridPane {
 		readonly id: string,
 		readonly kind: SessionGridPaneKind,
 	) {
-		const adapter = this._adapter;
-		this.session = derived(this, reader => adapter.read(reader)?.session);
-		this.chat = derived(this, reader => adapter.read(reader)?.activeChat.read(reader));
-		this.sticky = derived(this, reader => kind === SessionGridPaneKind.Slot && (adapter.read(reader)?.sticky.read(reader) ?? false));
+		const state = this._state;
+		this.session = derived(this, reader => state.read(reader)?.session);
+		this.chat = derived(this, reader => state.read(reader)?.activeChat.read(reader));
+		this.sticky = derived(this, reader => kind === SessionGridPaneKind.Slot && (state.read(reader)?.sticky.read(reader) ?? false));
 		this.tabs = {
-			openChats: derived(this, reader => adapter.read(reader)?.openChats.read(reader) ?? []),
-			closedChats: derived(this, reader => adapter.read(reader)?.closedChats.read(reader) ?? []),
-			get lastClosedChat() { return adapter.get()?.lastClosedChat; },
-			visibleChatTabs: derived(this, reader => adapter.read(reader)?.visibleChatTabs.read(reader) ?? []),
-			shouldShowChatTabs: derived(this, reader => adapter.read(reader)?.shouldShowChatTabs.read(reader) ?? false),
+			openChats: derived(this, reader => state.read(reader)?.openChats.read(reader) ?? []),
+			closedChats: derived(this, reader => state.read(reader)?.closedChats.read(reader) ?? []),
+			get lastClosedChat() { return state.get()?.lastClosedChat; },
+			visibleChatTabs: derived(this, reader => state.read(reader)?.visibleChatTabs.read(reader) ?? []),
+			shouldShowChatTabs: derived(this, reader => state.read(reader)?.shouldShowChatTabs.read(reader) ?? false),
 		};
 	}
 
-	setAdapter(adapter: VisibleSession | undefined, transaction: ITransaction | undefined): void {
-		this._adapter.set(adapter, transaction);
+	setState(state: IPaneState | undefined, transaction: ITransaction | undefined): void {
+		this._state.set(state, transaction);
 	}
 }
 
@@ -394,14 +381,14 @@ const NO_RECENT = Symbol('no-recent');
  *   sessions also live in the grid but get replaced when new sessions open.
  *   The empty slot is always non-sticky.
  *
- * Each tracked session has a single {@link VisibleSession} wrapper owned by
- * this class. Wrappers are disposed automatically when their session leaves
+ * Each tracked session has a single slot state owned by
+ * this class. Slot states are disposed automatically when their session leaves
  * the visibility model.
  */
 export class VisibleSessions extends Disposable {
-	private readonly _detached = new Map<string, { readonly slot: ISessionGridSlot; readonly wrapper: VisibleSession }>();
+	private readonly _detached = new Map<string, { readonly slot: ISessionGridSlot; readonly state: DetachedChatState }>();
 	private readonly _detachedDisposables = this._register(new DisposableMap<string, DisposableStore>());
-	private readonly _gridSessions = observableValue<readonly (VisibleSession | undefined)[]>(this, [undefined]);
+	private readonly _gridSessions = observableValue<readonly (IPaneState | undefined)[]>(this, [undefined]);
 
 	private readonly _panesById = new Map<string, SessionGridPane>();
 	private readonly _panes = observableValue<readonly SessionGridPane[]>(this, []);
@@ -417,7 +404,7 @@ export class VisibleSessions extends Disposable {
 	/** The detached pane of the chat `resource` of the session `sessionId`, if the grid shows that chat apart from its slot. */
 	getChatPane(sessionId: string, resource: URI): ISessionGridPane | undefined {
 		const entry = this._detached.get(resource.toString());
-		return entry?.wrapper.sessionId === sessionId ? this._panesById.get(entry.slot.id) : undefined;
+		return entry?.state.sessionId === sessionId ? this._panesById.get(entry.slot.id) : undefined;
 	}
 
 	insertAtGridSlot(session: ISession | undefined, reference: string, side: 'left' | 'right' | 'up' | 'down', activate: boolean, transaction?: ITransaction): void {
@@ -429,7 +416,7 @@ export class VisibleSessions extends Disposable {
 		}
 		const target = this._gridSessions.get()[index];
 		subtransaction(transaction, tx => {
-			if (target?.scopedChatResource && !this._visibleList.includes(target.sessionId)) {
+			if (target && detachedChatOf(target) && !this._visibleList.includes(target.sessionId)) {
 				if (!this._visibleList.includes(sessionId)) {
 					if (session) {
 						this._getOrCreateVisibleSession(session);
@@ -464,13 +451,13 @@ export class VisibleSessions extends Disposable {
 		if (store) {
 			this._detachedDisposables.set(key, store);
 		}
-		const wrapper = existing?.wrapper ?? store!.add(new VisibleSession(session, chat, undefined, [key], chat.resource));
+		const wrapper = existing?.state ?? new DetachedChatState(session, chat);
 		const slot: ISessionGridSlot = {
 			id: existing?.slot.id ?? gridId ?? generateUuid(),
 			placement: { reference, direction },
 		};
 		subtransaction(transaction, tx => {
-			this._detached.set(key, { slot, wrapper });
+			this._detached.set(key, { slot, state: wrapper });
 			this._updateDetachedChats(session.sessionId, tx);
 			this._setActiveSession(wrapper, false, tx);
 			this._refresh(tx);
@@ -485,19 +472,19 @@ export class VisibleSessions extends Disposable {
 	attachChat(session: ISession, resource: URI, transaction?: ITransaction): boolean {
 		const key = resource.toString();
 		const detached = this._detached.get(key);
-		if (!detached || detached.wrapper.sessionId !== session.sessionId) {
+		if (!detached || detached.state.sessionId !== session.sessionId) {
 			return false;
 		}
 		subtransaction(transaction, tx => {
 			this._detached.delete(key);
 			this._detachedDisposables.deleteAndDispose(key);
 			this._updateDetachedChats(session.sessionId, tx);
-			if (this._activeSession.get() === detached.wrapper) {
-				const sibling = [...this._detached.values()].find(entry => entry.wrapper.sessionId === session.sessionId)?.wrapper;
+			if (this._activeSession.get() === detached.state) {
+				const sibling = [...this._detached.values()].find(entry => entry.state.sessionId === session.sessionId)?.state;
 				const lastRoot = this._visibleList.at(-1);
 				const fallback = this._visibleList.length
 					? lastRoot === undefined ? undefined : this._wrappers.get(lastRoot)
-					: this._detached.values().next().value?.wrapper;
+					: this._detached.values().next().value?.state;
 				this._setActiveSession(this._wrappers.get(session.sessionId) ?? sibling ?? fallback, false, tx);
 			}
 			this._refresh(tx);
@@ -547,7 +534,7 @@ export class VisibleSessions extends Disposable {
 
 	private _updateDetachedChats(sessionId: string, transaction?: ITransaction): void {
 		this._wrappers.get(sessionId)?.setDetachedChats(new Set(
-			[...this._detached].filter(([, entry]) => entry.wrapper.sessionId === sessionId).map(([key]) => key)
+			[...this._detached].filter(([, entry]) => entry.state.sessionId === sessionId).map(([key]) => key)
 		), transaction);
 	}
 
@@ -575,15 +562,15 @@ export class VisibleSessions extends Disposable {
 		}
 	}
 
-	/** The adapter of the session incarnation the active pane shows; `undefined` while the new-session slot, or no pane, is. */
-	private readonly _activeSession = observableValue<VisibleSession | undefined>(this, undefined);
+	/** The state of the session incarnation the active pane shows; `undefined` while the new-session slot, or no pane, is. */
+	private readonly _activeSession = observableValue<IPaneState | undefined>(this, undefined);
 
 	/** The active pane: the new-session slot's while that is active; `undefined` while no pane is. */
 	readonly activePane: IObservable<ISessionGridPane | undefined> = derived(this, reader => {
 		const active = this._activeSession.read(reader);
 		return this._panes.read(reader).find(pane => active
-			? pane.adapter.read(reader) === active
-			: pane.kind === SessionGridPaneKind.Slot && !pane.adapter.read(reader));
+			? pane.state.read(reader) === active
+			: pane.kind === SessionGridPaneKind.Slot && !pane.state.read(reader));
 	});
 
 	/**
@@ -603,7 +590,7 @@ export class VisibleSessions extends Disposable {
 	private readonly _slotSessions = observableValue<readonly (ISession | undefined)[]>(this, [undefined]);
 	readonly slotSessions: IObservable<readonly (ISession | undefined)[]> = this._slotSessions;
 
-	private readonly _wrappers = this._register(new DisposableMap<string, VisibleSession>());
+	private readonly _wrappers = this._register(new DisposableMap<string, SessionSlotState>());
 	/**
 	 * Ordered slot ids in the grid (left-to-right). Each entry is either a
 	 * session id or `undefined` (the empty slot). The invariant is that at
@@ -644,7 +631,7 @@ export class VisibleSessions extends Disposable {
 	 * guarantees the two observables are always consistent and that the intent
 	 * never goes stale (callers that do not preserve focus pass `false`).
 	 */
-	private _setActiveSession(session: VisibleSession | undefined, preserveFocus: boolean, tsx: ITransaction): void {
+	private _setActiveSession(session: IPaneState | undefined, preserveFocus: boolean, tsx: ITransaction): void {
 		this._activeSession.set(session, tsx);
 		this._activePreserveFocus.set(preserveFocus, tsx);
 	}
@@ -672,12 +659,12 @@ export class VisibleSessions extends Disposable {
 			if (!(target instanceof SessionGridPane) || this._panesById.get(target.id) !== target) {
 				return;
 			}
-			const adapter = target.adapter.get();
-			if (adapter && target.kind === SessionGridPaneKind.Detached) {
-				transaction(tx => this._setActiveSession(adapter, preserveFocus, tx));
+			const state = target.state.get();
+			if (state && target.kind === SessionGridPaneKind.Detached) {
+				transaction(tx => this._setActiveSession(state, preserveFocus, tx));
 				return;
 			}
-			session = adapter?.session;
+			session = state?.session;
 		} else {
 			session = target;
 		}
@@ -809,7 +796,7 @@ export class VisibleSessions extends Disposable {
 	 * sessions does not produce intermediate layouts (which would otherwise
 	 * cause the grid to visibly flicker as sessions are restored one by one).
 	 *
-	 * Any wrappers for sessions no longer present in the snapshot are disposed.
+	 * Any slot states for sessions no longer present in the snapshot are disposed.
 	 *
 	 * @param slots Ordered grid slots to restore.
 	 * @param activeIndex Index into `slots` of the slot that should be active,
@@ -819,7 +806,7 @@ export class VisibleSessions extends Disposable {
 		this._visibleList = [];
 		this._stickyIds.clear();
 
-		let activeWrapper: VisibleSession | undefined;
+		let activeWrapper: IPaneState | undefined;
 		let lastNonStickySlot: string | undefined | typeof NO_RECENT = NO_RECENT;
 		for (let i = 0; i < slots.length; i++) {
 			const { session, sticky } = slots[i];
@@ -848,7 +835,7 @@ export class VisibleSessions extends Disposable {
 			}
 		}
 
-		// Dispose wrappers for sessions that are no longer part of the grid so
+		// Dispose slot states for sessions that are no longer part of the grid so
 		// the model does not leak entries from a previous (e.g. transient
 		// new-session) state.
 		for (const existingId of [...this._wrappers.keys()]) {
@@ -868,7 +855,7 @@ export class VisibleSessions extends Disposable {
 			const restoredChats = new Set(slots.flatMap(slot => slot.chatResource ? [slot.chatResource.toString()] : []));
 			for (const [key, entry] of this._detached) {
 				if (!restoredChats.has(key)) {
-					this.attachChat(entry.wrapper, URI.parse(key), tsx);
+					this.attachChat(entry.state.session, URI.parse(key), tsx);
 				}
 			}
 			for (let index = 0; index < slots.length; index++) {
@@ -885,12 +872,12 @@ export class VisibleSessions extends Disposable {
 					const restored = this._detached.get(key)!;
 					this._detached.set(key, { ...restored, slot: { id: gridId ?? restored.slot.id } });
 					if (index === activeIndex) {
-						activeWrapper = this._detached.get(chatResource.toString())?.wrapper;
+						activeWrapper = this._detached.get(chatResource.toString())?.state;
 					}
 				}
 			}
 			if (!activeWrapper && slots[activeIndex]?.session) {
-				activeWrapper = this._wrappers.values().next().value ?? this._detached.values().next().value?.wrapper;
+				activeWrapper = this._wrappers.values().next().value ?? this._detached.values().next().value?.state;
 			}
 			this._setActiveSession(activeWrapper, false, tsx);
 			this._refresh(tsx);
@@ -1025,17 +1012,17 @@ export class VisibleSessions extends Disposable {
 			for (const id of sessionIds) {
 				if (this._removeFromModel(id, preserveDetached)) {
 					changed = true;
-					if ((id === undefined ? emptySlotIsActive : id === activeId) && !(preserveDetached && active?.scopedChatResource)) {
+					if ((id === undefined ? emptySlotIsActive : id === activeId) && !(preserveDetached && detachedChatOf(active))) {
 						activeRemoved = true;
 					}
 				}
 			}
 			if (activeRemoved) {
-				const child = [...this._detached.values()].find(entry => entry.wrapper.sessionId === activeId)?.wrapper;
+				const child = [...this._detached.values()].find(entry => entry.state.sessionId === activeId)?.state;
 				if (child) {
 					this._setActiveSession(child, preserveFocus, tsx);
 				} else if (this._visibleList.length === 0) {
-					this._setActiveSession(this._detached.values().next().value?.wrapper, preserveFocus, tsx);
+					this._setActiveSession(this._detached.values().next().value?.state, preserveFocus, tsx);
 				} else {
 					const fallbackIdx = Math.max(0, Math.min(activeIdx - 1, this._visibleList.length - 1));
 					const fallbackId = this._visibleList[fallbackIdx];
@@ -1050,24 +1037,24 @@ export class VisibleSessions extends Disposable {
 	}
 
 	/**
-	 * Set the active chat for the given session's wrapper. No-op if the
+	 * Set the active chat for the given session's slot state. No-op if the
 	 * session is not currently tracked in the visibility model.
 	 */
 	setActiveChat(session: ISession, chat: IChat): void {
 		const detached = this._detached.get(chat.resource.toString());
-		if (detached?.wrapper.sessionId === session.sessionId) {
-			transaction(tx => this._setActiveSession(detached.wrapper, this._activePreserveFocus.get(), tx));
+		if (detached?.state.sessionId === session.sessionId) {
+			transaction(tx => this._setActiveSession(detached.state, this._activePreserveFocus.get(), tx));
 			return;
 		}
 		transaction(tx => {
 			let wrapper = this._wrappers.get(session.sessionId);
 			const active = this._activeSession.get();
-			const activeChild = active?.scopedChatResource && active.sessionId === session.sessionId
-				? this._detached.get(active.scopedChatResource.toString())
+			const activeChat = detachedChatOf(active);
+			const activeChild = active && activeChat && active.sessionId === session.sessionId
+				? this._detached.get(activeChat.toString())
 				: undefined;
 			if (!wrapper && activeChild) {
-				const owner = session instanceof VisibleSession ? session.session : session;
-				this.insertAtGridSlot(owner, activeChild.slot.id, 'right', false, tx);
+				this.insertAtGridSlot(session, activeChild.slot.id, 'right', false, tx);
 				wrapper = this._wrappers.get(session.sessionId);
 				wrapper?.openChat(chat);
 			}
@@ -1078,13 +1065,13 @@ export class VisibleSessions extends Disposable {
 		});
 	}
 
-	/** The chat the session's view last fell back from because the session stopped listing it; see {@link VisibleSession.chatFallenBackFrom}. */
+	/** The chat the session's view last fell back from because the session stopped listing it; see {@link SessionSlotState.chatFallenBackFrom}. */
 	getChatFallenBackFrom(session: ISession): URI | undefined {
 		return this._wrappers.get(session.sessionId)?.chatFallenBackFrom;
 	}
 
 	/**
-	 * Close (hide from the tab strip) the given chat in the session's wrapper.
+	 * Close (hide from the tab strip) the given chat in the session's slot state.
 	 * No-op if the session is not currently tracked in the visibility model.
 	 */
 	closeChat(session: ISession, chat: IChat): void {
@@ -1094,7 +1081,7 @@ export class VisibleSessions extends Disposable {
 
 	/**
 	 * Open (un-hide from the tab strip) a previously closed chat in the session's
-	 * wrapper. No-op if the session is not currently tracked in the visibility model.
+	 * slot state. No-op if the session is not currently tracked in the visibility model.
 	 */
 	openChat(session: ISession, chat: IChat): void {
 		this._wrappers.get(session.sessionId)?.openChat(chat);
@@ -1102,22 +1089,22 @@ export class VisibleSessions extends Disposable {
 
 	/**
 	 * Replace the given session in the visibility model with `updatedSession`,
-	 * preserving the grid slot, sticky state, and active state. The wrapper
-	 * for the old session is disposed; a fresh wrapper is created for the
+	 * preserving the grid slot, sticky state, and active state. The slot state
+	 * for the old session is disposed; a fresh slot state is created for the
 	 * updated session. No-op if `session` is not currently in the grid.
 	 */
 	updateSession(session: ISession, updatedSession: ISession, preserveFocus = false): void {
 		const fromId = session.sessionId;
 		const rootVisible = this._visibleList.includes(fromId);
-		if (!rootVisible && ![...this._detached.values()].some(entry => entry.wrapper.sessionId === fromId)) {
+		if (!rootVisible && ![...this._detached.values()].some(entry => entry.state.sessionId === fromId)) {
 			return;
 		}
 
 		const previousActive = this._activeSession.get();
 		const wasActive = previousActive?.sessionId === fromId;
-		const detached = [...this._detached].filter(([, entry]) => entry.wrapper.sessionId === fromId);
+		const detached = [...this._detached].filter(([, entry]) => entry.state.sessionId === fromId);
 		this.replaceId(fromId, updatedSession.sessionId);
-		// `replaceId` is a no-op when ids match — dispose the old wrapper
+		// `replaceId` is a no-op when ids match — dispose the old slot state
 		// directly so a fresh one is created against `updatedSession`.
 		if (fromId === updatedSession.sessionId && this._wrappers.has(fromId)) {
 			this._wrappers.deleteAndDispose(fromId);
@@ -1136,9 +1123,10 @@ export class VisibleSessions extends Disposable {
 			}
 			this._updateDetachedChats(updatedSession.sessionId, tsx);
 			if (wasActive) {
-				const activePane = previousActive.scopedChatResource && this._detached.get(previousActive.scopedChatResource.toString())?.wrapper;
+				const previousChat = detachedChatOf(previousActive);
+				const activePane = previousChat && this._detached.get(previousChat.toString())?.state;
 				const firstRoot = this._visibleList[0];
-				this._setActiveSession(activePane || visibleSession || this._detached.values().next().value?.wrapper
+				this._setActiveSession(activePane || visibleSession || this._detached.values().next().value?.state
 					|| (firstRoot === undefined ? undefined : this._wrappers.get(firstRoot)), preserveFocus, tsx);
 			} else if (detached.length) {
 				this._setActiveSession(previousActive, preserveFocus, tsx);
@@ -1149,7 +1137,7 @@ export class VisibleSessions extends Disposable {
 
 	/**
 	 * Rename a session id in the visibility model so the same grid slot is
-	 * reused for the replacement. The old wrapper is disposed; a fresh one is
+	 * reused for the replacement. The old slot state is disposed; a fresh one is
 	 * created lazily on next access. Does not auto-refresh — callers should
 	 * call {@link refresh} or {@link setActive} as appropriate.
 	 */
@@ -1209,7 +1197,7 @@ export class VisibleSessions extends Disposable {
 	private _removeFromModel(sessionId: string | undefined, preserveDetached: boolean): boolean {
 		let changed = false;
 		for (const [key, entry] of this._detached) {
-			if (entry.wrapper.sessionId === sessionId && !preserveDetached) {
+			if (entry.state.sessionId === sessionId && !preserveDetached) {
 				this._detached.delete(key);
 				this._detachedDisposables.deleteAndDispose(key);
 				changed = true;
@@ -1242,7 +1230,7 @@ export class VisibleSessions extends Disposable {
 			}
 		}
 		this.getGridSlots();
-		const wrappers: (VisibleSession | undefined)[] = [];
+		const wrappers: (SessionSlotState | undefined)[] = [];
 		for (const id of this._visibleList) {
 			if (id === undefined) {
 				wrappers.push(undefined);
@@ -1255,28 +1243,28 @@ export class VisibleSessions extends Disposable {
 			}
 		}
 		this._slotSessions.set(wrappers.map(wrapper => wrapper?.session), tsx);
-		this._gridSessions.set([...wrappers, ...[...this._detached.values()].map(entry => entry.wrapper)], tsx);
+		this._gridSessions.set([...wrappers, ...[...this._detached.values()].map(entry => entry.state)], tsx);
 		this._updatePanes(tsx);
 	}
 
 	/**
 	 * Gives each grid slot its pane, in the same transaction as the sessions the grid shows: a slot keeps its pane, which shows
-	 * the adapter of the session incarnation the slot now shows.
+	 * the state of the session incarnation the slot now shows.
 	 */
 	private _updatePanes(tsx: ITransaction | undefined): void {
 		// The session ids of the slots of `getGridSlots`, in order.
 		const roots = !this._visibleList.length && this._detached.size ? [] : this._visibleList.length ? this._visibleList : [undefined];
-		const entries: { readonly id: string; readonly kind: SessionGridPaneKind; readonly adapter: VisibleSession | undefined }[] = [
-			...this.getGridSlots().map((slot, index) => ({ id: slot.id, kind: SessionGridPaneKind.Slot, adapter: roots[index] === undefined ? undefined : this._wrappers.get(roots[index]) })),
-			...[...this._detached.values()].map(entry => ({ id: entry.slot.id, kind: SessionGridPaneKind.Detached, adapter: entry.wrapper })),
+		const entries: { readonly id: string; readonly kind: SessionGridPaneKind; readonly state: IPaneState | undefined }[] = [
+			...this.getGridSlots().map((slot, index) => ({ id: slot.id, kind: SessionGridPaneKind.Slot, state: roots[index] === undefined ? undefined : this._wrappers.get(roots[index]) })),
+			...[...this._detached.values()].map(entry => ({ id: entry.slot.id, kind: SessionGridPaneKind.Detached, state: entry.state })),
 		];
-		const panes = entries.map(({ id, kind, adapter }) => {
+		const panes = entries.map(({ id, kind, state }) => {
 			let pane = this._panesById.get(id);
 			if (!pane || pane.kind !== kind) {
 				pane = new SessionGridPane(id, kind);
 				this._panesById.set(id, pane);
 			}
-			pane.setAdapter(adapter, tsx);
+			pane.setState(state, tsx);
 			return pane;
 		});
 		for (const id of [...this._panesById.keys()]) {
@@ -1292,14 +1280,14 @@ export class VisibleSessions extends Disposable {
 		return this._panes.read(reader).find(pane => pane.id === id);
 	}
 
-	private _getOrCreateVisibleSession(session: ISession): VisibleSession {
+	private _getOrCreateVisibleSession(session: ISession): SessionSlotState {
 		let visibleSession = this._wrappers.get(session.sessionId);
 		if (visibleSession) {
 			return visibleSession;
 		}
 
 		const initialChat = this._resolveInitialChat(session);
-		visibleSession = new VisibleSession(
+		visibleSession = new SessionSlotState(
 			session,
 			initialChat,
 			this._resolveInitialClosedChats(session),

@@ -494,7 +494,6 @@ export class SessionsService extends Disposable implements ISessionsService {
 	 */
 	private readonly _recencyHistory: SessionsRecencyHistory;
 
-	/** Tracks wrapper identity so same-ID replacements restore focus but unrelated visibility changes do not. */
 	/** The active pane, and the session it showed, that focus last moved into: focus moves again when either changes. */
 	private _focusedActive: { readonly pane: ISessionGridPane | undefined; readonly session: ISession | undefined } | undefined;
 	/** The window that last gained focus; sticky, so the app being in the background doesn't change it. */
@@ -533,7 +532,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		// Load persisted state
 		this._sessionStates = this._loadSessionStates();
 
-		// Visibility model — owns wrappers, active/sticky/transient state, and
+		// Visibility model — owns the panes, active/sticky/transient state, and
 		// observables exposed to the UI.
 		this._visibility = this._register(this.instantiationService.createInstance(
 			VisibleSessions,
@@ -949,7 +948,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		const currentActive = this._activeGridSession();
 
 		// Clean removed sessions out of the visibility model (drops their grid
-		// slot and disposes their wrapper). If the active session is among the
+		// slot and disposes their slot state). If the active session is among the
 		// removed, removeMany picks a fallback active session (or clears it when
 		// no slot remains); drive the open flow below so the fallback is fully
 		// opened.
@@ -1444,7 +1443,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 	/**
 	 * Persist a chat's closed/open state into the session's stored view state so
 	 * it survives switching the session out of the grid (which disposes its
-	 * wrapper) and reloads. Done synchronously on the close/open action rather
+	 * slot state) and reloads. Done synchronously on the close/open action rather
 	 * than reactively from `closedChats`, which would depend on the session's
 	 * chats being loaded. The main chat can never be closed and is ignored.
 	 */
