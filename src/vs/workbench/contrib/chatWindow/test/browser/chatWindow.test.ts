@@ -749,6 +749,35 @@ suite('Chat window', () => {
 		assert.deepStrictEqual({ events, same: first === created && second === created }, { events: ['create', 'reveal'], same: true });
 	});
 
+	test('a generic and an exact open of one chat into a window that is adding it place it once, which the second reveals', async () => {
+		const { service } = createService(['a']);
+		const link = URI.parse('test:/link');
+		const windows = Reflect.get(service, '_windows') as ISettableObservable<ChatWindow[]>;
+		const events: string[] = [];
+		const gate = new DeferredPromise<void>();
+		const chats = observableValue<URI[]>('chats', []);
+		const target = upcastPartial<ChatWindow>({
+			isGoingAway: false,
+			chats,
+			revealChat: () => { events.push('reveal'); },
+		});
+		windows.set([target], undefined);
+		Reflect.set(service, '_addChat', async () => {
+			events.push('add');
+			await gate.p;
+			chats.set([link], undefined);
+			return target;
+		});
+
+		const generic = service.open(link, { window: target });
+		const exact = service.open(link, { window: target, exactChat: true });
+		await timeout(0);
+		gate.complete();
+		await Promise.all([generic, exact]);
+
+		assert.deepStrictEqual(events, ['add', 'reveal']);
+	});
+
 	test('a chat that opens slowly does not hold back the reveal of another chat that a window shows already', async () => {
 		const { service } = createService(['a', 'b']);
 		const gate = new DeferredPromise<void>();
