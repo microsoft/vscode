@@ -18,7 +18,7 @@ import { newWriteableStream, ReadableStreamEvents } from '../../../base/common/s
 import { URI } from '../../../base/common/uri.js';
 import { IDirent, Promises, RimRafMode, SymlinkSupport } from '../../../base/node/pfs.js';
 import { localize } from '../../../nls.js';
-import { createFileSystemProviderError, IFileAtomicReadOptions, IFileDeleteOptions, IFileOpenOptions, IFileOverwriteOptions, IFileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileCloneCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, isFileOpenForWriteOptions, IStat, FilePermission, IFileSystemProviderWithFileAtomicWriteCapability, IFileSystemProviderWithFileAtomicDeleteCapability, IFileChange, IFileSystemProviderWithFileRealpathCapability, IFileSystemProviderWithFileAtomicRenameCapability, toFileSystemProviderErrorCode } from '../common/files.js';
+import { createFileSystemProviderError, IFileAtomicReadOptions, IFileDeleteOptions, IFileOpenOptions, IFileOverwriteOptions, IFileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileCloneCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, isFileOpenForWriteOptions, IStat, FilePermission, IFileSystemProviderWithFileAtomicWriteCapability, IFileSystemProviderWithFileAtomicDeleteCapability, IFileChange, IFileSystemProviderWithFileRealpathCapability, IFileSystemProviderWithFileAtomicRenameCapability, toFileSystemProviderErrorCode, IFileRealpathOptions } from '../common/files.js';
 import { readFileIntoStream } from '../common/io.js';
 import { AbstractNonRecursiveWatcherClient, AbstractUniversalWatcherClient, ILogMessage } from '../common/watcher.js';
 import { AbstractDiskFileSystemProvider } from '../common/diskFileSystemProvider.js';
@@ -119,11 +119,11 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		}
 	}
 
-	async realpath(resource: URI): Promise<string> {
+	async realpath(resource: URI, options?: IFileRealpathOptions): Promise<string> {
 		const filePath = this.toFilePath(resource);
 
 		try {
-			return await Promises.realpath(filePath);
+			return await Promises.realpath(filePath, options);
 		} catch (error) {
 			throw this.toFileSystemProviderError(error);
 		}

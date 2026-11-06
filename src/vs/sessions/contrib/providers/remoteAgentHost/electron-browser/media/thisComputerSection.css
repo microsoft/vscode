@@ -7,11 +7,7 @@
 	display: flex;
 	flex-direction: column;
 	align-items: flex-start;
-	gap: var(--vscode-spacing-size80);
-	margin-bottom: var(--vscode-spacing-size160);
-	padding: var(--vscode-spacing-size160);
-	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border, var(--vscode-panel-border));
-	border-radius: var(--vscode-cornerRadius-medium);
+	gap: var(--vscode-spacing-size60);
 	color: var(--vscode-foreground);
 }
 
@@ -61,7 +57,16 @@
 	flex-shrink: 0;
 }
 
+.remotes-this-computer-controls {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--vscode-spacing-size60) var(--vscode-spacing-size120);
+	max-width: 100%;
+}
+
 .remotes-this-computer .monaco-custom-radio {
+	min-width: 0;
 	max-width: 100%;
 }
 
@@ -101,6 +106,7 @@
 	color: var(--vscode-descriptionForeground);
 }
 
+.remotes-this-computer-status,
 .remotes-this-computer-description {
 	color: var(--vscode-descriptionForeground);
 }

@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { Extensions as ViewContainerExtensions, IViewContainersRegistry } from '../../../../../workbench/common/views.js';
 import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING } from '../../browser/views/sessionsList.js';
 import { ExternalSessionApplicationBadgeMode, SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
@@ -145,5 +147,10 @@ suite('Sessions Contribution', () => {
 			default: true,
 			experiment: { mode: 'auto' },
 		});
+	});
+
+	test('opens the Sessions view with Ctrl/Cmd+0, leaving Ctrl/Cmd+Shift+X to managing extensions like it opens the Extensions view in editor windows', () => {
+		const sessionsContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).get('agentic.workbench.view.sessionsContainer');
+		assert.deepStrictEqual({ registered: !!sessionsContainer, keybindings: sessionsContainer?.openCommandActionDescriptor?.keybindings }, { registered: true, keybindings: { primary: KeyMod.CtrlCmd | KeyCode.Digit0 } });
 	});
 });

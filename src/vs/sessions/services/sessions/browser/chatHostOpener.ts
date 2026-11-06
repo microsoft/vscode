@@ -19,8 +19,21 @@ export interface IChatHostOpener {
 	reveal(chat: URI, options?: { readonly preserveFocus?: boolean }): Promise<void>;
 	/** Opens `chat` beside `reference`, which it shows, focused unless `preserveFocus`. */
 	openBeside(chat: URI, reference: URI, options?: { readonly preserveFocus?: boolean }): Promise<void>;
-	/** Closes `chat`, which it shows, such as its editor: the main window's grid does not show it. */
-	close(chat: URI): Promise<void>;
+	/**
+	 * Closes `chat`, which it shows, such as its editor: the main window's grid does not show it. Resolves what shows it
+	 * there again, for as long as what closed it needs it, such as while it moves elsewhere; nothing when its close is
+	 * vetoed.
+	 */
+	close(chat: URI): Promise<IChatHostClosedChat | undefined>;
+}
+
+/** A chat an opener closed, such as for it to move elsewhere. */
+export interface IChatHostClosedChat {
+	/**
+	 * Shows the chat again, such as when what it moved to went away meanwhile: where it showed, unless that went away too,
+	 * such as a window whose last chat it was, then where such a chat opens.
+	 */
+	restore(): Promise<void>;
 }
 
 /**

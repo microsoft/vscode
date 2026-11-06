@@ -28,11 +28,19 @@ import { INewSessionComposerService } from './newSessionComposerService.js';
 import { IAgentsWindowDraft } from '../../../../platform/window/common/window.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { readNewChatDraftState } from '../common/newChatDraftState.js';
+import { IRemoteWorkspaceHandoffService } from '../../../common/remoteWorkspaceHandoff.js';
+import { IAgentsWindowRemoteWorkspace } from './agentsWindowOpenIntent.js';
 
 export const WORKSPACE_HANDOFF_TIMEOUT_MS = 15_000;
 
 export interface IAgentsWindowWorkspaceHandoff {
 	readonly folderUri?: URI;
+	/**
+	 * The workspace of a remote editor window. Its folder replaces {@link folderUri} once the
+	 * remote agent host on the same machine provides it; otherwise a non-draft intent starts
+	 * without a workspace rather than with an unrelated local one.
+	 */
+	readonly remote?: IAgentsWindowRemoteWorkspace;
 	readonly preferDevContainer: boolean;
 	readonly isDefault: boolean;
 	readonly draft?: IAgentsWindowDraft;
@@ -59,6 +67,7 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 		@ICommandService private readonly commandService: ICommandService,
 		@ILogService private readonly logService: ILogService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IRemoteWorkspaceHandoffService private readonly remoteWorkspaceHandoffService: IRemoteWorkspaceHandoffService,
 	) {
 		super();
 		this._register(lifecycleService.onWillShutdown(() => this.cancel()));
@@ -124,14 +133,26 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 				onState('preservedSession');
 				return;
 			}
+			const startRemoteResolution = () => {
+				const resolution = intent.remote?.folder ? this.remoteWorkspaceHandoffService.resolveFolder(intent.remote.folder, source.token) : undefined;
+				resolution?.catch(() => undefined);
+				return resolution;
+			};
+			// Registering and connecting the remote host runs while setup and the session view get ready. An inferred
+			// default waits for restore instead, so it never adds or connects a host for a window that keeps its session.
+			const inferredDefault = intent.isDefault && !intent.draft && !intent.revealNewSession;
+			let remoteResolution = inferredDefault ? undefined : startRemoteResolution();
 			onState('waitingForSetup');
 			await raceCancellationError(this.sessionsSetUpService.whenWelcomeDone(), source.token);
 			if (source.token.isCancellationRequested) {
 				return;
 			}
 			onState('waitingForSessionView');
-			if (intent.isDefault && !intent.draft && !intent.revealNewSession) {
+			if (inferredDefault) {
 				await waitForState(this.sessionsService.initialRestoreComplete, complete => complete, undefined, source.token);
+				if (!this._focusedSessionHostService.focusedHost.get().session.get()?.isCreated.get()) {
+					remoteResolution = startRemoteResolution();
+				}
 			} else {
 				await raceCancellationError(this.lifecycleService.when(LifecyclePhase.Restored), source.token);
 				if (source.token.isCancellationRequested) {
@@ -154,8 +175,18 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 				}
 			}
 
+			let folderUri = intent.folderUri;
+			let remoteUnavailableReason: string | undefined;
+			if (remoteResolution) {
+				onState('waitingForProvider');
+				const resolution = await raceCancellationError(remoteResolution, source.token);
+				folderUri = resolution.folderUri ?? folderUri;
+				remoteUnavailableReason = resolution.unavailableReason;
+			}
+			// A remote editor window must not fall back to an unrelated local folder.
+			const remoteWithoutFolder = !!intent.remote && !intent.draft && !folderUri;
 			let draftNeedsNavigation = !!intent.draft && !intent.revealNewSession;
-			let noWorkspaceNeedsSelection = !!intent.noWorkspace;
+			let noWorkspaceNeedsSelection = !!intent.noWorkspace || remoteWithoutFolder;
 			const deadline = Date.now() + WORKSPACE_HANDOFF_TIMEOUT_MS;
 			while (!source.token.isCancellationRequested) {
 				const currentSession = this._focusedSessionHostService.focusedHost.get().session.get();
@@ -164,8 +195,8 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 					return;
 				}
 
-				const resolved = intent.folderUri ? this.sessionsManagementService.resolveWorkspace(intent.folderUri) : undefined;
-				const providerReady = !intent.folderUri || !!resolved;
+				const resolved = folderUri ? this.sessionsManagementService.resolveWorkspace(folderUri) : undefined;
+				const providerReady = !folderUri || !!resolved;
 				if (draftNeedsNavigation && providerReady) {
 					await this.sessionsService.openNewSession({ cancelRestore: true }, source.token);
 					draftNeedsNavigation = false;
@@ -180,9 +211,24 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 				}
 				const view = draftNeedsNavigation ? undefined : this.sessionsPartService.getSessionView(session?.sessionId);
 				if (noWorkspaceNeedsSelection && view) {
-					view.selectNoWorkspace({ userSelection: false, preserveNavigation: true });
-					noWorkspaceNeedsSelection = false;
-					continue;
+					const result = view.selectNoWorkspace({ userSelection: false, preserveNavigation: true, isDefault: intent.isDefault && !intent.draft });
+					if (intent.draft) {
+						noWorkspaceNeedsSelection = false;
+						continue;
+					}
+					if (result === 'preserved') {
+						onState('preservedSession');
+						return;
+					}
+					if (result === 'applied') {
+						if (remoteWithoutFolder) {
+							onState(remoteUnavailableReason ? 'providerUnavailable' : 'unsupportedWorkspace');
+							this._showRemoteUnavailable(intent, remoteUnavailableReason);
+						} else {
+							onState('applied');
+						}
+						return;
+					}
 				}
 				const options = {
 					providerId: resolved?.providerId,
@@ -191,8 +237,8 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 					isDefault: intent.isDefault && !intent.draft,
 				};
 				const result = intent.draft
-					? providerReady ? await view?.applyDraft(intent.draft, intent.folderUri, options, source.token) : undefined
-					: resolved && intent.folderUri ? view?.selectWorkspace(intent.folderUri, options) : undefined;
+					? providerReady ? await view?.applyDraft(intent.draft, folderUri, options, source.token) : undefined
+					: resolved && folderUri ? view?.selectWorkspace(folderUri, options) : undefined;
 				if (source.token.isCancellationRequested) {
 					return;
 				}
@@ -202,8 +248,8 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 				}
 				if (result === 'applied') {
 					onState('applied');
-					if (intent.folderUri) {
-						this.viewsService.getViewWithId<SessionsView>(SessionsViewId)?.sessionsControl?.setOpenWindowSourceFolder(intent.folderUri);
+					if (folderUri) {
+						this.viewsService.getViewWithId<SessionsView>(SessionsViewId)?.sessionsControl?.setOpenWindowSourceFolder(folderUri);
 					}
 					return;
 				}
@@ -262,6 +308,19 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 				{ label: localize('agentsHandoff.retry', "Retry"), run: () => this.selectWorkspace(intent, onState) },
 				{ label: localize('agentsHandoff.chooseWorkspace', "Choose Workspace"), run: () => this.commandService.executeCommand('workbench.action.sessions.newSession.pickFolderQuickPick') },
 			]);
+		this._notification.value = toDisposable(() => notification.close());
+	}
+
+	/** Explains why the remote editor window's folder is not selected after starting without a workspace. */
+	private _showRemoteUnavailable(intent: IAgentsWindowWorkspaceHandoff, reason: string | undefined): void {
+		const message = reason
+			? localize('agentsHandoff.remoteUnavailable', "The folder of your remote window could not be opened in the Agents Window. {0}", reason)
+			: intent.remote?.kind === 'codespaces'
+				? localize('agentsHandoff.codespacesUnsupported', "The Agents Window cannot open folders from GitHub Codespaces yet. Choose a workspace to continue.")
+				: localize('agentsHandoff.remoteUnsupported', "The Agents Window cannot open folders from this kind of remote yet. Choose a workspace to continue.");
+		const notification = this.notificationService.prompt(Severity.Warning, message, [
+			{ label: localize('agentsHandoff.chooseWorkspace', "Choose Workspace"), run: () => this.commandService.executeCommand('workbench.action.sessions.newSession.pickFolderQuickPick') },
+		]);
 		this._notification.value = toDisposable(() => notification.close());
 	}
 }

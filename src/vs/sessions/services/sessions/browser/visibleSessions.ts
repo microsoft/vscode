@@ -1007,8 +1007,11 @@ export class VisibleSessions extends Disposable {
 		return this._stickyIds.has(id);
 	}
 
-	/** Remove session panes, optionally retaining standalone children, and select a surviving pane if the active pane is removed. */
-	removeMany(sessionIds: Iterable<string | undefined>, preserveDetached = false): void {
+	/**
+	 * Remove session panes, optionally retaining standalone children, and select a surviving pane if the active pane is removed.
+	 * With `preserveFocus`, the surviving pane becomes active without taking keyboard focus, such as when the pane left for another window.
+	 */
+	removeMany(sessionIds: Iterable<string | undefined>, preserveDetached = false, preserveFocus = false): void {
 		transaction((tsx) => {
 			let changed = false;
 			const active = this._activeSession.get();
@@ -1032,14 +1035,14 @@ export class VisibleSessions extends Disposable {
 			if (activeRemoved) {
 				const child = [...this._detached.values()].find(entry => entry.wrapper.sessionId === activeId)?.wrapper;
 				if (child) {
-					this._setActiveSession(child, false, tsx);
+					this._setActiveSession(child, preserveFocus, tsx);
 				} else if (this._visibleList.length === 0) {
-					this._setActiveSession(this._detached.values().next().value?.wrapper, false, tsx);
+					this._setActiveSession(this._detached.values().next().value?.wrapper, preserveFocus, tsx);
 				} else {
 					const fallbackIdx = Math.max(0, Math.min(activeIdx - 1, this._visibleList.length - 1));
 					const fallbackId = this._visibleList[fallbackIdx];
 					const fallbackWrapper = fallbackId !== undefined ? this._wrappers.get(fallbackId) : undefined;
-					this._setActiveSession(fallbackWrapper, false, tsx);
+					this._setActiveSession(fallbackWrapper, preserveFocus, tsx);
 				}
 			}
 			if (changed) {

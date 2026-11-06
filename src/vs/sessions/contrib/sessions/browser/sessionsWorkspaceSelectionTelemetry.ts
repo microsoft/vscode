@@ -36,6 +36,7 @@ interface IRequestSelection {
 type WorkspaceSelectionOutcomeEvent = {
 	source: AgentsWindowOpenSource;
 	workspaceArgumentKind: ISessionsWindowOpenContext['workspaceArgumentKind'];
+	workspaceArgumentRemoteKind: NonNullable<ISessionsWindowOpenContext['workspaceArgumentRemoteKind']>;
 	workspaceArgumentIsDefault: boolean;
 	observationReason: ObservationReason;
 	observationDurationMs: number;
@@ -54,6 +55,7 @@ type WorkspaceSelectionOutcomeClassification = {
 	comment: 'Reports workspace-default acceptance and first-request conversion for first-time Agents window openings within three minutes. No request in that interval is not proof of permanent abandonment.';
 	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Entry point of the initial Agents window opening.' };
 	workspaceArgumentKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Original workspace argument category; never a resource identifier.' };
+	workspaceArgumentRemoteKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Kind of VS Code remote hosting the original workspace argument (none, ssh, wsl, tunnel, codespaces, attachedContainer, or other; for Dev Containers, the host of the source folder); never an authority.' };
 	workspaceArgumentIsDefault: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the workspace argument was inferred from the invoking editor.' };
 	observationReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Observation ended at firstRequest, timer, close, quit, reload, or otherShutdown.' };
 	observationDurationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Observation duration, capped at three minutes.' };
@@ -140,6 +142,7 @@ export class SessionsWorkspaceSelectionTelemetry extends Disposable {
 		this.telemetryService.publicLog2<WorkspaceSelectionOutcomeEvent, WorkspaceSelectionOutcomeClassification>('agents/workspaceSelectionOutcome', {
 			source: this.source,
 			workspaceArgumentKind: this.context.workspaceArgumentKind,
+			workspaceArgumentRemoteKind: this.context.workspaceArgumentRemoteKind ?? 'none',
 			workspaceArgumentIsDefault: this.context.workspaceArgumentIsDefault ?? false,
 			observationReason: reason,
 			observationDurationMs: this._elapsed(),

@@ -21,12 +21,11 @@ suite('SessionComparisonModelSelection', () => {
 
 	function createModelSelection(
 		available: IObservable<boolean>,
-		resolving: IObservable<boolean> = constObservable(false),
 		getModelLabel: ((modelId: string) => string | undefined) | undefined = undefined,
 		reviewAvailable: IObservable<boolean> = constObservable(true),
 		showPickerHint: IObservable<boolean> = constObservable(false),
 	): SessionComparisonModelSelection {
-		return instantiationService.createInstance(SessionComparisonModelSelection, available, resolving, getModelLabel, reviewAvailable, showPickerHint);
+		return instantiationService.createInstance(SessionComparisonModelSelection, available, getModelLabel, reviewAvailable, showPickerHint);
 	}
 
 	function selectAttempts(selection: SessionComparisonModelSelection, ...modelIds: string[]): void {
@@ -36,7 +35,7 @@ suite('SessionComparisonModelSelection', () => {
 	}
 
 	test('discovery hint stays hidden after starting, cancelling, resetting, and recreating comparison setup', () => {
-		const createSelection = () => store.add(createModelSelection(constObservable(true), undefined, undefined, undefined, constObservable(true)));
+		const createSelection = () => store.add(createModelSelection(constObservable(true), undefined, undefined, constObservable(true)));
 		const selection = createSelection();
 		const otherSelection = createSelection();
 		const hints = [selection.showPickerHint.get(), otherSelection.showPickerHint.get()];
@@ -58,7 +57,7 @@ suite('SessionComparisonModelSelection', () => {
 
 	test('starting comparison retires the hint even while its setting is disabled', () => {
 		const showHint = observableValue('showHint', false);
-		const selection = store.add(createModelSelection(constObservable(true), undefined, undefined, undefined, showHint));
+		const selection = store.add(createModelSelection(constObservable(true), undefined, undefined, showHint));
 		const hints = [selection.showPickerHint.get()];
 		showHint.set(true, undefined);
 		hints.push(selection.showPickerHint.get());
@@ -72,7 +71,7 @@ suite('SessionComparisonModelSelection', () => {
 
 	test('an unavailable comparison does not retire the discovery hint', () => {
 		const available = observableValue('available', false);
-		const selection = store.add(createModelSelection(available, undefined, undefined, undefined, constObservable(true)));
+		const selection = store.add(createModelSelection(available, undefined, undefined, constObservable(true)));
 		assert.throws(() => selection.start(), /not available/);
 		available.set(true, undefined);
 		assert.deepStrictEqual({ hint: selection.showPickerHint.get(), setup: selection.state.get() }, { hint: true, setup: undefined });
@@ -113,7 +112,7 @@ suite('SessionComparisonModelSelection', () => {
 
 	test('comparison description explains the available workflow before opening setup', () => {
 		const reviewAvailable = observableValue('reviewAvailable', true);
-		const selection = store.add(createModelSelection(constObservable(true), undefined, undefined, reviewAvailable));
+		const selection = store.add(createModelSelection(constObservable(true), undefined, reviewAvailable));
 		const withReview = selection.description.get();
 		reviewAvailable.set(false, undefined);
 		const withoutReview = selection.description.get();
@@ -161,7 +160,7 @@ suite('SessionComparisonModelSelection', () => {
 	});
 
 	test('folderless comparisons finish after Attempts without offering review steps', () => {
-		const selection = store.add(createModelSelection(constObservable(true), constObservable(false), undefined, constObservable(false)));
+		const selection = store.add(createModelSelection(constObservable(true), undefined, constObservable(false)));
 		selection.start();
 		selectAttempts(selection, 'first', 'second');
 		const state = selection.state.get();
@@ -291,13 +290,13 @@ suite('SessionComparisonModelSelection', () => {
 
 	test('the composer summary names the attempt models, falling back to a count when a label is missing', () => {
 		const labels = new Map([['model-a', 'Claude Haiku 4.5'], ['model-b', 'GPT-5.4 mini']]);
-		const named = store.add(createModelSelection(constObservable(true), undefined, modelId => labels.get(modelId)));
+		const named = store.add(createModelSelection(constObservable(true), modelId => labels.get(modelId)));
 		named.start();
 		selectAttempts(named, 'model-a', 'model-b');
 		named.finish();
 		assert.strictEqual(named.summary.get(), 'Claude Haiku 4.5, GPT-5.4 mini');
 
-		const unresolvedLabel = store.add(createModelSelection(constObservable(true), undefined, modelId => labels.get(modelId)));
+		const unresolvedLabel = store.add(createModelSelection(constObservable(true), modelId => labels.get(modelId)));
 		unresolvedLabel.start();
 		selectAttempts(unresolvedLabel, 'model-a', 'model-unknown');
 		unresolvedLabel.finish();
@@ -398,7 +397,7 @@ suite('SessionComparisonModelSelection', () => {
 	test('preserves comparison selections while draft configuration resolves', () => {
 		const resolving = observableValue('resolving', false);
 		const available = derived(reader => !resolving.read(reader));
-		const selection = store.add(createModelSelection(available, resolving));
+		const selection = store.add(createModelSelection(available));
 		selection.start();
 		selectAttempts(selection, 'one', 'two', 'three');
 		selection.next();
@@ -421,24 +420,39 @@ suite('SessionComparisonModelSelection', () => {
 		});
 	});
 
-	test('clears an invalid comparison once configuration finishes resolving', () => {
-		const available = observableValue('available', true);
-		const resolving = observableValue('resolving', false);
-		const selection = store.add(createModelSelection(available, resolving));
+	test('folderless comparisons preserve review choices without using or pruning them', () => {
+		const reviewAvailable = observableValue('reviewAvailable', true);
+		const selection = store.add(createModelSelection(constObservable(true), undefined, reviewAvailable));
 		selection.start();
 		selectAttempts(selection, 'one', 'two');
+		selection.next();
+		selection.select('judge');
+		selection.next();
+		selection.select('synthesizer');
 		selection.finish();
-		resolving.set(true, undefined);
-		available.set(false, undefined);
-		const enabledWhileResolving = selection.enabled.get();
-		resolving.set(false, undefined);
+
+		reviewAvailable.set(false, undefined);
+		selection.start();
+		selection.retainModels(new Set(['one', 'two']));
+		selection.finish();
+		const folderless = {
+			attempts: selection.attemptModelIds.get(),
+			judge: selection.judgeModelId.get(),
+			synthesizer: selection.synthesizerModelId.get(),
+		};
+		reviewAvailable.set(true, undefined);
 		assert.deepStrictEqual({
-			enabledWhileResolving, enabled: selection.enabled.get(), attempts: selection.attemptModelIds.get(),
-		}, { enabledWhileResolving: true, enabled: false, attempts: [] });
+			folderless,
+			judge: selection.judgeModelId.get(),
+			synthesizer: selection.synthesizerModelId.get(),
+		}, {
+			folderless: { attempts: ['one', 'two'], judge: undefined, synthesizer: undefined },
+			judge: 'judge', synthesizer: 'synthesizer',
+		});
 	});
 
 	for (const configured of [false, true]) {
-		test(`unavailable comparison resets setup and does not revive it (configured: ${configured})`, () => {
+		test(`workspace availability changes preserve comparison setup (configured: ${configured})`, () => {
 			const available = observableValue('available', true);
 			const selection = store.add(createModelSelection(available));
 			selection.start();
@@ -452,16 +466,22 @@ suite('SessionComparisonModelSelection', () => {
 			}
 			available.set(false, undefined);
 			assert.throws(() => selection.start(), /not available/);
+			const unavailableState = selection.state.get();
 			available.set(true, undefined);
 			assert.deepStrictEqual({
+				unavailableState,
 				enabled: selection.enabled.get(),
 				configured: selection.configured.get(),
 				attempts: selection.attemptModelIds.get(),
 				judge: selection.judgeModelId.get(),
 				synthesizer: selection.synthesizerModelId.get(),
-				state: selection.state.get(),
+				selected: selection.state.get()?.selectedModelIds,
 			}, {
-				enabled: false, configured: false, attempts: [], judge: undefined, synthesizer: undefined, state: undefined,
+				unavailableState: undefined,
+				enabled: configured, configured, attempts: configured ? ['one', 'two'] : [],
+				judge: configured ? 'judge' : undefined,
+				synthesizer: configured ? 'synthesizer' : undefined,
+				selected: configured ? undefined : ['synthesizer'],
 			});
 		});
 	}
