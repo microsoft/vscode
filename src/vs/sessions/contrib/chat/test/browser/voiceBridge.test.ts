@@ -47,7 +47,7 @@ suite('SessionsVoiceBridgeContribution - input ownership', () => {
 				readonly activeSession = constObservable(undefined);
 			}(),
 			focusedSessionHostServiceOf(constObservable(undefined)),
-			sessionHostServiceOf(disposables, { mainWindowActiveSession: constObservable(undefined), visibleSessions: constObservable([]), windowSessions: constObservable([]) }),
+			sessionHostServiceOf(disposables, { mainWindowActiveSession: constObservable(undefined), gridShown: constObservable([]), windowSessions: constObservable([]) }),
 			sessionsManagementService,
 			new class extends mock<INewChatVoiceTargetService>() {
 				override readonly activeComposer = constObservable(composer);
@@ -257,7 +257,7 @@ suite('SessionsVoiceBridgeContribution - input ownership', () => {
 				readonly activeSession = constObservable(upcastPartial<ITestSessionWithChat>({ resource: idleResource }));
 			}(),
 			focusedSessionHostServiceOf(constObservable(upcastPartial<ITestSessionWithChat>({ resource: activeResource }))),
-			sessionHostServiceOf(disposables, { mainWindowActiveSession: constObservable(upcastPartial<ITestSessionWithChat>({ resource: idleResource })), visibleSessions: constObservable([]), windowSessions: constObservable([upcastPartial<ITestSessionWithChat>({ resource: activeResource })]) }),
+			sessionHostServiceOf(disposables, { mainWindowActiveSession: constObservable(upcastPartial<ITestSessionWithChat>({ resource: idleResource })), gridShown: constObservable([]), windowSessions: constObservable([upcastPartial<ITestSessionWithChat>({ resource: activeResource })]) }),
 			new class extends mock<ISessionsManagementService>() {
 				override getSessions(): ISession[] {
 					return sessions;

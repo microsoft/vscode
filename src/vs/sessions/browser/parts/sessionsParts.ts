@@ -11,7 +11,6 @@ import { InstantiationType, registerSingleton } from '../../../platform/instanti
 import { SessionsPart } from '../../../workbench/contrib/sessions/browser/parts/sessionsPart.js';
 import { MobileSessionsPart } from './mobile/mobileSessionsPart.js';
 import { SessionView } from '../../../workbench/contrib/sessions/browser/parts/sessionView.js';
-import { IActiveSession } from '../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISession } from '../../../workbench/contrib/sessions/common/session.js';
 import { IProgressIndicator } from '../../../platform/progress/common/progress.js';
 import { Emitter, Event } from '../../../base/common/event.js';
@@ -80,17 +79,6 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 		this._mainPart.setContentVisible(visible);
 	}
 
-	toggleMaximizeSession(session: IActiveSession | undefined): void {
-		if (!session) {
-			this._mainPart.toggleMaximizeSession(undefined);
-			return;
-		}
-		const maximized = this._mainPart.toggleMaximizeSession(session.sessionId);
-		if (maximized !== undefined) {
-			this._onDidToggleMaximizeSession.fire({ session, maximized });
-		}
-	}
-
 	toggleMaximizePane(pane: ISessionGridPane): void {
 		const maximized = this._mainPart.toggleMaximizePane(pane);
 		const session = pane.session.get();
@@ -99,8 +87,8 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 		}
 	}
 
-	focusSession(session: IActiveSession | undefined): void {
-		this._mainPart.focusSession(session?.sessionId, session?.scopedChatResource);
+	focusNewSessionSlot(): void {
+		this._mainPart.focusSession(undefined);
 	}
 
 	focusPane(pane: ISessionGridPane): void {

@@ -16,7 +16,7 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { GroupIdentifier } from '../../../common/editor.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IChat, ISession, isSessionCreated } from '../common/session.js';
-import { IActiveSession, IHostSession, IShownChat } from '../common/sessionsManagement.js';
+import { IHostSession, IShownChat } from '../common/sessionsManagement.js';
 import type { ISessionGridPane } from './sessionGridPane.js';
 
 export const enum SessionHostKind {
@@ -58,11 +58,6 @@ export function isSessionHostCommandContext(value: unknown): value is ISessionHo
 export interface ISessionChatSource {
 	readonly session: IObservable<IHostSession | undefined>;
 	readonly chat: IObservable<IChat | undefined>;
-}
-
-/** A source of the selected chat of `session`, for UI given an {@link IActiveSession} rather than a host. */
-export function sessionChatSourceOf(session: IObservable<IActiveSession | undefined>): ISessionChatSource {
-	return { session, chat: derived(reader => session.read(reader)?.activeChat.read(reader)) };
 }
 
 /**

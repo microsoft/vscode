@@ -58,7 +58,7 @@ import { IAutomationSessionTemplate } from '../../../../../workbench/contrib/cha
 import { IChatMovedEvent, ISessionChatMoveDestination, type IForkChatOptions, type INestedChatWorkspace, NestedChatWorkspaceError, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISendRequestOptions, ISessionModelsSnapshot, ISessionModelPickerOptions, ISessionsProvider, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration, type ICreateNewChatOptions } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { SessionsManagementService } from '../../../../../workbench/contrib/sessions/browser/sessionsManagementService.js';
 import { VisibleSessions } from '../../../../../workbench/contrib/sessions/browser/visibleSessions.js';
-import { ISessionsManagementService, IActiveSession, IChatDeletedEvent, ICreateNewSessionOptions, inheritableSessionTarget, ISendRequestSentEvent, ISessionPaneContent, WorkspaceNotTrustedError } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionsManagementService, IChatDeletedEvent, ICreateNewSessionOptions, inheritableSessionTarget, ISendRequestSentEvent, ISessionPaneContent, WorkspaceNotTrustedError } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService, SessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionGridState } from '../../../../../workbench/contrib/sessions/browser/sessionGridState.js';
 import { ISessionOpenTelemetryService, SessionOpenTelemetryService } from '../../../../../workbench/contrib/sessions/browser/sessionOpenTelemetryService.js';
@@ -346,9 +346,9 @@ class TestSessionsPartService extends mock<ISessionsPartService>() {
 	override updatePanes(panes: readonly ISessionGridPane[], activePane: ISessionGridPane | undefined, slots?: readonly ISessionGridSlot[], request?: SessionGridRequest): void {
 		this.part?.updatePanes(panes, activePane, slots, request);
 	}
-	override focusSession(session: IActiveSession | undefined): void {
-		this.focusedSessions.push(session?.sessionId);
-		this.part?.focusSession(session?.sessionId, session?.scopedChatResource);
+	override focusNewSessionSlot(): void {
+		this.focusedSessions.push(undefined);
+		this.part?.focusSession(undefined);
 	}
 	override focusPane(pane: ISessionGridPane): void {
 		this.focusedSessions.push(pane.session.get()?.sessionId);

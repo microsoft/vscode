@@ -57,7 +57,7 @@ import { IWorkspaceSelectionSnapshot } from '../../common/workspaceSelection.js'
 import { ISessionsProvidersService, observeSessionSandboxToggle } from '../sessionsProvidersService.js';
 import { ISessionHost, ISessionHostService, SessionHost, SessionHostKind } from '../sessionHost.js';
 import { IChat } from '../../common/session.js';
-import { readShownChat, shownChatOf } from '../../common/sessionsManagement.js';
+import { shownChatOf } from '../../common/sessionsManagement.js';
 import { ISessionInputPickerVisibility, SessionInputPickerVisibility } from '../../common/sessionPickerVisibility.js';
 import { WorkbenchHoverDelegate } from '../../../../../platform/hover/browser/hover.js';
 import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
@@ -564,7 +564,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 	}
 
 	private _getChatResource(reader: IReader): URI | undefined {
-		return (this.options.chat ? this.options.chat.read(reader) : readShownChat(this.options.session.read(reader), reader))?.resource;
+		return (this.options.chat ? this.options.chat.read(reader) : this.options.session.read(reader)?.mainChat.read(reader))?.resource;
 	}
 
 	private async _bindModel(resource: URI | undefined): Promise<void> {

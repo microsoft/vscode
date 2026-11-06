@@ -57,7 +57,7 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { SessionView } from '../../../../../../workbench/contrib/sessions/browser/parts/sessionView.js';
-import { createSessionViewTestServices, createTestActiveSession } from '../../../../../test/browser/sessionViewTestUtils.js';
+import { createSessionViewTestServices, createTestActiveSession, testPaneOf } from '../../../../../test/browser/sessionViewTestUtils.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IPathService } from '../../../../../../workbench/services/path/common/pathService.js';
 import { MockLabelService } from '../../../../../../workbench/services/label/test/common/mockLabelService.js';
@@ -3525,12 +3525,12 @@ suite('CopilotChatSessionsProvider', () => {
 				const { instantiationService, chatViews } = createSessionViewTestServices(disposables);
 				stubSessionsHostLayout(instantiationService);
 				const view = disposables.add(instantiationService.createInstance(SessionView, undefined));
-				view.openSession({
+				view.openPane(testPaneOf({
 					...createTestActiveSession(draft.sessionId, false),
 					...draft,
 					isCreated: draft.status.map(status => status !== SessionStatus.Untitled),
 					activeChat: draft.mainChat,
-				}, {});
+				}), {});
 				const composer = chatViews[0];
 				composer.input.value = 'Review this file';
 				const removed: string[] = [];

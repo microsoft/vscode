@@ -1050,8 +1050,8 @@ suite('Sessions list context menus', () => {
 			});
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 				readonly activeSession = constObservable(undefined);
-				override readonly visibleSessions = constObservable([]);
-				override readonly slotPanes = testGridPanes(this.visibleSessions);
+				readonly gridShown = constObservable([]);
+				override readonly slotPanes = testGridPanes(this.gridShown);
 				override async canOpenSession(): Promise<boolean> { return true; }
 				override showSession(): void { }
 				override async openChatToSide(_session: ISession, chatResource: URI): Promise<void> {

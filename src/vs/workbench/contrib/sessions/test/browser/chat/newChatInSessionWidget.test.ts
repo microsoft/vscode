@@ -64,7 +64,7 @@ suite('NewChatInSessionWidget', () => {
 				: Object.assign(Object.create(SharedChatInputComposer.prototype), { dispose: () => { } })) as IInstantiationService['createInstance'];
 		}();
 		const widget = store.add(new NewChatInSessionWidget(
-			{ session: constObservable<ITestSessionWithChat | undefined>(session) },
+			{ session: constObservable<ITestSessionWithChat | undefined>(session), chat: activeChat },
 			new TestConfigurationService(),
 			instantiationService,
 			new NullLogService(),
@@ -103,7 +103,7 @@ suite('NewChatInSessionWidget', () => {
 			_session: constObservable(session),
 			_workspaceSupport: constObservable(undefined),
 			_chat: constObservable(undefined),
-			_paneChat: shownChatOf(constObservable(session), undefined),
+			_paneChat: shownChatOf(constObservable(session), session.activeChat),
 			_store: { isDisposed: false },
 			logService: new NullLogService(),
 			sessionHost: host,
@@ -135,7 +135,7 @@ suite('NewChatInSessionWidget', () => {
 		const widget: TestNewChatInSessionWidget = Object.assign(Object.create(TestNewChatInSessionWidget.prototype), {
 			_session: constObservable(session),
 			_chat: constObservable(undefined),
-			_paneChat: shownChatOf(constObservable(session), undefined),
+			_paneChat: shownChatOf(constObservable(session), session.activeChat),
 			logService: new NullLogService(),
 			sessionHost: host,
 			sessionsService: new class extends mock<ISessionsService>() {
@@ -173,7 +173,7 @@ suite('NewChatInSessionWidget', () => {
 		const widget: TestNewChatInSessionWidget = Object.assign(Object.create(TestNewChatInSessionWidget.prototype), {
 			_session: constObservable(session),
 			_chat: observableValue<IChat | undefined>('chat', undefined),
-			_paneChat: shownChatOf(constObservable(session), undefined),
+			_paneChat: shownChatOf(constObservable(session), session.activeChat),
 			_newChatInput: { getDraft: () => input, setDraft: (value: IChatDraft | undefined) => { input = value ?? { inputText: '', attachments: [] }; } },
 			viewStateService: new SessionsChatViewStateService(),
 			logService: new NullLogService(),
@@ -210,7 +210,7 @@ suite('NewChatInSessionWidget', () => {
 		const widget: TestNewChatInSessionWidget = Object.assign(Object.create(TestNewChatInSessionWidget.prototype), {
 			_session: constObservable(session),
 			_chat: observableValue<IChat | undefined>('chat', undefined),
-			_paneChat: shownChatOf(constObservable(session), undefined),
+			_paneChat: shownChatOf(constObservable(session), session.activeChat),
 			_newChatInput: { getDraft: () => input, setDraft: (value: IChatDraft | undefined) => { input = value ?? { inputText: '', attachments: [] }; } },
 			viewStateService,
 			logService: new NullLogService(),
@@ -250,7 +250,7 @@ suite('NewChatInSessionWidget', () => {
 		const widget: TestNewChatInSessionWidget = Object.assign(Object.create(TestNewChatInSessionWidget.prototype), {
 			_session: constObservable(session),
 			_chat: observableValue<IChat | undefined>('chat', undefined),
-			_paneChat: shownChatOf(constObservable(session), undefined),
+			_paneChat: shownChatOf(constObservable(session), session.activeChat),
 			_newChatInput: { getDraft: () => input, setDraft: (value: IChatDraft | undefined) => { input = value ?? { inputText: '', attachments: [] }; } },
 			viewStateService,
 			logService: new NullLogService(),
@@ -298,7 +298,7 @@ suite('NewChatInSessionWidget', () => {
 		const widget: TestNewChatInSessionWidget = Object.assign(Object.create(TestNewChatInSessionWidget.prototype), {
 			_session: activeSession,
 			_chat: constObservable(undefined),
-			_paneChat: shownChatOf(constObservable(session), undefined),
+			_paneChat: shownChatOf(constObservable(session), session.activeChat),
 			logService: new NullLogService(),
 			sessionsService: new class extends mock<ISessionsService>() {
 				override openNewChatInSession(_session: ITestSessionWithChat, options?: ICreateNewChatInSessionOptions): Promise<void> {
@@ -336,7 +336,7 @@ suite('NewChatInSessionWidget', () => {
 			_session: constObservable(session),
 			_workspaceSupport: constObservable(undefined),
 			_chat: constObservable(undefined),
-			_paneChat: shownChatOf(constObservable(session), undefined),
+			_paneChat: shownChatOf(constObservable(session), session.activeChat),
 			_store: { isDisposed: false },
 			logService: new NullLogService(),
 			sessionsService: new class extends mock<ISessionsService>() {

@@ -46,7 +46,7 @@ suite('GitHubService', () => {
 			readonly activeSession = activeSession;
 			readonly mainWindowActiveSession = mainWindowActiveSession;
 		}());
-		instantiationService.stub(ISessionHostService, sessionHostServiceOf(store, { mainWindowActiveSession, visibleSessions: constObservable([]), windowSessions: constObservable([]) }));
+		instantiationService.stub(ISessionHostService, sessionHostServiceOf(store, { mainWindowActiveSession, gridShown: constObservable([]), windowSessions: constObservable([]) }));
 		instantiationService.stub(IPullRequestIconCache, instantiationService.createInstance(PullRequestIconCache));
 		instantiationService.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
 			override readonly onDidChangeDefaultAccount = Event.None;

@@ -88,7 +88,7 @@ export interface ITestSessionsGridState {
 	readonly activeSession?: IObservable<TestShown | undefined>;
 	readonly mainWindowActiveSession?: IObservable<TestShown | undefined>;
 	readonly windowSessions?: IObservable<readonly TestShown[]>;
-	/** What the grid's panes show, a pane each; else the service's `visibleSessions`. */
+	/** What the grid's panes show, a pane each. */
 	readonly gridShown?: IObservable<readonly (TestShown | undefined)[]>;
 }
 
@@ -131,13 +131,13 @@ export function stubSessionHosts(instantiationService: TestInstantiationService,
 
 /**
  * A real {@link SessionHostService} with hosts for the state `ISessionsService` has: the main window shows
- * `mainWindowActiveSession` (else `activeSession`), a pane of the main window each of `visibleSessions`, and a chat window
+ * `mainWindowActiveSession` (else `activeSession`), a pane of the main window each of `gridShown`, and a chat window
  * each of `windowSessions`. Each host shows the active chat of its session.
  */
 export function sessionHostServiceOf(store: Pick<DisposableStore, 'add'>, grid: Partial<ITestSessionsService>): SessionHostService {
 	const state = {
 		mainWindowActiveSession: grid.mainWindowActiveSession ?? grid.activeSession ?? constObservable(undefined),
-		visibleSessions: grid.gridShown ?? grid.visibleSessions ?? constObservable<readonly (TestShown | undefined)[]>([]),
+		visibleSessions: grid.gridShown ?? constObservable<readonly (TestShown | undefined)[]>([]),
 		windowSessions: grid.windowSessions ?? constObservable<readonly TestShown[]>([]),
 	};
 	let nextChatWindowId = 1000;
@@ -205,7 +205,7 @@ export function stubFocusedSessionHostFromSessionsService(instantiationService: 
 /**
  * Stubs the host lookups and the focused host on `instantiationService` from the `ISessionsService` it has, for tests of
  * commands that model the windows with its state, as the real services see them: the main window shows
- * `mainWindowActiveSession` (else `activeSession`), a pane of it each of `visibleSessions`, a chat window each of
+ * `mainWindowActiveSession` (else `activeSession`), a pane of it each of `gridShown`, a chat window each of
  * `windowSessions`, with a pane of its own, and the focused host is the window host that shows `activeSession`, else the
  * main window's. Lookups return the innermost hosts, as {@link SessionHostService} does.
  */
@@ -223,7 +223,7 @@ export function stubSessionHostsFromSessionsService(instantiationService: TestIn
 	const panes = new Map<TestShown, ISessionHost>();
 	const chatWindows = new Map<TestShown, readonly [ISessionHost, ISessionHost]>();
 	let nextWindowId = 1000;
-	const readPanes = (reader: IReader | undefined) => ((sessionsService?.gridShown ?? sessionsService?.visibleSessions)?.read(reader) ?? []).filter(session => !!session).map(session => {
+	const readPanes = (reader: IReader | undefined) => (sessionsService?.gridShown?.read(reader) ?? []).filter(session => !!session).map(session => {
 		let host = panes.get(session!);
 		if (!host) {
 			host = hostOf(SessionHostKind.Pane, constObservable(session), mainWindow.vscodeWindowId, mainHost);
@@ -387,15 +387,15 @@ export function stubPaneHost(instantiationService: TestInstantiationService, opt
 const contentsOfFakes = new WeakMap<LegacyFakePaneState, ISessionPaneContent>();
 
 /**
- * The content of a pane that shows `session`, a session fake, as the views of a pane take it: the fake's chat and the pane
- * state it carries, closed through `close`, such as the sessions service closing the fake. The same content for the same
- * fake, as a view keeps what it shows while it is given the same content.
+ * The content of a pane that shows `session`, a session fake, as the views of a pane take it: the fake's chat, else its main
+ * chat, as a session view gives its content, and the pane state it carries, closed through `close`. The same content for
+ * the same fake, as a view keeps what it shows while it is given the same content.
  */
 export function testPaneContentOf(session: LegacyFakePaneState, close: () => void): ISessionPaneContent {
 	let content = contentsOfFakes.get(session);
 	if (!content) {
 		const state = upcastPartial<IPaneViewState>({ sticky: session.sticky, tabs: upcastPartial<ISessionPaneTabs>(session), isDetached: !!session.scopedChatResource });
-		content = upcastPartial<ISessionPaneContent>({ session, chat: session.activeChat, state, close });
+		content = upcastPartial<ISessionPaneContent>({ session, chat: session.activeChat ?? session.mainChat, state, close });
 		contentsOfFakes.set(session, content);
 	}
 	return content;

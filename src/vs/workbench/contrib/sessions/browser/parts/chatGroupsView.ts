@@ -20,13 +20,12 @@ import { contrastBorder } from '../../../../../platform/theme/common/colorRegist
 import { IThemeService, Themable } from '../../../../../platform/theme/common/themeService.js';
 import { agentsPanelBorder } from '../../common/theme.js';
 import { ChatOriginKind, IChat, ISession, isSessionCreated } from '../../common/session.js';
-import { IActiveSession, ISessionPaneContent } from '../../common/sessionsManagement.js';
+import { ISessionPaneContent } from '../../common/sessionsManagement.js';
 import { ISessionsService } from '../sessionsService.js';
 import { IChatHostOpenerService } from '../chatHostOpener.js';
 import { getWindowHost, ISessionHost } from '../sessionHost.js';
 import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../common/workspaceSelection.js';
 import { AbstractChatView, IChatViewOptions, ISessionViewHostOptions } from './chatView.js';
-import { isSessionPaneContent, paneContentOf } from '../visibleSessions.js';
 import { ChatGroupView, IChatGroupContext } from './chatGroupView.js';
 import { ChatDropZone, ChatGroupDropTarget, IChatGroupDropTargetDelegate } from './chatGroupDropTarget.js';
 import { DraggedSessionIdentifier, getSessionChatDragData, IDraggedSessionChat, isSessionChatDrag, SessionsDataTransfers } from '../dnd.js';
@@ -104,7 +103,7 @@ export class ChatGroupsView extends Themable {
 	private _nextGroupId = 0;
 
 	/** What {@link setSession} was last given, which a call with the same input does not rebind. */
-	private _input: ISessionPaneContent | IActiveSession | undefined;
+	private _input: ISessionPaneContent | undefined;
 	/** The content of the pane this view shows: its session, chat and state. */
 	private _content: ISessionPaneContent | undefined;
 	private get _session(): ISession | undefined { return this._content?.session; }
@@ -169,16 +168,13 @@ export class ChatGroupsView extends Themable {
 		this._singleGroupTabsReplaceHeader.set(enabled, undefined);
 	}
 
-	/**
-	 * Sets (or clears) the pane whose session's chats this view partitions into groups. A view of a session in a pane is
-	 * taken as its content, closed through {@link ISessionsService.closeSession} (transitional).
-	 */
-	setSession(input: ISessionPaneContent | IActiveSession | undefined, options: IChatViewOptions): void {
+	/** Sets (or clears) the content of the pane whose session's chats this view partitions into groups. */
+	setSession(input: ISessionPaneContent | undefined, options: IChatViewOptions): void {
 		this._options = options;
 		if (this._input === input) {
 			return;
 		}
-		const content = input && (isSessionPaneContent(input) ? input : paneContentOf(input, () => this._sessionsService.closeSession(input)));
+		const content = input;
 		const session = content?.session;
 
 		// A replacement of the session of a window or a pane, which shows the same chat, keeps the groups it shows.

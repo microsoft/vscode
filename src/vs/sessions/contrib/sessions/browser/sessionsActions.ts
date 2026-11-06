@@ -1073,7 +1073,7 @@ registerAction2(class AddChatToSessionAction extends Action2 {
 		if (activePane && activePane.session.get()?.sessionId === target.sessionId) {
 			sessionsPartService.focusPane(activePane);
 		} else {
-			sessionsPartService.focusSession(undefined);
+			sessionsPartService.focusNewSessionSlot();
 		}
 	}
 });

@@ -16,7 +16,7 @@ import { IAgentsWindowDraft } from '../../../../../platform/window/common/window
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
-import { IActiveSession, IPaneViewState, ISessionPaneContent, paneViewStateOfActiveSession } from '../../common/sessionsManagement.js';
+import { IPaneViewState, ISessionPaneContent } from '../../common/sessionsManagement.js';
 import { IChat, ISession, isSessionCreated } from '../../common/session.js';
 import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../common/workspaceSelection.js';
 import { AbstractChatView, IChatViewOptions, ISessionViewHostOptions } from './chatView.js';
@@ -25,7 +25,6 @@ import { SessionHeader, SessionViewFloatingToolbar } from './sessionHeader.js';
 import { ChatViewSessionActivityBar } from './sessionActivityBar.js';
 import { createSessionHostServices, ISessionHost, ISessionHostService, SessionHost, SessionHostKind } from '../sessionHost.js';
 import { autorun, derived, disposableObservableValue, IObservable, observableValue, runOnChange, transaction } from '../../../../../base/common/observable.js';
-import { canonicalSessionOf } from '../visibleSessions.js';
 import { ISessionGridPane, paneViewStateOf } from '../sessionGridPane.js';
 import { ISessionsService } from '../sessionsService.js';
 import { SessionIsMaximizedContext } from '../../common/contextkeys.js';
@@ -84,7 +83,7 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 
 	private _openSessionDisposables = this._register(new DisposableStore());
 	/** What it binds: the pane of the grid it shows and that pane's session, or (deprecated) a view of a session. */
-	private _bound: { readonly source: ISessionGridPane | IActiveSession | undefined; readonly session: ISession | undefined } | undefined;
+	private _bound: { readonly pane: ISessionGridPane | undefined; readonly session: ISession | undefined } | undefined;
 
 	private readonly _sessionIsMaximizedKey: IContextKey<boolean>;
 	private readonly _scopedContextKeyService: IContextKeyService;
@@ -250,27 +249,14 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 	 */
 	openPane(pane: ISessionGridPane | undefined, options: ISessionViewOptions): void {
 		const session = pane?.session.get();
-		if (this._bound && this._bound.source === pane && this._bound.session === session) {
+		if (this._bound && this._bound.pane === pane && this._bound.session === session) {
 			return;
 		}
 		this._bind(pane, session, pane?.chat, pane && paneViewStateOf(pane), options);
 	}
 
-	/**
-	 * Shows `session`, a view of a session in a pane of the grid.
-	 *
-	 * @deprecated Transitional: the grid's views show its panes ({@link openPane}). Kept for tests that give a view of a
-	 * session, until views of sessions are removed.
-	 */
-	openSession(session: IActiveSession | undefined, options: ISessionViewOptions): void {
-		if (this._bound && this._bound.source === session) {
-			return;
-		}
-		this._bind(session, session && canonicalSessionOf(session), session?.activeChat, session && paneViewStateOfActiveSession(session), options);
-	}
-
-	private _bind(source: ISessionGridPane | IActiveSession | undefined, session: ISession | undefined, chat: IObservable<IChat | undefined> | undefined, state: IPaneViewState | undefined, options: ISessionViewOptions): void {
-		const bound = this._bound = { source, session };
+	private _bind(pane: ISessionGridPane | undefined, session: ISession | undefined, chat: IObservable<IChat | undefined> | undefined, state: IPaneViewState | undefined, options: ISessionViewOptions): void {
+		const bound = this._bound = { pane, session };
 		options = { ...options, hostVisible: this._isVisibleObs, session: this._sessionObs, chat: this._paneChat };
 		// Closing closes this view's pane of the grid, while the view still shows this content: a content kept past a rebind,
 		// or past its pane leaving the grid, closes nothing.
@@ -286,7 +272,7 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 			},
 		};
 		transaction(tx => {
-			this._paneObs.set(isGridPane(source) ? source : undefined, tx);
+			this._paneObs.set(pane, tx);
 			this._sessionObs.set(session, tx);
 			this._chatObs.set(chat, tx);
 			this._contentObs.set(content, tx);
@@ -687,8 +673,4 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 		super.dispose();
 		this._scopedServices.dispose();
 	}
-}
-
-function isGridPane(source: ISessionGridPane | IActiveSession | undefined): source is ISessionGridPane {
-	return !!source && typeof (source as Partial<ISessionGridPane>).kind === 'string' && !!(source as Partial<ISessionGridPane>).tabs;
 }

@@ -10,9 +10,7 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { SessionHeaderTargetsChatContext, SessionToolbarShowsSessionContext } from '../../common/contextkeys.js';
-import { IActiveSession, ISessionPaneContent } from '../../common/sessionsManagement.js';
-import { isSessionPaneContent, paneContentOf } from '../visibleSessions.js';
-import { ISessionsService } from '../sessionsService.js';
+import { ISessionPaneContent } from '../../common/sessionsManagement.js';
 import { SessionHeaderBar } from './sessionHeaderBar.js';
 
 /**
@@ -35,7 +33,6 @@ export class SessionHeader extends Disposable {
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@ISessionsService private readonly _sessionsService: ISessionsService,
 	) {
 		super();
 		this._headerTargetsChatKey = SessionHeaderTargetsChatContext.bindTo(contextKeyService);
@@ -43,19 +40,15 @@ export class SessionHeader extends Disposable {
 		this._bar = this._register(instantiationService.createInstance(SessionHeaderBar, undefined));
 	}
 
-	/**
-	 * Shows the session of a pane, its chat and its state. A view of a session in a pane is taken as its content, closed
-	 * through {@link ISessionsService.closeSession} (transitional).
-	 */
-	setSession(input: ISessionPaneContent | IActiveSession | undefined): void {
+	/** Shows the content of a pane: its session, its chat and its state. */
+	setSession(content: ISessionPaneContent | undefined): void {
 		this._sessionDisposables.clear();
-		if (!input) {
+		if (!content) {
 			this._headerTargetsChatKey.reset();
 			this._toolbarShowsSessionKey.reset();
 			this._bar.setContext(undefined);
 			return;
 		}
-		const content = isSessionPaneContent(input) ? input : paneContentOf(input, () => this._sessionsService.closeSession(input));
 		const { session, chat } = content;
 		const closeSession = () => content.close();
 		this._sessionDisposables.add(autorun(reader => {

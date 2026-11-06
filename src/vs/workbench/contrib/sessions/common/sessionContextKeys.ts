@@ -42,7 +42,7 @@ import {
 } from './contextkeys.js';
 import { ChatOriginKind, getChatCapabilities, IChat, isActiveSessionStatus, isSessionCreated, isSideChatOf, ISession, SessionStatus } from './session.js';
 import { ISessionChangesStatsCache, readChatChangesStats, readSessionChangesStats } from './sessionChangesStatsCache.js';
-import { IActiveSession, IHostSession, IPaneViewState, paneViewStateOfActiveSession } from './sessionsManagement.js';
+import { IHostSession, IPaneViewState } from './sessionsManagement.js';
 
 /**
  * The set of session context keys bound to a single {@link IContextKeyService}.
@@ -200,21 +200,11 @@ function setSessionContextKeysUnbuffered(session: ISession | undefined, contextK
 }
 
 /**
- * Sets every context key that can be derived from an {@link IActiveSession} on
- * the given context key service. This is a superset of
- * {@link setSessionContextKeys} that also applies the keys which only exist on
- * an active (visible) session, then delegates to it for the shared keys.
+ * Sets every context key of the session a host shows: the keys of {@link setSessionContextKeys}, and the keys of the chat
+ * it shows of it, which the session does not select for every place that shows it, and of the state of the pane that
+ * shows it. Without a pane, as for a chat window or a composer, the session is not pinned and shows no tab strip.
  *
  * See {@link setSessionContextKeys} for the `reader` and `undefined` semantics.
- */
-export function setActiveSessionContextKeys(session: IActiveSession | undefined, contextKeyService: IContextKeyService, reader: IReader | undefined, changesStatsCache?: ISessionChangesStatsCache): void {
-	setHostSessionContextKeys(session, session?.activeChat.read(reader), session && paneViewStateOfActiveSession(session), contextKeyService, reader, changesStatsCache);
-}
-
-/**
- * Sets the keys of {@link setActiveSessionContextKeys} for the session a host shows, the chat it shows of it, which the
- * session does not select for every place that shows it, and the state of the pane that shows it. Without a pane, as for
- * a chat window or a composer, the session is not pinned and shows no tab strip.
  */
 export function setHostSessionContextKeys(session: IHostSession | undefined, chat: IChat | undefined, paneState: IPaneViewState | undefined, contextKeyService: IContextKeyService, reader: IReader | undefined, changesStatsCache?: ISessionChangesStatsCache): void {
 	contextKeyService.bufferChangeEvents(() => {

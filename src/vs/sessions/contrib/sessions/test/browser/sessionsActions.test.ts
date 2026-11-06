@@ -672,7 +672,7 @@ suite('Sessions - Actions', () => {
 		});
 		stubMissingSessionHostsFromSessionsService(instantiationService);
 		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
-			override focusSession(): void { }
+			override focusNewSessionSlot(): void { }
 		});
 
 		const command = CommandsRegistry.getCommand('sessionsViewPane.openToTheSide');
@@ -1023,8 +1023,8 @@ suite('Sessions - Actions', () => {
 						}
 					};
 				}
-				override focusSession(session: ITestSessionWithChat | undefined): void {
-					focusedSessionId = session?.sessionId;
+				override focusNewSessionSlot(): void {
+					focusedSessionId = undefined;
 				}
 			});
 
@@ -1117,7 +1117,7 @@ suite('Sessions - Actions', () => {
 			override getSessionView() { calls.push('view'); return undefined; }
 			override getActiveSessionView() { calls.push('activeView'); return undefined; }
 			override getPaneAtPosition() { calls.push('position'); return undefined; }
-			override focusSession() { calls.push('focusSession'); }
+			override focusNewSessionSlot() { calls.push('focusSession'); }
 			override focusPane() { calls.push('focusPane'); }
 			override toggleMaximizePane() { calls.push('toggleMaximizePane'); }
 		});
@@ -1167,7 +1167,7 @@ suite('Sessions - Actions', () => {
 			});
 			stubMissingSessionHostsFromSessionsService(instantiationService);
 			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
-				override focusSession() { calls.push(`${kind}: grid focusSession`); }
+				override focusNewSessionSlot() { calls.push(`${kind}: grid focusSession`); }
 			});
 			instantiationService.stub(ISessionHostService, upcastPartial<ISessionHostService>({}));
 			instantiationService.stub(IFocusedSessionHostService, upcastPartial<IFocusedSessionHostService>({
@@ -1204,7 +1204,7 @@ suite('Sessions - Actions', () => {
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({}));
 		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
 			override getSessionView() { return undefined; }
-			override focusSession() { calls.push('grid focus'); }
+			override focusNewSessionSlot() { calls.push('grid focus'); }
 		});
 		const opener = new ChatHostOpenerService();
 		disposables.add(opener.register({
@@ -1255,7 +1255,7 @@ suite('Sessions - Actions', () => {
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({}));
 		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
 			override getSessionView() { return undefined; }
-			override focusSession() { calls.push('grid focus'); }
+			override focusNewSessionSlot() { calls.push('grid focus'); }
 		});
 		const opener = new ChatHostOpenerService();
 		disposables.add(opener.register({
@@ -1592,7 +1592,7 @@ suite('Sessions - Actions', () => {
 				return undefined;
 			}
 			override getActiveSessionView() { return upcastPartial<SessionView>({ getSession: () => activeSession, getActiveChat: () => undefined }); }
-			override focusSession(): void { }
+			override focusNewSessionSlot(): void { }
 		});
 
 		const command = CommandsRegistry.getCommand(CLOSE_SESSION_COMMAND_ID);
@@ -1632,7 +1632,7 @@ suite('Sessions - Actions', () => {
 					}
 				}();
 			}
-			override focusSession(): void { }
+			override focusNewSessionSlot(): void { }
 		});
 
 		const command = CommandsRegistry.getCommand(CLOSE_SESSION_COMMAND_ID);
@@ -2303,7 +2303,7 @@ suite('Sessions - Actions', () => {
 					return 'applied';
 				},
 			}),
-			focusSession: () => { },
+			focusNewSessionSlot: () => { },
 		}));
 		instantiationService.stub(ICommandService, new TestCommandService());
 		const command = CommandsRegistry.getCommand(NEW_SESSION_FOR_WORKSPACE_ACTION_ID);
@@ -2369,7 +2369,7 @@ suite('Sessions - Actions', () => {
 					return 'applied';
 				},
 			}),
-			focusSession: () => { },
+			focusNewSessionSlot: () => { },
 		}));
 		instantiationService.stub(ICommandService, new TestCommandService());
 		const run = (commandId: string, ...args: unknown[]) => CommandsRegistry.getCommand(commandId)!.handler(instantiationService, ...args);
@@ -2419,7 +2419,7 @@ suite('Sessions - Actions', () => {
 				instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
 					activeSession: constObservable(draft),
 					openNewSession: async () => ({ session: draft, trustDeclined: false }),
-					focusActiveSession: () => instantiationService.get(ISessionsPartService).focusSession(draft as Parameters<ISessionsPartService['focusSession']>[0]),
+					focusActiveSession: () => { focused.push(draft); },
 				}));
 				stubMissingSessionHostsFromSessionsService(instantiationService);
 				instantiationService.stub(ISessionsPartService, {
@@ -2429,7 +2429,6 @@ suite('Sessions - Actions', () => {
 							return 'applied';
 						},
 					}),
-					focusSession: session => { focused.push(session); },
 				});
 				instantiationService.stub(ICommandService, new TestCommandService());
 
@@ -2553,7 +2552,7 @@ suite('Sessions - Actions', () => {
 					return 'applied';
 				},
 			}),
-			focusSession: () => { },
+			focusNewSessionSlot: () => { },
 		}));
 		instantiationService.stub(ICommandService, new TestCommandService());
 		const run = (section: Partial<ISessionSection>) => CommandsRegistry.getCommand(NEW_SESSION_FOR_WORKSPACE_ACTION_ID)!.handler(instantiationService, upcastPartial<ISessionSection>(section));

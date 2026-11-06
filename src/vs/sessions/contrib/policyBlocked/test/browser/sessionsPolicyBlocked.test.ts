@@ -79,13 +79,14 @@ suite('Sessions policy update explanation', () => {
 			override readonly onDidChangeManagedSettings = managedSettingsChange.event;
 			override getManagedSettingValue(key: string) { return managedSettings[key]; }
 		}());
-		services.stub(ISessionsService, upcastPartial<ITestSessionsService>({ activeSession, focusActiveSession: () => services.get(ISessionsPartService).focusSession(activeSession.get() as Parameters<ISessionsPartService['focusSession']>[0]) }));
-		services.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
-			override focusSession(session: ITestSessionWithChat | undefined): void {
-				fallbackFocusCalls.push({ sessionId: session?.sessionId, inert: content.inert });
+		services.stub(ISessionsService, upcastPartial<ITestSessionsService>({
+			activeSession,
+			focusActiveSession: () => {
+				fallbackFocusCalls.push({ sessionId: activeSession.get()?.sessionId, inert: content.inert });
 				fallbackFocusTarget.focus();
-			}
-		}());
+			},
+		}));
+		services.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
 		services.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
 			override readonly currentDefaultAccount = null;
 		}());

@@ -206,25 +206,6 @@ export interface ISessionsService extends ISessionGridPanes {
 	 */
 	readonly gridHost: ISessionHost;
 
-	/**
-	 * Observable list of main-session slots, excluding standalone child panes.
-	 * Each entry is either an
-	 * {@link IActiveSession} or `undefined` for the empty (new-session)
-	 * placeholder. At most one entry is `undefined` at a time. Sessions
-	 * pinned via {@link toggleSessionStickiness} are sticky; the remaining
-	 * non-sticky entries get replaced when new sessions are opened.
-	 *
-	 * @deprecated Transitional: use the pane members. Kept for tests that give views of sessions, until they are removed. See {@link slotPanes}.
-	 */
-	readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>;
-
-	/**
-	 * All rendered panes, including standalone children, in binding order rather than visual grid order.
-	 *
-	 * @deprecated Transitional: use the pane members. Kept for tests that give views of sessions, until they are removed. See {@link panes}.
-	 */
-	readonly visibleSessionPanes: IObservable<readonly (IActiveSession | undefined)[]>;
-
 	/** The panes of the grid: its slots, including the new-session slot, then its detached panes, in binding order. */
 	readonly panes: IObservable<readonly ISessionGridPane[]>;
 
@@ -359,7 +340,7 @@ export interface ISessionsService extends ISessionGridPanes {
 	 * active session. Returns the activated session, or `undefined` when no
 	 * provider supports quick chats. Automatic fallbacks preserve pending navigation.
 	 */
-	openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation?: boolean, preserveFocus?: boolean): IActiveSession | undefined;
+	openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation?: boolean, preserveFocus?: boolean): ISession | undefined;
 
 	/**
 	 * Switch to the new-chat-in-session view.
@@ -397,12 +378,6 @@ export interface ISessionsService extends ISessionGridPanes {
 	 */
 	openMovedChats(chats: readonly { readonly session: ISession; readonly chatResource: URI }[]): Promise<void>;
 	arrangeSessions(): void;
-	/** @deprecated Transitional: use the pane members. Kept for tests that give views of sessions, until they are removed. See {@link focusPaneInDirection}. */
-	focusSessionInDirection(session: IActiveSession | undefined, direction: Direction): void;
-	/** @deprecated Transitional: use the pane members. Kept for tests that give views of sessions, until they are removed. See {@link movePaneInDirection}. */
-	moveSessionInDirection(session: IActiveSession | undefined, direction: Direction): void;
-	/** @deprecated Transitional: use the pane members. Kept for tests that give views of sessions, until they are removed. See {@link resizePaneInDirection}. */
-	resizeSession(session: IActiveSession | undefined, direction: Direction): void;
 
 	/**
 	 * Toggle a session's stickiness in the grid. The session keeps its grid
@@ -420,27 +395,10 @@ export interface ISessionsService extends ISessionGridPanes {
 	closeSession(session: ISession | undefined): void;
 
 	/**
-	 * Remove every visible slot except `session` without starting or cancelling
-	 * navigation. No-op when `session` is not currently visible.
-	 *
-	 * @deprecated Transitional: use the pane members. Kept for tests that give views of sessions, until they are removed. See {@link collapseToPane}.
-	 */
-	collapseToSession(session: IActiveSession | undefined): void;
-
-	/**
 	 * Close all sessions currently shown in the grid and land on the
 	 * new-session view. No-op when no session is currently visible.
 	 */
 	closeAllSessions(): void;
-
-	/**
-	 * Make the given (already visible) session the active session, and move focus into it unless `preserveFocus`, such as
-	 * when its window gains focus elsewhere than in its session. No-op for the session of a chat that another surface,
-	 * such as a chat editor, shows.
-	 *
-	 * @deprecated Transitional: use the pane members. Kept for tests that give views of sessions, until they are removed. See {@link activatePane}.
-	 */
-	setActive(session: IActiveSession | undefined, preserveFocus?: boolean): void;
 
 	/** Moves focus into the grid's active pane: its session's chat, or the new-session composer. */
 	focusActiveSession(): void;
@@ -484,8 +442,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 	/** Owns the active/sticky/transient visibility model and the {@link IActiveSession} wrappers. */
 	private readonly _visibility: VisibleSessions;
 	private readonly _gridRequest = observableValue<SessionGridRequest | undefined>(this, undefined);
-	readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>;
-	readonly visibleSessionPanes: IObservable<readonly (IActiveSession | undefined)[]>;
+	private readonly _visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>;
 	readonly panes: IObservable<readonly ISessionGridPane[]>;
 	readonly slotPanes: IObservable<readonly ISessionGridPane[]>;
 	readonly activePane: IObservable<ISessionGridPane | undefined>;
@@ -581,8 +538,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			session => this._restoreShownRelatedChats(session),
 			(replaced, index, sticky, replacedBySessionId) => this._closedItems.recordReplacedSlot(replaced, index, sticky, replacedBySessionId),
 		));
-		this.visibleSessions = this._visibility.visibleSessions;
-		this.visibleSessionPanes = this._visibility.gridSessions;
+		this._visibleSessions = this._visibility.visibleSessions;
 		this.panes = this._visibility.panes;
 		this.slotPanes = this._visibility.slotPanes;
 		this.activePane = this._visibility.activePane;
@@ -725,7 +681,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 					} else if (activePane) {
 						this.sessionsPartService.focusPane(activePane);
 					} else {
-						this.sessionsPartService.focusSession(undefined);
+						this.sessionsPartService.focusNewSessionSlot();
 					}
 				}
 			}
@@ -758,7 +714,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 	 */
 	private _rememberDepartedSession(session: ISession): void {
 		const slot = this._visibility.getSlot(session.sessionId);
-		const visible = this.visibleSessions.get().find(candidate => candidate?.sessionId === session.sessionId);
+		const visible = this._visibleSessions.get().find(candidate => candidate?.sessionId === session.sessionId);
 		if (!slot || !visible) {
 			return;
 		}
@@ -772,7 +728,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 	private _onDidMoveChat(event: IChatMovedEvent): void {
 		const extUri = this.uriIdentityService.extUri;
 		const { from, to } = event;
-		const shown = this.visibleSessions.get().find(session => session && extUri.isEqual(session.resource, from.session.resource));
+		const shown = this._visibleSessions.get().find(session => session && extUri.isEqual(session.resource, from.session.resource));
 		if (!shown) {
 			this._onDidMoveChatFromDepartedSession(event);
 			return;
@@ -783,7 +739,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		}
 		const wasActive = this.activeSession.get()?.sessionId === shown.sessionId;
 		const preserveFocus = this.sessionsPartService.getFocusedSessionView() !== this.sessionsPartService.getSessionView(shown.sessionId);
-		if (!this.visibleSessions.get().some(session => session && extUri.isEqual(session.resource, to.session.resource))) {
+		if (!this._visibleSessions.get().some(session => session && extUri.isEqual(session.resource, to.session.resource))) {
 			this._visibility.updateSession(shown, to.session, preserveFocus);
 		}
 		if (wasActive) {
@@ -801,7 +757,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 	/** The grid slots showing the new-session composer: the empty slot (`undefined`) and the new-session draft's. */
 	private _getNewSessionSlots(): (string | undefined)[] {
 		const slots: (string | undefined)[] = [];
-		if (this.visibleSessions.get().some(session => session === undefined)) {
+		if (this._visibleSessions.get().some(session => session === undefined)) {
 			slots.push(undefined);
 		}
 		const draft = this.sessionsManagementService.newSession.get();
@@ -820,7 +776,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		}
 		this._departedSessions.delete(from.session.resource);
 		this._departedSessionTimeouts.deleteAndDispose(from.session.resource);
-		if (!this.visibleSessions.get().some(session => session && extUri.isEqual(session.resource, to.session.resource))) {
+		if (!this._visibleSessions.get().some(session => session && extUri.isEqual(session.resource, to.session.resource))) {
 			// Its removal may have opened the new-session fallback (the empty slot or the new-session draft) in its
 			// slot: the moved chat's session takes that slot over instead of adding another.
 			const fallback = this._getNewSessionSlots().filter(slotId => !departed.newSessionSlots.includes(slotId) && this._visibility.getSlot(slotId)?.index === departed.index);
@@ -1064,9 +1020,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 	activatePane(pane: ISessionGridPane | undefined, preserveFocus?: boolean): void {
 		if (!pane) {
-			this.setActive(undefined, preserveFocus);
+			this._setActiveAdapter(undefined, preserveFocus);
 		} else if (this._isLivePane(pane)) {
-			this.setActive(this._visibility.getAdapterOfPane(pane), preserveFocus);
+			this._setActiveAdapter(this._visibility.getAdapterOfPane(pane), preserveFocus);
 		}
 	}
 
@@ -1078,7 +1034,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 	collapseToPane(pane: ISessionGridPane): void {
 		if (this._isLivePane(pane)) {
-			this.collapseToSession(this._visibility.getAdapterOfPane(pane));
+			this._collapseToAdapter(this._visibility.getAdapterOfPane(pane));
 		}
 	}
 
@@ -1129,7 +1085,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		if (pane) {
 			this.sessionsPartService.focusPane(pane);
 		} else {
-			this.sessionsPartService.focusSession(undefined);
+			this.sessionsPartService.focusNewSessionSlot();
 		}
 	}
 
@@ -1142,11 +1098,6 @@ export class SessionsService extends Disposable implements ISessionsService {
 		const pane = from && this.getPaneOfHost(from);
 		const detached = pane?.kind === SessionGridPaneKind.Detached && pane.session.get()?.sessionId === session.sessionId ? this._visibility.getAdapterOfPane(pane) : undefined;
 		return detached ?? session;
-	}
-
-	/** The pane whose adapter `session` is, a view of a session in a pane; the new-session slot's for `undefined`. */
-	private _paneOfAdapter(session: IActiveSession | undefined): ISessionGridPane | undefined {
-		return this._visibility.panes.get().find(pane => this._visibility.getAdapterOfPane(pane) === session);
 	}
 
 	/**
@@ -1668,7 +1619,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		if (token.isCancellationRequested || !this.areGridSessionsCurrent([session])) {
 			return;
 		}
-		const visible = this.visibleSessions.get();
+		const visible = this._visibleSessions.get();
 		if (referenceWasVisible && !this._visibility.getSlot(options?.referenceSessionId)) {
 			return;
 		}
@@ -1759,7 +1710,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		}
 		const splitMainChat = !referenceSlotId && options?.activate !== false && options?.forceMainChat && !!this._visibility.getSlot(primary.sessionId);
 		const entries = prepared.filter(session => (referenceSlotId
-			? this._visibility.getGridSlots()[this.visibleSessions.get().findIndex(visible => visible?.sessionId === session.sessionId)]?.id !== referenceSlotId
+			? this._visibility.getGridSlots()[this._visibleSessions.get().findIndex(visible => visible?.sessionId === session.sessionId)]?.id !== referenceSlotId
 			: session.sessionId !== referenceSessionId) && (!splitMainChat || session !== primary));
 		const open = async (attempt?: ISessionOpenTelemetryAttempt): Promise<void> => {
 			if (token.isCancellationRequested || !this.areGridSessionsCurrent(prepared)) {
@@ -1900,30 +1851,6 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this._cancelRestore();
 		this._startOpenSession();
 		this._gridRequest.set({ type: 'arrange' }, undefined);
-	}
-
-	/** @deprecated See {@link focusPaneInDirection}. */
-	focusSessionInDirection(session: IActiveSession | undefined, direction: Direction): void {
-		const pane = this._paneOfAdapter(session);
-		if (pane) {
-			this.focusPaneInDirection(pane, direction);
-		}
-	}
-
-	/** @deprecated See {@link movePaneInDirection}. */
-	moveSessionInDirection(session: IActiveSession | undefined, direction: Direction): void {
-		const pane = this._paneOfAdapter(session);
-		if (pane) {
-			this.movePaneInDirection(pane, direction);
-		}
-	}
-
-	/** @deprecated See {@link resizePaneInDirection}. */
-	resizeSession(session: IActiveSession | undefined, direction: Direction): void {
-		const pane = this._paneOfAdapter(session);
-		if (pane) {
-			this.resizePaneInDirection(pane, direction);
-		}
 	}
 
 	/**
@@ -2151,7 +2078,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		const activeSessionId = activeSession?.sessionId;
 		const sessionId = session?.sessionId;
 		if (toSide && activeSessionId !== sessionId) {
-			const visible = this.visibleSessions.get();
+			const visible = this._visibleSessions.get();
 			const reference = activeSession?.scopedChatResource
 				? this._visibility.getRenderedGridSlots()[this._visibility.gridSessions.get().indexOf(activeSession)]
 				: undefined;
@@ -2176,8 +2103,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this._activate(session, preserveFocus, intent);
 	}
 
-	openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation = false, preserveFocus?: boolean): IActiveSession | undefined {
-		return this._openQuickChat(options, preserveNavigation ? 'automatic' : 'explicit', preserveFocus);
+	openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation = false, preserveFocus?: boolean): ISession | undefined {
+		const active = this._openQuickChat(options, preserveNavigation ? 'automatic' : 'explicit', preserveFocus);
+		return active instanceof VisibleSession ? active.session : active;
 	}
 
 	private _openQuickChat(options: ICreateNewSessionOptions | undefined, intent: SessionNavigationIntent, preserveFocus?: boolean): IActiveSession | undefined {
@@ -2218,7 +2146,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this._focusActivePane();
 	}
 
-	setActive(session: IActiveSession | undefined, preserveFocus?: boolean): void {
+	private _setActiveAdapter(session: IActiveSession | undefined, preserveFocus?: boolean): void {
 		const active = this.activeSession.get();
 		if (this.windowCanvasService.activeCanvasOpen.get() || session?.sessionId !== active?.sessionId) {
 			this._cancelRestore();
@@ -2278,12 +2206,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		// Where focus would have gone, unless the user moved it meanwhile: it is not there only when the element that held it went away or did not move since.
 		const focused = mainWindow.document.activeElement;
 		if (!focused || focused === mainWindow.document.body || !focused.isConnected || focused === skippedAt) {
-			const activePane = this._visibility.activePane.get();
-			if (activePane) {
-				this.sessionsPartService.focusPane(activePane);
-			} else {
-				this.sessionsPartService.focusSession(undefined);
-			}
+			this._focusActivePane();
 		}
 	}
 
@@ -2361,7 +2284,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		}
 	}
 
-	collapseToSession(session: IActiveSession | undefined): void {
+	private _collapseToAdapter(session: IActiveSession | undefined): void {
 		const visible = this._visibility.gridSessions.get();
 		const survivor = visible.find(candidate => candidate?.sessionId === session?.sessionId
 			&& this.uriIdentityService.extUri.isEqual(candidate?.scopedChatResource, session?.scopedChatResource));

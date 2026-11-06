@@ -116,7 +116,7 @@ suite('Sessions - New chat user-perceived TTFP', () => {
 			send: Reflect.get(newSession ? NewChatWidget.prototype : NewChatInSessionWidget.prototype, '_send') as Send,
 			_session: constObservable(h.session),
 			_chat: constObservable(undefined),
-			_paneChat: shownChatOf(constObservable(h.session), undefined),
+			_paneChat: shownChatOf(constObservable(h.session), h.session.activeChat),
 			_feedbackItems: constObservable([]),
 			_isQuickChatComposer: constObservable(false),
 			_workspaceSupport: constObservable(undefined),

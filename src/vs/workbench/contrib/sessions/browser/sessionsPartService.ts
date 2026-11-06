@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IActiveSession } from '../common/sessionsManagement.js';
 import { IChat, ISession } from '../common/session.js';
 import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../common/workspaceSelection.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -134,30 +133,23 @@ export interface ISessionsPartService {
 	 */
 	readonly onDidFocusPane: Event<string>;
 
-	/**
-	 * Toggles the maximized state of the session view hosting the given session
-	 * in the sessions part's grid.
-	 */
-	toggleMaximizeSession(session: IActiveSession | undefined): void;
-
 	/** Toggles the maximized state of the view of `pane` in the grid. */
 	toggleMaximizePane(pane: ISessionGridPane): void;
 
 	/**
 	 * Fires after the maximized state of a session view was toggled via
-	 * {@link toggleMaximizeSession}. Does not fire when the call was a no-op
-	 * (e.g. the session was not visible or fewer than two views were present).
+	 * {@link toggleMaximizePane}. Does not fire when the call was a no-op
+	 * (e.g. the pane was not in the grid or fewer than two views were present).
 	 */
 	readonly onDidToggleMaximizeSession: Event<IToggleMaximizeSessionEvent>;
 
 	/**
-	 * Moves keyboard focus into the chat input of the session view hosting the
-	 * given session, or into the placeholder (new-session) view when `session`
-	 * is `undefined`. No-op if no matching slot is currently mounted.
+	 * Moves keyboard focus into the placeholder (new-session) view, first revealing it in the grid when it is only
+	 * partially visible. No-op if no new-session slot is currently mounted.
 	 */
-	focusSession(session: IActiveSession | undefined): void;
+	focusNewSessionSlot(): void;
 
-	/** Moves keyboard focus into the view of the grid slot of `pane`, first revealing it like {@link focusSession}. */
+	/** Moves keyboard focus into the view of the grid slot of `pane`, first revealing it like {@link focusNewSessionSlot}. */
 	focusPane(pane: ISessionGridPane): void;
 
 	/**
