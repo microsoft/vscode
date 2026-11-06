@@ -1146,6 +1146,18 @@ suite('Editor cloud sandbox discovery', () => {
 		});
 	});
 
+	test('connecting after first use does not add a catalog refresh trigger', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const h = createHarness(store, { hasFocus: false });
+		await Promise.all(h.initialRefreshes);
+		await timeout(5 * 60_000 + 1_000);
+		h.state.hasFocus = true;
+		await h.contribution.connect({ environmentId: discovered.environmentId, sessionId: discovered.sessionId, name: discovered.name });
+		await timeout(0);
+		assert.deepStrictEqual({ network: h.networkCalls, modes: h.discoveryModes }, {
+			network: ['feed', 'list'], modes: [false],
+		});
+	}));
+
 	test('opens an unbound task through the task content provider and sends through the registered task participant', async () => {
 		const resolved: string[] = [];
 		const invoked: string[] = [];

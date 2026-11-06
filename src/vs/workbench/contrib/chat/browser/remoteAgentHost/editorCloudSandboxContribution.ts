@@ -363,7 +363,9 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 		if (!this.accountKey && this._isEnabled()) {
 			await this._restoreInventory();
 		}
-		void this._requestDiscovery();
+		if (!this._discoveryRequested) {
+			void this._requestDiscovery();
+		}
 		return super.connect(options);
 	}
 
@@ -479,7 +481,9 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 					if (!isUntitledChatSession(sessionResource)) {
 						throw new Error(`Sandbox session ${sessionResource.toString()} is served by its environment's session type.`);
 					}
-					void this._requestDiscovery();
+					if (!this._discoveryRequested) {
+						void this._requestDiscovery();
+					}
 					draftModels.load();
 					// Blocked while the first turn provisions, so no follow-up can queue on a draft that is
 					// about to be replaced; the Agents window keeps its placeholder read-only the same way.
@@ -681,7 +685,9 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 					throw this._instantiationService.createInstance(CloudSandboxStartupError, error, 'preparation');
 				}
 			}
-			void this._requestDiscovery();
+			if (!this._discoveryRequested) {
+				void this._requestDiscovery();
+			}
 			const { sessionResource, sessionType } = await this._provisionForDraft(draftResource, repoNwo, request.message, readCloudSandboxDraftConfig(draftOptions, this._draftConfig.get()), { report }, token, request);
 			// Session-option lookups for the new session resolve to the draft's picks.
 			this._editorChatSessionsService.registerSessionResourceAlias(draftResource, sessionResource);
