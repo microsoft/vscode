@@ -506,8 +506,8 @@ importers:
         specifier: ^1.1.0
         version: 1.1.0
       readable-stream:
-        specifier: ^2.3.8
-        version: 2.3.8
+        specifier: ^3.6.0
+        version: 3.6.0
       rimraf:
         specifier: ^2.2.8
         version: 2.6.3
@@ -7852,6 +7852,7 @@ snapshots:
     dependencies:
       '@types/minimatch': 3.0.3
       '@types/node': 24.12.4
+    optional: true
 
   '@types/http-cache-semantics@4.2.0': {}
 
