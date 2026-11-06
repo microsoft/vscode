@@ -40,7 +40,7 @@ import {
 	SessionHasGitRepositoryContext,
 } from './contextkeys.js';
 import { ChatOriginKind, getChatCapabilities, IChat, isActiveSessionStatus, isSessionCreated, isSideChatOf, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
-import { ISessionChangesStatsCache, readChatChangesStats, readSessionChangesStats } from './sessionChangesStatsCache.js';
+import { ISessionChangesStatsCache, readChatChangesStats, readSessionChangesStats } from '../../../services/sessions/common/sessionChangesStatsCache.js';
 import { getCanvasReferenceKey } from '../../../common/canvasReference.js';
 import { IPaneViewState } from '../../../services/sessions/common/sessionPane.js';
 

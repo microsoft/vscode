@@ -37,7 +37,7 @@ import { ISessionsService } from '../../../workbench/contrib/sessions/browser/se
 import { ChatInteractivity, IChat, ISession, ISessionCapabilities, ISessionPreparationProgress, SessionStatus } from '../../../workbench/services/sessions/common/session.js';
 import { ITestSessionWithChat, LegacyFakePaneState, stubSessionHosts } from '../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ChatHostOpenerService, IChatHostOpenerService } from '../../../workbench/services/sessions/browser/chatHostOpener.js';
-import { ISessionChangesStatsCache } from '../../../workbench/contrib/sessions/common/sessionChangesStatsCache.js';
+import { ISessionChangesStatsCache } from '../../../workbench/services/sessions/common/sessionChangesStatsCache.js';
 import { SessionInputPickerVisibility } from '../../../workbench/contrib/sessions/common/sessionPickerVisibility.js';
 import { ISessionsManagementService } from '../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionGridPane, SessionGridPaneKind } from '../../../workbench/services/sessions/browser/sessionGridPane.js';

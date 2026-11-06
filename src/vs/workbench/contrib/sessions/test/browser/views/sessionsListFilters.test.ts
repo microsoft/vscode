@@ -8,7 +8,7 @@ import { autorun, constObservable, observableValue } from '../../../../../../bas
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
-import { getSessionApplication } from '../../../common/sessionApplication.js';
+import { getSessionApplication } from '../../../../../services/sessions/common/sessionApplication.js';
 import { ISession, ISessionEnvironment } from '../../../../../services/sessions/common/session.js';
 import { buildTestSession } from '../../common/testSessionBuilder.js';
 import { getSessionFilterOptions, sessionFilterKey, SessionsListFilters } from '../../../browser/views/sessionsListFilters.js';

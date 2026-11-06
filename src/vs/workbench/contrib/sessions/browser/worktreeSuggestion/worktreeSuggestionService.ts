@@ -37,7 +37,7 @@ import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { ISessionFileChange, isSessionCreated, UNCOMMITTED_CHANGES_CHANGESET_ID, ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../common/sessionsProvider.js';
 import { CHANGES_VIEW_ID } from '../../common/changes.js';
-import { ISessionChangesService } from '../../common/sessionChangesService.js';
+import { ISessionChangesService } from '../../../../services/sessions/common/sessionChangesService.js';
 import { createWorktreeSuggestionTour } from '../tours/worktreeSuggestionTour.js';
 import { isWorktreeSuggestionVariant, WORKTREE_SUGGESTION_MIN_CREATED_SESSIONS, WORKTREE_SUGGESTION_SETTING, WORKTREE_SUGGESTION_TOUR_ID, WorktreeSuggestionVariant } from '../../common/worktreeSuggestion.js';
 import { formatChangeStats, getChangedFileAriaDescription, getChangedFileLabel, getChangedFilesRoot, getChangedFileUri, getMoreFilesLabel, getSendInWorktreeLabel, getSendLabel, getUncommittedChangesMessage } from './worktreeSuggestionPresentation.js';

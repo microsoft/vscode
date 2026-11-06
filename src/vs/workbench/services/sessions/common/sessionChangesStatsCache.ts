@@ -7,7 +7,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IReader, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { IChat, ISession, ISessionChangeset, ISessionFileChange } from '../../../services/sessions/common/session.js';
+import { IChat, ISession, ISessionChangeset, ISessionFileChange } from './session.js';
 
 /** The aggregate diff counts the changes pill reports for a session. */
 export interface ISessionChangesStats {

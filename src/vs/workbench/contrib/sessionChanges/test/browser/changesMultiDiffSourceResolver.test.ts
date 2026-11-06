@@ -15,7 +15,7 @@ import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService } from '../..
 import { IChat, ISession, ISessionFileChange } from '../../../../services/sessions/common/session.js';
 import { ChangesMultiDiffSourceResolver } from '../../browser/changesMultiDiffSourceResolver.js';
 import { ChangesViewMode } from '../../../sessions/common/changes.js';
-import { ISessionChangesService } from '../../../sessions/common/sessionChangesService.js';
+import { ISessionChangesService } from '../../../../services/sessions/common/sessionChangesService.js';
 import { ISessionsService } from '../../../sessions/browser/sessionsService.js';
 import { ISessionsManagementService } from '../../../sessions/common/sessionsManagement.js';
 import { IChangesSessionObservables, IChangesViewService } from '../../../sessions/common/changesViewService.js';

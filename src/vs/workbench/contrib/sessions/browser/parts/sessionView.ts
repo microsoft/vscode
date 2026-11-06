@@ -29,7 +29,7 @@ import { ISessionsService } from '../sessionsService.js';
 import { SessionIsMaximizedContext } from '../../common/contextkeys.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../common/layoutConstants.js';
 import { setHostSessionContextKeys } from '../../common/sessionContextKeys.js';
-import { ISessionChangesStatsCache } from '../../common/sessionChangesStatsCache.js';
+import { ISessionChangesStatsCache } from '../../../../services/sessions/common/sessionChangesStatsCache.js';
 import { applySessionViewThemeColors } from './sessionBarStyles.js';
 import { IChatViewFactory } from '../chatViewFactory.js';
 import { noSessionPickerVisibility, SessionPickerVisibilityContextKeys } from '../../common/sessionPickerVisibility.js';

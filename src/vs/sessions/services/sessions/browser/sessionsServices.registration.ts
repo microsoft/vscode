@@ -14,7 +14,7 @@ import { ISessionsListModelService, SessionsListModelService } from '../../../..
 import { ISessionGroupsService, SessionGroupsService } from '../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
 import { ISessionComparisonService } from '../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { SessionComparisonService } from '../../../../workbench/contrib/sessions/browser/sessionComparisonService.js';
-import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../workbench/contrib/sessions/browser/sessionSectionOrderService.js';
+import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../workbench/services/sessions/browser/sessionSectionOrderService.js';
 import { IAgentHostFilterService } from '../../../../workbench/contrib/sessions/common/agentHostFilter.js';
 import { AgentHostFilterService } from '../../../../workbench/contrib/sessions/browser/agentHostFilterService.js';
 import { ISessionRepositoryPicker } from '../../../../workbench/contrib/sessions/browser/sessionRepositoryPicker.js';
@@ -26,7 +26,7 @@ import { ISessionsProvidersService, SessionsProvidersService } from '../../../..
 import { ISessionsRecentWorkspacesService, SessionsRecentWorkspacesService } from '../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { SessionsManagementService } from '../../../../workbench/contrib/sessions/browser/sessionsManagementService.js';
-import { ISessionChangesStatsCache, SessionChangesStatsCache } from '../../../../workbench/contrib/sessions/common/sessionChangesStatsCache.js';
+import { ISessionChangesStatsCache, SessionChangesStatsCache } from '../../../../workbench/services/sessions/common/sessionChangesStatsCache.js';
 
 // The session services are implemented in modules that do not register themselves, so that a window loads them only
 // when its entry point imports this module.

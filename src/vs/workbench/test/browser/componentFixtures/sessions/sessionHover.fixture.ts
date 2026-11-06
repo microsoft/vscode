@@ -13,7 +13,7 @@ import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
-import { getSessionApplication } from '../../../../contrib/sessions/common/sessionApplication.js';
+import { getSessionApplication } from '../../../../services/sessions/common/sessionApplication.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { computePullRequestIcon, GitHubPullRequestState } from '../../../../contrib/sessions/common/github/types.js';

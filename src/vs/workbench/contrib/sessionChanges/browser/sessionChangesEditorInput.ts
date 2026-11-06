@@ -19,7 +19,7 @@ import { IWorkbenchLayoutService } from '../../../services/layout/browser/layout
 import { DockedEditorInput } from '../../../browser/parts/editor/dockedEditorInput.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { getSessionChangesFileCountLabel } from '../../sessions/common/changes.js';
-import { ISessionChangesService } from '../../sessions/common/sessionChangesService.js';
+import { ISessionChangesService } from '../../../services/sessions/common/sessionChangesService.js';
 
 /**
  * Editor input for the Agents window Changes tab. It wraps the session's

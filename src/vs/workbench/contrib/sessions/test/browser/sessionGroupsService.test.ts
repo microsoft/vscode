@@ -16,7 +16,7 @@ import { IChat, ISession, SessionStatus } from '../../../../services/sessions/co
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { IChatMovedEvent } from '../../common/sessionsProvider.js';
 import { getSessionGroupSectionId, SessionGroupsService, SessionGroupTree } from '../../browser/sessionGroupsService.js';
-import { ISessionSectionOrderService, SessionSectionOrderService } from '../../browser/sessionSectionOrderService.js';
+import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
 
 function createSession(id: string, isArchived = false, creatorSession?: URI): ISession {
 	return {

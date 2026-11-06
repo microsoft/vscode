@@ -24,7 +24,7 @@ import { ChatInteractivity, ChatOriginKind, IChat, ISession, isSessionCreated, S
 import { ICreateNewChatInSessionOptions, ICreateNewSessionOptions, inheritableSessionTarget, IRecentlyOpenedSessions, ISessionsChangeEvent, ISessionsManagementService, IToggleSessionStickinessEvent } from '../common/sessionsManagement.js';
 import { IChatMovedEvent } from '../common/sessionsProvider.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
-import { ensureSessionWorktreesTrusted } from './worktreeTrust.js';
+import { ensureSessionWorktreesTrusted } from '../../../services/sessions/browser/worktreeTrust.js';
 import { ClosedItemHistory } from './closedItemHistory.js';
 import { SessionNavigationIntent, SessionsNavigation } from './sessionNavigation.js';
 import { SessionsRecencyHistory } from '../../../services/sessions/browser/sessionsRecencyHistory.js';
@@ -36,7 +36,7 @@ import { ICustomViewService } from './customView.js';
 import { IWindowCanvasService } from './windowCanvas.js';
 import { IsNewChatSessionContext } from '../common/contextkeys.js';
 import { setHostSessionContextKeys } from '../common/sessionContextKeys.js';
-import { ISessionChangesStatsCache } from '../common/sessionChangesStatsCache.js';
+import { ISessionChangesStatsCache } from '../../../services/sessions/common/sessionChangesStatsCache.js';
 import { ISessionOpenTelemetryAttempt, ISessionOpenTelemetryService, SessionOpenSource } from './sessionOpenTelemetryService.js';
 import { isAgentHostProvider } from '../common/agentHostSessionsProvider.js';
 import { Direction } from '../../../../base/browser/ui/grid/grid.js';

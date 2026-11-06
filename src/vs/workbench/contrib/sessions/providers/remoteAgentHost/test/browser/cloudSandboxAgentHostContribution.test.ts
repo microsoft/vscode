@@ -13,7 +13,7 @@ import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { isWeb } from '../../../../../../../base/common/platform.js';
 import { mock, upcastPartial } from '../../../../../../../base/test/common/mock.js';
-import { getSessionApplication } from '../../../../common/sessionApplication.js';
+import { getSessionApplication } from '../../../../../../services/sessions/common/sessionApplication.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../../base/test/common/virtualScheduling/index.js';
 import { URI } from '../../../../../../../base/common/uri.js';

@@ -32,7 +32,7 @@ import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID, AGENT_HOST_COMMIT_CHANGESET
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { resolveSessionCommandTarget } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
 import { IChat, ISessionChangeset, ISessionChangesetOperation, ISessionFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, UNCOMMITTED_CHANGES_CHANGESET_ID, ISession } from '../../../../workbench/services/sessions/common/session.js';
-import { ISessionChangesStatsCache, readSessionChangesStats } from '../../../../workbench/contrib/sessions/common/sessionChangesStatsCache.js';
+import { ISessionChangesStatsCache, readSessionChangesStats } from '../../../../workbench/services/sessions/common/sessionChangesStatsCache.js';
 import { getChangesOfSession, IChangesSessionObservables, IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { ChangesMultiDiffSourceResolver } from '../../../../workbench/contrib/sessionChanges/browser/changesMultiDiffSourceResolver.js';
 import { ISessionChangesService } from '../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';

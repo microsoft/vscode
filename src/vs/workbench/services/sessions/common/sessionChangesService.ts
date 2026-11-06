@@ -7,9 +7,9 @@ import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IMultiDiffEditorOptions } from '../../../../editor/common/multiDiffEditor.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
-import { PreferredGroup } from '../../../services/editor/common/editorService.js';
-import { ISessionChangeset } from '../../../services/sessions/common/session.js';
+import { IEditorGroup } from '../../editor/common/editorGroupsService.js';
+import { PreferredGroup } from '../../editor/common/editorService.js';
+import { ISessionChangeset } from './session.js';
 
 export const ISessionChangesService = createDecorator<ISessionChangesService>('sessionChangesService');
 

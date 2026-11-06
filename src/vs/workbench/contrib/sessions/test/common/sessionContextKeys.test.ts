@@ -15,7 +15,7 @@ import { TestStorageService } from '../../../../test/common/workbenchTestService
 import { SessionActiveChatCanArchiveContext, SessionActiveChatCanvasReferenceKeysContext, SessionActiveChatHasSideChatsContext, SessionActiveChatResourceContext, SessionHasCachedChangesContext, SessionHasChangesContext, SessionHasGitRepositoryContext, SessionHasMultipleCommittedChatsContext, SessionHasWorkspaceContext, SessionIsActiveContext, SessionIsCreatedContext, SessionIsReadContext, SessionProviderIdContext, SessionSupportsSideChatContext, SessionWorkspaceIsVirtualContext } from '../../common/contextkeys.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionChangeset, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { setHostSessionContextKeys, setSessionContextKeys } from '../../common/sessionContextKeys.js';
-import { ISessionChangesStatsCache, SessionChangesStatsCache } from '../../common/sessionChangesStatsCache.js';
+import { ISessionChangesStatsCache, SessionChangesStatsCache } from '../../../../services/sessions/common/sessionChangesStatsCache.js';
 import { getCanvasReferenceKey } from '../../../../common/canvasReference.js';
 import { IChatSessionFileChange } from '../../../../common/chatSessionFileChange.js';
 import { IPaneViewState } from '../../../../services/sessions/common/sessionPane.js';

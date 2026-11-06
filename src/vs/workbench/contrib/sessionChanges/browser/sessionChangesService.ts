@@ -23,11 +23,11 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { getHostOfSession, getMainWindowHost, IFocusedSessionHostService, ISessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { ISessionsService } from '../../sessions/browser/sessionsService.js';
 import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
-import { ISessionChangesEditorOptions, ISessionChangesService } from '../../sessions/common/sessionChangesService.js';
+import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../services/sessions/common/sessionChangesService.js';
 import { UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
 
-export { ISessionChangesService } from '../../sessions/common/sessionChangesService.js';
-export type { ISessionChangesEditorOptions } from '../../sessions/common/sessionChangesService.js';
+export { ISessionChangesService } from '../../../services/sessions/common/sessionChangesService.js';
+export type { ISessionChangesEditorOptions } from '../../../services/sessions/common/sessionChangesService.js';
 
 const CHANGES_MULTI_DIFF_SOURCE_SCHEME = 'changes-multi-diff-source';
 

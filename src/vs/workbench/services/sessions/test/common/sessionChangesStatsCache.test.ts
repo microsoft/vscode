@@ -9,7 +9,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
-import { IChat, ISession, ISessionChangeset, ISessionFileChange } from '../../../../services/sessions/common/session.js';
+import { IChat, ISession, ISessionChangeset, ISessionFileChange } from '../../common/session.js';
 import { ISessionChangesStats, MAX_CACHED_SESSION_CHANGES_STATS, readLoadedChatChangesStats, readSessionChangesStats, SessionChangesStatsCache } from '../../common/sessionChangesStatsCache.js';
 
 const stats = (files: number): ISessionChangesStats => ({ files, insertions: files * 10, deletions: files });

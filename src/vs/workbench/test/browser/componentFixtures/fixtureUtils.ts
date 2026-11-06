@@ -114,7 +114,7 @@ import { ISessionsService } from '../../../contrib/sessions/browser/sessionsServ
 import { ISessionsHostLayoutService } from '../../../services/sessions/browser/sessionsHostLayoutService.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { SessionHost, SessionHostKind } from '../../../services/sessions/browser/sessionHost.js';
-import { ISessionChangesStatsCache, SessionChangesStatsCache } from '../../../contrib/sessions/common/sessionChangesStatsCache.js';
+import { ISessionChangesStatsCache, SessionChangesStatsCache } from '../../../services/sessions/common/sessionChangesStatsCache.js';
 import { ICodeReviewService, PRReviewStateKind } from '../../../contrib/sessions/browser/codeReviewService.js';
 import { constObservable } from '../../../../base/common/observable.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
