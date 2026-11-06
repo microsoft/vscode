@@ -138,7 +138,7 @@ suite('Agent Host Provider Integration - Copilot BYOK Responses', function () {
 				firstRequest: {
 					vendor: 'acme',
 					modelId: 'test-model',
-					inputTypes: ['message'],
+					inputTypes: ['message', 'message'],
 					reasoningEffort: 'medium',
 				},
 				replayedReasoning: {
@@ -194,7 +194,7 @@ suite('Agent Host Provider Integration - Copilot BYOK Responses', function () {
 				firstRequest: {
 					vendor: 'acme',
 					modelId: 'test-model',
-					inputTypes: ['message'],
+					inputTypes: ['message', 'message'],
 					reasoningEffort: 'medium',
 				},
 				secondRequest: {
