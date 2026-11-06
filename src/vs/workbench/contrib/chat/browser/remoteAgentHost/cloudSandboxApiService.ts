@@ -15,14 +15,12 @@ import { equals } from '../../../../../base/common/objects.js';
 import { localize } from '../../../../../nls.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import { clearMarks, mark } from '../../../../../base/common/performance.js';
-import { AgentSession } from '../../../../../platform/agentHost/common/agent.js';
 import { getGitHubRequestId } from '../../../../../platform/agentHost/common/connectionDiagnostics.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import {
 	CLOUD_SANDBOX_AGENT_SLUG,
 	CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID,
 	CLOUD_SANDBOX_SEALED_TOKEN_PREFIX,
-	CLOUD_SANDBOX_SESSION_SCHEME,
 	CloudSandboxAuthenticationRequiredError,
 	CloudSandboxConnectResult,
 	CloudSandboxNetworkError,
@@ -55,8 +53,11 @@ import { createPricingMetaFromBilling, normalizeCAPIBilling } from '../../../../
 import { COPILOT_INTEGRATION_ID } from '../../../../../platform/endpoint/common/licenseAgreement.js';
 import { GITHUB_DOT_COM_COPILOT_API_BASE_URI, deriveGitHubEndpoints } from '../../../../../platform/github/common/githubEndpoints.js';
 import { nextLink } from '../../../../../platform/github/common/githubResponse.js';
+import { GitHubRequestTimeoutError } from '../../../../../platform/github/common/githubTypes.js';
+import { RequestError } from '../../../../../platform/github/common/types.js';
 import { parseMissionControlError } from '../../../../../platform/github/common/missionControl/missionControlError.js';
-import { ApiRequestError } from '../../../../../platform/github/common/missionControl/missionControlClient.js';
+import { ApiRequestError, MutationUncertainError } from '../../../../../platform/github/common/missionControl/missionControlClient.js';
+import { SchemaError } from '../../../../../platform/github/common/client/schema.js';
 import type { TaskClient } from '../../../../../platform/github/common/missionControl/tasks.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
@@ -124,9 +125,6 @@ interface ICachedSandboxTask {
 	readonly needsRefresh?: boolean;
 	/** An unchanged, default-titled queued session with no AHP resource; recheck its age on every scan. */
 	readonly unstartedSince?: number;
-	/** An unattributed default-titled task whose recorded conversation may be an abandoned draft. */
-	readonly emptySessionSince?: number;
-	readonly hasEmptyHistory?: boolean;
 }
 
 const LOG_PREFIX = '[CloudSandboxApi]';
@@ -424,6 +422,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	async connectSessionFeed(token: CancellationToken): Promise<ICloudSandboxSessionFeedConnection | undefined> {
 		const store = new DisposableStore();
 		let connection: ICloudSandboxSessionFeedConnection;
+		let requested = false;
 		try {
 			const signal = AbortSignal.any([CancellationToken.toAbortSignal(token, store), AbortSignal.timeout(REQUEST_TIMEOUT_MS)]);
 			const authentication = await raceCancellationError(this._resolveGitHubSession(), token);
@@ -435,6 +434,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 				accountId: authentication.account.id, scopes: authentication.scopes,
 				authorizationServer: authentication.authorizationServer?.toString(),
 			}, signal));
+			requested = true;
 			connection = await client.tasks.connectFeed(signal, { caller: 'mc.sessionFeed.connect', deadline: Date.now() + REQUEST_TIMEOUT_MS });
 			const current = await raceCancellationError(this._resolveGitHubSession(), token);
 			if (!current || current.account.id !== authentication.account.id) {
@@ -456,6 +456,10 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 					code: error.code, limitedResource: error.limitedResource, requestId: error.requestId,
 				});
 			}
+			if (requested && error instanceof RequestError && (error.kind === 'network'
+				|| error.kind === 'timeout' && (error instanceof MutationUncertainError || error instanceof GitHubRequestTimeoutError && error.requestDispatched))) {
+				this._telemetry.reportRequest('connectSessionFeed', 'networkError');
+			}
 			this._logService.debug(`${LOG_PREFIX} Session feed negotiation failed; retaining discovery polling.`);
 			throw error;
 		} finally {
@@ -465,7 +469,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		try {
 			url = new URL(connection.url);
 		} catch {
-			throw new Error('Mission Control returned an invalid session feed URL');
+			throw new SchemaError('Mission Control returned an invalid session feed URL');
 		}
 		const now = Date.now();
 		const reconnectIn = connection.reconnect_in ?? Date.parse(connection.reconnect_after) - now;
@@ -473,7 +477,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		if (url.protocol !== 'wss:' || !url.hostname || url.username || url.password || url.hash
 			|| (connection.reconnect_in === undefined) !== (connection.expires_in === undefined)
 			|| reconnectIn <= 0 || reconnectIn >= expiresIn || reconnectIn > MAX_TIMEOUT_DELAY) {
-			throw new Error('Mission Control returned invalid session feed connection metadata');
+			throw new SchemaError('Mission Control returned invalid session feed connection metadata');
 		}
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
@@ -592,6 +596,9 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			trigger: options?.trigger ?? 'unknown', requestedMode, mode: requestedMode, outcome: 'failed',
 			durationMs: 0, pageCount: 0, listRequestCount: 0, taskCount: 0,
 			sandboxTaskCount: 0, changedSandboxTaskCount: 0, checkpointAdvanced: false,
+			checkpointAvailable: false, checkpointSource: 'unavailable',
+			listPageFailureCount: 0, taskDetailFailureCount: 0, repositoryEnrichmentMissCount: 0,
+			unresolvedTaskCount: 0, unreadPageScopeCount: 0, generationInvalidated: false,
 		};
 		const updates = new Map<string, ICachedSandboxTask | undefined>();
 		this._activeDiscoveryReads.add(updates);
@@ -605,6 +612,13 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		} finally {
 			this._activeDiscoveryReads.delete(updates);
 			telemetry.durationMs = stopwatch.elapsed();
+			telemetry.intentMode = options?.diagnostics?.intentMode;
+			telemetry.previousInventoryAgeMs = options?.diagnostics?.previousInventoryAgeMs;
+			telemetry.lastFullAgeMs = options?.diagnostics?.lastFullAgeMs;
+			telemetry.queued = options?.diagnostics?.queued;
+			telemetry.coalescedRequestCount = options?.diagnostics?.coalescedRequestCount;
+			telemetry.coalescedTrigger = options?.diagnostics?.coalescedTrigger;
+			this._logService.info(`${LOG_PREFIX} Discovery diagnostics ${JSON.stringify(telemetry)}`);
 			this._telemetry.reportDiscovery(telemetry);
 		}
 	}
@@ -618,6 +632,10 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			: this._discoverySince;
 		const since = !targeted && options?.incremental ? checkpointSince : undefined;
 		telemetry.mode = targeted ? 'targeted' : since ? 'incremental' : 'full';
+		telemetry.checkpointAvailable = checkpointSince !== undefined;
+		telemetry.fullScanReason = targeted || since ? 'notFull'
+			: options?.incremental ? this._discoverySince && includeArchived && !this._archivedDiscoverySince ? 'scopeInitialization' : 'noCheckpoint'
+				: options?.diagnostics?.fullScanReason ?? 'requestedFull';
 		const tasks = new Map<string, IScannedTask>();
 		const details = new Map<string, ITaskDetail>();
 		const cache = new Map(this._discoveredTasks);
@@ -666,6 +684,8 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 							cache.delete(id);
 							removedTaskIds.push(id);
 						} else {
+							telemetry.taskDetailFailureCount = (telemetry.taskDetailFailureCount ?? 0) + 1;
+							telemetry.unresolvedTaskCount = (telemetry.unresolvedTaskCount ?? 0) + 1;
 							truncated = true;
 							failedTaskIds.add(id);
 							this._logService.warn(`${LOG_PREFIX} Feed task refresh failed: ${toErrorMessage(error)}`);
@@ -710,22 +730,28 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 					const serverTime = typeof date === 'string' ? Date.parse(date) : Number.NaN;
 					if (!Number.isNaN(serverTime)) {
 						checkpoint = Math.min(checkpoint ?? serverTime, serverTime);
+						telemetry.checkpointSource = 'serverDate';
 					}
 					for (const task of response.tasks) {
 						recordTask({ ...task, hasRepository: withRepository });
 						const updatedAt = task.updated_at ? Date.parse(task.updated_at) : Number.NaN;
 						if (!Number.isNaN(updatedAt)) {
 							latestUpdate = Math.max(latestUpdate ?? updatedAt, updatedAt);
+							if (checkpoint === undefined) {
+								telemetry.checkpointSource = 'taskUpdate';
+							}
 						}
 					}
 					url = nextTaskPageUrl(context.res.headers?.link, url, query);
 					if (page === DISCOVERY_TASK_SCAN_MAX_PAGES && url) {
 						hasUnreadPages = true;
+						telemetry.unreadPageScopeCount = (telemetry.unreadPageScopeCount ?? 0) + 1;
 					}
 				} catch (error) {
 					if (isCancellationError(error) || token.isCancellationRequested) {
 						throw new CancellationError();
 					}
+					telemetry.listPageFailureCount = (telemetry.listPageFailureCount ?? 0) + 1;
 					if (tasks.size === 0) {
 						return { kind: 'failed', reason: `listTasks failed: ${toErrorMessage(error)}` };
 					}
@@ -739,14 +765,14 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		const scannedTaskIds = new Set(tasks.keys());
 		if (since) {
 			for (const [id, cached] of cache) {
-				if ((includeArchived || !cached.summary.archived_at) && !tasks.has(id) && (cached.needsRefresh || !cached.session || cached.unstartedSince !== undefined || cached.emptySessionSince !== undefined || (cached.repositoryId !== undefined && !cached.session.repoName))) {
+				if ((includeArchived || !cached.summary.archived_at) && !tasks.has(id) && (cached.needsRefresh || !cached.session || cached.unstartedSince !== undefined || (cached.repositoryId !== undefined && !cached.session.repoName))) {
 					tasks.set(id, cached.summary);
 				}
 			}
 		}
 		const discoveryTime = checkpoint ?? Date.now();
 		const sandboxTasks: IScannedTask[] = [];
-		const exclusions = { notSandboxCompute: 0, missingSessionBinding: 0, stalledQueuedSession: 0, emptySession: 0, detailFetchFailed: 0 };
+		const exclusions = { notSandboxCompute: 0, missingSessionBinding: 0, stalledQueuedSession: 0, detailFetchFailed: 0 };
 		const logExcludedTask = (taskId: string, reason: keyof typeof exclusions) => {
 			exclusions[reason]++;
 			this._logService.debug(`${LOG_PREFIX} Excluded task ${JSON.stringify({ taskId, reason })}`);
@@ -814,7 +840,6 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 							summary: task,
 							repositoryId,
 							unstartedSince: getUnstartedSessionCreatedAt(full),
-							emptySessionSince: session && full.sessions?.length === 1 ? getEmptySessionUpdatedAt(session) : undefined,
 							session,
 						};
 					}
@@ -828,31 +853,11 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 						}
 						return undefined;
 					}
-					if (cached.session && cached.emptySessionSince !== undefined && discoveryTime - cached.emptySessionSince >= STALLED_SESSION_GRACE_MS) {
-						if (cached.hasEmptyHistory === undefined) {
-							try {
-								const history = await this.getSessionHistory(task.id, token);
-								cached = { ...cached, hasEmptyHistory: isEmptySessionHistory(history, cached.session.sessionId) };
-							} catch (error) {
-								if (isCancellationError(error) || token.isCancellationRequested) {
-									throw new CancellationError();
-								}
-								this._logService.warn(`${LOG_PREFIX} Could not verify empty sandbox task ${task.id}; keeping it visible: ${toErrorMessage(error)}`);
-								unresolved++;
-							}
-						}
-						if (cached.hasEmptyHistory) {
-							cache.set(task.id, cached);
-							logExcludedTask(task.id, 'emptySession');
-							if ((!truncated && !hasUnreadPages) || scannedTaskIds.has(task.id) || details.has(task.id)) {
-								removedTaskIds.push(task.id);
-								this._logService.trace(`${LOG_PREFIX} Hiding abandoned sandbox task ${task.id} with empty recorded history.`);
-							}
-							return undefined;
-						}
-					}
 					if (cached.session && cached.repositoryId !== undefined && !cached.session.repoName) {
 						const repoName = await this._resolveRepositoryName(cached.repositoryId, token);
+						if (!repoName) {
+							telemetry.repositoryEnrichmentMissCount = (telemetry.repositoryEnrichmentMissCount ?? 0) + 1;
+						}
 						cached = { ...cached, session: { ...cached.session, repoName } };
 					}
 					cache.set(task.id, cached);
@@ -871,6 +876,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 					}
 					this._logService.warn(`${LOG_PREFIX} Discovery getTask ${task.id} failed: ${toErrorMessage(error)}`);
 					logExcludedTask(task.id, 'detailFetchFailed');
+					telemetry.taskDetailFailureCount = (telemetry.taskDetailFailureCount ?? 0) + 1;
 					cache.set(task.id, { ...cache.get(task.id), summary: task, needsRefresh: true });
 					unresolved++;
 					failedTaskIds.add(task.id);
@@ -884,22 +890,27 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
+		telemetry.unresolvedTaskCount = (telemetry.unresolvedTaskCount ?? 0) + unresolved;
 		if (generation !== this._discoveryGeneration) {
+			telemetry.generationInvalidated = true;
 			return { kind: 'failed', reason: 'Sandbox discovery was invalidated while listing sessions' };
 		}
 		const partial = unresolved > 0 || truncated;
-		if (!partial && !targeted) {
-			// Browsers may not expose Date through CORS; task timestamps also use the server's clock.
+		if (!truncated && !targeted) {
+			// Failed details are retained by task ID and retried independently of the inventory checkpoint.
 			const nextCheckpoint = checkpoint ?? latestUpdate;
-			if (nextCheckpoint !== undefined) {
-				const nextSince = new Date(nextCheckpoint - DISCOVERY_OVERLAP_MS).toISOString();
-				telemetry.checkpointAdvanced = this._discoverySince === undefined || Date.parse(nextSince) > Date.parse(this._discoverySince);
-				this._discoverySince = nextSince;
-				if (includeArchived) {
-					this._archivedDiscoverySince = nextSince;
-				}
+			if (nextCheckpoint === undefined && checkpointSince === undefined) {
+				this._logService.warn(`${LOG_PREFIX} Discovery has no server timestamp; using an epoch checkpoint to retain all subsequent changes.`);
 			}
-			if (!since) {
+			const nextSince = nextCheckpoint !== undefined
+				? new Date(nextCheckpoint - DISCOVERY_OVERLAP_MS).toISOString()
+				: checkpointSince ?? new Date(0).toISOString();
+			telemetry.checkpointAdvanced = this._discoverySince === undefined || Date.parse(nextSince) > Date.parse(this._discoverySince);
+			this._discoverySince = nextSince;
+			if (includeArchived) {
+				this._archivedDiscoverySince = nextSince;
+			}
+			if (!partial && !since) {
 				for (const [id, cached] of cache) {
 					if (!scannedTaskIds.has(id) && (includeArchived || !cached.summary.archived_at)) {
 						cache.delete(id);
@@ -928,7 +939,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			removed.delete(id);
 			if (updated) {
 				cache.set(id, updated);
-				if (updated.session && updated.hasEmptyHistory !== true
+				if (updated.session
 					&& (updated.unstartedSince === undefined || discoveryTime - updated.unstartedSince < STALLED_SESSION_GRACE_MS)) {
 					published.set(id, updated.session);
 				} else {
@@ -973,7 +984,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			})}`);
 		}
 		if (partial) {
-			return { kind: 'partial', sessions, removedTaskIds: [...removed], ...(targeted ? { failedTaskIds: [...failedTaskIds] } : {}) };
+			return { kind: 'partial', sessions, removedTaskIds: [...removed], ...(!targeted && !truncated ? { inventoryComplete: true } : {}), ...(targeted ? { failedTaskIds: [...failedTaskIds] } : {}) };
 		}
 		return targeted || since
 			? { kind: 'incremental', sessions, removedTaskIds: [...removed] }
@@ -1242,11 +1253,6 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 
 	invalidateSessionHistory(taskId: string, preserveCached = false): void {
 		this._historyCache.invalidate(taskId, false, preserveCached);
-		this._discoveryGeneration++;
-		const cached = this._discoveredTasks.get(taskId);
-		if (cached?.emptySessionSince !== undefined) {
-			this._discoveredTasks.set(taskId, { ...cached, hasEmptyHistory: undefined, needsRefresh: true });
-		}
 	}
 
 	clearSessionHistory(taskId?: string): void {
@@ -1819,38 +1825,4 @@ function getUnstartedSessionCreatedAt(task: ITaskDetail): number | undefined {
 	}
 	const createdAt = Date.parse(session.created_at);
 	return Number.isFinite(createdAt) ? createdAt : undefined;
-}
-
-function getEmptySessionUpdatedAt(session: ICloudSandboxDiscoveredSession): number | undefined {
-	if ((session.name !== 'New task' && session.name !== 'New Task') || session.eventType !== 'unknown'
-		|| session.isArchived || (session.status !== undefined && session.status !== SessionStatus.Idle)) {
-		return undefined;
-	}
-	const updatedAt = session.updatedAt ? Date.parse(session.updatedAt) : Number.NaN;
-	return Number.isFinite(updatedAt) ? updatedAt : undefined;
-}
-
-function isEmptySessionHistory(history: IReplayedTaskHistory | undefined, sessionId: string): boolean | undefined {
-	if (!history || history.truncated) {
-		return undefined;
-	}
-	if (history.sessions.length !== 1) {
-		return false;
-	}
-	const session = history.sessions[0];
-	if (session.session !== AgentSession.uri(CLOUD_SANDBOX_SESSION_SCHEME, sessionId).toString()) {
-		return undefined;
-	}
-	if (!session.hasRecordedDefaultChat || session.chats.size !== 1 || session.state.chats.length > 1
-		|| (session.state.status & (SessionStatus.InProgress | SessionStatus.Error))
-		|| session.state.chats.some(chat => chat.changes?.files
-			|| (chat.status & (SessionStatus.InProgress | SessionStatus.Error))
-			|| (chat.title && chat.title !== 'New task' && chat.title !== 'New Task'))
-		|| (session.state.title && session.state.title !== 'New task' && session.state.title !== 'New Task')) {
-		return false;
-	}
-	const chat = session.chats.get(session.defaultChat);
-	return !!chat && chat.turns.length === 0 && !chat.activeTurn && !chat.turnsNextCursor
-		&& !(chat.status & (SessionStatus.InProgress | SessionStatus.Error))
-		&& !chat.changes?.files && !chat.backgroundWork?.length && !chat.queuedMessages?.length && !chat.steeringMessage && !chat.draft;
 }

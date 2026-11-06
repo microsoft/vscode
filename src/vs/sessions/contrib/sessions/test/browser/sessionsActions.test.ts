@@ -1187,7 +1187,10 @@ suite('Sessions - Actions', () => {
 			showsChat: shown => isEqual(shown, chat.resource),
 			reveal: async () => { },
 			openBeside: async () => { },
-			close: async closed => { calls.push(`editor close ${closed.path}`); },
+			close: async closed => {
+				calls.push(`editor close ${closed.path}`);
+				return { restore: async () => { } };
+			},
 		}));
 		instantiationService.stub(IChatHostOpenerService, opener);
 
@@ -1234,7 +1237,10 @@ suite('Sessions - Actions', () => {
 			showsChat: shown => isEqual(shown, mainChat.resource),
 			reveal: async () => { },
 			openBeside: async () => { },
-			close: async closed => { calls.push(`window close ${closed.path}`); },
+			close: async closed => {
+				calls.push(`window close ${closed.path}`);
+				return { restore: async () => { } };
+			},
 		}));
 		instantiationService.stub(IChatHostOpenerService, opener);
 
@@ -2415,7 +2421,73 @@ suite('Sessions - Actions', () => {
 		}
 	}
 
-	test('New Session never starts like a session that only names its repository by URL', async () => {
+	for (const available of [true, false]) {
+		test(`repository URL sections honor an available cloud creation target (${available})`, async () => {
+			const instantiationService = disposables.add(new TestInstantiationService());
+			const repository = { owner: 'owner', name: 'repo' };
+			const environment = { id: 'cloud', label: 'Cloud' };
+			const { session } = createTestSession('cloud', {
+				providerId: 'sandbox-backend',
+				environment: environment.id,
+				repository: 'owner/repo',
+				workspaceResource: URI.parse('https://github.com/owner/repo'),
+			});
+			const localFolder = URI.file('/repo');
+			const local = createTestSession('local', {
+				providerId: 'local-provider', repository: 'owner/repo', workspaceResource: localFolder, createdAt: new Date(0),
+			}).session;
+			const creationTarget = { providerId: 'cloud-creator', folderUri: URI.parse('github-remote-file://github/owner/repo/HEAD') };
+			const providers = [
+				{ id: session.providerId, environment },
+				{ id: local.providerId, environment: { id: 'local', label: 'This Computer' } },
+			].map(provider => upcastPartial<ISessionsProvider>(provider));
+			const selections: { folder: URI; options?: ISelectWorkspaceOptions }[] = [];
+			instantiationService.stub(INewSessionComposerService, disposables.add(new NewSessionComposerService()));
+			instantiationService.stub(ISessionsProvidersService, {
+				getProvider: <T extends ISessionsProvider>(providerId: string) => providers.find(provider => provider.id === providerId) as T | undefined,
+			});
+			instantiationService.stub(ISessionsManagementService, {
+				getNewSessionTarget: (providerId, resource) => providerId === session.providerId && isEqual(resource, session.resource) ? creationTarget : undefined,
+				isNewSessionTargetAvailable: (folder, target) => available && isEqual(folder, creationTarget.folderUri) && target?.providerId === creationTarget.providerId
+					|| isEqual(folder, localFolder) && target?.providerId === local.providerId,
+			});
+			instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
+				activeSession: constObservable(undefined),
+				focusActiveSession: () => { },
+				openNewSession: async () => ({ session: undefined, trustDeclined: false }),
+			}));
+			stubMissingSessionHostsFromSessionsService(instantiationService);
+			instantiationService.stub(ISessionsPartService, {
+				getSessionView: () => upcastPartial<SessionView>({
+					selectWorkspace: (folder, options) => {
+						selections.push({ folder, options });
+						return 'applied';
+					},
+				}),
+			});
+			instantiationService.stub(ICommandService, new TestCommandService());
+			const run = (commandId: string, context: Partial<ISessionSection>) =>
+				CommandsRegistry.getCommand(commandId)!.handler(instantiationService, upcastPartial<ISessionSection>(context), environment.id);
+
+			await run(NEW_SESSION_FOR_WORKSPACE_ACTION_ID, { repository, sessions: [session] });
+			await run(NEW_SESSION_FOR_WORKSPACE_ACTION_ID, { repository, sessions: [local, session] });
+			await run(NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, { repository, sessions: [local, session] });
+			await run(NEW_SESSION_FOR_WORKSPACE_ACTION_ID, { sessions: [session] });
+			await run(NEW_SESSION_FOR_WORKSPACE_ACTION_ID, { environment, sessions: [session] });
+
+			assert.deepStrictEqual(selections, available
+				? Array.from({ length: 5 }, () => ({
+					folder: creationTarget.folderUri,
+					options: { providerId: creationTarget.providerId, selectionOrigin: WorkspaceSelectionOrigin.User },
+				}))
+				: [{
+					folder: localFolder,
+					options: { providerId: local.providerId, selectionOrigin: WorkspaceSelectionOrigin.User },
+				}]);
+		});
+	}
+
+	test('New Session never starts like a session that only names its repository by URL without a creation target', async () => {
 		const sandboxRoot = URI.parse('https://github.com/microsoft/vscode');
 		const sandbox = (title: string) => {
 			const { session } = createTestSession(title, { providerId: 'sandbox-provider', environment: 'cloud' });

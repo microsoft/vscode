@@ -22,6 +22,7 @@ import { agentsPanelBorder } from '../../common/theme.js';
 import { ChatOriginKind, IChat } from '../../services/sessions/common/session.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
+import { IChatHostOpenerService } from '../../services/sessions/browser/chatHostOpener.js';
 import { getWindowHost, ISessionHost } from '../../services/sessions/browser/sessionHost.js';
 import { AbstractChatView, IChatViewOptions, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, ISessionViewHostOptions, WorkspaceSelectionResult } from './chatView.js';
 import { ChatGroupView, IChatGroupContext } from './chatGroupView.js';
@@ -145,6 +146,7 @@ export class ChatGroupsView extends Themable {
 		@ISessionHost private readonly _sessionHost: ISessionHost,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IChatHostOpenerService private readonly _chatHostOpenerService: IChatHostOpenerService,
 	) {
 		super(themeService);
 		const chatTabsMode = observableConfigValue(SESSIONS_CHAT_TABS_SETTING, SESSIONS_CHAT_TABS_DEFAULT, configurationService);
@@ -608,12 +610,31 @@ export class ChatGroupsView extends Themable {
 		if (data.sessionId !== this._session.sessionId) {
 			return; // not a chat from this session
 		}
-		if (this.showChatAsSessionView.get() && (data.isDetached || zone === 'center')) {
-			return;
-		}
 
 		const id = data.resource;
 		const resource = URI.parse(id);
+		// A chat that shows outside of the grid, such as in a chat window it is dragged out of, leaves it to show here, as
+		// opening it otherwise reveals it there: while it cannot leave, such as when its close is vetoed, it stays there.
+		const shownBy = this._chatHostOpenerService.getOpenerOf(resource);
+		if (shownBy) {
+			const session = this._session;
+			const closed = await shownBy.close(resource);
+			if (!closed) {
+				return;
+			}
+			if (this._session !== session) {
+				await closed.restore();
+				return;
+			}
+		}
+		if (this.showChatAsSessionView.get() && (data.isDetached || zone === 'center')) {
+			// As the chat of the pane, which shows one chat at a time
+			if (shownBy) {
+				await this._sessionsService.openChat(this._session, resource);
+			}
+			return;
+		}
+
 		if (!this._session.scopedChatResource) {
 			this._sessionsService.attachChat(this._session, resource);
 		}

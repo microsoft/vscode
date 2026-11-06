@@ -26,7 +26,7 @@ import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelSc
 import { IChat, ISession, ISessionGitRepository, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ICreateNewSessionOptions, ISendRequestOptions, ISendRequestSentEvent, ISessionsManagementService, WorkspaceNotTrustedError } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
-import { IOpenNewSessionOptions, IOpenNewSessionResult } from '../../../../services/sessions/browser/sessionsService.js';
+import { IOpenNewSessionOptions, IOpenNewSessionResult, IOpenSessionOptions } from '../../../../services/sessions/browser/sessionsService.js';
 import { SessionsManagementService } from '../../../../services/sessions/browser/sessionsManagementService.js';
 import { ISessionsProvidersService, SessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IPickedSessionType, IPreferredSessionType } from '../../browser/sessionTypePicker.js';
@@ -64,6 +64,9 @@ import { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHo
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { SessionConfigSchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ISessionHost, ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
 
@@ -277,6 +280,7 @@ interface ISessionOptionsPersistenceHarness {
 interface ISendHarness {
 	readonly _backgroundSend?: boolean;
 	readonly _backgroundSendStatus?: ISettableObservable<string | undefined>;
+	_lastBackgroundSentSessionResource?: URI;
 	readonly _newChatInput?: Pick<SharedChatInputComposer, 'hasInput'>;
 	readonly notificationService: { error(message: string | Error): void };
 	readonly _pendingBackgroundSends: { set(key: object, value: IDisposable): void; deleteAndDispose(key: object): void };
@@ -453,7 +457,6 @@ interface IClearWorkspaceHarness {
 	readonly _newSessionCreation: MutableDisposable<IDisposable>;
 	_preferredDevContainerFolderUri: URI | undefined;
 	readonly _session: IObservable<ISession | undefined>;
-	readonly _comparisonSelection: { reset(): void };
 	readonly _workspaceOptOutEnabled: IObservable<boolean>;
 	readonly sessionsService: { unsetNewSession(): void };
 	readonly notificationService: { error(message: string): void };
@@ -3829,7 +3832,6 @@ suite('NewChatWidget', () => {
 				_newSessionCreation: creation,
 				_preferredDevContainerFolderUri: undefined,
 				_session: constObservable(undefined),
-				_comparisonSelection: { reset: () => events.push('resetComparison') },
 				_workspaceOptOutEnabled: constObservable(workspaceOptOutEnabled),
 				sessionsService: { unsetNewSession: () => events.push('unsetSession') },
 				notificationService: { error: () => events.push('error') },
@@ -3842,10 +3844,10 @@ suite('NewChatWidget', () => {
 			results.push(events);
 		}
 		assert.deepStrictEqual(results, [
-			['cancelUpgrade', 'resetComparison', 'cancelRestore', 'cancelCreation', 'unsetSession', 'restoreChat'],
-			['cancelUpgrade', 'resetComparison', 'cancelRestore', 'cancelCreation', 'unsetSession'],
-			['cancelUpgrade', 'resetComparison', 'cancelRestore', 'cancelCreation', 'chat:local:copilot:false:true'],
-			['cancelUpgrade', 'resetComparison', 'cancelRestore', 'cancelCreation', 'chat:local:copilot:false:true', 'unsetSession', 'error'],
+			['cancelUpgrade', 'cancelRestore', 'cancelCreation', 'unsetSession', 'restoreChat'],
+			['cancelUpgrade', 'cancelRestore', 'cancelCreation', 'unsetSession'],
+			['cancelUpgrade', 'cancelRestore', 'cancelCreation', 'chat:local:copilot:false:true'],
+			['cancelUpgrade', 'cancelRestore', 'cancelCreation', 'chat:local:copilot:false:true', 'unsetSession', 'error'],
 		]);
 	});
 
@@ -3938,6 +3940,7 @@ suite('NewChatWidget', () => {
 		const folderUri = URI.file('/dismissed');
 		const restored: URI[] = [];
 		const session = upcastPartial<ISession>({ sessionId: 'draft' });
+		const sentSession = upcastPartial<ISession>({ resource: URI.parse('test-session:/started') });
 		let sentOptions: ISendRequestOptions | undefined;
 		const picker = { selectedFolderUri: folderUri, validateSelectedWorkspace: async () => true, clearAttachedContext: () => { }, showPicker: () => { } };
 		const harness: ISendHarness = {
@@ -3967,10 +3970,10 @@ suite('NewChatWidget', () => {
 		onDidSendRequest.fire(upcastPartial<ISendRequestSentEvent>({ options: { query: 'unrelated' } }));
 		const afterUnrelatedSend = { restored: [...restored], status: harness._backgroundSendStatus?.get() };
 		assert.ok(sentOptions);
-		onDidSendRequest.fire(upcastPartial<ISendRequestSentEvent>({ options: sentOptions }));
-		assert.deepStrictEqual({ beforeSuccess, afterUnrelatedSend, restored, pending: pendingSends.size, background: sentOptions.background, status: harness._backgroundSendStatus?.get() }, {
+		onDidSendRequest.fire(upcastPartial<ISendRequestSentEvent>({ options: sentOptions, session: sentSession }));
+		assert.deepStrictEqual({ beforeSuccess, afterUnrelatedSend, restored, pending: pendingSends.size, background: sentOptions.background, status: harness._backgroundSendStatus?.get(), resource: harness._lastBackgroundSentSessionResource }, {
 			beforeSuccess: { restored: [], status: undefined }, afterUnrelatedSend: { restored: [], status: undefined },
-			restored: [folderUri], pending: 0, background: true, status: 'Message sent',
+			restored: [folderUri], pending: 0, background: true, status: 'Message sent', resource: sentSession.resource,
 		});
 	});
 
@@ -4087,6 +4090,93 @@ suite('NewChatWidget', () => {
 		assert.deepStrictEqual({ beforeTimeout, afterTimeout, beforeRenewedTimeout, afterRenewedTimeout, disposedStatus: status.get(), announcements }, {
 			beforeTimeout: 'Message sent', afterTimeout: '', beforeRenewedTimeout: 'Message sent', afterRenewedTimeout: '',
 			disposedStatus: 'Message sent', announcements: ['Message sent', 'Message sent', 'Message sent', 'Message sent'],
+		});
+	}));
+
+	for (const activation of ['click', 'Enter'] as const) {
+		test(`Inbox sent-session link opens the sent session on ${activation} before expiring`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(IHoverService, NullHoverService);
+			instantiationService.stub(IOpenerService, {});
+			const changed = disposables.add(new Emitter<void>());
+			const status = observableValue<string | undefined>('status', undefined);
+			const resource = URI.parse('test-session:/started');
+			const opened: { resource: URI; options?: IOpenSessionOptions }[] = [];
+			let hasInput = false;
+			const harness = {
+				_backgroundSend: true,
+				_backgroundSendStatus: status,
+				_lastBackgroundSentSessionResource: resource as URI | undefined,
+				_newChatInput: { onDidChangeInput: changed.event, get hasInput() { return hasInput; } },
+				accessibilityService: { status: () => { } },
+				instantiationService,
+				sessionsService: { openSession: async (resource: URI, options?: IOpenSessionOptions) => { opened.push({ resource, options }); } },
+				_register: <T extends IDisposable>(value: T) => disposables.add(value),
+			};
+			const container = $('div');
+			const render = Reflect.get(NewChatWidget.prototype, '_renderBackgroundSendStatus') as (this: typeof harness, container: HTMLElement) => void;
+			render.call(harness, container);
+			status.set('Message sent', undefined);
+			await timeout(6000);
+			const link = container.querySelector('a')!;
+			if (activation === 'click') {
+				link.click();
+			} else {
+				link.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+			}
+			const confirmation = container.textContent;
+			hasInput = true;
+			changed.fire();
+			assert.deepStrictEqual({ confirmation, opened, cleared: container.textContent, resource: harness._lastBackgroundSentSessionResource }, {
+				confirmation: 'Message sentOpen Session', opened: [{ resource, options: { source: 'inbox', forceMainChat: true } }], cleared: '', resource: undefined,
+			});
+		}));
+	}
+
+	test('Inbox sent-session confirmation reserves its height and expires after eight seconds, pausing for hover and focus', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IHoverService, NullHoverService);
+		instantiationService.stub(IOpenerService, {});
+		const status = observableValue<string | undefined>('status', undefined);
+		const harness = {
+			_backgroundSend: true,
+			_backgroundSendStatus: status,
+			_lastBackgroundSentSessionResource: URI.parse('test-session:/started') as URI | undefined,
+			_newChatInput: { onDidChangeInput: Event.None, hasInput: false },
+			accessibilityService: { status: () => { } },
+			instantiationService,
+			_register: <T extends IDisposable>(value: T) => disposables.add(value),
+		};
+		const host = mainWindow.document.body.appendChild($('div'));
+		disposables.add(toDisposable(() => host.remove()));
+		const render = Reflect.get(NewChatWidget.prototype, '_renderBackgroundSendStatus') as (this: typeof harness, container: HTMLElement) => void;
+		render.call(harness, host);
+		const reservedHeight = host.firstElementChild!.getBoundingClientRect().height;
+		status.set('Message sent', undefined);
+		const shownHeight = host.firstElementChild!.getBoundingClientRect().height;
+		await timeout(7999);
+		const beforeTimeout = host.textContent;
+		await timeout(1);
+		const afterTimeout = host.textContent;
+		harness._lastBackgroundSentSessionResource = URI.parse('test-session:/next');
+		status.set('Message sent', undefined);
+		await timeout(3000);
+		const confirmation = host.firstElementChild!;
+		const link = host.querySelector('a')!;
+		confirmation.dispatchEvent(new MouseEvent('mouseenter'));
+		await timeout(8000);
+		const hovered = host.textContent;
+		link.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+		confirmation.dispatchEvent(new MouseEvent('mouseleave'));
+		await timeout(8000);
+		const focused = host.textContent;
+		link.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+		await timeout(4999);
+		const beforeResumedTimeout = host.textContent;
+		await timeout(1);
+		assert.deepStrictEqual({ beforeTimeout, afterTimeout, hovered, focused, beforeResumedTimeout, afterResumedTimeout: host.textContent, resource: harness._lastBackgroundSentSessionResource, preservesHeight: reservedHeight > 0 && shownHeight === reservedHeight && host.firstElementChild!.getBoundingClientRect().height === reservedHeight }, {
+			beforeTimeout: 'Message sentOpen Session', afterTimeout: '', hovered: 'Message sentOpen Session', focused: 'Message sentOpen Session',
+			beforeResumedTimeout: 'Message sentOpen Session', afterResumedTimeout: '', resource: undefined, preservesHeight: true,
 		});
 	}));
 
@@ -4254,7 +4344,7 @@ suite('NewChatWidget', () => {
 		});
 	});
 
-	test('retains comparison models from every harness during model refresh', () => {
+	test('retains comparison models from every harness and Fusion, but not legacy routing models, during model refresh', () => {
 		const model = (identifier: string) => upcastPartial<ILanguageModelChatMetadataAndIdentifier>({
 			identifier,
 			metadata: upcastPartial<ILanguageModelChatMetadata>({ id: identifier, name: identifier }),
@@ -4265,6 +4355,9 @@ suite('NewChatWidget', () => {
 					model('copilot-model'),
 					model('claude-model'),
 					model('codex-model'),
+					{ ...model('fusion'), metadata: { ...model('auto').metadata, autoModelFusion: true } },
+					model('auto'),
+					{ ...model('hydrafusion'), metadata: { ...model('hydrafusion').metadata, modelGroup: { id: 'copilotcli' } } },
 				],
 			},
 		};
@@ -4273,8 +4366,74 @@ suite('NewChatWidget', () => {
 			'copilot-model',
 			'claude-model',
 			'codex-model',
+			'fusion',
 		]);
 	});
+
+	for (const committed of [false, true]) {
+		test(`preserves comparison choices across workspace draft replacement and clearing (committed: ${committed})`, () => {
+			const available = observableValue('available', true);
+			const enabled = observableValue('enabled', true);
+			const resolving = observableValue('resolving', false);
+			const loading = observableValue('loading', false);
+			const models = observableValue('models', ['one', 'two']);
+			const draft = (sessionId: string, isQuickChat = false) => upcastPartial<ISession>({
+				sessionId, providerId: 'provider', sessionType: 'copilotcli', loading,
+				isQuickChat: constObservable(isQuickChat),
+			});
+			const session = observableValue<ISession | undefined>('session', draft('first-workspace'));
+			const selection = disposables.add(new SessionComparisonModelSelection(available, undefined, undefined, undefined, disposables.add(new InMemoryStorageService()), disposables.add(new TestInstantiationService())));
+			const harness = {
+				_session: session,
+				_compareAgentsEnabled: enabled,
+				_comparisonSelection: selection,
+				_newChatInput: { selectedModelState: models },
+				_getComparisonModelIds: () => new Set(models.get()),
+			};
+			const track = Reflect.get(NewChatWidget.prototype, '_trackComparisonSelection') as (this: typeof harness, resolving: IObservable<boolean>) => IDisposable;
+			disposables.add(track.call(harness, resolving));
+			const configure = () => {
+				selection.start();
+				selection.select('one');
+				selection.select('two');
+				selection.addVariant('one', { effort: 'high' }, 'High');
+				if (committed) {
+					selection.finish();
+				}
+			};
+			configure();
+			const snapshot = () => ({
+				enabled: selection.enabled.get(),
+				attempts: selection.attempts.get(),
+				selected: selection.state.get()?.selectedModelIds,
+				variants: selection.getVariants('one'),
+			});
+			const before = snapshot();
+			const snapshots = [];
+			for (const [sessionId, quickChat] of [['second-workspace', false], ['no-workspace', true], ['third-workspace', false]] as const) {
+				available.set(false, undefined);
+				session.set(undefined, undefined);
+				models.set([], undefined);
+				loading.set(true, undefined);
+				session.set(draft(sessionId, quickChat), undefined);
+				loading.set(false, undefined);
+				resolving.set(true, undefined);
+				available.set(true, undefined);
+				models.set(['one', 'two'], undefined);
+				resolving.set(false, undefined);
+				snapshots.push(snapshot());
+			}
+			session.set(upcastPartial<ISession>({ ...draft('other-harness'), sessionType: 'claude' }), undefined);
+			const afterHarnessChange = snapshot();
+			configure();
+			enabled.set(false, undefined);
+			assert.deepStrictEqual({ snapshots, afterHarnessChange, afterDisable: snapshot() }, {
+				snapshots: [before, before, before],
+				afterHarnessChange: { enabled: false, attempts: [], selected: undefined, variants: [] },
+				afterDisable: { enabled: false, attempts: [], selected: undefined, variants: [] },
+			});
+		});
+	}
 
 	for (const { runs, navigationFails, openInGrid, quickChat, backgroundSend, interruption } of [
 		{ runs: 2, navigationFails: false, openInGrid: true, quickChat: false, backgroundSend: false, interruption: 'none' },
@@ -4293,7 +4452,7 @@ suite('NewChatWidget', () => {
 		test(`launches ${runs} repeated attempts with independent IDs and the draft permissions (quick chat: ${quickChat}, Inbox: ${backgroundSend}, interruption: ${interruption})`, async () => {
 			const resolving = observableValue('resolving', false);
 			const environment = observableValue<ISessionCreationEnvironment | undefined>('environment', undefined);
-			const selection = disposables.add(new SessionComparisonModelSelection(derived(reader => !resolving.read(reader)), resolving, undefined, undefined, undefined, disposables.add(new InMemoryStorageService()), disposables.add(new TestInstantiationService())));
+			const selection = disposables.add(new SessionComparisonModelSelection(derived(reader => !resolving.read(reader)), undefined, undefined, undefined, disposables.add(new InMemoryStorageService()), disposables.add(new TestInstantiationService())));
 			selection.start();
 			selection.select('claude-model');
 			for (let i = 1; i < runs; i++) {
@@ -4782,7 +4941,7 @@ suite('NewChatWidget', () => {
 			environment.read(reader);
 			return shouldShowComparisonAction.call(harness);
 		});
-		const selection = disposables.add(new SessionComparisonModelSelection(available, undefined, undefined, undefined, undefined, disposables.add(new InMemoryStorageService()), disposables.add(new TestInstantiationService())));
+		const selection = disposables.add(new SessionComparisonModelSelection(available, undefined, undefined, undefined, disposables.add(new InMemoryStorageService()), disposables.add(new TestInstantiationService())));
 		selection.start();
 		selection.select('model-a');
 		selection.select('model-b');
@@ -4796,7 +4955,7 @@ suite('NewChatWidget', () => {
 		environment.set(undefined, undefined);
 		containerRequested = true;
 		assert.deepStrictEqual({ states, draftContainer: shouldShowComparisonAction.call(harness) }, {
-			states: [{ available: true, configured: true }, { available: false, configured: false }, { available: true, configured: false }],
+			states: [{ available: true, configured: true }, { available: false, configured: true }, { available: true, configured: true }],
 			draftContainer: false,
 		});
 	});

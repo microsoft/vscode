@@ -213,6 +213,10 @@ function createMockProvider(id: string, opts?: {
 class MockSessionsProvidersService extends Disposable {
 	declare readonly _serviceBrand: undefined;
 
+	batchProviderChanges<T>(fn: () => T): T {
+		return fn();
+	}
+
 	private readonly _onDidChangeProviders = this._register(new Emitter<ISessionsProvidersChangeEvent>());
 	readonly onDidChangeProviders: Event<ISessionsProvidersChangeEvent> = this._onDidChangeProviders.event;
 
