@@ -1995,14 +1995,17 @@ suite('SessionsManagementService', () => {
 
 			const restored = harness([parent, b], { storage });
 			await restored.view.restoreVisibleSessions();
+			// What the restored grid writes itself, not what it was restored from.
+			storage.remove('agentSessions.gridState', StorageScope.WORKSPACE);
 			await storage.flush();
+			const resaved = storage.get('agentSessions.gridState', StorageScope.WORKSPACE);
 			const state = JSON.parse(stored) as ISessionGridState;
 
 			assert.deepStrictEqual({
 				bindings: state.sessions.map(binding => ({ resource: binding.resource, chat: binding.chatResource, sticky: binding.sticky })),
 				panes: restored.view.panes.get().map(pane => ({ id: pane.id, kind: pane.kind, chat: detachedChatOf(pane)?.toString() })),
 				active: restored.view.activePane.get()?.id,
-				saved: storage.get('agentSessions.gridState', StorageScope.WORKSPACE) === stored,
+				saved: resaved === stored,
 			}, {
 				bindings: [
 					{ resource: parent.resource.toString(), chat: undefined, sticky: false },
