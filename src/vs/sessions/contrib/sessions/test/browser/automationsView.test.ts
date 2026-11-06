@@ -2190,7 +2190,7 @@ suite('AutomationsCardsWidget', () => {
 	});
 
 	test('empty state is rendered once across repeated empty updates', () => {
-		const { automationService, widget } = setup();
+		const { automationService, widget, instantiationService, contextKeyService } = setup();
 
 		automationService.setCatalogueState('ready');
 		automationService.setAutomations([]);
@@ -2212,6 +2212,18 @@ suite('AutomationsCardsWidget', () => {
 			templateSections: 1,
 			chatInputs: 0,
 			templateNames: ['Catch up on main', 'Issue triage', 'Find bugs'],
+		});
+		const hasNewAutomation = () => instantiationService.get(IMenuService).getMenuActions(AgentsWindowMenus.CustomViewAutomations, contextKeyService)
+			.flatMap(([, actions]) => actions).some(action => action.id === 'sessionsView.newAutomation' && action.enabled);
+		const empty = hasNewAutomation();
+		automationService.setAutomations([automation()]);
+		const populated = hasNewAutomation();
+		ChatContextKeys.enabled.bindTo(contextKeyService).set(false);
+		const aiDisabled = hasNewAutomation();
+		ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+		ChatAutomationsEnabledContext.bindTo(contextKeyService).set(false);
+		assert.deepStrictEqual({ empty, populated, aiDisabled, automationsDisabled: hasNewAutomation() }, {
+			empty: true, populated: true, aiDisabled: false, automationsDisabled: false,
 		});
 	});
 
@@ -4825,7 +4837,7 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
-	test('accessibility help explains agent-first submission and reversible manual creation', () => {
+	test('accessibility help explains prompt-only automation creation', () => {
 		const { instantiationService } = setup();
 		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() { });
 		stubSessionsHostLayout(instantiationService);
@@ -4834,13 +4846,7 @@ suite('AutomationsCardsWidget', () => {
 		const provider = instantiationService.invokeFunction(accessor => help.getProvider(accessor));
 		assert.ok(provider);
 		disposables.add(provider);
-		const content = provider.provideContent();
-		assert.deepStrictEqual({
-			standardForm: content.includes('When creating an automation, you only need to enter a prompt.'),
-			agentFirst: content.includes('New Automation opens an agent-first input.'),
-			conservativeControls: content.includes('For Copilot these are Interactive and Manual permissions; their pickers are hidden in agent creation.'),
-			switchBack: content.includes('Create with agent returns to the agent-first input without sending or losing your draft, but starting the walkthrough always uses Chat and conservative permissions.'),
-		}, { standardForm: true, agentFirst: true, conservativeControls: true, switchBack: true });
+		assert.ok(provider.provideContent().includes('When creating an automation, you only need to enter a prompt. An empty name is derived from the prompt, and the target defaults to No workspace unless one is already supplied. An available Agent Host that supports the target is still required.'));
 	});
 
 	test('accessibility help explains showing run sessions in the Sessions list', () => {

@@ -9434,34 +9434,33 @@ suite('LocalAgentHostSessionsProvider', () => {
 			}]);
 	});
 
-	for (const quickChat of [false, true]) {
-		test(`automation authoring enforces Interactive and Manual permissions over elevated ${quickChat ? 'quick chat' : 'workspace'} configuration`, async () => {
-			const storageService = disposables.add(new InMemoryStorageService());
-			storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, JSON.stringify({
-				[SessionConfigKey.Mode]: 'autopilot',
-				[SessionConfigKey.AutoApprove]: 'assisted',
-			}), StorageScope.PROFILE, StorageTarget.MACHINE);
-			const provider = createProvider(disposables, agentHost, undefined, { storageService });
-			const sessionTypeId = provider.sessionTypes[0].id;
-			const permissions = provider.getAutomationAuthoringPermissions(sessionTypeId);
-			assert.ok(permissions);
-			const options = {
-				automationConfiguration: { sessionTemplate: { config: { mode: 'autopilot', autoApprove: 'autoApprove' } } },
-				...permissions,
-			};
-			const session = quickChat
-				? provider.createQuickChat(sessionTypeId, options)
-				: provider.createNewSession(URI.file('/home/user/project'), sessionTypeId, options);
-			await waitForSessionConfig(provider, session, config => config?.values.mode === 'interactive' && config.values.autoApprove === 'default');
-			const config = provider.getSessionConfig(session.sessionId, session.mainChat.get().resource);
-			assert.deepStrictEqual({
-				permissions, mode: config?.values.mode, approvals: config?.values.autoApprove,
-				unknown: provider.getAutomationAuthoringPermissions('future-harness'),
-			}, {
-				permissions: { permissionId: 'default', modeId: 'interactive' }, mode: 'interactive', approvals: 'default', unknown: undefined,
-			});
+	test('automation authoring enforces Interactive and Manual permissions before the first quick-chat send', async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, JSON.stringify({
+			[SessionConfigKey.Mode]: 'autopilot',
+			[SessionConfigKey.AutoApprove]: 'assisted',
+		}), StorageScope.PROFILE, StorageTarget.MACHINE);
+		let sends = 0;
+		const provider = createProvider(disposables, agentHost, undefined, {
+			storageService,
+			sendRequest: async resource => {
+				sends++;
+				agentHost.addSession(createSession(AgentSession.id(resource)));
+				return { kind: 'sent', data: upcastPartial<IChatSendRequestData>({}) };
+			},
 		});
-	}
+		const sessionTypeId = provider.sessionTypes[0].id;
+		const management = createManagementService(disposables, provider);
+		const session = await management.createAndSendQuickChatRequest({ query: '/automate Review changes' }, {
+			providerId: provider.id, sessionTypeId,
+			automationConfiguration: { sessionTemplate: { config: { mode: 'autopilot', autoApprove: 'autoApprove' } } },
+			...provider.getAutomationAuthoringPermissions(sessionTypeId),
+		});
+		assert.deepStrictEqual({
+			launched: !!session, sends,
+			created: agentHost.createSessionConfigs.map(({ config }) => ({ mode: config?.mode, autoApprove: config?.autoApprove })),
+		}, { launched: true, sends: 1, created: [{ mode: 'interactive', autoApprove: 'default' }] });
+	});
 
 	for (const mode of ['interactive', 'autopilot', 'plan']) {
 		for (const permissionId of ['default', 'assisted', 'autoApprove']) {
