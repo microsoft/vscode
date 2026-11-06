@@ -92,9 +92,8 @@ export interface ITabbedModelPickerContext {
 	readonly unavailableContext: {
 		readonly show: boolean;
 		readonly currentVSCodeVersion: string;
-		readonly manageSettingsUrl: string | undefined;
-		/** When set, "Contact Admin" opens the organization's help page instead of GitHub's settings. */
-		readonly organizationSupport?: IModelPickerOrganizationSupport;
+		/** Where "Contact Admin" leads: the organization's help page, or the default one. */
+		readonly organizationSupport: IModelPickerOrganizationSupport;
 		readonly updateStateType: StateType;
 	};
 	/** Reports a click on an upgrade or contact-admin link in an unavailable model row. */
@@ -1017,7 +1016,6 @@ export class TabbedModelPicker extends Disposable {
 					unavailableEntry.id,
 					unavailableEntry.entry,
 					this._getUnavailableReason(unavailableEntry, context),
-					unavailableContext.manageSettingsUrl,
 					unavailableContext.organizationSupport,
 					unavailableContext.updateStateType,
 					this._entitlementService,

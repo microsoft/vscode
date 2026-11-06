@@ -15,7 +15,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IManagedSettingsFreshness, ManagedSettingsFreshnessFailure, ManagedSettingsFreshnessState } from '../../../../platform/policy/common/managedSettingsFreshness.js';
-import { getManagedSupportUrl, IManagedSettingsService } from '../../../../platform/policy/common/copilotManagedSettings.js';
+import { IManagedSettingsService } from '../../../../platform/policy/common/copilotManagedSettings.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -23,7 +23,7 @@ import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { DEFAULT_ACCOUNT_SIGN_IN_COMMAND } from '../../accounts/browser/defaultAccount.js';
 import { IChatEntitlementService } from '../../chat/common/chatEntitlementService.js';
 import { AccountPolicyGateState, AccountPolicyGateUnsatisfiedReason, ChatAccountPolicyGateActiveContext, IAccountPolicyGateInfo, IAccountPolicyGateService } from '../common/accountPolicyService.js';
-import { getOrganizationSupportActionLabel, openOrganizationSupport } from '../common/organizationSupport.js';
+import { getOrganizationSupportActionLabel, getOrganizationSupportUrl, openOrganizationSupport } from '../common/organizationSupport.js';
 
 const NOTIFICATION_DISMISSED_KEY = 'accountPolicy.gateNotificationDismissed';
 
@@ -64,7 +64,7 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 
 	private readonly notificationHandle = this._register(new MutableDisposable());
 	/** The key and support URL of the notification in `notificationHandle`. */
-	private shownNotification: { readonly key: string; readonly supportUrl: string | undefined } | undefined;
+	private shownNotification: { readonly key: string; readonly supportUrl: string } | undefined;
 	private readonly managedSettingsPendingNotificationHandle = this._register(new MutableDisposable());
 	private managedSettingsDialogVisibleKey: string | undefined;
 	private managedSettingsDialogDismissedKey: string | undefined;
@@ -215,7 +215,7 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 		}
 
 		const handleDisposables = new DisposableStore();
-		const supportUrl = getManagedSupportUrl(this.managedSettingsService);
+		const supportUrl = getOrganizationSupportUrl(this.managedSettingsService);
 		const handle = this.notificationService.prompt(
 			Severity.Warning,
 			message,
@@ -224,10 +224,10 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 					label: localize('accountPolicy.notification.signin.action', "Sign In"),
 					run: () => this.commandService.executeCommand(DEFAULT_ACCOUNT_SIGN_IN_COMMAND),
 				},
-				...(supportUrl ? [{
+				{
 					label: getOrganizationSupportActionLabel(),
 					run: () => openOrganizationSupport(this.openerService, supportUrl),
-				}] : []),
+				},
 				{
 					label: localize('accountPolicy.notification.learnMore', "Learn More"),
 					run: () => this.openerService.open(URI.parse('https://code.visualstudio.com/docs/enterprise/overview')),
@@ -248,7 +248,7 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 	/** Shows the open notification again when the organization's support URL changes under it. */
 	private refreshNotificationSupportUrl(): void {
 		const shown = this.shownNotification;
-		if (!this.notificationHandle.value || !shown || getManagedSupportUrl(this.managedSettingsService) === shown.supportUrl) {
+		if (!this.notificationHandle.value || !shown || getOrganizationSupportUrl(this.managedSettingsService) === shown.supportUrl) {
 			return;
 		}
 		// Clearing removes the close listener before closing, so the replacement isn't a dismissal.

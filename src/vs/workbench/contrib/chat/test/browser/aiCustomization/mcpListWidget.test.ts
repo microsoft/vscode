@@ -21,6 +21,7 @@ import { CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IOpenerService, OpenOptions } from '../../../../../../platform/opener/common/opener.js';
 import { COPILOT_COMMUNICATION_SUPPORT_URL_KEY, IManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
+import { DEFAULT_ORGANIZATION_SUPPORT_URL } from '../../../../../services/policies/common/organizationSupport.js';
 import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceIconUri, ICustomizationMarketplaceResource } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { ContributionEnablementState, EnablementModel } from '../../../common/enablement.js';
@@ -1418,14 +1419,16 @@ suite('mcpListWidget', () => {
 			accessEnabled: widget.mcpAccessEnabled,
 			disabledClass: widget.element.classList.contains('access-disabled'),
 			message: widget.disabledMessage.textContent,
+			link: widget.disabledMessage.querySelector('a')?.getAttribute('href'),
 		}, {
 			accessEnabled: false,
 			disabledClass: true,
 			message: 'Access to MCP servers is disabled by your organization. Contact your administrator for more information.',
+			link: DEFAULT_ORGANIZATION_SUPPORT_URL,
 		});
 	});
 
-	test('links the policy explanation to the organization support page when one is configured', () => {
+	test('links the policy explanation to the organization support page when one is configured, else to the default one', () => {
 		const widget = createMcpAccessTestWidget(McpAccessValue.None, McpAccessValue.None, disposables);
 		const capture = () => ({
 			message: widget.disabledMessage.textContent,
@@ -1446,11 +1449,11 @@ suite('mcpListWidget', () => {
 		const userDisabled = capture();
 		assert.deepStrictEqual({ linked, invalid, userDisabled, middleClickNavigates: !middleClick.defaultPrevented, opened: widget.opened, hovers: widget.hovers }, {
 			linked: { message: 'Access to MCP servers is disabled by your organization. Contact your administrator for more information.', link: 'https://example.com/copilot-help' },
-			invalid: { message: 'Access to MCP servers is disabled by your organization. Contact your administrator for more information.', link: null },
+			invalid: { message: 'Access to MCP servers is disabled by your organization. Contact your administrator for more information.', link: DEFAULT_ORGANIZATION_SUPPORT_URL },
 			userDisabled: { message: 'MCP servers are disabled in settings. Configure in settings.', link: '#' },
 			middleClickNavigates: false,
 			opened: [{ target: 'https://example.com/copilot-help', openExternal: true }, { target: 'https://example.com/copilot-help', openExternal: true }],
-			hovers: ['Opens your organization\'s help page (example.com)'],
+			hovers: ['Opens your organization\'s help page (example.com)', 'Learn how to contact your administrator (aka.ms)'],
 		});
 	});
 

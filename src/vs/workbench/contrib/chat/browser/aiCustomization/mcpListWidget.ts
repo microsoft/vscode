@@ -38,8 +38,9 @@ import { ICustomizationMarketplaceInstallService, IRecordedCustomizationMarketpl
 import { McpCommandIds } from '../../../../contrib/mcp/common/mcpCommandIds.js';
 import { autorun, derived, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { getManagedSupportUrl, IManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
+import { IManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { appendContactAdministratorLink } from '../../../../services/policies/browser/organizationSupportLink.js';
+import { getOrganizationSupportUrl } from '../../../../services/policies/common/organizationSupport.js';
 import { Link } from '../../../../../platform/opener/browser/link.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../base/common/resources.js';
@@ -2544,7 +2545,7 @@ export class McpListWidget extends Disposable {
 			this.disabledIcon.className = 'empty-icon';
 			this.disabledIcon.classList.add(...ThemeIcon.asClassNameArray(policyLocked ? Codicon.shield : mcpServerIcon));
 
-			const supportUrl = policyLocked ? getManagedSupportUrl(this.managedSettingsService) : undefined;
+			const supportUrl = policyLocked ? getOrganizationSupportUrl(this.managedSettingsService) : undefined;
 			const messageKey = `${policyLocked}:${supportUrl ?? ''}`;
 			if (this.renderedDisabledMessage !== messageKey) {
 				this.renderedDisabledMessage = messageKey;
@@ -2557,8 +2558,6 @@ export class McpListWidget extends Disposable {
 					const supportLink = appendContactAdministratorLink(this.disabledMessage, 'mcp-disabled-settings-link', supportUrl, this.openerService, this.hoverService);
 					this.disabledLinkListener.value = supportLink;
 					link = supportLink.element;
-				} else if (policyLocked) {
-					this.disabledMessage.textContent = localize('mcpAccessDisabledByPolicy', "Access to MCP servers is disabled by your organization. Contact your administrator for more information.");
 				} else {
 					this.disabledMessage.appendChild(document.createTextNode(localize('mcpAccessDisabledBySettingPrefix', "MCP servers are disabled in settings. ")));
 					const settingsLink = DOM.append(this.disabledMessage, $('a.mcp-disabled-settings-link')) as HTMLAnchorElement;
