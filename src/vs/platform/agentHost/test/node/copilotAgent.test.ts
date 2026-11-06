@@ -32516,7 +32516,7 @@ suite('CopilotAgent', () => {
 			const history: SessionEvent[] = [
 				{ id: '11111111-1111-4111-8111-111111111111', timestamp: '2026-03-01T00:00:00.000Z', parentId: null, type: 'user.message', data: { content: 'Read-only history from deleted worktree' } },
 				{ id: '22222222-2222-4222-8222-222222222222', timestamp: '2026-03-01T00:00:01.000Z', parentId: '11111111-1111-4111-8111-111111111111', type: 'assistant.message', data: { messageId: 'm1', content: 'Assistant response preserved', toolRequests: [] } },
-				{ id: '33333333-3333-4333-8333-333333333333', timestamp: '2026-03-01T00:00:02.000Z', parentId: '22222222-2222-4222-8222-222222222222', type: 'session.idle', data: {} },
+				{ id: '33333333-3333-4333-8333-333333333333', timestamp: '2026-03-01T00:00:02.000Z', parentId: '22222222-2222-4222-8222-222222222222', type: 'session.idle', ephemeral: true, data: {} },
 			];
 			client.rpc.sessions.readPersistedEvents = async () => ({ events: history, cursor: 'end', hasMore: false, cursorStatus: 'ok' });
 			const worktreeIsolation = new NullAgentHostWorktreeIsolation();
@@ -32574,7 +32574,7 @@ suite('CopilotAgent', () => {
 			const history: SessionEvent[] = [
 				{ id: '11111111-1111-4111-8111-111111111111', timestamp: '2026-03-01T00:00:00.000Z', parentId: null, type: 'user.message', data: { content: 'History read when MCP config fails' } },
 				{ id: '22222222-2222-4222-8222-222222222222', timestamp: '2026-03-01T00:00:01.000Z', parentId: '11111111-1111-4111-8111-111111111111', type: 'assistant.message', data: { messageId: 'm1', content: 'Preserved reply', toolRequests: [] } },
-				{ id: '33333333-3333-4333-8333-333333333333', timestamp: '2026-03-01T00:00:02.000Z', parentId: '22222222-2222-4222-8222-222222222222', type: 'session.idle', data: {} },
+				{ id: '33333333-3333-4333-8333-333333333333', timestamp: '2026-03-01T00:00:02.000Z', parentId: '22222222-2222-4222-8222-222222222222', type: 'session.idle', ephemeral: true, data: {} },
 			];
 			client.rpc.sessions.readPersistedEvents = async () => ({ events: history, cursor: 'end', hasMore: false, cursorStatus: 'ok' });
 			client.rpc.mcp.config.list = async () => {
