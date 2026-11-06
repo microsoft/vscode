@@ -1923,6 +1923,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 			}
 		}
 
+		// The draft may have been preseeded before its folder became a Git repository.
+		void this.sessionsManagementService.refreshNewSession().catch(onUnexpectedError);
+
 		if (options?.preserveCustomView) {
 			return { session: this.sessionsManagementService.newSession.get(), trustDeclined: false };
 		}

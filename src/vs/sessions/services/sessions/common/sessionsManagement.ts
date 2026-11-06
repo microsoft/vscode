@@ -493,6 +493,9 @@ export interface ISessionsManagementService {
 	 */
 	createNewSession(folderUri: URI, options?: ICreateNewSessionOptions): ISession;
 
+	/** Refreshes the current unsent draft's available configuration while preserving its identity and selections. */
+	refreshNewSession(): Promise<void>;
+
 	/**
 	 * Create a new **quick chat**: a workspace-less session not scoped to any
 	 * folder (`ISession.workspace` resolves to `undefined`).

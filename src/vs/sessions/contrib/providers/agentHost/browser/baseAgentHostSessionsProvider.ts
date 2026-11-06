@@ -5763,6 +5763,32 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		);
 	}
 
+	async refreshNewSession(sessionId: string): Promise<void> {
+		const session = this._getNewSession(sessionId);
+		if (!session?.workspaceUri || session.session.workspace.get()?.isVirtualWorkspace || !this.connection || this.authenticationPending.get()
+			|| this._isAgentDisabledByPolicy(session.agentProvider) || session.session.isNewSessionRequestInProgress?.get()) {
+			return;
+		}
+		if (session.isResolvingConfig.get()) {
+			await session.waitForConfigResolution();
+			return;
+		}
+		const config = session.getConfigForWrite();
+		const isolation = config && getSessionWorkspaceProperties(config.schema).isolation;
+		if (!isolation || writeSessionIsolation(isolation, 'worktree') !== undefined
+			|| !this._shouldRefreshNewSessionConfiguration(sessionId, session.workspaceUri)) {
+			return;
+		}
+		const refresh = session.trackConfigResolution(this._refreshNewSessionConfig(session, { strict: true }));
+		this._onDidChangeSessionConfig.fire(sessionId);
+		await raceCancellationError(refresh, session.cancellationToken);
+	}
+
+	/** Whether external workspace changes warrant rechecking a cached folder-only draft. */
+	protected _shouldRefreshNewSessionConfiguration(_sessionId: string, _workspaceUri: URI): boolean {
+		return false;
+	}
+
 	startNewSessionRequest(sessionId: string, activity?: string): IDisposable {
 		const newSession = this._getNewSession(sessionId);
 		if (!newSession) {

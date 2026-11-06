@@ -585,6 +585,14 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return session;
 	}
 
+	async refreshNewSession(): Promise<void> {
+		const session = this._newSession.get();
+		if (!session || this._inFlightNewSessionRequests.has(session.resource) || session.isNewSessionRequestInProgress?.get()) {
+			return;
+		}
+		await this._getProvider(session)?.refreshNewSession?.(session.sessionId);
+	}
+
 	createAutomationSession(folderUri: URI, options?: ICreateNewSessionOptions): ISession {
 		const { provider, sessionTypeId } = this._resolveProviderForNewSession(folderUri, options);
 		if (provider.automations?.catalogueState.get() !== 'ready') {

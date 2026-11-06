@@ -54,6 +54,7 @@ import { toRemoteSessionMessageMetadata, withRemoteSessionOrigin } from '../../.
 import { USE_WORKTREE_SETTING } from '../../../../../common/sessionConfig.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { FileChangesEvent, FileChangeType, IFileService, IFileSystemWatcher, IWatchOptionsWithoutCorrelation } from '../../../../../../platform/files/common/files.js';
 import { AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
 import { IDialogService, IFileDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
@@ -139,6 +140,29 @@ function createVSCodeSessionConfigSchema(overrides: SessionConfigSchema['propert
 			...overrides,
 		},
 	};
+}
+
+function createFolderOnlySessionConfig(): ResolveSessionConfigResult {
+	const schema = createVSCodeSessionConfigSchema({
+		isolation: { type: 'string', title: 'Isolation', enum: ['folder'], default: 'folder', readOnly: true, sessionMutable: false },
+	});
+	delete schema.properties.branch;
+	return { schema, values: { isolation: 'folder' } };
+}
+
+function createGitInitializationFileService(disposables: DisposableStore) {
+	const changes = disposables.add(new Emitter<FileChangesEvent>());
+	const errors = disposables.add(new Emitter<Error>());
+	const watches: { resource: URI; options: IWatchOptionsWithoutCorrelation; disposed: boolean }[] = [];
+	const fileService = new class extends mock<IFileService>() {
+		override readonly onDidWatchError = errors.event;
+		override createWatcher(resource: URI, options: IWatchOptionsWithoutCorrelation & { recursive: false }): IFileSystemWatcher {
+			const watch = { resource, options, disposed: false };
+			watches.push(watch);
+			return { onDidChange: changes.event, dispose: () => { watch.disposed = true; } };
+		}
+	};
+	return { fileService, changes, errors, watches };
 }
 
 class MockAgentHostService extends mock<IAgentHostService>() {
@@ -750,10 +774,14 @@ class BackendSchemeTestProvider extends LocalAgentHostSessionsProvider {
 
 function createProvider(disposables: DisposableStore, agentHostService: MockAgentHostService, contributions = [
 	{ type: 'agent-host-copilotcli', name: 'copilot', displayName: 'Copilot', description: 'test', icon: undefined },
-], options?: { chatSessionsService?: Partial<IChatSessionsService>; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; languageModelsService?: Partial<ILanguageModelsService>; languageModelIds?: string[]; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; languageModelChanges?: Event<string>; hiddenLanguageModelIds?: ReadonlySet<string>; languageModelVisibilityChanges?: Event<void>; getChatModel?: (resource: URI) => IChatModel | undefined; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; visibleSessions?: IObservable<readonly (IActiveSession | undefined)[]>; windowSessions?: IObservable<readonly IActiveSession[]>; activeClient?: Omit<SessionActiveClient, 'clientId'>; sessionTools?: (resource: URI) => readonly ToolDefinition[]; mcpAppTools?: (resource: URI) => readonly ToolDefinition[]; activeClientAgents?: IObservable<readonly AgentCustomization[]>; activeClientScope?: (sessionType: string, roots: readonly URI[]) => IAgentCustomizationScope; storageService?: IStorageService; recentWorkspacesService?: ISessionsRecentWorkspacesService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; requestWorkspaceTrust?: (uri: URI) => Promise<boolean>; workspaceTrustBarrier?: DeferredPromise<void>; workspaceTrustError?: Error; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; gitHubService?: IGitHubService; devContainerAgentHostService?: IDevContainerAgentHostService; sessionsProvidersService?: ISessionsProvidersService; pathService?: IPathService; labelService?: ILabelService; telemetryService?: ITelemetryService; providerCtor?: typeof LocalAgentHostSessionsProvider }): LocalAgentHostSessionsProvider {
+], options?: { fileService?: IFileService; chatSessionsService?: Partial<IChatSessionsService>; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; languageModelsService?: Partial<ILanguageModelsService>; languageModelIds?: string[]; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; languageModelChanges?: Event<string>; hiddenLanguageModelIds?: ReadonlySet<string>; languageModelVisibilityChanges?: Event<void>; getChatModel?: (resource: URI) => IChatModel | undefined; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; visibleSessions?: IObservable<readonly (IActiveSession | undefined)[]>; windowSessions?: IObservable<readonly IActiveSession[]>; activeClient?: Omit<SessionActiveClient, 'clientId'>; sessionTools?: (resource: URI) => readonly ToolDefinition[]; mcpAppTools?: (resource: URI) => readonly ToolDefinition[]; activeClientAgents?: IObservable<readonly AgentCustomization[]>; activeClientScope?: (sessionType: string, roots: readonly URI[]) => IAgentCustomizationScope; storageService?: IStorageService; recentWorkspacesService?: ISessionsRecentWorkspacesService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; requestWorkspaceTrust?: (uri: URI) => Promise<boolean>; workspaceTrustBarrier?: DeferredPromise<void>; workspaceTrustError?: Error; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; gitHubService?: IGitHubService; devContainerAgentHostService?: IDevContainerAgentHostService; sessionsProvidersService?: ISessionsProvidersService; pathService?: IPathService; labelService?: ILabelService; telemetryService?: ITelemetryService; providerCtor?: typeof LocalAgentHostSessionsProvider }): LocalAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IAgentHostService, agentHostService);
+	instantiationService.stub(IFileService, options?.fileService ?? new class extends mock<IFileService>() {
+		override readonly onDidWatchError = Event.None;
+		override createWatcher(): IFileSystemWatcher { return { onDidChange: Event.None, dispose: () => { } }; }
+	}());
 	instantiationService.stub(IAgentHostConnectionsService, new class extends mock<IAgentHostConnectionsService>() {
 		private readonly _resources = new ResourceMap<URI>();
 		private readonly _changed = disposables.add(new Emitter<void>());
@@ -8190,6 +8218,321 @@ suite('LocalAgentHostSessionsProvider', () => {
 			await barrier.complete();
 			await configRefresh;
 		}
+	});
+
+	for (const kind of ['repository folder', 'repository worktree', 'quick chat'] as const) {
+		test(`repeated draft openings keep the ${kind} path free of configuration requests and file watchers`, async () => {
+			agentHost.resolveSessionConfigResult = kind === 'quick chat'
+				? createFolderOnlySessionConfig()
+				: { schema: createVSCodeSessionConfigSchema(), values: { isolation: kind === 'repository folder' ? 'folder' : 'worktree' } };
+			const files = createGitInitializationFileService(disposables);
+			const provider = createProvider(disposables, agentHost, undefined, { fileService: files.fileService });
+			const session = kind === 'quick chat'
+				? provider.createQuickChat(provider.sessionTypes[0].id)
+				: provider.createNewSession(URI.file('/home/user/project'), provider.sessionTypes[0].id);
+			await provider.getNewSessionConfig(session.sessionId);
+			const config = provider.getSessionConfig(session.sessionId, session.mainChat.get().resource);
+			const requestCount = agentHost.resolveSessionConfigRequests.length;
+			const completionCount = agentHost.branchCompletionRequests.length;
+			let configChanges = 0;
+			disposables.add(provider.onDidChangeSessionConfig(() => configChanges++));
+
+			for (let i = 0; i < 1000; i++) {
+				await provider.refreshNewSession(session.sessionId);
+			}
+
+			assert.deepStrictEqual({
+				requests: agentHost.resolveSessionConfigRequests.length - requestCount,
+				completions: agentHost.branchCompletionRequests.length - completionCount,
+				watches: files.watches.length,
+				configChanges,
+				configPreserved: provider.getSessionConfig(session.sessionId, session.mainChat.get().resource) === config,
+			}, {
+				requests: 0,
+				completions: 0,
+				watches: 0,
+				configChanges: 0,
+				configPreserved: true,
+			});
+		});
+	}
+
+	test('repeated non-Git draft openings reuse the cached result until .git changes', async () => {
+		agentHost.resolveSessionConfigResult = createFolderOnlySessionConfig();
+		const files = createGitInitializationFileService(disposables);
+		const provider = createProvider(disposables, agentHost, undefined, { fileService: files.fileService });
+		const folder = URI.file('/home/user/project');
+		const session = provider.createNewSession(folder, provider.sessionTypes[0].id);
+		await provider.getNewSessionConfig(session.sessionId);
+		await provider.refreshNewSession(session.sessionId);
+		const requestCount = agentHost.resolveSessionConfigRequests.length;
+		let configChanges = 0;
+		disposables.add(provider.onDidChangeSessionConfig(() => configChanges++));
+		files.changes.fire(new FileChangesEvent([{ resource: URI.joinPath(folder, 'README.md'), type: FileChangeType.ADDED }], false));
+
+		for (let i = 0; i < 1000; i++) {
+			await provider.refreshNewSession(session.sessionId);
+		}
+		const unchanged = { requests: agentHost.resolveSessionConfigRequests.length - requestCount, configChanges };
+		agentHost.resolveSessionConfigResult = {
+			schema: createVSCodeSessionConfigSchema(),
+			values: { isolation: 'worktree', branch: 'main' },
+		};
+		files.changes.fire(new FileChangesEvent([{ resource: URI.joinPath(folder, '.git'), type: FileChangeType.ADDED }], false));
+		await provider.refreshNewSession(session.sessionId);
+
+		assert.deepStrictEqual({
+			unchanged,
+			requestsAfterInit: agentHost.resolveSessionConfigRequests.length - requestCount,
+			isolations: provider.getSessionConfig(session.sessionId, session.mainChat.get().resource)?.schema.properties.isolation.enum,
+			watches: files.watches.map(watch => ({ resource: watch.resource.toString(), recursive: watch.options.recursive, includes: watch.options.includes })),
+		}, {
+			unchanged: { requests: 0, configChanges: 0 },
+			requestsAfterInit: 1,
+			isolations: ['folder', 'worktree'],
+			watches: [{ resource: folder.toString(), recursive: false, includes: ['.git'] }],
+		});
+	});
+
+	test('new drafts for the same non-Git workspace reuse its initialization watcher', async () => {
+		agentHost.resolveSessionConfigResult = createFolderOnlySessionConfig();
+		const files = createGitInitializationFileService(disposables);
+		const provider = createProvider(disposables, agentHost, undefined, { fileService: files.fileService });
+		const folder = URI.file('/home/user/project');
+		let requests = 0;
+		for (let i = 0; i < 10; i++) {
+			const session = provider.createNewSession(folder, provider.sessionTypes[0].id);
+			await provider.getNewSessionConfig(session.sessionId);
+			const requestCount = agentHost.resolveSessionConfigRequests.length;
+			await provider.refreshNewSession(session.sessionId);
+			requests += agentHost.resolveSessionConfigRequests.length - requestCount;
+			provider.deleteNewSession(session.sessionId);
+		}
+
+		assert.deepStrictEqual({ requests, watches: files.watches.length }, { requests: 1, watches: 1 });
+	});
+
+	test('git initialization during an in-flight refresh invalidates the next read', async () => {
+		agentHost.resolveSessionConfigResult = createFolderOnlySessionConfig();
+		const files = createGitInitializationFileService(disposables);
+		const provider = createProvider(disposables, agentHost, undefined, { fileService: files.fileService });
+		const folder = URI.file('/home/user/project');
+		const session = provider.createNewSession(folder, provider.sessionTypes[0].id);
+		await provider.getNewSessionConfig(session.sessionId);
+		const barrier = new DeferredPromise<void>();
+		agentHost.onResolveSessionConfig = async () => {
+			const result = agentHost.resolveSessionConfigResult;
+			await barrier.p;
+			return result;
+		};
+		const requestCount = agentHost.resolveSessionConfigRequests.length;
+		const first = provider.refreshNewSession(session.sessionId);
+		agentHost.resolveSessionConfigResult = {
+			schema: createVSCodeSessionConfigSchema(),
+			values: { isolation: 'worktree', branch: 'main' },
+		};
+		files.changes.fire(new FileChangesEvent([{ resource: URI.joinPath(folder, '.git'), type: FileChangeType.ADDED }], false));
+		await barrier.complete();
+		await first;
+		await waitForSessionConfig(provider, session, config => config?.schema.properties.isolation.enum?.includes('worktree') === true);
+
+		assert.deepStrictEqual({
+			requests: agentHost.resolveSessionConfigRequests.length - requestCount,
+			isolations: provider.getSessionConfig(session.sessionId, session.mainChat.get().resource)?.schema.properties.isolation.enum,
+		}, {
+			requests: 2,
+			isolations: ['folder', 'worktree'],
+		});
+	});
+
+	test('a .git notification before initialization finishes does not cache a premature negative result', async () => {
+		agentHost.resolveSessionConfigResult = createFolderOnlySessionConfig();
+		const files = createGitInitializationFileService(disposables);
+		const provider = createProvider(disposables, agentHost, undefined, { fileService: files.fileService });
+		const folder = URI.file('/home/user/project');
+		const session = provider.createNewSession(folder, provider.sessionTypes[0].id);
+		await provider.getNewSessionConfig(session.sessionId);
+		await provider.refreshNewSession(session.sessionId);
+		const requestCount = agentHost.resolveSessionConfigRequests.length;
+		files.changes.fire(new FileChangesEvent([{ resource: URI.joinPath(folder, '.git'), type: FileChangeType.ADDED }], false));
+		await timeout(0);
+		agentHost.resolveSessionConfigResult = {
+			schema: createVSCodeSessionConfigSchema(),
+			values: { isolation: 'worktree', branch: 'main' },
+		};
+
+		await provider.refreshNewSession(session.sessionId);
+
+		assert.deepStrictEqual({
+			requests: agentHost.resolveSessionConfigRequests.length - requestCount,
+			isolations: provider.getSessionConfig(session.sessionId, session.mainChat.get().resource)?.schema.properties.isolation.enum,
+		}, {
+			requests: 2,
+			isolations: ['folder', 'worktree'],
+		});
+	});
+
+	test('changing workspaces and disposing the provider release initialization watchers', async () => {
+		agentHost.resolveSessionConfigResult = createFolderOnlySessionConfig();
+		const files = createGitInitializationFileService(disposables);
+		const provider = createProvider(disposables, agentHost, undefined, { fileService: files.fileService });
+		const first = provider.createNewSession(URI.file('/home/user/first'), provider.sessionTypes[0].id);
+		await provider.getNewSessionConfig(first.sessionId);
+		await provider.refreshNewSession(first.sessionId);
+		const second = provider.createNewSession(URI.file('/home/user/second'), provider.sessionTypes[0].id);
+		await provider.getNewSessionConfig(second.sessionId);
+		await provider.refreshNewSession(second.sessionId);
+		const whileAlive = files.watches.map(watch => watch.disposed);
+		provider.dispose();
+
+		assert.deepStrictEqual({ whileAlive, afterDisposal: files.watches.map(watch => watch.disposed) }, {
+			whileAlive: [true, false],
+			afterDisposal: [true, true],
+		});
+	});
+
+	test('watcher errors invalidate cached non-Git results and replace the watcher', async () => {
+		agentHost.resolveSessionConfigResult = createFolderOnlySessionConfig();
+		const files = createGitInitializationFileService(disposables);
+		const provider = createProvider(disposables, agentHost, undefined, { fileService: files.fileService });
+		const session = provider.createNewSession(URI.file('/home/user/project'), provider.sessionTypes[0].id);
+		await provider.getNewSessionConfig(session.sessionId);
+		await provider.refreshNewSession(session.sessionId);
+		const requestCount = agentHost.resolveSessionConfigRequests.length;
+		files.errors.fire(new Error('File watcher unavailable'));
+
+		await provider.refreshNewSession(session.sessionId);
+
+		assert.deepStrictEqual({
+			requests: agentHost.resolveSessionConfigRequests.length - requestCount,
+			watches: files.watches.map(watch => watch.disposed),
+		}, {
+			requests: 1,
+			watches: [true, false],
+		});
+	});
+
+	test('refreshing a draft offers worktree isolation after git init without discarding its selections', async () => {
+		agentHost.resolveSessionConfigResult = createFolderOnlySessionConfig();
+		const provider = createProvider(disposables, agentHost);
+		const session = provider.createNewSession(URI.file('/home/user/project'), provider.sessionTypes[0].id);
+		await provider.getNewSessionConfig(session.sessionId);
+		await provider.setSessionConfigValue(session.sessionId, session.mainChat.get().resource, SessionConfigKey.Mode, 'plan');
+		const before = provider.getSessionConfig(session.sessionId, session.mainChat.get().resource)?.schema.properties.isolation.enum;
+		const backendCreations = agentHost.createdSessionUris.length;
+		agentHost.resolveSessionConfigResult = {
+			schema: createVSCodeSessionConfigSchema(),
+			values: { isolation: 'worktree', branch: 'main', mode: 'interactive' },
+		};
+
+		await provider.refreshNewSession(session.sessionId);
+		const config = provider.getSessionConfig(session.sessionId, session.mainChat.get().resource);
+
+		assert.deepStrictEqual({
+			before,
+			after: config?.schema.properties.isolation.enum,
+			values: config?.values,
+			draftPreserved: provider.getSessionByResource(session.resource) === session,
+			backendCreations: agentHost.createdSessionUris.length - backendCreations,
+		}, {
+			before: ['folder'],
+			after: ['folder', 'worktree'],
+			values: { isolation: 'folder', branch: 'main', mode: 'plan' },
+			draftPreserved: true,
+			backendCreations: 0,
+		});
+	});
+
+	test('concurrent draft refreshes share resolution and configuration capture waits for it', async () => {
+		agentHost.resolveSessionConfigResult = createFolderOnlySessionConfig();
+		const provider = createProvider(disposables, agentHost);
+		const session = provider.createNewSession(URI.file('/home/user/project'), provider.sessionTypes[0].id);
+		await provider.getNewSessionConfig(session.sessionId);
+		const requestCount = agentHost.resolveSessionConfigRequests.length;
+		const barrier = agentHost.resolveSessionConfigBarrier = new DeferredPromise<void>();
+		agentHost.resolveSessionConfigResult = {
+			schema: createVSCodeSessionConfigSchema(),
+			values: { isolation: 'worktree', branch: 'main' },
+		};
+		const first = provider.refreshNewSession(session.sessionId);
+		const second = provider.refreshNewSession(session.sessionId);
+		let captured = false;
+		const capture = provider.getNewSessionConfig(session.sessionId).then(config => {
+			captured = true;
+			return config;
+		});
+		await timeout(0);
+		const pending = {
+			requests: agentHost.resolveSessionConfigRequests.length - requestCount,
+			resolving: provider.isSessionConfigResolving(session.sessionId, session.mainChat.get().resource).get(),
+			captured,
+		};
+		await barrier.complete();
+		await Promise.all([first, second]);
+
+		assert.deepStrictEqual({ pending, config: await capture }, {
+			pending: { requests: 1, resolving: true, captured: false },
+			config: { isolation: 'folder', providerConfig: { isolation: 'folder', branch: 'main' } },
+		});
+	});
+
+	test('draft refresh failures are surfaced and can be retried', async () => {
+		agentHost.resolveSessionConfigResult = createFolderOnlySessionConfig();
+		const provider = createProvider(disposables, agentHost);
+		const session = provider.createNewSession(URI.file('/home/user/project'), provider.sessionTypes[0].id);
+		await provider.getNewSessionConfig(session.sessionId);
+		agentHost.failResolveSessionConfig = true;
+
+		await assert.rejects(provider.refreshNewSession(session.sessionId), /resolveSessionConfig unavailable/);
+		const failedConfig = provider.getSessionConfig(session.sessionId, session.mainChat.get().resource);
+		agentHost.failResolveSessionConfig = false;
+		await provider.refreshNewSession(session.sessionId);
+
+		assert.deepStrictEqual({
+			failedConfig,
+			recovered: provider.getCreateSessionConfig(session.sessionId),
+			resolving: provider.isSessionConfigResolving(session.sessionId, session.mainChat.get().resource).get(),
+		}, {
+			failedConfig: undefined,
+			recovered: { isolation: 'folder' },
+			resolving: false,
+		});
+	});
+
+	test('disposing a draft cancels an in-flight configuration refresh', async () => {
+		agentHost.resolveSessionConfigResult = createFolderOnlySessionConfig();
+		const provider = createProvider(disposables, agentHost);
+		const session = provider.createNewSession(URI.file('/home/user/project'), provider.sessionTypes[0].id);
+		await provider.getNewSessionConfig(session.sessionId);
+		const barrier = agentHost.resolveSessionConfigBarrier = new DeferredPromise<void>();
+		const refresh = provider.refreshNewSession(session.sessionId);
+		provider.deleteNewSession(session.sessionId);
+
+		try {
+			await assert.rejects(refresh, /Canceled/);
+		} finally {
+			await barrier.complete();
+			await timeout(0);
+		}
+	});
+
+	test('refreshing a draft does not change configuration after its first request starts', async () => {
+		agentHost.resolveSessionConfigResult = createFolderOnlySessionConfig();
+		const provider = createProvider(disposables, agentHost);
+		const session = provider.createNewSession(URI.file('/home/user/project'), provider.sessionTypes[0].id);
+		await provider.getNewSessionConfig(session.sessionId);
+		const requestCount = agentHost.resolveSessionConfigRequests.length;
+		disposables.add(provider.startNewSessionRequest(session.sessionId));
+
+		await provider.refreshNewSession(session.sessionId);
+
+		assert.deepStrictEqual({
+			requests: agentHost.resolveSessionConfigRequests.length - requestCount,
+			config: provider.getCreateSessionConfig(session.sessionId),
+		}, {
+			requests: 0,
+			config: { isolation: 'folder' },
+		});
 	});
 
 	test('new session config snapshots all resolved values without requiring a worktree', async () => {

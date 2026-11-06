@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { autorun, constObservable, IObservable, observableFromEvent } from '../../../../../base/common/observable.js';
 import { basename, dirname, isEqualOrParent, joinPath, relativePath } from '../../../../../base/common/resources.js';
@@ -18,8 +19,10 @@ import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../.
 import { affectsAgentHostProviderPreference, getPolicyUnavailableLocalAgentHostProviders, isLocalAgentHostProviderDisabledByPolicy, IAgentConnection, IAgentHostService, shouldSurfaceLocalAgentHostProvider } from '../../../../../platform/agentHost/common/agentService.js';
 import { workspacelessScratchDir } from '../../../../../platform/agentHost/common/workspacelessScratchDir.js';
 import { findDevContainerSample, getDevContainerSampleUrl } from '../../../../../platform/agentHost/common/devContainerSamples.js';
+import { getSessionWorkspaceProperties, writeSessionIsolation } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { type ISessionGitState, readSessionEhcliAdoptable } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { FileChangeFilter, IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -85,6 +88,12 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 
 	/** `true` when running in the dedicated Agents window vs. a regular editor window. */
 	private readonly _isSessionsWindow: boolean;
+	private readonly _gitInitializationWatcher = this._register(new MutableDisposable<DisposableStore>());
+	private _gitInitializationWorkspace: URI | undefined;
+	private _gitInitializationSessionId: string | undefined;
+	private _gitInitializationVersion = 0;
+	private _requestedGitInitializationVersion = -1;
+
 	override get order(): number {
 		return -1;
 	}
@@ -205,6 +214,7 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 		@ISessionsRecentWorkspacesService recentWorkspacesService: ISessionsRecentWorkspacesService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
+		@IFileService private readonly _fileService: IFileService,
 	) {
 		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionHostService, focusedSessionHostService, activeClientService, mcpAppToolsService, storageService, dialogService, workspaceTrustManagementService, recentWorkspacesService, uriIdentityService);
 		this.initializeDevContainerSupport(devContainerAgentHostService, sessionsProvidersService, workspaceTrustRequestService);
@@ -334,6 +344,13 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 				this._onDidChangeSessions.fire({ added: [], removed: [], changed: [] });
 			}
 		}));
+		this._register(this._fileService.onDidWatchError(error => {
+			if (this._gitInitializationWatcher.value) {
+				this._logService.warn('[LocalAgentHostSessionsProvider] Git initialization watcher failed', error);
+				this._gitInitializationWatcher.clear();
+				this._gitInitializationWorkspace = undefined;
+			}
+		}));
 	}
 
 	protected override supportsDevContainerWorkspace(workspaceUri: URI): boolean {
@@ -410,6 +427,66 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 	}
 
 	// -- Workspaces ----------------------------------------------------------
+
+	protected override _shouldRefreshNewSessionConfiguration(sessionId: string, workspaceUri: URI): boolean {
+		if (workspaceUri.scheme !== Schemas.file) {
+			return false;
+		}
+		this._gitInitializationSessionId = sessionId;
+		if (!this._uriIdentityService.extUri.isEqual(this._gitInitializationWorkspace, workspaceUri)) {
+			const store = new DisposableStore();
+			this._gitInitializationWatcher.value = store;
+			this._gitInitializationWorkspace = workspaceUri;
+			this._gitInitializationVersion = 0;
+			this._requestedGitInitializationVersion = -1;
+			const gitDirectory = joinPath(workspaceUri, '.git');
+			const watcher = store.add(this._fileService.createWatcher(workspaceUri, {
+				recursive: false,
+				excludes: [],
+				includes: ['.git'],
+				filter: FileChangeFilter.ADDED | FileChangeFilter.DELETED,
+			}));
+			store.add(watcher.onDidChange(event => {
+				if (event.affects(gitDirectory)) {
+					this._gitInitializationVersion++;
+					const currentSessionId = this._gitInitializationSessionId;
+					if (currentSessionId) {
+						void this._refreshGitInitializedSession(currentSessionId);
+					}
+				}
+			}));
+		}
+		if (this._requestedGitInitializationVersion === this._gitInitializationVersion && this._getNewSession(sessionId)?.getConfig()) {
+			return false;
+		}
+		// Verify once after installing the watcher, then only after .git changes or a failed resolution.
+		this._requestedGitInitializationVersion = this._gitInitializationVersion;
+		return true;
+	}
+
+	private async _refreshGitInitializedSession(sessionId: string): Promise<void> {
+		const session = this._getNewSession(sessionId);
+		if (!session) {
+			return;
+		}
+		try {
+			await session.waitForConfigResolution();
+			await this.refreshNewSession(sessionId);
+			if (this._getNewSession(sessionId) !== session || !this._uriIdentityService.extUri.isEqual(this._gitInitializationWorkspace, session.workspaceUri)) {
+				return;
+			}
+			const config = session.getConfig();
+			const isolation = config && getSessionWorkspaceProperties(config.schema).isolation;
+			if (!isolation || writeSessionIsolation(isolation, 'worktree') === undefined) {
+				// The .git notification can arrive before git init has written HEAD.
+				this._requestedGitInitializationVersion = -1;
+			}
+		} catch (error) {
+			if (!isCancellationError(error)) {
+				this._logService.warn('[LocalAgentHostSessionsProvider] Failed to refresh initialized Git workspace', error);
+			}
+		}
+	}
 
 	static buildWorkspace(project: IAgentSessionMetadata['project'], workingDirectories: readonly URI[] | undefined, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState: ISessionGitState | undefined, description?: string, branchProtectionPatterns?: readonly string[]): ISessionWorkspace | undefined {
 		// Intentionally pass `undefined` for `providerLabel` so the workspace

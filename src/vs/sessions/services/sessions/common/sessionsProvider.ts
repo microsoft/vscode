@@ -543,6 +543,9 @@ export interface ISessionsProvider {
 	 */
 	createNewSession(workspaceUri: URI, sessionTypeId: string, options?: ISessionsProviderCreateSessionOptions): ISession;
 
+	/** Refreshes an unsent draft's available configuration without replacing it or discarding its selections. */
+	refreshNewSession?(sessionId: string): Promise<void>;
+
 	/** Prepare provider resources for a nonempty, unsent draft without publishing or submitting it. */
 	prepareNewSessionWhileComposing?(sessionId: string): void;
 

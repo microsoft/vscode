@@ -5006,6 +5006,78 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
+	for (const preserveCustomView of [false, true]) {
+		test(`openNewSession refreshes a preseeded draft after git init (custom view: ${preserveCustomView})`, async () => {
+			const folder = URI.file('/workspace');
+			const workspace: ISessionWorkspace = {
+				uri: folder,
+				label: 'workspace',
+				icon: Codicon.folder,
+				folders: [{ root: folder, workingDirectory: folder, name: 'workspace', description: undefined }],
+				requiresWorkspaceTrust: false,
+				isVirtualWorkspace: false,
+			};
+			const openSession = stubSession({ sessionId: 'open', providerId: 'test' });
+			const draft = stubSession({ sessionId: 'draft', providerId: 'test', workspace: constObservable(workspace) });
+			let initialized = false;
+			let supportsWorktree = false;
+			let creations = 0;
+			const refreshed: string[] = [];
+			const provider = new class extends TestSessionsProvider {
+				constructor() { super(openSession); }
+				override resolveWorkspace(): ISessionWorkspace { return workspace; }
+				override createNewSession(): ISession { creations++; return draft; }
+				override async refreshNewSession(sessionId: string): Promise<void> {
+					refreshed.push(sessionId);
+					supportsWorktree = initialized;
+				}
+			};
+			const { service, view } = createSessionsManagementService(openSession, disposables, provider);
+			service.createNewSession(folder);
+			await view.openSession(openSession.resource);
+			initialized = true;
+
+			await view.openNewSession({ preserveCustomView });
+
+			assert.deepStrictEqual({
+				refreshed,
+				supportsWorktree,
+				creations,
+				draftPreserved: service.newSession.get() === draft,
+				activeSession: view.activeSession.get()?.sessionId,
+			}, {
+				refreshed: ['draft'],
+				supportsWorktree: true,
+				creations: 1,
+				draftPreserved: true,
+				activeSession: preserveCustomView ? 'open' : 'draft',
+			});
+		});
+	}
+
+	test('refreshNewSession leaves a draft preparing its first request unchanged', async () => {
+		const preparing = observableValue('preparing', false);
+		const draft = stubSession({ sessionId: 'draft', providerId: 'test', isNewSessionRequestInProgress: preparing });
+		const refreshed: string[] = [];
+		const provider = new class extends TestSessionsProvider {
+			constructor() { super(draft); }
+			override resolveWorkspace(): ISessionWorkspace {
+				return upcastPartial<ISessionWorkspace>({ requiresWorkspaceTrust: false });
+			}
+			override async refreshNewSession(sessionId: string): Promise<void> { refreshed.push(sessionId); }
+		};
+		const { service } = createSessionsManagementService(draft, disposables, provider);
+		await service.refreshNewSession();
+		service.createNewSession(URI.file('/workspace'));
+		preparing.set(true, undefined);
+		await service.refreshNewSession();
+
+		assert.deepStrictEqual({ refreshed, draftPreserved: service.newSession.get() === draft }, {
+			refreshed: [],
+			draftPreserved: true,
+		});
+	});
+
 	test('canOpenSession grants a worktree trust from a trusted base repo before prompting', async () => {
 		const repoRoot = URI.file('/repo');
 		const worktree = URI.file('/repo.worktrees/feature');
