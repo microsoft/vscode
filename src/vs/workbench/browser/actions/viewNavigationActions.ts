@@ -100,10 +100,13 @@ export async function focusNavigableView(
 		return;
 	}
 
-	// openView() expands collapsed panes as a side effect. For a collapsed
-	// target, focus its already-rendered, keyboard-accessible header instead.
-	const container = descriptorService.getViewContainerByViewId(target.viewId);
-	if (container && descriptorService.getViewContainerModel(container).isCollapsed(target.viewId)) {
+	// openView() expands collapsed panes as a side effect. Use the same
+	// snapshot that selected the target rather than looking up its container
+	// again: a view may be moving between containers during navigation.
+	const targetView = snapshot.containers
+		.find(container => container.id === target.containerId && container.location === target.location)
+		?.views.find(view => view.id === target.viewId);
+	if (targetView?.collapsed) {
 		const pane = viewsService.getActiveViewWithId<ViewPane>(target.viewId);
 		pane?.draggableElement?.focus();
 		return;
