@@ -70,12 +70,19 @@ export interface IMovedChatWindowEditor {
 	readonly inTargetBefore: boolean;
 }
 
+/** What {@link moveEditorsToChatWindow} moved, and the editor its target showed as active before. */
+export interface IChatWindowEditorTransfer {
+	readonly editors: readonly IMovedChatWindowEditor[];
+	readonly targetActive: EditorInput | undefined;
+}
+
 /**
  * Moves the editors of `groups` to `target`, keeping the active one active. An editor that cannot move there, such as
  * one that shows only in the main window, stays where it is, without the error its group shows for a move it vetoes.
  * Returns the editors it moved, which {@link moveEditorsBackFromChatWindow} can put back.
  */
-export function moveEditorsToChatWindow(groups: readonly IEditorGroup[], target: IEditorGroup): IMovedChatWindowEditor[] {
+export function moveEditorsToChatWindow(groups: readonly IEditorGroup[], target: IEditorGroup): IChatWindowEditorTransfer {
+	const targetActive = target.activeEditor ?? undefined;
 	const moved: IMovedChatWindowEditor[] = [];
 	let active: { readonly group: IEditorGroup; readonly editor: NonNullable<IEditorGroup['activeEditor']> } | undefined;
 	for (const group of groups) {
@@ -99,19 +106,19 @@ export function moveEditorsToChatWindow(groups: readonly IEditorGroup[], target:
 	if (active && target.contains(active.editor)) {
 		void target.openEditor(active.editor, { preserveFocus: true });
 	}
-	return moved;
+	return { editors: moved, targetActive };
 }
 
 /**
  * Puts the editors that {@link moveEditorsToChatWindow} moved into `target` back: each into the group it came from, or
  * into `fallback` if that group is gone, the one that was active there active again. One the target showed already is
  * copied back, so that the target keeps its tab. One no longer in `target`, such as one the user closed or moved
- * meanwhile, stays where it is.
+ * meanwhile, stays where it is. The target shows the editor it showed as active before again.
  */
-export function moveEditorsBackFromChatWindow(moved: readonly IMovedChatWindowEditor[], target: IEditorGroup, fallback: () => IEditorGroup, exists: (group: IEditorGroup) => boolean): void {
+export function moveEditorsBackFromChatWindow(transfer: IChatWindowEditorTransfer, target: IEditorGroup, fallback: () => IEditorGroup, exists: (group: IEditorGroup) => boolean): void {
 	const targetEditors = target.getEditors(EditorsOrder.SEQUENTIAL);
 	const byGroup = new Map<IEditorGroup, { readonly editor: EditorInput; readonly entry: IMovedChatWindowEditor }[]>();
-	for (const entry of moved) {
+	for (const entry of transfer.editors) {
 		// The editor as the target shows it: the one that moved, or, if it showed it already, its own, which matches it
 		const editor = targetEditors.find(candidate => entry.inTargetBefore ? candidate.matches(entry.editor) : candidate === entry.editor);
 		const to = editor && (exists(entry.from) ? entry.from : fallback());
@@ -135,6 +142,9 @@ export function moveEditorsBackFromChatWindow(moved: readonly IMovedChatWindowEd
 		if (shown) {
 			void to.openEditor(shown, { preserveFocus: true });
 		}
+	}
+	if (transfer.targetActive && target.contains(transfer.targetActive, { strictEquals: true })) {
+		void target.openEditor(transfer.targetActive, { preserveFocus: true });
 	}
 }
 

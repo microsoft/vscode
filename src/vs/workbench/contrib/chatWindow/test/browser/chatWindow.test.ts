@@ -729,7 +729,7 @@ suite('Chat window', () => {
 		});
 	});
 
-	test('the editors a chat brings along into a window go back to where they came from when the chat does not open in that window: it does not resolve, or it shows in another window; one the window showed already stays there too; with the group they came from gone, they go to the main part\'s active group', async () => {
+	test('the editors a chat brings along into a window go back to where they came from when the chat does not open in that window: it does not resolve, or it shows in another window; one the window showed already stays there too, and the window\'s active editor stays active; with the group they came from gone, they go to the main part\'s active group', async () => {
 		const opened = async (resolvesTo: 'nothing' | 'chat of another window', when?: 'file in window' | 'source gone') => {
 			const { service, events, windows: [target, other], parts, setMainPart } = createService(['a', 'b']);
 			const mainWindow = createPart(events, 'main window');
@@ -742,8 +742,11 @@ suite('Chat window', () => {
 			mainWindow.group.open(canvas);
 			mainWindow.group.open(notes);
 			mainWindow.group.open(file);
+			// The window shows the file already, and another editor of its own, which is its active one
+			const own = editor();
 			if (when === 'file in window') {
 				target.main.group.open(file);
+				target.main.group.open(own);
 			}
 			let revealed: string | undefined;
 			Reflect.set(other.window, 'revealChat', (chat: URI) => { revealed = chat.path; });
@@ -756,7 +759,7 @@ suite('Chat window', () => {
 				return resolvesTo === 'nothing' ? undefined : upcastPartial<IChatWindowChat>({ chat: constObservable(URI.parse('test:/b')), dispose: () => { } });
 			});
 			const result = await service.open(URI.parse('test:/session-b'), { window: target.window, editors: { moveFrom: [mainWindow.group] } });
-			const name = (input: EditorInput) => input === file ? 'file' : input === notes ? 'notes' : input === canvas ? 'canvas' : (input as ChatViewInput).chatResource.path;
+			const name = (input: EditorInput) => input === file ? 'file' : input === notes ? 'notes' : input === canvas ? 'canvas' : input === own ? 'own' : (input as ChatViewInput).chatResource.path;
 			return {
 				opened: result === target.window ? 'a' : result === other.window ? 'b' : undefined,
 				revealed,
@@ -765,6 +768,7 @@ suite('Chat window', () => {
 				mainWindowActive: mainWindow.group.activeEditor && name(mainWindow.group.activeEditor),
 				fallback: fallback.group.testEditors.map(name),
 				windowMainPart: target.main.group.testEditors.map(name),
+				windowMainPartActive: target.main.group.activeEditor && name(target.main.group.activeEditor),
 				windowChats: target.window.chats.get().map(chat => chat.path),
 			};
 		};
@@ -775,10 +779,10 @@ suite('Chat window', () => {
 			fileInWindow: await opened('nothing', 'file in window'),
 			sourceGone: await opened('nothing', 'source gone'),
 		}, {
-			nothing: { opened: undefined, revealed: undefined, events: ['move to a main', 'move to a main', 'move to main window', 'move to main window'], mainWindow: ['canvas', 'notes', 'file'], mainWindowActive: 'file', fallback: [], windowMainPart: [], windowChats: ['/a'] },
-			otherWindow: { opened: 'b', revealed: '/b', events: ['move to a main', 'move to a main', 'move to main window', 'move to main window'], mainWindow: ['canvas', 'notes', 'file'], mainWindowActive: 'file', fallback: [], windowMainPart: [], windowChats: ['/a'] },
-			fileInWindow: { opened: undefined, revealed: undefined, events: ['move to a main', 'move to a main', 'move to main window', 'copy to main window'], mainWindow: ['canvas', 'notes', 'file'], mainWindowActive: 'file', fallback: [], windowMainPart: ['file'], windowChats: ['/a'] },
-			sourceGone: { opened: undefined, revealed: undefined, events: ['move to a main', 'move to a main', 'move to fallback', 'move to fallback'], mainWindow: ['canvas'], mainWindowActive: 'canvas', fallback: ['notes', 'file'], windowMainPart: [], windowChats: ['/a'] },
+			nothing: { opened: undefined, revealed: undefined, events: ['move to a main', 'move to a main', 'move to main window', 'move to main window'], mainWindow: ['canvas', 'notes', 'file'], mainWindowActive: 'file', fallback: [], windowMainPart: [], windowMainPartActive: null, windowChats: ['/a'] },
+			otherWindow: { opened: 'b', revealed: '/b', events: ['move to a main', 'move to a main', 'move to main window', 'move to main window'], mainWindow: ['canvas', 'notes', 'file'], mainWindowActive: 'file', fallback: [], windowMainPart: [], windowMainPartActive: null, windowChats: ['/a'] },
+			fileInWindow: { opened: undefined, revealed: undefined, events: ['move to a main', 'move to a main', 'move to main window', 'copy to main window'], mainWindow: ['canvas', 'notes', 'file'], mainWindowActive: 'file', fallback: [], windowMainPart: ['file', 'own'], windowMainPartActive: 'own', windowChats: ['/a'] },
+			sourceGone: { opened: undefined, revealed: undefined, events: ['move to a main', 'move to a main', 'move to fallback', 'move to fallback'], mainWindow: ['canvas'], mainWindowActive: 'canvas', fallback: ['notes', 'file'], windowMainPart: [], windowMainPartActive: null, windowChats: ['/a'] },
 		});
 	});
 

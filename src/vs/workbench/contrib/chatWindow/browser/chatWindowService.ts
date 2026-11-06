@@ -814,10 +814,10 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			// the main window, and with it the editors the main window shows for it, as when a window opens for the chat.
 			const moveFrom = options?.editors?.moveFrom;
 			const into = moveFrom?.length ? target.mainPart.activeGroup : undefined;
-			const moved = into && moveFrom ? moveEditorsToChatWindow(moveFrom, into) : [];
+			const moved = into && moveFrom ? moveEditorsToChatWindow(moveFrom, into) : undefined;
 			// Unless the chat opens in the window: then they go back to where they came from
 			const moveBack = () => {
-				if (into) {
+				if (into && moved) {
 					moveEditorsBackFromChatWindow(moved, into, () => this._editorGroupsService.mainPart.activeGroup, group => this._editorGroupsService.groups.includes(group));
 				}
 			};
