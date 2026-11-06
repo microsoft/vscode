@@ -57,9 +57,6 @@ const PREDICTION_OMIT_RE = /^(?:(?:\x1b\[|\x9b)(?:\?(?:25|12)[hl]|\??[0-9;]+n))+
 /** Carriage returns or absolute positioning indicate that a shell may be repainting the line. */
 const REPAINT_HINT_RE = /\r|\x1b\[[0-9;]*H/;
 
-/** Replies xterm.js sends for terminal queries, such as device status, device attribute and color reports. */
-const TERMINAL_REPLY_RE = /^\x1b(?:\[(?:[?>]?[0-9;]*[cnR]|[IO]|[0-9;]+t|\??[0-9;]+\$y|\?[0-9]*u)|[\]P][^\x1b]*\x1b\\)$/;
-
 const core = (terminal: Terminal): IXtermCore => {
 	interface XtermWithCore extends Terminal {
 		_core: IXtermCore;
@@ -1766,6 +1763,9 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 	private _terminalTitle = '';
 	stats?: PredictionStats;
 
+	/** Whether xterm.js signaled that the next data event is user input rather than data the terminal sends on its own. */
+	private _isUserInput = false;
+
 	/**
 	 * Debounce that clears predictions after a timeout if the PTY doesn't apply them.
 	 */
@@ -1798,6 +1798,10 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 		const stats = this.stats = this._register(new PredictionStats(this._timeline));
 
 		timeline.setShowPredictions(this._typeaheadThreshold === 0);
+		// xterm.js signals typed, pasted and composed input right before its data event, but not replies to terminal queries.
+		this._register(core(terminal).coreService.onUserInput(() => {
+			this._isUserInput = true;
+		}));
 		this._register(terminal.onData(e => this._onUserData(e)));
 		this._register(terminal.onTitleChange(title => {
 			this._terminalTitle = title;
@@ -1850,9 +1854,9 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 	 * Input sent without a prediction still reaches the pty, so later
 	 * predictions stay hidden until the next output, normally its echo.
 	 */
-	private _waitForUnpredictedInput(timeline: PredictionTimeline, data: string) {
-		// Terminal replies, like cursor position reports, are escape sequences the shell consumes without echoing.
-		if (TERMINAL_REPLY_RE.test(data)) {
+	private _waitForUnpredictedInput(timeline: PredictionTimeline, isUserInput: boolean) {
+		// Data the terminal sends on its own, like replies to terminal queries, is consumed by the shell without an echo.
+		if (!isUserInput) {
 			return;
 		}
 		timeline.addBoundary(timeline.terminal.buffer.active, new UnpredictedInputBoundary());
@@ -1917,11 +1921,14 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 	}
 
 	private _onUserData(data: string): void {
+		// Consumed first, so replies sent while this input is handled are not mistaken for user input.
+		const isUserInput = this._isUserInput;
+		this._isUserInput = false;
 		if (this._timeline?.terminal.buffer.active.type !== 'normal') {
 			return;
 		}
 		if (this._timeline.hasIncompleteInput) {
-			this._waitForUnpredictedInput(this._timeline, data);
+			this._waitForUnpredictedInput(this._timeline, isUserInput);
 			return;
 		}
 
@@ -1941,7 +1948,7 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 
 		// A virtual cursor covers pending prediction writes, not unparsed authoritative cursor/style changes.
 		if (!this._timeline.canPredict) {
-			this._waitForUnpredictedInput(this._timeline, data);
+			this._waitForUnpredictedInput(this._timeline, isUserInput);
 			return;
 		}
 

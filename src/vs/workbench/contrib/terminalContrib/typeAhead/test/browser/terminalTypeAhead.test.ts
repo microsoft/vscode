@@ -785,7 +785,7 @@ suite('Workbench - Terminal Typeahead', () => {
 		test('waits for the echo of a key typed while output is unparsed', async () => {
 			await input('b');
 			queueServer('b');
-			terminal.input('c', false);
+			terminal.input('c');
 			await writeP(terminal, '');
 			await input('d');
 			const beforeEcho = state();
@@ -800,7 +800,7 @@ suite('Workbench - Terminal Typeahead', () => {
 		test('waits for the echo of a key typed while a reconciled echo is unparsed', async () => {
 			await input('bc');
 			queueServer('b');
-			terminal.input('d', false);
+			terminal.input('d');
 			await writeP(terminal, '');
 			await input('e');
 			const beforeEcho = state();
@@ -844,25 +844,28 @@ suite('Workbench - Terminal Typeahead', () => {
 			]);
 		});
 
-		test('waits for the echo of a cursor key typed while output is unparsed', async () => {
-			await input('b');
-			queueServer('b');
-			terminal.input(`${CSI}D`, false);
-			await writeP(terminal, '');
-			await input('X');
-			const beforeEcho = state();
-			await server('\b');
-			await server('Xb\b');
-			assert.deepStrictEqual([beforeEcho, { ...state(), accuracy: addon.stats?.accuracy }], [
-				{ lines: ['$ ab', '', ''], cursorX: 4, cursorY: 0, baseY: 0 },
-				{ lines: ['$ aXb', '', ''], cursorX: 4, cursorY: 0, baseY: 0, accuracy: 1 }
-			]);
-		});
+		// Shift+F3 is encoded like a cursor position report; here the shell binds it to moving left.
+		for (const { name, key } of [{ name: 'a cursor key', key: `${CSI}D` }, { name: 'Shift+F3', key: `${CSI}1;2R` }]) {
+			test(`waits for the echo of ${name} typed while output is unparsed`, async () => {
+				await input('b');
+				queueServer('b');
+				terminal.input(key);
+				await writeP(terminal, '');
+				await input('X');
+				const beforeEcho = state();
+				await server('\b');
+				await server('Xb\b');
+				assert.deepStrictEqual([beforeEcho, { ...state(), accuracy: addon.stats?.accuracy }], [
+					{ lines: ['$ ab', '', ''], cursorX: 4, cursorY: 0, baseY: 0 },
+					{ lines: ['$ aXb', '', ''], cursorX: 4, cursorY: 0, baseY: 0, accuracy: 1 }
+				]);
+			});
+		}
 
 		test('waits for the echo of a paste while output is unparsed', async () => {
 			await input('b');
 			queueServer('b');
-			terminal.input(`${CSI}200~xyz${CSI}201~`, false);
+			terminal.input(`${CSI}200~xyz${CSI}201~`);
 			await writeP(terminal, '');
 			await input('W');
 			const beforeEcho = state();
@@ -882,6 +885,21 @@ suite('Workbench - Terminal Typeahead', () => {
 			assert.deepStrictEqual([beforeEcho, { ...state(), accuracy: addon.stats?.accuracy }], [
 				{ lines: ['$ ab', '', ''], cursorX: 4, cursorY: 0, baseY: 0 },
 				{ lines: ['$ ab', '', ''], cursorX: 4, cursorY: 0, baseY: 0, accuracy: 1 }
+			]);
+		});
+
+		test('does not wait for a clipboard reply sent while output is unparsed', async () => {
+			await input('b');
+			queueServer('b');
+			// The clipboard addon answers OSC 52 queries this way.
+			terminal.input('\x1b]52;c;eA==\x07', false);
+			await writeP(terminal, '');
+			await input('c');
+			const beforeEcho = state();
+			await server('c');
+			assert.deepStrictEqual([beforeEcho, { ...state(), accuracy: addon.stats?.accuracy }], [
+				{ lines: ['$ abc', '', ''], cursorX: 5, cursorY: 0, baseY: 0 },
+				{ lines: ['$ abc', '', ''], cursorX: 5, cursorY: 0, baseY: 0, accuracy: 1 }
 			]);
 		});
 
@@ -2335,6 +2353,7 @@ function createMockTerminal({ lines, cursorAttrs }: {
 	const cursor = { y: 1, x: 1 };
 	const onTitleChange = ds.add(new Emitter<string>());
 	const onData = ds.add(new Emitter<string>());
+	const onUserInput = ds.add(new Emitter<void>());
 	const onWriteParsed = ds.add(new Emitter<void>());
 
 	for (let y = 0; y < lines.length; y++) {
@@ -2355,7 +2374,10 @@ function createMockTerminal({ lines, cursorAttrs }: {
 			written.splice(0, written.length);
 		},
 		clearWritten: () => written.splice(0, written.length),
-		onData: (s: string) => onData.fire(s),
+		onData: (s: string) => {
+			onUserInput.fire();
+			onData.fire(s);
+		},
 		onTitleChange,
 		dispose: () => ds.dispose(),
 		terminal: {
@@ -2371,7 +2393,7 @@ function createMockTerminal({ lines, cursorAttrs }: {
 				written.push(line);
 			},
 			_core: {
-				coreService: { isCursorHidden: false },
+				coreService: { isCursorHidden: false, onUserInput: onUserInput.event },
 				_inputHandler: {
 					_curAttrData: mockCell('', cursorAttrs)
 				},
