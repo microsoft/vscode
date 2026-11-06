@@ -215,6 +215,7 @@ async function main() {
 	}
 
 	const nativeTasks: (() => Promise<void>)[] = [];
+	const concurrentNativeTasks: (() => Promise<void>)[] = [];
 	const parallelTasks: (() => Promise<void>)[] = [];
 
 	for (const dir of [...separateRoots, ...distroRoots]) {
@@ -234,7 +235,10 @@ async function main() {
 			nativeTasks.push(install(getRemoteEnv()));
 		} else if (dir === 'extensions') {
 			// extensions/.pnpmfile.mjs sets the native module build variables of the root package.json (Electron).
-			nativeTasks.push(install({ ...process.env }));
+			// It runs next to the other native roots: the preinstall has already installed the Electron
+			// headers, so its native builds don't download them, and they take about 15 seconds
+			// (compiling @parcel/watcher) that would otherwise add to the install time.
+			concurrentNativeTasks.push(install({ ...process.env }));
 		} else if (dir === 'extensions/copilot') {
 			// No `nativeBuild` field or pnpmfile: builds native modules for Electron with the workspace's variables.
 			nativeTasks.push(install({ ...process.env }));
@@ -246,9 +250,19 @@ async function main() {
 		}
 	}
 
-	// Native roots (build, remote, extensions, extensions/copilot) run sequentially to avoid node-gyp conflicts
-	for (const task of nativeTasks) {
-		await task();
+	// Native roots (build, remote, extensions/copilot) run sequentially to avoid node-gyp conflicts,
+	// extensions next to them. Wait for every install before reporting a failure.
+	const nativeResults = await Promise.allSettled([
+		(async () => {
+			for (const task of nativeTasks) {
+				await task();
+			}
+		})(),
+		...concurrentNativeTasks.map(task => task()),
+	]);
+	const nativeFailure = nativeResults.find(result => result.status === 'rejected');
+	if (nativeFailure) {
+		throw nativeFailure.reason;
 	}
 
 	// JS-only roots run in parallel
