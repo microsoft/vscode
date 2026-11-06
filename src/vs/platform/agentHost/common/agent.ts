@@ -1387,6 +1387,12 @@ export interface IAgentChats {
 	prepareChat?(chat: URI, context: AgentChatOperationContext): Promise<IAgentPrepareChatResult>;
 
 	/**
+	 * Returns the input restriction recorded when `getMessages` recovered history read-only after a resume failure.
+	 * Providers implementing this are only prepared when they report a restriction or the host already tracks an input state for the chat.
+	 */
+	getInputRestriction?(chat: URI): ErrorInfo | undefined;
+
+	/**
 	 * Optionally starts the runtime of a chat that was created with a deferred
 	 * backing ({@link IAgentCreateChatResult.provisional}) before its first send,
 	 * so its MCP servers and plugins load while the user composes. The warm

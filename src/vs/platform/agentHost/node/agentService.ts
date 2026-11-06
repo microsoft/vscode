@@ -14388,9 +14388,16 @@ export class AgentService extends Disposable implements IAgentService {
 			try {
 				const [catalog] = await this._orchestratorDatabase.readCatalogSnapshot([sessionStr]);
 				const defaultChat = URI.parse(this._resolveDefaultChat(session, catalog, undefined));
+				const registeredDefaultOwner = this._stateManager.getChatOwner(defaultChat.toString());
+				if (registeredDefaultOwner !== undefined && registeredDefaultOwner !== sessionStr) {
+					throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session default chat ${defaultChat.toString()} is owned by ${registeredDefaultOwner}: ${sessionStr}`);
+				}
 				const defaultChatStorage = recordedChatStorage(catalog, this._logService).get(defaultChat.toString()) ?? creationTimeChatStorageResource(sessionStr, defaultChat.toString(), defaultChat.toString());
 				adoption = await agent.ensureChatAdopted(defaultChat, this._chatContext(session, defaultChat, defaultChatStorage));
 			} catch (err) {
+				if (err instanceof ProtocolError && err.code === AHP_SESSION_NOT_FOUND) {
+					throw err;
+				}
 				// Adoption itself threw — a genuine migration failure worth surfacing.
 				this._reportLegacyMigration(session, agent.id, 'failed', migrationStartTime, 'adoption', { advertisedAsAdoptable, trigger, error: err });
 				throw err;
@@ -15119,6 +15126,12 @@ export class AgentService extends Disposable implements IAgentService {
 		// state. This dispatches a SessionMetaChanged action.
 		if (summary._meta) {
 			this._stateManager.setSessionMeta(sessionStr, summary._meta);
+		}
+		if (load.kind === 'full') {
+			const inputRestriction = agent.chats.getInputRestriction?.(defaultChatUri);
+			if (inputRestriction) {
+				this._chatInputService.setBlocked(defaultChatUri.toString(), inputRestriction);
+			}
 		}
 
 		// Resolve the session config so clients (e.g. the running-session
