@@ -95,7 +95,8 @@ suite('LanguageStatus - detail rendering', () => {
 		const combined = entries.get('status.languageStatus')?.tooltip;
 		const dedicatedEntry = entries.get(status.id);
 		const dedicated = dedicatedEntry?.tooltip;
-		assert.ok(dom.isHTMLElement(combined) && dom.isHTMLElement(dedicated));
+		assert.ok(dom.isHTMLElement(combined));
+		assert.ok(dedicated === undefined || dom.isHTMLElement(dedicated));
 		const left = combined.querySelector<HTMLElement>('.left');
 		assert.ok(left);
 		return { left, dedicated, dedicatedEntry, opened };
@@ -108,6 +109,7 @@ suite('LanguageStatus - detail rendering', () => {
 	]) {
 		test(`renders literal detail without links: ${detail}`, () => {
 			const { left, dedicated } = render(detail);
+			assert.ok(dom.isHTMLElement(dedicated));
 			assert.deepStrictEqual({
 				combinedLinks: left.querySelectorAll('a').length,
 				dedicatedLinks: dedicated.querySelectorAll('a').length,
@@ -126,6 +128,7 @@ suite('LanguageStatus - detail rendering', () => {
 		const literal = '[Not a link](command:test.injected)';
 		const detail = new LinkedText([literal, ' ', { label: 'Show Log', href: 'command:test.showLog?%5B1%5D' }, ' ', { label: literal, href: 'https://example.com' }]);
 		const { left, dedicated, dedicatedEntry } = render(detail);
+		assert.ok(dom.isHTMLElement(dedicated));
 		assert.deepStrictEqual({
 			combined: Array.from(left.querySelectorAll('a'), link => ({ text: link.textContent, href: link.getAttribute('href') })),
 			dedicated: Array.from(dedicated.querySelectorAll('a'), link => ({ text: link.textContent, href: link.getAttribute('href') })),
@@ -140,6 +143,7 @@ suite('LanguageStatus - detail rendering', () => {
 	test('explicit links support pointer and keyboard activation on both surfaces', () => {
 		const href = 'command:test.showLog?%5B1%5D';
 		const { left, dedicated, opened } = render(new LinkedText([{ label: 'Show Log', href }]));
+		assert.ok(dom.isHTMLElement(dedicated));
 		for (const surface of [left, dedicated]) {
 			const link = surface.querySelector('a');
 			assert.ok(link);
@@ -150,12 +154,15 @@ suite('LanguageStatus - detail rendering', () => {
 		assert.deepStrictEqual(opened, Array(6).fill(href));
 	});
 
-	test('empty detail has no separator and preserves the accessible label', () => {
-		const { left, dedicated, dedicatedEntry } = render('');
-		assert.deepStrictEqual({
-			separators: left.querySelectorAll('.separator').length,
-			tooltip: dedicated.textContent,
-			ariaLabel: dedicatedEntry?.ariaLabel,
-		}, { separators: 0, tooltip: '', ariaLabel: 'Ready' });
+	test('empty details have no dedicated tooltip or separator and preserve the accessible label', () => {
+		const result = ['', new LinkedText([])].map(detail => {
+			const { left, dedicatedEntry } = render(detail);
+			return {
+				separators: left.querySelectorAll('.separator').length,
+				tooltip: dedicatedEntry?.tooltip,
+				ariaLabel: dedicatedEntry?.ariaLabel,
+			};
+		});
+		assert.deepStrictEqual(result, Array(2).fill({ separators: 0, tooltip: undefined, ariaLabel: 'Ready' }));
 	});
 });

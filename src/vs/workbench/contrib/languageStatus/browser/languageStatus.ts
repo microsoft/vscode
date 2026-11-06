@@ -422,10 +422,11 @@ class LanguageStatus {
 		}
 
 		const textValue = typeof item.label === 'string' ? item.label : item.label.shortValue;
-		let tooltip: string | HTMLElement = item.command?.tooltip || '';
+		let tooltip: string | HTMLElement | undefined = item.command?.tooltip || undefined;
 		if (!tooltip) {
-			tooltip = dom.$('div');
-			this._renderTextPlus(tooltip, item.detail, this._renderDisposables, false);
+			const detailTooltip = dom.$('div');
+			this._renderTextPlus(detailTooltip, item.detail, this._renderDisposables, false);
+			tooltip = detailTooltip.hasChildNodes() ? detailTooltip : undefined;
 		}
 
 		return {
