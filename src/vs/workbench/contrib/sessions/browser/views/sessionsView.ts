@@ -430,12 +430,11 @@ export class SessionsView extends ViewPane {
 			}));
 		}
 
-		// When the session the main window shows changes, reveal it in the sessions list: chat windows, which are other
-		// windows, do not select theirs.
+		// Keep the main window's active session selected without expanding sections the user collapsed.
 		this._register(autorun(reader => {
 			const activeSession = this._mainWindowHost.session.read(reader);
 			if (activeSession) {
-				if (!sessionsControl.reveal(activeSession.resource)) {
+				if (!sessionsControl.reveal(activeSession.resource, true)) {
 					sessionsControl.clearFocus();
 				}
 			} else {
@@ -643,7 +642,7 @@ export class SessionsView extends ViewPane {
 	private restoreLastSelectedSession(): void {
 		const activeSession = this._mainWindowHost.session.get();
 		if (activeSession && this.sessionsControl) {
-			this.sessionsControl.reveal(activeSession.resource);
+			this.sessionsControl.reveal(activeSession.resource, true);
 		}
 	}
 
