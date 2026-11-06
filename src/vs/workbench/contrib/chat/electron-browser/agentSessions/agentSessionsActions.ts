@@ -35,7 +35,7 @@ import { EditorAreaFocusContext, IsSessionsWindowContext } from '../../../../com
 import { ToggleTitleBarConfigAction } from '../../../../browser/parts/titlebar/titlebarActions.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { CHAT_CATEGORY } from '../../browser/actions/chatActions.js';
-import { IChatWidget, IChatWidgetService, isIChatResourceViewContext } from '../../browser/chat.js';
+import { ChatViewId, IChatWidget, IChatWidgetService, isIChatResourceViewContext } from '../../browser/chat.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { getChatSessionTelemetryContext } from '../../common/chatService/chatServiceTelemetry.js';
 import { IChatSessionsService, isAgentHostTarget, isLocalAgentHostTarget, SessionType } from '../../common/chatSessionsService.js';
@@ -304,9 +304,11 @@ export class OpenAgentsWindowAction extends Action2 {
 }
 
 /**
- * Opens the current chat session inside the Agents window. Visible only when
- * the active chat is a first-party agent-host session (Copilot CLI today)
- * since those are the session types the Agents window can render directly.
+ * Opens the current chat session inside the Agents window. Shown in the Chat
+ * view's title menu only when its chat is a first-party agent-host session
+ * (Copilot CLI today) since those are the session types the Agents window can
+ * render directly. The session type context key is scoped to the Chat view, so
+ * window-level menus such as the title-bar Chat menu cannot show this action.
  */
 export class OpenChatSessionInAgentsWindowAction extends Action2 {
 
@@ -320,10 +322,11 @@ export class OpenChatSessionInAgentsWindowAction extends Action2 {
 			precondition: OPEN_AGENTS_WINDOW_PRECONDITION,
 			f1: false,
 			menu: [{
-				id: MenuId.ChatTitleBarMenu,
-				group: 'c_sessions',
-				order: 0,
+				id: MenuId.ViewTitle,
+				group: '1_open',
+				order: 1,
 				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('view', ChatViewId),
 					OPEN_AGENTS_WINDOW_PRECONDITION,
 					ContextKeyExpr.or(
 						ChatContextKeys.chatSessionType.isEqualTo(SessionType.CopilotCLI),
@@ -341,7 +344,7 @@ export class OpenChatSessionInAgentsWindowAction extends Action2 {
 		const workspaceContextService = accessor.get(IWorkspaceContextService);
 
 		const commandOptions = isOpenChatSessionInAgentsWindowOptions(rest[0]) ? rest[0] : undefined;
-		const source = commandOptions?.agentsWindowOpenSource ?? AgentsWindowOpenSource.ChatTitleBar;
+		const source = commandOptions?.agentsWindowOpenSource ?? AgentsWindowOpenSource.ChatViewTitle;
 		const args = commandOptions ? rest.slice(1) : rest;
 		let sessionResource: URI | undefined;
 		let inputUri: URI | undefined;
