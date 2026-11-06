@@ -47,7 +47,10 @@ import { IChangesViewService } from '../../../../workbench/contrib/sessions/comm
 import { ISessionEditorWorkingSetService } from '../../layout/common/sessionEditorWorkingSet.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../common/chatWindows.js';
 import { ChatModelHold, chatWindowTitle, isChatWindowChatGone } from './chatWindowOpening.js';
-import { ChatEditorInput, ISessionChatViewHost, registerSessionChatViewHost } from '../../chatEditor/browser/chatEditor.js';
+import { ChatEditorInput, getChatEditorInputDetails, ISessionChatViewHost, registerSessionChatViewHost } from '../../chatEditor/browser/chatEditor.js';
+import { ISessionsListModelService } from '../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
+import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { getSessionAgentMergeConfigurationObservable } from '../../../../workbench/contrib/sessions/browser/sessionAgentMerge.js';
 import { ChatEditorContent } from '../../chatEditor/browser/chatEditorContent.js';
 
 /** The class of the element of an Agents chat window. */
@@ -163,6 +166,9 @@ class SessionsChatWindowChat extends Disposable implements IChatWindowChat, ISes
 		@IChatService chatService: IChatService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@IChatHostOpenerService private readonly _chatHostOpenerService: IChatHostOpenerService,
+		@ISessionsListModelService sessionsListModelService: ISessionsListModelService,
+		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
 		this.chat = observableValue<URI>(this, chatResource);
@@ -179,6 +185,12 @@ class SessionsChatWindowChat extends Disposable implements IChatWindowChat, ISes
 			return session ? chatWindowTitle(session, this.chat.read(reader), reader) : '';
 		});
 		this._register(autorun(reader => this.input.setName(this.title.read(reader))));
+		// Its tab shows the status of the chat, as the sessions list does, while its header, which shows it too, hides.
+		this._register(autorun(reader => {
+			const shown = this._shown.read(reader);
+			this.input.setDetails(shown && getChatEditorInputDetails(shown.session, shown.chat, this.title.read(reader), reader, sessionsListModelService,
+				() => getSessionAgentMergeConfigurationObservable(shown.session, sessionsProvidersService, configurationService, shown.chat)));
+		}));
 
 		// The loaded model of the chat bridges its move into the window, from the main window's grid, which lets go of it.
 		this._heldChat = this._register(new ChatModelHold(resource => chatService.acquireExistingSession(resource, 'ChatWindow#move')));
