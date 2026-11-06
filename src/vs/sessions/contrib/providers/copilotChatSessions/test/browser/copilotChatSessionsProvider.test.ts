@@ -83,7 +83,7 @@ import { SessionModelSelection } from '../../../../../../workbench/contrib/sessi
 import { VisibleSession } from '../../../../../../workbench/contrib/sessions/browser/visibleSessions.js';
 import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { stubSessionsHostLayout } from '../../../../../test/browser/sessionsHostLayoutTestUtils.js';
-import { sessionChatSourceOf } from '../../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { testChatSourceOf } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 // ---- Helpers ----------------------------------------------------------------
 
@@ -2679,7 +2679,7 @@ suite('CopilotChatSessionsProvider', () => {
 				},
 			});
 			const selection = disposables.add(new SessionModelSelection(
-				sessionChatSourceOf(constObservable(session)), { modelConfiguration: true }, providers,
+				testChatSourceOf(constObservable(session)), { modelConfiguration: true }, providers,
 				disposables.add(new TestStorageService()), configurationService, disposables.add(new NullLogService()),
 			));
 			const selected = selection.selectModel(rawModel);

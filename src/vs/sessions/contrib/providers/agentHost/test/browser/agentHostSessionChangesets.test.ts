@@ -45,8 +45,8 @@ import { ISessionHost, SessionHostKind } from '../../../../../../workbench/contr
 import { SessionInputPickerVisibility } from '../../../../../../workbench/contrib/sessions/common/sessionPickerVisibility.js';
 import { ISessionsPartService } from '../../../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { testGridPanes } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ITestSessionWithChat, testGridPanes } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ISessionsManagementService } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { SessionSyncChangesActionViewItem, SessionSyncChangesContribution } from '../../../../changes/browser/sessionSyncChanges.js';
 import { isSessionPullRequestOperation } from '../../../../../../workbench/contrib/sessions/common/pullRequestCreation.js';
 import { createChangesets, createChatChangesets, filterChangesToPrimaryWorkingDirectory, IAgentHostChangeset } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostSessionChangesets.js';
@@ -1737,7 +1737,7 @@ suite('AgentHostSessionChangesets', () => {
 				changesets: constObservable(changesets),
 				workspace,
 			});
-			const session = upcastPartial<IActiveSession>({
+			const session = upcastPartial<ITestSessionWithChat>({
 				sessionId: 'draft',
 				resource: sessionUri,
 				activeChat: constObservable(chat),
@@ -1746,10 +1746,9 @@ suite('AgentHostSessionChangesets', () => {
 			});
 			const sessionsService = new class extends mock<ISessionsService>() {
 				readonly activeSession = constObservable(session);
-				readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
-				override readonly visibleSessions = constObservable([session]);
-				override readonly slotPanes = testGridPanes(this.visibleSessions);
-				override readonly visibleSessionPanes = constObservable([session]);
+				readonly windowSessions = constObservable<readonly ITestSessionWithChat[]>([]);
+				readonly gridShown = constObservable([session]);
+				override readonly slotPanes = testGridPanes(this.gridShown);
 				override readonly panes = testGridPanes(constObservable([session]));
 			}();
 			instantiationService.stub(ISessionsService, sessionsService);

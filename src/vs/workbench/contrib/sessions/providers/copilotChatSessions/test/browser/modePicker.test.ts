@@ -29,10 +29,10 @@ import { IChatModel, IChatRequestModel } from '../../../../../chat/common/model/
 import { IAgentSource, PromptsStorage } from '../../../../../chat/common/promptSyntax/service/promptsService.js';
 import { Target } from '../../../../../chat/common/promptSyntax/promptTypes.js';
 import { IChat, ISession } from '../../../../common/session.js';
-import { IActiveSession } from '../../../../common/sessionsManagement.js';
 import { ModePicker, ModePickerModel, ScopedModePickerModelCache } from '../../browser/modePicker.js';
-import { ISessionChatSource, sessionChatSourceOf } from '../../../../browser/sessionHost.js';
+import { ISessionChatSource } from '../../../../browser/sessionHost.js';
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
+import { ITestSessionWithChat, testChatSourceOf } from '../../../../test/browser/sessionHostTestUtils.js';
 
 suite('ScopedModePickerModelCache', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -50,8 +50,8 @@ suite('ScopedModePickerModelCache', () => {
 			enabled: true,
 		});
 		const mode = observableValue<{ readonly id: string; readonly kind: string } | undefined>('mode', { id: customAgent.id, kind: ChatMode.Agent.kind });
-		const session = upcastPartial<IActiveSession>({ resource, mode, providerId: 'default-copilot' });
-		const scope = observableValue<IActiveSession | undefined>('scope', session);
+		const session = upcastPartial<ITestSessionWithChat>({ resource, mode, providerId: 'default-copilot' });
+		const scope = observableValue<ITestSessionWithChat | undefined>('scope', session);
 		// The surface's chat carries the mode of the session it shows.
 		const source: ISessionChatSource = { session: scope, chat: derived(reader => { const shown = scope.read(reader); return shown && upcastPartial<IChat>({ mode: shown.mode }); }) };
 		return { session, scope, source, mode, customAgent };
@@ -179,7 +179,7 @@ suite('ScopedModePickerModelCache', () => {
 		});
 		const cache = store.add(new ScopedModePickerModelCache(() => true));
 		// Two surfaces of the same session object, such as a slot and a detached pane, each showing its own chat.
-		const session = constObservable(upcastPartial<IActiveSession>({ resource: sessionResource, providerId: 'default-copilot' }));
+		const session = constObservable(upcastPartial<ITestSessionWithChat>({ resource: sessionResource, providerId: 'default-copilot' }));
 		const firstChat = observableValue<IChat | undefined>('firstChat', chatA);
 		const first = store.add(cache.acquire({ session, chat: firstChat }, instantiationService));
 		const second = store.add(cache.acquire({ session, chat: constObservable(chatB) }, instantiationService));
@@ -215,7 +215,7 @@ suite('ScopedModePickerModelCache', () => {
 			selected: reference.model.selectedMode.id,
 			available: reference.model.getAvailableModes().map(mode => mode.id),
 		};
-		first.scope.set(upcastPartial<IActiveSession>({ providerId: 'another-provider', mode: second.mode }), undefined);
+		first.scope.set(upcastPartial<ITestSessionWithChat>({ providerId: 'another-provider', mode: second.mode }), undefined);
 
 		assert.deepStrictEqual({
 			retargeted,
@@ -261,7 +261,7 @@ suite('ModePicker', () => {
 			let keyboardActions = false;
 			const calls: string[] = [];
 			const picker = store.add(new ModePicker(
-				model, sessionChatSourceOf(observableValue<IActiveSession | undefined>('session', undefined)),
+				model, testChatSourceOf(observableValue<ITestSessionWithChat | undefined>('session', undefined)),
 				upcastPartial<IActionWidgetService>({
 					isVisible: false,
 					hide: () => calls.push('hide'),
@@ -322,7 +322,7 @@ suite('ModePicker', () => {
 		model.setSession(upcastPartial<ISession>({ resource: URI.parse('agent-host-copilotcli:/session') }), custom[0].id);
 		let rows: { label: string | undefined; source: string | undefined; aria: string | null | undefined }[] = [];
 		const picker = store.add(new ModePicker(
-			model, sessionChatSourceOf(observableValue<IActiveSession | undefined>('session', undefined)),
+			model, testChatSourceOf(observableValue<ITestSessionWithChat | undefined>('session', undefined)),
 			upcastPartial<IActionWidgetService>({
 				isVisible: false, hide: () => { },
 				show: (_id, _preview, items, delegate, _anchor, _container, _actions, accessibilityProvider) => {
@@ -402,7 +402,7 @@ suite('ModePicker', () => {
 			override readonly resource = chatResource;
 			override readonly mode = observableValue<{ readonly id: string; readonly kind: string } | undefined>('mode', { id: ChatMode.Agent.id, kind: ChatMode.Agent.kind });
 		}();
-		const scopedSession = observableValue<IActiveSession | undefined>('session', new class extends mock<IActiveSession>() {
+		const scopedSession = observableValue<ITestSessionWithChat | undefined>('session', new class extends mock<ITestSessionWithChat>() {
 			override readonly activeChat = observableValue<IChat>('activeChat', activeChat);
 			override readonly sessionType = 'agent-host-claude';
 		}());
@@ -414,7 +414,7 @@ suite('ModePicker', () => {
 		chatSessionsService.setContributions([{ type: 'agent-host-claude', agentHostProviderId: 'claude', name: 'Claude', displayName: 'Claude', description: '' }]);
 		const picker = store.add(new ModePicker(
 			model,
-			sessionChatSourceOf(scopedSession),
+			testChatSourceOf(scopedSession),
 			new class extends mock<IActionWidgetService>() {
 				override readonly isVisible = false;
 				override show<T>(_user: string, _supportsPreview: boolean, items: readonly IActionListItem<T>[], delegate: IActionListDelegate<T>): void {

@@ -18,7 +18,6 @@ import { ChatSendResult, IChatService } from '../../../../../../workbench/contri
 import { ChatInteractivity, IChat } from '../../../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
-import { IActiveSession } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IsAgentHostSession } from '../../../../../../workbench/contrib/sessions/browser/sessionScopedContextKeys.js';
 import { AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID, IsAgentHostSessionContextContribution, isAgentHostSkillButtonId } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostSkillButtons.js';
@@ -27,10 +26,10 @@ import { BaseAgentHostSessionsProvider } from '../../../../../../workbench/contr
 // Importing this contribution registers the apply submenu on the changes toolbar,
 // which is the slot that hosts our skill buttons as a dropdown.
 import '../../../../applyCommitsToParentRepo/browser/applyChangesToParentRepo.js';
-import { ITestSessionsService, stubFocusedSessionHostFromSessionsService, stubSessionHostsFromSessionsService } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionsService, ITestSessionWithChat, stubFocusedSessionHostFromSessionsService, stubSessionHostsFromSessionsService } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionHostService, SessionHostKind } from '../../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 
-function makeActiveSession(providerId: string): IActiveSession {
+function makeActiveSession(providerId: string): ITestSessionWithChat {
 	const chat = {
 		resource: URI.parse('file:///session'),
 		createdAt: new Date(),
@@ -82,7 +81,7 @@ function makeActiveSession(providerId: string): IActiveSession {
 		lastClosedChat: undefined,
 		visibleChatTabs: constObservable([chat]),
 		shouldShowChatTabs: constObservable(false),
-	} satisfies IActiveSession;
+	} satisfies ITestSessionWithChat;
 }
 
 class FakeAgentHostProvider {
@@ -97,9 +96,9 @@ class FakeNonAgentHostProvider {
 
 class FakeSessionsService extends mock<ISessionsService>() {
 	declare readonly _serviceBrand: undefined;
-	readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
-	readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
-	setActiveSession(s: IActiveSession | undefined): void {
+	readonly activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', undefined);
+	readonly windowSessions = constObservable<readonly ITestSessionWithChat[]>([]);
+	setActiveSession(s: ITestSessionWithChat | undefined): void {
 		this.activeSession.set(s, undefined);
 	}
 }
