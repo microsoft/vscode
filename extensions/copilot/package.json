@@ -6680,8 +6680,7 @@
       {
         "path": "./assets/prompts/skills/troubleshoot/SKILL.md",
         "sessionTypes": [
-          "local",
-          "copilotcli"
+          "local"
         ]
       },
       {

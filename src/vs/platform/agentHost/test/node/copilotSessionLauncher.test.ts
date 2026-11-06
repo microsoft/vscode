@@ -18,6 +18,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { PluginFormat, toParsedAgent, type IMcpServerDefinition, type IParsedRule } from '../../../agentPlugins/common/pluginParsers.js';
+import { ICopilotHomeService } from '../../../environment/common/copilotHome.js';
 import { IFileService, type IFileContent } from '../../../files/common/files.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
@@ -1883,6 +1884,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 					tools: captured?.tools?.map(tool => ({ name: tool.name, overridesBuiltInTool: tool.overridesBuiltInTool === true, skipPermission: tool.skipPermission === true })),
 					additionalDirectories: captured?.additionalDirectories,
 					discovery: captured?.enableConfigDiscovery,
+					skills: captured?.skillProvider ? (await captured.skillProvider.listSkills({ signal: new AbortController().signal })).map(skill => skill.name) : [],
 					virtualPrompt: captured?.systemMessage?.content?.includes('virtual (remote) repository') === true,
 					mcpWorkingDirectories: Object.values(captured?.mcpServers ?? {}).map(server => hasKey(server, { url: true }) ? 'remote' : server.workingDirectory),
 				}, {
@@ -1893,6 +1895,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 						: definitions.map(tool => ({ name: tool.name, overridesBuiltInTool: false, skipPermission: false })),
 					additionalDirectories: virtual ? undefined : [URI.file('/additional').fsPath],
 					discovery: !virtual,
+					skills: virtual ? [] : ['troubleshoot'],
 					virtualPrompt: virtual,
 					mcpWorkingDirectories: [virtual ? homedir() : undefined, 'remote'],
 				});
@@ -3717,6 +3720,7 @@ suite('CopilotSessionLauncher resume config', () => {
 	function createLauncher(store: DisposableStore, values: SchemaValues<typeof copilotCliConfigSchema.definition> & Record<string, unknown>, fileContents?: string | (() => string)): CopilotSessionLauncher {
 		const services = new ServiceCollection();
 		services.set(ILogService, new NullLogService());
+		services.set(ICopilotHomeService, { _serviceBrand: undefined, home: URI.file('/copilot-home'), source: 'userHome' });
 		services.set(IByokLmBridgeRegistry, new ByokLmBridgeRegistry());
 		services.set(IAgentHostManagedSettingsService, store.add(new AgentHostManagedSettingsService()));
 		services.set(IAgentConfigurationService, {
