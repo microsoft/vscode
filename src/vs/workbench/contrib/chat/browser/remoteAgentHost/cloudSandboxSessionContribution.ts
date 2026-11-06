@@ -361,10 +361,13 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		return Math.floor(Math.random() * DISCOVERY_POLL_JITTER_MS);
 	}
 
+	/** Window adapters may defer catalog network work until first use. */
+	protected get discoveryEnabled(): boolean { return true; }
+
 	/** Inventory scans are serialized; feed task reads use an independent coalescing lane. */
 	protected _discoverAndSeed(request: ICloudSandboxDiscoveryRequest = {}): Promise<void> {
 		const { incremental = false, retry = false, taskIds, trigger = 'manual' } = request;
-		if (!this._isEnabled() || this._store.isDisposed) {
+		if (!this.discoveryEnabled || !this._isEnabled() || this._store.isDisposed) {
 			return Promise.resolve();
 		}
 		if (taskIds) {
@@ -450,7 +453,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 	}
 
 	private _refreshTasks(taskIds: readonly string[]): Promise<void> {
-		if (!this._isEnabled() || this._store.isDisposed || this._configurationService.getValue<boolean>(CloudSandboxSessionFeedEnabledSettingId) !== true) {
+		if (!this.discoveryEnabled || !this._isEnabled() || this._store.isDisposed || this._configurationService.getValue<boolean>(CloudSandboxSessionFeedEnabledSettingId) !== true) {
 			return Promise.resolve();
 		}
 		for (const id of taskIds) {
@@ -979,7 +982,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		return tasks;
 	}
 
-	private _storeTask(task: ICloudSandboxTask): void {
+	protected _storeTask(task: ICloudSandboxTask): void {
 		this._removeTaskBinding(task.taskId);
 		this._tasks.set(task.taskId, task);
 		if (task.environmentId && task.sessionId) {
@@ -1229,7 +1232,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 	}
 
 	/** Resolve the sandbox address owning a remote-agent-host session type, if any. */
-	private _findAddressForSessionType(sessionType: string): string | undefined {
+	protected _findAddressForSessionType(sessionType: string): string | undefined {
 		const byAuthority = this._authoritiesByAddress();
 		const authority = findRemoteAgentHostSessionTypeAuthority(sessionType, byAuthority.keys());
 		return authority ? byAuthority.get(authority) : undefined;

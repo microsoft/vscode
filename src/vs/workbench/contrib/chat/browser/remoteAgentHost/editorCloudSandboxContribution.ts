@@ -19,9 +19,10 @@ import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { isRemoteAgentHostSessionType } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { ChangesetKind } from '../../../../../platform/agentHost/common/changesetUri.js';
-import { CLOUD_SANDBOX_AGENT_PROVIDER, CLOUD_SANDBOX_SESSION_SCHEME, CLOUD_SANDBOX_TASK_SCHEME, cloudSandboxAddress, cloudSandboxTaskResource, ICloudSandboxAgentHostService, ICloudSandboxApiService, ICloudSandboxDraftPreparationService, ICloudSandboxTask, isRetryableCloudSandboxError } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CLOUD_SANDBOX_AGENT_PROVIDER, CLOUD_SANDBOX_SESSION_SCHEME, CLOUD_SANDBOX_TASK_SCHEME, cloudSandboxAddress, cloudSandboxTaskResource, ICloudSandboxAgentHostService, ICloudSandboxApiService, ICloudSandboxConnectOptions, ICloudSandboxDraftPreparationService, ICloudSandboxTask, isRetryableCloudSandboxError } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
@@ -32,6 +33,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IProgress } from '../../../../../platform/progress/common/progress.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
@@ -39,20 +41,21 @@ import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { GitRemote, IGitRepository, IGitService } from '../../../git/common/gitService.js';
 import { getGitHubRepositoryFromRemoteUrl } from '../../../git/common/utils.js';
 import { ISCMService } from '../../../scm/common/scm.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { isImageVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { IChatProgress, IChatService } from '../../common/chatService/chatService.js';
-import { ChatSessionRefreshReason, IChatSession, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, ReadonlyChatSessionOptionsMap, SessionType } from '../../common/chatSessionsService.js';
+import { ChatSessionRefreshReason, ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSession, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, ReadonlyChatSessionOptionsMap, SessionType } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { IChatRequestModel } from '../../common/model/chatModel.js';
 import { isUntitledChatSession } from '../../common/model/chatUri.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../common/participants/chatAgents.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { commitChatSession } from '../chatSessions/chatSessionCommit.js';
-import { IChatWidget, IChatWidgetService } from '../chat.js';
+import { ChatViewId, IChatWidget, IChatWidgetService } from '../chat.js';
 import { CLOUD_SANDBOX_INPUT_PLACEHOLDER } from './cloudSandboxConnectionCustomization.js';
 import { CloudSandboxModels } from './cloudSandboxModels.js';
 import { CloudSandboxRepositoryPicker } from './cloudSandboxRepositoryPicker.js';
@@ -107,6 +110,10 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 	/** Whether each open draft may send, keyed by draft resource; blocked while its first turn provisions. */
 	private readonly _draftInputBlocked = new ResourceMap<ISettableObservable<boolean>>();
 	private _taskList: CloudSandboxTaskListController | undefined;
+	private _discoveryRequested = false;
+
+	/** External creations are observed only after Chat is presented or Cloud functionality is requested. */
+	protected override get discoveryEnabled(): boolean { return this._discoveryRequested; }
 
 	constructor(
 		@ICloudSandboxAgentHostService cloudSandboxService: ICloudSandboxAgentHostService,
@@ -130,6 +137,7 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@IChatService private readonly _chatService: IChatService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
+		@IViewsService viewsService: IViewsService,
 	) {
 		super(cloudSandboxService, apiService, draftPreparationService, _remoteService, connectionCustomizations, configurationService, instantiationService, _editorChatSessionsService, _editorLogService, chatEntitlementService, hostService, storageService, workspaceTrustManagementService);
 		const enabled = observableFromEvent(this, Event.any(configurationService.onDidChangeConfiguration, chatEntitlementService.onDidChangeSentiment), () => this._isEnabled());
@@ -248,7 +256,29 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 				this._editorChatSessionsService.setOptionGroupsForSessionType(CLOUD_SANDBOX_SESSION_TYPE, 0, groups);
 			}
 		}));
+		this._discoveryRequested = viewsService.isViewVisible(ChatViewId);
+		this._register(viewsService.onDidChangeViewVisibility(event => {
+			if (event.id === ChatViewId && event.visible && !this._discoveryRequested) {
+				void this._requestDiscovery();
+			}
+		}));
 		this._updateRegistration();
+		this._register(Registry.as<IAsyncChatSessionActivationRegistry>(ChatSessionsExtensions.AsyncActivation).register({
+			priority: 2,
+			matchSessionType: isRemoteAgentHostSessionType,
+			waitForActivation: async (_accessor, sessionType) => {
+				if (!this._isEnabled()) {
+					return false;
+				}
+				const accountKey = await this._apiService.getAccountKey();
+				if (!this._isEnabled()) {
+					return false;
+				}
+				// Legacy conversation resources need their cached, account-scoped binding before activation.
+				this._restoreAccount(accountKey);
+				return this._findAddressForSessionType(sessionType) !== undefined && this._waitForActivation(sessionType);
+			},
+		}));
 		const widgetListeners = this._register(new DisposableMap<IChatWidget, DisposableStore>());
 		for (const widget of this._chatWidgetService.getAllWidgets()) {
 			widgetListeners.set(widget, this._watchDraftInput(widget));
@@ -267,6 +297,67 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 				}
 			}
 		}));
+	}
+
+	private _requestDiscovery(): Promise<void> {
+		if (this._discoveryRequested) {
+			return this._refreshIfStale('automatic');
+		}
+		this._discoveryRequested = true;
+		return this._discoverAndSeed({ trigger: 'startup' });
+	}
+
+	protected override async _waitForActivation(sessionType: string): Promise<boolean> {
+		const address = this._findAddressForSessionType(sessionType);
+		const task = address && [...this._tasks.values()].find(task => task.environmentId && cloudSandboxAddress(task.environmentId) === address);
+		if (!this._discoveryRequested) {
+			await this._requestDiscovery();
+		}
+		if (task && !this._tasks.has(task.taskId)) {
+			await this._resolveTask(task.taskId, this._enabledCts.token);
+		}
+		return super._waitForActivation(sessionType);
+	}
+
+	protected override async _resolveTask(taskId: string, token: CancellationToken): Promise<CloudSandboxSessionListController> {
+		if (!this._tasks.has(taskId) && this._isEnabled() && !token.isCancellationRequested) {
+			const generation = this._enabledCts.token;
+			// An explicitly opened conversation may be outside the initial bounded catalog.
+			const task = await this._apiService.resolveSession(taskId, token);
+			if (token.isCancellationRequested || generation.isCancellationRequested || !this._isEnabled()) {
+				throw new CancellationError();
+			}
+			this._storeTask(task);
+			this._onTasksChanged([task], []);
+		}
+		return super._resolveTask(taskId, token);
+	}
+
+	protected override async _openTask(resource: URI, token: CancellationToken) {
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		if (!this._discoveryRequested || !this._tasks.has(resource.path.slice(1))) {
+			await this._requestDiscovery();
+		}
+		return super._openTask(resource, token);
+	}
+
+	protected override async _prepareTaskRequest(resource: URI, token: CancellationToken) {
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		if (!this._discoveryRequested || !this._tasks.has(resource.path.slice(1))) {
+			await this._requestDiscovery();
+		}
+		return super._prepareTaskRequest(resource, token);
+	}
+
+	override async connect(options: ICloudSandboxConnectOptions): Promise<string> {
+		if (!this._discoveryRequested) {
+			await this._requestDiscovery();
+		}
+		return super.connect(options);
 	}
 
 	private _watchDraftInput(widget: IChatWidget): DisposableStore {
@@ -380,6 +471,9 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 				provideChatSessionContent: async (sessionResource: URI): Promise<IChatSession> => {
 					if (!isUntitledChatSession(sessionResource)) {
 						throw new Error(`Sandbox session ${sessionResource.toString()} is served by its environment's session type.`);
+					}
+					if (!this._discoveryRequested) {
+						await this._requestDiscovery();
 					}
 					draftModels.load();
 					// Blocked while the first turn provisions, so no follow-up can queue on a draft that is
@@ -524,6 +618,9 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 
 	async refresh(token: CancellationToken, reason: ChatSessionRefreshReason = 'manual'): Promise<void> {
 		if (!token.isCancellationRequested) {
+			if (reason === 'manual') {
+				this._discoveryRequested = true;
+			}
 			if (reason === 'automatic') {
 				await this._refreshIfStale('automatic');
 			} else {
@@ -547,6 +644,10 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 		if (!isUntitledChatSession(draftResource)) {
 			throw new Error(`Sandbox session ${draftResource.toString()} is served by its environment's session type.`);
 		}
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		await this._requestDiscovery();
 		// The draft may be sent before a slow Git lookup has settled.
 		await waitForState(this._workspaceRepositoryChoices, choices => choices !== undefined, undefined, token);
 		const draftOptions = this._editorChatSessionsService.getSessionOptions(draftResource);
