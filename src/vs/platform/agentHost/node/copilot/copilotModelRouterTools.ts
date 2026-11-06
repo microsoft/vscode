@@ -59,7 +59,8 @@ export function createCopilotModelRouterTools(enabled: boolean, host: IModelRout
 			},
 			additionalProperties: false,
 		},
-		defer: 'never',
+		// Only needed while authoring a router, so it waits for tool search instead of costing every turn.
+		defer: 'auto',
 		metadata: {
 			'github.com/copilot:safeForTelemetry': { name: true, inputsNames: false },
 		},

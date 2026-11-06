@@ -46,13 +46,11 @@ export function autoModeRoutingHover(part: IChatAutoModeResolutionPart): string 
 	if (!part.router || !part.resolved) {
 		return undefined;
 	}
-	const reason = part.kept
+	return part.kept
 		? localize('modelRouter.hover.kept', "The chat stays on its model unless the work clearly changes, because switching loses the prompt cache.")
 		: part.defaulted
 			? localize('modelRouter.hover.defaulted', "No route clearly fit this request, or routing was unavailable.")
 			: part.preference
 				? localize('modelRouter.hover.route', "Route: {0}", part.preference)
 				: undefined;
-	const effort = part.effort && localize('modelRouter.hover.effort', "Effort is set for each request, based on how hard it looks.");
-	return [reason, effort].filter(Boolean).join('\n\n') || undefined;
 }
