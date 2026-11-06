@@ -6833,7 +6833,7 @@
     "@types/ws": "^8.5.3",
     "@types/yargs": "^17.0.24",
     "@typescript-eslint/typescript-estree": "^8.26.1",
-    "@typescript/native": "npm:typescript@7.1.0-dev.20261027.1",
+    "@typescript/native": "npm:typescript@7.1.0-dev.20261105.1",
     "@vitest/snapshot": "^1.5.0",
     "@vscode/l10n-dev": "0.0.35",
     "@vscode/test-cli": "^0.0.11",
