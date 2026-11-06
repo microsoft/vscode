@@ -23977,6 +23977,61 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		for (const promotion of ['user.message', 'session.idle'] as const) {
+			test(`admits sequential steering after ${promotion} promotes the previous steering`, async () => {
+				const h = await createHarness();
+				try {
+					await h.agent.chats.sendMessage(h.chat, 'original', undefined, undefined, 'turn-original', undefined, h.context);
+					h.newRuntime.emit({
+						id: 'original-user-message', timestamp: new Date().toISOString(), parentId: null,
+						type: 'user.message',
+						data: { content: 'original', messageId: 'sdk-original', turnId: 'sdk-turn' },
+					});
+					const initiallyReady = h.live().hasRunningTurn;
+					const firstAdmitted = await h.agent.sendSteeringMessage(h.chat, {
+						id: 'steer-first', message: { text: 'first steering', origin: { kind: MessageKind.User } },
+					});
+					const firstEcho: SessionEventPayload<'user.message'> = {
+						id: 'steering-user-message', timestamp: new Date().toISOString(), parentId: null,
+						type: 'user.message',
+						data: { content: 'first steering', messageId: 'sdk-steering', turnId: 'sdk-turn', delivery: 'steering' },
+					};
+					if (promotion === 'session.idle') {
+						h.newRuntime.emit({
+							id: 'original-idle', timestamp: new Date().toISOString(), parentId: null,
+							type: 'session.idle', ephemeral: true, data: {},
+						});
+					} else {
+						h.newRuntime.emit(firstEcho);
+					}
+					const readyAfterPromotion = h.live().hasRunningTurn;
+					const secondAdmitted = await h.agent.sendSteeringMessage(h.chat, {
+						id: 'steer-second', message: { text: 'second steering', origin: { kind: MessageKind.User } },
+					});
+					if (promotion === 'session.idle') {
+						h.newRuntime.emit(firstEcho);
+					}
+					h.newRuntime.emit({
+						id: 'second-steering-user-message', timestamp: new Date().toISOString(), parentId: null,
+						type: 'user.message',
+						data: { content: 'second steering', messageId: 'sdk-steering-second', turnId: 'sdk-turn', delivery: 'steering' },
+					});
+					const readyAfterSecondPromotion = h.live().hasRunningTurn;
+					const thirdAdmitted = await h.agent.sendSteeringMessage(h.chat, {
+						id: 'steer-third', message: { text: 'third steering', origin: { kind: MessageKind.User } },
+					});
+
+					assert.deepStrictEqual({
+						initiallyReady, firstAdmitted, readyAfterPromotion, secondAdmitted, readyAfterSecondPromotion, thirdAdmitted, sdkSends: h.newRuntime.sendCalls,
+					}, {
+						initiallyReady: true, firstAdmitted: true, readyAfterPromotion: true, secondAdmitted: true, readyAfterSecondPromotion: true, thirdAdmitted: true, sdkSends: 4,
+					});
+				} finally {
+					await disposeAgent(h.agent);
+				}
+			});
+		}
+
 		for (const phase of ['prepare', 'create', 'disconnect', 'resume', 'continue'] as const) {
 			test(`delivers steering after send preparation ${phase} to the current runtime`, async () => {
 				const h = await createHarness({ cold: phase === 'create' || phase === 'prepare' });
