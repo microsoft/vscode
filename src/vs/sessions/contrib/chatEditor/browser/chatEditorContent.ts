@@ -18,6 +18,8 @@ import { ISessionPaneContent } from '../../../../workbench/contrib/sessions/comm
 import { ChatGroupView, IChatGroupContext } from '../../../../workbench/contrib/sessions/browser/parts/chatGroupView.js';
 import { AbstractChatView, ISessionViewHostOptions } from '../../../../workbench/contrib/sessions/browser/parts/chatView.js';
 import { SessionHeader } from '../../../../workbench/contrib/sessions/browser/parts/sessionHeader.js';
+import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
+import { IEditorPaneTitleMenu } from '../../../../workbench/browser/parts/editor/editor.js';
 
 /**
  * What a chat editor shows of one chat: the header of its session above the chat, with its Session Activity Bar, as a
@@ -48,6 +50,8 @@ export class ChatEditorContent extends Disposable {
 	readonly inputOnlyChatViewTop: IObservable<number>;
 	/** The title of the session header. */
 	get headerTitleElement(): HTMLElement { return this._header.titleElement; }
+	/** The menu of the actions of the session header, with the context and the arguments they show and run with there. */
+	readonly titleMenu: IEditorPaneTitleMenu;
 
 	override dispose(): void {
 		super.dispose();
@@ -88,6 +92,7 @@ export class ChatEditorContent extends Disposable {
 		// Its title drags the editor that shows the chat (see `ChatEditorView.dragHandle`), which carries the session.
 		this._header.setDragsEditor(true);
 		this._headerContainer.appendChild(this._header.element);
+		this.titleMenu = { menuId: Menus.SessionBarToolbar, contextKeyService: scopedContextKeyService, options: this._header.menuActionOptions };
 		this._register(this._header.onDidChangeVisibility(() => this._layoutChildren()));
 		this._register(this._header.onDidChangeHeight(() => this._layoutChildren()));
 
