@@ -685,6 +685,10 @@
 			"project": "vscode-sessions"
 		},
 		{
+			"name": "vs/workbench/contrib/sessions",
+			"project": "vscode-sessions"
+		},
+		{
 			"name": "vs/sessions/contrib/openAgentsWindow",
 			"project": "vscode-sessions"
 		},

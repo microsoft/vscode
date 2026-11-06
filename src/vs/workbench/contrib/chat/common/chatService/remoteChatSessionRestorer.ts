@@ -17,7 +17,7 @@ import { getChatSessionHistoryContent, IChatSession, IChatSessionHistoryItem, IC
 import { CloudSandboxSessionTrace } from '../cloudSandboxSessionTrace.js';
 import { ChatModeKind } from '../constants.js';
 import { chatEditingSessionIsReady } from '../editing/chatEditingService.js';
-import { ChatModel, ChatRequestModel, getRestoredChatRequestSource, IChatRequestModeInfo } from '../model/chatModel.js';
+import { ChatModel, ChatRequestModel, getRestoredChatRequestSource, IChatRequestModeInfo, IChatRequestVariableData } from '../model/chatModel.js';
 import { IChatAgentData, IChatAgentService } from '../participants/chatAgents.js';
 import { IParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { IChatModelReference } from './chatService.js';
@@ -63,8 +63,8 @@ export interface IRemoteChatSessionRestoreOptions {
 	/** Cancels restoration before the model is published. */
 	readonly token: CancellationToken;
 	readonly trace: CloudSandboxSessionTrace | undefined;
-	/** Parses a prompt from the history into a request. */
-	parsePrompt(text: string, agent: IChatAgentData | undefined): IParsedChatRequest;
+	/** Parses a historical prompt and its attachment ranges into a request. */
+	parsePrompt(text: string, agent: IChatAgentData | undefined, variableData?: IChatRequestVariableData): IParsedChatRequest;
 	/** Publishes the restored model to the model store and returns the first reference to it. */
 	publishModel(model: ChatModel): IChatModelReference;
 }
@@ -521,7 +521,7 @@ export class RemoteChatSessionRestorer extends Disposable {
 			? this._chatAgentService.getAgent(item.participant) // TODO(jospicer): Remove and always hardcode?
 			: this._chatAgentService.getAgent(this._options.chatSessionType);
 		const requestText = item.prompt;
-		const parsedRequest = this._options.parsePrompt(requestText, agent);
+		const parsedRequest = this._options.parsePrompt(requestText, agent, item.variableData);
 		const modeInfo = item.modeInstructions ? {
 			kind: ChatModeKind.Agent,
 			isBuiltin: item.modeInstructions.isBuiltin ?? false,

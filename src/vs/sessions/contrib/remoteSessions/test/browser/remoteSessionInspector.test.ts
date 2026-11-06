@@ -30,10 +30,10 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { TestPathService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
-import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
-import { ISession } from '../../../../services/sessions/common/session.js';
+import { IAgentHostSessionsProvider } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
+import { ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { GetRemoteSessionTool } from '../../browser/getRemoteSessionTool.js';
 import { RemoteSessionToolsEnabledSettingId } from '../../common/remoteSessions.js';
 import { RemoteSessionInspector } from '../../browser/remoteSessionInspector.js';

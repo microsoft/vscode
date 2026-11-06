@@ -23,13 +23,13 @@ import { IChatService } from '../../../../../../workbench/contrib/chat/common/ch
 import { ChatSessionForkError, IChatSession, IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatModel, IChatRequestModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatRequestViewModel } from '../../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
-import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../common/agentHostSessionsProvider.js';
-import { IOpenSessionOptions, ISessionNavigationRequest, ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
-import { IFocusedSessionHostService } from '../../../../../services/sessions/browser/sessionHost.js';
-import { focusedSessionHostServiceOf, ITestSessionsService } from '../../../../../services/sessions/test/browser/sessionHostTestUtils.js';
-import { IChat, ISession } from '../../../../../services/sessions/common/session.js';
-import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../services/sessions/common/sessionsManagement.js';
-import { IForkChatOptions } from '../../../../../services/sessions/common/sessionsProvider.js';
+import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { IOpenSessionOptions, ISessionNavigationRequest, ISessionsService } from '../../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService } from '../../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { focusedSessionHostServiceOf, ITestSessionsService, ITestSessionWithChat } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { IChat, ISession } from '../../../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IForkChatOptions } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import '../../browser/agentHostForkActions.js';
 
 const forkCommand = CommandsRegistry.getCommand(ForkConversationActionId)!;
@@ -50,8 +50,8 @@ suite('Agent Host fork actions', () => {
 		});
 		const forkSession = upcastPartial<ISession>({ sessionId: 'fork', resource: forkChat.resource });
 		const activeChat = observableValue<IChat>('activeChat', sourceChat);
-		const initialActiveSession = upcastPartial<IActiveSession>({ ...source, activeChat });
-		const activeSession = observableValue<IActiveSession | undefined>('activeSession', initialActiveSession);
+		const initialActiveSession = upcastPartial<ITestSessionWithChat>({ ...source, activeChat });
+		const activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', initialActiveSession);
 		const navigationRequest = observableValue<ISessionNavigationRequest | undefined>('navigationRequest', undefined);
 		const onDidChangeSessions = store.add(new Emitter<ISessionsChangeEvent>());
 		const started = new DeferredPromise<void>();
@@ -185,7 +185,7 @@ suite('Agent Host fork actions', () => {
 							if (destination === 'the composer') {
 								harness.activeSession.set(undefined, undefined);
 							} else if (destination !== 'another view') {
-								harness.activeSession.set(upcastPartial<IActiveSession>({ sessionId: 'unrelated', resource: URI.parse('test:/unrelated') }), undefined);
+								harness.activeSession.set(upcastPartial<ITestSessionWithChat>({ sessionId: 'unrelated', resource: URI.parse('test:/unrelated') }), undefined);
 								if (destination === 'away and back') {
 									harness.activeSession.set(harness.initialActiveSession, undefined);
 								}

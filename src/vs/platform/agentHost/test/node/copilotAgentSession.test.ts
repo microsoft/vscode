@@ -2039,6 +2039,27 @@ suite('CopilotAgentSession', () => {
 	teardown(() => disposables.clear());
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('the runtime holds a created session in use, and a resumed one once it sends a turn', async () => {
+		const { session: created } = await createAgentSession(disposables);
+		const { session: resumed } = await createAgentSession(disposables, { resume: true });
+		const resumedBeforeTurn = resumed.isHeldInUse;
+		await resumed.send('hello', undefined, 'turn-1');
+		assert.deepStrictEqual({ created: created.isHeldInUse, resumedBeforeTurn, resumedAfterTurn: resumed.isHeldInUse }, {
+			created: true,
+			resumedBeforeTurn: false,
+			resumedAfterTurn: true,
+		});
+	});
+
+	test('the runtime holds a resumed session in use once a provider-initiated turn runs in it', async () => {
+		const { session, mockSession } = await createAgentSession(disposables, { resume: true });
+		const before = session.isHeldInUse;
+		mockSession.fire('user.message', { content: 'Play one move.', messageId: 'provider-message', turnId: 'provider-sdk-turn' } as SessionEventPayload<'user.message'>['data']);
+		mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+		await timeout(0);
+		assert.deepStrictEqual({ before, after: session.isHeldInUse }, { before: false, after: true });
+	});
+
 	suite('image generation preference', () => {
 		for (const resume of [false, true]) {
 			for (const enabled of [false, true]) {
@@ -11099,7 +11120,7 @@ suite('CopilotAgentSession', () => {
 			mockSession.fire('assistant.message', {
 				messageId: 'message', apiCallId: 'call', content: 'done',
 			} as SessionEventPayload<'assistant.message'>['data'], { agentId: 'agent-1' });
-			new CopilotGitHubTelemetryForwarder(() => false, telemetryService).forward({
+			new CopilotGitHubTelemetryForwarder(telemetryService).forward({
 				sessionId: session.sessionId, restricted: false,
 				event: { kind: 'response.success', properties: { modelCallId: 'call' }, metrics: {} },
 			}, 'child-turn', undefined, session.modelCallTurnCorrelation.getTelemetryContext('call'));

@@ -17,8 +17,8 @@ import { buildOpenSessionLinkUri } from '../../../../platform/agentHost/common/o
 import { DEFAULT_CHAT_ID, getSessionChatResource, StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
-import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IRemoteSessionInspectionResult, remoteSessionSnapshot } from '../common/remoteSessionInspection.js';
 import { areRemoteSessionToolsEnabled } from '../common/remoteSessions.js';
 import { readRemoteSessionState, resolveRemoteSessionReference } from './remoteSessionSource.js';

@@ -17,19 +17,20 @@ import { INotificationService, Severity } from '../../../../platform/notificatio
 import { ILifecycleService, LifecyclePhase } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { ISessionsSetUpService } from '../../../browser/sessionsSetUpService.js';
-import { WorkspaceSelectionOrigin } from '../../../common/workspaceSelection.js';
-import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { WorkspaceSelectionOrigin } from '../../../../workbench/contrib/sessions/common/workspaceSelection.js';
+import { ISessionsPartService } from '../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { WorkspaceHandoffState } from '../../sessions/browser/sessionsWindowOpenTelemetry.js';
-import { SessionsView, SessionsViewId } from '../../sessions/browser/views/sessionsView.js';
-import { INewSessionComposerService } from './newSessionComposerService.js';
+import { SessionsView, SessionsViewId } from '../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { INewSessionComposerService } from '../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { IAgentsWindowDraft } from '../../../../platform/window/common/window.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
-import { readNewChatDraftState } from '../common/newChatDraftState.js';
+import { readNewChatDraftState } from '../../../../workbench/contrib/sessions/common/newChatDraftState.js';
 import { IRemoteWorkspaceHandoffService } from '../../../common/remoteWorkspaceHandoff.js';
 import { IAgentsWindowRemoteWorkspace } from './agentsWindowOpenIntent.js';
+import { isSessionCreated } from '../../../../workbench/contrib/sessions/common/session.js';
 
 export const WORKSPACE_HANDOFF_TIMEOUT_MS = 15_000;
 
@@ -116,11 +117,11 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 		store.add(Event.once(this.composerService.onWillSendRequest)(() => cancel('sessionAlreadyCreated')));
 		let restoreComplete = this.sessionsService.initialRestoreComplete.get();
 		let previousSession = this._focusedSessionHostService.focusedHost.get().session.get();
-		let previousCreated = previousSession?.isCreated.get() ?? false;
+		let previousCreated = isSessionCreated(previousSession);
 		store.add(autorun(reader => {
 			const restored = this.sessionsService.initialRestoreComplete.read(reader);
 			const session = this._focusedSessionHostService.focusedHost.read(reader).session.read(reader);
-			const created = session?.isCreated.read(reader) ?? false;
+			const created = isSessionCreated(session, reader);
 			if (restoreComplete && created && (session !== previousSession || !previousCreated)) {
 				cancel('sessionAlreadyCreated');
 			}
@@ -150,7 +151,7 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 			onState('waitingForSessionView');
 			if (inferredDefault) {
 				await waitForState(this.sessionsService.initialRestoreComplete, complete => complete, undefined, source.token);
-				if (!this._focusedSessionHostService.focusedHost.get().session.get()?.isCreated.get()) {
+				if (!isSessionCreated(this._focusedSessionHostService.focusedHost.get().session.get())) {
 					remoteResolution = startRemoteResolution();
 				}
 			} else {
@@ -190,7 +191,7 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 			const deadline = Date.now() + WORKSPACE_HANDOFF_TIMEOUT_MS;
 			while (!source.token.isCancellationRequested) {
 				const currentSession = this._focusedSessionHostService.focusedHost.get().session.get();
-				if ((!intent.draft && currentSession?.isCreated.get()) || ((intent.draft || intent.revealNewSession) && this._hasDraftInput())) {
+				if ((!intent.draft && isSessionCreated(currentSession)) || ((intent.draft || intent.revealNewSession) && this._hasDraftInput())) {
 					onState('preservedSession');
 					return;
 				}
@@ -205,7 +206,7 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 					}
 				}
 				const session = this._focusedSessionHostService.focusedHost.get().session.get();
-				if (!draftNeedsNavigation && session?.isCreated.get()) {
+				if (!draftNeedsNavigation && isSessionCreated(session)) {
 					onState('preservedSession');
 					return;
 				}
@@ -289,7 +290,7 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 
 	private _hasDraftInput(): boolean {
 		const activeSession = this._focusedSessionHostService.focusedHost.get().session.get();
-		if (!activeSession?.isCreated.get() && !activeSession?.isQuickChat?.get()) {
+		if (!isSessionCreated(activeSession) && !activeSession?.isQuickChat?.get()) {
 			const mountedInput = this.composerService.getDraftInputStateForSession(activeSession?.resource);
 			if (mountedInput !== undefined) {
 				return mountedInput;

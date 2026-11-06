@@ -188,7 +188,7 @@ suite('Detect missing caches', () => {
 	});
 
 	test('jobs run when one of their caches is missing, has another version or cannot be listed', async () => {
-		const [missing, incompatible] = [getCaches(cacheWarmingJobs.windows, readRepositoryFile)[1], getCaches(cacheWarmingJobs.macOS, readRepositoryFile)[1]];
+		const [missing, incompatible] = [getCaches(cacheWarmingJobs.windows, readRepositoryFile)[1], getCaches(cacheWarmingJobs.linux, readRepositoryFile)[1]];
 		const existing = Object.values(cacheWarmingJobs)
 			.flatMap(job => getCaches(job, readRepositoryFile))
 			.filter(cache => cache.key !== missing.key)
@@ -221,7 +221,7 @@ suite('Detect missing caches', () => {
 			return { listedRefs: [...listedRefs], outputs };
 		};
 
-		const missingOrIncompatible = { 'compile': 'false', 'linux': 'false', 'macOS': 'true', 'windows': 'true', 'copilot-linux': 'false', 'copilot-windows': 'false' };
+		const missingOrIncompatible = { 'compile': 'false', 'linux': 'true', 'windows': 'true', 'copilot-linux': 'false', 'copilot-windows': 'false' };
 		assert.deepStrictEqual(await Promise.all([
 			detect('refs/heads/main', (key, ref) => ref === 'refs/heads/main' ? list(existing, key) : []),
 			// A release branch also restores the caches of main, without saving a copy.
@@ -230,7 +230,7 @@ suite('Detect missing caches', () => {
 		]), [
 			{ listedRefs: ['refs/heads/main'], outputs: missingOrIncompatible },
 			{ listedRefs: ['refs/heads/release/1.200', 'refs/heads/main'], outputs: missingOrIncompatible },
-			{ listedRefs: ['refs/heads/main'], outputs: { 'compile': 'true', 'linux': 'true', 'macOS': 'true', 'windows': 'true', 'copilot-linux': 'true', 'copilot-windows': 'true' } },
+			{ listedRefs: ['refs/heads/main'], outputs: { 'compile': 'true', 'linux': 'true', 'windows': 'true', 'copilot-linux': 'true', 'copilot-windows': 'true' } },
 		]);
 	});
 });
