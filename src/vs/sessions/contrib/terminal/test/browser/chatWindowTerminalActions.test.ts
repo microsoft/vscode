@@ -32,7 +32,7 @@ import { ChatWindowLayoutMode, ChatWindowSplitLayout, ChatWindowTerminalPosition
 import { terminalEditorId } from '../../../../../workbench/contrib/terminal/browser/terminal.js';
 import { MoveTerminalEditorToPanelWhen } from '../../../../../workbench/contrib/terminal/browser/terminalMenus.js';
 import { DEFAULT_COMMANDS_TO_SKIP_SHELL } from '../../../../../workbench/contrib/terminal/common/terminal.js';
-import { TOGGLE_SIDE_PANEL_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { TOGGLE_SIDE_PANEL_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { IContentPart, IEditorGroup, IEditorPart } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { ADD_CHAT_WINDOW_TERMINAL_COMMAND_ID, ChatWindowTerminalPositionMenu, TOGGLE_CHAT_WINDOW_TERMINAL_COMMAND_ID } from '../../browser/chatWindowTerminalActions.js';
 import { IChatWindowTerminalsService } from '../../browser/chatWindowTerminals.js';
@@ -162,7 +162,7 @@ suite('Chat window terminal actions', () => {
 		});
 	});
 
-	test('Terminal Position from the editor title of a chat window\'s terminals acts on that window; without a context, or with a group of no chat window, on the one that has focus', async () => {
+	test('Terminal Position from the editor title of a chat window\'s terminals acts on that window; without a context, on the one that has focus; with a group of no chat window, on none', async () => {
 		const calls: string[] = [];
 		const windows = createWindows(calls, { windowId: 1, terminalGroups: [11] }, { windowId: 2, terminalGroups: [21, 22] });
 		const { run } = createEnvironment(windows, windows[0], calls);
@@ -171,7 +171,7 @@ suite('Chat window terminal actions', () => {
 		await run('workbench.action.chatWindow.terminalPosition.fullWidth');
 		await run('workbench.action.chatWindow.terminalPosition.underChat', { groupId: 99 });
 
-		assert.deepStrictEqual(calls, ['2:position:underChat', '2:position:underEditor', '1:position:fullWidth', '1:position:underChat']);
+		assert.deepStrictEqual(calls, ['2:position:underChat', '2:position:underEditor', '1:position:fullWidth']);
 	});
 
 	for (const [where, menuId, editorContext] of [['the More Actions of', MenuId.EditorTitle, false], ['the context menu of a tab of', MenuId.EditorTitleContext, true]] as const) {

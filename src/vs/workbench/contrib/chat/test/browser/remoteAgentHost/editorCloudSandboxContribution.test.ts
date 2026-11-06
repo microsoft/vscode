@@ -80,6 +80,7 @@ import { IChatWidget, IChatWidgetService, IChatWidgetViewModelChangeEvent } from
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatSessionRefreshReason, ChatSessionStatus, IChatSessionContentProvider, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, IChatSessionsExtensionPoint, ReadonlyChatSessionOptionsMap, ResolvedChatSessionsExtensionPoint, SessionType } from '../../../common/chatSessionsService.js';
+import { MockChatSessionsService } from '../../common/mockChatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { IChatModel, IChatRequestModel, IChatRequestVariableData, IChatResponseModel } from '../../../common/model/chatModel.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../../common/participants/chatAgents.js';
@@ -318,7 +319,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 			state.hostSessions = state.hostSessions.filter(entry => entry.session.toString() !== session.toString());
 		}
 	}();
-	const chatSessionsService = options?.chatSessionsService ?? new class extends mock<IChatSessionsService>() {
+	const chatSessionsService = options?.chatSessionsService ?? new class extends MockChatSessionsService {
 		override readonly onDidChangeSessionOptions = sessionOptionsChanged.event;
 		override readonly onDidChangeItemsProviders = Event.None;
 		override readonly onDidChangeAvailability = Event.None;
@@ -2560,7 +2561,7 @@ suite('Editor cloud sandbox discovery', () => {
 		}, { items: [[resource.toString(), 'Live title']], removed: ['/additional-session'], retainedInPartialList: true });
 	});
 
-	test('seeds newly discovered cloud history while already connected', async () => {
+	test('seeds new cloud history without dropping a connected task outside the discovery window', async () => {
 		const h = createHarness(store);
 		await h.refresh();
 		h.state.online = true;
@@ -2570,7 +2571,7 @@ suite('Editor cloud sandbox discovery', () => {
 		h.state.result = { kind: 'complete', sessions: [{ ...discovered, taskId: 'later-task', sessionId: 'later-session' }] };
 		await h.refresh();
 		await h.controllers.get(sessionType)!.refresh(CancellationToken.None);
-		assert.deepStrictEqual(h.items().map(item => item.resource.path), ['/later-session']);
+		assert.deepStrictEqual(h.items().map(item => item.resource.path).sort(), ['/later-session', '/original-session']);
 	});
 
 	test('retains every discovered task sharing a connected environment when the host omits them', async () => {
@@ -2824,7 +2825,7 @@ suite('Editor cloud sandbox discovery', () => {
 		const other = { ...discovered, environmentId: 'other-environment', sessionId: 'other-session', taskId: 'other-task' };
 		const removed = assert.rejects(h.contribution.connect(discovered), isCancellationError);
 		const retained = h.contribution.connect(other);
-		h.state.result = { kind: 'complete', sessions: [other] };
+		h.state.result = { kind: 'complete', sessions: [other], removedTaskIds: [discovered.taskId] };
 		await h.refresh();
 		await removed;
 		const cancelled = h.calls.connectTokens.map(token => token.isCancellationRequested);

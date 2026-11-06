@@ -12,16 +12,16 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
-import { DesktopChangesEditorTransitionContext, SessionHasOpenPullRequestContext, SessionPrimaryPullRequestOperationContext } from '../../../../common/contextkeys.js';
-import { ISessionChangeset, ISessionChangesetOperation } from '../../../../services/sessions/common/session.js';
-import { GitHubCheckConclusion, GitHubCheckStatus, IGitHubCICheck } from '../../../github/common/types.js';
-import { GitHubPullRequestCIModel } from '../../../github/browser/models/githubPullRequestCIModel.js';
+import { DesktopChangesEditorTransitionContext, SessionHasOpenPullRequestContext, SessionPrimaryPullRequestOperationContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { ISessionChangeset, ISessionChangesetOperation } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { GitHubCheckConclusion, GitHubCheckStatus, IGitHubCICheck } from '../../../../../workbench/contrib/sessions/common/github/types.js';
+import { GitHubPullRequestCIModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
 import { PullRequestCheck } from '../../../../../platform/github/common/githubPullRequestService.js';
 import { RequiredPullRequestChecks } from '../../../../../platform/github/common/pullRequestRequiredChecks.js';
-import { ActiveSessionState } from '../../common/changesViewService.js';
-import { registerSessionActionContextKeyBinder, bindSessionActionContextKeys, ISessionActionContextKeysSource } from '../../browser/sessionActionContextKeys.js';
-import { activeSessionCIFixRequested, hasActiveSessionFailedCIChecks } from '../../browser/checksActions.js';
-import { SessionChangesReviewedFilesContext } from '../../browser/changesMultiDiffSourceResolver.js';
+import { ActiveSessionState } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
+import { registerSessionActionContextKeyBinder, bindSessionActionContextKeys, ISessionActionContextKeysSource } from '../../../../../workbench/contrib/sessions/browser/changes/sessionActionContextKeys.js';
+import { activeSessionCIFixRequested, hasActiveSessionFailedCIChecks } from '../../../../../workbench/contrib/sessions/browser/fixCIChecks.js';
+import { SessionChangesReviewedFilesContext } from '../../../../../workbench/contrib/sessions/browser/changes/changesMultiDiffSourceResolver.js';
 
 suite('Session Action Context Keys', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -38,6 +38,7 @@ suite('Session Action Context Keys', () => {
 		const requiredChecks: RequiredPullRequestChecks = { everyCheck: false, checks: failed, failed, missing: [], pending: false };
 		return {
 			session: constObservable(undefined),
+			chat: constObservable(undefined),
 			changes: {
 				changesObs: constObservable([{ uri: undefined!, modifiedUri: undefined, originalUri: undefined, insertions: 0, deletions: 0, reviewed: overrides.reviewed }] as never),
 				changesetsLoadingObs: constObservable(false),

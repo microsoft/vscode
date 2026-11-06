@@ -1444,6 +1444,31 @@ suite('SessionPermissionManager', () => {
 		});
 	});
 
+	test('requires confirmation for Dev Container configurations despite explicit edit approval', async () => {
+		configService.updateRootConfig({
+			[AgentHostEditAutoApprovePatternsConfigKey]: {
+				'**/*': true,
+				'**/.devcontainer/**': true,
+				'**/.devcontainer.json': true,
+			},
+		});
+		const files = [
+			'.devcontainer.json',
+			join('.devcontainer', 'devcontainer.json'),
+			join('.devcontainer', 'python', 'devcontainer.json'),
+		];
+		const results = await Promise.all(['', 'nested'].flatMap(directory =>
+			files.map(file => permissions.getAutoApproval(writeEvent(join(workDir, directory, file)), sessionUri))));
+
+		assert.deepStrictEqual({
+			protectedFiles: results,
+			ordinaryFile: await permissions.getAutoApproval(writeEvent(join(workDir, '.devcontainer', 'Dockerfile')), sessionUri),
+		}, {
+			protectedFiles: [...files, ...files].map(() => undefined),
+			ordinaryFile: ToolCallConfirmationReason.NotNeeded,
+		});
+	});
+
 	test('requires confirmation for configured custom hook file location', async () => {
 		const sensitiveEditLocations = getChatSensitiveEditLocations({
 			'custom-hooks/hooks.json': true,
@@ -1632,6 +1657,24 @@ suite('SessionPermissionManager', () => {
 		const result = await permissions.getAutoApproval(readEvent(join(workDir, 'a.txt'), remoteSessionUri), remoteSessionUri);
 
 		assert.strictEqual(result, undefined);
+	});
+
+	test('auto-approves reads and writes whose resolved permission resource is inside a virtual working directory', async () => {
+		const virtualSessionUri = URI.from({ scheme: 'copilot', path: '/virtual' }).toString();
+		const root = URI.parse('vscode-vfs://github/microsoft/vscode');
+		manager.createSession(makeSummary(virtualSessionUri, root.toString()));
+		const event = (permissionKind: AgentPermissionKind, path: string): IToolApprovalEvent => ({
+			toolCallId: 'tc-virtual', session: URI.parse(virtualSessionUri), permissionKind,
+			permissionPath: `/vscode-vfs/github/microsoft/vscode${path}`, permissionResource: URI.joinPath(root, path),
+		});
+
+		const results = await Promise.all([
+			permissions.getAutoApproval(event(AgentPermissionKind.Read, '/src/a.ts'), virtualSessionUri),
+			permissions.getAutoApproval(event(AgentPermissionKind.Write, '/src/a.ts'), virtualSessionUri),
+			permissions.getAutoApproval({ ...event(AgentPermissionKind.Read, '/a.ts'), permissionResource: URI.parse('vscode-vfs://github/other/repo/a.ts') }, virtualSessionUri),
+		]);
+
+		assert.deepStrictEqual(results, [ToolCallConfirmationReason.NotNeeded, ToolCallConfirmationReason.NotNeeded, undefined]);
 	});
 
 	test('requires confirmation when a symlinked read ancestor redirects outside the working directory', async () => {

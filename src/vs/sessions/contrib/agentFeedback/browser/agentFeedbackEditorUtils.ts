@@ -13,14 +13,9 @@ import { DetailedLineRangeMapping } from '../../../../editor/common/diff/rangeMa
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../workbench/common/editor.js';
 import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { MultiDiffEditorInput } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
-import { ISessionFileChange } from '../../../services/sessions/common/session.js';
-import { SessionChangesEditorInput } from '../../changes/browser/sessionChangesEditorInput.js';
-import type { IAgentFeedbackService } from './agentFeedbackService.js';
-
-export interface IAgentFeedbackContext {
-	readonly codeSelection?: string;
-	readonly diffHunks?: string;
-}
+import { ISessionFileChange } from '../../../../workbench/contrib/sessions/common/session.js';
+import { SessionChangesEditorInput } from '../../../../workbench/contrib/sessions/browser/changes/sessionChangesEditorInput.js';
+import { type IAgentFeedbackService, IAgentFeedbackContext } from '../../../../workbench/contrib/sessions/browser/agentFeedback.js';
 
 export function changeMatchesResource(change: ISessionFileChange, resourceUri: URI): boolean {
 	if (isIChatSessionFileChange2(change)) {

@@ -103,7 +103,10 @@
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",
-    "@types/node": "24.x"
+    "@types/node": "24.x",
+    "@types/sinon": "^10.0.2",
+    "sinon": "^12.0.1",
+    "tslib": "^2.6.3"
   },
   "repository": {
     "type": "git",

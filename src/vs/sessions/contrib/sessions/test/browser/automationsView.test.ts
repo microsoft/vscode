@@ -57,35 +57,35 @@ import { AutomationCatalogueState, AutomationMutationGuard, IAutomationProviderC
 import { ContributionEnablementState } from '../../../../../workbench/contrib/chat/common/enablement.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { openOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
-import { ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
+import { ICustomViewDescriptor, ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IChat, ISession, SessionStatus, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
-import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IChat, ISession, SessionStatus, SessionTypeAuthRequirement } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IActionViewItemFactory, IActionViewItemService, NullActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
-import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
-import { AutomationsHasItemsContext } from '../../../../common/contextkeys.js';
-import { getSessionApplication } from '../../../../common/sessionApplication.js';
-import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING } from '../../../../common/sessionConfig.js';
+import { AutomationsHasItemsContext } from '../../../../common/agentsWindowContextKeys.js';
+import { getSessionApplication } from '../../../../../workbench/contrib/sessions/common/sessionApplication.js';
+import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { buildAutomationsAccessibleContent } from '../../browser/views/automationsAccessibility.js';
 import { automationRunWithLocalProgress } from '../../browser/views/automationRunProgress.js';
 import { AUTOMATION_TEMPLATES } from '../../browser/views/automationTemplates.js';
 import { AutomationsCardsWidget, AutomationsCustomViewContribution, DISABLED_AUTOMATIONS_EXPANDED_STORAGE_KEY, SEEN_PLUGIN_AUTOMATION_TEMPLATES_STORAGE_KEY } from '../../browser/views/automationsView.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
-import { ISessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IMenuService, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
-import { Menus } from '../../../../browser/menus.js';
+import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { ArchiveSessionAction } from '../../browser/views/sessionsViewActions.js';
-import { HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { TestCommandService } from './sessionsListTestUtils.js';
 import { TestDataTelemetryService } from '../../../../../platform/telemetry/test/common/testTelemetryService.js';
+import { stubSessionsHostLayout } from '../../../../test/browser/sessionsHostLayoutTestUtils.js';
 
 
 const AUTOMATION_ID = 'automation-1';
@@ -438,8 +438,7 @@ class FakeRunner extends mock<IAutomationRunner>() {
 
 class FakeSessionsService extends mock<ISessionsService>() {
 	override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([]);
-	override readonly activeSession = constObservable<IActiveSession | undefined>(undefined);
-	override readonly mainWindowActiveSession = this.activeSession;
+	readonly activeSession = constObservable<IActiveSession | undefined>(undefined);
 	readonly openGate = new DeferredPromise<void>();
 	openCalls = 0;
 	error: Error | undefined;
@@ -786,7 +785,7 @@ suite('AutomationsCardsWidget', () => {
 	}
 
 	function renderRefreshButton({ instantiationService, contextKeyService, actionFactories }: ReturnType<typeof setup>): HTMLElement {
-		const action = instantiationService.get(IMenuService).getMenuActions(Menus.CustomViewAutomations, contextKeyService)
+		const action = instantiationService.get(IMenuService).getMenuActions(AgentsWindowMenus.CustomViewAutomations, contextKeyService)
 			.flatMap(([, actions]) => actions).find(action => action.id === 'sessions.automations.refresh')!;
 		const item = disposables.add(actionFactories.get(action.id)!(action, {}, instantiationService, 1)!);
 		const container = document.createElement('div');
@@ -797,7 +796,7 @@ suite('AutomationsCardsWidget', () => {
 	}
 
 	function renderRefreshToolbar({ instantiationService, contextKeyService, actionFactories }: ReturnType<typeof setup>) {
-		const action = instantiationService.get(IMenuService).getMenuActions(Menus.CustomViewAutomations, contextKeyService)
+		const action = instantiationService.get(IMenuService).getMenuActions(AgentsWindowMenus.CustomViewAutomations, contextKeyService)
 			.flatMap(([, actions]) => actions).find(action => action.id === 'sessions.automations.refresh')!;
 		const container = document.createElement('div');
 		document.body.append(container);
@@ -1001,6 +1000,7 @@ suite('AutomationsCardsWidget', () => {
 	test('local follow-up progress overrides stale history but completion waits for authoritative history', async () => {
 		const { widget, automationService, sessionsManagementService, chatModels, instantiationService } = setup();
 		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() { });
+		stubSessionsHostLayout(instantiationService);
 		const accessibleView = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-view');
 		assert.ok(accessibleView);
 		const accessibleProvider = instantiationService.invokeFunction(accessor => accessibleView.getProvider(accessor));
@@ -1152,7 +1152,7 @@ suite('AutomationsCardsWidget', () => {
 		widget.focus();
 		const command = CommandsRegistry.getCommand('sessions.automations.refresh')!;
 		await instantiationService.invokeFunction(accessor => command.handler(accessor));
-		const menuActions = instantiationService.get(IMenuService).getMenuActions(Menus.CustomViewAutomations, contextKeyService)
+		const menuActions = instantiationService.get(IMenuService).getMenuActions(AgentsWindowMenus.CustomViewAutomations, contextKeyService)
 			.flatMap(([, actions]) => actions).map(action => action.id);
 		assert.deepStrictEqual({
 			calls: automationService.refreshCalls, errors: refreshErrors,
@@ -1165,7 +1165,7 @@ suite('AutomationsCardsWidget', () => {
 		const { instantiationService, contextKeyService } = setup();
 		const enabled = ChatAutomationsEnabledContext.bindTo(contextKeyService);
 		enabled.set(true);
-		const hasRefresh = () => instantiationService.get(IMenuService).getMenuActions(Menus.CustomViewAutomations, contextKeyService)
+		const hasRefresh = () => instantiationService.get(IMenuService).getMenuActions(AgentsWindowMenus.CustomViewAutomations, contextKeyService)
 			.flatMap(([, actions]) => actions).some(action => action.id === 'sessions.automations.refresh' && action.enabled);
 		const initiallyVisible = hasRefresh();
 		enabled.set(false);
@@ -3253,7 +3253,7 @@ suite('AutomationsCardsWidget', () => {
 			showCalls: 1,
 			existing: item,
 			runCalls: 1,
-			menuId: Menus.AutomationCardContext,
+			menuId: AgentsWindowMenus.AutomationCardContext,
 		});
 	});
 
@@ -3279,7 +3279,7 @@ suite('AutomationsCardsWidget', () => {
 
 		const delegate = openAutomationCardMenu(widget, contextMenuService);
 		const menuActions = instantiationService.get(IMenuService).getMenuActions(
-			Menus.AutomationCardContext,
+			AgentsWindowMenus.AutomationCardContext,
 			delegate.contextKeyService ?? contextKeyService,
 			delegate.menuActionOptions,
 		).flatMap(([, actions]) => actions);
@@ -3302,7 +3302,7 @@ suite('AutomationsCardsWidget', () => {
 				menuOpen: actions?.classList.contains('menu-open'),
 			},
 		}, {
-			menuId: Menus.AutomationCardContext,
+			menuId: AgentsWindowMenus.AutomationCardContext,
 			shouldForwardArgs: true,
 			argument: current,
 			anchor: moreActionsButton,
@@ -3331,7 +3331,7 @@ suite('AutomationsCardsWidget', () => {
 		const menu = () => {
 			const delegate = openAutomationCardMenu(widget, contextMenuService);
 			const actions = instantiationService.get(IMenuService).getMenuActions(
-				Menus.AutomationCardContext, delegate.contextKeyService ?? contextKeyService, delegate.menuActionOptions,
+				AgentsWindowMenus.AutomationCardContext, delegate.contextKeyService ?? contextKeyService, delegate.menuActionOptions,
 			).flatMap(([, actions]) => actions);
 			delegate.onHide?.(false);
 			return actions.find(action => action.id === id);
@@ -3375,10 +3375,10 @@ suite('AutomationsCardsWidget', () => {
 		automationService.setRuns([run()]);
 
 		const delegate = openAutomationCardMenu(widget, contextMenuService);
-		assert.strictEqual(delegate.menuId, Menus.AutomationCardContext);
+		assert.strictEqual(delegate.menuId, AgentsWindowMenus.AutomationCardContext);
 		assert.strictEqual(delegate.menuActionOptions?.arg, source);
 		const menuActions = instantiationService.get(IMenuService).getMenuActions(
-			Menus.AutomationCardContext,
+			AgentsWindowMenus.AutomationCardContext,
 			delegate.contextKeyService ?? contextKeyService,
 			delegate.menuActionOptions,
 		).flatMap(([, actions]) => actions);
@@ -3578,7 +3578,7 @@ suite('AutomationsCardsWidget', () => {
 
 		const delegate = openAutomationCardMenu(widget, contextMenuService);
 		const duplicateActions = instantiationService.get(IMenuService).getMenuActions(
-			Menus.AutomationCardContext,
+			AgentsWindowMenus.AutomationCardContext,
 			delegate.contextKeyService ?? contextKeyService,
 			delegate.menuActionOptions,
 		).flatMap(([, actions]) => actions);
@@ -3605,7 +3605,7 @@ suite('AutomationsCardsWidget', () => {
 			automationService.setAutomations([item]);
 			const delegate = openAutomationCardMenu(widget, contextMenuService);
 			return instantiationService.get(IMenuService).getMenuActions(
-				Menus.AutomationCardContext,
+				AgentsWindowMenus.AutomationCardContext,
 				delegate.contextKeyService ?? contextKeyService,
 				delegate.menuActionOptions,
 			).flatMap(([, actions]) => actions).map(action => action.id);
@@ -3629,7 +3629,7 @@ suite('AutomationsCardsWidget', () => {
 			automationService.setAutomations([item]);
 			const delegate = openAutomationCardMenu(widget, contextMenuService);
 			return instantiationService.get(IMenuService).getMenuActions(
-				Menus.AutomationCardContext,
+				AgentsWindowMenus.AutomationCardContext,
 				delegate.contextKeyService ?? contextKeyService,
 				delegate.menuActionOptions,
 			).flatMap(([, actions]) => actions).map(action => action.id);
@@ -3650,7 +3650,7 @@ suite('AutomationsCardsWidget', () => {
 		const getMenuActions = () => {
 			const delegate = openAutomationCardMenu(widget, contextMenuService);
 			return instantiationService.get(IMenuService).getMenuActions(
-				Menus.AutomationCardContext,
+				AgentsWindowMenus.AutomationCardContext,
 				delegate.contextKeyService ?? contextKeyService,
 				delegate.menuActionOptions,
 			).flatMap(([, actions]) => actions);
@@ -3690,7 +3690,7 @@ suite('AutomationsCardsWidget', () => {
 		const getFirstAction = () => {
 			const delegate = openAutomationCardMenu(widget, contextMenuService);
 			return instantiationService.get(IMenuService).getMenuActions(
-				Menus.AutomationCardContext,
+				AgentsWindowMenus.AutomationCardContext,
 				delegate.contextKeyService ?? contextKeyService,
 				delegate.menuActionOptions,
 			).flatMap(([, actions]) => actions)[0];
@@ -3827,7 +3827,7 @@ suite('AutomationsCardsWidget', () => {
 		automationService.setAutomations([source]);
 		const delegate = openAutomationCardMenu(widget, contextMenuService);
 		const menuActions = instantiationService.get(IMenuService).getMenuActions(
-			Menus.AutomationCardContext,
+			AgentsWindowMenus.AutomationCardContext,
 			delegate.contextKeyService ?? contextKeyService,
 			delegate.menuActionOptions,
 		).flatMap(([, actions]) => actions);
@@ -3922,7 +3922,7 @@ suite('AutomationsCardsWidget', () => {
 			moreActionsRole: 'button',
 			moreActionsHasPopup: 'menu',
 			moreActionsUsesVerticalIcon: true,
-			keyboardMenuIds: [Menus.AutomationCardContext, Menus.AutomationCardContext],
+			keyboardMenuIds: [AgentsWindowMenus.AutomationCardContext, AgentsWindowMenus.AutomationCardContext],
 		});
 	});
 
@@ -4796,6 +4796,7 @@ suite('AutomationsCardsWidget', () => {
 	test('accessibility help describes visible templates independently of catalogue completeness', () => {
 		const { automationService, instantiationService } = setup();
 		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() { });
+		stubSessionsHostLayout(instantiationService);
 		const help = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-help');
 		assert.ok(help);
 		const describesBuiltInTemplates = () => {
@@ -4823,6 +4824,7 @@ suite('AutomationsCardsWidget', () => {
 	test('accessibility help explains prompt-only automation creation', () => {
 		const { instantiationService } = setup();
 		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() { });
+		stubSessionsHostLayout(instantiationService);
 		const help = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-help');
 		assert.ok(help);
 		const provider = instantiationService.invokeFunction(accessor => help.getProvider(accessor));
@@ -4834,6 +4836,7 @@ suite('AutomationsCardsWidget', () => {
 	test('accessibility help explains showing run sessions in the Sessions list', () => {
 		const { instantiationService } = setup();
 		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() { });
+		stubSessionsHostLayout(instantiationService);
 		const help = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-help');
 		assert.ok(help);
 		const provider = instantiationService.invokeFunction(accessor => help.getProvider(accessor));
@@ -4847,6 +4850,7 @@ suite('AutomationsCardsWidget', () => {
 	test('accessibility help explains the unified Trigger picker and local weekdays', () => {
 		const { instantiationService } = setup();
 		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() { });
+		stubSessionsHostLayout(instantiationService);
 		const help = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-help');
 		assert.ok(help);
 		const provider = instantiationService.invokeFunction(accessor => help.getProvider(accessor));
@@ -4873,6 +4877,7 @@ suite('AutomationsCardsWidget', () => {
 	test('accessibility help describes the cloud switch whenever cloud automations are enabled', () => {
 		const { automationService, instantiationService, sessionsManagementService } = setup();
 		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() { });
+		stubSessionsHostLayout(instantiationService);
 		const help = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-help');
 		assert.ok(help);
 		const content = () => {

@@ -14,7 +14,7 @@ import { ITextModel } from '../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { EditSources, TextModelEditSource } from '../../../../../editor/common/textModelEditSource.js';
 import { createTextModel } from '../../../../../editor/test/common/testTextModel.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ITypedCharactersEntry, MAX_TYPED_CHARACTERS_RETRIES, SessionsTypedCharactersTracker } from '../../browser/sessionsTypedCharactersTracker.js';
 
 const FILE = URI.file('/repo/worktree/file.ts');

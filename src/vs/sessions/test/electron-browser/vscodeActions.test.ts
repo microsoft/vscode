@@ -11,14 +11,14 @@ import { IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IWindow
 import { constObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { getChatSessionToOpenInEditor, openSessionInVSCode, returnToVSCodeEditor, shouldShowReturnToVSCodeEditor } from '../../electron-browser/actions/vscodeActions.js';
-import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
-import { IChat } from '../../services/sessions/common/session.js';
-import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
+import { IActiveSession } from '../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IChat } from '../../../workbench/contrib/sessions/common/session.js';
+import { ISessionsProvidersService } from '../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostEntryType } from '../../../platform/agentHost/common/remoteAgentHostService.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { agentHostAuthority, agentHostLabelFormatter, toAgentHostUri } from '../../../platform/agentHost/common/agentHostUri.js';
-import { IAgentHostSessionsProvider } from '../../common/agentHostSessionsProvider.js';
-import { ISessionsProvider } from '../../services/sessions/common/sessionsProvider.js';
+import { IAgentHostSessionsProvider } from '../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { ISessionsProvider } from '../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { LabelService } from '../../../workbench/services/label/common/labelService.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { OperatingSystem } from '../../../base/common/platform.js';
@@ -123,6 +123,31 @@ suite('VS Code Actions', () => {
 		await instantiationService.invokeFunction(openSessionInVSCode, createSession('no-workspace', true));
 
 		assert.deepStrictEqual(calls, [{ empty: true }]);
+	});
+
+	test('opens the clicked nested chat and its workspace instead of the active chat', async () => {
+		const calls: { folders: string[]; chat: string | undefined }[] = [];
+		const session = createSession('parent', true, [URI.file('/active')]);
+		const folder = URI.file('/nested');
+		const chat = upcastPartial<IChat>({
+			resource: URI.parse('test:/nested-chat'),
+			workspace: constObservable({
+				...session.activeChat.get().workspace.get()!,
+				folders: [{ root: folder, workingDirectory: folder, name: 'nested', description: undefined }],
+			}),
+		});
+		instantiationService.stub(INativeHostService, new class extends mock<INativeHostService>() {
+			override async openWindow(toOpen?: IOpenEmptyWindowOptions | IWindowOpenable[], options?: IOpenWindowOptions): Promise<void> {
+				calls.push({
+					folders: Array.isArray(toOpen) ? toOpen.filter(isFolderToOpen).map(folder => folder.folderUri.toString()) : [],
+					chat: options?.chatSessionToOpen?.toString(),
+				});
+			}
+		}());
+
+		await instantiationService.invokeFunction(openSessionInVSCode, session, chat);
+
+		assert.deepStrictEqual(calls, [{ folders: ['file:///nested'], chat: 'test:/nested-chat' }]);
 	});
 
 	for (const folders of [

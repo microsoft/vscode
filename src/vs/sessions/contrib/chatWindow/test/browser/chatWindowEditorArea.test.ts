@@ -6,13 +6,12 @@
 import assert from 'assert';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { ContextKeyExpression, ContextKeyValue, IContext } from '../../../../../platform/contextkey/common/contextkey.js';
-import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { ContextKeyExpression, ContextKeyValue, IContext, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ActiveEditorCannotCloseContext, ActiveEditorContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, LayoutModeContext } from '../../../../../workbench/common/contextkeys.js';
 import { IEditorPane } from '../../../../../workbench/common/editor.js';
@@ -24,12 +23,14 @@ import { IChatWindow, IChatWindowService } from '../../../../../workbench/contri
 import { ChatWindowLayoutMode } from '../../../../../workbench/contrib/chatWindow/common/chatWindowLayout.js';
 import { IContentPart, IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
-import { Menus } from '../../../../browser/menus.js';
-import { IsQuickChatSessionContext, SessionHasWorkspaceContext, SessionsWelcomeVisibleContext } from '../../../../common/contextkeys.js';
-import { ISessionScope } from '../../../../services/sessions/browser/sessionScope.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../changes/common/sessionChangesService.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
+import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
+import { IsQuickChatSessionContext, SessionHasWorkspaceContext, SessionsWelcomeVisibleContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { ActiveSessionHost, ISessionHostService, SessionHostKind } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IChat } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../../../workbench/contrib/sessions/common/sessionChangesService.js';
 import { CLOSE_CHAT_WINDOW_COMMAND_ID, CLOSE_CHAT_WINDOW_EDITOR_AREA_COMMAND_ID, chatWindowTabEntries } from '../../browser/chatWindowActions.js';
 import { KeybindingsRegistry } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { TestEditorInput } from '../../../../../workbench/test/browser/workbenchTestServices.js';
@@ -73,16 +74,15 @@ suite('Chat window editor area', () => {
 		instantiationService.stub(IChatWindowService, new class extends mock<IChatWindowService>() {
 			override get activeWindow() { return activeWindow; }
 		}());
-		// The window acts on the session of its own scope, whichever session is active.
+		// The window acts on the session of its host, whichever session is active.
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = observableValue<IActiveSession | undefined>('active', undefined);
+			readonly activeSession = observableValue<IActiveSession | undefined>('active', undefined);
 		}());
-		const windowScope = disposables.add(instantiationService.createChild(new ServiceCollection([ISessionScope, new class extends mock<ISessionScope>() {
-			override readonly session = constObservable(session);
-		}()])));
-		instantiationService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
-			override getScopedInstantiationService() { return windowScope; }
-		}());
+		// It shows the chat `session` names as its own.
+		const shown = session && upcastPartial<IActiveSession>({ ...session, isCreated: constObservable(true) });
+		const chat = session?.scopedChatResource && upcastPartial<IChat>({ resource: session.scopedChatResource });
+		const windowHost = new ActiveSessionHost({ kind: SessionHostKind.ChatWindow, parent: undefined, session: constObservable(shown), chat: constObservable(chat), contextKeyService: upcastPartial<IContextKeyService>({}) });
+		instantiationService.stub(ISessionHostService, upcastPartial<ISessionHostService>({ getHostOfWindow: () => windowHost }));
 		return instantiationService;
 	}
 
@@ -200,7 +200,7 @@ suite('Chat window editor area', () => {
 	});
 
 	test('the tab entries show in windows with layout modes only, and Changes and Files need a session with a workspace', () => {
-		const shown = (values: Record<string, ContextKeyValue>) => [Menus.SessionActivityBar, Menus.SessionsEditorTabsBarAddTab, Menus.SessionsEmptyEditorGroupAddTab].map(menu =>
+		const shown = (values: Record<string, ContextKeyValue>) => [Menus.SessionActivityBar, AgentsWindowMenus.SessionsEditorTabsBarAddTab, AgentsWindowMenus.SessionsEmptyEditorGroupAddTab].map(menu =>
 			MenuRegistry.getMenuItems(menu).filter(isIMenuItem).filter(item => chatWindowTabEntries.some(entry => entry.id === item.command.id) && evaluate(item.when, values)).map(item => item.command.id).sort());
 		const ids = (...names: string[]) => names.map(name => `sessions.chatWindow.open${name}`).sort();
 		assert.deepStrictEqual({
@@ -217,7 +217,7 @@ suite('Chat window editor area', () => {
 	});
 
 	test('Run and Open in VS Code show in the main window and in every chat window, as the main window\'s rule says, and not in editor windows', () => {
-		const items = MenuRegistry.getMenuItems(Menus.TitleBarCenterRight);
+		const items = MenuRegistry.getMenuItems(AgentsWindowMenus.TitleBarCenterRight);
 		const visible = (values: Record<string, ContextKeyValue>) => items.filter(item => evaluate(item.when, { [SessionsWelcomeVisibleContext.key]: false, ...values })).length;
 		const mainWindow = visible({});
 		const chatWindow = { [IsAuxiliaryWindowContext.key]: true, [LayoutModeContext.key]: 'sideBySide' };

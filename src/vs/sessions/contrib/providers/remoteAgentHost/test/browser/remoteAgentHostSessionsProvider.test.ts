@@ -21,6 +21,8 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/timeTrave
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AgentSession, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
 import { IAgentHostConnectionsService, type IAgentHostSessionResolutionPolicy, type IAgentHostSessionSchemeAlias } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { AgentHostConnectionsService } from '../../../../../../platform/agentHost/browser/agentHostConnectionsService.js';
+import { IPathService } from '../../../../../../platform/path/common/pathService.js';
 import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { AgentHostWorktreeDiskUsageCapabilityMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostWorktreeDiskUsageMeta.js';
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
@@ -39,7 +41,6 @@ import { SessionArtifactType, withSessionArtifacts } from '../../../../../../pla
 import { ResourceType, type ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChatOriginKind, ChangesetStatus, CustomizationType, MessageKind, ResponsePartKind, SessionLifecycle, SessionOriginKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesetFile, type ChangesetState, type ChatState, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { chatTurnComplete } from '../../../../../../platform/agentHost/test/common/chatActionBuilders.js';
 import { buildDefaultChatUri, createActiveTurn, createChatState, isAhpAutomationCatalogChannel, readSessionWorkspaceless, SessionStatus as ProtocolSessionStatus, StateComponents, withSessionEhcliAdoptable, withSessionExternal, type ComponentToState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { RootStateSubscription, type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ConfigurationTarget, IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
@@ -59,41 +60,43 @@ import { IChatService, type ChatSendResult, type IChatSendRequestData, type ICha
 import type { IChatModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatSessionsService, isIChatSessionFileChange2 } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
-import { ISessionChangeEvent, ISessionsProvider, ISessionsProviderCreateSessionOptions } from '../../../../../services/sessions/common/sessionsProvider.js';
-import { IAgentHostSessionsProvider } from '../../../../../common/agentHostSessionsProvider.js';
-import { DevContainerIdleTimeoutSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostService } from '../../../../../common/devContainerAgentHostService.js';
-import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ChatInteractivity, ChatModelSource, getChatCapabilities, getGitHubPullRequestRefs, getSessionOwnedGitHubPullRequestRefs, SessionRemoteConnectionFailureReason, SessionStatus, type ISession, type ISessionFileChange } from '../../../../../services/sessions/common/session.js';
-import { SessionPullRequestPresentationModel } from '../../../../github/browser/pullRequestIconStatus.js';
-import { buildSessionPullRequestSections } from '../../../../chat/browser/sessionChatInputToolbar.js';
+import { ISessionChangeEvent, ISessionsProvider, ISessionsProviderCreateSessionOptions } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
+import { IAgentHostSessionsProvider } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { DevContainerIdleTimeoutSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostService } from '../../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
+import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ChatInteractivity, ChatModelSource, getChatCapabilities, getGitHubPullRequestRefs, getSessionOwnedGitHubPullRequestRefs, SessionRemoteConnectionFailureReason, SessionStatus, type ISession, type ISessionFileChange } from '../../../../../../workbench/contrib/sessions/common/session.js';
+import { SessionPullRequestPresentationModel } from '../../../../../../workbench/contrib/sessions/browser/github/pullRequestIconStatus.js';
+import { buildSessionPullRequestSections } from '../../../../../../workbench/contrib/sessions/browser/chat/sessionChatInputToolbar.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
-import { RemoteAgentHostSessionsProvider, type IRemoteAgentHostSessionsProviderConfig } from '../../browser/remoteAgentHostSessionsProvider.js';
-import { getRemoteAgentHostPickerKey, RemoteAgentHostPickerVisibility } from '../../browser/remoteAgentHostPickerVisibility.js';
-import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING } from '../../../../chat/common/constants.js';
-import { getSessionCreationEnvironments } from '../../../../chat/browser/sessionEnvironmentPicker.js';
-import { CloudSandboxSessionsProvider } from '../../browser/cloudSandboxSessionsProvider.js';
-import { CLOUD_SANDBOX_CREATION_PROVIDER_ID, COPILOT_PROVIDER_ID } from '../../../copilotChatSessions/common/copilotChatSessions.js';
+import { RemoteAgentHostSessionsProvider, type IRemoteAgentHostSessionsProviderConfig } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remoteAgentHostSessionsProvider.js';
+import { getRemoteAgentHostPickerKey, RemoteAgentHostPickerVisibility } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remoteAgentHostPickerVisibility.js';
+import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING } from '../../../../../../workbench/contrib/sessions/common/chatConstants.js';
+import { getSessionCreationEnvironments } from '../../../../../../workbench/contrib/sessions/browser/chat/sessionEnvironmentPicker.js';
+import { CloudSandboxSessionsProvider } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/cloudSandboxSessionsProvider.js';
+import { CLOUD_SANDBOX_CREATION_PROVIDER_ID, COPILOT_PROVIDER_ID } from '../../../../../../workbench/contrib/sessions/providers/copilotChatSessions/common/copilotChatSessions.js';
 import { ProviderAutomationService } from '../../../../automations/browser/providerAutomationService.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
-import { IGitHubService } from '../../../../github/browser/githubService.js';
-import { GitHubPullRequestModel } from '../../../../github/browser/models/githubPullRequestModel.js';
-import { IPullRequestIconCache, PullRequestIconCache } from '../../../../github/browser/pullRequestIconCache.js';
+import { IGitHubService } from '../../../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { GitHubPullRequestModel } from '../../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestModel.js';
+import { IPullRequestIconCache, PullRequestIconCache } from '../../../../../../workbench/contrib/sessions/browser/github/pullRequestIconCache.js';
 import { IAgentHostActiveClientService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IAgentHostMcpAppToolsService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostMcpAppToolsService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IRemoteAgentHostAuthenticationService, RemoteAgentHostAuthenticationService } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/remoteAgentHostAuthentication.js';
-import { AgentHostSessionAdapter, CopilotCLISessionType } from '../../../agentHost/browser/baseAgentHostSessionsProvider.js';
+import { AgentHostSessionAdapter, CopilotCLISessionType } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/baseAgentHostSessionsProvider.js';
 import { IObservable, autorun, constObservable, observableValue } from '../../../../../../base/common/observable.js';
-import { IActiveSession, WorkspaceNotTrustedError } from '../../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
-import { ISessionsRecentWorkspacesService } from '../../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
+import { IActiveSession, WorkspaceNotTrustedError } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISessionHostService } from '../../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { sessionHostServiceOf, stubFocusedSessionHostFromSessionsService } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ISessionsRecentWorkspacesService } from '../../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
 import { MockLabelService } from '../../../../../../workbench/services/label/test/common/mockLabelService.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { extUri } from '../../../../../../base/common/resources.js';
-import { INewSessionComposerService, NewSessionComposerService } from '../../../../chat/browser/newSessionComposerService.js';
+import { INewSessionComposerService, NewSessionComposerService } from '../../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 
 // ---- Mock connection --------------------------------------------------------
 
@@ -415,11 +418,12 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 	}());
 	instantiationService.stub(IPullRequestIconCache, instantiationService.createInstance(PullRequestIconCache));
 	instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-		override readonly activeSession = overrides?.activeSession ?? constObservable<IActiveSession | undefined>(undefined);
-		override readonly mainWindowActiveSession = this.activeSession;
-		override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
+		readonly activeSession = overrides?.activeSession ?? constObservable<IActiveSession | undefined>(undefined);
+		readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
 		override readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> = constObservable<readonly (IActiveSession | undefined)[]>([]);
 	}());
+	instantiationService.stub(ISessionHostService, sessionHostServiceOf(disposables, instantiationService.get(ISessionsService)));
+	stubFocusedSessionHostFromSessionsService(instantiationService);
 	instantiationService.stub(IAgentHostActiveClientService, new class extends mock<IAgentHostActiveClientService>() {
 		override acquireSessionTools = () => new ImmortalReference(constObservable([]));
 		override acquireScope = (_sessionType: string, _roots: readonly URI[]) => ({
@@ -3983,9 +3987,9 @@ suite('RemoteAgentHostSessionsProvider', () => {
 				}
 			}(),
 		}) as RefreshableRemoteAgentHostSessionsProvider;
-		await provider.refresh();
+		const refreshed = provider.refresh();
 		await pending.complete([]);
-		await timeout(0);
+		await refreshed;
 
 		assert.deepStrictEqual({ lists, reconciliations, sessions: provider.getSessions().length }, {
 			lists: 2, reconciliations: [[handle]], sessions: 1,
@@ -4144,8 +4148,11 @@ suite('RemoteAgentHostSessionsProvider', () => {
 	test('renamed title survives session refresh from listSessions', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		// Simulate server persisting the renamed title: after rename, listSessions
 		// returns the updated summary
+		class RefreshableRemoteAgentHostSessionsProvider extends RemoteAgentHostSessionsProvider {
+			refresh(): Promise<void> { return this._refreshSessions(); }
+		}
 		connection.addSession(createSession('persist-sess', { summary: 'Original Title' }));
-		const provider = createProvider(disposables, connection);
+		const provider = createProvider(disposables, connection, { ctor: RefreshableRemoteAgentHostSessionsProvider }) as RefreshableRemoteAgentHostSessionsProvider;
 		provider.getSessions();
 		await timeout(0);
 
@@ -4157,15 +4164,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		// Simulate server updating the summary (as would happen after persist + reload)
 		connection.addSession(createSession('persist-sess', { summary: 'Renamed Title', modifiedTime: 5000 }));
 
-		// Trigger refresh via turnComplete action (simulates what happens on reload)
-		connection.fireAction({
-			channel: buildDefaultChatUri(AgentSession.uri('copilotcli', 'persist-sess').toString()),
-			action: chatTurnComplete('turn-1', 1000),
-			serverSeq: 1,
-			origin: undefined,
-		} as ActionEnvelope);
-
-		await timeout(0);
+		await provider.refresh();
 
 		sessions = provider.getSessions();
 		target = sessions.find((s) => s.title.get() === 'Renamed Title');
@@ -4227,6 +4226,42 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		loading.push(session!.loading.get());
 
 		assert.deepStrictEqual(loading, [false, true, true, false, false, true]);
+	});
+
+	test('hydrates cached backend identities in one session-resolution batch without connecting', () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const entries = Array.from({ length: 150 }, (_, index) => ({
+			session: `ahp-session:/cached-${index}`,
+			provider: index % 2 ? 'codex' : 'copilotcli',
+			startTime: 1000, modifiedTime: 2000, summary: `Cached ${index}`,
+		}));
+		storageService.store('remoteAgentHost.cachedSessions.v5.localhost__4321', JSON.stringify(entries), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const resolutions = disposables.add(new AgentHostConnectionsService(
+			upcastPartial<IAgentHostService>({ onAgentHostStart: Event.None, onAgentHostExit: Event.None }),
+			new NullRemoteAgentHostService(),
+			upcastPartial<IPathService>({ registerPathProvider: () => Disposable.None }),
+			new NullLogService(),
+		));
+		let notifications = 0;
+		disposables.add(resolutions.onDidChangeSessionResolution(() => notifications++));
+		class CachedProvider extends RemoteAgentHostSessionsProvider {
+			protected override batchBackendRegistrations<T>(fn: () => T): T {
+				return resolutions.batchSessionResolutionChanges(fn);
+			}
+			protected override registerBackendSession(backend: URI, provider: string): void {
+				resolutions.registerSessionResource(backend, 'localhost__4321', provider);
+			}
+		}
+		const provider = createProvider(disposables, connection, { noConnection: true, storageService, ctor: CachedProvider });
+		assert.deepStrictEqual({
+			notifications,
+			sessions: provider.getSessions().length,
+			identities: entries.every(entry => {
+				const frontend = resolutions.findSessionResource(URI.parse(entry.session), 'localhost__4321');
+				const identity = frontend && resolutions.resolveSessionResourceIdentity(frontend);
+				return frontend?.scheme === `remote-localhost__4321-${entry.provider}` && identity?.backendSession.toString() === entry.session;
+			}),
+		}, { notifications: 1, sessions: 150, identities: true });
 	});
 
 	test('stable remote summaries cannot register a conflicting backend identity on re-upgrade', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -4630,35 +4665,6 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.strictEqual(session.title.get(), 'Session abcdef12');
 	}));
 
-	// ---- Refresh on turnComplete -------
-
-	test('turnComplete action triggers session refresh for matching provider', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		connection.addSession(createSession('turn-sess', { summary: 'Before', modifiedTime: 1000 }));
-
-		const provider = createProvider(disposables, connection);
-		provider.getSessions();
-		await timeout(0);
-
-		// Update on connection side
-		connection.addSession(createSession('turn-sess', { summary: 'After', modifiedTime: 5000 }));
-
-		const changes: ISessionChangeEvent[] = [];
-		disposables.add(provider.onDidChangeSessions((e: ISessionChangeEvent) => changes.push(e)));
-
-		connection.fireAction({
-			channel: buildDefaultChatUri(AgentSession.uri('copilotcli', 'turn-sess').toString()),
-			action: chatTurnComplete('turn-1', 1000),
-			serverSeq: 1,
-			origin: undefined,
-		} as ActionEnvelope);
-
-		await timeout(0);
-
-		assert.ok(changes.length > 0);
-		const updatedSession = provider.getSessions().find((s) => s.title.get() === 'After');
-		assert.ok(updatedSession, 'Session should have updated title');
-	}));
-
 	// ---- Running session config seeding (from SessionState.config) -------
 
 	test('remote Copilot host choices are not clamped again by client legacy policy', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -4998,6 +5004,28 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		}, {
 			session: 'osortega/simple-server',
 			browsed: 'project',
+		});
+	}));
+
+	test('non-web: workspaceHostLabel names the [host] suffix and refreshes existing workspaces when it changes', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		connection.addSession(createSession('container-1', {
+			summary: 'Container Session',
+			project: { uri: URI.parse('vscode-agent-host://localhost__4321/workspaces/vscode'), displayName: 'vscode' },
+		}));
+		const workspaceHostLabel = observableValue('workspaceHostLabel', 'Dev Container');
+		const provider = createProvider(disposables, connection, { isWebPlatform: false }, { workspaceHostLabel });
+		provider.getSessions();
+		await timeout(0);
+		const labels = () => ({
+			session: provider.getSessions()[0].workspace.get()?.label,
+			browsed: provider.resolveWorkspace(URI.parse('vscode-agent-host://localhost__4321/workspaces/project'))?.label,
+		});
+		const initial = labels();
+		workspaceHostLabel.set('Dev Container on devbox', undefined);
+
+		assert.deepStrictEqual({ initial, changed: labels() }, {
+			initial: { session: 'vscode [Dev Container]', browsed: 'project [Dev Container]' },
+			changed: { session: 'vscode [Dev Container on devbox]', browsed: 'project [Dev Container on devbox]' },
 		});
 	}));
 
@@ -7248,8 +7276,12 @@ suite('CloudSandboxSessionsProvider provisional sessions', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	/** The sandbox provider, built on the same mocks as the remote provider it extends. */
-	function createSandboxProvider(store: DisposableStore, conn: MockAgentConnection, overrides?: { noConnection?: boolean; isWebPlatform?: boolean; omitHostFromWorkspaceLabel?: boolean }): CloudSandboxSessionsProvider {
-		return createProvider(store, conn, { ...overrides, ctor: CloudSandboxSessionsProvider }) as CloudSandboxSessionsProvider;
+	class RefreshableSandboxProvider extends CloudSandboxSessionsProvider {
+		refresh(): Promise<void> { return this._refreshSessions(); }
+	}
+
+	function createSandboxProvider(store: DisposableStore, conn: MockAgentConnection, overrides?: { noConnection?: boolean; isWebPlatform?: boolean; omitHostFromWorkspaceLabel?: boolean }): RefreshableSandboxProvider {
+		return createProvider(store, conn, { ...overrides, ctor: RefreshableSandboxProvider }) as RefreshableSandboxProvider;
 	}
 
 	test('a repo-less provisional session stays a quick chat through host hydration, rediscovery and cache restoration', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -7473,17 +7505,6 @@ suite('CloudSandboxSessionsProvider provisional sessions', () => {
 		});
 	}));
 
-	/** Force a session refresh the way the host does: a turn-complete action on a known session. */
-	async function refreshViaTurnComplete(connection: MockAgentConnection, rawId: string): Promise<void> {
-		connection.fireAction({
-			channel: buildDefaultChatUri(AgentSession.uri('copilotcli', rawId).toString()),
-			action: chatTurnComplete('turn-refresh', 1),
-			serverSeq: 1,
-			origin: undefined,
-		} as ActionEnvelope);
-		await timeout(0);
-	}
-
 	for (const source of ['session-added notification', 'host listing'] as const) {
 		test(`a provisional rename reaches the host after delayed creation via ${source}`, async () => {
 			const rawId = 'delayed-title';
@@ -7503,10 +7524,10 @@ suite('CloudSandboxSessionsProvider provisional sessions', () => {
 				}
 			}();
 			const provider = createProvider(disposables, connection, {
-				ctor: CloudSandboxSessionsProvider,
+				ctor: RefreshableSandboxProvider,
 				sessionSchemeAlias: { ui: 'copilot', backend: 'ahp-session' },
 				noConnection: true,
-			}) as CloudSandboxSessionsProvider;
+			}) as RefreshableSandboxProvider;
 			const metadata = createSession(rawId, { provider: 'copilot', summary: 'owner/repository' });
 			provider.seedProvisionalSession(metadata);
 			const taskRenames: string[] = [];
@@ -7528,9 +7549,9 @@ suite('CloudSandboxSessionsProvider provisional sessions', () => {
 			if (source === 'session-added notification') {
 				fireSessionAdded(connection, rawId, { provider: 'ahp-session', title: hostTitle });
 			} else {
-				await refreshViaTurnComplete(connection, rawId);
+				await provider.refresh();
 			}
-			await refreshViaTurnComplete(connection, rawId);
+			await provider.refresh();
 
 			assert.deepStrictEqual({
 				beforeHostCreation,
@@ -7616,7 +7637,7 @@ suite('CloudSandboxSessionsProvider provisional sessions', () => {
 
 		// Once the host knows it, it reconciles like any other session.
 		connection.addSession({ ...createSession('provisional-1', { summary: 'Just provisioned' }), session: AgentSession.uri('ahp-session', 'provisional-1'), provider: 'copilotcli' });
-		await refreshViaTurnComplete(connection, 'other-1');
+		await provider.refresh();
 		const afterHostKnows = provider.getSessions().map((s: ISession) => AgentSession.id(s.resource)).sort();
 
 		assert.deepStrictEqual({ survivedUnknown, afterHostKnows }, {
@@ -7639,13 +7660,13 @@ suite('CloudSandboxSessionsProvider provisional sessions', () => {
 		await timeout(0);
 
 		// The first listing that omits it starts the clock; it is still protected here.
-		await refreshViaTurnComplete(connection, 'other-1');
+		await provider.refresh();
 		const afterFirstOmission = provider.getSessions().map((s: ISession) => AgentSession.id(s.resource)).sort();
 
 		// The protection is bounded so a session the host will never list cannot become a
-		// permanent row that only a reload clears.
+		// permanent row that only a reload clears, even when nothing else lists the host.
 		await timeout(CloudSandboxSessionsProvider.PROVISIONAL_GRACE_MS + 1);
-		await refreshViaTurnComplete(connection, 'other-1');
+		await timeout(0);
 
 		assert.deepStrictEqual({
 			afterFirstOmission,

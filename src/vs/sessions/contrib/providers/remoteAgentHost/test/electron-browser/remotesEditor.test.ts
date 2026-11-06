@@ -7,21 +7,26 @@ import assert from 'assert';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { Event } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AccessibleViewType } from '../../../../../../platform/accessibility/browser/accessibleView.js';
 import { AccessibleViewRegistry } from '../../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService, IMissionControlSharingService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ISSHRemoteAgentHostService } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
-import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
 import { ContextKeyValue } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IEditorOptions } from '../../../../../../platform/editor/common/editor.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { ISharedProcessService } from '../../../../../../platform/ipc/electron-browser/services.js';
+import { INACTIVE_TUNNEL_MODE, IRemoteTunnelService, TunnelMode, TunnelStatus } from '../../../../../../platform/remoteTunnel/common/remoteTunnel.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { TestExperimentTriggerTelemetryService } from '../../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { EditorInputCapabilities, IVisibleEditorPane } from '../../../../../../workbench/common/editor.js';
 import { AICustomizationManagementEditorInput } from '../../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { ModelsManagementEditorInput } from '../../../../../../workbench/contrib/chat/browser/chatManagement/chatManagementEditorInput.js';
@@ -30,13 +35,13 @@ import { IChatEntitlementService } from '../../../../../../workbench/services/ch
 import { IEditorService } from '../../../../../../workbench/services/editor/common/editorService.js';
 import { IPreferencesService } from '../../../../../../workbench/services/preferences/common/preferences.js';
 import { TestEditorGroupView, workbenchInstantiationService } from '../../../../../../workbench/test/browser/workbenchTestServices.js';
-import { OPEN_REMOTES_EDITOR_COMMAND_ID } from '../../../../../common/sessionCommands.js';
-import { IsPhoneLayoutContext } from '../../../../../common/contextkeys.js';
-import { Menus } from '../../../../../browser/menus.js';
-import { RemotesEditorInput } from '../../browser/remotesEditorInput.js';
-import { ICustomizationRemote, IRemotesModel, RemoteKind, RemotesModel } from '../../browser/remotesModel.js';
-import { RemotesEditor } from '../../electron-browser/remotesEditor.js';
-import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../../../chat/common/constants.js';
+import { OPEN_REMOTES_EDITOR_COMMAND_ID, TOGGLE_REMOTE_CONNECTIONS_COMMAND_ID } from '../../../../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { IsPhoneLayoutContext } from '../../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { Menus } from '../../../../../../workbench/contrib/sessions/browser/menus.js';
+import { RemotesEditorInput } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remotesEditorInput.js';
+import { ICustomizationRemote, IRemotesModel, RemoteKind, RemotesModel } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remotesModel.js';
+import { RemotesEditor } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/electron-browser/remotesEditor.js';
+import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING } from '../../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import '../../electron-browser/remotes.contribution.js';
 
 class TestRemotesModel extends Disposable implements IRemotesModel {
@@ -71,16 +76,39 @@ class TestRemotesModel extends Disposable implements IRemotesModel {
 	}
 }
 
+class TestRemoteTunnelService extends mock<IRemoteTunnelService>() {
+	private readonly onDidChangeStatusEmitter = new Emitter<TunnelStatus>();
+	override readonly onDidChangeTunnelStatus = this.onDidChangeStatusEmitter.event;
+	override readonly onDidChangeMode = Event.None;
+	override async getMode(): Promise<TunnelMode> { return INACTIVE_TUNNEL_MODE; }
+	override async getTunnelStatus(): Promise<TunnelStatus> { return { type: 'disconnected' }; }
+	override async getTunnelName(): Promise<string | undefined> { return 'my-workstation'; }
+	override async stopTunnel(): Promise<void> { }
+	fireStatus(status: TunnelStatus): void { this.onDidChangeStatusEmitter.fire(status); }
+	dispose(): void { this.onDidChangeStatusEmitter.dispose(); }
+}
+
 suite('RemotesEditor', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createEditor() {
-		const configuration = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true, [ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING]: true, [ENVIRONMENT_PICKER_SETTING]: true });
+	function createEditor(initialSettings: Record<string, unknown> = {}) {
+		const configuration = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true, [ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING]: true, [ENVIRONMENT_PICKER_SETTING]: true, ...initialSettings });
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const instantiation = workbenchInstantiationService({ configurationService: () => configuration }, store);
+		const telemetry = new TestExperimentTriggerTelemetryService();
+		instantiation.stub(ITelemetryService, telemetry);
 		instantiation.stub(ISSHRemoteAgentHostService, {});
 		instantiation.stub(IPreferencesService, {});
-		instantiation.stub(ISharedProcessService, { getChannel: () => ({ call: async (): Promise<never> => { throw new Error('Unexpected IPC call'); }, listen: () => Event.None }) });
+		const tunnel = store.add(new TestRemoteTunnelService());
+		instantiation.stub(IRemoteTunnelService, tunnel);
+		instantiation.stub(IMissionControlSharingService, new class extends mock<IMissionControlSharingService>() {
+			override readonly state = observableValue<'disabled' | 'connecting' | 'enabled'>(this, 'disabled');
+			override readonly environmentName = observableValue<string | undefined>(this, undefined);
+		}());
+		instantiation.stub(IMissionControlAvailabilityService, { available: observableValue('available', true) });
+		instantiation.stub(IAgentHostService, new class extends mock<IAgentHostService>() {
+			override async getMissionControlEnvironmentName() { return 'My Workstation (Code - OSS)'; }
+		}());
 		const model = store.add(new TestRemotesModel());
 		instantiation.stubInstance(RemotesModel, model);
 		const editor = store.add(instantiation.createInstance(RemotesEditor, new TestEditorGroupView(1)));
@@ -89,7 +117,7 @@ suite('RemotesEditor', () => {
 		editor.create(container);
 		editor.layout(new dom.Dimension(900, 600));
 		const input = store.add(new RemotesEditorInput());
-		return { editor, model, container, input, configuration, instantiation };
+		return { editor, model, container, input, configuration, instantiation, tunnel, telemetry };
 	}
 
 	test('uses an independent singleton input that requires a modal', () => {
@@ -171,6 +199,180 @@ suite('RemotesEditor', () => {
 		});
 	});
 
+	test('This Computer shows how this computer is shared and turns on the chosen connection method', async () => {
+		const { editor, container, input, instantiation, tunnel, configuration } = createEditor();
+		await configuration.setUserConfiguration(GitHubEnvironmentsEnabledSettingId, true);
+		await configuration.setUserConfiguration(REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING, true);
+		const commands: string[] = [];
+		instantiation.stub(ICommandService, {
+			executeCommand: async (id: string) => {
+				commands.push(id);
+				tunnel.fireStatus({ type: 'connected', info: { tunnelName: 'my-workstation', isAttached: false }, serviceInstallFailed: false });
+				return undefined;
+			},
+		});
+		await editor.setInput(input, undefined, {}, CancellationToken.None);
+		await timeout(0);
+		const section = container.querySelector<HTMLElement>('.remotes-this-computer')!;
+		const options = () => [...section.querySelectorAll<HTMLElement>('.monaco-custom-radio > .monaco-button')];
+		const read = () => ({
+			name: section.querySelector('.remotes-this-computer-name')?.textContent,
+			options: options().map(button => button.getAttribute('aria-checked') === 'true' ? `${button.textContent} (selected)` : button.textContent),
+			status: section.querySelector('.remotes-this-computer-status')?.textContent,
+		});
+		const before = read();
+		options()[2].click();
+		await timeout(0);
+		assert.deepStrictEqual({ before, after: read(), commands, accessible: editor.getAccessibilityContent().split('\n\n')[0], optionNames: options().map(button => button.getAttribute('aria-label')) }, {
+			before: { name: 'my-workstation', options: ['Off (selected)', 'GitHub Environments (Preview)', 'Dev Tunnels'], status: 'Remote connections are off.' },
+			after: { name: 'my-workstation', options: ['Off', 'GitHub Environments (Preview)', 'Dev Tunnels (selected)'], status: 'Remote connections are on via Dev Tunnels.' },
+			commands: [TOGGLE_REMOTE_CONNECTIONS_COMMAND_ID],
+			accessible: 'This Computer\nSharing name: my-workstation\nRemote connections are on via Dev Tunnels.\nLocal sessions run directly here. Sharing lets other clients access agents and folders on this computer.\nLearn More: https://aka.ms/vscode-agent-environments',
+			optionNames: [
+				'Off: Only accessible from this machine.',
+				'GitHub Environments (Preview): Access agents on this machine from VS Code, vscode.dev/agents, GitHub apps, or github.com/copilot.',
+				'Dev Tunnels: Access workspaces and agents on this machine from VS Code or vscode.dev/agents.',
+			],
+		});
+	});
+
+	test('This Computer applies a method chosen while another is still being applied', async () => {
+		const { editor, container, input, instantiation, tunnel, configuration } = createEditor();
+		await configuration.setUserConfiguration(REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING, true);
+		const connected: TunnelStatus = { type: 'connected', info: { tunnelName: 'my-workstation', isAttached: false }, serviceInstallFailed: false };
+		let sharing = false;
+		let release = new DeferredPromise<void>();
+		const commands: string[] = [];
+		instantiation.stub(ICommandService, {
+			executeCommand: async (id: string) => {
+				commands.push(id);
+				await release.p;
+				sharing = !sharing;
+				tunnel.fireStatus(sharing ? connected : { type: 'disconnected' });
+				return undefined;
+			},
+		});
+		await editor.setInput(input, undefined, {}, CancellationToken.None);
+		await timeout(0);
+		const section = container.querySelector<HTMLElement>('.remotes-this-computer')!;
+		const options = () => [...section.querySelectorAll<HTMLElement>('.monaco-custom-radio > .monaco-button')];
+		const option = (label: string) => options().find(button => button.textContent === label)!;
+		const selected = () => options().find(button => button.getAttribute('aria-checked') === 'true')?.textContent;
+		const status = () => section.querySelector('.remotes-this-computer-status')?.textContent;
+		option('Dev Tunnels').click();
+		await timeout(0);
+		await release.complete();
+		release = new DeferredPromise<void>();
+		await timeout(0);
+		const on = { selected: selected(), status: status() };
+		option('Off').click();
+		await timeout(0);
+		// Choose Dev Tunnels again before turning it off has finished.
+		option('Dev Tunnels').click();
+		await timeout(0);
+		const pending = { selected: selected(), commands: commands.length };
+		await release.complete();
+		release = new DeferredPromise<void>();
+		await timeout(0);
+		await release.complete();
+		await timeout(0);
+		assert.deepStrictEqual({ on, pending, final: { selected: selected(), status: status(), commands: commands.length } }, {
+			on: { selected: 'Dev Tunnels', status: 'Remote connections are on via Dev Tunnels.' },
+			pending: { selected: 'Dev Tunnels', commands: 2 },
+			final: { selected: 'Dev Tunnels', status: 'Remote connections are on via Dev Tunnels.', commands: 3 },
+		});
+	});
+
+	test('This Computer explains a policy-disabled GitHub Environments option and offers the managed setting', async () => {
+		const { editor, container, input, instantiation, configuration } = createEditor();
+		await configuration.setUserConfiguration(REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING, true);
+		await configuration.setUserConfiguration(GitHubEnvironmentsEnabledSettingId, false);
+		const inspect = configuration.inspect.bind(configuration);
+		configuration.inspect = <T>(key: string) => key === GitHubEnvironmentsEnabledSettingId ? { ...inspect<T>(key), policyValue: false as T } : inspect<T>(key);
+		const opened: unknown[] = [];
+		instantiation.stub(IPreferencesService, { openSettings: async (options: unknown) => { opened.push(options); return undefined; } });
+		await editor.setInput(input, undefined, {}, CancellationToken.None);
+		await timeout(0);
+		const section = container.querySelector<HTMLElement>('.remotes-this-computer')!;
+		const policy = section.querySelector<HTMLElement>('.remotes-this-computer-policy')!;
+		const radio = section.querySelector<HTMLElement>('.monaco-custom-radio')!;
+		const github = [...radio.querySelectorAll<HTMLElement>('.monaco-button')].find(button => button.textContent === 'GitHub Environments (Preview)')!;
+		const link = policy.querySelector<HTMLElement>('.monaco-link')!;
+		link.focus();
+		link.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+		assert.deepStrictEqual({
+			visible: !policy.hidden,
+			text: policy.textContent,
+			describes: radio.getAttribute('aria-describedby') === policy.id,
+			githubDisabled: github.getAttribute('aria-disabled'),
+			linkFocusable: link.tabIndex,
+			opened,
+			accessible: editor.getAccessibilityContent().includes('GitHub Environments is disabled by your organization. Contact your administrator.'),
+		}, {
+			visible: true,
+			text: 'GitHub Environments is disabled by your organization. Contact your administrator. View Setting',
+			describes: true,
+			githubDisabled: 'true',
+			linkFocusable: 0,
+			opened: [{ query: `@id:${GitHubEnvironmentsEnabledSettingId}` }],
+			accessible: true,
+		});
+	});
+
+	test('logs the This Computer experiment trigger in every arm once the editor shows its content', async () => {
+		const treatment = `config.${REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING}`;
+		const open = async (settings: Record<string, unknown>) => {
+			const { editor, input, instantiation, telemetry } = createEditor(settings);
+			await editor.setInput(input, undefined, {}, CancellationToken.None);
+			const editorTriggers = [...telemetry.triggers];
+			const isVisibleEditor = (pane: RemotesEditor): pane is RemotesEditor & IVisibleEditorPane => pane.input !== undefined;
+			assert.ok(isVisibleEditor(editor));
+			instantiation.stub(IEditorService, { activeEditorPane: editor });
+			const help = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'remotes' && implementation.type === AccessibleViewType.Help)!;
+			store.add(help.getProvider(instantiation)!).provideContent();
+			return { editor: editorTriggers, withHelp: telemetry.triggers };
+		};
+		assert.deepStrictEqual({
+			control: await open({ [REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING]: false }),
+			treatment: await open({ [REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING]: true }),
+			editorDisabled: (await open({ [REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING]: true, [RemoteAgentHostsEnabledSettingId]: false })).editor,
+		}, {
+			control: { editor: [treatment], withHelp: [treatment] },
+			treatment: { editor: [treatment], withHelp: [treatment] },
+			editorDisabled: [],
+		});
+	});
+
+	test('shows This Computer only while its experimental setting is enabled', async () => {
+		const { editor, container, input, configuration } = createEditor();
+		await editor.setInput(input, undefined, {}, CancellationToken.None);
+		const read = () => ({
+			hidden: container.querySelector<HTMLElement>('.remotes-editor-this-computer')?.hidden,
+			sections: container.querySelectorAll('.remotes-this-computer').length,
+			heading: container.querySelector<HTMLElement>('.remotes-heading:not([hidden])')?.textContent,
+			region: container.querySelector('.remotes-widget[role="region"]')?.getAttribute('aria-labelledby') === container.querySelector('.remotes-heading-title')?.id,
+			accessible: editor.getAccessibilityContent().startsWith('This Computer'),
+			accessibleHeading: editor.getAccessibilityContent().includes('\n\nOther Environments\n'),
+		});
+		const setEnabled = async (enabled: boolean) => {
+			await configuration.setUserConfiguration(REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING, enabled);
+			configuration.onDidChangeConfigurationEmitter.fire({
+				source: ConfigurationTarget.USER, affectedKeys: new Set([REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING]),
+				change: { keys: [REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING], overrides: [] },
+				affectsConfiguration: key => key === REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING,
+			});
+		};
+		const initial = read();
+		await setEnabled(true);
+		const enabled = read();
+		await setEnabled(false);
+		assert.deepStrictEqual({ initial, enabled, disabled: read() }, {
+			initial: { hidden: true, sections: 0, heading: undefined, region: false, accessible: false, accessibleHeading: false },
+			enabled: { hidden: false, sections: 1, heading: 'Other Environments', region: true, accessible: true, accessibleHeading: true },
+			disabled: { hidden: true, sections: 0, heading: undefined, region: false, accessible: false, accessibleHeading: false },
+		});
+	});
+
 	test('loads only while visible and cancels discovery when hidden or cleared', async () => {
 		const { editor, model, container, input } = createEditor();
 		model.pendingRefresh = new DeferredPromise<readonly RemoteKind[]>();
@@ -189,7 +391,7 @@ suite('RemotesEditor', () => {
 			hiddenRefreshes, focused, canceledWhenHidden,
 			canceledWhenCleared: model.refreshTokens[1].isCancellationRequested,
 			disposed: model.disposed,
-			widgets: container.querySelectorAll('.remotes-widget').length,
+			widgets: container.querySelectorAll('.remotes-widget, .remotes-this-computer').length,
 			customizationEditors: container.querySelectorAll('.ai-customization-management-editor').length,
 		}, {
 			hiddenRefreshes: 0, focused: 'Search remotes', canceledWhenHidden: true,

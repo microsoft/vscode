@@ -24,13 +24,14 @@ import { TestNotificationService } from '../../../../../platform/notification/te
 import { InMemoryStorageService, IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { getCanvasInputResource, ICanvas, ICanvasReference } from '../../../../../workbench/contrib/canvases/common/canvas.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { AbstractCustomView } from '../../../../services/customView/browser/customView.js';
-import { CustomViewService, ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IChat, ISession } from '../../../../services/sessions/common/session.js';
-import { IActiveSession, IChatDeletedEvent, ISessionCanvasClosedEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { CanvasesPinnedToSidebarContext, IPinnedCanvas, MAX_PINNED_CANVASES, PINNED_CANVAS_PAGE_ID, PinnedCanvasState } from '../../browser/pinnedCanvases.js';
+import { AbstractCustomView, ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
+import { CustomViewService } from '../../../../services/customView/browser/customViewService.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IChat, ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IActiveSession, IChatDeletedEvent, ISessionCanvasClosedEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { CanvasesPinnedToSidebarContext, IPinnedCanvas, MAX_PINNED_CANVASES, PINNED_CANVAS_PAGE_ID, PinnedCanvasState } from '../../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
 import { PinnedCanvasService } from '../../browser/pinnedCanvasService.js';
+import { ITestSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 const STORAGE_KEY = 'sessions.pinnedCanvases';
 
@@ -120,7 +121,7 @@ suite('PinnedCanvasService', () => {
 				canvasClosed.fire({ session, chatResource: chat.resource, canvasResource: canvas.resource });
 			},
 		}));
-		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({
+		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
 			activeSession: constObservable(options.activeSession),
 			openChat: async (_session, chatResource) => { openedChats.push(chatResource.toString()); },
 		}));

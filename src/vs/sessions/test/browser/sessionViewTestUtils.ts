@@ -19,23 +19,27 @@ import { TestInstantiationService } from '../../../platform/instantiation/test/c
 import { DEFAULT_EDITOR_PART_OPTIONS } from '../../../workbench/browser/parts/editor/editor.js';
 import { IEditorGroupsService } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
-import { AbstractChatView, ChatViewKind, IChatViewOptions } from '../../browser/parts/chatView.js';
-import { SessionsPart } from '../../browser/parts/sessionsPart.js';
+import { AbstractChatView, ChatViewKind, IChatViewOptions } from '../../../workbench/contrib/sessions/browser/parts/chatView.js';
+import { SessionsPart } from '../../../workbench/contrib/sessions/browser/parts/sessionsPart.js';
 import { IAgentWorkbenchLayoutService } from '../../browser/workbench.js';
-import { SessionBranchPickerVisibleContext, SessionEnvironmentPickerVisibleContext, SessionHarnessPickerVisibleContext, SessionIsolationPickerVisibleContext, SessionSyncActionVisibleContext, SessionWorkspacePickerVisibleContext, SessionWorktreePickerVisibleContext } from '../../common/contextkeys.js';
-import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../common/sessionConfig.js';
-import { ISessionsChatBackground, ISessionsChatBackgroundService } from '../../services/chatBackground/browser/chatBackgroundService.js';
-import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
-import { ISessionsListModelService } from '../../services/sessions/browser/sessionsListModelService.js';
-import { ISessionsPartService } from '../../services/sessions/browser/sessionsPartService.js';
-import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
-import { ChatInteractivity, IChat, ISessionCapabilities, ISessionPreparationProgress, SessionStatus } from '../../services/sessions/common/session.js';
-import { ISessionChangesStatsCache } from '../../services/sessions/common/sessionChangesStatsCache.js';
-import { SessionInputPickerVisibility } from '../../services/sessions/common/sessionPickerVisibility.js';
-import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
+import { ISessionsHostLayoutService } from '../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
+import { SessionBranchPickerVisibleContext, SessionEnvironmentPickerVisibleContext, SessionHarnessPickerVisibleContext, SessionIsolationPickerVisibleContext, SessionSyncActionVisibleContext, SessionWorkspacePickerVisibleContext, SessionWorktreePickerVisibleContext } from '../../../workbench/contrib/sessions/common/contextkeys.js';
+import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { ISessionsChatBackground, ISessionsChatBackgroundService } from '../../../workbench/contrib/sessions/browser/chatBackgroundService.js';
+import { IChatViewFactory } from '../../../workbench/contrib/sessions/browser/chatViewFactory.js';
+import { ISessionsListModelService } from '../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
+import { ISessionsPartService } from '../../../workbench/contrib/sessions/browser/sessionsPartService.js';
+import { ISessionsProvidersService } from '../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionsService } from '../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ChatInteractivity, IChat, ISessionCapabilities, ISessionPreparationProgress, SessionStatus } from '../../../workbench/contrib/sessions/common/session.js';
+import { stubSessionHosts } from '../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ChatHostOpenerService, IChatHostOpenerService } from '../../../workbench/contrib/sessions/browser/chatHostOpener.js';
+import { ISessionChangesStatsCache } from '../../../workbench/contrib/sessions/common/sessionChangesStatsCache.js';
+import { SessionInputPickerVisibility } from '../../../workbench/contrib/sessions/common/sessionPickerVisibility.js';
+import { IActiveSession, ISessionsManagementService } from '../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { MobileSessionsPart } from '../../browser/parts/mobile/mobileSessionsPart.js';
+import { stubSessionsHostLayout } from './sessionsHostLayoutTestUtils.js';
 
 export class TestChatView extends AbstractChatView {
 	readonly inputPickerVisibility = this._register(new SessionInputPickerVisibility());
@@ -54,6 +58,23 @@ export class TestChatView extends AbstractChatView {
 	) {
 		super();
 		this.element.appendChild(this.input);
+	}
+
+	private readonly _inputOnly = observableValue(this, false);
+	override readonly inputOnly: IObservable<boolean> = this._inputOnly;
+	private _inputOnlyEnabled = false;
+	override enableInputOnly(options: { readonly inputOnly?: boolean }): void {
+		this._inputOnlyEnabled = true;
+		this._inputOnly.set(options.inputOnly ?? true, undefined);
+	}
+	override setInputOnly(inputOnly: boolean): void {
+		if (this._inputOnlyEnabled) {
+			this._inputOnly.set(inputOnly, undefined);
+		}
+	}
+	override disableInputOnly(): void {
+		this._inputOnlyEnabled = false;
+		this._inputOnly.set(false, undefined);
 	}
 
 	override setChat(chat: IChat): void { this.chat = chat; }
@@ -97,8 +118,7 @@ export function createSessionViewTestServices(store: Pick<DisposableStore, 'add'
 		}
 	}());
 	instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-		override readonly activeSession = observableValue<IActiveSession | undefined>(this, undefined);
-		override readonly mainWindowActiveSession = this.activeSession;
+		readonly activeSession = observableValue<IActiveSession | undefined>(this, undefined);
 		override async openChat(): Promise<void> { }
 	}());
 	instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
@@ -119,21 +139,27 @@ export function createSessionViewTestServices(store: Pick<DisposableStore, 'add'
 		override get() { return undefined; }
 		override set(): void { }
 	}());
-	return { instantiationService, configurationService, contextKeyService, chatViews };
+	const { sessionHostService } = stubSessionHosts(instantiationService, store);
+	// No surface outside of the grid shows a chat, such as a chat window
+	instantiationService.stub(IChatHostOpenerService, new ChatHostOpenerService());
+	stubSessionsHostLayout(instantiationService);
+	return { instantiationService, configurationService, contextKeyService, chatViews, sessionHostService };
 }
 
 export function createSessionsPartTestHarness(store: Pick<DisposableStore, 'add'>, mobile = false, options?: { container?: HTMLElement; instantiationService?: TestInstantiationService; layoutService?: IAgentWorkbenchLayoutService; compactLayout?: () => boolean; chatBackground?: ISessionsChatBackground }) {
 	const services = createSessionViewTestServices(store, options?.instantiationService);
 	const container = options?.container ?? document.createElement('div');
 	container.classList.toggle('phone-layout', mobile);
-	services.instantiationService.stub(IAgentWorkbenchLayoutService, options?.layoutService ?? new class extends mock<IAgentWorkbenchLayoutService>() {
+	const agentLayoutService = options?.layoutService ?? new class extends mock<IAgentWorkbenchLayoutService>() {
 		override registerPart() { return Disposable.None; }
 		override readonly mainContainer = container;
 		override readonly mainContainerDimension = { width: 1200, height: 800 };
 		override isVisible(part: Parts) { return part === Parts.SESSIONS_PART || part === Parts.SIDEBAR_PART; }
 		override isEditorPaneVisible() { return false; }
 		override isModernUICompact() { return options?.compactLayout?.() ?? false; }
-	}());
+	}();
+	services.instantiationService.stub(IAgentWorkbenchLayoutService, agentLayoutService);
+	services.instantiationService.stub(ISessionsHostLayoutService, agentLayoutService);
 	services.instantiationService.stub(ISessionsChatBackgroundService, new class extends mock<ISessionsChatBackgroundService>() {
 		override readonly onDidChangeBackground = Event.None;
 		override getBackground() { return options?.chatBackground; }

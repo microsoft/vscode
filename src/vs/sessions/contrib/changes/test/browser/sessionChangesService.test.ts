@@ -6,9 +6,11 @@
 import assert from 'assert';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService, ISessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { focusedSessionHostServiceOf, ITestSessionsService, sessionHostServiceOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -24,17 +26,25 @@ import { IDecorationsProvider, IDecorationsService } from '../../../../../workbe
 import { IEditorGroup } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
-import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { ISessionChangeset, ISessionFileChange, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
-import { SessionChangesEditorInput } from '../../browser/sessionChangesEditorInput.js';
-import { ISessionChangesService, SessionChangesService } from '../../browser/sessionChangesService.js';
-import { IChangesViewService } from '../../common/changesViewService.js';
+import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
+import { AgentWorkbenchLayout } from '../../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
+import { IChat, ISessionChangeset, ISessionFileChange, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { SessionChangesEditorInput } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesEditorInput.js';
+import { ISessionChangesService, SessionChangesService } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesService.js';
+import { IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
+
+/** The host lookups and the focused host for the state of `sessionsService`, as {@link SessionChangesService} takes them. */
+function hostsOf(store: Pick<DisposableStore, 'add'>, sessionsService: Partial<ITestSessionsService>): [ISessionHostService, IFocusedSessionHostService, ISessionsService] {
+	// A grid without panes of its own: no pane is its active or a detached one.
+	const gridPanes = upcastPartial<ISessionsService>({ isActivePane: () => false, isDetachedPane: () => false });
+	return [sessionHostServiceOf(store, sessionsService), focusedSessionHostServiceOf(sessionsService.activeSession ?? constObservable(undefined)), gridPanes];
+}
 
 function noSessions(active?: IActiveSession): ISessionsService {
 	return new class extends mock<ISessionsService>() {
-		override readonly activeSession = constObservable<IActiveSession | undefined>(active);
-		override readonly mainWindowActiveSession = constObservable<IActiveSession | undefined>(active);
-		override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
+		readonly activeSession = constObservable<IActiveSession | undefined>(active);
+		readonly mainWindowActiveSession = constObservable<IActiveSession | undefined>(active);
+		readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
 		override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([]);
 	}();
 }
@@ -114,7 +124,7 @@ suite('SessionChangesService', () => {
 				instantiationService,
 				layoutService,
 				changesViewService,
-				noSessions(),
+				...hostsOf(disposables, noSessions()),
 				emptyDecorationsService,
 				new NullLogService(),
 			));
@@ -128,11 +138,11 @@ suite('SessionChangesService', () => {
 
 	test('selects the changeset of the visible non-active session the editor opens for', async () => {
 		const selections: { readonly changesetId: string | undefined; readonly session: IActiveSession | undefined }[] = [];
-		const otherSession = upcastPartial<IActiveSession>({ sessionId: 'other', resource: URI.parse('agent-host:other-session') });
+		const otherSession = upcastPartial<IActiveSession>({ sessionId: 'other', resource: URI.parse('agent-host:other-session'), activeChat: constObservable(upcastPartial<IChat>({})) });
 		const sessionsService = new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable<IActiveSession | undefined>(upcastPartial<IActiveSession>({ sessionId: 'active', resource: URI.parse('agent-host:active-session') }));
-			override readonly mainWindowActiveSession = constObservable<IActiveSession | undefined>(undefined);
-			override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
+			readonly activeSession = constObservable<IActiveSession | undefined>(upcastPartial<IActiveSession>({ sessionId: 'active', resource: URI.parse('agent-host:active-session'), activeChat: constObservable(upcastPartial<IChat>({})) }));
+			readonly mainWindowActiveSession = constObservable<IActiveSession | undefined>(undefined);
+			readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
 			override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([otherSession]);
 		}();
 		const changesViewService = new class extends mock<IChangesViewService>() {
@@ -147,7 +157,7 @@ suite('SessionChangesService', () => {
 			disposables.add(new TestInstantiationService()),
 			new class extends mock<IAgentWorkbenchLayoutService>() { override readonly agentWorkbenchLayout = AgentWorkbenchLayout.Mobile; }(),
 			changesViewService,
-			sessionsService,
+			...hostsOf(disposables, sessionsService),
 			emptyDecorationsService,
 			new NullLogService(),
 		));
@@ -163,12 +173,12 @@ suite('SessionChangesService', () => {
 		const sessionResource = URI.parse('agent-host:test-session');
 		const firstChat = URI.parse('agent-host:test-session/first');
 		const secondChat = URI.parse('agent-host:test-session/second');
-		const first = upcastPartial<IActiveSession>({ sessionId: 'session', resource: sessionResource, scopedChatResource: firstChat });
-		const second = upcastPartial<IActiveSession>({ sessionId: 'session', resource: sessionResource, scopedChatResource: secondChat });
+		const first = upcastPartial<IActiveSession>({ sessionId: 'session', resource: sessionResource, scopedChatResource: firstChat, activeChat: constObservable(upcastPartial<IChat>({})) });
+		const second = upcastPartial<IActiveSession>({ sessionId: 'session', resource: sessionResource, scopedChatResource: secondChat, activeChat: constObservable(upcastPartial<IChat>({})) });
 		const sessionsService = new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable<IActiveSession | undefined>(first);
-			override readonly mainWindowActiveSession = constObservable<IActiveSession | undefined>(undefined);
-			override readonly windowSessions = constObservable<readonly IActiveSession[]>([first, second]);
+			readonly activeSession = constObservable<IActiveSession | undefined>(first);
+			readonly mainWindowActiveSession = constObservable<IActiveSession | undefined>(undefined);
+			readonly windowSessions = constObservable<readonly IActiveSession[]>([first, second]);
 			override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([]);
 		}();
 		const changesViewService = new class extends mock<IChangesViewService>() {
@@ -189,7 +199,7 @@ suite('SessionChangesService', () => {
 			disposables.add(new TestInstantiationService()),
 			new class extends mock<IAgentWorkbenchLayoutService>() { override readonly agentWorkbenchLayout = AgentWorkbenchLayout.Mobile; }(),
 			changesViewService,
-			sessionsService,
+			...hostsOf(disposables, sessionsService),
 			emptyDecorationsService,
 			new NullLogService(),
 		));
@@ -225,7 +235,7 @@ suite('SessionChangesService', () => {
 			disposables.add(new TestInstantiationService()),
 			new class extends mock<IAgentWorkbenchLayoutService>() { override readonly agentWorkbenchLayout = AgentWorkbenchLayout.Mobile; }(),
 			changesViewService,
-			noSessions(upcastPartial<IActiveSession>({ sessionId: 'active', resource: URI.parse('agent-host:active-session') })),
+			...hostsOf(disposables, noSessions(upcastPartial<IActiveSession>({ sessionId: 'active', resource: URI.parse('agent-host:active-session'), activeChat: constObservable(upcastPartial<IChat>({})) }))),
 			emptyDecorationsService,
 			new NullLogService(),
 		));
@@ -268,7 +278,7 @@ suite('SessionChangesService', () => {
 			disposables.add(new TestInstantiationService()),
 			layoutService,
 			changesViewService,
-			noSessions(upcastPartial<IActiveSession>({ sessionId: 'active', resource: URI.parse('agent-host:test-session') })),
+			...hostsOf(disposables, noSessions(upcastPartial<IActiveSession>({ sessionId: 'active', resource: URI.parse('agent-host:test-session'), activeChat: constObservable(upcastPartial<IChat>({})) }))),
 			emptyDecorationsService,
 			new NullLogService(),
 		));
@@ -341,7 +351,7 @@ suite('SessionChangesService', () => {
 		}();
 		instantiationService.stub(IWorkbenchLayoutService, layoutService);
 		instantiationService.stub(IChangesViewService, changesViewService);
-		const service = disposables.add(new SessionChangesService(editorService, instantiationService, layoutService, changesViewService, noSessions(upcastPartial<IActiveSession>({ sessionId: 'active', resource: URI.parse('agent-host:test-session') })), emptyDecorationsService, new NullLogService()));
+		const service = disposables.add(new SessionChangesService(editorService, instantiationService, layoutService, changesViewService, ...hostsOf(disposables, noSessions(upcastPartial<IActiveSession>({ sessionId: 'active', resource: URI.parse('agent-host:test-session'), activeChat: constObservable(upcastPartial<IChat>({})) }))), emptyDecorationsService, new NullLogService()));
 		instantiationService.stub(ISessionChangesService, service);
 
 		await service.openChangesEditor(URI.parse('agent-host:test-session'), {
@@ -394,7 +404,7 @@ suite('SessionChangesService', () => {
 			instantiationService,
 			layoutService,
 			changesViewService,
-			noSessions(),
+			...hostsOf(disposables, noSessions()),
 			decorationsService,
 			new NullLogService(),
 		));
