@@ -1505,7 +1505,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._updateVSCodeAssignmentContext();
 		this._slashCommandProvider = new CopilotSlashCommandProvider(() => this._ensureClient().then(c => c.rpc.commands.list().then(c => c.commands)), undefined, this._logService);
 		this._githubTelemetryRouter = isAgentHostTelemetryService(this._telemetryService)
-			? new AgentHostGitHubTelemetryRouter(this._telemetryService)
+			? new AgentHostGitHubTelemetryRouter(this._telemetryService, this._productService.copilotVersions?.sdk)
 			: undefined;
 		this._register(this._proxyResolver.onDidRegisterConnection(() => this._refreshProxy()));
 		this._register(this._proxyResolver.onDidChangeConfiguration(() => this._refreshProxy()));

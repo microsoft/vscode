@@ -12,11 +12,22 @@ import { multiplexProperties, type IAgentHostRestrictedTelemetry, type IAgentHos
 	}
 */
 
+/* __GDPR__FRAGMENT__
+	"AgentHostRestrictedEngineCall": {
+		"requestModel": { "classification": "CustomerContent", "purpose": "FeatureInsight", "comment": "Model identifier named in this model call's request; may be a bring-your-own-key deployment name. Restricted telemetry only." },
+		"responseModel": { "classification": "CustomerContent", "purpose": "FeatureInsight", "comment": "Model identifier the provider reported in this model call's response; absent when the response does not identify one. Restricted telemetry only." },
+		"interactionType": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Bounded origin of this model call, captured when the call was dispatched: agent, subagent, compaction, sampling, background or user." },
+		"parentToolCallId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Tool call that spawned the subagent making this model call; absent for root calls and for subagents not spawned by a tool call." },
+		"runtimeVersion": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Version of the Copilot runtime that made this model call." },
+		"copilotSdkVersion": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Version of the Copilot SDK package bundled with the Agent Host that forwarded this model call." }
+	}
+*/
+
 /* __GDPR__
 	"copilot-chat/engine.messages": {
 		"owner": "amunger",
-		"comment": "SDK conversation and branch correlation on existing restricted engine snapshots.",
-		"${include}": [ "${AgentHostRestrictedSdkSession}" ],
+		"comment": "SDK conversation, branch and per-call attribution on existing restricted engine snapshots.",
+		"${include}": [ "${AgentHostRestrictedSdkSession}", "${AgentHostRestrictedEngineCall}" ],
 		"sdkAgentId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Native SDK subagent identifier within the root SDK conversation; absent for root calls." }
 	}
 */
@@ -24,8 +35,8 @@ import { multiplexProperties, type IAgentHostRestrictedTelemetry, type IAgentHos
 /* __GDPR__
 	"copilot-chat/engine.messages.length": {
 		"owner": "amunger",
-		"comment": "SDK conversation and branch correlation on existing restricted engine length events.",
-		"${include}": [ "${AgentHostRestrictedSdkSession}" ],
+		"comment": "SDK conversation, branch and per-call attribution on existing restricted engine length events.",
+		"${include}": [ "${AgentHostRestrictedSdkSession}", "${AgentHostRestrictedEngineCall}" ],
 		"sdkAgentId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Native SDK subagent identifier within the root SDK conversation; absent for root calls." }
 	}
 */
@@ -48,7 +59,14 @@ const targetDestinations = new Map<string, TelemetryDestination>([
 
 export class AgentHostGitHubTelemetryRouter {
 
-	constructor(private readonly _telemetryService: IAgentHostRestrictedTelemetry) { }
+	/**
+	 * @param _copilotSdkVersion Version of the Copilot SDK package bundled with this Agent Host,
+	 * stamped on engine snapshots. The runtime reports its own version separately.
+	 */
+	constructor(
+		private readonly _telemetryService: IAgentHostRestrictedTelemetry,
+		private readonly _copilotSdkVersion?: string,
+	) { }
 
 	isTarget(notification: GitHubTelemetryNotification): boolean {
 		return targetDestinations.has(notification.event.kind);
@@ -77,6 +95,7 @@ export class AgentHostGitHubTelemetryRouter {
 			...(isEngineSnapshot ? {
 				sdkSessionId: notification.sessionId || undefined,
 				sdkAgentId: event.properties.agent_id || undefined,
+				copilotSdkVersion: this._copilotSdkVersion || undefined,
 			} : {}),
 		};
 		const multiplexedProperties = await multiplexProperties(properties);

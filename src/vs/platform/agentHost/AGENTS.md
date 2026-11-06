@@ -60,6 +60,18 @@ Copilot user/model text and offered-tools events carry the same `sdkSessionId` f
 
 These are string `SystemMetaData` / `FeatureInsight` fields on the existing restricted destinations, under existing account/consent/content-exclusion controls. No host-supplied conversation key, SDK upgrade, new event, or broader population is required. CTS/schema/sharing must separately retain the properties before a curator can consume them; client emission alone does not establish backend availability or request eligibility.
 
+Per-call engine metadata comes from the runtime and passes through the router unchanged when the runtime supplies it. Older runtimes omit these fields; the router does not fill them in:
+
+| Field | Meaning |
+| --- | --- |
+| `requestModel` | Model named in this call's request (same value as `request.option.model` on the input event). Restricted only; may be a BYOK deployment name. |
+| `responseModel` | Model the provider reported in this call's response. Absent when the response does not identify one; never inferred from `requestModel` or the selected model. |
+| `interactionType` | Bounded call origin captured when the call was dispatched (`conversation-agent`, `conversation-subagent`, `conversation-compaction`, `conversation-sampling`, `conversation-background`, `conversation-user`). Distinct from the `source` text role on `conversation.messageText`. |
+| `parentToolCallId` | Tool call that spawned the subagent making the call (the `toolCallId` of that child's `subagent.started`). Absent for root calls. Not derived from `sdkAgentId`. |
+| `runtimeVersion` | Version of the runtime that made the call. |
+
+The router adds `copilotSdkVersion`, the Copilot SDK package bundled with this Agent Host (`IProductService.copilotVersions.sdk`), to engine snapshots, replacing any value in the notification. Editor version (`editor_version`), SDK package version and runtime version stay separate; native Agent Host engine events have no extension version.
+
 ---
 
 ## 2. Ownership and Layering
