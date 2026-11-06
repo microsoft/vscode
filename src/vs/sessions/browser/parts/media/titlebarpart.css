@@ -126,6 +126,10 @@
 	padding-right: calc(var(--vscode-spacing-size80) + var(--vscode-agents-layout-floatingPanelGap));
 }
 
+.monaco-workbench .part.titlebar > .sessions-titlebar-container.custom-window-controls > .titlebar-right > .titlebar-window-layout-container {
+	padding-right: var(--vscode-spacing-size80);
+}
+
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-screen-reader-container:not(.has-no-actions) {
 	margin-right: var(--vscode-spacing-size40);
 }
