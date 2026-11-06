@@ -8,6 +8,12 @@ parameters:
   - name: VSCODE_UPLOAD_SOURCEMAPS
     type: boolean
     default: true
+  # Whether to include the steps and jobs that need a privileged service
+  # connection (signing, CDN uploads, Copilot test setup). Only
+  # sdk-validation-build.yml sets this to false.
+  - name: VSCODE_PRIVILEGED_CONNECTIONS
+    type: boolean
+    default: true
 
 jobs:
   - job: Copilot
@@ -32,6 +38,14 @@ jobs:
       - template: copilot/l10n-steps.yml
 
       - ${{ if or(eq(parameters.VSCODE_PUBLISH, true), eq(parameters.VSCODE_RELEASE, true)) }}:
+        # NOTICE generation needs a snapshot before packaging; the parallel Quality scan can finish later.
+        - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
+          displayName: Component Detection (Copilot)
+          inputs:
+            sourceScanPath: $(Build.SourcesDirectory)/extensions/copilot
+            alertWarningLevel: Medium
+          continueOnError: true
+
         - task: notice@0
           inputs:
             outputfile: $(Build.SourcesDirectory)/extensions/copilot/ThirdPartyNotices.txt
@@ -45,8 +59,9 @@ jobs:
           node << 'EOF'
           const pkg = require("./package.json");
           const EVENT_PREFIX = pkg.publisher + "." + pkg.name;
-          const { version } = require("../../package-lock.json").packages["node_modules/@vscode/telemetry-extractor"];
           const cp = require("child_process");
+          const [root] = JSON.parse(cp.execFileSync("pnpm", ["list", "--lockfile-only", "--json", "--depth", "0", "--filter", ".", "@vscode/telemetry-extractor"], { cwd: "../..", encoding: "utf8" }));
+          const { version } = { ...root.dependencies, ...root.devDependencies }["@vscode/telemetry-extractor"];
           cp.execFileSync("npx", [`--package=@vscode/telemetry-extractor@${version}`, "--yes", "vscode-telemetry-extractor", "--eventPrefix", EVENT_PREFIX, "-s", ".", "-o", ".", "-f", "telemetry"], { stdio: "inherit", shell: true });
           EOF
         workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
@@ -54,7 +69,8 @@ jobs:
 
       - script: |
           set -e
-          if [ ! -f node_modules/jsonc-parser/package.json ]; then
+          # pnpm may hoist jsonc-parser to the root node_modules folder.
+          if ! node -e "require.resolve('jsonc-parser')" 2>/dev/null; then
             npm install --location=global jsonc-parser
             export NODE_PATH=$(npm root --location=global)
           fi
@@ -74,7 +90,7 @@ jobs:
 
       - script: |
           set -e
-          npx vsce package -o copilot-chat.vsix --allow-package-secrets sendgrid
+          pnpm exec vsce package -o copilot-chat.vsix --allow-package-secrets sendgrid
           mkdir -p $(Build.ArtifactStagingDirectory)/copilot-vsix
           cp copilot-chat.vsix $(Build.ArtifactStagingDirectory)/copilot-vsix/
         workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
@@ -91,9 +107,12 @@ jobs:
         name: copilotVsix
         displayName: Mark Copilot VSIX as published
 
-      - template: copilot/test-steps.yml
-        parameters:
-          runIntegrationTests: false
+      # The test setup needs the VS Code Development WIF connection, which the
+      # SDK validation pipeline (sdk-validation-build.yml) must not reference.
+      - ${{ if eq(parameters.VSCODE_PRIVILEGED_CONNECTIONS, true) }}:
+        - template: copilot/test-steps.yml
+          parameters:
+            runIntegrationTests: false
 
       # Source map upload is only needed for builds that ship the extension.
       - ${{ if eq(parameters.VSCODE_UPLOAD_SOURCEMAPS, true) }}:

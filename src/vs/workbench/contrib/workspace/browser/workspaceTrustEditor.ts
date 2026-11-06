@@ -5,7 +5,7 @@
 
 import { $, addDisposableListener, addStandardDisposableListener, append, clearNode, Dimension, EventHelper, EventType, isAncestorOfActiveElement } from '../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
-import { ButtonBar } from '../../../../base/browser/ui/button/button.js';
+import { ButtonBar, IButton } from '../../../../base/browser/ui/button/button.js';
 import { IMessage, InputBox, MessageType } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ITableRenderer, ITableVirtualDelegate } from '../../../../base/browser/ui/table/table.js';
@@ -13,6 +13,7 @@ import { Action, IAction } from '../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { debounce } from '../../../../base/common/decorators.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { normalizeDriveLetter } from '../../../../base/common/labels.js';
@@ -73,7 +74,7 @@ interface ITrustedUriItem {
 	uri: URI;
 }
 
-class WorkspaceTrustedUrisTable extends Disposable {
+export class WorkspaceTrustedUrisTable extends Disposable {
 	private readonly _onDidAcceptEdit: Emitter<ITrustedUriItem> = this._register(new Emitter<ITrustedUriItem>());
 	readonly onDidAcceptEdit: Event<ITrustedUriItem> = this._onDidAcceptEdit.event;
 
@@ -92,6 +93,7 @@ class WorkspaceTrustedUrisTable extends Disposable {
 
 	constructor(
 		private readonly container: HTMLElement,
+		private readonly scrollableElement: DomScrollableElement | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
@@ -105,7 +107,7 @@ class WorkspaceTrustedUrisTable extends Disposable {
 		const tableElement = container.appendChild($('.trusted-uris-table'));
 		const addButtonBarElement = container.appendChild($('.trusted-uris-button-bar'));
 
-		this.table = this.instantiationService.createInstance(
+		this.table = this._register(this.instantiationService.createInstance(
 			WorkbenchTable,
 			'WorkspaceTrust',
 			tableElement,
@@ -162,7 +164,7 @@ class WorkspaceTrustedUrisTable extends Disposable {
 					},
 				}
 			}
-		) as WorkbenchTable<ITrustedUriItem>;
+		) as WorkbenchTable<ITrustedUriItem>);
 
 		this._register(this.table.onDidOpen(item => {
 			// default prevented when input box is double clicked #125052
@@ -185,8 +187,12 @@ class WorkspaceTrustedUrisTable extends Disposable {
 				title: localize('selectTrustedUri', "Select Folder To Trust")
 			});
 
-			if (uri) {
-				this.workspaceTrustManagementService.setUrisTrust(uri, true);
+			if (uri?.length) {
+				try {
+					await this.addTrustedUri(uri[0]);
+				} catch (error) {
+					onUnexpectedError(error);
+				}
 			}
 		}));
 
@@ -195,27 +201,67 @@ class WorkspaceTrustedUrisTable extends Disposable {
 		}));
 	}
 
+	private async addTrustedUri(uri: URI): Promise<void> {
+		await this.workspaceTrustManagementService.setUrisTrust([uri], true);
+		if (this._store.isDisposed) {
+			return;
+		}
+
+		// Resolve the folder's own stored (canonical) entry: after adding it, the longest trusted match is that
+		// exact entry, even when canonicalization changed its path. Implicitly trusted (virtual or remote)
+		// folders resolve to themselves and have no row, so unrelated or parent rows are never selected.
+		const trustInfo = await this.workspaceTrustManagementService.getUriTrustInfo(uri);
+		if (this._store.isDisposed || !trustInfo.trusted) {
+			return;
+		}
+
+		this.selectTrustedUriEntry({ uri: trustInfo.uri, parentOfWorkspaceItem: false });
+	}
+
 	private getIndexOfTrustedUriEntry(item: ITrustedUriItem): number {
-		const index = this.trustedUriEntries.indexOf(item);
-		if (index === -1) {
-			for (let i = 0; i < this.trustedUriEntries.length; i++) {
-				if (this.trustedUriEntries[i].uri === item.uri) {
-					return i;
-				}
+		for (let i = 0; i < this.table.length; i++) {
+			if (this.uriService.extUri.isEqual(this.table.row(i).uri, item.uri)) {
+				return i;
 			}
 		}
 
-		return index;
+		return -1;
 	}
 
 	private selectTrustedUriEntry(item: ITrustedUriItem, focus: boolean = true): void {
 		const index = this.getIndexOfTrustedUriEntry(item);
 		if (index !== -1) {
+			this.table.reveal(index);
+			this.revealInScrollableElement(index);
 			if (focus) {
 				this.table.domFocus();
 				this.table.setFocus([index]);
 			}
 			this.table.setSelection([index]);
+		}
+	}
+
+	/**
+	 * The table is laid out to fit all of its rows, so scrolling happens in the surrounding
+	 * scrollable element rather than in the table itself.
+	 */
+	private revealInScrollableElement(index: number): void {
+		if (!this.scrollableElement) {
+			return;
+		}
+
+		this.scrollableElement.scanDomNode();
+		const viewportTop = this.scrollableElement.getDomNode().getBoundingClientRect().top;
+		const viewportHeight = this.scrollableElement.getScrollDimensions().height;
+		const rowTop = this.table.getHTMLElement().getBoundingClientRect().top - viewportTop
+			+ TrustedUriTableVirtualDelegate.HEADER_ROW_HEIGHT + index * TrustedUriTableVirtualDelegate.ROW_HEIGHT;
+		const rowBottom = rowTop + TrustedUriTableVirtualDelegate.ROW_HEIGHT;
+		const { scrollTop } = this.scrollableElement.getScrollPosition();
+
+		if (rowTop < 0) {
+			this.scrollableElement.setScrollPosition({ scrollTop: scrollTop + rowTop });
+		} else if (rowBottom > viewportHeight) {
+			this.scrollableElement.setScrollPosition({ scrollTop: scrollTop + rowBottom - viewportHeight });
 		}
 	}
 
@@ -322,7 +368,7 @@ class WorkspaceTrustedUrisTable extends Disposable {
 		return null;
 	}
 
-	acceptEdit(item: ITrustedUriItem, uri: URI) {
+	async acceptEdit(item: ITrustedUriItem, uri: URI): Promise<void> {
 		const trustedFolders = this.workspaceTrustManagementService.getTrustedUris();
 		const index = trustedFolders.findIndex(u => this.uriService.extUri.isEqual(u, item.uri));
 
@@ -332,8 +378,14 @@ class WorkspaceTrustedUrisTable extends Disposable {
 			trustedFolders[index] = uri;
 		}
 
-		this.workspaceTrustManagementService.setTrustedUris(trustedFolders);
-		this._onDidAcceptEdit.fire(item);
+		try {
+			await this.workspaceTrustManagementService.setTrustedUris(trustedFolders);
+			if (!this._store.isDisposed) {
+				this._onDidAcceptEdit.fire(item);
+			}
+		} catch (error) {
+			onUnexpectedError(error);
+		}
 	}
 
 	rejectEdit(item: ITrustedUriItem) {
@@ -502,14 +554,14 @@ class TrustedUriPathColumnRenderer implements ITableRenderer<ITrustedUriItem, IT
 		const element = container.appendChild($('.path'));
 		const pathLabel = element.appendChild($('div.path-label'));
 
-		const pathInput = new InputBox(element, this.contextViewService, {
+		const disposables = new DisposableStore();
+		const pathInput = disposables.add(new InputBox(element, this.contextViewService, {
 			validationOptions: {
 				validation: value => this.table.validateUri(value, this.currentItem)
 			},
 			inputBoxStyles: defaultInputBoxStyles
-		});
+		}));
 
-		const disposables = new DisposableStore();
 		const renderDisposables = disposables.add(new DisposableStore());
 
 		return {
@@ -550,7 +602,6 @@ class TrustedUriPathColumnRenderer implements ITableRenderer<ITrustedUriItem, IT
 
 			const pathToUse = templateData.pathInput.value;
 			const uri = hasDriveLetter(pathToUse) ? item.uri.with({ path: posix.sep + toSlashes(pathToUse) }) : item.uri.with({ path: pathToUse });
-			templateData.pathLabel.innerText = this.formatPath(uri);
 
 			if (uri) {
 				this.table.acceptEdit(item, uri);
@@ -720,6 +771,10 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 		append(this.rootElement, this.bodyScrollBar.getDomNode());
 
+		// Keep the scrollbar and header shadow in sync when the browser scrolls the body natively,
+		// e.g. to reveal a control focused with Tab (#131746).
+		this._register(addDisposableListener(scrollableContent, EventType.SCROLL, () => this.bodyScrollBar.scanDomNode()));
+
 		this.createAffectedFeaturesElement(scrollableContent);
 		this.createConfigurationElement(scrollableContent);
 
@@ -754,7 +809,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 				this.rootElement.focus();
 			} else if (event.equals(KeyMod.CtrlCmd | KeyCode.Enter)) {
 				if (this.workspaceTrustManagementService.canSetWorkspaceTrust()) {
-					this.workspaceTrustManagementService.setWorkspaceTrust(!this.workspaceTrustManagementService.isWorkspaceTrusted());
+					this.workspaceTrustManagementService.setWorkspaceTrust(!this.workspaceTrustManagementService.isWorkspaceTrusted()).catch(onUnexpectedError);
 				}
 			}
 		}));
@@ -844,6 +899,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 	private rendering = false;
 	private readonly rerenderDisposables: DisposableStore = this._register(new DisposableStore());
+	private readonly actionButtons = new Map<string, IButton>();
 	@debounce(100)
 	private async render() {
 		// The debounced render can fire after the editor pane (and its scoped
@@ -858,7 +914,9 @@ export class WorkspaceTrustEditor extends EditorPane {
 		}
 
 		this.rendering = true;
+		const focusedAction = Array.from(this.actionButtons).find(([, button]) => button.hasFocus())?.[0];
 		this.rerenderDisposables.clear();
+		this.actionButtons.clear();
 
 		const isWorkspaceTrusted = this.workspaceTrustManagementService.isWorkspaceTrusted();
 		this.rootElement.classList.toggle('trusted', isWorkspaceTrusted);
@@ -925,6 +983,9 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 		this.bodyScrollBar.getDomNode().style.height = `calc(100% - ${this.headerContainer.clientHeight}px)`;
 		this.bodyScrollBar.scanDomNode();
+		if (focusedAction) {
+			(this.actionButtons.get(focusedAction) ?? this.headerContainer).focus();
+		}
 		this.rendering = false;
 	}
 
@@ -972,7 +1033,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		const configurationTitle = append(this.configurationContainer, $('.workspace-trusted-folders-title'));
 		configurationTitle.innerText = localize('trustedFoldersAndWorkspaces', "Trusted Folders & Workspaces");
 
-		this.workspaceTrustedUrisTable = this._register(this.instantiationService.createInstance(WorkspaceTrustedUrisTable, this.configurationContainer));
+		this.workspaceTrustedUrisTable = this._register(this.instantiationService.createInstance(WorkspaceTrustedUrisTable, this.configurationContainer, this.bodyScrollBar));
 	}
 
 	private createAffectedFeaturesElement(parent: HTMLElement): void {
@@ -1028,31 +1089,47 @@ export class WorkspaceTrustEditor extends EditorPane {
 				this.addTrustedTextToElement(this.untrustedContainer);
 			}
 		} else {
-			if (this.workspaceTrustManagementService.canSetWorkspaceTrust()) {
+			if (!this.workspaceTrustManagementService.isWorkspaceTrustSourceResolved()) {
+				const description = append(this.trustedContainer, $('.workspace-trust-untrusted-description'));
+				description.innerText = localize('unresolvedTrustSource', "The source repository for this workspace could not be verified. You can keep reviewing files in Restricted Mode. Make sure the repository extension is enabled and you are signed in, then retry.");
+				this.createButtonRow(this.trustedContainer, [{
+					action: this.rerenderDisposables.add(new Action('workspace.trust.button.action.retry', localize('retryTrustSource', "Retry Source Check"), undefined, true, async () => {
+						await this.workspaceTrustManagementService.resolveWorkspaceTrust();
+					}))
+				}]);
+			} else if (this.workspaceTrustManagementService.canSetWorkspaceTrust()) {
 				this.addTrustButtonToElement(this.trustedContainer);
 			}
 		}
 	}
 
-	private createButtonRow(parent: HTMLElement, buttonInfo: { action: Action; keybinding: ResolvedKeybinding }[], enabled?: boolean): void {
+	private createButtonRow(parent: HTMLElement, buttonInfo: { action: Action; keybinding?: ResolvedKeybinding }[], enabled?: boolean): void {
 		const buttonRow = append(parent, $('.workspace-trust-buttons-row'));
 		const buttonContainer = append(buttonRow, $('.workspace-trust-buttons'));
 		const buttonBar = this.rerenderDisposables.add(new ButtonBar(buttonContainer));
 
 		for (const { action, keybinding } of buttonInfo) {
 			const button = buttonBar.addButtonWithDescription(defaultButtonStyles);
+			this.actionButtons.set(action.id, button);
 
 			button.label = action.label;
 			button.enabled = enabled !== undefined ? enabled : action.enabled;
-			button.description = keybinding.getLabel()!;
-			button.element.ariaLabel = action.label + ', ' + localize('keyboardShortcut', "Keyboard Shortcut: {0}", keybinding.getAriaLabel()!);
+			button.description = keybinding?.getLabel() ?? '';
+			button.element.ariaLabel = keybinding ? action.label + ', ' + localize('keyboardShortcut', "Keyboard Shortcut: {0}", keybinding.getAriaLabel()!) : action.label;
 
-			this.rerenderDisposables.add(button.onDidClick(e => {
+			this.rerenderDisposables.add(button.onDidClick(async e => {
 				if (e) {
 					EventHelper.stop(e, true);
 				}
 
-				action.run();
+				button.enabled = false;
+				try {
+					await action.run();
+				} catch (error) {
+					onUnexpectedError(error);
+				} finally {
+					button.enabled = enabled !== undefined ? enabled : action.enabled;
+				}
 			}));
 		}
 	}

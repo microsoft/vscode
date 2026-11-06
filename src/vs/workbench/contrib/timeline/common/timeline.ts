@@ -36,7 +36,10 @@ export interface TimelineItem {
 
 	id?: string;
 
-	label: string;
+	/**
+	 * When `falsy`, the label is derived from {@link resourceUri}, which is then also used for the icon and file decorations.
+	 */
+	label?: string;
 	description?: string;
 	tooltip?: string | IMarkdownString | undefined;
 

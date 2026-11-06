@@ -19,7 +19,7 @@ import { ImageCarouselEditor } from '../../browser/imageCarouselEditor.js';
 import { ICarouselImage } from '../../browser/imageCarouselTypes.js';
 
 interface ImageCarouselEditorTestAccessor {
-	_blobUrlCache: Map<string, string>;
+	_blobUrlCache: Map<string, { readonly url: string; readonly blob: Blob }>;
 	_blobUrlCacheGeneration: number;
 	_loadBlobUrl(image: ICarouselImage): Promise<string>;
 	_revokeCachedBlobUrls(): void;
@@ -185,15 +185,18 @@ suite('ImageCarouselEditor', () => {
 		await currentReadFileResult.complete({ resource, value: VSBuffer.fromString('<svg>current</svg>') } as IFileContent);
 		await staleReadFileResult.complete({ resource, value: VSBuffer.fromString('<svg>stale</svg>') } as IFileContent);
 
+		const cached = [...editor._blobUrlCache.values()];
 		assert.deepStrictEqual({
 			staleUrl: await staleUrl,
 			currentUrl: await currentUrl,
-			cachedUrls: [...editor._blobUrlCache.values()],
+			cachedUrls: cached.map(entry => entry.url),
+			cachedContents: await Promise.all(cached.map(entry => entry.blob.text())),
 			createObjectURLCallCount: createObjectURL.callCount,
 		}, {
 			staleUrl: '',
 			currentUrl: 'blob:current',
 			cachedUrls: ['blob:current'],
+			cachedContents: ['<svg>current</svg>'],
 			createObjectURLCallCount: 1,
 		});
 		editor._revokeCachedBlobUrls();

@@ -10,6 +10,7 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { Iterable } from '../../../../base/common/iterator.js';
+import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock, mockObject, MockObject } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -982,29 +983,26 @@ suite('ExtHost Testing', () => {
 
 		test('run cancel force ends after a timeout', () => {
 			const clock = sinon.useFakeTimers();
-			try {
-				const tracker = ds.add(c.prepareForMainThreadTestRun(ext, req, dto, configuration, cts.token));
-				const task = c.createTestRun(ext, 'ctrl', single, req, 'run1', true);
-				const onEnded = sinon.stub();
-				ds.add(tracker.onEnd(onEnded));
+			ds.add(toDisposable(() => clock.restore()));
+			const tracker = ds.add(c.prepareForMainThreadTestRun(ext, req, dto, configuration, cts.token));
+			const task = c.createTestRun(ext, 'ctrl', single, req, 'run1', true);
+			const onEnded = sinon.stub();
+			ds.add(tracker.onEnd(onEnded));
 
-				assert.strictEqual(task.token.isCancellationRequested, false);
-				assert.strictEqual(tracker.hasRunningTasks, true);
-				tracker.cancel();
+			assert.strictEqual(task.token.isCancellationRequested, false);
+			assert.strictEqual(tracker.hasRunningTasks, true);
+			tracker.cancel();
 
-				assert.strictEqual(task.token.isCancellationRequested, true);
-				assert.strictEqual(tracker.hasRunningTasks, true);
+			assert.strictEqual(task.token.isCancellationRequested, true);
+			assert.strictEqual(tracker.hasRunningTasks, true);
 
-				clock.tick(9999);
-				assert.strictEqual(tracker.hasRunningTasks, true);
-				assert.strictEqual(onEnded.called, false);
+			clock.tick(9999);
+			assert.strictEqual(tracker.hasRunningTasks, true);
+			assert.strictEqual(onEnded.called, false);
 
-				clock.tick(1);
-				assert.strictEqual(onEnded.called, true);
-				assert.strictEqual(tracker.hasRunningTasks, false);
-			} finally {
-				clock.restore();
-			}
+			clock.tick(1);
+			assert.strictEqual(onEnded.called, true);
+			assert.strictEqual(tracker.hasRunningTasks, false);
 		});
 
 		test('run cancel force ends on second cancellation request', () => {

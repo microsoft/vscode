@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
+import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IModelService } from '../../../../../../../editor/common/services/model.js';
@@ -202,25 +203,21 @@ suite('ChatPlanReviewPart', () => {
 				planUri.toJSON(),
 			);
 			createWidget(review);
-			const model = lastModelService!.createModel('# Original plan', null, planUri);
+			const model = store.add(lastModelService!.createModel('# Original plan', null, planUri));
 
-			try {
-				model.setValue('# Edited plan');
+			model.setValue('# Edited plan');
 
-				assert.deepStrictEqual({
-					isOutdated: review.isOutdated,
-					persistedIsOutdated: review.toJSON().isOutdated,
-					badgeDisplay: widget.domNode.querySelector<HTMLElement>('.chat-plan-review-outdated')?.style.display,
-					summary: review.content,
-				}, {
-					isOutdated: true,
-					persistedIsOutdated: true,
-					badgeDisplay: '',
-					summary: 'Generated summary',
-				});
-			} finally {
-				model.dispose();
-			}
+			assert.deepStrictEqual({
+				isOutdated: review.isOutdated,
+				persistedIsOutdated: review.toJSON().isOutdated,
+				badgeDisplay: widget.domNode.querySelector<HTMLElement>('.chat-plan-review-outdated')?.style.display,
+				summary: review.content,
+			}, {
+				isOutdated: true,
+				persistedIsOutdated: true,
+				badgeDisplay: '',
+				summary: 'Generated summary',
+			});
 		});
 
 		test('marks the summary outdated when an open plan is deleted', () => {
@@ -236,13 +233,10 @@ suite('ChatPlanReviewPart', () => {
 			createWidget(review);
 			const model = lastModelService!.createModel('# Original plan', null, planUri);
 
-			try {
-				fileChangesEmitter.fire(new FileChangesEvent([{ resource: planUri, type: FileChangeType.DELETED }], false));
+			store.add(toDisposable(() => model.dispose()));
+			fileChangesEmitter.fire(new FileChangesEvent([{ resource: planUri, type: FileChangeType.DELETED }], false));
 
-				assert.strictEqual(review.isOutdated, true);
-			} finally {
-				model.dispose();
-			}
+			assert.strictEqual(review.isOutdated, true);
 		});
 
 		test('renders markdown content in the body', () => {
@@ -261,12 +255,9 @@ suite('ChatPlanReviewPart', () => {
 			mainWindow.document.body.appendChild(container);
 			container.appendChild(widget.domNode);
 
-			try {
-				const link = widget.domNode.querySelector<HTMLElement>('.rendered-markdown a');
-				assert.strictEqual(link && mainWindow.getComputedStyle(link).color, 'rgb(1, 2, 3)');
-			} finally {
-				container.remove();
-			}
+			store.add(toDisposable(() => container.remove()));
+			const link = widget.domNode.querySelector<HTMLElement>('.rendered-markdown a');
+			assert.strictEqual(link && mainWindow.getComputedStyle(link).color, 'rgb(1, 2, 3)');
 		});
 
 		test('renders approve and reject buttons in footer', () => {

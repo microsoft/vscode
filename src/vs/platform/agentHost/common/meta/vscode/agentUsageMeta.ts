@@ -319,6 +319,17 @@ function readAutoModeResolvedInfo(value: unknown): IAutoModeResolvedInfo | undef
 }
 
 
+/**
+ * Reduces a provider's Auto routing decision to the fields clients read, before
+ * it is written to {@link UsageInfoMeta.autoModeResolved}. The decision rides on
+ * every usage report of its turn, so routing diagnostics that only telemetry
+ * needs (available models, latencies, fallback details, ...) are dropped.
+ */
+export function compactAutoModeResolved(value: IAutoModeResolvedInfo): IAutoModeResolvedInfo {
+	return readAutoModeResolvedInfo(value) ?? { chosenModel: value.chosenModel };
+}
+
+
 function readContextAttribution(value: unknown): IContextAttributionData | undefined {
 	if (!value || typeof value !== 'object' || Array.isArray(value)) {
 		return undefined;
@@ -354,6 +365,46 @@ function readContextAttribution(value: unknown): IContextAttributionData | undef
 		? { count: (compactionsRaw as Record<string, unknown>).count as number }
 		: { count: 0 };
 	return { totalTokens: raw.totalTokens as number, entries, compactions };
+}
+
+
+/**
+ * Reduces a provider's context-window attribution to the rows clients render,
+ * before it is written to {@link UsageInfoMeta.contextAttribution}.
+ *
+ * Each usage report replaces the turn's whole usage, so the provider's
+ * per-source breakdown (one entry per tool definition, tool, skill, MCP
+ * server, ...) would otherwise be resent with every report, kept on every
+ * completed turn, and persisted with it. Clients show `system` entries that
+ * parent no other entry individually and sum every other entry per `kind`, so
+ * this keeps the former and collapses the latter into one entry per kind,
+ * dropping fields no client reads. The result remains valid attribution that
+ * renders identically.
+ */
+export function compactContextAttribution(value: unknown): IContextAttributionData | undefined {
+	const attribution = readContextAttribution(value);
+	if (!attribution) {
+		return undefined;
+	}
+	const parentIds = new Set<string>();
+	for (const entry of attribution.entries) {
+		if (entry.parentId) {
+			parentIds.add(entry.parentId);
+		}
+	}
+	const entries: IContextAttributionEntry[] = [];
+	const kindTokens = new Map<string, number>();
+	for (const entry of attribution.entries) {
+		if (entry.kind !== 'system') {
+			kindTokens.set(entry.kind, (kindTokens.get(entry.kind) ?? 0) + entry.tokens);
+		} else if (!parentIds.has(entry.id)) {
+			entries.push({ kind: entry.kind, id: entry.id, label: entry.label, tokens: entry.tokens });
+		}
+	}
+	for (const [kind, tokens] of kindTokens) {
+		entries.push({ kind, id: kind, label: kind, tokens });
+	}
+	return { totalTokens: attribution.totalTokens, entries, compactions: attribution.compactions };
 }
 
 

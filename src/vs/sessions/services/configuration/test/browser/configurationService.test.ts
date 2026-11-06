@@ -14,6 +14,7 @@ import { ConfigurationTarget, IConfigurationService } from '../../../../../platf
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IPolicyService, NullPolicyService, PolicyValueSource } from '../../../../../platform/policy/common/policy.js';
 import { NullManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
@@ -49,6 +50,11 @@ import { DefaultConfiguration } from '../../../../../workbench/services/configur
 import { ISetting } from '../../../../../workbench/services/preferences/common/preferences.js';
 import { TestProductService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
+import { INotificationHandle, INotificationService, IPromptChoice, NotificationMessage, Severity } from '../../../../../platform/notification/common/notification.js';
+import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
+import { IResourceEditorInput } from '../../../../../platform/editor/common/editor.js';
+import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
+import { ConfigurationEditingError, ConfigurationEditingErrorCode } from '../../../../../workbench/services/configuration/common/configurationEditing.js';
 import '../../../../../workbench/browser/workbench.contribution.js';
 import '../../../../../workbench/browser/actions/layoutDensityActions.js';
 
@@ -60,6 +66,7 @@ suite('Sessions ConfigurationService', () => {
 	let workspaceService: SessionsWorkspaceContextService;
 	let fileService: FileService;
 	let fileReadsBarrier: Promise<void> | undefined;
+	let fileWriteError: Error | undefined;
 	let uriIdentityService: UriIdentityService;
 	let userDataProfileService: IUserDataProfileService;
 	let workspaceConfigResource: URI;
@@ -70,7 +77,18 @@ suite('Sessions ConfigurationService', () => {
 	const nullConfigurationCache: IConfigurationCache = { needsCaching: () => false, read: async () => '', write: async () => { }, remove: async () => { } };
 
 	function createConfigurationService(policyService: IPolicyService, configurationCache = nullConfigurationCache): ConfigurationService {
-		return disposables.add(new ConfigurationService(userDataProfileService, workspaceService, uriIdentityService, fileService, policyService, logService, configurationCache, TestEnvironmentService));
+		const configurationService = disposables.add(new ConfigurationService(userDataProfileService, workspaceService, uriIdentityService, fileService, policyService, logService, configurationCache, TestEnvironmentService));
+		configurationService.acquireInstantiationService(createInstantiationService(configurationService));
+		return configurationService;
+	}
+
+	function createInstantiationService(configurationService: ConfigurationService, notificationService: INotificationService = new TestNotificationService(), editorService: IEditorService = new class extends mock<IEditorService>() { }()): TestInstantiationService {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IFileService, fileService);
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(INotificationService, notificationService);
+		instantiationService.stub(IEditorService, editorService);
+		return instantiationService;
 	}
 
 	function startAccountPolicyInitialization(policyData: IPolicyData | null) {
@@ -180,10 +198,17 @@ suite('Sessions ConfigurationService', () => {
 
 	setup(async () => {
 		fileReadsBarrier = undefined;
+		fileWriteError = undefined;
 		fileService = disposables.add(new class extends FileService {
 			override async readFile(...args: Parameters<FileService['readFile']>) {
 				await fileReadsBarrier;
 				return super.readFile(...args);
+			}
+			override async writeFile(...args: Parameters<FileService['writeFile']>) {
+				if (fileWriteError) {
+					throw fileWriteError;
+				}
+				return super.writeFile(...args);
 			}
 		}(logService));
 		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
@@ -729,6 +754,67 @@ suite('Sessions ConfigurationService', () => {
 
 		const userContent = (await fileService.readFile(userDataProfileService.currentProfile.settingsResource)).value.toString();
 		assert.ok(!userContent.includes('sessionsConfigurationService.testSetting'));
+	}));
+
+	test('updateValue reports invalid user settings unless the caller handles the error', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const settingsResource = userDataProfileService.currentProfile.settingsResource;
+		const invalidContent = '{ "sessionsConfigurationService.testSetting": ';
+		await fileService.writeFile(settingsResource, VSBuffer.fromString(invalidContent));
+		const prompts: { severity: Severity; message: NotificationMessage; choices: string[] }[] = [];
+		const choices: IPromptChoice[] = [];
+		const opened: { resource: string; pinned: boolean | undefined }[] = [];
+		testObject.acquireInstantiationService(createInstantiationService(testObject, new class extends TestNotificationService {
+			override prompt(severity: Severity, message: NotificationMessage, promptChoices: IPromptChoice[]): INotificationHandle {
+				prompts.push({ severity, message, choices: promptChoices.map(choice => choice.label) });
+				choices.push(...promptChoices);
+				return super.prompt(severity, message, promptChoices);
+			}
+		}(), new class extends mock<IEditorService>() {
+			override async openEditor(...args: unknown[]): Promise<undefined> {
+				const editor = args[0] as IResourceEditorInput;
+				opened.push({ resource: editor.resource.toString(), pinned: editor.options?.pinned });
+				return undefined;
+			}
+		}()));
+
+		await testObject.updateValue('sessionsConfigurationService.testSetting', 'notifiedValue', ConfigurationTarget.USER_LOCAL);
+		choices[0]?.run();
+		const handledError = await testObject.updateValue('sessionsConfigurationService.testSetting', 'handledValue', {}, ConfigurationTarget.USER_LOCAL, { donotNotifyError: true }).then(() => undefined, error => error);
+
+		assert.deepStrictEqual({
+			prompts,
+			opened,
+			handledError: handledError instanceof ConfigurationEditingError ? handledError.code : handledError,
+			content: (await fileService.readFile(settingsResource)).value.toString(),
+		}, {
+			prompts: [{ severity: Severity.Error, message: 'Unable to write into the settings file. Please open the file to correct errors/warnings in the file and try again.', choices: ['Open Settings'] }],
+			opened: [{ resource: settingsResource.toString(), pinned: true }],
+			handledError: ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION,
+			content: invalidContent,
+		});
+	}));
+
+	test('updateValue reports other write errors unless the caller handles the error', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const errors: NotificationMessage[] = [];
+		testObject.acquireInstantiationService(createInstantiationService(testObject, new class extends TestNotificationService {
+			override error(message: NotificationMessage): INotificationHandle {
+				errors.push(message);
+				return super.error(message);
+			}
+		}()));
+		fileWriteError = new Error('Disk is full');
+
+		await testObject.updateValue('sessionsConfigurationService.testSetting', 'notifiedValue', ConfigurationTarget.USER_LOCAL);
+		const handledError = await testObject.updateValue('sessionsConfigurationService.testSetting', 'handledValue', {}, ConfigurationTarget.USER_LOCAL, { donotNotifyError: true }).then(() => undefined, error => error);
+
+		assert.deepStrictEqual({ errors, handledError, value: testObject.getValue('sessionsConfigurationService.testSetting') }, { errors: [fileWriteError], handledError: fileWriteError, value: 'defaultValue' });
+	}));
+
+	test('updateValue throws before the instantiation service is acquired', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const configurationService = disposables.add(new ConfigurationService(userDataProfileService, workspaceService, uriIdentityService, fileService, new NullPolicyService(), logService, nullConfigurationCache, TestEnvironmentService));
+		await configurationService.initialize();
+
+		await assert.rejects(configurationService.updateValue('sessionsConfigurationService.testSetting', 'value', ConfigurationTarget.USER_LOCAL), /not yet ready to accept writes/);
 	}));
 
 	// #endregion

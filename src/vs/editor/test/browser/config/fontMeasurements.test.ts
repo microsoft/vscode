@@ -10,7 +10,9 @@ import { ensureCodeWindow, mainWindow } from '../../../../base/browser/window.js
 import { timeout } from '../../../../base/common/async.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { CharWidthRequest } from '../../../browser/config/charWidthReader.js';
 import { FontMeasurementsImpl, ISerializedFontInfo } from '../../../browser/config/fontMeasurements.js';
+import { EditorFontLigatures } from '../../../common/config/editorOptions.js';
 import { FontInfo, SERIALIZED_FONT_INFO_VERSION } from '../../../common/config/fontInfo.js';
 
 suite('FontMeasurements', () => {
@@ -54,6 +56,107 @@ suite('FontMeasurements', () => {
 		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Inspect cache presence without allocating a cache through the public API.
 		return fontMeasurements['_cache'].has(getWindowId(targetWindow));
 	}
+
+	function assertLigatureClassification(probe: string, widthDifference: number, isMonospace: boolean): void {
+		const measuredLigatures: string[] = [];
+		sinon.stub(CharWidthRequest.prototype, 'fulfill').callsFake(function (this: CharWidthRequest) {
+			this.width = 8 * this.chr.length + (this.chr === probe ? widthDifference : 0);
+			if (this.chr.length > 1) {
+				measuredLigatures.push(this.chr);
+			}
+		});
+		const fontMeasurements = store.add(new FontMeasurementsImpl());
+		const options = new FontInfo({ ...restoredFontInfo, fontFeatureSettings: EditorFontLigatures.ON }, false);
+		const fontInfo = fontMeasurements.readFontInfo(mainWindow, options);
+
+		assert.deepStrictEqual({
+			isMonospace: fontInfo.isMonospace,
+			measuredLigatures,
+		}, {
+			isMonospace,
+			measuredLigatures: ['fi', '<=', '=>', '==='],
+		});
+	}
+
+	test('classifies width-preserving fi ligatures as monospace', () => {
+		assertLigatureClassification('fi', 0, true);
+	});
+
+	test('classifies fi ligatures narrower just inside the tolerance as monospace', () => {
+		assertLigatureClassification('fi', -0.004, true);
+	});
+
+	test('classifies fi ligatures wider just inside the tolerance as monospace', () => {
+		assertLigatureClassification('fi', 0.004, true);
+	});
+
+	test('classifies fi ligatures narrower just outside the tolerance as non-monospace', () => {
+		assertLigatureClassification('fi', -0.006, false);
+	});
+
+	test('classifies fi ligatures wider just outside the tolerance as non-monospace', () => {
+		assertLigatureClassification('fi', 0.006, false);
+	});
+
+	test('classifies width-preserving <= ligatures as monospace', () => {
+		assertLigatureClassification('<=', 0, true);
+	});
+
+	test('classifies <= ligatures narrower just inside the tolerance as monospace', () => {
+		assertLigatureClassification('<=', -0.004, true);
+	});
+
+	test('classifies <= ligatures wider just inside the tolerance as monospace', () => {
+		assertLigatureClassification('<=', 0.004, true);
+	});
+
+	test('classifies <= ligatures narrower just outside the tolerance as non-monospace', () => {
+		assertLigatureClassification('<=', -0.006, false);
+	});
+
+	test('classifies <= ligatures wider just outside the tolerance as non-monospace', () => {
+		assertLigatureClassification('<=', 0.006, false);
+	});
+
+	test('classifies width-preserving => ligatures as monospace', () => {
+		assertLigatureClassification('=>', 0, true);
+	});
+
+	test('classifies => ligatures narrower just inside the tolerance as monospace', () => {
+		assertLigatureClassification('=>', -0.004, true);
+	});
+
+	test('classifies => ligatures wider just inside the tolerance as monospace', () => {
+		assertLigatureClassification('=>', 0.004, true);
+	});
+
+	test('classifies => ligatures narrower just outside the tolerance as non-monospace', () => {
+		assertLigatureClassification('=>', -0.006, false);
+	});
+
+	test('classifies => ligatures wider just outside the tolerance as non-monospace', () => {
+		assertLigatureClassification('=>', 0.006, false);
+	});
+
+	test('classifies width-preserving === ligatures as monospace', () => {
+		assertLigatureClassification('===', 0, true);
+	});
+
+	test('classifies === ligatures narrower just inside the tolerance as monospace', () => {
+		assertLigatureClassification('===', -0.004, true);
+	});
+
+	test('classifies === ligatures wider just inside the tolerance as monospace', () => {
+		assertLigatureClassification('===', 0.004, true);
+	});
+
+	test('classifies === ligatures narrower just outside the tolerance as non-monospace', () => {
+		assertLigatureClassification('===', -0.006, false);
+	});
+
+	test('classifies === ligatures wider just outside the tolerance as non-monospace', () => {
+		assertLigatureClassification('===', 0.006, false);
+	});
 
 	test('releases readings for unregistered windows without invalidating the main window', () => {
 		const fontMeasurements = store.add(new FontMeasurementsImpl());

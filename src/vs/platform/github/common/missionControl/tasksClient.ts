@@ -6,20 +6,41 @@
 import { isNumber } from '../../../../base/common/types.js';
 import { ApiPaginationOptions, ApiRequestOptions } from '../client/request.js';
 import { pathSegment, withQuery } from '../client/routing.js';
-import { parse } from '../client/schema.js';
+import { parse, SchemaError } from '../client/schema.js';
 import { PageOptions } from '../client/types.js';
 import { GitHubRequestError } from '../githubTypes.js';
 import { PaginatedResponse } from './missionControl.js';
 import { MissionControlClient, paginated, parseEnvironmentKind, parseUser } from './missionControlClient.js';
-import { AhpPayload, CreateTaskRequest, GetTaskResponse, ITasksClient, ListTaskEventsResponse, ListTasksOptions, ListTasksResponse, Repository, SteerTaskRequest, Task, TaskAHPEventsResponse, TaskArtifact, UpdateTaskRequest } from './tasks.js';
+import { AhpPayload, CreateTaskRequest, GetTaskResponse, ITasksClient, ListTaskEventsResponse, ListTasksOptions, ListTasksResponse, Repository, SessionFeedConnection, SteerTaskRequest, Task, TaskAHPEventsResponse, TaskArtifact, TaskClient, UpdateTaskRequest } from './tasks.js';
 
 export class TasksClient implements ITasksClient {
 	constructor(private readonly _client: MissionControlClient) { }
+
+	connectFeed(signal: AbortSignal, options?: ApiRequestOptions): Promise<SessionFeedConnection> {
+		return this._client.request({
+			domain: 'tasks',
+			method: 'GET',
+			path: '/feed/connect',
+			expectedStatus: 200,
+			policy: { credential: true },
+			options,
+		}, signal, response => {
+			try {
+				return parseSessionFeedConnection(response.data);
+			} catch (error) {
+				if (error instanceof SchemaError) {
+					throw new GitHubRequestError('Invalid session feed connection metadata', 'schema', response.status);
+				}
+				throw error;
+			}
+		});
+	}
 
 	list(signal: AbortSignal, options?: ListTasksOptions): Promise<PaginatedResponse<ListTasksResponse>> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages(
 			{
+				domain: 'tasks',
 				method: 'GET',
 				path: withQuery('/tasks', { ...query }),
 				expectedStatus: 200,
@@ -36,6 +57,7 @@ export class TasksClient implements ITasksClient {
 
 	get(taskId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<GetTaskResponse> {
 		return this._client.request({
+			domain: 'tasks',
 			method: 'GET',
 			path: taskPath(taskId),
 			expectedStatus: 200,
@@ -45,9 +67,11 @@ export class TasksClient implements ITasksClient {
 
 	create(request: CreateTaskRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<GetTaskResponse> {
 		return this._client.request({
+			domain: 'tasks',
 			method: 'POST',
 			path: '/tasks',
 			body: request,
+			policy: request.environment_id === 'github-sandbox' ? { rateLimitResource: 'agents:sandbox' } : undefined,
 			expectedStatus: 201,
 			options,
 		}, signal, response => parseTaskDetail(response.data));
@@ -58,6 +82,7 @@ export class TasksClient implements ITasksClient {
 			throw new GitHubRequestError('A task update requires at least one property', 'validation');
 		}
 		return this._client.request({
+			domain: 'tasks',
 			method: 'PATCH',
 			path: taskPath(taskId),
 			body: request,
@@ -68,6 +93,7 @@ export class TasksClient implements ITasksClient {
 
 	delete(taskId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<void> {
 		return this._client.request({
+			domain: 'tasks',
 			method: 'DELETE',
 			path: taskPath(taskId),
 			expectedStatus: 204,
@@ -86,6 +112,7 @@ export class TasksClient implements ITasksClient {
 
 	private _setArchived(taskId: string, archived: boolean, signal: AbortSignal, options?: ApiRequestOptions): Promise<Task> {
 		return this._client.request({
+			domain: 'tasks',
 			method: 'POST',
 			path: `${taskPath(taskId)}/${archived ? 'archive' : 'unarchive'}`,
 			expectedStatus: 200,
@@ -95,6 +122,7 @@ export class TasksClient implements ITasksClient {
 
 	steer(taskId: string, request: SteerTaskRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<void> {
 		return this._client.request({
+			domain: 'tasks',
 			method: 'POST',
 			path: `${taskPath(taskId)}/steer`,
 			body: request,
@@ -112,6 +140,7 @@ export class TasksClient implements ITasksClient {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages(
 			{
+				domain: 'tasks',
 				method: 'GET',
 				path: withQuery(`${taskPath(taskId)}/events`, { ...query }),
 				expectedStatus: 200,
@@ -132,6 +161,7 @@ export class TasksClient implements ITasksClient {
 
 	getAhpEvents(taskId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<TaskAHPEventsResponse> {
 		return this._client.request({
+			domain: 'tasks',
 			method: 'GET',
 			path: `${taskPath(taskId)}/events`,
 			expectedStatus: 200,
@@ -146,6 +176,17 @@ function taskPath(taskId: string): string {
 	return `/tasks/${pathSegment(taskId)}`;
 }
 
+const parseSessionFeedConnection = parse.copyObject<SessionFeedConnection>({
+	url: parse.nonEmptyString,
+	subprotocol: parse.exact('json.webpubsub.azure.v1'),
+	group: parse.nonEmptyString,
+	expires_at: parse.dateTime,
+	reconnect_after: parse.dateTime,
+	expires_in: parse.optional(parse.nonNegativeInteger),
+	reconnect_in: parse.optional(parse.nonNegativeInteger),
+	frame_schema_version: parse.exact(1),
+});
+
 const parseRepository = parse.object<Repository>({
 	id: parse.optional(parse.integer),
 	name: parse.optional(parse.string),
@@ -155,6 +196,12 @@ const parseRepository = parse.object<Repository>({
 
 const parseTaskState = parse.oneOf('queued', 'in_progress', 'completed', 'failed', 'idle', 'waiting_for_user', 'timed_out', 'cancelled');
 
+const parseTaskClient = parse.object<TaskClient>({
+	integration_id: parse.nonEmptyString,
+	slug: parse.nonEmptyString,
+	creator: parse.boolean,
+});
+
 const parseTaskFields = parse.object<Task>({
 	id: parse.nonEmptyString,
 	url: parse.optional(parse.string),
@@ -162,6 +209,7 @@ const parseTaskFields = parse.object<Task>({
 	name: parse.optional(parse.string),
 	creator: parse.optional(parseUser),
 	creator_type: parse.optional(parse.oneOf('user', 'organization')),
+	clients: parse.optional(parse.arrayOf(parseTaskClient)),
 	user_collaborators: parse.optional(parse.arrayOf(value => isNumber(value) ? parse.integer(value) : parseUser(value))),
 	agent_collaborators: parse.optional(parse.arrayOf(parse.object({
 		agent_type: parse.optional(parse.string),
@@ -283,6 +331,7 @@ const parseTaskSessions = parse.object<Pick<GetTaskResponse, 'sessions'>>({
 	sessions: parse.optional(parse.arrayOf(parse.object({
 		id: parse.nonEmptyString,
 		name: parse.optional(parse.string),
+		clients: parse.optional(parse.arrayOf(parseTaskClient)),
 		user: parse.optional(parseUser),
 		owner: parse.optional(parseUser),
 		repository: parse.optional(parseRepository),

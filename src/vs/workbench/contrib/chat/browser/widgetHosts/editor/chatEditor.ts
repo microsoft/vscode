@@ -41,6 +41,7 @@ import { IChatSessionsService, localChatSessionType } from '../../../common/chat
 import { ChatAgentLocation, ChatModeKind, IResolvedNewChatSessionType, SessionTypeSelectionReason } from '../../../common/constants.js';
 import { clearChatEditor } from '../../actions/chatClear.js';
 import { AgentHostSessionInputPills } from '../../agentSessions/agentHost/agentHostSessionInputPills.js';
+import { IAgentHostUntitledProvisionalSessionService } from '../../agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { ChatEditorInput } from './chatEditorInput.js';
 import { ChatWidget } from '../../widget/chatWidget.js';
 import { IChatWidgetViewState, setModelPreservingInputTypedWhileLoading } from '../../chat.js';
@@ -68,6 +69,11 @@ export interface IChatEditorOptions extends IEditorOptions {
 		preferred?: string;
 		fallback?: string;
 	};
+	/**
+	 * Last known title of the chat, cached in the serialized editor state so that
+	 * restored editors show it before their session is loaded.
+	 */
+	restoredTitle?: string;
 }
 
 export type IChatEditorViewState = IChatWidgetViewState;
@@ -113,6 +119,7 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IEditorService editorService: IEditorService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@IAgentHostUntitledProvisionalSessionService private readonly provisionalSessionService: IAgentHostUntitledProvisionalSessionService,
 	) {
 		super(ChatEditorInput.EditorID, group, ChatEditor.VIEW_STATE_KEY, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService);
 		this._register(chatSessionsService.onDidChangeContentProviderSchemes(({ added, removed }) => {
@@ -363,6 +370,9 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 				throw new Error(`Failed to get model for chat editor. resource: ${input.sessionResource}`);
 			}
 
+			if (isUntitledChatSession(editorModel.model.sessionResource)) {
+				await raceCancellationError(this.provisionalSessionService.prepareSessionConfig(editorModel.model.sessionResource, token), token);
+			}
 			const resolvedType = getChatSessionType(editorModel.model.sessionResource);
 			let isContributedChatSession = false;
 			if (resolvedType !== localChatSessionType) {

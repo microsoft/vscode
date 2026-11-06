@@ -25,7 +25,8 @@ import { ILogService, NullLogService } from '../../../../../../../platform/log/c
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IOpenerService, OpenOptions } from '../../../../../../../platform/opener/common/opener.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
-import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { NullTelemetryService } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { TestTelemetryService as RecordingTelemetryService } from '../../../../../../../platform/telemetry/test/common/testTelemetryService.js';
 import { defaultButtonStyles } from '../../../../../../../platform/theme/browser/defaultStyles.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationBody, IChatInputNotificationContext, IChatInputNotificationModelState, IChatInputNotificationService, matchesModelIdentifier } from '../../../../browser/widget/input/chatInputNotificationService.js';
@@ -63,16 +64,6 @@ class RecordingLogService extends NullLogService {
 	override dispose(): void {
 		this._onError.dispose();
 		super.dispose();
-	}
-}
-
-class RecordingTelemetryService extends NullTelemetryServiceShape {
-	readonly events: { name: string; data: unknown }[] = [];
-
-	override publicLog2(eventName?: string, data?: unknown): void {
-		if (eventName) {
-			this.events.push({ name: eventName, data });
-		}
 	}
 }
 
@@ -650,6 +641,39 @@ suite('ChatInputNotificationWidget', () => {
 			metadata: { id, vendor, family: id, isBYOK } as ILanguageModelChatMetadata,
 		};
 	}
+
+	test('warning and error borders close around the banner without changing the quiet information frame', () => {
+		const { notificationService, widget } = createWidget();
+		document.body.appendChild(widget.domNode);
+		store.add(toDisposable(() => widget.domNode.remove()));
+		widget.domNode.style.setProperty('--vscode-strokeThickness', '1px');
+		widget.domNode.style.setProperty('--vscode-editorWarning-foreground', 'rgb(200, 150, 0)');
+		widget.domNode.style.setProperty('--vscode-editorError-foreground', 'rgb(200, 0, 0)');
+		const borders = [ChatInputNotificationSeverity.Warning, ChatInputNotificationSeverity.Error, ChatInputNotificationSeverity.Info].map(severity => {
+			notificationService.set({
+				id: 'frame', severity, message: 'Message', description: undefined, actions: [],
+				dismissible: false, autoDismissOnMessage: false,
+			});
+			const style = dom.getWindow(widget.domNode).getComputedStyle(widget.domNode);
+			return { width: style.borderBottomWidth, closed: style.borderBottomWidth === style.borderTopWidth && style.borderBottomColor === style.borderTopColor };
+		});
+		assert.deepStrictEqual(borders, [{ width: '1px', closed: true }, { width: '1px', closed: true }, { width: '0px', closed: false }]);
+	});
+
+	test('shows a non-dismissible required-model warning and clears it when a model becomes available', () => {
+		const state = observableValue<IChatInputNotificationModelState>('models', {
+			currentModel: undefined, models: [], agentModelPolicyError: 'The agent requires an available model.',
+		});
+		const { widget } = createWidget({ delegate: { modelSelection: modelSelection({ state }) } });
+		const blocked = {
+			message: widget.domNode.textContent?.includes('The agent requires an available model.'),
+			dismiss: widget.domNode.querySelector('[aria-label="Dismiss"]') !== null,
+		};
+		state.set({ currentModel: undefined, models: [] }, undefined);
+		assert.deepStrictEqual({ blocked, cleared: widget.domNode.textContent }, {
+			blocked: { message: true, dismiss: false }, cleared: '',
+		});
+	});
 
 	test('only marks a banner shown when its host becomes visible', () => {
 		const hostVisible = observableValue('hostVisible', false);

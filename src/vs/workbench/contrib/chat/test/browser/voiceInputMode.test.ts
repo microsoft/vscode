@@ -207,6 +207,8 @@ suite('VoiceInputModeActionViewItem', () => {
 		const container = dom.append(document.body, dom.$('.action-item'));
 		store.add({ dispose: () => container.remove() });
 		viewItem.render(container);
+		// The fake touch events below must not reach a global `Gesture` instance that other tests may have created
+		store.add(dom.addDisposableListener(container, 'touchend', event => event.stopPropagation()));
 
 		const touch = (selector: string) => {
 			const button = container.querySelector<HTMLButtonElement>(selector)!;

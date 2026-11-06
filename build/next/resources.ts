@@ -22,11 +22,12 @@ const commonResourcePatterns = [
 	'vs/editor/common/languages/highlights/*.scm',
 	'vs/editor/common/languages/injections/*.scm',
 
-	// SVGs referenced from CSS (needed for transpile/dev builds where CSS is copied as-is)
+	// Images referenced from CSS or loaded dynamically
 	'vs/workbench/browser/media/code-icon.svg',
 	'vs/workbench/browser/parts/editor/media/letterpress*.svg',
 	'vs/workbench/contrib/chat/browser/widget/media/chatPet/**/*.{gif,png}',
 	'vs/sessions/contrib/chat/browser/media/*.svg',
+	'vs/sessions/services/chatBackground/browser/media/*.webp',
 	'vs/sessions/contrib/welcome/browser/media/themePreviews/*.svg'
 ];
 

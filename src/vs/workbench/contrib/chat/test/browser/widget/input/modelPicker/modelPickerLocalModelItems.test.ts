@@ -22,6 +22,7 @@ import { TestInstantiationService } from '../../../../../../../../platform/insta
 import { MockContextKeyService } from '../../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../../../../platform/opener/common/opener.js';
+import { IManagedSettingsService, NullManagedSettingsService } from '../../../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { IProductService } from '../../../../../../../../platform/product/common/productService.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../../../platform/telemetry/common/telemetry.js';
@@ -35,7 +36,7 @@ import { TestChatEntitlementService, TestWorkspaceTrustManagementService } from 
 import { ITerminalService } from '../../../../../../terminal/browser/terminal.js';
 import { buildLocalModelPickerItems, formatLocalModelContextTokens, getLocalModelDirectModelPresentation, getLocalModelRunningAction, getLocalModelStateLabel, ILocalModelPickerHost, matchesLocalModelRowId, ModelPickerLocalModels } from '../../../../../browser/widget/input/modelPicker/modelPickerLocalModelItems.js';
 import { IModelConfigPropertySchema, IModelConfigurationAccess } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
-import { ITabbedModelPickerContext, TabbedModelPicker } from '../../../../../browser/widget/input/modelPicker/modelPickerTabbedWidget.js';
+import { ITabbedModelPickerContext, ITabbedModelPickerHideEvent, TabbedModelPicker } from '../../../../../browser/widget/input/modelPicker/modelPickerTabbedWidget.js';
 import { ModelPickerWidget } from '../../../../../browser/widget/input/modelPicker/modelPickerWidget.js';
 import { SessionType } from '../../../../../common/chatSessionsService.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../common/languageModels.js';
@@ -723,14 +724,14 @@ suite('ModelPickerLocalModelItems', () => {
 
 			const instantiationService = store.add(new TestInstantiationService());
 			// The widget only opens the tabbed picker; record the context it is given.
-			const onDidHide = store.add(new Emitter<void>());
+			const onDidHide = store.add(new Emitter<ITabbedModelPickerHideEvent>());
 			instantiationService.stubInstance(TabbedModelPicker, {
 				onDidHide: onDidHide.event,
 				get isVisible() { return !!shown; },
 				show: (_anchor: HTMLElement, context: ITabbedModelPickerContext, detailsModelId?: string) => { shown = { context, detailsModelId }; },
 				hide: () => {
 					shown = undefined;
-					onDidHide.fire();
+					onDidHide.fire({ finishedComparison: false });
 				},
 				setSelectedModel: (modelId: string | undefined) => { pickerSelections.push(modelId); },
 				setLocalModels: () => { },
@@ -751,6 +752,7 @@ suite('ModelPickerLocalModelItems', () => {
 			instantiationService.stub(IUpdateService, { state: { type: StateType.Uninitialized } });
 			instantiationService.stub(IUriIdentityService, {});
 			instantiationService.stub(IDefaultAccountService, { resolveGitHubUrl: () => undefined });
+			instantiationService.stub(IManagedSettingsService, new NullManagedSettingsService());
 			instantiationService.stub(IWorkspaceTrustManagementService, store.add(new TestWorkspaceTrustManagementService()));
 			instantiationService.stub(IWorkspaceTrustRequestService, {});
 			instantiationService.stub(IStorageService, store.add(new InMemoryStorageService()));

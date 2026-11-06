@@ -8,7 +8,7 @@ import { Event } from '../../../../util/vs/base/common/event';
 import { mock } from '../../../../util/common/test/simpleMock';
 import { FetchOptions, IFetcherService, Response } from '../../../../platform/networking/common/fetcherService';
 import { createFakeResponse } from '../../../../platform/test/node/fetcher';
-import { createGptLiveSession, isGptLiveModelAvailable } from '../gptLiveSession';
+import { createGptLiveSession, GptLiveModelAvailability, isGptLiveModelAvailable } from '../gptLiveSession';
 import { CancellationToken, CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
 
 class TestFetcherService extends mock<IFetcherService>() {
@@ -89,6 +89,56 @@ describe('isGptLiveModelAvailable', () => {
 	});
 });
 
+describe('GptLiveModelAvailability', () => {
+	it('caches successful checks for one minute, scoped to the current key and model', async () => {
+		vi.useFakeTimers({ toFake: ['Date'] });
+		try {
+			const fetcher = new TestFetcherService();
+			fetcher.fetch.mockImplementation(async () => createFakeResponse(200, { data: [{ id: 'live-a' }, { id: 'live-b' }] }));
+			const availability = new GptLiveModelAvailability(fetcher);
+			const counts: number[] = [];
+			for (const [key, model] of [['first-key', 'live-a'], ['first-key', 'live-a'], ['second-key', 'live-a'], ['second-key', 'live-b']]) {
+				await availability.isAvailable(key, model, CancellationToken.None);
+				counts.push(fetcher.fetch.mock.calls.length);
+			}
+			vi.advanceTimersByTime(60_000);
+			await availability.isAvailable('second-key', 'live-b', CancellationToken.None);
+			counts.push(fetcher.fetch.mock.calls.length);
+			expect(counts).toEqual([1, 1, 2, 3, 4]);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('does not cache unavailable models or failures', async () => {
+		const fetcher = new TestFetcherService();
+		fetcher.fetch
+			.mockResolvedValueOnce(createFakeResponse(200, { data: [] }))
+			.mockRejectedValueOnce(new Error('offline'))
+			.mockResolvedValueOnce(createFakeResponse(200, { data: [{ id: 'live' }] }));
+		const availability = new GptLiveModelAvailability(fetcher);
+		const unavailable = await availability.isAvailable('key', 'live', CancellationToken.None);
+		await expect(availability.isAvailable('key', 'live', CancellationToken.None)).rejects.toThrow('offline');
+		const available = await availability.isAvailable('key', 'live', CancellationToken.None);
+		expect({ unavailable, available, requests: fetcher.fetch.mock.calls.length }).toEqual({ unavailable: false, available: true, requests: 3 });
+	});
+
+	it('honors cancellation even on a cache hit', async () => {
+		const fetcher = new TestFetcherService();
+		fetcher.fetch.mockResolvedValue(createFakeResponse(200, { data: [{ id: 'live' }] }));
+		const availability = new GptLiveModelAvailability(fetcher);
+		await availability.isAvailable('key', 'live', CancellationToken.None);
+		const source = new CancellationTokenSource();
+		try {
+			source.cancel();
+			await expect(availability.isAvailable('key', 'live', source.token)).rejects.toThrow('Canceled');
+			expect(fetcher.fetch).toHaveBeenCalledTimes(1);
+		} finally {
+			source.dispose();
+		}
+	});
+});
+
 describe('createGptLiveSession', () => {
 	it('creates a client-delegation GPT-Live session without returning the API key or trimming the SDP terminator', async () => {
 		const fetcher = new TestFetcherService();
@@ -118,7 +168,7 @@ describe('createGptLiveSession', () => {
 				json: {
 					session: {
 						model: 'configured-live-model',
-						instructions: expect.stringContaining('Handle session awareness and session navigation yourself with the client session tools'),
+						instructions: expect.stringContaining('Generate <|SpawnThinking|> before acknowledging any request that needs backend work.'),
 						delegation: { type: 'client' },
 					},
 					transport: {
@@ -128,6 +178,14 @@ describe('createGptLiveSession', () => {
 				},
 			},
 		});
+		for (const instruction of [
+			'Backend tools: The client starts coding sessions, creates or edits files, runs commands, answers coding questions, handles session awareness and navigation, and applies replies to pending questions or approvals.',
+			'new-session input when no session exists',
+			'Wait for the client result before saying the request was accepted or an action succeeded.',
+			'Do not generate <|SpawnThinking|> when:',
+		]) {
+			expect(fetcher.fetch.mock.calls[0][1].json).toMatchObject({ session: { instructions: expect.stringContaining(instruction) } });
+		}
 		expect(JSON.stringify(result)).not.toContain('secret-key');
 	});
 

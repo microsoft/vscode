@@ -21,9 +21,21 @@ The generated protocol includes the Changesets model:
 ## Updating generated protocol types
 
 1. Update the source files in the sibling `agent-host-protocol` repo.
-2. Run `npx tsx scripts/sync-agent-host-protocol.ts` from the VS Code repo.
+2. Run `pnpm dlx tsx scripts/sync-agent-host-protocol.ts` from the VS Code repo.
 3. If VS Code consumers need short aliases or type guards, update the wrapper files in this directory after the sync.
 4. Compile. The generated registry catches missing action/notification version map entries.
+
+### Current targeted backport
+
+The generated copy intentionally carries the optional `CreateChatParams.title` on top of the `.ahp-version` source commit `6eec1b91`. Until the recorded pin advances to an AHP commit containing this field, preserve or reapply this generated delta when syncing. Neither titles nor initial messages require an additional capability; source-based creation still uses the existing `fork` and `sideChat` capabilities.
+
+A reproducible sync from `6eec1b91` must also retain the existing VS Code-only
+compatibility deltas: deprecated `SessionChatSummary.archived` and
+`ChatIsReadChanged` introduced in `0.10.0`.
+
+### Initial-message transport delta
+
+Host-facing `IAgentCreateChatRequestOptions.initialMessage` uses the existing `CreateChatParams.initialMessage` field and is deliberately not part of provider creation options: the host creates the provider chat first, then processes the message through its normal client-aware admission path. Message failures appear in the target chat's turn state rather than a special creation RPC error. Protocol clients serialize a supplied initial message unchanged except that a missing message `model` or `agent` inherits the corresponding request option. Do not add top-level `model` or `agent` fields to `CreateChatParams`.
 
 ## Adding optional fields to existing types
 

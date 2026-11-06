@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { getAgentHostSupportedProtocolVersions, negotiateAgentHostProtocolVersion } from '../../common/agentHostProtocolCompatibility.js';
+import { getAgentHostClientProtocolVersions, getAgentHostSupportedProtocolVersions, negotiateAgentHostProtocolVersion } from '../../common/agentHostProtocolCompatibility.js';
 import { createRemoteAgentHostState } from '../../common/remoteAgentHostMetadata.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 
@@ -22,6 +22,20 @@ suite('Agent Host protocol compatibility', () => {
 			offered: ['1.0.0', '0.10.0', '0.9.0'],
 			negotiated: ['1.0.0', '0.10.0', '0.9.0'],
 			developmentVersion: PROTOCOL_VERSION,
+		});
+	});
+
+	test('clients offer the current version only while chats may use their own agents', () => {
+		assert.deepStrictEqual({
+			off: getAgentHostClientProtocolVersions(false),
+			on: getAgentHostClientProtocolVersions(true),
+			negotiatedOff: negotiateAgentHostProtocolVersion(getAgentHostClientProtocolVersions(false)),
+			negotiatedOn: negotiateAgentHostProtocolVersion(getAgentHostClientProtocolVersions(true)),
+		}, {
+			off: ['1.0.0', '0.10.0', '0.9.0'],
+			on: [PROTOCOL_VERSION, '1.0.0', '0.10.0', '0.9.0'],
+			negotiatedOff: '1.0.0',
+			negotiatedOn: PROTOCOL_VERSION,
 		});
 	});
 

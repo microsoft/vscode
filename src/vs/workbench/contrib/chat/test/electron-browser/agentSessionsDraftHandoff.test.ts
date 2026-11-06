@@ -59,7 +59,7 @@ suite('Agents Window draft handoff and Copilot introduction', () => {
 	const introductionCopyTreatment = 'chatCopilotHarnessIntroductionCopy';
 	const introductionButtonsTreatment = 'chatCopilotHarnessIntroductionButtons';
 
-	function createHarness(options: { transfer?: boolean; reveal?: boolean; running?: boolean; banner?: boolean; introductionMode?: CopilotHarnessIntroductionMode; runningProviderType?: string; handoffDelaySeconds?: number } = {}) {
+	function createHarness(options: { transfer?: boolean; running?: boolean; banner?: boolean; introductionMode?: CopilotHarnessIntroductionMode; runningProviderType?: string; handoffDelaySeconds?: number } = {}) {
 		const instantiation = disposables.add(new TestInstantiationService());
 		const focused = disposables.add(new Emitter<void>());
 		const sessionsChanged = disposables.add(new Emitter<void>());
@@ -79,7 +79,6 @@ suite('Agents Window draft handoff and Copilot introduction', () => {
 			}
 		}({
 			[ChatConfiguration.OpenInAgentsWindowTransferDraft]: options.transfer ?? true,
-			[ChatConfiguration.OpenInAgentsWindowRevealCurrentSession]: options.reveal ?? false,
 			[ChatConfiguration.AgentsHandoffTipMode]: 'default',
 			[ChatConfiguration.AgentsHandoffTipDelaySeconds]: options.handoffDelaySeconds ?? DEFAULT_AGENTS_HANDOFF_TIP_DELAY_SECONDS,
 			[ChatConfiguration.AgentsParallelWorkBannerEnabled]: options.banner ?? true,
@@ -311,16 +310,19 @@ suite('Agents Window draft handoff and Copilot introduction', () => {
 		const banner = properties[ChatConfiguration.AgentsWindowBannerEnabled];
 		const developer = properties[ChatConfiguration.AgentsWindowBannerDeveloperMode];
 		const reveal = properties[ChatConfiguration.AgentsWindowBannerRevealCurrentSession];
+		const transferDraft = properties[ChatConfiguration.OpenInAgentsWindowTransferDraft];
 		const introduction = properties[ChatConfiguration.CopilotHarnessIntroductionMode];
 		assert.deepStrictEqual({
 			banner: { default: banner.default, experiment: banner.experiment },
 			developer: { default: developer.default, tags: developer.tags, experiment: Object.hasOwn(developer, 'experiment') },
 			reveal: { type: reveal.type, default: reveal.default, scope: reveal.scope, tags: reveal.tags, experiment: reveal.experiment },
+			transferDraft: { type: transferDraft.type, default: transferDraft.default, tags: transferDraft.tags, experiment: { present: Object.hasOwn(transferDraft, 'experiment'), value: transferDraft.experiment } },
 			introduction: { enum: introduction.enum, tags: introduction.tags },
 		}, {
 			banner: { default: false, experiment: { mode: 'auto' } },
 			developer: { default: false, tags: ['experimental', 'advanced'], experiment: false },
 			reveal: { type: 'boolean', default: true, scope: ConfigurationScope.APPLICATION, tags: ['experimental', 'advanced'], experiment: { mode: 'auto' } },
+			transferDraft: { type: 'boolean', default: true, tags: ['experimental'], experiment: { present: true, value: { mode: 'auto' } } },
 			introduction: {
 				enum: [CopilotHarnessIntroductionMode.Off, CopilotHarnessIntroductionMode.NewSession, CopilotHarnessIntroductionMode.AfterRequest],
 				tags: ['experimental'],
@@ -456,18 +458,16 @@ suite('Agents Window draft handoff and Copilot introduction', () => {
 	});
 
 	for (const transfer of [false, true]) {
-		for (const reveal of [false, true]) {
-			test(`title-bar opens preserve drafts and honor session reveal (transfer=${transfer}, reveal=${reveal})`, async () => {
-				const h = createHarness({ transfer, reveal });
-				await h.instantiation.invokeFunction(accessor => new OpenWorkspaceInAgentsWindowTitleBarAction().run(accessor));
-				h.resource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/persisted' });
-				await h.instantiation.invokeFunction(accessor => new OpenWorkspaceInAgentsWindowTitleBarAction().run(accessor));
-				assert.deepStrictEqual(h.calls.map(call => ({ draft: !!call.draft, session: call.reveal === 'new' ? 'new' : URI.revive(call.reveal)?.path })), [
-					{ draft: false, session: undefined },
-					{ draft: false, session: reveal ? '/persisted' : undefined },
-				]);
-			});
-		}
+		test(`title-bar opens open the workspace without a draft or session (transfer=${transfer})`, async () => {
+			const h = createHarness({ transfer });
+			await h.instantiation.invokeFunction(accessor => new OpenWorkspaceInAgentsWindowTitleBarAction().run(accessor));
+			h.resource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/persisted' });
+			await h.instantiation.invokeFunction(accessor => new OpenWorkspaceInAgentsWindowTitleBarAction().run(accessor));
+			assert.deepStrictEqual(h.calls.map(call => ({ draft: !!call.draft, session: call.reveal === 'new' ? 'new' : URI.revive(call.reveal)?.path })), [
+				{ draft: false, session: undefined },
+				{ draft: false, session: undefined },
+			]);
+		});
 	}
 
 	test('requires new-session reveal even for an explicit draft transfer override', async () => {
@@ -521,7 +521,7 @@ suite('Agents Window draft handoff and Copilot introduction', () => {
 	}
 
 	test('preserves explicit caller folder, session and draft arguments instead of inferring the current draft', async () => {
-		const h = createHarness({ reveal: true });
+		const h = createHarness();
 		const targets: IOpenAgentsWindowOptions[] = [
 			{ folderUri: URI.file('/explicit-workspace') },
 			{ reveal: URI.from({ scheme: SessionType.AgentHostCopilot, path: '/explicit-session' }) },
@@ -535,10 +535,10 @@ suite('Agents Window draft handoff and Copilot introduction', () => {
 	});
 
 	test('does not treat a persisted contributed session awaiting its history as a new unsent chat', async () => {
-		const h = createHarness({ reveal: true });
+		const h = createHarness();
 		h.resource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/persisted' });
 		h.showBanner();
-		await h.instantiation.invokeFunction(accessor => new OpenWorkspaceInAgentsWindowTitleBarAction().run(accessor));
+		await h.instantiation.invokeFunction(accessor => new OpenChatSessionInAgentsWindowAction().run(accessor));
 		assert.deepStrictEqual({
 			draft: h.calls[0].draft,
 			session: h.calls[0].reveal === 'new' ? 'new' : URI.revive(h.calls[0].reveal)?.path,

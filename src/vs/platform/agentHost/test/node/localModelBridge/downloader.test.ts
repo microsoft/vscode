@@ -109,7 +109,7 @@ function blobServer(files: Record<string, Uint8Array>, overrides: (request: ILoc
 }
 
 suite('localModel downloader', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let root: string;
 	let familyDir: string;
@@ -191,7 +191,7 @@ suite('localModel downloader', () => {
 			phases: [...phases].sort(),
 			telemetry: [telemetry[0]?.name, event?.phase, event?.outcome, event?.registry, event?.totalBytes, event?.sasRefreshes],
 		}, {
-			result: { downloadedBytes: PRIMARY.byteLength + INI.byteLength, reusedFiles: [], resumed: false, sasRenewals: 0 },
+			result: { downloadedBytes: PRIMARY.byteLength + INI.byteLength, reusedFiles: [], resumed: false, sasRenewals: 0, sha256s: [sha(PRIMARY), sha(INI)] },
 			files: ['llama-default.ini', 'model.gguf'],
 			familyFiles: ['3'],
 			primary: true,
@@ -199,6 +199,52 @@ suite('localModel downloader', () => {
 			requests: [['GET', '/models/mai/model.gguf', undefined, 'identity'], ['GET', '/models/mai/llama-default.ini', undefined, 'identity']],
 			phases: ['downloading', 'placing', 'verifying'],
 			telemetry: ['localModel.setup', 'download', 'success', 'azureml', PRIMARY.byteLength + INI.byteLength, 0],
+		});
+	});
+
+	test('a file without a published checksum (a regional replica) needs a strong ETag, which binds it; its SHA-256 is computed, and its placed copy, which nothing verifies, downloads again', async () => {
+		const unchecked: IDownloadFileSpec = { ...spec('model.gguf', PRIMARY), sha256: undefined };
+		const http = new FakeHttp(blobServer({ 'model.gguf': PRIMARY }));
+		const first = await run(createDownloader(http), [unchecked]);
+		const again = await run(createDownloader(http), [unchecked]);
+		const servedWith = (etag: string | undefined) => createDownloader(new FakeHttp(blobServer({}, () => ({ status: 200, headers: { ...(etag ? { etag } : {}), 'content-length': String(PRIMARY.byteLength) }, body: PRIMARY }))));
+		assert.deepStrictEqual({
+			first: typeof first === 'object' ? first.sha256s : first,
+			again: typeof again === 'object' ? [again.reusedFiles, again.downloadedBytes] : again,
+			otherContent: await run(servedWith('"etag-other"'), [unchecked]),
+			missingResponseEtag: await run(servedWith(undefined), [unchecked]),
+			weakResponseEtag: await run(servedWith('W/"etag-model.gguf"'), [unchecked]),
+			weakEtag: await run(createDownloader(http), [{ ...unchecked, etag: 'W/"etag-model.gguf"' }]),
+		}, {
+			first: [sha(PRIMARY)],
+			again: [[], PRIMARY.byteLength],
+			otherContent: 'identityChanged',
+			missingResponseEtag: 'identityChanged',
+			weakResponseEtag: 'identityChanged',
+			weakEtag: 'noChecksum',
+		});
+	});
+
+	test('a retry after a later file failed replaces a placed copy it can\'t reuse instead of downloading a second copy beside it', async () => {
+		const unchecked: IDownloadFileSpec = { ...spec('model.gguf', PRIMARY), sha256: undefined };
+		let iniPublished = false;
+		const placedWhenRequested: boolean[] = [];
+		const http = new FakeHttp(blobServer({ 'model.gguf': PRIMARY, 'llama-default.ini': INI }, (_request, name) => {
+			if (name === 'model.gguf') {
+				placedWhenRequested.push(fs.existsSync(path.join(targetDir, 'model.gguf')));
+			}
+			return name === 'llama-default.ini' && !iniPublished ? { status: 404 } : undefined;
+		}));
+		const failed = await run(createDownloader(http), [unchecked, spec('llama-default.ini', INI)]);
+		const afterFailure = await listDir(targetDir);
+		iniPublished = true;
+		const retried = await run(createDownloader(http), [unchecked, spec('llama-default.ini', INI)]);
+		assert.deepStrictEqual({ failed, afterFailure, placedWhenRequested, retried: typeof retried === 'object' ? retried.downloadedBytes : retried, files: await listDir(targetDir) }, {
+			failed: 'notPublished',
+			afterFailure: ['llama-default.ini.vscode.partial.json', 'model.gguf'],
+			placedWhenRequested: [false, false],
+			retried: PRIMARY.byteLength + INI.byteLength,
+			files: ['llama-default.ini', 'model.gguf'],
 		});
 	});
 
@@ -212,7 +258,7 @@ suite('localModel downloader', () => {
 			primary: await fileMatches('model.gguf', PRIMARY),
 			files: await listDir(targetDir),
 		}, {
-			result: { downloadedBytes: PRIMARY.byteLength - MiB, reusedFiles: [], resumed: true, sasRenewals: 0 },
+			result: { downloadedBytes: PRIMARY.byteLength - MiB, reusedFiles: [], resumed: true, sasRenewals: 0, sha256s: [sha(PRIMARY)] },
 			headers: { 'Accept-Encoding': 'identity', 'Range': `bytes=${MiB}-`, 'If-Match': '"etag-model.gguf"' },
 			primary: true,
 			files: ['model.gguf'],
@@ -288,7 +334,7 @@ suite('localModel downloader', () => {
 			rangesResume: starts.slice(1).every((start, index) => start > 0 && start >= starts[index]),
 			retryDelays,
 		}, {
-			result: { downloadedBytes: size, reusedFiles: [], resumed: false, sasRenewals: 0 },
+			result: { downloadedBytes: size, reusedFiles: [], resumed: false, sasRenewals: 0, sha256s: [sha(PRIMARY)] },
 			primary: true,
 			files: ['model.gguf'],
 			ifMatch: [null, null, null, null, null],
@@ -526,7 +572,7 @@ suite('localModel downloader', () => {
 	test('download diagnostics: the request service logs only hosts and statuses (logUrl: false), the downloader only byte counts and codes', async () => {
 		const log = new RecordingLogService();
 		const reply = blobServer({ 'model.gguf': PRIMARY, 'llama-default.ini': INI }, (_request, name) => name === 'broken.gguf' ? { status: 500, headers: { etag: '"etag-broken.gguf"' } } : undefined);
-		const requestService = new class extends AbstractRequestService {
+		const requestService = store.add(new class extends AbstractRequestService {
 			async request(options: IRequestOptions): Promise<IRequestContext> {
 				return this.logAndRequest(options, async () => {
 					const fake = reply({ url: options.url ?? '', method: 'GET', headers: options.headers as Record<string, string> | undefined });
@@ -537,32 +583,28 @@ suite('localModel downloader', () => {
 			async lookupAuthorization(): Promise<undefined> { return undefined; }
 			async lookupKerberosAuthorization(): Promise<string | undefined> { return undefined; }
 			async loadCertificates(): Promise<string[]> { return []; }
-		}(log);
-		try {
-			await fs.promises.mkdir(targetDir, { recursive: true });
-			await fs.promises.writeFile(path.join(targetDir, 'llama-default.ini'), INI);
-			const downloader = new ModelDownloader({ http: new RequestServiceHttpClient(requestService), log, renameRetryDelayMs: 1, retryDelay: async () => { } });
-			const downloaded = await run(downloader, [spec('model.gguf', PRIMARY), spec('llama-default.ini', INI)]);
-			const failed = await run(downloader, [spec('broken.gguf', PRIMARY)]);
-			// An HTTP 500 is transient: 8 attempts, the retries logged with byte counts only.
-			const failedAttempts = Array.from({ length: 8 }, (_, attempt) => [
-				`#${attempt + 2}: acct.blob.core.windows.net - begin GET`,
-				`#${attempt + 2}: acct.blob.core.windows.net - end GET 500`,
-				...(attempt < 7 ? [`[LocalModelDownloader] The transfer was interrupted after 0 of ${PRIMARY.byteLength} bytes; retrying (${attempt + 1}/7) in ${Math.min(30_000, 1000 * 2 ** attempt)} ms`] : []),
-			]).flat();
-			assert.deepStrictEqual({ downloaded: typeof downloaded === 'object' ? downloaded.reusedFiles : downloaded, failed, logged: log.messages }, {
-				downloaded: ['llama-default.ini'],
-				failed: 'network',
-				logged: [
-					'#1: acct.blob.core.windows.net - begin GET',
-					'#1: acct.blob.core.windows.net - end GET 200',
-					`[LocalModelDownloader] Reusing a verified file (${INI.byteLength} bytes)`,
-					...failedAttempts,
-				],
-			});
-		} finally {
-			requestService.dispose();
-		}
+		}(log));
+		await fs.promises.mkdir(targetDir, { recursive: true });
+		await fs.promises.writeFile(path.join(targetDir, 'llama-default.ini'), INI);
+		const downloader = new ModelDownloader({ http: new RequestServiceHttpClient(requestService), log, renameRetryDelayMs: 1, retryDelay: async () => { } });
+		const downloaded = await run(downloader, [spec('model.gguf', PRIMARY), spec('llama-default.ini', INI)]);
+		const failed = await run(downloader, [spec('broken.gguf', PRIMARY)]);
+		// An HTTP 500 is transient: 8 attempts, the retries logged with byte counts only.
+		const failedAttempts = Array.from({ length: 8 }, (_, attempt) => [
+			`#${attempt + 2}: acct.blob.core.windows.net - begin GET`,
+			`#${attempt + 2}: acct.blob.core.windows.net - end GET 500`,
+			...(attempt < 7 ? [`[LocalModelDownloader] The transfer was interrupted after 0 of ${PRIMARY.byteLength} bytes; retrying (${attempt + 1}/7) in ${Math.min(30_000, 1000 * 2 ** attempt)} ms`] : []),
+		]).flat();
+		assert.deepStrictEqual({ downloaded: typeof downloaded === 'object' ? downloaded.reusedFiles : downloaded, failed, logged: log.messages }, {
+			downloaded: ['llama-default.ini'],
+			failed: 'network',
+			logged: [
+				'#1: acct.blob.core.windows.net - begin GET',
+				'#1: acct.blob.core.windows.net - end GET 200',
+				`[LocalModelDownloader] Reusing a verified file (${INI.byteLength} bytes)`,
+				...failedAttempts,
+			],
+		});
 	});
 
 	test('rename retries for antivirus locks; verified final copies are reused', async () => {

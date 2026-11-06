@@ -74,6 +74,7 @@ export abstract class BreadcrumbsConfig<T> {
 	static readonly SymbolPathSeparator = BreadcrumbsConfig._stub<string>('breadcrumbs.symbolPathSeparator');
 	static readonly Icons = BreadcrumbsConfig._stub<boolean>('breadcrumbs.icons');
 	static readonly ShowEditorType = BreadcrumbsConfig._stub<boolean>('breadcrumbs.showEditorType');
+	static readonly ShowInUntitledFiles = BreadcrumbsConfig._stub<boolean>('breadcrumbs.showInUntitledFiles');
 	static readonly TitleScrollbarSizing = BreadcrumbsConfig._stub<IEditorPartOptions['titleScrollbarSizing']>('workbench.editor.titleScrollbarSizing');
 	static readonly TitleScrollbarVisibility = BreadcrumbsConfig._stub<IEditorPartOptions['titleScrollbarVisibility']>('workbench.editor.titleScrollbarVisibility');
 
@@ -173,6 +174,11 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			type: 'boolean',
 			default: true,
 			tags: ['experimental']
+		},
+		'breadcrumbs.showInUntitledFiles': {
+			description: localize('showInUntitledFiles', "Controls whether breadcrumbs are shown for untitled files."),
+			type: 'boolean',
+			default: false
 		},
 		'breadcrumbs.symbolPathSeparator': {
 			description: localize('symbolPathSeparator', "The separator used when copying the breadcrumb symbol path."),

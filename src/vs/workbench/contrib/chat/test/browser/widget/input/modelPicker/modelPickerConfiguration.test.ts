@@ -165,8 +165,8 @@ suite('ModelPickerConfiguration', () => {
 			value: 64000,
 			schema: { type: 'number', enum: [32000, 64000], enumDescriptions: ['Standard', 'Extended'], default: 32000, readOnly: true },
 		}), [
-			{ index: 0, value: 32000, label: '32K', description: 'Standard', checked: false, isDefault: true, readOnly: true },
-			{ index: 1, value: 64000, label: '64K', description: 'Extended', checked: true, isDefault: false, readOnly: true },
+			{ index: 0, value: 32000, label: '32K', description: 'Standard', checked: false, isDefault: true, readOnly: true, unavailable: false },
+			{ index: 1, value: 64000, label: '64K', description: 'Extended', checked: true, isDefault: false, readOnly: true, unavailable: false },
 		]);
 	});
 
@@ -202,21 +202,19 @@ suite('ModelPickerConfiguration', () => {
 		});
 	});
 
-	// A producer that cannot resolve a default leaves it `undefined`, which must
-	// not be stringified into the label. The group is dropped from the readout.
-	test('omits an unresolved group from the label rather than rendering "undefined"', () => {
+	test('describes an unspecified effort as the model default rather than selecting the first value', () => {
 		assert.deepStrictEqual(render(createModel({ omitEffortDefault: true })), {
 			visible: true,
-			label: '32K',
-			ariaLabel: 'Test Model details, Context: 32K',
+			label: 'Model default · 32K',
+			ariaLabel: 'Test Model details, Effort Level: Model default, Context: 32K',
 		});
 	});
 
 	test('keeps unresolved settings reachable without guessing', () => {
 		assert.deepStrictEqual(render(createModel({ omitEffortDefault: true, omitContextDefault: true })), {
 			visible: true,
-			label: 'Configure',
-			ariaLabel: 'Test Model details, Configure',
+			label: 'Model default',
+			ariaLabel: 'Test Model details, Effort Level: Model default',
 		});
 	});
 
@@ -224,7 +222,7 @@ suite('ModelPickerConfiguration', () => {
 		const model = createModel();
 		assert.deepStrictEqual(render({ ...model, metadata: { ...model.metadata, configurationSchema: undefined, maxContextWindowTokens: 200000 } }), {
 			visible: true,
-			label: '200K',
+			label: 'Max 200K',
 			ariaLabel: 'Test Model details, Max context: 200K',
 		});
 	});
@@ -258,5 +256,13 @@ suite('ModelPickerConfiguration', () => {
 		const schema = { ...original, properties: { ...original.properties, tier: { ...original.properties!.tier, enum: ['balanced', 'max'], enumItemLabels: ['Balance', 'Intelligence'] } } };
 		const valueFor = (saved: unknown) => getModelConfigProperty(model, createAccess({ tier: saved }, schema), 'navigation')?.value;
 		assert.deepStrictEqual({ dropped: valueFor('eco'), offered: valueFor('max') }, { dropped: 'balanced', offered: 'max' });
+	});
+
+	test('a saved tier the provider now lists as unavailable reads as its default', () => {
+		const model = createTierModel();
+		const original = model.metadata.configurationSchema!;
+		const schema = { ...original, properties: { ...original.properties, tier: { ...original.properties!.tier, enum: ['balanced', 'max'], enumItemLabels: ['Balance', 'Max'], enumItemDisabled: [false, true] } } };
+		const valueFor = (saved: unknown) => getModelConfigProperty(model, createAccess({ tier: saved }, schema), 'navigation')?.value;
+		assert.deepStrictEqual({ unavailable: valueFor('max'), available: valueFor('balanced') }, { unavailable: 'balanced', available: 'balanced' });
 	});
 });

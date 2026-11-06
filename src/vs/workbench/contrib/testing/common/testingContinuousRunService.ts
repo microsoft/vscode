@@ -12,6 +12,7 @@ import { WellDefinedPrefixTree } from '../../../../base/common/prefixTree.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IUnattendedRestartService } from '../../../services/lifecycle/common/unattendedRestart.js';
 import { StoredValue } from './storedValue.js';
 import { TestId } from './testId.js';
 import { TestingContextKeys } from './testingContextKeys.js';
@@ -101,8 +102,16 @@ export class TestingContinuousRunService extends Disposable implements ITestingC
 		@IStorageService storageService: IStorageService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ITestProfileService private readonly testProfileService: ITestProfileService,
+		@IUnattendedRestartService unattendedRestartService: IUnattendedRestartService,
 	) {
 		super();
+
+		// Continuous test mode is not turned back on after a restart. It cannot be on before this
+		// service exists, which is created once testing is used, so registering this late is fine.
+		this._register(unattendedRestartService.registerParticipant({
+			check: () => this.isEnabled() ? 'testing.continuousRun' : undefined
+		}));
+
 		const isGloballyOn = TestingContextKeys.isContinuousModeOn.bindTo(contextKeyService);
 		this._register(this.onDidChange(() => {
 			isGloballyOn.set(!!this.running.root.value);

@@ -7,6 +7,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { IApiRequestProvider } from '../client/request.js';
 import { ContentClient } from '../content/contentClient.js';
+import { ConnectorsClient } from '../connectors/connectorsClient.js';
 import { ActionsClient } from '../core/actionsClient.js';
 import { ChecksClient } from '../core/checksClient.js';
 import { CoreClient } from '../core/coreClient.js';
@@ -31,6 +32,7 @@ interface AccountClientProviders {
 	readonly graphql: IApiRequestProvider;
 	readonly rawContent?: IApiRequestProvider;
 	readonly missionControl?: IApiRequestProvider;
+	readonly connectors?: IApiRequestProvider;
 	readonly onDidInvalidate?: Event<void>;
 	readonly onDidChangeCredentials?: Event<void>;
 }
@@ -42,6 +44,7 @@ export class AccountClient extends Disposable implements IGitHubAccountClient {
 	readonly onDidInvalidate = this._onDidInvalidate.event;
 	private readonly _onDidChangeCredentials = this._register(new Emitter<void>());
 	readonly onDidChangeCredentials = this._onDidChangeCredentials.event;
+	readonly connectors: IGitHubAccountClient['connectors'];
 	readonly automations: IGitHubAccountClient['automations'];
 	readonly environments: IGitHubAccountClient['environments'];
 	readonly tasks: IGitHubAccountClient['tasks'];
@@ -74,6 +77,7 @@ export class AccountClient extends Disposable implements IGitHubAccountClient {
 		this.authorization = Object.freeze({ ...authorization, scopes: Object.freeze([...authorization.scopes]) });
 		const core = new CoreClient(providers.rest, providers.graphql);
 		const missionControl = new MissionControlClient(providers.missionControl);
+		this.connectors = new ConnectorsClient(providers.connectors);
 		this.automations = new AutomationsClient(missionControl);
 		this.environments = new EnvironmentsClient(missionControl);
 		this.tasks = new TasksClient(missionControl);

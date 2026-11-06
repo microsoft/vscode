@@ -222,22 +222,15 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 		}
 	};
 
-	let disposables: DisposableStore;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let model: TextModel;
 	const languageFeaturesService = new LanguageFeaturesService();
 	const registry = languageFeaturesService.completionProvider;
 
 	setup(function () {
-		disposables = new DisposableStore();
 		model = createTextModel('abc def', undefined, undefined, URI.parse('test:somefile.ttt'));
 		disposables.add(model);
 	});
-
-	teardown(() => {
-		disposables.dispose();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function withOracle(callback: (model: SuggestModel, editor: ITestCodeEditor) => any): Promise<any> {
 

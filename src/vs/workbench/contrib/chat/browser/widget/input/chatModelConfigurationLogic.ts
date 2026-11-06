@@ -95,7 +95,7 @@ export function extractSchemaDefaults(schema: ILanguageModelConfigurationSchema 
  * as an invalid override. A value is kept only when its property is declared and every
  * constraint this understands is satisfied:
  *   1. Keys absent from the current schema are dropped (removed properties).
- *   2. `enum` and `const` must contain the value.
+ *   2. `enum` and `const` must contain the value, and `enumItemDisabled` must not mark it.
  *   3. `type` must match, including a union of types.
  *   4. Numeric bounds and string `pattern`/length are enforced when declared.
  * A property using a composite schema (`anyOf`, `oneOf`, `allOf`, `not`, `$ref`) is failed
@@ -123,6 +123,11 @@ export function filterConfigurationToSchema(
 	return result;
 }
 
+export function isDisabledEnumValue(value: unknown, schema: { enum?: unknown[]; enumItemDisabled?: boolean[] } & IJSONSchema): boolean {
+	const index = Array.isArray(schema.enum) ? schema.enum.indexOf(value) : -1;
+	return index >= 0 && schema.enumItemDisabled?.[index] === true;
+}
+
 function satisfiesPropertySchema(value: unknown, schema: IJSONSchema): boolean {
 	// A shape this does not interpret cannot be checked, so the value is not kept.
 	if (schema.anyOf || schema.oneOf || schema.allOf || schema.not || schema.$ref) {
@@ -131,7 +136,7 @@ function satisfiesPropertySchema(value: unknown, schema: IJSONSchema): boolean {
 	if (schema.const !== undefined && value !== schema.const) {
 		return false;
 	}
-	if (Array.isArray(schema.enum) && !schema.enum.includes(value)) {
+	if (Array.isArray(schema.enum) && (!schema.enum.includes(value) || isDisabledEnumValue(value, schema))) {
 		return false;
 	}
 	if (schema.type !== undefined) {

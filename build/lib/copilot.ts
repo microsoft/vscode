@@ -7,6 +7,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { ensureNpmPackage, materializeNpmPackageVersion, type EnsureNpmPackageOptions } from './npmPackage.ts';
+import { parsePackageKey, readPnpmLockfile, type PnpmLockfile } from './pnpmLock.ts';
 
 /**
  * Options for {@link prepareBuiltInCopilotRipgrepShim}. Extends the npm packing
@@ -27,6 +28,30 @@ export const copilotPlatforms = [
 	'linuxmusl-arm64', 'linuxmusl-x64',
 	'win32-arm64', 'win32-x64',
 ];
+
+/**
+ * Product values that {@link renderCopilotShimLauncher} writes into `resources/win32/bin/copilot.sh`.
+ */
+export interface CopilotShimLauncherOptions {
+	readonly commit: string;
+	readonly quality: string;
+	readonly applicationName: string;
+	readonly dataFolderName: string;
+	readonly serverDataFolderName: string;
+}
+
+/**
+ * Renders the POSIX `copilot` launcher that Windows builds ship next to `copilot.exe` in `bin/copilot-shim`, so that
+ * WSL, Git Bash, and Cygwin shells that use the Windows PATH get a `copilot` command, like `bin/code` next to `code.cmd`.
+ */
+export function renderCopilotShimLauncher(template: string, options: CopilotShimLauncherOptions): string {
+	return template
+		.replace(/@@COMMIT@@/g, () => options.commit)
+		.replace(/@@QUALITY@@/g, () => options.quality)
+		.replace(/@@APPNAME@@/g, () => options.applicationName)
+		.replace(/@@DATAFOLDER@@/g, () => options.dataFolderName)
+		.replace(/@@SERVERDATAFOLDER@@/g, () => options.serverDataFolderName);
+}
 
 export function getCopilotRuntimeVersion(nodeModulesRoot = 'node_modules'): string {
 	const packageJsonPath = path.join(nodeModulesRoot, '@github', 'copilot-sdk', 'package.json');
@@ -377,26 +402,27 @@ function resolveVersionMatchedCopilotPlatformPackage(copilotPackagePlatformArch:
  * so the build must stop rather than ship an unverified binary.
  */
 function resolvePinnedPlatformPackageIntegrity(packageName: string, extVersion: string, options: PrepareBuiltInCopilotOptions): string {
-	const lockfilePath = options.extensionLockfilePath ?? path.join(import.meta.dirname, '..', '..', 'extensions', 'copilot', 'package-lock.json');
+	const lockfilePath = options.extensionLockfilePath ?? path.join(import.meta.dirname, '..', '..', 'extensions', 'copilot', 'pnpm-lock.yaml');
 
-	let lock: { packages?: Record<string, { version?: string; integrity?: string }> };
+	let lockfile: PnpmLockfile;
 	try {
-		lock = JSON.parse(fs.readFileSync(lockfilePath, 'utf8'));
+		lockfile = readPnpmLockfile(lockfilePath);
 	} catch (err) {
 		throw new Error(`[prepareBuiltInCopilotRipgrepShim] Could not read ${lockfilePath} to verify ${packageName}@${extVersion}: ${err instanceof Error ? err.message : String(err)}`);
 	}
 
-	const entry = lock.packages?.[path.posix.join('node_modules', packageName)];
-	if (!entry) {
+	const versions = Object.keys(lockfile.packages ?? {}).map(parsePackageKey).filter(p => p.name === packageName).map(p => p.version);
+	if (versions.length === 0) {
 		throw new Error(`[prepareBuiltInCopilotRipgrepShim] ${packageName} is not recorded in ${lockfilePath}; refusing to fetch an unverifiable native.`);
 	}
-	if (entry.version !== extVersion) {
-		throw new Error(`[prepareBuiltInCopilotRipgrepShim] ${packageName} is pinned to ${entry.version} in ${lockfilePath} but the built-in extension is @github/copilot@${extVersion}; refusing to fetch an unverifiable native.`);
+	if (!versions.includes(extVersion)) {
+		throw new Error(`[prepareBuiltInCopilotRipgrepShim] ${packageName} is pinned to ${versions.join(', ')} in ${lockfilePath} but the built-in extension is @github/copilot@${extVersion}; refusing to fetch an unverifiable native.`);
 	}
-	if (!entry.integrity) {
+	const integrity = lockfile.packages?.[`${packageName}@${extVersion}`]?.resolution.integrity;
+	if (!integrity) {
 		throw new Error(`[prepareBuiltInCopilotRipgrepShim] ${packageName}@${extVersion} has no integrity in ${lockfilePath}; refusing to fetch an unverifiable native.`);
 	}
-	return entry.integrity;
+	return integrity;
 }
 
 function readCopilotPackageVersion(copilotBase: string): string {

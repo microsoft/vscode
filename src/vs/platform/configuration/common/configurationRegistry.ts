@@ -300,6 +300,9 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	 */
 	policyReference?: IPolicyReference;
 
+	/** Explains an effective policy value and the saved value it overrides in Settings UI and JSON. */
+	policyValueDescription?: (policyValue: unknown, configuredValue: unknown) => string;
+
 	/**
 	 * Projects runtime-managed restrictions into the Settings UI without changing configuration values.
 	 * Return undefined when editable. Runtime policy enforcement remains authoritative.
