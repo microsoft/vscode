@@ -7220,6 +7220,36 @@ suite('ChatService', () => {
 			assert.strictEqual(restored?.inputText, 'unsent draft', 'Input text should be restored');
 		});
 
+		test('cleared draft input stays cleared when a remote session is released before its first request', async () => {
+			const { resource } = setupRemoteProvider({ history: [] });
+			const testService = createChatService();
+			const acquire = async () => {
+				const ref = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+				assert.ok(ref);
+				return testDisposables.add(ref);
+			};
+			const saved = await acquire();
+			saved.object.inputModel.setState({
+				inputText: 'Start this task',
+				attachments: [{ kind: 'file', id: 'context', name: 'context.ts', value: URI.file('/workspace/context.ts') }],
+			});
+			saved.dispose();
+			await testService.waitForModelDisposals();
+
+			const composing = await acquire();
+			composing.object.inputModel.setState({ inputText: '', attachments: [], selections: [] });
+			composing.dispose();
+			await testService.waitForModelDisposals();
+
+			const reopened = await acquire();
+			const state = reopened.object.inputModel.state.get();
+			assert.deepStrictEqual({
+				inputText: state?.inputText,
+				attachments: state?.attachments,
+				requests: reopened.object.getRequests().length,
+			}, { inputText: '', attachments: [], requests: 0 });
+		});
+
 		test('restored draft uses the session history model, not the persisted (stale) one', async () => {
 			const historyModelId = 'history-model';
 			const historyMetadata: ILanguageModelChatMetadata = {

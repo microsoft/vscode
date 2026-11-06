@@ -29,7 +29,8 @@ import { readMcpServerDisplayName, readMcpServerSource } from '../../../../../..
 import { readAgentCustomizationMeta } from '../../../../../../platform/agentHost/common/meta/agentCustomizationMeta.js';
 import { readCustomizationUriClientId } from '../../../../../../platform/agentHost/common/meta/clientPluginCustomizationMeta.js';
 import { readCustomizationDiscoveryMeta } from '../../../../../../platform/agentHost/common/meta/customizationDiscoveryMeta.js';
-import { AICustomizationSource, AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
+import { readCustomizationScopeMeta } from '../../../../../../platform/agentHost/common/meta/customizationScopeMeta.js';
+import { AICustomizationScope, AICustomizationScopes, AICustomizationSource, AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
 import { PromptsType, Target } from '../../../common/promptSyntax/promptTypes.js';
 import { getAgentHookMetadata } from '../../../common/promptSyntax/hookTypes.js';
 import { AgentCustomizationContentExpander } from './agentCustomizationContentExpander.js';
@@ -47,9 +48,10 @@ import { getMcpCustomizationSource } from '../../aiCustomization/mcpCustomizatio
 const REMOTE_HOST_GROUP = 'remote-host';
 const REMOTE_CLIENT_GROUP = 'remote-client';
 const SOURCE_FOLDER_CUSTOMIZATION_READINESS_TIMEOUT_MS = 2000;
+const SYNCED_FROM_CLIENT = 'syncedFromClient' as const;
 
 
-type PluginMeta = { item: ICustomizationItem; nonce: string | undefined; status: ReturnType<typeof toStatusString>; statusMessage: string | undefined; enabled: boolean | undefined; disabledReason: CustomizationDisabledReason | undefined; childGroupKey: string; isBundleItem: boolean; pluginLabel: string | undefined };
+type PluginMeta = { item: ICustomizationItem; nonce: string | undefined; status: ReturnType<typeof toStatusString>; statusMessage: string | undefined; enabled: boolean | undefined; disabledReason: CustomizationDisabledReason | undefined; delivery: typeof SYNCED_FROM_CLIENT | undefined; isBundleItem: boolean; pluginLabel: string | undefined };
 
 
 export class AgentCustomizationItemProvider extends Disposable implements ICustomizationItemProvider {
@@ -122,7 +124,6 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 
 	private toItem(sessionResource: URI, customization: PluginCustomization, source: AICustomizationSource, uri: URI): ICustomizationItem {
 		const clientId = customization.clientId; // set if the configuration came from the client
-		const badge = this.toBadge(customization, clientId !== undefined);
 		return {
 			itemKey: customizationItemKey(customization, clientId),
 			uri: uri,
@@ -130,13 +131,12 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			name: customization.name,
 			description: undefined,
 			source,
+			scope: readCustomizationScopeMeta(customization),
+			delivery: clientId !== undefined ? SYNCED_FROM_CLIENT : undefined,
 			status: toStatusString(customization.load),
 			statusMessage: toStatusMessage(customization.load),
 			enabled: isCustomizationEnabled(customization),
 			disabledReason: getCustomizationDisabledReason(customization),
-			badge: badge.badge,
-			badgeTooltip: badge.badgeTooltip,
-			groupKey: badge.groupKey,
 			extensionId: undefined,
 			pluginUri: uri,
 			userInvocable: undefined,
@@ -147,7 +147,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		};
 	}
 
-	private toDirectoryItems(customization: DirectoryCustomization, source: AICustomizationSource, workingDirectories: readonly string[]): ICustomizationItem[] {
+	private toDirectoryItems(customization: DirectoryCustomization, source: AICustomizationSource, scope: AICustomizationScope | undefined, isRemote: boolean, workingDirectories: readonly string[]): ICustomizationItem[] {
 		const items: ICustomizationItem[] = [];
 		if (!customization.children?.length && customization.contents === CustomizationType.Hook
 			&& !hasReadableCustomizationContent(URI.parse(customization.uri))
@@ -159,7 +159,8 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			});
 		}
 		for (const child of customization.children ?? []) {
-			const item = this.toDirectoryChildItem(child, getDirectoryChildSource(workingDirectories, child.uri, source));
+			const childSource = source === AICustomizationSources.builtin ? source : getDirectoryChildSource(workingDirectories, child.uri, source);
+			const item = this.toDirectoryChildItem(child, childSource, scope, isRemote);
 			if (item) {
 				items.push(item);
 			}
@@ -167,7 +168,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		return items;
 	}
 
-	private toDirectoryChildItem(child: ChildCustomization, source: AICustomizationSource): ICustomizationItem | undefined {
+	private toDirectoryChildItem(child: ChildCustomization, source: AICustomizationSource, scope: AICustomizationScope | undefined, isRemote: boolean): ICustomizationItem | undefined {
 		const type = toPromptsType(child.type);
 		const uri = getAgentHostCustomizationUri(URI.parse(child.uri), this._connection, child);
 		if (!type || !uri) {
@@ -188,7 +189,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		let groupKey: string | undefined;
 		let badge: string | undefined = undefined;
 		let badgeTooltip: string | undefined = undefined;
-		if (!groupKey && child.type === CustomizationType.Rule) {
+		if (child.type === CustomizationType.Rule) {
 			const pattern = child.globs?.[0];
 			if (child.globs && child.globs.length > 0) {
 				groupKey = 'context-instructions';
@@ -217,6 +218,9 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 				: getChildDescription(child),
 			enabled: child.type === CustomizationType.McpServer ? isCustomizationEnabled(child) : child.enabled,
 			source,
+			scope,
+			origin: source === AICustomizationSources.builtin ? { kind: 'harness' } : undefined,
+			delivery: isRemote ? SYNCED_FROM_CLIENT : undefined,
 			groupKey,
 			badge,
 			badgeTooltip,
@@ -363,20 +367,19 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 				const pluginUri = getAgentHostCustomizationUri(URI.parse(sessionCustomization.uri), this._connection, sessionCustomization);
 				const isBundleItem = isSyntheticBundle(sessionCustomization);
 				const isClientSynced = sessionCustomization.clientId !== undefined;
-				const childGroupKey = isClientSynced ? REMOTE_CLIENT_GROUP : REMOTE_HOST_GROUP;
+				const delivery = isClientSynced ? SYNCED_FROM_CLIENT : undefined;
 
-				// Always show session customizations as distinct plugin entries —
-				// client-synced items appear in the "Local" group, host-owned in
-				// the "Remote" group. The synthetic bundle is an implementation
-				// detail and is not shown as a standalone entry, but is still
-				// expanded below so individual user files appear in per-type tabs.
+				// Always show session customizations as distinct plugin entries.
+				// The synthetic bundle is an implementation detail and is not
+				// shown as a standalone entry, but is still expanded below so
+				// individual user files appear in per-type tabs.
 				let item: ICustomizationItem;
 				if (!isBundleItem) {
 					item = this.toItem(sessionResource, sessionCustomization, AICustomizationSources.plugin, pluginUri ?? URI.parse(sessionCustomization.uri));
 					items.set(customizationItemKey(sessionCustomization, sessionCustomization.clientId), item);
 				} else {
 					// create a dummy parent item for the synthetic bundle, it does not go into the items map, just need it to expand.
-					item = { uri: pluginUri ?? URI.parse(sessionCustomization.uri), type: 'plugin', source: AICustomizationSources.plugin, name: '', groupKey: childGroupKey, extensionId: undefined, pluginUri: undefined } satisfies ICustomizationItem;
+					item = { uri: pluginUri ?? URI.parse(sessionCustomization.uri), type: 'plugin', source: AICustomizationSources.plugin, name: '', delivery, extensionId: undefined, pluginUri: undefined } satisfies ICustomizationItem;
 				}
 				const pluginMeta = {
 					item,
@@ -385,7 +388,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 					statusMessage: toStatusMessage(sessionCustomization.load),
 					enabled: isCustomizationEnabled(sessionCustomization),
 					disabledReason: getCustomizationDisabledReason(sessionCustomization),
-					childGroupKey,
+					delivery,
 					isBundleItem,
 					pluginLabel: isBundleItem ? undefined : item.name,
 				} satisfies PluginMeta;
@@ -394,8 +397,8 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 				expandPromises.push(canonicalChildren
 					? (async () => {
 						const children = (sessionCustomization.children ?? []).flatMap(child => {
-							const item = this.toDirectoryChildItem(child, AICustomizationSources.plugin);
-							return item ? [{ ...item, groupKey: childGroupKey, pluginUri, pluginLabel: pluginMeta.pluginLabel }] : [];
+							const item = this.toDirectoryChildItem(child, AICustomizationSources.plugin, readCustomizationScopeMeta(sessionCustomization), isClientSynced);
+							return item ? [{ ...item, delivery, pluginUri, pluginLabel: pluginMeta.pluginLabel }] : [];
 						});
 						const prompts = pluginUri ? await this._expandPluginContents(pluginMeta, token, true) : [];
 						return [...children, ...prompts];
@@ -430,11 +433,12 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		}
 
 		for (const sessionCustomization of directoryCustomizations) {
-			const roots = workingDirectories;
-			const source = isAgentBuiltinCustomizationUri(URI.parse(sessionCustomization.uri))
+			const scope = readCustomizationScopeMeta(sessionCustomization);
+			const source = scope === AICustomizationScopes.application || isAgentBuiltinCustomizationUri(URI.parse(sessionCustomization.uri))
 				? AICustomizationSources.builtin
-				: isUnderAnyRoot(roots, sessionCustomization.uri) ? AICustomizationSources.local : AICustomizationSources.user;
-			for (const child of this.toDirectoryItems(sessionCustomization, source, roots)) {
+				: isUnderAnyRoot(workingDirectories, sessionCustomization.uri) ? AICustomizationSources.local : AICustomizationSources.user;
+			const isRemote = sessionCustomization.clientId !== undefined;
+			for (const child of this.toDirectoryItems(sessionCustomization, source, scope, isRemote, workingDirectories)) {
 				items.set(child.itemKey ?? child.uri.toString(), {
 					...child,
 					status: toStatusString(sessionCustomization.load),
@@ -459,7 +463,11 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			if (!plugin && source === undefined) {
 				hostConfiguredMcpServers ??= new Set(this._customAgentsService.getMcpServers(sessionResource).filter(server => server.hostConfiguration !== undefined).map(server => server.name));
 			}
-			const groupKey = plugin ? this.toBadge(plugin, plugin.clientId !== undefined).groupKey : getMcpCustomizationSource(source, hostConfiguredMcpServers?.has(container.name));
+			const customizationSource = plugin ? AICustomizationSources.plugin : getMcpCustomizationSource(source, hostConfiguredMcpServers?.has(container.name));
+			const scope = readCustomizationScopeMeta(container)
+				?? (plugin ? readCustomizationScopeMeta(plugin) : undefined)
+				?? AICustomizationScopes.fromSource(customizationSource);
+			const groupKey = plugin ? this.toBadge(plugin, plugin.clientId !== undefined).groupKey : customizationSource;
 			items.set(skill.id, {
 				itemKey: skill.id,
 				uri,
@@ -468,6 +476,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 				description: skill.description,
 				// MCP resource content stays read-only regardless of its server's configuration scope.
 				source: AICustomizationSources.plugin,
+				scope,
 				groupKey,
 				skillBundle: {
 					id: container.id,
@@ -500,6 +509,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 				name: skill.name ?? existing?.name ?? basename(dirname(skill.uri)),
 				description: skill.description ?? existing?.description,
 				source: AICustomizationSources.builtin,
+				origin: { kind: 'vscode' },
 				extensionId: undefined,
 				pluginUri: undefined,
 				enabled: false,
@@ -650,7 +660,6 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			source: origin.source,
 			extensionId: origin.extensionId,
 			pluginUri: origin.pluginUri,
-			groupKey: origin.source === AICustomizationSources.user ? child.groupKey : undefined,
 		};
 	}
 
@@ -664,7 +673,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		if (cached && cached.nonce === plugin.nonce && cached.pluginLabel === plugin.pluginLabel && cached.promptsOnly === promptsOnly) {
 			return cached.children;
 		}
-		const children = await this._contentExpander.expandPluginContents(plugin.item.uri, plugin.childGroupKey, plugin.isBundleItem, plugin.item.source, plugin.pluginLabel, token, promptsOnly);
+		const children = await this._contentExpander.expandPluginContents(plugin.item.uri, plugin.delivery, plugin.isBundleItem, plugin.item.source, plugin.pluginLabel, token, promptsOnly);
 		this._expansionCache.set(plugin.item.uri, { nonce: plugin.nonce, pluginLabel: plugin.pluginLabel, promptsOnly, children });
 		return children;
 	}

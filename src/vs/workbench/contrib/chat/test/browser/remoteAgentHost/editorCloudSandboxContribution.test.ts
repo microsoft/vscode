@@ -226,6 +226,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 }) {
 	const instantiationService = store.add(new TestInstantiationService());
 	if (options?.sessionFeed) {
+		options.sessionFeed.takePendingTaskIds ??= () => [];
 		instantiationService.stubInstance(CloudSandboxSessionFeed, options.sessionFeed);
 	}
 	const configuration = new TestConfigurationService({

@@ -11,7 +11,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../../ba
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { mock } from '../../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
 import { IRequestContext, type IHeaders, type IRequestOptions } from '../../../../../../base/parts/request/common/request.js';
@@ -45,6 +45,8 @@ import { IWorkbenchGitHubService } from '../../../../../services/github/common/g
 import { EnvironmentsClient } from '../../../../../../platform/github/common/missionControl/environmentsClient.js';
 import { ITelemetryService, type ITelemetryData } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IUserDataProfile } from '../../../../../../platform/userDataProfile/common/userDataProfile.js';
+import { DidChangeUserDataProfileEvent, IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import { CloudSandboxLifecycleTelemetry } from '../../../browser/remoteAgentHost/cloudSandboxLifecycleTelemetry.js';
 
 function jsonResponse(body: unknown, statusCode = 200, headers: Record<string, string | string[]> = {}): IRequestContext {
@@ -85,6 +87,7 @@ interface ITestSetup {
 	/** Peak number of task-detail fetches in flight at once during the run. */
 	readonly concurrency: { max: number; current: number };
 	changeAuthentication(kind?: 'sessions' | 'register' | 'unregister'): void;
+	changeProfile(id: string): void;
 }
 
 type ProvisioningOutcome = Parameters<ICloudSandboxTelemetryService['reportProvisioningOutcome']>;
@@ -157,6 +160,12 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 	const authenticationChanges = store.add(new Emitter<{ providerId: string; label: string; event: AuthenticationSessionsChangeEvent }>());
 	const providerRegistered = store.add(new Emitter<{ id: string; label: string }>());
 	const providerUnregistered = store.add(new Emitter<{ id: string; label: string }>());
+	const profileChanges = store.add(new Emitter<DidChangeUserDataProfileEvent>());
+	let profile = upcastPartial<IUserDataProfile>({ id: 'test-profile' });
+	instantiationService.stub(IUserDataProfileService, new class extends mock<IUserDataProfileService>() {
+		override get currentProfile() { return profile; }
+		override readonly onDidChangeCurrentProfile = profileChanges.event;
+	}());
 
 	const requests = instantiationService.stub(IRequestService, new class extends mock<IRequestService>() {
 		override async request(opts: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
@@ -292,6 +301,11 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 
 	return {
 		service: store.add(instantiationService.createInstance(CloudSandboxApiService)),
+		changeProfile: id => {
+			const previous = profile;
+			profile = upcastPartial<IUserDataProfile>({ id });
+			profileChanges.fire({ previous, profile, join: () => { } });
+		},
 		requestedUrls,
 		provisioningOutcomes,
 		requestOutcomes,
@@ -3713,6 +3727,47 @@ suite('CloudSandboxApiService task catalog', () => {
 			detailReads: requestedUrls.filter(url => new URL(url).pathname.endsWith('/tasks/task')).length,
 		}, { resolved: ['task', 'session', 'environment'], cached: ['task', 'session', 'environment'], detailReads: 1 });
 	});
+
+	for (const change of ['credential event', 'scope detected while listing'] as const) {
+		test(`cancels old on-demand task resolution after ${change}`, async () => {
+			const started = new DeferredPromise<void>();
+			const response = new DeferredPromise<IRequestContext>();
+			const current = task('task', 'Conversation', undefined, 'session', 'environment');
+			let hold = true;
+			let scopes = ['repo', 'workflow'];
+			const { service, requestedUrls, changeAuthentication } = createService(store, {
+				tasks: [current], repositories: new Map(),
+				authenticationSessions: async () => [{ id: 'auth', accessToken: 'token', account: { id: 'a', label: 'Account' }, scopes }],
+				onRequest: url => {
+					if (hold && url.pathname.endsWith('/tasks/task')) {
+						void started.complete();
+						return response.p;
+					}
+					return undefined;
+				},
+			});
+			await service.listSessions(CancellationToken.None);
+			const resolving = service.resolveSession('task', CancellationToken.None);
+			const rejected = assert.rejects(resolving, CancellationError);
+			await started.p;
+			if (change === 'credential event') {
+				const changed = Event.toPromise(service.onDidChangeAccount);
+				changeAuthentication();
+				await changed;
+			} else {
+				scopes = ['repo'];
+				await service.listSessions(CancellationToken.None, { incremental: true });
+			}
+			await rejected;
+			hold = false;
+			await response.complete(jsonResponse(current));
+			const resolved = await service.resolveSession('task', CancellationToken.None);
+			assert.deepStrictEqual({
+				resolved: [resolved.taskId, resolved.sessionId, resolved.environmentId],
+				detailReads: requestedUrls.filter(url => new URL(url).pathname.endsWith('/tasks/task')).length,
+			}, { resolved: ['task', 'session', 'environment'], detailReads: 2 });
+		});
+	}
 });
 
 suite('CloudSandboxApiService discovery without recorded history', () => {
@@ -4254,38 +4309,156 @@ suite('CloudSandboxApiService incremental discovery', () => {
 		}, { kind: 'complete', since: null, detailFetches: 0 });
 	});
 
-	test('authentication changes invalidate cached tasks and the incremental checkpoint', async () => {
-		const tasks = [updatedTask('old')];
-		const response = new DeferredPromise<IRequestContext>();
-		let paused = false;
-		const { service, requestedUrls, changeAuthentication } = createService(store, {
-			tasks, repositories: new Map(), discoveryDate: () => firstScanDate,
-			onRequest: url => {
-				if (paused && url.pathname.endsWith('/tasks')) {
-					paused = false;
-					return response.p;
-				}
-				return undefined;
-			},
+	for (const changedScope of [false, true]) {
+		test(`inventory authentication wait preserves only compatible concurrent task updates (changedScope=${changedScope})`, async () => {
+			const tasks: ITestTask[] = [];
+			let authentication: AuthenticationSession = { id: 'session', accessToken: 'token', account: { id: 'a', label: 'Account' }, scopes: ['repo', 'workflow'] };
+			const originalAuthentication = authentication;
+			const pending = new DeferredPromise<readonly AuthenticationSession[]>();
+			const entered = new DeferredPromise<void>();
+			let holdAuthentication = false;
+			const { service, requestedUrls, changeAuthentication } = createService(store, {
+				tasks, repositories: new Map(), discoveryDate: () => firstScanDate,
+				authenticationSessions: async () => {
+					if (holdAuthentication) {
+						holdAuthentication = false;
+						void entered.complete();
+						return pending.p;
+					}
+					return [authentication];
+				},
+			});
+			await service.listSessions(CancellationToken.None);
+			holdAuthentication = true;
+			const inventory = service.listSessions(CancellationToken.None, { incremental: true });
+			await entered.p;
+			tasks.push(updatedTask('old-authorization', checkpoint));
+			const targeted = await service.listSessions(CancellationToken.None, { taskIds: ['old-authorization'] });
+			tasks.length = 0;
+			if (changedScope) {
+				authentication = { ...authentication, scopes: ['repo'] };
+			}
+			const changed = Event.toPromise(service.onDidChangeAccount);
+			changeAuthentication();
+			await changed;
+			requestedUrls.length = 0;
+			await pending.complete([originalAuthentication]);
+			const result = await inventory;
+			assert.deepStrictEqual({
+				targeted: targeted.kind === 'failed' ? [] : targeted.sessions.map(session => session.taskId),
+				kind: result.kind,
+				tasks: result.kind === 'failed' ? [] : result.sessions.map(session => session.taskId),
+				since: requestedUrls.map(url => new URL(url).searchParams.get('since')),
+			}, {
+				targeted: ['old-authorization'],
+				kind: changedScope ? 'complete' : 'incremental',
+				tasks: changedScope ? [] : ['old-authorization'],
+				since: Array(4).fill(changedScope ? null : checkpoint),
+			});
 		});
-		await service.listSessions(CancellationToken.None);
-		tasks.push(updatedTask('new', checkpoint));
-		paused = true;
-		const inFlight = service.listSessions(CancellationToken.None, { incremental: true });
-		changeAuthentication();
-		await response.complete(jsonResponse({ tasks }));
-		const stale = await inFlight;
-		paused = false;
-		requestedUrls.length = 0;
-		const refreshed = await service.listSessions(CancellationToken.None, { incremental: true });
+	}
 
-		assert.deepStrictEqual({
-			staleKind: stale.kind,
-			refreshedKind: refreshed.kind,
-			since: new URL(requestedUrls[0]).searchParams.get('since'),
-			details: requestedUrls.filter(url => new URL(url).pathname.startsWith('/agents/tasks/')).length,
-		}, { staleKind: 'failed', refreshedKind: 'complete', since: null, details: 0 });
-	});
+	for (const change of ['token', 'scope', 'account', 'profile', 'provider registration', 'provider removal', 'sign out', 'lookup failure'] as const) {
+		test(`discovery authorization compatibility after ${change} controls actual since and cached-detail reuse`, async () => {
+			let authentication: AuthenticationSession = { id: 'session', accessToken: 'old-token', account: { id: 'a', label: 'Account' }, scopes: ['repo', 'read:user'] };
+			let signedIn = true;
+			let lookupFailed = false;
+			const { service, requestedUrls, changeAuthentication, changeProfile } = createService(store, {
+				tasks: [updatedTask('old', checkpoint, 42)], repositories: new Map([[42, { full_name: 'owner/repo' }]]),
+				discoveryDate: () => firstScanDate,
+				authenticationSessions: async () => {
+					if (lookupFailed) {
+						throw new Error('Authentication unavailable');
+					}
+					return signedIn ? [authentication] : [];
+				},
+			});
+			await service.listSessions(CancellationToken.None);
+			authentication = {
+				...authentication, accessToken: 'rotated-token',
+				scopes: change === 'scope' ? ['repo', 'read:user', 'workflow'] : [...authentication.scopes].reverse(),
+				account: change === 'account' ? { id: 'other', label: 'Other' } : authentication.account,
+			};
+			signedIn = change !== 'sign out';
+			lookupFailed = change === 'lookup failure';
+			const changed = lookupFailed ? undefined : Event.toPromise(service.onDidChangeAccount);
+			if (change === 'profile') {
+				changeProfile('other-profile');
+			} else {
+				changeAuthentication(change === 'provider registration' ? 'register' : change === 'provider removal' ? 'unregister' : 'sessions');
+			}
+			if (lookupFailed) {
+				await assert.rejects(service.getAccountKey(), /requires a signed-in GitHub account/);
+			} else {
+				await changed;
+			}
+			signedIn = true;
+			lookupFailed = false;
+			requestedUrls.length = 0;
+			const result = await service.listSessions(CancellationToken.None, { incremental: true });
+			assert.deepStrictEqual({
+				kind: result.kind,
+				since: requestedUrls.filter(url => new URL(url).pathname === '/agents/tasks').map(url => new URL(url).searchParams.get('since')),
+				details: requestedUrls.filter(url => new URL(url).pathname === '/agents/tasks/old').length,
+				repositories: requestedUrls.filter(url => new URL(url).pathname === '/repositories/42').length,
+			}, {
+				kind: change === 'token' ? 'incremental' : 'complete',
+				since: Array(4).fill(change === 'token' ? checkpoint : null),
+				details: 0,
+				repositories: change === 'token' ? 0 : 1,
+			});
+		});
+	}
+
+	for (const change of ['token', 'scope', 'account'] as const) {
+		test(`${change} changes invalidate in-flight reads without discarding compatible checkpoints`, async () => {
+			const tasks = [updatedTask('old')];
+			const response = new DeferredPromise<IRequestContext>();
+			const entered = new DeferredPromise<void>();
+			let paused = false;
+			let authentication: AuthenticationSession = { id: 'session', accessToken: 'token', account: { id: 'a', label: 'Account' }, scopes: [] };
+			const { service, requestedUrls, changeAuthentication } = createService(store, {
+				tasks, repositories: new Map(), discoveryDate: () => firstScanDate,
+				authenticationSessions: async () => [authentication],
+				onRequest: url => {
+					if (paused && url.pathname.endsWith('/tasks')) {
+						paused = false;
+						void entered.complete();
+						return response.p;
+					}
+					return undefined;
+				},
+			});
+			await service.listSessions(CancellationToken.None);
+			tasks.push(updatedTask('new', checkpoint));
+			paused = true;
+			const inFlight = service.listSessions(CancellationToken.None, { incremental: true });
+			await entered.p;
+			authentication = {
+				...authentication, accessToken: 'rotated',
+				scopes: change === 'scope' ? ['repo'] : [],
+				account: change === 'account' ? { id: 'other', label: 'Other' } : authentication.account,
+			};
+			const changed = Event.toPromise(service.onDidChangeAccount);
+			changeAuthentication();
+			await changed;
+			await response.complete(jsonResponse({ tasks }));
+			const stale = await inFlight;
+			paused = false;
+			requestedUrls.length = 0;
+			const refreshed = await service.listSessions(CancellationToken.None, { incremental: true });
+
+			assert.deepStrictEqual({
+				staleKind: stale.kind,
+				refreshedKind: refreshed.kind,
+				since: new URL(requestedUrls[0]).searchParams.get('since'),
+				details: requestedUrls.filter(url => new URL(url).pathname.startsWith('/agents/tasks/')).length,
+			}, {
+				staleKind: 'failed', refreshedKind: change === 'token' ? 'incremental' : 'complete',
+				since: change === 'token' ? checkpoint : null, details: 0,
+			});
+		});
+	}
 });
 
 suite('CloudSandboxApiService discovery rate limiting', () => {
@@ -4429,6 +4602,9 @@ function createServiceForCreate(store: Pick<{ add<T extends { dispose(): void }>
 	const errors: string[] = [];
 	const warnings: string[] = [];
 	const instantiationService = store.add(new TestInstantiationService());
+	instantiationService.stub(IUserDataProfileService, new class extends mock<IUserDataProfileService>() {
+		override readonly onDidChangeCurrentProfile = Event.None;
+	}());
 	instantiationService.stub(IRequestService, new class extends mock<IRequestService>() {
 		override async request(opts: IRequestOptions): Promise<IRequestContext> {
 			calls.push({
