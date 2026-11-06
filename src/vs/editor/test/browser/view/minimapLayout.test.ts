@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { MinimapLayout } from '../../../browser/viewParts/minimap/minimap.js';
+import { CustomLineHeightData } from '../../../common/viewLayout/lineHeights.js';
 import { LinesLayout } from '../../../common/viewLayout/linesLayout.js';
 
 suite('MinimapLayout', () => {
@@ -58,7 +59,7 @@ suite('MinimapLayout', () => {
 			LINE_COUNT,
 			LINE_COUNT,
 			scrollTop,
-			MinimapLayout.getZoneFreeScrollTop(linesLayout, LINE_HEIGHT, 0, viewportStartLineNumber, scrollTop),
+			MinimapLayout.getZoneFreeScrollTop(linesLayout, LINE_COUNT, LINE_HEIGHT, 0, viewportStartLineNumber, scrollTop),
 			MinimapLayout.getZoneFreeScrollHeight(linesLayout, LINE_COUNT, LINE_HEIGHT, 0, linesLayout.getLinesTotalHeight()),
 			previousLayout
 		);
@@ -169,5 +170,50 @@ suite('MinimapLayout', () => {
 			[maxZoneFreeScrollTop - 1, maxZoneFreeScrollTop, maxZoneFreeScrollTop + 100].map(zoneFreeScrollTop => MinimapLayout.getScrollTopForZoneFreeScrollTop(linesLayout, 100, LINE_HEIGHT, 0, zoneFreeScrollTop, 100 * LINE_HEIGHT, scrollHeight, VIEWPORT_HEIGHT)),
 			[maxZoneFreeScrollTop - 1, scrollHeight - VIEWPORT_HEIGHT, scrollHeight - VIEWPORT_HEIGHT]
 		);
+	});
+
+	/**
+	 * Convert every editor `scrollTop` from 0 to the end to zone-free and back, like scrolling and then dragging the slider does.
+	 */
+	function roundTrip(linesLayout: LinesLayout, lineCount: number, paddingTop: number) {
+		const scrollHeight = linesLayout.getLinesTotalHeight();
+		const zoneFreeScrollHeight = MinimapLayout.getZoneFreeScrollHeight(linesLayout, lineCount, LINE_HEIGHT, paddingTop, scrollHeight);
+		const maxZoneFreeScrollTop = zoneFreeScrollHeight - VIEWPORT_HEIGHT;
+		const zoneFreeScrollTops: number[] = [];
+		const mismatches: number[] = [];
+		for (let scrollTop = 0; scrollTop <= scrollHeight - VIEWPORT_HEIGHT; scrollTop++) {
+			// `MinimapLayout.create` clamps like this: once the slider is at the end, the editor scrolls past the view zones after the last line
+			const zoneFreeScrollTop = Math.min(maxZoneFreeScrollTop, MinimapLayout.getZoneFreeScrollTop(linesLayout, lineCount, LINE_HEIGHT, paddingTop, linesLayout.getLineNumberAtOrAfterVerticalOffset(scrollTop), scrollTop));
+			zoneFreeScrollTops.push(zoneFreeScrollTop);
+			const back = MinimapLayout.getScrollTopForZoneFreeScrollTop(linesLayout, lineCount, LINE_HEIGHT, paddingTop, zoneFreeScrollTop, zoneFreeScrollHeight, scrollHeight, VIEWPORT_HEIGHT);
+			// Inside a view zone, the slider stays still, so it converts back to the line after the view zone
+			if (Math.abs(back - scrollTop) > 1e-9 && zoneFreeScrollTop < maxZoneFreeScrollTop && !linesLayout.getWhitespaceAtVerticalOffset(scrollTop)) {
+				mismatches.push(scrollTop);
+			}
+		}
+		return { monotonic: isMonotonic(zoneFreeScrollTops, 1), last: zoneFreeScrollTops[zoneFreeScrollTops.length - 1], maxZoneFreeScrollTop, mismatches };
+	}
+
+	test('the zone-free scrollTop reaches the end of a large bottom padding and converts back', () => {
+		const linesLayout = new LinesLayout(100, LINE_HEIGHT, 0, 1000, []);
+		const result = roundTrip(linesLayout, 100, 0);
+		assert.deepStrictEqual(result, { monotonic: true, last: 100 * LINE_HEIGHT + 1000 - VIEWPORT_HEIGHT, maxZoneFreeScrollTop: 100 * LINE_HEIGHT + 1000 - VIEWPORT_HEIGHT, mismatches: [] });
+	});
+
+	test('the zone-free scrollTop converts back across lines that are shorter or taller than the default, view zones and padding', () => {
+		const linesLayout = new LinesLayout(100, LINE_HEIGHT, 10, 300, [new CustomLineHeightData('short', 40, 40, 10), new CustomLineHeightData('tall', 60, 61, 50)]);
+		linesLayout.changeWhitespace(accessor => {
+			accessor.insertWhitespace(50, 0, 500, 0);
+			accessor.insertWhitespace(100, 0, 200, 0);
+		});
+		const result = roundTrip(linesLayout, 100, 10);
+		assert.deepStrictEqual(result, { monotonic: true, last: result.maxZoneFreeScrollTop, maxZoneFreeScrollTop: 100 * LINE_HEIGHT + 10 + 300 - VIEWPORT_HEIGHT, mismatches: [] });
+	});
+
+	test('dragging the slider across a line shorter than the default moves the editor forward', () => {
+		const linesLayout = new LinesLayout(LINE_COUNT, LINE_HEIGHT, 0, 0, [new CustomLineHeightData('short', 100, 100, 10)]);
+		const scrollHeight = linesLayout.getLinesTotalHeight();
+		const scrollTops = [1975, 1980, 1985, 1990, 1995, 1999, 2000, 2001, 2005, 2010, 2019, 2020, 2021].map(zoneFreeScrollTop => MinimapLayout.getScrollTopForZoneFreeScrollTop(linesLayout, LINE_COUNT, LINE_HEIGHT, 0, zoneFreeScrollTop, LINE_COUNT * LINE_HEIGHT, scrollHeight, VIEWPORT_HEIGHT));
+		assert.deepStrictEqual(scrollTops, [1975, 1980, 1982.5, 1985, 1987.5, 1989.5, 1990, 1991, 1995, 2000, 2009, 2010, 2011]);
 	});
 });

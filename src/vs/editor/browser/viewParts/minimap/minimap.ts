@@ -261,21 +261,31 @@ export class MinimapLayout {
 	 * Inside a view zone, the first line in the viewport is the line after the view zone, so the result stays at that line until the view zone has scrolled by.
 	 *
 	 * ```
-	 * editor scrollTop                            zone-free scrollTop
-	 * [top(k), top(k) + lineHeight)   line k     -> [zf(k), zf(k+1))      moves with scrollTop
-	 * [top(k) + lineHeight, top(k+1)) view zone  -> zf(k+1)               stays still
+	 * editor scrollTop                              zone-free scrollTop
+	 * [top(k), top(k) + height(k))    line k     -> [zf(k), zf(k+1))      moves with scrollTop, scaled by lineHeight / height(k)
+	 * [top(k) + height(k), top(k+1))  view zone  -> zf(k+1)               stays still
 	 * [top(k+1), top(k+2))            line k+1   -> [zf(k+1), zf(k+2))    moves with scrollTop
+	 * [end, scrollHeight)             padding    -> [zf(n+1), ...)        moves with scrollTop
 	 *
-	 * top(n) = viewLayout.getVerticalOffsetForLineNumber(n)
-	 * zf(n)  = (n - 1) * lineHeight + paddingTop
+	 * top(k)    = viewLayout.getVerticalOffsetForLineNumber(k)
+	 * height(k) = viewLayout.getLineHeightForLineNumber(k)
+	 * zf(k)     = (k - 1) * lineHeight + paddingTop
+	 * end       = viewLayout.getVerticalOffsetAfterLineNumber(n, true), after the last line n and its view zones
 	 * ```
 	 */
-	public static getZoneFreeScrollTop(viewLayout: Pick<IViewLayout, 'getVerticalOffsetForLineNumber'>, lineHeight: number, paddingTop: number, viewportStartLineNumber: number, scrollTop: number): number {
+	public static getZoneFreeScrollTop(viewLayout: Pick<IViewLayout, 'getVerticalOffsetForLineNumber' | 'getVerticalOffsetAfterLineNumber' | 'getLineHeightForLineNumber'>, lineCount: number, lineHeight: number, paddingTop: number, viewportStartLineNumber: number, scrollTop: number): number {
 		if (scrollTop < paddingTop) {
 			return scrollTop;
 		}
-		const partialLine = Math.max(0, Math.min(lineHeight, scrollTop - viewLayout.getVerticalOffsetForLineNumber(viewportStartLineNumber)));
-		return (viewportStartLineNumber - 1) * lineHeight + paddingTop + partialLine;
+		if (viewportStartLineNumber >= lineCount) {
+			const end = viewLayout.getVerticalOffsetAfterLineNumber(lineCount, true);
+			if (scrollTop >= end) {
+				return lineCount * lineHeight + paddingTop + (scrollTop - end);
+			}
+		}
+		const actualLineHeight = viewLayout.getLineHeightForLineNumber(viewportStartLineNumber);
+		const partialLine = Math.max(0, Math.min(actualLineHeight, scrollTop - viewLayout.getVerticalOffsetForLineNumber(viewportStartLineNumber)));
+		return (viewportStartLineNumber - 1) * lineHeight + paddingTop + partialLine * lineHeight / actualLineHeight;
 	}
 
 	/**
@@ -291,7 +301,7 @@ export class MinimapLayout {
 	 * Convert a zone-free `scrollTop` chosen through the minimap to an editor `scrollTop` (the inverse of `getZoneFreeScrollTop`).
 	 * The end of the slider's range is the end of the editor, even when view zones follow the last line.
 	 */
-	public static getScrollTopForZoneFreeScrollTop(viewLayout: Pick<IViewLayout, 'getVerticalOffsetForLineNumber'>, lineCount: number, lineHeight: number, paddingTop: number, zoneFreeScrollTop: number, zoneFreeScrollHeight: number, scrollHeight: number, viewportHeight: number): number {
+	public static getScrollTopForZoneFreeScrollTop(viewLayout: Pick<IViewLayout, 'getVerticalOffsetForLineNumber' | 'getVerticalOffsetAfterLineNumber' | 'getLineHeightForLineNumber'>, lineCount: number, lineHeight: number, paddingTop: number, zoneFreeScrollTop: number, zoneFreeScrollHeight: number, scrollHeight: number, viewportHeight: number): number {
 		const maxScrollTop = Math.max(0, scrollHeight - viewportHeight);
 		if (zoneFreeScrollTop >= zoneFreeScrollHeight - viewportHeight) {
 			return maxScrollTop;
@@ -299,9 +309,13 @@ export class MinimapLayout {
 		if (zoneFreeScrollTop < paddingTop) {
 			return Math.max(0, zoneFreeScrollTop);
 		}
+		const zoneFreeEnd = lineCount * lineHeight + paddingTop;
+		if (zoneFreeScrollTop >= zoneFreeEnd) {
+			return Math.min(maxScrollTop, viewLayout.getVerticalOffsetAfterLineNumber(lineCount, true) + (zoneFreeScrollTop - zoneFreeEnd));
+		}
 		const lineNumber = Math.max(1, Math.min(lineCount, Math.floor((zoneFreeScrollTop - paddingTop) / lineHeight) + 1));
 		const partialLine = zoneFreeScrollTop - ((lineNumber - 1) * lineHeight + paddingTop);
-		return Math.min(maxScrollTop, viewLayout.getVerticalOffsetForLineNumber(lineNumber) + partialLine);
+		return Math.min(maxScrollTop, viewLayout.getVerticalOffsetForLineNumber(lineNumber) + partialLine * viewLayout.getLineHeightForLineNumber(lineNumber) / lineHeight);
 	}
 
 	/**
@@ -1045,7 +1059,7 @@ export class Minimap extends ViewPart implements IMinimapModel {
 			viewportStartLineNumberZoneFreeVerticalOffset: (ctx.visibleRange.startLineNumber - 1) * lineHeight + paddingTop,
 
 			scrollTop: ctx.scrollTop,
-			zoneFreeScrollTop: MinimapLayout.getZoneFreeScrollTop(viewLayout, lineHeight, paddingTop, ctx.visibleRange.startLineNumber, ctx.scrollTop),
+			zoneFreeScrollTop: MinimapLayout.getZoneFreeScrollTop(viewLayout, this._context.viewModel.getLineCount(), lineHeight, paddingTop, ctx.visibleRange.startLineNumber, ctx.scrollTop),
 			scrollLeft: ctx.scrollLeft,
 
 			viewportWidth: ctx.viewportWidth,
