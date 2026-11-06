@@ -38,7 +38,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { FontMeasurements } from '../../../../editor/browser/config/fontMeasurements.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { IEditorOptions } from '../../../../editor/common/config/editorOptions.js';
-import { FontInfo, sanitizeFontFamily } from '../../../../editor/common/config/fontInfo.js';
+import { EDITOR_FONT_DEFAULTS, FontInfo, sanitizeFontFamily } from '../../../../editor/common/config/fontInfo.js';
 import { createBareFontInfoFromRawSettings } from '../../../../editor/common/config/fontInfoFromSettings.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
@@ -655,7 +655,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			collapsedIndicatorHeight,
 			focusIndicator,
 			insertToolbarPosition,
-			outputFontSize,
+			outputFontSize: configuredOutputFontSize,
 			focusIndicatorLeftMargin,
 			focusIndicatorGap
 		} = this._notebookOptions.getLayoutConfiguration();
@@ -663,7 +663,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		const {
 			insertToolbarAlignment,
 			compactView,
-			fontSize
+			fontSize: configuredFontSize
 		} = this._notebookOptions.getDisplayOptions();
 
 		const getCellEditorContainerLeftMargin = this._notebookOptions.getCellEditorContainerLeftMargin();
@@ -676,6 +676,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 
 		const fontFamily = sanitizeFontFamily(this._generateFontFamily());
+		// Configuration types do not guarantee runtime values are safe to interpolate into CSS.
+		const fontSize = typeof configuredFontSize === 'number' && Number.isFinite(configuredFontSize) ? configuredFontSize : EDITOR_FONT_DEFAULTS.fontSize;
+		const outputFontSize = typeof configuredOutputFontSize === 'number' && Number.isFinite(configuredOutputFontSize) ? configuredOutputFontSize : fontSize;
 
 		styleSheets.push(`
 		.notebook-editor {
