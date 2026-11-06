@@ -32,20 +32,17 @@ interface IShut {
 }
 
 /**
- * Sits in front of one account's decisions calls so callers don't ask more often than the
- * service can use:
- * - identical requests share one call until the runtime settles it. A caller that stops waiting
- *   doesn't cancel it, because the runtime finishes the request anyway, and its result still
- *   updates the gate;
- * - a failure shuts the gate for a while ({@link decisionsGateCooldownMs}), rejecting at once with
- *   an {@link AgentDecisionsUnavailableError} of the same kind. A shut period only ever lengthens;
- *   `noModel` shuts only the decision model that was missing.
+ * Pauses one account's decisions calls after a failure, so a rate-limited or non-entitled
+ * account doesn't call the service on every turn. The runtime bounds concurrency and deadlines
+ * and reports typed errors, but keeps no memory between calls.
  *
- * The runtime bounds concurrency and the end-to-end deadline itself, so the gate does neither.
- * Answers are never cached: two different prompts must not share one.
+ * A failure shuts the gate for a while ({@link decisionsGateCooldownMs}), rejecting at once with
+ * an {@link AgentDecisionsUnavailableError} of the same kind. A shut period only ever lengthens;
+ * `noModel` shuts only the decision model that was missing. A caller that stops waiting doesn't
+ * cancel the call, because the runtime finishes it anyway, and its failure still shuts the gate.
+ * Answers are never cached.
  */
 export class DecisionsGate {
-	private readonly _inFlight = new Map<string, Promise<IAgentDecisionsResult>>();
 	private _shut: IShut | undefined;
 	private readonly _shutModels = new Map<string, IShut>();
 
@@ -59,17 +56,12 @@ export class DecisionsGate {
 		if (shut) {
 			return Promise.reject(new AgentDecisionsUnavailableError({ kind: shut.kind, retryAfterMs: shut.until - this._now() }));
 		}
-		const key = JSON.stringify(request);
-		let call = this._inFlight.get(key);
-		if (!call) {
-			call = this._call(request).catch(error => {
-				this._noteFailure(request.model, error);
-				throw error;
-			}).finally(() => this._inFlight.delete(key));
-			// Settles even when every caller has stopped waiting.
-			call.catch(() => { });
-			this._inFlight.set(key, call);
-		}
+		const call = this._call(request).catch(error => {
+			this._noteFailure(request.model, error);
+			throw error;
+		});
+		// Settles even when the caller has stopped waiting.
+		call.catch(() => { });
 		return raceCancellationError(call, token);
 	}
 

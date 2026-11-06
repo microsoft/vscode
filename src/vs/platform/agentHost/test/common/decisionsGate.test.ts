@@ -49,24 +49,14 @@ suite('DecisionsGate', () => {
 		}
 	}
 
-	test('identical requests in flight share one call; different requests don\'t', async () => {
-		const a = gate.ask(request(), CancellationToken.None);
-		const b = gate.ask(request(), CancellationToken.None);
-		const c = gate.ask(request(undefined, 'other'), CancellationToken.None);
-		pending.forEach(p => p.complete(answer));
-		await Promise.all([a, b, c]);
-		assert.strictEqual(calls.length, 2);
-	});
-
-	test('a caller that stops waiting doesn\'t cancel the shared call, and its late failure still shuts the gate', async () => {
+	test('a caller that stops waiting doesn\'t cancel the call, and its late failure still shuts the gate', async () => {
 		const cts = new CancellationTokenSource();
 		const first = gate.ask(request(), cts.token);
 		cts.cancel();
-		const second = gate.ask(request(), CancellationToken.None);
-		assert.strictEqual(calls.length, 1, 'the retry joins the call still running');
-		pending[0].error(failure('rateLimited', 10_000));
-		assert.deepStrictEqual([await kindOf(first), await kindOf(second)], ['Canceled', 'rateLimited']);
+		assert.strictEqual(await kindOf(first), 'Canceled');
 		cts.dispose();
+		pending[0].error(failure('rateLimited', 10_000));
+		await Promise.resolve();
 
 		now = 9_999;
 		assert.strictEqual(await kindOf(gate.ask(request(undefined, 'new'), CancellationToken.None)), 'rateLimited');
