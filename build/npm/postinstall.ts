@@ -24,17 +24,19 @@ function log(dir: string, message: string) {
 	}
 }
 
+/**
+ * Runs `command` and throws if it fails. It throws instead of exiting, so that the postinstall
+ * waits for the installs that run next to it (see `main`) before it reports the failure.
+ */
 function run(command: string, args: string[], opts: child_process.SpawnSyncOptions) {
 	log(opts.cwd as string || '.', '$ ' + command + ' ' + args.join(' '));
 
 	const result = child_process.spawnSync(command, args, opts);
 
 	if (result.error) {
-		console.error(`ERR Failed to spawn process: ${result.error}`);
-		process.exit(1);
+		throw new Error(`Failed to spawn ${command}: ${result.error}`);
 	} else if (result.status !== 0) {
-		console.error(`ERR Process exited with code: ${result.status}`);
-		process.exit(result.status);
+		throw new Error(`${command} exited with ${result.status !== null ? `code ${result.status}` : `signal ${result.signal}`}`);
 	}
 }
 
