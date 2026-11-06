@@ -11,7 +11,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { autorun, IObservable, ISettableObservable, observableValueOpts } from '../../../../../base/common/observable.js';
 import type { ISyncedCustomization } from '../../../common/agentPluginManager.js';
 import type { ClientPluginCustomization } from '../../../common/state/sessionState.js';
-import { toSourceCustomizations } from '../../../common/syncedCustomizationUris.js';
+import { toSourceCustomizations, withClientCustomizationUriOwners } from '../../../common/syncedCustomizationUris.js';
 
 /**
  * Per-session **client-pushed** customization snapshot. Server-side
@@ -20,9 +20,10 @@ import { toSourceCustomizations } from '../../../common/syncedCustomizationUris.
 export interface ISessionCustomizationsState {
 	readonly synced: readonly ISyncedCustomization[];
 	readonly clientIds: readonly string[];
+	readonly sources: readonly ISyncedCustomization[];
 }
 
-const INITIAL_STATE: ISessionCustomizationsState = { synced: [], clientIds: [] };
+const INITIAL_STATE: ISessionCustomizationsState = { synced: [], clientIds: [], sources: [] };
 
 /**
  * Pure observable state holder for the **client-pushed**
@@ -69,7 +70,16 @@ export class SessionClientCustomizationsModel {
 				clientIds.push(clientId);
 			}
 		}
-		return { synced: result, clientIds };
+		const contributions = [...this._byClient].flatMap(([clientId, items]) => items.map(item => ({
+			...item.customization,
+			clientId,
+			...(item.customization.children ? { children: toSourceCustomizations(item.customization.children, item, clientId) } : {}),
+		})));
+		const sources = result.map((item, index) => {
+			const customization = contributions.find(candidate => candidate.id === item.customization.id && candidate.clientId === clientIds[index])!;
+			return { ...item, customization: withClientCustomizationUriOwners(customization, contributions) };
+		});
+		return { synced: result, clientIds, sources };
 	}
 
 	/** Replace a single client's pushed customization snapshot for this session. */
@@ -79,14 +89,7 @@ export class SessionClientCustomizationsModel {
 	}
 
 	getSourceCustomizations(): readonly ISyncedCustomization[] {
-		const { synced, clientIds } = this._state.get();
-		return synced.map((item, index) => ({
-			...item,
-			customization: {
-				...item.customization,
-				...(item.customization.children ? { children: toSourceCustomizations(item.customization.children, item, clientIds[index]) } : {}),
-			},
-		}));
+		return this._state.get().sources;
 	}
 
 	/** Remove a client's pushed customizations from this session. */
@@ -184,7 +187,7 @@ export class SessionClientCustomizationsDiff extends Disposable {
 }
 
 function stateEqual(a: ISessionCustomizationsState, b: ISessionCustomizationsState): boolean {
-	return arraysEqual(a.clientIds, b.clientIds) && syncedListEqual(a.synced, b.synced);
+	return arraysEqual(a.clientIds, b.clientIds) && syncedListEqual(a.synced, b.synced) && syncedListEqual(a.sources, b.sources);
 }
 
 function syncedListEqual(a: readonly ISyncedCustomization[], b: readonly ISyncedCustomization[]): boolean {

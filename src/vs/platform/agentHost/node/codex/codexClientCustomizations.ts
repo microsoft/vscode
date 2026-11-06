@@ -9,11 +9,11 @@ import { parseFrontMatter } from '../../../../base/common/yaml.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../common/agentHostFileSystemService.js';
 import { IFileService } from '../../../files/common/files.js';
 import { parseRuleFile, resolveAgentDisableModelInvocation, type IMcpServerDefinition, type IParsedAgent, type IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
-import { AGENT_HOST_FILE_SCHEME, type ISyncedCustomization } from '../../common/agentPluginManager.js';
+import { AGENT_HOST_FILE_SCHEME, getAgentPluginCacheRevision, type ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { CustomizationEnablementKind, type AgentSelection } from '../../common/state/protocol/state.js';
 import { CustomizationType, type ChildCustomization, type ClientPluginCustomization, type McpServerCustomization, type PluginCustomization } from '../../common/state/sessionState.js';
 import { readClientPluginMcpDefaultCwd, readClientPluginSourceUris } from '../../common/meta/clientPluginCustomizationMeta.js';
-import { getCustomizationSourceUri, toSourceCustomizations } from '../../common/syncedCustomizationUris.js';
+import { getCustomizationSourceUri, toSourceCustomizations, withClientCustomizationUriOwners } from '../../common/syncedCustomizationUris.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { AGENT_HOST_FILE_LINK_INSTRUCTIONS } from '../shared/fileLinkInstructions.js';
 import { toCodexMcpServerJson, type ICodexMcpServerConfigJson } from './codexMcpServers.js';
@@ -150,15 +150,18 @@ export class CodexClientCustomizationStore {
 	 * in (skills, MCP servers, agents, instructions, hooks).
 	 */
 	toCustomizations(): PluginCustomization[] {
-		return this._merged().map(plugin => {
+		const project = (plugin: ICodexClientPlugin): PluginCustomization => {
 			const base = plugin.customization ?? plugin.synced.customization;
 			const children = base.children ?? (plugin.parsed ? parsedPluginChildren(plugin.parsed) : undefined);
 			return {
 				...base,
+				clientId: plugin.clientId,
 				...(this._enablement.has(base.id) ? { enablement: [{ kind: CustomizationEnablementKind.Session, enabled: this._enablement.get(base.id)! }] } : {}),
 				...(children ? { children: toSourceCustomizations(children, plugin.synced, plugin.clientId!) } : {}),
 			};
-		});
+		};
+		const contributions = [...this._byClient.values()].flatMap(plugins => plugins.map(project));
+		return this._merged().map(plugin => withClientCustomizationUriOwners(project(plugin), contributions));
 	}
 }
 
@@ -346,7 +349,7 @@ function matchSelectedAgent(plugin: ICodexClientPlugin, agentUri: URI, selectedA
 	}
 	const nonce = plugin.input?.nonce ?? (plugin.synced.customization as ClientPluginCustomization).nonce;
 	// Persisted selections can name an older nonce within this plugin's cache namespace.
-	if (sourcePluginUri.scheme !== AGENT_HOST_FILE_SCHEME && nonce && basename(pluginDir) === nonce) {
+	if (sourcePluginUri.scheme !== AGENT_HOST_FILE_SCHEME && nonce && basename(pluginDir) === getAgentPluginCacheRevision(nonce)) {
 		const namespace = extUri.dirname(pluginDir);
 		const selectedPath = relativePath(namespace, selectedUri);
 		const revision = selectedPath?.split('/')[0];

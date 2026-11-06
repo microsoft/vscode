@@ -24,6 +24,11 @@ export function toAgentHostFileUri(uri: URI): URI {
 	return uri.with({ scheme: AGENT_HOST_FILE_SCHEME });
 }
 
+/** Returns the safe directory name used to materialize a client content revision. */
+export function getAgentPluginCacheRevision(nonce: string | undefined): string {
+	return nonce?.replace(/[^a-zA-Z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').substring(0, 128) || 'default';
+}
+
 /**
  * A synced customization with its local plugin directory (when available).
  */

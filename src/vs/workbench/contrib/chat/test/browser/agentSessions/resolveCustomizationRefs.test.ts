@@ -241,7 +241,10 @@ suite('resolveCustomizationRefs - configured locations', () => {
 				clientLocal: getAgentHostCustomizationUri(URI.parse(local.uri), connection, { clientId: connection.clientId })?.toString(),
 				foreign: getAgentHostCustomizationUri(URI.parse(published.uri), connection, { clientId: 'foreign' }),
 			}, {
-				published: { ...plugin, uri: kind.name === 'local' ? plugin.uri : toAgentHostFileUri(URI.file('/workspace/plugin')).toString() },
+				published: {
+					...plugin, uri: kind.name === 'local' ? plugin.uri : toAgentHostFileUri(URI.file('/workspace/plugin')).toString(),
+					...(kind.name !== 'local' ? { _meta: { 'vscode.sourceUri': plugin.uri, 'vscode.sourceUris': {} } } : {}),
+				},
 				local,
 				other,
 				identity: plugin,

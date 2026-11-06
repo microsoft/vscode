@@ -10,7 +10,7 @@ import type { ISyncedCustomization } from '../../../common/agentPluginManager.js
 import { CustomizationLoadStatus, CustomizationType, customizationId } from '../../../common/state/sessionState.js';
 import { CustomizationEnablementKind, type CustomizationEnablement } from '../../../common/state/protocol/state.js';
 import { SessionClientCustomizationsDiff } from '../../../node/claude/customizations/claudeSessionClientCustomizationsModel.js';
-import { readCustomizationUriClientId, toClientPluginSourceUrisMeta } from '../../../common/meta/clientPluginCustomizationMeta.js';
+import { readCustomizationUriClientId, readCustomizationUriClientIds, toClientPluginSourceUrisMeta } from '../../../common/meta/clientPluginCustomizationMeta.js';
 
 function synced(uri: string, opts: { dir?: string; enabled?: boolean; nonce?: string; name?: string; enablement?: readonly CustomizationEnablement[]; childEnablement?: Readonly<Record<string, readonly CustomizationEnablement[]>> } = {}): ISyncedCustomization {
 	return {
@@ -96,6 +96,22 @@ suite('SessionClientCustomizationsDiff', () => {
 		const child = diff.model.getSourceCustomizations()[0].customization.children![0];
 
 		assert.deepStrictEqual({ changed: diff.hasDifference, owner: readCustomizationUriClientId(child) }, { changed: true, owner: 'second' });
+	});
+
+	test('deduplicates runtime plugins without losing a second client source owner', () => {
+		const diff = disposables.add(new SessionClientCustomizationsDiff());
+		const item = synced('synced:/bundle', { dir: '/cache/plugin' });
+		item.customization.children = [{ type: CustomizationType.Agent, id: 'agent', name: 'Agent', uri: URI.file('/cache/plugin/agents/a.md').toString() }];
+		diff.model.setSyncedCustomizations('first', [item]);
+		diff.consume([]);
+		diff.model.setSyncedCustomizations('second', [item]);
+		const published = diff.model.getSourceCustomizations();
+		assert.deepStrictEqual({
+			changed: diff.hasDifference,
+			runtimeCount: diff.model.state.get().synced.length,
+			publishedCount: published.length,
+			owners: readCustomizationUriClientIds(published[0].customization.children![0]),
+		}, { changed: true, runtimeCount: 1, publishedCount: 1, owners: ['first', 'second'] });
 	});
 
 	test('setSyncedCustomizations flips dirty and fires onDidChange', () => {

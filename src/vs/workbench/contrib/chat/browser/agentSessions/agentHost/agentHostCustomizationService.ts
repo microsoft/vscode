@@ -63,6 +63,7 @@ export interface IAgentHostCustomizationService {
 	readonly onDidChangeCustomizations: Event<void>;
 	getAgentFileToolInventory?(sessionResource: URI): readonly IAgentFileToolInventoryEntry[] | undefined;
 
+	/** Returns selectable agents from the customization tree, excluding disabled containers. */
 	getCustomAgents(sessionResource: URI): readonly AgentCustomization[];
 
 	getCustomizations(sessionResource: URI): readonly Customization[];

@@ -11,6 +11,7 @@ const standaloneCustomizationsKey = 'vscode.standaloneCustomizations';
 const sourceUrisKey = 'vscode.sourceUris';
 const sourceUriKey = 'vscode.sourceUri';
 const uriClientIdKey = 'vscode.uriClientId';
+const uriClientIdsKey = 'vscode.uriClientIds';
 
 type WithMeta = { readonly _meta?: Record<string, unknown> };
 
@@ -59,6 +60,20 @@ export function readCustomizationUriClientId(customization: WithMeta): string | 
 
 export function toCustomizationUriClientMeta(clientId: string): Record<string, unknown> {
 	return { [uriClientIdKey]: clientId };
+}
+
+/** Clients that explicitly contributed the same source identity. */
+export function readCustomizationUriClientIds(customization: WithMeta): readonly string[] {
+	const primary = readCustomizationUriClientId(customization);
+	const value = customization._meta?.[uriClientIdsKey];
+	return [...new Set([
+		...(primary ? [primary] : []),
+		...(Array.isArray(value) ? value.filter((id): id is string => typeof id === 'string' && id.length > 0) : []),
+	])];
+}
+
+export function toCustomizationUriClientIdsMeta(clientIds: readonly string[]): Record<string, unknown> {
+	return { [uriClientIdsKey]: [...new Set(clientIds)] };
 }
 
 export type ClientPluginMcpDefaultCwds = Readonly<Record<string, URI | null>>;

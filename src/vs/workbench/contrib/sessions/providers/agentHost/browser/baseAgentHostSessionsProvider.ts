@@ -96,6 +96,7 @@ import { IChatSessionFileChange, IChatSessionFileChange2, IChatSessionsService }
 import { assertAutomationSessionTemplate, IAutomationSessionTemplate } from '../../../../chat/common/automations/automation.js';
 import { fromAgentHostFileUri, getAgentHostCustomizationUri, toAgentHostAgentUri } from '../../../../chat/common/agentHostSessionCustomizations.js';
 import { readClientPluginSourceUris, toCustomizationUriClientMeta } from '../../../../../../platform/agentHost/common/meta/clientPluginCustomizationMeta.js';
+import { resolveAgentHostDraftAgent } from '../../../../chat/common/agentHostDraftAgent.js';
 import { AutomationModelConfiguration } from '../../../browser/automationModelConfiguration.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, getChatPermissionLevelFromDefaultConfiguration, isChatPermissionLevel, type IChatDefaultConfiguration } from '../../../../chat/common/constants.js';
 import { getAgentHostApprovalDefault, getChatDefaultConfiguration, isAutoApprovePolicyRestricted, normalizeAgentHostApprovalConfig, normalizeSessionConfigValue } from '../../../../chat/common/agentHostConfigPolicy.js';
@@ -9638,17 +9639,15 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		const chatRef = connection.getSubscription(StateComponents.Chat, URI.parse(defaultChat), 'BaseAgentHostSessionsProvider.draftAgent');
 		store.add(chatRef);
-		const listener = store.add(new MutableDisposable());
+		const listener = store.add(new DisposableStore());
 		const tryHydrate = () => {
 			if (cached.mode.get() === undefined) {
 				const chatState = chatRef.object.value;
 				const agentUri = chatState && !(chatState instanceof Error) ? chatState.draft?.agent?.uri : undefined;
 				if (agentUri) {
-					const agent = this.getCustomizations(cached.sessionId).flatMap(customization => customization.children ?? [])
-						.find(child => child.type === CustomizationType.Agent && isEqual(URI.parse(child.uri), URI.parse(agentUri)));
-					const uri = getAgentHostCustomizationUri(URI.parse(agentUri), connection, agent);
-					if (uri) {
-						cached.hydrateSelectedAgent(uri.toString());
+					const resolved = resolveAgentHostDraftAgent(URI.parse(agentUri), connection, this.getCustomizations(cached.sessionId));
+					if (resolved) {
+						cached.hydrateSelectedAgent(resolved.uri.toString());
 					}
 				}
 			}
@@ -9656,7 +9655,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				listener.clear(); // hydration is one-shot; stop observing
 			}
 		};
-		listener.value = chatRef.object.onDidChange(() => tryHydrate());
+		listener.add(chatRef.object.onDidChange(() => tryHydrate()));
+		listener.add(this.onDidChangeCustomizations(() => tryHydrate()));
 		tryHydrate();
 	}
 

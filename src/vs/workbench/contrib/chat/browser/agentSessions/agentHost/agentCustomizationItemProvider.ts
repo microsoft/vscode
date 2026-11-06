@@ -57,7 +57,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	/** Cache: pluginUri → last expansion (keyed by nonce and label so we re-fetch on content or display-name changes). */
-	private readonly _expansionCache = new ResourceMap<{ nonce: string | undefined; pluginLabel: string | undefined; children: readonly ICustomizationItem[] }>();
+	private readonly _expansionCache = new ResourceMap<{ nonce: string | undefined; pluginLabel: string | undefined; promptsOnly: boolean; children: readonly ICustomizationItem[] }>();
 	private readonly _sourceFolderReadiness = new ResourceMap<{
 		readonly bounded: Promise<boolean | undefined>;
 		status: CustomizationSourceFolderReadiness;
@@ -392,10 +392,14 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 				plugins.push(pluginMeta);
 				const canonicalChildren = sessionCustomization.children?.some(child => readCustomizationUriClientId(child) !== undefined);
 				expandPromises.push(canonicalChildren
-					? Promise.resolve((sessionCustomization.children ?? []).flatMap(child => {
-						const item = this.toDirectoryChildItem(child, AICustomizationSources.plugin);
-						return item ? [{ ...item, groupKey: childGroupKey, pluginUri, pluginLabel: pluginMeta.pluginLabel }] : [];
-					}))
+					? (async () => {
+						const children = (sessionCustomization.children ?? []).flatMap(child => {
+							const item = this.toDirectoryChildItem(child, AICustomizationSources.plugin);
+							return item ? [{ ...item, groupKey: childGroupKey, pluginUri, pluginLabel: pluginMeta.pluginLabel }] : [];
+						});
+						const prompts = pluginUri ? await this._expandPluginContents(pluginMeta, token, true) : [];
+						return [...children, ...prompts];
+					})()
 					: pluginUri ? this._expandPluginContents(pluginMeta, token) : Promise.resolve([]));
 			}
 		}
@@ -655,13 +659,13 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 	 * filesystem provider and returns one {@link ICustomizationItem} per
 	 * supported file (agents/skills/instructions/prompts).
 	 */
-	private async _expandPluginContents(plugin: PluginMeta, token: CancellationToken): Promise<readonly ICustomizationItem[]> {
+	private async _expandPluginContents(plugin: PluginMeta, token: CancellationToken, promptsOnly = false): Promise<readonly ICustomizationItem[]> {
 		const cached = this._expansionCache.get(plugin.item.uri);
-		if (cached && cached.nonce === plugin.nonce && cached.pluginLabel === plugin.pluginLabel) {
+		if (cached && cached.nonce === plugin.nonce && cached.pluginLabel === plugin.pluginLabel && cached.promptsOnly === promptsOnly) {
 			return cached.children;
 		}
-		const children = await this._contentExpander.expandPluginContents(plugin.item.uri, plugin.childGroupKey, plugin.isBundleItem, plugin.item.source, plugin.pluginLabel, token);
-		this._expansionCache.set(plugin.item.uri, { nonce: plugin.nonce, pluginLabel: plugin.pluginLabel, children });
+		const children = await this._contentExpander.expandPluginContents(plugin.item.uri, plugin.childGroupKey, plugin.isBundleItem, plugin.item.source, plugin.pluginLabel, token, promptsOnly);
+		this._expansionCache.set(plugin.item.uri, { nonce: plugin.nonce, pluginLabel: plugin.pluginLabel, promptsOnly, children });
 		return children;
 	}
 }

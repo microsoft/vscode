@@ -95,7 +95,7 @@ import { toRemoteSessionMessageMetadata } from '../../../../../../platform/agent
 import { ActionType, AuthRequiredReason, isSessionAction, isChatAction, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type ChatAction as AgentHostChatAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { chatToolCallComplete, chatToolCallReady, chatToolCallStart, chatTurnComplete, chatTurnStarted } from '../../../../../../platform/agentHost/test/common/chatActionBuilders.js';
 import { AhpErrorCodes, AHP_AUTH_REQUIRED, AHP_NOT_FOUND, JsonRpcErrorCodes, ProtocolError, type DispatchActionParams, type IStateSnapshot, type JsonRpcRequest, type ProtocolMessage } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { BackgroundWorkKind, ChatInteractivity, ConfirmationOptionKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionOriginKind, type AgentCustomization, type ChatInputAnswer, type ChatInputRequest, type ClientPluginCustomization, type Customization, type ProtectedResourceMetadata, type SessionActiveClient, type ToolDefinition, type Turn, type UsageInfo } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { BackgroundWorkKind, ChatInteractivity, ConfirmationOptionKind, CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionOriginKind, type AgentCustomization, type ChatInputAnswer, type ChatInputRequest, type ClientPluginCustomization, type Customization, type ProtectedResourceMetadata, type SessionActiveClient, type ToolDefinition, type Turn, type UsageInfo } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, createSessionState, createChatState, createDefaultChatSummary, createErrorResponsePart, buildChatUri, buildDefaultChatUri, parseChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentChatUri, buildSubagentSessionUri, ToolResultContentType, MessageAttachmentKind, MessageKind, PendingMessageKind, withMessageRequestHiddenFromTranscript, withSessionMultiRootMetadata, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo, type Message, type MessageAttachment, type MessageChatAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CompletionItemKind as AhpCompletionItemKind, type CompletionItem as AhpCompletionItem, type CompletionsParams, type CompletionsResult, type InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { sessionReducer, chatReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
@@ -4162,8 +4162,12 @@ suite('AgentHostChatContribution', () => {
 		test('round trips host Ask identity and semantics through AHP drafts', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 			const askUri = 'other-host:/opaque/ask';
 			class AskCustomizationService extends NullAgentHostCustomizationService {
-				override getCustomAgents(): readonly AgentCustomization[] {
-					return [{ type: CustomizationType.Agent, id: 'opaque', uri: askUri, name: 'Questions', _meta: { 'vscode.chatMode': 'ask' } }];
+				override getCustomizations(): readonly Customization[] {
+					return [{
+						type: CustomizationType.Directory, id: 'agents', uri: 'other-host:/opaque', name: 'Agents',
+						contents: CustomizationType.Agent, enabled: true, writable: false,
+						children: [{ type: CustomizationType.Agent, id: 'opaque', uri: askUri, name: 'Questions', _meta: { 'vscode.chatMode': 'ask' } }],
+					}];
 				}
 			}
 			const { sessionHandler, agentHostService, chatService } = createContribution(disposables, { customizationServiceOverride: new AskCustomizationService() });
@@ -4198,6 +4202,61 @@ suite('AgentHostChatContribution', () => {
 		}));
 
 		for (const kind of agentHostConnectionKinds) {
+			for (const outcome of ['owned', 'foreign', 'picked', 'legacy', 'host'] as const) {
+				test(`hydrates Loading-to-Loaded draft ownership without losing ${outcome} selections (${kind.name})`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+					const source = URI.file('/extensions/review.agent.md');
+					const cache = URI.file('/cache/vscode-synced-customization-bundle/previous/agents/review.agent.md');
+					const child: AgentCustomization = {
+						type: CustomizationType.Agent, id: 'review', uri: outcome === 'host' ? cache.toString() : source.toString(), name: 'Review',
+						...(outcome === 'host' ? {} : { _meta: { 'vscode.uriClientId': outcome === 'foreign' ? 'other-client' : 'test-window-1' } }),
+					};
+					const changed = disposables.add(new Emitter<void>());
+					let customizations: readonly Customization[] = [{
+						type: CustomizationType.Plugin, id: 'plugin', uri: 'vscode-synced-customization:/bundle', name: 'Plugin',
+						...(outcome === 'host' ? {} : { clientId: outcome === 'foreign' ? 'other-client' : 'test-window-1' }),
+						load: { kind: CustomizationLoadStatus.Loading },
+						enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }],
+					}];
+					class LoadingCustomizationService extends NullAgentHostCustomizationService {
+						override readonly onDidChangeCustomizations = changed.event;
+						override getCustomizations(): readonly Customization[] { return customizations; }
+					}
+					const { sessionHandler, agentHostService, chatService } = createContribution(disposables, { customizationServiceOverride: new LoadingCustomizationService() });
+					agentHostService.resourceUris = kind.resourceUris;
+					const backendSession = AgentSession.uri('copilot', 'loading-draft');
+					const sessionResource = URI.parse('agent-host-copilot:/loading-draft');
+					seedDraftSession(agentHostService, backendSession, 'Loading Draft', {
+						text: 'draft', origin: { kind: MessageKind.User }, agent: { uri: outcome === 'legacy' || outcome === 'host' ? cache.toString() : source.toString() },
+					});
+					const { inputModel, inputState } = createDraftInputModel({
+						attachments: [], mode: { id: 'agent', kind: ChatModeKind.Agent }, selectedModel: undefined,
+						inputText: '', selections: [], contrib: {},
+					});
+					chatService.setSession(sessionResource, upcastPartial<IChatModel>({
+						sessionResource, inputModel, onDidChangePendingRequests: Event.None, getPendingRequests: () => [],
+					}));
+					const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+					disposables.add(toDisposable(() => chatSession.dispose()));
+					await timeout(0);
+					const before = inputState.get()?.mode;
+					if (outcome === 'picked') {
+						inputModel.setState({ mode: { id: 'agent://user-picked', kind: ChatModeKind.Agent } });
+					}
+					customizations = customizations.map((plugin): Customization => plugin.type === CustomizationType.Plugin ? {
+						...plugin, load: { kind: CustomizationLoadStatus.Loaded }, children: [child],
+						...(outcome === 'legacy' ? { _meta: { 'vscode.sourceUris': { 'agents/review.agent.md': source.toString() } } } : {}),
+					} : plugin);
+					changed.fire();
+					assert.deepStrictEqual({ before, after: inputState.get()?.mode, text: inputState.get()?.inputText }, {
+						before: { id: 'agent', kind: ChatModeKind.Agent },
+						after: {
+							id: outcome === 'foreign' ? 'agent' : outcome === 'picked' ? 'agent://user-picked' : outcome === 'host' ? kind.toClient(cache).toString() : source.toString(),
+							kind: ChatModeKind.Agent,
+						},
+						text: 'draft',
+					});
+				}));
+			}
 			for (const owner of ['test-window-1', 'other-client']) {
 				test(`hydrates ownership of disabled canonical agent drafts from ${owner} (${kind.name})`, async () => {
 					const source = URI.file('/extensions/review.agent.md');
@@ -4228,8 +4287,12 @@ suite('AgentHostChatContribution', () => {
 				const hostAgent = 'file:///workspace/ask.agent.md';
 				const clientAgent = kind.toClient(URI.parse(hostAgent));
 				class AskCustomizationService extends NullAgentHostCustomizationService {
-					override getCustomAgents(): readonly AgentCustomization[] {
-						return [{ type: CustomizationType.Agent, id: 'ask', uri: hostAgent, name: 'Ask', _meta: { 'vscode.chatMode': 'ask' } }];
+					override getCustomizations(): readonly Customization[] {
+						return [{
+							type: CustomizationType.Directory, id: 'agents', uri: 'file:///workspace', name: 'Agents',
+							contents: CustomizationType.Agent, enabled: true, writable: false,
+							children: [{ type: CustomizationType.Agent, id: 'ask', uri: hostAgent, name: 'Ask', _meta: { 'vscode.chatMode': 'ask' } }],
+						}];
 					}
 				}
 				const { sessionHandler, agentHostService, chatService } = createContribution(disposables, { customizationServiceOverride: new AskCustomizationService() });
@@ -4429,6 +4492,64 @@ suite('AgentHostChatContribution', () => {
 				assert.deepStrictEqual(draftActions.map(action => action.draft?.model), [
 					{ id: 'claude-opus-4.8', config: { thinkingLevel: 'xhigh', contextSize: 936_000 } },
 				]);
+			}));
+		}
+
+		for (const publishOn of ['debounce', 'disposal'] as const) {
+			test(`persists local draft edits across deferred agent hydration and reload via ${publishOn}`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+				const source = 'file:///extensions/review.agent.md';
+				const changed = disposables.add(new Emitter<void>());
+				let customizations: readonly Customization[] = [{
+					type: CustomizationType.Plugin, id: 'plugin', uri: 'vscode-synced-customization:/bundle', name: 'Plugin',
+					clientId: 'test-window-1', load: { kind: CustomizationLoadStatus.Loading },
+				}];
+				class LoadingCustomizationService extends NullAgentHostCustomizationService {
+					override readonly onDidChangeCustomizations = changed.event;
+					override getCustomizations(): readonly Customization[] { return customizations; }
+				}
+				const customizationServiceOverride = new LoadingCustomizationService();
+				const { sessionHandler, agentHostService, chatService } = createContribution(disposables, { customizationServiceOverride });
+				const backendSession = AgentSession.uri('copilot', 'hydration-edited-draft');
+				const sessionResource = URI.parse('agent-host-copilot:/hydration-edited-draft');
+				const originalDraft: NonNullable<ChatState['draft']> = {
+					text: 'restored draft', origin: { kind: MessageKind.User }, agent: { uri: source },
+				};
+				seedDraftSession(agentHostService, backendSession, 'Hydration Draft', originalDraft);
+				const { inputModel } = createDraftInputModel({
+					attachments: [], mode: { id: 'agent', kind: ChatModeKind.Agent }, selectedModel: undefined,
+					inputText: '', selections: [], contrib: {},
+				});
+				chatService.setSession(sessionResource, upcastPartial<IChatModel>({
+					sessionResource, inputModel, onDidChangePendingRequests: Event.None, getPendingRequests: () => [],
+				}));
+				const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+				disposables.add(toDisposable(() => chatSession.dispose()));
+				await timeout(0);
+				agentHostService.dispatchedActions.length = 0;
+				inputModel.setState({ inputText: 'edited before customization loaded' });
+				await timeout(100);
+				customizations = [{
+					type: CustomizationType.Plugin, id: 'plugin', uri: 'vscode-synced-customization:/bundle', name: 'Plugin',
+					clientId: 'test-window-1', load: { kind: CustomizationLoadStatus.Loaded },
+					children: [{ type: CustomizationType.Agent, id: 'review', uri: source, name: 'Review', _meta: { 'vscode.uriClientId': 'test-window-1' } }],
+				}];
+				changed.fire();
+				if (publishOn === 'debounce') {
+					await timeout(500);
+				}
+				chatSession.dispose();
+				const drafts = agentHostService.dispatchedActions.flatMap(entry => entry.action.type === ActionType.ChatDraftChanged ? [entry.action.draft] : []);
+				const reloaded = createContribution(disposables, { customizationServiceOverride });
+				seedDraftSession(reloaded.agentHostService, backendSession, 'Hydration Draft', drafts.at(-1) ?? originalDraft);
+				const restoredSession = await reloaded.sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+				disposables.add(toDisposable(() => restoredSession.dispose()));
+				assert.deepStrictEqual({
+					published: drafts.map(draft => ({ text: draft?.text, agent: draft?.agent })),
+					restored: { text: restoredSession.transferredState?.inputState?.inputText, mode: restoredSession.transferredState?.inputState?.mode },
+				}, {
+					published: [{ text: 'edited before customization loaded', agent: { uri: source } }],
+					restored: { text: 'edited before customization loaded', mode: { id: source, kind: ChatModeKind.Agent } },
+				});
 			}));
 		}
 

@@ -14,7 +14,7 @@ import { createInMemoryFileService } from '../../../../files/test/common/inMemor
 import { PluginFormat, type IMcpServerDefinition, type IParsedAgent, type IParsedPlugin, type IParsedRule, type IParsedSkill } from '../../../../agentPlugins/common/pluginParsers.js';
 import { McpServerType, type IMcpServerConfiguration } from '../../../../mcp/common/mcpPlatformTypes.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../common/agentHostFileSystemService.js';
-import { readCustomizationUriClientId, toClientPluginMcpDefaultCwdsMeta, toClientPluginSourceUrisMeta } from '../../../common/meta/clientPluginCustomizationMeta.js';
+import { readCustomizationUriClientId, readCustomizationUriClientIds, toClientPluginMcpDefaultCwdsMeta, toClientPluginSourceUrisMeta } from '../../../common/meta/clientPluginCustomizationMeta.js';
 import type { ISyncedCustomization } from '../../../common/agentPluginManager.js';
 import { CustomizationType, McpServerStatus, type PluginCustomization } from '../../../common/state/protocol/channels-session/state.js';
 import { CODEX_FILE_LINK_INSTRUCTIONS, CodexClientCustomizationStore, codexAgentRoleToml, codexClientSkillInstructions, codexCustomizationConfig, codexMcpServersFromPlugins, type ICodexClientPlugin } from '../../../node/codex/codexClientCustomizations.js';
@@ -112,6 +112,22 @@ suite('codexClientCustomizations', () => {
 			owner: 'owner',
 			runtime: agent.uri,
 		});
+	});
+
+	test('deduplicates runtime plugins without losing a second client source owner', () => {
+		const store = new CodexClientCustomizationStore();
+		const shared = plugin('shared', '/cache/plugin', parsed({ agents: [agentDef(URI.file('/cache/plugin/agents/a.md'), 'Agent')] }));
+		store.setClient('first', [shared]);
+		store.setClient('second', [shared]);
+		const published = store.toCustomizations();
+		const owners = readCustomizationUriClientIds(published[0].children![0]);
+		store.removeClient('first');
+		assert.deepStrictEqual({
+			runtimeCount: store.enabledPlugins().length,
+			publishedCount: published.length,
+			owners,
+			afterDisconnect: readCustomizationUriClientIds(store.toCustomizations()[0].children![0]),
+		}, { runtimeCount: 1, publishedCount: 1, owners: ['first', 'second'], afterDisconnect: ['second'] });
 	});
 
 	test('codexMcpServersFromPlugins maps stdio + http, stringifies env, and maps headers', () => {
@@ -441,4 +457,35 @@ suite('codexClientCustomizations', () => {
 			emptyAfter: store.isEmpty(),
 		}, { hasBefore: true, toggledOff: true, toggledOffAgain: false, removed: true, emptyAfter: true });
 	});
+
+	for (const [nonce, revision] of [['-123', '123'], ['!!release..v2?!', 'release-v2'], ['!!!', 'default']]) {
+		test(`restores a sanitized cache revision (${nonce}) only within its owning namespace`, async () => {
+			const root = URI.from({ scheme: Schemas.inMemory, path: `/cache/selected/${revision}` });
+			const agentUri = URI.joinPath(root, 'agents/reviewer.agent.md');
+			await fileService.writeFile(agentUri, VSBuffer.fromString('Selected instructions.'));
+			const customization = {
+				...pluginCustomization('selected'),
+				uri: `${SYNCED_CUSTOMIZATION_SCHEME}:/selected`,
+				nonce,
+				_meta: toClientPluginSourceUrisMeta({ files: { 'agents/reviewer.agent.md': URI.file('/client/original.agent.md') } }),
+			};
+			const plugin: ICodexClientPlugin = {
+				synced: { pluginDir: root, customization }, input: customization,
+				parsed: parsed({ agents: [agentDef(agentUri, 'selected')] }),
+			};
+			const old = URI.from({ scheme: Schemas.inMemory, path: '/cache/selected/previous/agents/reviewer.agent.md' });
+			const results = await Promise.all([
+				old,
+				old.with({ path: '/cache/other/previous/agents/reviewer.agent.md' }),
+				old.with({ path: '/cache/selected-lookalike/previous/agents/reviewer.agent.md' }),
+				old.with({ query: 'other' }),
+				old.with({ fragment: 'other' }),
+				old.with({ authority: 'other-host' }),
+			].map(async uri => (await codexCustomizationConfig([], [plugin], { uri: uri.toString() }, fileService)).developerInstructions));
+			assert.deepStrictEqual(results, [
+				`Selected instructions.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}`,
+				...Array.from({ length: 5 }, () => CODEX_FILE_LINK_INSTRUCTIONS),
+			]);
+		});
+	}
 });

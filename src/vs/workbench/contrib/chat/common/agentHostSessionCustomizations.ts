@@ -29,7 +29,7 @@ import {
 } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { getSkillCustomizations } from '../../../../platform/agentHost/common/customizationEnablement.js';
 import { ISessionChatCustomization, SessionCustomizationKind } from './sessionChatCustomizations.js';
-import { readClientPluginSourceUris, readCustomizationUriClientId, toClientPluginSourceUrisMeta } from '../../../../platform/agentHost/common/meta/clientPluginCustomizationMeta.js';
+import { readClientPluginSourceUris, readCustomizationUriClientId, readCustomizationUriClientIds, toClientPluginSourceUrisMeta } from '../../../../platform/agentHost/common/meta/clientPluginCustomizationMeta.js';
 
 /**
  * A reference to a customization extracted from a chat's output stream.
@@ -75,11 +75,11 @@ export function fromAgentHostFileUri(uri: URI, resourceUris: Pick<IAgentHostReso
 /** Resolves host-authored resources and this client's plugin sources; foreign client sources are opaque. */
 export function getAgentHostCustomizationUri(uri: URI, connection: { readonly clientId?: string; readonly resourceUris: IAgentHostResourceUriMapper }, container?: Pick<PluginCustomization, 'clientId' | '_meta'>): URI | undefined {
 	const uriClientId = container && readCustomizationUriClientId(container);
-	if (uriClientId !== undefined) {
-		return uriClientId === connection.clientId ? uri : undefined;
+	if (container && uriClientId !== undefined) {
+		return connection.clientId !== undefined && readCustomizationUriClientIds(container).includes(connection.clientId) ? uri : undefined;
 	}
 	if (container?.clientId !== undefined) {
-		if (container.clientId !== connection.clientId) {
+		if (container.clientId !== connection.clientId && (!connection.clientId || !readCustomizationUriClientIds(container).includes(connection.clientId))) {
 			return undefined;
 		}
 		return fromAgentHostFileUri(uri, connection.resourceUris);
@@ -300,12 +300,12 @@ export class CustomizationIndex {
 			const container = customization.type === CustomizationType.Plugin || customization.type === CustomizationType.Directory ? customization : undefined;
 			this._add(customization, uri => getAgentHostCustomizationUri(uri, connection, customization.type === CustomizationType.Plugin ? customization : undefined));
 			for (const child of container?.children ?? []) {
-				this._add(child, uri => getAgentHostCustomizationUri(uri, connection));
+				this._add(child, uri => getAgentHostCustomizationUri(uri, connection, child));
 			}
 		}
 		for (const { skill, container } of getSkillCustomizations(customizations ?? [])) {
 			if (container.type === CustomizationType.McpServer) {
-				this._add(skill, uri => getAgentHostCustomizationUri(uri, connection));
+				this._add(skill, uri => getAgentHostCustomizationUri(uri, connection, skill));
 			}
 		}
 		this._reuseResolvedPaths(previous);

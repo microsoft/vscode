@@ -119,7 +119,7 @@ import { readLocalModelRootConfig, selectLocalModelProvider, type ILocalModelPro
 import { getLocalModelThinkingLevels, type LocalModelThinkingSupport } from './localModelBridge/localModelThinking.js';
 import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitProject.js';
 import { findRelocatedAgentName, parsedPluginsEqual, toChildCustomizations } from './copilotPluginConverters.js';
-import { getCustomizationSourceUri, toSourceCustomizations } from '../../common/syncedCustomizationUris.js';
+import { getCustomizationSourceUri, toSourceCustomizations, withClientCustomizationUriOwners } from '../../common/syncedCustomizationUris.js';
 import { CopilotGitHubTelemetryForwarder, isHydraFusionTelemetryKind, type ICopilotModelCallCorrelationTelemetry } from './copilotGitHubTelemetryForwarder.js';
 import { COMPACTION_REQUEST_KIND, isCompactionTelemetryKind, type IForwardedCompactionCorrelation } from './compactionTurnCorrelation.js';
 import { CopilotGitHubCredentials, CopilotGitHubSessionCredentials } from './copilotGitHubCredentials.js';
@@ -336,6 +336,8 @@ export type ICopilotPluginInfo = Omit<IParsedPlugin, 'mcpServers'> & {
 	 */
 	readonly resourceDir?: URI;
 	readonly sourceUri?: URI;
+	/** Published plugin container identity used for MCP ownership and enablement. */
+	readonly customizationUri?: URI;
 	readonly sourceUris?: Readonly<Record<string, URI>>;
 	/** Client content revision, including changes to resource bodies not retained by the parser. */
 	readonly nonce?: string;
@@ -11769,13 +11771,14 @@ class SessionPluginController extends Disposable {
 	private _resolveCustomizationEnablement(anchor: CustomizationAnchor | undefined) {
 		const hostCustomizations = this._parent.hostCustomizations();
 		const clientCustomizations = this._flattenClientCustomizations();
+		const clientContributions = [...this._clients.values()].flatMap(client => client.customizations.map(item => item.customization));
 		const explicitPluginIds = new Set([
 			...hostCustomizations,
 			...clientCustomizations,
 		].map(item => item.customization.id));
 		const result: Customization[] = [
 			...hostCustomizations.map(item => this._projectForPublish(item.customization)),
-			...clientCustomizations.map(item => this._projectForPublish(item.customization)),
+			...clientCustomizations.map(item => this._projectForPublish(withClientCustomizationUriOwners(item.customization, clientContributions))),
 		];
 		const discovered = anchor?.discoveredEntry()?.currentCustomizations() ?? [];
 		const workspaceDefinitions = anchor?.mcpDiscoveryEntry()?.definitions ?? [];
@@ -12022,6 +12025,7 @@ class SessionPluginController extends Disposable {
 				...plugin,
 				pluginDir,
 				nonce: item.input?.nonce,
+				customizationUri: URI.parse(item.customization.uri),
 				sourceUris: item.customization.clientId !== AUTOMATION_ACTIVE_CLIENT_ID ? readClientPluginSourceUris(item.customization).files : undefined,
 				...(standalone && item.pluginDir ? { resourceDir: item.pluginDir } : {}),
 				mcpServers: plugin.mcpServers.map(definition => resolveCopilotMcpServerInfo(definition, pluginDir, item.input, primaryCwd)),

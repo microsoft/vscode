@@ -74,7 +74,7 @@ import { isAgentModelFusion, readAgentModelAutoTierPromotionsMeta, readAgentMode
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { buildAgentHostOTelEnv } from '../../common/agentService.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceTrustConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
-import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
+import { IAgentPluginManager, ISyncedCustomization, toAgentHostFileUri } from '../../common/agentPluginManager.js';
 import { toClientPluginMcpDefaultCwdsMeta, toClientPluginSourceUrisMeta, toClientPluginStandaloneMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type AuthenticateParams, type IAgentCanvasInfo, type IAgentChatAdoptionResult, type IAgentChatSessionSettings, type IAgentChatContext, type IAgentChatMetadata, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDiscoveredChat, type IAgentMaterializeChatEvent, type IAgentSpawnChatEvent, fixedChatOwnerRef, type IAgentChatOwnerRef } from '../../common/agent.js';
@@ -21173,6 +21173,15 @@ suite('CopilotAgent', () => {
 				description: 'helps out',
 				_meta: { 'vscode.uriClientId': 'client-1' },
 			}]);
+			agent.getOrCreateActiveClient(defaultChatUri(session), session, { clientId: 'client-2' }).customizations = [{
+				type: CustomizationType.Plugin, id: customizationId(sourceRoot.toString()), uri: sourceRoot.toString(), name: 'Plugin A',
+			}];
+			const published = (await getDefaultChatCustomizations(agent, session)).find(item => item.id === customizationId(sourceRoot.toString()));
+			const snapshot = await agent['_getOrCreateActiveClient'](session, undefined).snapshot();
+			assert.deepStrictEqual({
+				owners: published?.type === CustomizationType.Plugin ? published.children?.[0]._meta?.['vscode.uriClientIds'] : undefined,
+				runtimePlugins: snapshot.plugins.length,
+			}, { owners: ['client-1', 'client-2'], runtimePlugins: 1 });
 		});
 
 		test('identical active-client republishes do not retry failed customization sync', async () => {
@@ -30615,6 +30624,44 @@ suite('CopilotAgent', () => {
 	});
 
 	suite('standalone client customizations', () => {
+		test('keeps same-host MCP container identity separate from canonical agent sources', async () => {
+			const fileService = createInMemoryFileService(disposables, Schemas.file);
+			const root = URI.file('/plugins/same-host');
+			const publishedUri = toAgentHostFileUri(root);
+			const agentUri = URI.joinPath(root, 'agents/reviewer.agent.md');
+			await fileService.writeFile(URI.joinPath(root, '.plugin/plugin.json'), VSBuffer.fromString('{"name":"Same Host"}'));
+			await fileService.writeFile(agentUri, VSBuffer.fromString('---\nname: Reviewer\n---\nReview changes.'));
+			await fileService.writeFile(URI.joinPath(root, '.mcp.json'), VSBuffer.fromString('{"mcpServers":{"review":{"command":"review-server"}}}'));
+			class PluginManager extends TestAgentPluginManager {
+				override async syncCustomizations(_clientId: string, customizations: ClientPluginCustomization[]): Promise<ISyncedCustomization[]> {
+					return customizations.map(customization => ({
+						customization: { ...customization, load: { kind: CustomizationLoadStatus.Loaded } },
+						pluginDir: root,
+					}));
+				}
+			}
+			const { agent } = createTestAgentContext(disposables, { fileService, pluginManager: new PluginManager() });
+			afterTest(() => disposeAgent(agent));
+			const session = AgentSession.uri('copilotcli', 'same-host-plugin-identity');
+			const activeClient = agent['_getOrCreateActiveClient'](session, undefined);
+			await activeClient.pluginController.sync('client', [{
+				type: CustomizationType.Plugin, id: root.toString(), uri: publishedUri.toString(), name: 'Same Host',
+				_meta: toClientPluginSourceUrisMeta({ root, files: {} }),
+			}]);
+			const snapshot = await activeClient.snapshot();
+			assert.deepStrictEqual({
+				containers: snapshot.plugins.map(plugin => plugin.customizationUri?.toString()),
+				sources: snapshot.plugins.map(plugin => plugin.sourceUri?.toString()),
+				agents: getCopilotCustomAgents(snapshot).map(agent => ({ source: agent.sourceUri?.toString(), name: agent.sdkName })),
+				selection: getCopilotAgentSelectionName(snapshot, agentUri.toString()),
+				mcp: snapshot.plugins.flatMap(plugin => plugin.mcpServers.map(server => server.name)),
+			}, {
+				containers: [publishedUri.toString()], sources: [root.toString()],
+				agents: [{ source: agentUri.toString(), name: getSdkCustomAgentName(agentUri) }],
+				selection: getSdkCustomAgentName(agentUri), mcp: ['review'],
+			});
+		});
+
 
 		test('restores a legacy singleton selection when other bundle filenames collide and updates persisted provider data', async () => {
 			const fileService = createInMemoryFileService(disposables, Schemas.file);

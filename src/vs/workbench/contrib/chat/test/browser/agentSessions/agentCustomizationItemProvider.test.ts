@@ -52,6 +52,33 @@ const labelService = upcastPartial<ILabelService>({ getUriLabel: resource => res
 suite('AgentCustomizationItemProvider', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	for (const bundled of [false, true]) {
+		test(`retains prompt files alongside canonical plugin children (bundled: ${bundled})`, async () => {
+			const scheme = bundled ? SYNCED_CUSTOMIZATION_SCHEME : Schemas.inMemory;
+			const fileService = createInMemoryFileService(disposables, scheme);
+			const root = URI.from({ scheme, path: '/plugin' });
+			const command = URI.joinPath(root, 'commands', 'review.md');
+			const source = URI.file('/workspace/prompts/review.prompt.md');
+			await fileService.writeFile(command, VSBuffer.fromString('Review changes'));
+			const provider = disposables.add(new AgentCustomizationItemProvider(
+				{ clientId: 'vscode', resourceUris: agentHostConnectionKinds[0].resourceUris }, undefined,
+				uri => bundled && isEqual(uri, command) ? { uri: source, source: AICustomizationSources.user } : undefined,
+				fileService, new NullLogService(),
+				new class extends NullAgentHostCustomizationService {
+					override getCustomizations(): readonly Customization[] {
+						return [{
+							type: CustomizationType.Plugin, id: 'plugin', uri: root.toString(), name: 'Review Tools', clientId: 'vscode',
+							children: [{ type: CustomizationType.Agent, id: 'agent', name: 'Review Agent', uri: 'file:///workspace/agents/review.md', _meta: { 'vscode.uriClientId': 'vscode' } }],
+						}];
+					}
+				}(), makePromptsService(), labelService));
+			const items = await provider.provideChatSessionCustomizations(URI.parse('other-session:/prompts'), CancellationToken.None);
+			assert.deepStrictEqual(items.filter(item => item.type === PromptsType.prompt).map(item => ({
+				uri: item.uri.toString(), pluginLabel: item.pluginLabel,
+			})), [{ uri: (bundled ? source : command).toString(), pluginLabel: bundled ? undefined : 'Review Tools' }]);
+		});
+	}
+
 	for (const kind of agentHostConnectionKinds) {
 		test(`projects canonical plugin children without reading foreign or cached files (${kind.name})`, async () => {
 			const session = URI.parse('other-session:/canonical-plugins');

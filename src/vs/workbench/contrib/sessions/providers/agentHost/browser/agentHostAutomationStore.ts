@@ -10,7 +10,7 @@ import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
 import { stableStringify } from '../../../../../../base/common/objects.js';
 import { derived, type IObservable, observableSignal, observableSignalFromEvent, observableValue } from '../../../../../../base/common/observable.js';
-import { basename, isEqual, relativePath } from '../../../../../../base/common/resources.js';
+import { basename, isEqual, isEqualOrParent, joinPath, relativePath } from '../../../../../../base/common/resources.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { AgentSession } from '../../../../../../platform/agentHost/common/agent.js';
@@ -772,11 +772,23 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			return;
 		}
 		for (const plugin of [...(previous?.session.customizations ?? []), ...customizations]) {
-			const path = relativePath(URI.parse(plugin.uri), agentUri);
+			const root = URI.parse(plugin.uri);
+			const path = isEqualOrParent(agentUri, root) ? relativePath(root, agentUri) : undefined;
 			const source = path !== undefined ? readClientPluginSourceUris(plugin).files[path] : undefined;
 			if (source) {
 				definition.session.agent = { uri: source.toString() };
 				return;
+			}
+			if (path === undefined) {
+				continue;
+			}
+			// Older saved bundles lack source metadata; only a current captured bundle can validate the relative file.
+			for (const currentPlugin of customizations) {
+				const source = this._activeClientService.getOrigin(joinPath(URI.parse(currentPlugin.uri), path))?.uri;
+				if (source) {
+					definition.session.agent = { uri: source.toString() };
+					return;
+				}
 			}
 		}
 	}

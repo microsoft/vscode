@@ -9,7 +9,7 @@ import { URI } from '../../../base/common/uri.js';
 import { Schemas } from '../../../base/common/network.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
-import { AGENT_HOST_FILE_SCHEME, IAgentPluginManager, type ISyncedCustomization } from '../common/agentPluginManager.js';
+import { AGENT_HOST_FILE_SCHEME, getAgentPluginCacheRevision, IAgentPluginManager, type ISyncedCustomization } from '../common/agentPluginManager.js';
 import { CustomizationLoadStatus, type ClientPluginCustomization, type PluginCustomization } from '../common/state/sessionState.js';
 import { toAgentClientUri } from '../common/agentClientUri.js';
 
@@ -179,7 +179,7 @@ export class AgentPluginManager implements IAgentPluginManager {
 	}
 
 	private _keyForNonce(nonce: string | undefined): string {
-		return (nonce && this._sanitize(nonce)) || 'default';
+		return getAgentPluginCacheRevision(nonce);
 	}
 
 	private _sanitize(value: string): string {

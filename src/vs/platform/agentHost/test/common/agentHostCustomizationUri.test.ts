@@ -8,13 +8,31 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AGENT_BUILTIN_CUSTOMIZATION_SCHEME, AGENT_DISCOVERY_CUSTOMIZATION_SCHEME, getMcpSkillCustomizationUri, getMcpSkillName, hasReadableCustomizationContent, isAgentBuiltinCustomizationUri } from '../../common/agentHostCustomizationUri.js';
 import { toAgentHostUri } from '../../common/agentHostUri.js';
-import { CustomizationType, type ChildCustomization } from '../../common/state/sessionState.js';
-import { readClientPluginSourceUris, toClientPluginSourceUrisMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
-import { getCustomizationSourceUri, toSourceCustomizations } from '../../common/syncedCustomizationUris.js';
+import { CustomizationType, type ChildCustomization, type PluginCustomization } from '../../common/state/sessionState.js';
+import { readClientPluginSourceUris, readCustomizationUriClientIds, toClientPluginSourceUrisMeta, toCustomizationUriClientMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
+import { getCustomizationSourceUri, toSourceCustomizations, withClientCustomizationUriOwners } from '../../common/syncedCustomizationUris.js';
 
 suite('Agent Host customization URI', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('shares only canonical sources explicitly contributed by each client', () => {
+		const plugin = (clientId: string, agentPath: string): PluginCustomization => ({
+			type: CustomizationType.Plugin, id: 'bundle', uri: 'synced:/bundle', name: 'Bundle', clientId,
+			children: [{ type: CustomizationType.Agent, id: 'agent', name: 'Agent', uri: agentPath, _meta: toCustomizationUriClientMeta(clientId) }],
+		});
+		const first = plugin('first', 'file:///workspace/agent.md');
+		const second = plugin('second', first.children![0].uri);
+		const other = plugin('other', 'file:///different/agent.md');
+		const merged = withClientCustomizationUriOwners(first, [first, second, other]);
+		const afterDisconnect = withClientCustomizationUriOwners(second, [second, other]);
+		assert.deepStrictEqual({
+			uri: merged.children![0].uri,
+			owners: readCustomizationUriClientIds(merged.children![0]),
+			afterDisconnect: readCustomizationUriClientIds(afterDisconnect.children![0]),
+			invalid: readCustomizationUriClientIds({ _meta: { 'vscode.uriClientIds': ['owner', false, '', 1] } }),
+		}, { uri: first.children![0].uri, owners: ['first', 'second'], afterDisconnect: ['second'], invalid: ['owner'] });
+	});
 
 	test('publishes canonical source identities without exposing materialization paths', () => {
 		const root = URI.file('/cache/revision');

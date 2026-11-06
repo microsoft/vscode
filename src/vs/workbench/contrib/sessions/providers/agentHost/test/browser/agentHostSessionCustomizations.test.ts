@@ -104,6 +104,19 @@ suite('Agent Host Session Customizations', () => {
 	});
 
 	for (const kind of agentHostConnectionKinds) {
+		test(`preserves canonical child ownership when indexing customization references (${kind.name})`, () => {
+			const index = new CustomizationIndex([{
+				type: CustomizationType.Plugin, id: 'plugin', name: 'Plugin', uri: 'file:///plugins/review', clientId: 'vscode',
+				children: ['vscode', 'foreign', 'shared'].map(owner => ({
+					type: CustomizationType.Skill, id: owner, name: owner, uri: `file:///sources/${owner}/SKILL.md`,
+					_meta: { 'vscode.uriClientId': owner, ...(owner === 'shared' ? { 'vscode.uriClientIds': ['shared', 'vscode'] } : {}) },
+				})),
+			}], [], kind.resourceUris.fromAgentHost, undefined, 'vscode');
+			assert.deepStrictEqual(['vscode', 'foreign', 'shared'].map(value => index.resolve({ kind: CustomizationRefKind.Skill, value })?.uri?.toString()), [
+				'file:///sources/vscode/SKILL.md', undefined, 'file:///sources/shared/SKILL.md',
+			]);
+		});
+
 		test(`maps host-authored children independently of their publishing client and hides foreign container resources (${kind.name})`, () => {
 			const mapper = kind.resourceUris;
 			const plugins: Customization[] = ['vscode', 'foreign'].map(clientId => ({

@@ -21,7 +21,7 @@ import { IFileService } from '../../../files/common/files.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { AgentSession, type IAgentModelInfo } from '../../common/agent.js';
-import { AGENT_HOST_FILE_SCHEME } from '../../common/agentPluginManager.js';
+import { AGENT_HOST_FILE_SCHEME, getAgentPluginCacheRevision } from '../../common/agentPluginManager.js';
 import type { IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
 import { getByokLmSelectionModelId, resolveByokLmEnablement, type IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import { LOCAL_MODEL_SENTINEL_PROVIDER_NAME } from '../../common/localModel.js';
@@ -269,7 +269,7 @@ export function getCopilotAgentSelection(customizations: ICopilotAppliedCustomiz
 	for (const plugin of customizations.plugins) {
 		const materializedRoot = plugin.pluginDir ?? plugin.resourceDir;
 		const root = materializedRoot && URI.parse(materializedRoot.toString());
-		if (!plugin.sourceUri || plugin.sourceUri.scheme === AGENT_HOST_FILE_SCHEME || !plugin.nonce || !root || root.scheme !== Schemas.file || basename(root) !== plugin.nonce
+		if (!plugin.sourceUri || (plugin.customizationUri ?? plugin.sourceUri).scheme === AGENT_HOST_FILE_SCHEME || !plugin.nonce || !root || root.scheme !== Schemas.file || basename(root) !== getAgentPluginCacheRevision(plugin.nonce)
 			|| !extUri.isEqualOrParent(resource, dirname(root))) {
 			continue;
 		}
