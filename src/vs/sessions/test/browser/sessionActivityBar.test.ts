@@ -30,6 +30,7 @@ import { TestConfigurationService } from '../../../platform/configuration/test/c
 import { IContextMenuMenuDelegate, IContextMenuService, IContextViewService } from '../../../platform/contextview/browser/contextView.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { ChatViewSessionActivityBar, SessionActivityBar } from '../../../workbench/contrib/sessions/browser/parts/sessionActivityBar.js';
+import { MenuActivityBar } from '../../../workbench/browser/parts/activitybar/menuActivityBar.js';
 import { registerSessionActivityBarExternalHost, SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from '../../../workbench/contrib/sessions/browser/parts/sessionActivityBarHost.js';
 import { Menus, SessionActivityBarGroup } from '../../../workbench/contrib/sessions/browser/menus.js';
 import { TogglePanelAction } from '../../../workbench/browser/parts/panel/panelActions.js';
@@ -524,7 +525,8 @@ suite('Sessions - Session Activity Bar', () => {
 	test('in the main window\'s column, fills the column from top to bottom after the gap between cards, with entries the size of the Modern UI workbench activity bar\'s, and offers the context menu anywhere', () => {
 		const { createDocked, root, contextMenus } = createActivityBar(store, [changes, browser]);
 		const hostElement = append(root, $('.session-activity-bar-column.session-activity-bar-host'));
-		hostElement.style.cssText = '--agents-floating-panel-gap: 8px; position: relative; width: 56px; height: 200px;';
+		// As the workbench sizes the column: the gap between cards, then the bar.
+		hostElement.style.cssText = `--agents-floating-panel-gap: 8px; --vscode-spacing-size80: 8px; --vscode-strokeThickness: 1px; position: relative; width: ${8 + MenuActivityBar.getWidth(false)}px; height: 200px;`;
 		store.add(registerSessionActivityBarExternalHost(root, { element: hostElement, active: observableValue('active', true), fullSize: true, setOccupied: () => { } }));
 		const docked = createDocked();
 		docked.layout(40);

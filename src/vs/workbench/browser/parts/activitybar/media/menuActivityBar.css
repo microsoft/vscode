@@ -22,8 +22,9 @@
 	--menu-activity-bar-hover-background: var(--vscode-modernActivityBarItem-hoverBackground);
 	--menu-activity-bar-hover-outline: transparent;
 	--menu-activity-bar-active-foreground: var(--vscode-modernActivityBarItem-activeForeground);
-	--menu-activity-bar-active-background: var(--vscode-modernActivityBarItem-activeBackground);
-	--menu-activity-bar-separator-color: var(--vscode-modernActivityBar-border, var(--vscode-disabledForeground));
+	/* Like the workbench activity bar, a theme's activity bar active background takes precedence. */
+	--menu-activity-bar-active-background: var(--vscode-activityBar-activeBackground, var(--vscode-modernActivityBarItem-activeBackground));
+	--menu-activity-bar-separator-color: var(--vscode-disabledForeground);
 	display: flex;
 	flex-direction: column;
 	align-items: center;
@@ -47,6 +48,10 @@
 }
 
 .monaco-workbench .menu-activity-bar .monaco-action-bar.vertical .actions-container {
+	/* A vertical action bar lays its items out as a block, which has no gap between them. */
+	display: flex;
+	flex-direction: column;
+	align-items: center;
 	gap: var(--menu-activity-bar-gap);
 }
 
@@ -76,7 +81,7 @@
 	content: '';
 	position: absolute;
 	z-index: -1;
-	top: 0;
+	top: var(--menu-activity-bar-highlight-inset);
 	left: var(--menu-activity-bar-highlight-inset);
 	width: calc(var(--menu-activity-bar-item-size) - 2 * var(--menu-activity-bar-highlight-inset));
 	height: calc(var(--menu-activity-bar-item-size) - 2 * var(--menu-activity-bar-highlight-inset));
@@ -117,7 +122,7 @@
 /* Sets the groups of the menu apart. The margin overrides `!important` toolbar separator margins, which only suit
  * horizontal toolbars. */
 .monaco-workbench .menu-activity-bar .monaco-action-bar.vertical .action-label.separator {
-	width: var(--vscode-spacing-size160);
+	width: var(--vscode-spacing-size200);
 	height: 0;
 	margin: 0 auto !important;
 	padding: 0;

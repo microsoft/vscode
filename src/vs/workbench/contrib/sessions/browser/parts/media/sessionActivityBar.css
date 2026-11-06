@@ -19,13 +19,15 @@
  * fills the column from top to bottom, so the whole column is the activity bar and offers its context menu anywhere.
  * The column keeps the gap between cards to its left (`SessionActivityBarColumn`). */
 .monaco-workbench .session-activity-bar-column .session-activity-bar.docked {
-	inset: 0 0 0 var(--agents-floating-panel-gap);
-	width: auto;
+	top: 0;
+	bottom: 0;
+	right: 0;
 }
 
-/* Beside the chat while the side pane is closed, whose visible frame is inset within its part. */
+/* Beside the chat while the side pane is closed, whose visible frame is inset within its part: moved toward it by as
+ * much, so the gap between them is the gap between cards. */
 .monaco-workbench.noeditorpane .session-activity-bar-column .session-activity-bar.docked {
-	left: calc(var(--agents-floating-panel-gap) - var(--agents-session-frame-inset));
+	right: var(--agents-session-frame-inset);
 }
 
 .monaco-workbench .session-activity-bar.docked {
@@ -49,7 +51,7 @@
 	/* The minimum target size (WCAG 2.5.8) around a base-size codicon. */
 	--menu-activity-bar-item-size: var(--vscode-spacing-size240);
 	--menu-activity-bar-icon-size: var(--vscode-codiconFontSize);
-	--menu-activity-bar-gap: var(--vscode-spacing-size20);
+	--menu-activity-bar-gap: 0px;
 	--menu-activity-bar-highlight-inset: 0px;
 	--menu-activity-bar-foreground: currentColor;
 	--menu-activity-bar-hover-foreground: currentColor;
@@ -67,6 +69,7 @@
 }
 
 .monaco-workbench .menu-activity-bar.session-activity-bar.slim .monaco-action-bar.vertical .action-label.separator {
+	width: var(--vscode-spacing-size160);
 	margin: var(--vscode-spacing-size20) auto !important;
 }
 

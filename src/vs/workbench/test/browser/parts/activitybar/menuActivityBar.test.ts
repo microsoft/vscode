@@ -22,9 +22,8 @@ suite('MenuActivityBar', () => {
 			root.style.setProperty(`--vscode-${token}`, value);
 		}
 		const bar = append(root, $('.menu-activity-bar'));
+		// Laid out by the component's stylesheet alone: a vertical action bar's own layout is a block, without gaps.
 		const container = append(append(bar, $('.monaco-action-bar.vertical')), $('.actions-container'));
-		container.style.display = 'flex';
-		container.style.flexDirection = 'column';
 		const labels = [0, 1].map(() => append(append(container, $('.action-item')), $('.action-label.codicon')));
 		const geometry = (compact: boolean) => {
 			root.classList.toggle('modern-ui-compact', compact);
@@ -34,12 +33,13 @@ suite('MenuActivityBar', () => {
 				entry: [first.width, first.height],
 				iconSize: mainWindow.getComputedStyle(labels[0]).fontSize,
 				gap: second.top - first.bottom,
+				highlight: (({ left, top, width, height }) => [left, top, width, height].join(' '))(mainWindow.getComputedStyle(labels[0], '::after')),
 			};
 		};
 
 		assert.deepStrictEqual({ default: geometry(false), compact: geometry(true) }, {
-			default: { width: MenuActivityBar.getWidth(false), entry: [36, 36], iconSize: '24px', gap: 8 },
-			compact: { width: MenuActivityBar.getWidth(true), entry: [36, 36], iconSize: '24px', gap: 4 },
+			default: { width: MenuActivityBar.getWidth(false), entry: [36, 36], iconSize: '24px', gap: 8, highlight: '2px 2px 32px 32px' },
+			compact: { width: MenuActivityBar.getWidth(true), entry: [36, 36], iconSize: '24px', gap: 4, highlight: '2px 2px 32px 32px' },
 		});
 	});
 });
