@@ -24,7 +24,7 @@ import { ChatGroupsView } from './chatGroupsView.js';
 import { SessionHeader, SessionViewFloatingToolbar } from './sessionHeader.js';
 import { ChatViewSessionActivityBar } from './sessionActivityBar.js';
 import { ActiveSessionHost, createSessionHostServices, ISessionHost, ISessionHostService, SessionHostKind } from '../sessionHost.js';
-import { autorun, derived, disposableObservableValue, IObservable, observableFromEvent, observableValue, runOnChange } from '../../../../../base/common/observable.js';
+import { autorun, derived, disposableObservableValue, IObservable, observableValue, runOnChange } from '../../../../../base/common/observable.js';
 import { SessionIsMaximizedContext } from '../../common/contextkeys.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../common/layoutConstants.js';
 import { setActiveSessionContextKeys } from '../../common/sessionContextKeys.js';
@@ -116,13 +116,9 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 	readonly primaryChatViewTop: IObservable<number>;
 
 	private readonly _headerHeight = observableValue<number>(this, 0);
-	/** The element outside of this view that shows the session header; see {@link setHeaderHost}. */
-	private _headerHost: HTMLElement | undefined;
 
-	/** Whether the session header shows, wherever it is; see {@link setHeaderHost}. */
-	readonly headerShown: IObservable<boolean>;
 
-	/** The title of the session header, wherever the header shows; see {@link setHeaderHost}. */
+	/** The title of the session header. */
 	get headerTitleElement(): HTMLElement { return this._header.titleElement; }
 
 	/**
@@ -171,7 +167,6 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 
 		this._header = this._register(this._scopedInstantiationService.createInstance(SessionHeader));
 		this._centeredContentContainer.appendChild(this._header.element);
-		this.headerShown = observableFromEvent(this, this._header.onDidChangeVisibility, () => this._header.visible);
 
 		this._contentContainer = $('.session-view-content');
 		this.element.appendChild(this._contentContainer);
@@ -367,7 +362,7 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 			return;
 		}
 
-		const barHeight = this._header.visible && !this._headerHost ? this._header.height : 0;
+		const barHeight = this._header.visible ? this._header.height : 0;
 		this._headerHeight.set(barHeight, undefined);
 		const contentHeight = Math.max(0, height - barHeight);
 		const contentTop = top + barHeight;
@@ -394,23 +389,6 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 
 	toJSON(): object {
 		return { type: SessionView.TYPE };
-	}
-
-	/**
-	 * Shows the session header in `host`, outside of this view, such as in the title bar of a chat window, which makes it
-	 * the top row of its window in every layout; it then takes none of the height of this view. Its actions show in
-	 * `actionsHost`, if given, such as with the other actions of that title bar. `undefined` brings it back.
-	 */
-	setHeaderHost(host: HTMLElement | undefined, actionsHost?: HTMLElement): void {
-		if (this._headerHost === host) {
-			return;
-		}
-		this._headerHost = host;
-		this._header.setWindowChrome(!!host);
-		this._header.setActionsHost(host ? actionsHost : undefined);
-		(host ?? this._centeredContentContainer).appendChild(this._header.element);
-		this._lastContentLayout = undefined;
-		this._layoutChildren();
 	}
 
 	focus(): void {

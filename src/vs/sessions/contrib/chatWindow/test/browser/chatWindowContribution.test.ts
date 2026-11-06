@@ -21,7 +21,7 @@ import { ISessionsService } from '../../../../../workbench/contrib/sessions/brow
 import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IChat, ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { isIMenuItem, isISubmenuItem, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { IMenuItem, isIMenuItem, ISubmenuItem, isISubmenuItem, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { ContextKeyExpression, ContextKeyValue, IContext, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -34,13 +34,17 @@ import { ChatWindowLayoutMode } from '../../../../../workbench/contrib/chatWindo
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { DesktopLayoutContext, IsQuickChatSessionContext, SessionHasWorkspaceContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
-import { DesktopChangesTabAvailableContext, DesktopFilesTabAvailableContext } from '../../../../common/agentsWindowContextKeys.js';
+import { DesktopChangesTabAvailableContext, DesktopFilesTabAvailableContext, SessionsTitleBarNewSessionEnabledContext } from '../../../../common/agentsWindowContextKeys.js';
 import { CHAT_WINDOW_OPEN_BROWSER_COMMAND_ID, CHAT_WINDOW_OPEN_CHANGES_COMMAND_ID, CHAT_WINDOW_OPEN_FILES_COMMAND_ID, NEW_FILE_TAB_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { ActiveSessionHost, ISessionHostService, SessionHostKind } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { ISessionChangesService } from '../../../../../workbench/contrib/sessions/common/sessionChangesService.js';
 import { NEW_BROWSER_TAB_COMMAND_ID, NEW_CHANGES_TAB_COMMAND_ID, NEW_SEARCH_TAB_COMMAND_ID, NewBrowserTabAction, NewChangesTabAction, NewFileTabAction, NewSearchTabAction } from '../../../editor/browser/addTabActions.js';
 import '../../../../browser/layoutActions.js';
 import '../../../chat/browser/runScriptAction.js';
+import '../../../sessions/browser/sessionsActions.js';
+import '../../../accountMenu/browser/account.contribution.js';
+import { registerSessionsTitleBarMenus } from '../../../sessions/browser/sessionsTitleBarWidget.js';
+import { appendNewSessionTitleBarMenuItem } from '../../../chat/browser/newSessionTitleBarMenu.js';
 import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../../common/chatWindows.js';
 import '../../browser/chatWindow.contribution.js';
@@ -152,6 +156,37 @@ suite('Chat window contribution', () => {
 			titleBarWithStripLayoutActions: [],
 			stripWithStripLayoutActions: ['workbench.action.chatWindow.toggleEditor', 'Layout'],
 			mainWindow: [],
+		});
+	});
+
+	test('the title bar of a chat window shows the command center, with the session of its active chat, and the actions of its session, as the main window\'s does; not the main window\'s navigation, nor what applies to the whole app', () => {
+		disposables.add(registerSessionsTitleBarMenus());
+		disposables.add(appendNewSessionTitleBarMenuItem());
+		const menus = {
+			left: AgentsWindowMenus.TitleBarLeftLayout,
+			centerLeft: AgentsWindowMenus.TitleBarCenterLeft,
+			commandCenter: AgentsWindowMenus.CommandCenter,
+			centerRight: AgentsWindowMenus.TitleBarCenterRight,
+			right: AgentsWindowMenus.TitleBarRightLayout,
+		};
+		// The entries of the main window's title bar, by their titles
+		const entries = ['Toggle Side Bar', 'New Session', 'Go Back', 'Go Forward', 'Agent Sessions', 'Run', 'Agents Account and Status'];
+		const titleOf = (item: IMenuItem | ISubmenuItem) => {
+			const title = isISubmenuItem(item) ? item.title : item.command.title;
+			return typeof title === 'string' ? title : title?.value;
+		};
+		const shown = (values: Record<string, ContextKeyValue>) => Object.fromEntries(Object.entries(menus).map(([name, menu]) => [name, [...new Set(MenuRegistry.getMenuItems(menu)
+			.filter(item => evaluate(item.when, values))
+			.map(titleOf)
+			.filter((title): title is string => !!title && entries.includes(title)))].sort()]));
+		const newSessionShows = { [SessionsTitleBarNewSessionEnabledContext.key]: true };
+
+		assert.deepStrictEqual({
+			mainWindow: shown({ [IsSessionsWindowContext.key]: true, [ChatContextKeys.enabled.key]: true, ...newSessionShows }),
+			chatWindow: shown({ ...chatWindowKeys, ...newSessionShows }),
+		}, {
+			mainWindow: { left: ['New Session', 'Toggle Side Bar'], centerLeft: ['Go Back', 'Go Forward'], commandCenter: ['Agent Sessions'], centerRight: ['Run'], right: ['Agents Account and Status'] },
+			chatWindow: { left: [], centerLeft: [], commandCenter: ['Agent Sessions'], centerRight: ['Run'], right: [] },
 		});
 	});
 

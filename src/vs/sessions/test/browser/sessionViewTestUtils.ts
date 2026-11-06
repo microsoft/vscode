@@ -60,6 +60,23 @@ export class TestChatView extends AbstractChatView {
 		this.element.appendChild(this.input);
 	}
 
+	private readonly _inputOnly = observableValue(this, false);
+	override readonly inputOnly: IObservable<boolean> = this._inputOnly;
+	private _inputOnlyEnabled = false;
+	override enableInputOnly(options: { readonly inputOnly?: boolean }): void {
+		this._inputOnlyEnabled = true;
+		this._inputOnly.set(options.inputOnly ?? true, undefined);
+	}
+	override setInputOnly(inputOnly: boolean): void {
+		if (this._inputOnlyEnabled) {
+			this._inputOnly.set(inputOnly, undefined);
+		}
+	}
+	override disableInputOnly(): void {
+		this._inputOnlyEnabled = false;
+		this._inputOnly.set(false, undefined);
+	}
+
 	override setChat(chat: IChat): void { this.chat = chat; }
 	override setVisible(visible: boolean): void { this.visible = visible; }
 	protected override doLayout(width: number, height: number): void {

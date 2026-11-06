@@ -5,7 +5,7 @@
 
 import { $, size } from '../../../../base/browser/dom.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { autorun, constObservable, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -34,8 +34,7 @@ export class ChatEditorContent extends Disposable {
 	/** The services of its own scope, which what it shows is created with: disposed after it, see {@link dispose}. */
 	private readonly _scopedServices = new DisposableStore();
 	private readonly _session = observableValue<IActiveSession | undefined>(this, undefined);
-	private readonly _headerHeight = observableValue<number>(this, 0);
-	private _headerHost: HTMLElement | undefined;
+	private readonly _showHeader: boolean;
 	private _lastLayout: { readonly width: number; readonly height: number; readonly top: number; readonly left: number } | undefined;
 	private _visible = true;
 
@@ -43,11 +42,9 @@ export class ChatEditorContent extends Disposable {
 	readonly host: ISessionHost;
 	/** The chat view of its chat, once it shows the chat. */
 	readonly primaryChatView: IObservable<AbstractChatView | undefined>;
-	/** The top of {@link primaryChatView} within it: below the session header, while that shows in it. */
-	readonly primaryChatViewTop: IObservable<number>;
-	/** Whether the session header shows, wherever it is; see {@link setHeaderHost}. */
-	readonly headerShown: IObservable<boolean>;
-	/** The title of the session header, wherever the header shows. */
+	/** The top of {@link primaryChatView} while it shows only its input: below the bar of its group, as the session header hides then. */
+	readonly inputOnlyChatViewTop: IObservable<number>;
+	/** The title of the session header. */
 	get headerTitleElement(): HTMLElement { return this._header.titleElement; }
 
 	override dispose(): void {
@@ -81,9 +78,11 @@ export class ChatEditorContent extends Disposable {
 		this._headerContainer = $('.session-view-centered-content');
 		this.element.appendChild(this._headerContainer);
 		this._header = this._register(scopedInstantiationService.createInstance(SessionHeader));
-		this._header.setVisible(hostOptions?.showHeader ?? true);
+		this._showHeader = hostOptions?.showHeader ?? true;
+		this._header.setVisible(this._showHeader);
+		// Its title drags the editor that shows the chat (see `ChatEditorView.dragHandle`), which carries the session.
+		this._header.setDragsEditor(true);
 		this._headerContainer.appendChild(this._header.element);
-		this.headerShown = observableFromEvent(this, this._header.onDidChangeVisibility, () => this._header.visible);
 		this._register(this._header.onDidChangeVisibility(() => this._layoutChildren()));
 		this._register(this._header.onDidChangeHeight(() => this._layoutChildren()));
 
@@ -97,7 +96,7 @@ export class ChatEditorContent extends Disposable {
 		this._group.setGroupActive(true);
 		this._register(this._group.onDidChange(() => this._layoutChildren()));
 		this.primaryChatView = this._group.chatView;
-		this.primaryChatViewTop = derived(this, reader => this._headerHeight.read(reader) + this._group.chatViewTop.read(reader));
+		this.inputOnlyChatViewTop = this._group.chatViewTop;
 	}
 
 	/** Shows `session`, a session scoped to the one chat it shows, its active chat; nothing while undefined. */
@@ -131,29 +130,9 @@ export class ChatEditorContent extends Disposable {
 		};
 	}
 
-	/** Shows the session header in `host`, outside of it, such as in the title row of its window; in it while undefined. */
-	setHeaderHost(host: HTMLElement | undefined, actionsHost?: HTMLElement): void {
-		if (this._headerHost === host) {
-			return;
-		}
-		this._headerHost = host;
-		this._header.setWindowChrome(!!host);
-		this._header.setActionsHost(host ? actionsHost : undefined);
-		(host ?? this._headerContainer).appendChild(this._header.element);
-		this._layoutChildren();
-	}
-
-	/**
-	 * Takes the session header out of the host it shows in, such as the title row of its window, as the view disposes: its
-	 * content is not laid out again, as it goes away with the view.
-	 */
-	detachHeaderHost(): void {
-		if (!this._headerHost) {
-			return;
-		}
-		this._headerHost = undefined;
-		this._header.setActionsHost(undefined);
-		this._header.element.remove();
+	/** Hides the session header, such as while the chat shows only its input, and shows it again. */
+	setHeaderHidden(hidden: boolean): void {
+		this._header.setVisible(this._showHeader && !hidden);
 	}
 
 	/**
@@ -181,8 +160,7 @@ export class ChatEditorContent extends Disposable {
 			return;
 		}
 		const { width, height, top, left } = this._lastLayout;
-		const headerHeight = this._header.visible && !this._headerHost ? this._header.height : 0;
-		this._headerHeight.set(headerHeight, undefined);
+		const headerHeight = this._header.visible ? this._header.height : 0;
 		size(this._headerContainer, width, headerHeight);
 		this._group.layout(width, Math.max(0, height - headerHeight), top + headerHeight, left);
 	}

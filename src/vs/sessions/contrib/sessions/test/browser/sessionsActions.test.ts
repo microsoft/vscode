@@ -55,7 +55,7 @@ import { VisibleSessions } from '../../../../../workbench/contrib/sessions/brows
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 
 import { Action } from '../../../../../base/common/actions.js';
-import { NewSessionActionViewItem, type NewSessionButtonStyle, PROMOTE_CHAT_TO_SESSION_ACTION_ID, SessionConversationActionsContribution, SessionListActionsExperimentContribution } from '../../browser/sessionsActions.js';
+import { getSessionsPickerChatWindow, NewSessionActionViewItem, openPickedSessionInChatWindow, type NewSessionButtonStyle, PROMOTE_CHAT_TO_SESSION_ACTION_ID, SessionConversationActionsContribution, SessionListActionsExperimentContribution } from '../../browser/sessionsActions.js';
 import '../../../chat/browser/chat.contribution.js';
 import { NEW_SESSION_ACTION_ID } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { ArchiveChatAction, ArchiveSessionAction } from '../../browser/views/sessionsViewActions.js';
@@ -72,6 +72,8 @@ import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/com
 import { IAgentHostSessionsProvider } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { IFocusedSessionHostService, ISessionHost, ISessionHostService, SessionHostKind } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { IChatWindow, IChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
+import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ChatHostOpenerService, IChatHostOpenerService } from '../../../../../workbench/contrib/sessions/browser/chatHostOpener.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { resolveOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
@@ -2640,5 +2642,42 @@ suite('Sessions - Actions', () => {
 		const command = CommandsRegistry.getCommand(NEW_SESSION_ACTION_ID);
 		assert.ok(command);
 		await assert.rejects(async () => command.handler(instantiationService, { toSide: true }), error);
+	});
+
+	test('the Sessions picker, picked in a chat window, opens the session as a tab of that window, beside its active chat to the side; in the main window it opens in the main window', async () => {
+		const host = (kind: SessionHostKind, windowId: number, parent?: ISessionHost) => upcastPartial<ISessionHost>({ kind, parent, windowId: constObservable(windowId) });
+		const chatWindowHost = host(SessionHostKind.ChatWindow, 7);
+		const opened: string[] = [];
+		const chatWindow = upcastPartial<IChatWindow>({ windowId: 7, chat: constObservable(URI.parse('test-chat:/in-window')) });
+		const chatWindowService = upcastPartial<IChatWindowService>({
+			getWindow: windowId => windowId === 7 ? chatWindow : undefined,
+			open: async (chat, options) => {
+				opened.push(`${chat.path} in ${options?.window?.windowId}${options?.beside ? ` beside ${options.beside.path}` : ''}${options?.preserveFocus ? ' preserving focus' : ''}`);
+				return undefined;
+			},
+		});
+		const target = (targetHost: ISessionHost) => ({ host: targetHost, session: undefined, chat: undefined });
+		const windows = {
+			mainWindow: getSessionsPickerChatWindow(target(host(SessionHostKind.MainWindow, 1)), chatWindowService)?.windowId,
+			paneOfMainWindow: getSessionsPickerChatWindow(target(host(SessionHostKind.Pane, 1, host(SessionHostKind.MainWindow, 1))), chatWindowService)?.windowId,
+			chatWindow: getSessionsPickerChatWindow(target(chatWindowHost), chatWindowService)?.windowId,
+			paneOfChatWindow: getSessionsPickerChatWindow(target(host(SessionHostKind.Pane, 7, chatWindowHost)), chatWindowService)?.windowId,
+			noHost: getSessionsPickerChatWindow(undefined, chatWindowService)?.windowId,
+		};
+
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IChatWindowService, chatWindowService);
+		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({ visibleSessions: constObservable([]) }));
+		instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({ mainPart: upcastPartial<IEditorGroupsService['mainPart']>({ groups: [] }) }));
+		instantiationService.stub(IAgentWorkbenchLayoutService, upcastPartial<IAgentWorkbenchLayoutService>({}));
+		instantiationService.stub(ISessionHostService, upcastPartial<ISessionHostService>({ getHostOfWindow: () => upcastPartial<ISessionHost>({ kind: SessionHostKind.MainWindow, session: constObservable(undefined), chat: constObservable(undefined) }) }));
+		const picked = upcastPartial<ISession>({ sessionId: 'picked', resource: URI.parse('test-session:/picked') });
+		await instantiationService.invokeFunction(accessor => openPickedSessionInChatWindow(accessor, picked, chatWindow, { preserveFocus: false, toSide: false }));
+		await instantiationService.invokeFunction(accessor => openPickedSessionInChatWindow(accessor, picked, chatWindow, { preserveFocus: true, toSide: true }));
+
+		assert.deepStrictEqual({ windows, opened }, {
+			windows: { mainWindow: undefined, paneOfMainWindow: undefined, chatWindow: 7, paneOfChatWindow: 7, noHost: undefined },
+			opened: ['/picked in 7', '/picked in 7 beside /in-window preserving focus'],
+		});
 	});
 });

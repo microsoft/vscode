@@ -65,14 +65,9 @@ export class SessionHeader extends Disposable {
 		}));
 	}
 
-	/** See {@link SessionHeaderBar.setWindowChrome}. */
-	setWindowChrome(shown: boolean): void {
-		this._bar.setWindowChrome(shown);
-	}
-
-	/** See {@link SessionHeaderBar.setActionsHost}. */
-	setActionsHost(host: HTMLElement | undefined): void {
-		this._bar.setActionsHost(host);
+	/** See {@link SessionHeaderBar.setDragsEditor}. */
+	setDragsEditor(dragsEditor: boolean): void {
+		this._bar.setDragsEditor(dragsEditor);
 	}
 
 	setVisible(visible: boolean): void {
