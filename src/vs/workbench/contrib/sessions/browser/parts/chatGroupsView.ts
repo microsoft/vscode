@@ -611,7 +611,7 @@ export class ChatGroupsView extends Themable {
 			this._persistLayout();
 		}
 		if (owningChatToRestore && content.chat.get().resource.toString() !== owningChatToRestore.resource.toString()) {
-			this._sessionsService.openChat(session, owningChatToRestore.resource).catch(onUnexpectedError);
+			this._sessionsService.openChat(session, owningChatToRestore.resource, { from: this._sessionHost }).catch(onUnexpectedError);
 		}
 	}
 
@@ -652,7 +652,7 @@ export class ChatGroupsView extends Themable {
 		if (this.showChatAsSessionView.get() && (data.isDetached || zone === 'center')) {
 			// As the chat of the pane, which shows one chat at a time
 			if (shownBy) {
-				await this._sessionsService.openChat(this._session, resource);
+				await this._sessionsService.openChat(this._session, resource, { from: this._sessionHost });
 			}
 			return;
 		}
@@ -672,7 +672,7 @@ export class ChatGroupsView extends Themable {
 				await this._openChatInNewGroup(resource, referenceId ? URI.parse(referenceId) : undefined, zone);
 				return;
 			}
-			await this._sessionsService.openChat(session, resource);
+			await this._sessionsService.openChat(session, resource, { from: this._sessionHost });
 			if (this._session !== session) {
 				return;
 			}
@@ -712,7 +712,7 @@ export class ChatGroupsView extends Themable {
 			target.activeResourceId.set(id, tx);
 		});
 		this._setActiveGroup(target);
-		this._sessionsService.openChat(this._session!, resource).catch(onUnexpectedError);
+		this._sessionsService.openChat(this._session!, resource, { from: this._sessionHost }).catch(onUnexpectedError);
 		this._removeEmptyGroups();
 		this._persistLayout();
 	}
@@ -740,7 +740,7 @@ export class ChatGroupsView extends Themable {
 		});
 
 		this._setActiveGroup(newGroup);
-		await this._sessionsService.openChat(this._content.session, resource);
+		await this._sessionsService.openChat(this._content.session, resource, { from: this._sessionHost });
 		this._removeEmptyGroups();
 		this._applyLayout();
 		this._persistLayout();
@@ -836,7 +836,7 @@ export class ChatGroupsView extends Themable {
 			}
 			existing.activeResourceId.set(id, undefined);
 			this._setActiveGroup(existing);
-			await this._sessionsService.openChat(this._session, resource);
+			await this._sessionsService.openChat(this._session, resource, { from: this._sessionHost });
 			return;
 		}
 
@@ -847,7 +847,7 @@ export class ChatGroupsView extends Themable {
 		const session = this._session;
 		this._pendingNewGroupResourceIds.add(id);
 		try {
-			await this._sessionsService.openChat(session, resource);
+			await this._sessionsService.openChat(session, resource, { from: this._sessionHost });
 		} finally {
 			this._pendingNewGroupResourceIds.delete(id);
 		}
@@ -1027,7 +1027,7 @@ export class ChatGroupsView extends Themable {
 		}
 
 		if (content.chat.get().resource.toString() !== targetResourceId) {
-			await this._sessionsService.openChat(session, URI.parse(targetResourceId));
+			await this._sessionsService.openChat(session, URI.parse(targetResourceId), { from: this._sessionHost });
 		}
 		if (this._session !== session || !this._groups.includes(source) || !this._groups.includes(target)) {
 			return false;
@@ -1076,7 +1076,7 @@ export class ChatGroupsView extends Themable {
 		const session = content?.session;
 		const activeResourceId = entry.activeResourceId.get();
 		if (session && activeResourceId && content.chat.get().resource.toString() !== activeResourceId) {
-			this._sessionsService.openChat(session, URI.parse(activeResourceId)).catch(onUnexpectedError);
+			this._sessionsService.openChat(session, URI.parse(activeResourceId), { from: this._sessionHost }).catch(onUnexpectedError);
 		}
 
 		this._expandGroupIfCollapsed(entry);
@@ -1134,7 +1134,7 @@ export class ChatGroupsView extends Themable {
 		});
 		this._setActiveGroup(entry);
 		if (this._session) {
-			this._sessionsService.openChat(this._session, resource).catch(onUnexpectedError);
+			this._sessionsService.openChat(this._session, resource, { from: this._sessionHost }).catch(onUnexpectedError);
 		}
 	}
 

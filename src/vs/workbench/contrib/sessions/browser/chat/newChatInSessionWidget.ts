@@ -23,6 +23,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ISessionsManagementService, shownChatOf } from '../../common/sessionsManagement.js';
 import { ISessionsService } from '../sessionsService.js';
+import { ISessionHost } from '../sessionHost.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { INestedChatWorkspace, INestedChatWorkspaceSupport, NestedChatWorkspaceError } from '../../common/sessionsProvider.js';
 import { getChatHarness, IChat, isSessionCreated, SessionStatus, ISession } from '../../common/session.js';
@@ -126,6 +127,7 @@ export class NewChatInSessionWidget extends Disposable {
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IFileService private readonly fileService: IFileService,
 		@ISessionsChatViewStateService private readonly viewStateService: ISessionsChatViewStateService,
+		@ISessionHost private readonly sessionHost: ISessionHost,
 	) {
 		super();
 
@@ -351,7 +353,7 @@ export class NewChatInSessionWidget extends Disposable {
 	private async _switchHarness(session: ISession, draft: IChat, harness: string): Promise<void> {
 		try {
 			// The typed text and attachments live in this composer, not in the draft, so they carry over.
-			await this.sessionsService.openNewChatInSession(session, { harness });
+			await this.sessionsService.openNewChatInSession(session, { harness, from: this.sessionHost });
 			// Only replace the draft while the user is still in this session's composer.
 			const current = this._session.get();
 			const replacement = current?.sessionId === session.sessionId ? getUnsentPeerChat(current, undefined, this._chat.get() ?? this._paneChat.get()) : undefined;
@@ -528,7 +530,7 @@ export class NewChatInSessionWidget extends Disposable {
 			// chat-session state for chats in the same group, and running them
 			// concurrently races and leaves the sent chat stuck spinning.
 			if (background && !this._store.isDisposed) {
-				await this.sessionsService.openNewChatInSession(activeSession, { forceNew: true });
+				await this.sessionsService.openNewChatInSession(activeSession, { forceNew: true, from: this.sessionHost });
 			}
 
 			userInteraction?.handoff(activeSession, activeChat);

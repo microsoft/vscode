@@ -132,6 +132,20 @@ export interface IOpenSessionOptions {
 	readonly forceMainChat?: boolean;
 }
 
+/** Where a navigation to a chat or a new chat of a session comes from. */
+export interface INavigationOrigin {
+	/**
+	 * The host it comes from, such as a view of a pane or the host a command names. The views of a detached pane of the
+	 * session navigate within that pane, as its chat picker and New Chat do. Without one, or from a host that stands for no
+	 * such pane, it opens in the session's slot, as from the sessions list.
+	 */
+	readonly from?: ISessionHost;
+}
+
+export interface IOpenChatOptions extends IOpenSessionOptions, INavigationOrigin { }
+
+export interface IOpenNewChatInSessionOptions extends ICreateNewChatInSessionOptions, INavigationOrigin { }
+
 export interface IOpenSessionsOptions extends IOpenSessionOptions {
 	readonly activate?: 'first' | 'last' | false;
 	/** Target a specific pane, including a standalone child of the reference session. */
@@ -293,7 +307,7 @@ export interface ISessionsService extends ISessionGridPanes {
 	 * When `options.preserveFocus` is set, the chat is shown without moving
 	 * keyboard focus into it.
 	 */
-	openChat(session: ISession, chatUri: URI, options?: IOpenSessionOptions): Promise<void>;
+	openChat(session: ISession, chatUri: URI, options?: IOpenChatOptions): Promise<void>;
 	/** Place a child chat in the outer grid without changing its owning session. */
 	moveChatToGrid(sessionId: string, chatResource: URI, referenceSlotId: string, direction: SessionGridDirection): Promise<void>;
 	/** Place a chat of the session of `pane` beside `pane` without changing provider ownership. */
@@ -354,7 +368,7 @@ export interface ISessionsService extends ISessionGridPanes {
 	 * {@link ICreateNewChatInSessionOptions.forceNew} to always create a fresh
 	 * chat (e.g. when resetting the composer right after a background send).
 	 */
-	openNewChatInSession(session: ISession, options?: ICreateNewChatInSessionOptions): Promise<void>;
+	openNewChatInSession(session: ISession, options?: IOpenNewChatInSessionOptions): Promise<void>;
 
 	/**
 	 * Discard the pending new session and clear the active session, returning
@@ -1119,6 +1133,17 @@ export class SessionsService extends Disposable implements ISessionsService {
 		}
 	}
 
+	/**
+	 * What a navigation of `session` from `from` activates: the adapter of the detached pane of `session` that `from` stands
+	 * for, so that it navigates within that pane and a slot for the session goes beside it; else `session`, which opens in
+	 * the session's slot, replacing another slot when it has none.
+	 */
+	private _navigationTarget(session: ISession, from: ISessionHost | undefined): ISession {
+		const pane = from && this.getPaneOfHost(from);
+		const detached = pane?.kind === SessionGridPaneKind.Detached && pane.session.get()?.sessionId === session.sessionId ? this._visibility.getAdapterOfPane(pane) : undefined;
+		return detached ?? session;
+	}
+
 	/** The pane whose adapter `session` is, a view of a session in a pane; the new-session slot's for `undefined`. */
 	private _paneOfAdapter(session: IActiveSession | undefined): ISessionGridPane | undefined {
 		return this._visibility.panes.get().find(pane => this._visibility.getAdapterOfPane(pane) === session);
@@ -1228,11 +1253,11 @@ export class SessionsService extends Disposable implements ISessionsService {
 		return active;
 	}
 
-	openChat(session: ISession, chatUri: URI, options?: IOpenSessionOptions): Promise<void> {
+	openChat(session: ISession, chatUri: URI, options?: IOpenChatOptions): Promise<void> {
 		return this._openChatSession(session, chatUri, options, 'explicit');
 	}
 
-	private async _openChatSession(session: ISession, chatUri: URI, options: IOpenSessionOptions | undefined, intent: SessionNavigationIntent): Promise<void> {
+	private async _openChatSession(session: ISession, chatUri: URI, options: IOpenChatOptions | undefined, intent: SessionNavigationIntent): Promise<void> {
 		const t0 = Date.now();
 		this._cancelRestore();
 		this._beginNavigation(intent);
@@ -1262,17 +1287,17 @@ export class SessionsService extends Disposable implements ISessionsService {
 						this.activeSession.get()?.sessionId === session.sessionId,
 						session.loading.get(),
 					);
-					await this._openChat(session, chatUri, options.preserveFocus, token, t0, telemetryAttempt, intent);
+					await this._openChat(session, chatUri, options.preserveFocus, token, t0, telemetryAttempt, intent, options.from);
 				});
 				return;
 			}
-			await this._openChat(session, chatUri, options?.preserveFocus, token, t0, undefined, intent);
+			await this._openChat(session, chatUri, options?.preserveFocus, token, t0, undefined, intent, options?.from);
 		} finally {
 			navigation.cancel();
 		}
 	}
 
-	private async _openChat(session: ISession, chatUri: URI, preserveFocus: boolean | undefined, token: CancellationToken, startTime: number, telemetryAttempt?: ISessionOpenTelemetryAttempt, intent: SessionNavigationIntent = 'explicit'): Promise<void> {
+	private async _openChat(session: ISession, chatUri: URI, preserveFocus: boolean | undefined, token: CancellationToken, startTime: number, telemetryAttempt?: ISessionOpenTelemetryAttempt, intent: SessionNavigationIntent = 'explicit', from?: ISessionHost): Promise<void> {
 		const pendingOpen = { chatResource: chatUri, token };
 		this._pendingExplicitChatOpens.set(session.resource, pendingOpen);
 		const navigation = this._navigation.beginSessionOpen(intent, token);
@@ -1281,7 +1306,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 				this.sessionOpenTelemetryService.sessionActivated(telemetryAttempt, chatUri);
 			}
 			this.logService.trace(`[SessionsView] openChat start uri=${chatUri.toString()} provider=${session.providerId}`);
-			const opened = this._activate(this._visibility.getChatPane(session.sessionId, chatUri) ?? session, preserveFocus, intent);
+			const opened = this._activate(this._visibility.getChatPane(session.sessionId, chatUri) ?? this._navigationTarget(session, from), preserveFocus, intent);
 			if (!await this._waitForSessionToLoad(session, token)) {
 				this.logService.trace(`[SessionsView] openChat cancelled while waiting for session to load uri=${chatUri.toString()}`);
 				return;
@@ -2169,18 +2194,19 @@ export class SessionsService extends Disposable implements ISessionsService {
 		}
 	}
 
-	async openNewChatInSession(session: ISession, options?: ICreateNewChatInSessionOptions): Promise<void> {
+	async openNewChatInSession(session: ISession, options?: IOpenNewChatInSessionOptions): Promise<void> {
 		this._cancelRestore();
 		this._beginNavigation('explicit');
 		const token = this._startOpenSession();
-		const chat = await this.sessionsManagementService.createNewChatInSession(session, options);
+		const { from, ...createOptions } = options ?? {};
+		const chat = await this.sessionsManagementService.createNewChatInSession(session, Object.keys(createOptions).length ? createOptions : undefined);
 		if (!chat || token.isCancellationRequested) {
 			return;
 		}
 
 		const navigation = this._navigation.beginSessionOpen('explicit', token);
 		try {
-			this._activate(session, undefined, 'explicit');
+			this._activate(this._navigationTarget(session, from), undefined, 'explicit');
 			this._visibility.setActiveChat(session, chat);
 			navigation.complete();
 		} finally {

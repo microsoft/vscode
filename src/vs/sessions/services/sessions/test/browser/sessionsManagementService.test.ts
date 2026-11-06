@@ -1108,15 +1108,16 @@ suite('SessionsManagementService', () => {
 				await view.closeChat(slotSessionsOf(view)[0]!, sibling);
 				const visibility = Reflect.get(view, '_visibility') as VisibleSessions;
 				await view.moveChatToGrid(parent.sessionId, child.resource, visibility.getGridSlots()[1].id, 'down');
-				// The view of the detached pane: the service navigates within it, which a provider session does not tell it. See R75.
-				const childPane = view.activeSession.get()!;
+				const childPane = view.activePane.get()!;
 				const childView = part.getFocusedSessionView();
 				const otherView = part.getSessionView(b.sessionId);
 				view.closeSession(parent);
+				// From the views of the detached pane, which navigate within it.
+				const from = part.getViewOfPane(childPane)!.host;
 				if (createDraft) {
-					await view.openNewChatInSession(childPane, { forceNew: true });
+					await view.openNewChatInSession(parent, { forceNew: true, from });
 				} else {
-					await view.openChat(childPane, sibling.resource);
+					await view.openChat(parent, sibling.resource, { from });
 				}
 				const requested = createDraft ? draft : sibling;
 				assert.deepStrictEqual({
@@ -1127,6 +1128,41 @@ suite('SessionsManagementService', () => {
 					otherRetained: part.getSessionView(b.sessionId) === otherView,
 					requestedVisible: view.activePane.get()?.tabs.visibleChatTabs.get().some(chat => chat.resource.toString() === requested.resource.toString()),
 				}, { activeChat: requested.resource.toString(), scope: undefined, panes: 3, childRetained: true, otherRetained: true, requestedVisible: true });
+			});
+		}
+
+		for (const origin of ['detached view', 'grid host', 'none'] as const) {
+			test(`opening another chat of a session whose slot is closed, from ${origin === 'none' ? 'no host, as the sessions list does, replaces a slot' : `the ${origin} of its detached pane, puts its slot beside that pane and replaces none`}`, async () => {
+				const a = created('a');
+				const b = created('b');
+				const child: IChat = { ...a.mainChat.get(), resource: URI.parse('test:///a/child') };
+				const sibling: IChat = { ...a.mainChat.get(), resource: URI.parse('test:///a/sibling') };
+				const parent = { ...a, chats: constObservable([a.mainChat.get(), child, sibling]) };
+				const { view, part } = harness([parent, b]);
+				await view.openSessionsInGrid([parent, b]);
+				await view.closeChat(parent, sibling);
+				await view.moveChatToGrid(parent.sessionId, child.resource, slotPaneOf(view, b.sessionId)!.id, 'down');
+				const childPane = view.activePane.get()!;
+				view.closeSession(parent);
+				const from = origin === 'detached view' ? part.getViewOfPane(childPane)!.host : origin === 'grid host' ? view.gridHost : undefined;
+
+				await view.openChat(parent, sibling.resource, { from });
+
+				const grid = Reflect.get(part, '_gridWidget') as SessionGridLayout;
+				const slotOfA = slotPaneOf(view, parent.sessionId);
+				assert.deepStrictEqual({
+					panes: view.panes.get().map(pane => `${pane.kind}:${pane.session.get()?.sessionId}${detachedChatOf(pane) ? `:${detachedChatOf(pane)!.path}` : ''}`),
+					active: `${view.activePane.get()?.kind}:${activeChatOf(view)?.resource.path}`,
+					besideChild: !!slotOfA && grid.neighbor(childPane.id, Direction.Right) === slotOfA.id,
+				}, origin === 'none' ? {
+					panes: ['slot:a', 'detached:a:/a/child'],
+					active: 'slot:/a/sibling',
+					besideChild: false,
+				} : {
+					panes: ['slot:b', 'slot:a', 'detached:a:/a/child'],
+					active: 'slot:/a/sibling',
+					besideChild: true,
+				});
 			});
 		}
 

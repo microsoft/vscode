@@ -69,6 +69,7 @@ import { IActiveSession, ISessionsManagementService } from '../../../../../workb
 import { ChatInteractivity, IChat, ISession, ISessionPreparationProgress, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService, observeSessionSandboxToggle } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionHost } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { SessionsChatBackgroundRenderer, SessionsChatBackgroundReplica } from '../../../../../workbench/contrib/sessions/browser/chatBackgroundRenderer.js';
 import { ISessionsChatBackground } from '../../../../../workbench/contrib/sessions/browser/chatBackgroundService.js';
@@ -2677,6 +2678,7 @@ suite('Sessions - Chat View', () => {
 			new TestAccessibilityService(),
 			new class extends mock<IFileService>() { }(),
 			new SessionsChatViewStateService(),
+			upcastPartial<ISessionHost>({}),
 		));
 		const beforeChat = inputOptions?.chat?.get();
 		const view: NewChatView = Object.assign(Object.create(NewChatView.prototype), { _widget: widget });
@@ -2726,6 +2728,7 @@ suite('Sessions - Chat View', () => {
 					new TestAccessibilityService(),
 					new class extends mock<IFileService>() { }(),
 					viewStateService,
+					upcastPartial<ISessionHost>({}),
 				));
 				return {
 					widget,

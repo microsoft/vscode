@@ -29,6 +29,7 @@ import { SharedChatInputComposer } from '../../../browser/chat/sharedChatInputCo
 import { TestAccessibilityService } from '../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { withCreatedStatus } from '../sessionHostTestUtils.js';
+import { ISessionHost } from '../../../browser/sessionHost.js';
 
 class TestNewChatInSessionWidget extends NewChatInSessionWidget {
 	send(query: string, background: boolean): Promise<boolean> {
@@ -83,6 +84,7 @@ suite('NewChatInSessionWidget', () => {
 			new TestAccessibilityService(),
 			new class extends mock<IFileService>() { }(),
 			new SessionsChatViewStateService(),
+			upcastPartial<ISessionHost>({}),
 		));
 		store.add(autorun(reader => { Reflect.get(widget, '_workspaceSupport').read(reader); }));
 
@@ -96,6 +98,7 @@ suite('NewChatInSessionWidget', () => {
 		const draft = upcastPartial<IChat>({ resource: URI.parse('test:///session#draft'), harness: 'other' });
 		const session = upcastPartial<IActiveSession>({ harness: 'main', activeChat: constObservable(draft) });
 		const resets: (ICreateNewChatInSessionOptions | undefined)[] = [];
+		const host = upcastPartial<ISessionHost>({ id: 'pane' });
 		const widget: TestNewChatInSessionWidget = Object.assign(Object.create(TestNewChatInSessionWidget.prototype), {
 			_session: constObservable(session),
 			_workspaceSupport: constObservable(undefined),
@@ -103,6 +106,7 @@ suite('NewChatInSessionWidget', () => {
 			_paneChat: shownChatOf(constObservable(session), undefined),
 			_store: { isDisposed: false },
 			logService: new NullLogService(),
+			sessionHost: host,
 			sessionsService: new class extends mock<ISessionsService>() {
 				override async openNewChatInSession(_session: IActiveSession, options?: ICreateNewChatInSessionOptions): Promise<void> {
 					resets.push(options);
@@ -115,7 +119,7 @@ suite('NewChatInSessionWidget', () => {
 
 		const sent = await widget.send('hello', true);
 
-		assert.deepStrictEqual({ sent, resets }, { sent: true, resets: [{ forceNew: true }] });
+		assert.deepStrictEqual({ sent, resets }, { sent: true, resets: [{ forceNew: true, from: host }] });
 	});
 
 	test('picking another harness swaps the unsent peer chat for one of that harness and deletes the replaced draft', async () => {
@@ -126,12 +130,14 @@ suite('NewChatInSessionWidget', () => {
 		const activeChat = observableValue<IChat>('activeChat', draft);
 		const session = upcastPartial<IActiveSession>({ harness: 'main', ...withCreatedStatus(constObservable(true)), mainChat: constObservable(main), activeChat });
 		const opened: (ICreateNewChatInSessionOptions | undefined)[] = [];
+		const host = upcastPartial<ISessionHost>({ id: 'pane' });
 		const deleted: string[] = [];
 		const widget: TestNewChatInSessionWidget = Object.assign(Object.create(TestNewChatInSessionWidget.prototype), {
 			_session: constObservable(session),
 			_chat: constObservable(undefined),
 			_paneChat: shownChatOf(constObservable(session), undefined),
 			logService: new NullLogService(),
+			sessionHost: host,
 			sessionsService: new class extends mock<ISessionsService>() {
 				override async openNewChatInSession(_session: IActiveSession, options?: ICreateNewChatInSessionOptions): Promise<void> {
 					opened.push(options);
@@ -150,7 +156,7 @@ suite('NewChatInSessionWidget', () => {
 		await widget.selectHarness('other');
 
 		assert.deepStrictEqual({ opened, deleted, active: activeChat.get().resource.fragment }, {
-			opened: [{ harness: 'other' }],
+			opened: [{ harness: 'other', from: host }],
 			deleted: ['draft'],
 			active: 'replacement',
 		});

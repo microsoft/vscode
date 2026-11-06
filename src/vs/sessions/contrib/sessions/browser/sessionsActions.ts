@@ -48,7 +48,7 @@ import { ISessionsService } from '../../../../workbench/contrib/sessions/browser
 import { getWindowHost, IFocusedSessionHostService, ISessionHost, SessionHostKind } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatHostOpenerService } from '../../../../workbench/contrib/sessions/browser/chatHostOpener.js';
-import { ISessionCommandTarget, resolveGridCommandPane, resolveGridCommandView, resolvePaneCommandTarget, resolveSessionCommandTarget } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
+import { ISessionCommandTarget, resolveCommandOriginHost, resolveGridCommandPane, resolveGridCommandView, resolvePaneCommandTarget, resolveSessionCommandTarget } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
 import { WindowCanvasInput } from '../../../../workbench/contrib/sessions/browser/windowCanvas.js';
 import { ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionPresentationWorkspace, getSessionWorkspaceKind, getUntitledSessionTitle, IChat, isSideChatOf, ISession, SessionStatus, SessionWorkspaceKind } from '../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsPartService } from '../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
@@ -1061,14 +1061,14 @@ registerAction2(class AddChatToSessionAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
+	override async run(accessor: ServicesAccessor, context?: ISession | ISession[], ...rest: unknown[]): Promise<void> {
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
 		const target = Array.isArray(context) ? context[0] : context ?? resolveGridCommandView(accessor)?.getSession();
 		if (!target) {
 			return;
 		}
-		await sessionsService.openNewChatInSession(target);
+		await sessionsService.openNewChatInSession(target, { from: resolveCommandOriginHost(accessor, [context, ...rest]) });
 		const activePane = sessionsService.activePane.get();
 		if (activePane && activePane.session.get()?.sessionId === target.sessionId) {
 			sessionsPartService.focusPane(activePane);
@@ -1086,7 +1086,7 @@ function navigateChatTab(accessor: ServicesAccessor, direction: 'next' | 'previo
 	if (!target) {
 		return;
 	}
-	const { pane, session } = target;
+	const { pane, session, host } = target;
 	const tabs = pane.tabs.visibleChatTabs.get();
 	if (tabs.length < 2) {
 		return;
@@ -1096,7 +1096,7 @@ function navigateChatTab(accessor: ServicesAccessor, direction: 'next' | 'previo
 	const from = currentIndex === -1 ? 0 : currentIndex;
 	const delta = direction === 'next' ? 1 : -1;
 	const next = tabs[(from + delta + tabs.length) % tabs.length];
-	sessionsService.openChat(session, next.resource);
+	sessionsService.openChat(session, next.resource, { from: host });
 	sessionsPartService.focusPane(pane);
 }
 
@@ -1352,7 +1352,7 @@ registerAction2(class ReopenLastClosedChatAction extends Action2 {
 		if (!lastClosed) {
 			return;
 		}
-		await sessionsService.openChat(target.session, lastClosed.resource);
+		await sessionsService.openChat(target.session, lastClosed.resource, { from: target.host });
 		sessionsPartService.focusPane(target.pane);
 	}
 });
@@ -1418,7 +1418,7 @@ function openChatsPicker(accessor: ServicesAccessor, mru?: { readonly backward: 
 	if (!target) {
 		return;
 	}
-	const { pane, session } = target;
+	const { pane, session, host } = target;
 	const extUri = accessor.get(IUriIdentityService).extUri;
 
 	interface IChatPickItem extends IQuickPickItem {
@@ -1496,7 +1496,7 @@ function openChatsPicker(accessor: ServicesAccessor, mru?: { readonly backward: 
 	disposables.add(picker.onDidAccept(() => {
 		const [selected] = picker.selectedItems;
 		if (selected) {
-			sessionsService.openChat(session, selected.chat.resource);
+			sessionsService.openChat(session, selected.chat.resource, { from: host });
 			sessionsPartService.focusPane(pane);
 		}
 		picker.hide();
@@ -2016,7 +2016,7 @@ export class SessionConversationActionsContribution extends Disposable implement
 							return;
 						}
 					}
-					await that._sessionsService.openChat(target, targetChat.resource);
+					await that._sessionsService.openChat(target, targetChat.resource, { from: resolveCommandOriginHost(accessor, [forwardedSession, ...rest]) });
 				}
 			}));
 		};

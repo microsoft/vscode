@@ -17,7 +17,9 @@ import { ILogService, NullLogService } from '../../../../../platform/log/common/
 import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IFocusedSessionHostService, ISessionHost, ISessionHostService, SessionHost, SessionHostKind, sessionMenuArgs } from '../../browser/sessionHost.js';
-import { resolveSessionCommandTarget } from '../../browser/sessionCommandTarget.js';
+import { resolveCommandOriginHost, resolveSessionCommandTarget } from '../../browser/sessionCommandTarget.js';
+import { ISessionsPartService } from '../../browser/sessionsPartService.js';
+import type { SessionView } from '../../browser/parts/sessionView.js';
 import { SessionHostService } from '../../browser/sessionHostService.js';
 import { ISessionsService } from '../../browser/sessionsService.js';
 import { ISessionGridPane, SessionGridPaneKind } from '../../browser/sessionGridPane.js';
@@ -206,7 +208,7 @@ suite('resolveSessionCommandTarget: panes of the grid', () => {
 			return target && { pane: target.host && (panes.get(target.host) ?? target.host.kind), chat: target.chat?.resource.path.slice(1) };
 		};
 		const paneOf = (detached: boolean) => model.panes.get().find(pane => pane.session.get()?.sessionId === 'a' && (pane.kind === SessionGridPaneKind.Detached) === detached)!;
-		return { model, resolve, paneOf, hostOf: (pane: ISessionGridPane) => hostOfPane.get(pane)! };
+		return { model, resolve, paneOf, hostOf: (pane: ISessionGridPane) => hostOfPane.get(pane)!, panes, instantiationService };
 	}
 
 	/** Session A in a slot and its side chat in a detached pane beside session B, which the detached pane becomes the active pane of. */
@@ -260,6 +262,29 @@ suite('resolveSessionCommandTarget: panes of the grid', () => {
 			slotActive: { slot: { pane: 'a', chat: 'main' }, detached: { pane: 'a (detached)', chat: 'side' }, detachedSessionObject: { pane: 'a', chat: 'main' } },
 			detachedActive: { slot: { pane: 'a', chat: 'main' }, detached: { pane: 'a (detached)', chat: 'side' }, detachedSessionObject: { pane: 'a (detached)', chat: 'side' } },
 			otherSessionActive: { slot: { pane: 'a', chat: 'main' }, detached: { pane: 'a (detached)', chat: 'side' }, detachedSessionObject: { pane: 'a', chat: 'main' } },
+		});
+	});
+
+	test('a command\'s navigation comes from the host its arguments name, else, without arguments, from the active view\'s host; a bare session, as from the sessions list, names none', () => {
+		const { model, paneOf, hostOf, panes, instantiationService } = setup(detachSideChat);
+		instantiationService.stub(ISessionsPartService, upcastPartial<ISessionsPartService>({ getActiveSessionView: () => upcastPartial<SessionView>({ host: hostOf(model.activePane.get()!) }) }));
+		const origin = (...args: unknown[]) => {
+			const host = instantiationService.invokeFunction(accessor => resolveCommandOriginHost(accessor, args));
+			return host && (panes.get(host) ?? host.kind);
+		};
+
+		assert.deepStrictEqual({
+			slotMenu: origin(...sessionMenuArgs(sessionA, undefined, hostOf(paneOf(false)))),
+			detachedMenu: origin(...sessionMenuArgs(sessionA, undefined, hostOf(paneOf(true)))),
+			noArguments: origin(),
+			session: origin(sessionA),
+			sessions: origin([sessionA, sessionB]),
+		}, {
+			slotMenu: 'a',
+			detachedMenu: 'a (detached)',
+			noArguments: 'a (detached)',
+			session: undefined,
+			sessions: undefined,
 		});
 	});
 });

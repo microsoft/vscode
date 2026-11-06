@@ -130,11 +130,28 @@ export function resolveGridCommandView(accessor: ServicesAccessor): ISessionView
 	return host && getWindowHost(host).kind === SessionHostKind.MainWindow ? accessor.get(ISessionsPartService).getActiveSessionView() : undefined;
 }
 
-/** The pane of the grid a command without arguments acts on, with its session: the grid's active pane, while it shows one. */
-export function resolveGridCommandPane(accessor: ServicesAccessor): { readonly pane: ISessionGridPane; readonly session: ISession } | undefined {
-	const pane = resolveGridCommandView(accessor)?.pane.get();
+/**
+ * The pane of the grid a command without arguments acts on, with its session and the host of its view, which navigation
+ * from it comes from: the grid's active pane, while it shows one.
+ */
+export function resolveGridCommandPane(accessor: ServicesAccessor): { readonly pane: ISessionGridPane; readonly session: ISession; readonly host: ISessionHost } | undefined {
+	const view = resolveGridCommandView(accessor);
+	const pane = view?.pane.get();
 	const session = pane?.session.get();
-	return pane && session ? { pane, session } : undefined;
+	return view && pane && session ? { pane, session, host: view.host } : undefined;
+}
+
+/**
+ * The host a command's navigation comes from: the host its arguments name, as a host's menus and toolbars pass, or, without
+ * arguments, the view of the grid's active pane. A command given only a session, such as from the sessions list, comes
+ * from none.
+ */
+export function resolveCommandOriginHost(accessor: ServicesAccessor, args: readonly unknown[]): ISessionHost | undefined {
+	const hostContext = args.find(isSessionHostCommandContext);
+	if (hostContext) {
+		return accessor.get(ISessionHostService).getHost(hostContext.sessionHostId);
+	}
+	return args.every(arg => arg === undefined || arg === null) ? resolveGridCommandView(accessor)?.host : undefined;
 }
 
 /** What a pane command acts on; see {@link resolvePaneCommandTarget}. */
