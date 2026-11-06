@@ -22,7 +22,7 @@ import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatConfiguration } from '../../.
 import { ILanguageModelsService } from '../../../../../chat/common/languageModels.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { ISessionsService } from '../../../../browser/sessionsService.js';
-import { ISessionHost, ISessionHostService } from '../../../../browser/sessionHost.js';
+import { ISessionHost, ISessionHostService } from '../../../../../../services/sessions/browser/sessionHost.js';
 import { ISessionsProvidersService } from '../../../../browser/sessionsProvidersService.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvider } from '../../../../common/sessionsProvider.js';

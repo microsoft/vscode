@@ -35,7 +35,7 @@ import '../../../../../sessions/browser/media/workbench.css';
 import '../../../../browser/parts/sessions/media/sessionsPart.css';
 import '../../../../contrib/sessions/browser/parts/media/sessionsGridContent.css';
 import '../../../../contrib/sessions/browser/parts/media/chatGroupsView.css';
-import { ISessionHost } from '../../../../contrib/sessions/browser/sessionHost.js';
+import { ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
 
 // ============================================================================
 // Mock helpers

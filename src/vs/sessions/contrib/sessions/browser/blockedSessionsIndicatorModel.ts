@@ -19,7 +19,7 @@ import { ISessionsManagementService } from '../../../../workbench/contrib/sessio
 import { BlockedSessionReason, BlockedSessions, describeBlockedSessions, IBlockedSession } from '../../../../workbench/contrib/sessions/browser/blockedSessions.js';
 import { BlockedSessionsCIFixModel } from './blockedSessionsCIFixModel.js';
 import { getFirstApprovalAcrossChats, IApprovedSession } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
-import { readPaneSessions } from '../../../../workbench/contrib/sessions/browser/sessionGridPane.js';
+import { readPaneSessions } from '../../../../workbench/services/sessions/browser/sessionGridPane.js';
 
 const LOG_PREFIX = '[BlockedSessionsIndicator]';
 const IGNORED_OCCURRENCES_STORAGE_KEY = 'sessions.blockedIndicator.ignoredOccurrences';

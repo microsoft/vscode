@@ -29,7 +29,7 @@ import { SharedChatInputComposer } from '../../../browser/chat/sharedChatInputCo
 import { TestAccessibilityService } from '../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { ITestSessionWithChat, withCreatedStatus } from '../sessionHostTestUtils.js';
-import { ISessionHost } from '../../../browser/sessionHost.js';
+import { ISessionHost } from '../../../../../services/sessions/browser/sessionHost.js';
 import { shownChatOf } from '../../../../../services/sessions/common/sessionPane.js';
 
 class TestNewChatInSessionWidget extends NewChatInSessionWidget {

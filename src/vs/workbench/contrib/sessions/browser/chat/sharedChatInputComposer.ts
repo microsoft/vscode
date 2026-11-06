@@ -55,7 +55,7 @@ import { Menus } from '../menus.js';
 import { activeSessionViewBackground, activeSessionViewForeground, agentsPanelBackground, inactiveSessionViewBackground } from '../../common/theme.js';
 import { IWorkspaceSelectionSnapshot } from '../../../../services/sessions/common/workspaceSelection.js';
 import { ISessionsProvidersService, observeSessionSandboxToggle } from '../sessionsProvidersService.js';
-import { ISessionHost, ISessionHostService, SessionHost, SessionHostKind } from '../sessionHost.js';
+import { ISessionHost, ISessionHostService, SessionHost, SessionHostKind } from '../../../../services/sessions/browser/sessionHost.js';
 import { IChat } from '../../../../services/sessions/common/session.js';
 import { ChatInputSupportsBackgroundContext } from '../../common/contextkeys.js';
 import { ISessionInputPickerVisibility, SessionInputPickerVisibility } from '../../common/sessionPickerVisibility.js';

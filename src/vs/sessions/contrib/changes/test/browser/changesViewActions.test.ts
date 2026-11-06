@@ -48,7 +48,7 @@ import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.j
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { setHostSessionContextKeys } from '../../../../../workbench/contrib/sessions/common/sessionContextKeys.js';
 import { createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
-import { IFocusedSessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { IFocusedSessionHostService } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { ITestSessionWithChat, stubSessionHosts, stubSessionHostsFromSessionsService, testGridPanes, withCreatedStatus, testPaneContentOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IChat, ISessionChangeset, ISessionChangesSummary, ISessionFolder, ISessionWorkspace } from '../../../../../workbench/services/sessions/common/session.js';

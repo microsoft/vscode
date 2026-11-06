@@ -46,7 +46,7 @@ import { IChatWindow, IChatWindowService } from '../../../../../workbench/contri
 import { ICustomViewService, ICustomViewDescriptor } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { IPinnedCanvas, IPinnedCanvasService, PINNED_CANVAS_PAGE_ID } from '../../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
 import { focusedSessionHostServiceOf, ITestSessionWithChat, sessionHostServiceOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
-import { ISessionHost, ISessionHostService, SessionHostKind } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ISessionHost, ISessionHostService, SessionHostKind } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { getCanvasReferenceKey, ICanvas, ICanvasReference } from '../../../../../workbench/common/canvasReference.js';
 

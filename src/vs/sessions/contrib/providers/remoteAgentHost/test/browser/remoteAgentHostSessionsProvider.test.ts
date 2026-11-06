@@ -65,7 +65,7 @@ import { IAgentHostSessionsProvider } from '../../../../../../workbench/contrib/
 import { DevContainerIdleTimeoutSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostService } from '../../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ChatInteractivity, ChatModelSource, getChatCapabilities, getGitHubPullRequestRefs, getSessionOwnedGitHubPullRequestRefs, SessionRemoteConnectionFailureReason, SessionStatus, type IChat, type IChatCheckpoints, type ISession, type ISessionFileChange } from '../../../../../../workbench/services/sessions/common/session.js';
-import { VisibleSessions } from '../../../../../../workbench/contrib/sessions/browser/visibleSessions.js';
+import { VisibleSessions } from '../../../../../../workbench/services/sessions/browser/visibleSessions.js';
 import { SessionPullRequestPresentationModel } from '../../../../../../workbench/contrib/sessions/browser/github/pullRequestIconStatus.js';
 import { buildSessionPullRequestSections } from '../../../../../../workbench/contrib/sessions/browser/chat/sessionChatInputToolbar.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
@@ -92,7 +92,7 @@ import { AgentHostSessionAdapter, CopilotCLISessionType } from '../../../../../.
 import { IObservable, autorun, constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { WorkspaceNotTrustedError } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { ISessionHostService } from '../../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ISessionHostService } from '../../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { ITestSessionWithChat, sessionHostServiceOf, stubFocusedSessionHostFromSessionsService, testGridPanes } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsRecentWorkspacesService } from '../../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
 import { MockLabelService } from '../../../../../../workbench/services/label/test/common/mockLabelService.js';

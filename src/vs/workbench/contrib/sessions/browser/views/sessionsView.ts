@@ -47,7 +47,7 @@ import { IHostService } from '../../../../services/host/browser/host.js';
 import { Parts, IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { PANEL_SECTION_BORDER } from '../../../../common/theme.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
-import { getMainWindowHost, ISessionHost, ISessionHostService } from '../sessionHost.js';
+import { getMainWindowHost, ISessionHost, ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
 import { ISessionsService } from '../sessionsService.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { Menus } from '../menus.js';
@@ -66,7 +66,7 @@ import { CustomizationsNavigationState } from '../customizationsNavigationState.
 import { createSessionsListNotices, ISessionsListNoticeHost } from './sessionsListNotice.js';
 import { SessionStorageCleanupNotice } from './sessionStorageCleanupNotice.js';
 import { SessionsListNotification } from './sessionsListNotification.js';
-import { readPaneSessions } from '../sessionGridPane.js';
+import { readPaneSessions } from '../../../../services/sessions/browser/sessionGridPane.js';
 
 const $ = DOM.$;
 export const SessionsViewId = 'sessions.workbench.view.sessionsView';

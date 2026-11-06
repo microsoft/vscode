@@ -13,7 +13,7 @@ import { sortMultiDiffEditorFileListItems } from '../../multiDiffEditor/common/m
 import { ISessionFileChange } from '../../../services/sessions/common/session.js';
 import { ChangesViewMode } from '../../sessions/common/changes.js';
 import { getActiveSessionChanges, IChangesSessionObservables, IChangesViewService } from '../../sessions/common/changesViewService.js';
-import { getMainWindowHost, getWindowHost, ISessionHostService, SessionHostKind } from '../../sessions/browser/sessionHost.js';
+import { getMainWindowHost, getWindowHost, ISessionHostService, SessionHostKind } from '../../../services/sessions/browser/sessionHost.js';
 import { ISessionsManagementService } from '../../sessions/common/sessionsManagement.js';
 import { ISessionChangesService } from './sessionChangesService.js';
 import { getChangesEditorFileResource } from './changesEditorLabels.js';

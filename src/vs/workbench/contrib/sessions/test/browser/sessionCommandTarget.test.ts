@@ -16,14 +16,14 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IFocusedSessionHostService, ISessionHost, ISessionHostService, SessionHost, SessionHostKind, sessionMenuArgs } from '../../browser/sessionHost.js';
+import { IFocusedSessionHostService, ISessionHost, ISessionHostService, SessionHost, SessionHostKind, sessionMenuArgs } from '../../../../services/sessions/browser/sessionHost.js';
 import { resolveCommandOriginHost, resolveSessionCommandTarget } from '../../browser/sessionCommandTarget.js';
-import { ISessionsPartService } from '../../browser/sessionsPartService.js';
+import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import type { SessionView } from '../../browser/parts/sessionView.js';
 import { SessionHostService } from '../../browser/sessionHostService.js';
 import { ISessionsService } from '../../browser/sessionsService.js';
-import { ISessionGridPane, SessionGridPaneKind } from '../../browser/sessionGridPane.js';
-import { VisibleSessions } from '../../browser/visibleSessions.js';
+import { ISessionGridPane, SessionGridPaneKind } from '../../../../services/sessions/browser/sessionGridPane.js';
+import { VisibleSessions } from '../../../../services/sessions/browser/visibleSessions.js';
 import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { sessionsServiceWithGridHost, withCreatedStatus } from './sessionHostTestUtils.js';

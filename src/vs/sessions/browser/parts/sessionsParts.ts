@@ -16,11 +16,11 @@ import { assertReturnsDefined } from '../../../base/common/types.js';
 import { ISession } from '../../../workbench/services/sessions/common/session.js';
 import { IProgressIndicator } from '../../../platform/progress/common/progress.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { ISessionGridSlot, ISessionsPartService, IToggleMaximizeSessionEvent, SessionGridRequest } from '../../../workbench/contrib/sessions/browser/sessionsPartService.js';
+import { ISessionGridSlot, ISessionsPartService, IToggleMaximizeSessionEvent, SessionGridRequest } from '../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { Direction } from '../../../base/browser/ui/grid/grid.js';
 import { IAgentWorkbenchLayoutService } from '../workbench.js';
-import { createMainWindowInstantiationService, ISessionHost } from '../../../workbench/contrib/sessions/browser/sessionHost.js';
-import { ISessionGridPane } from '../../../workbench/contrib/sessions/browser/sessionGridPane.js';
+import { createMainWindowInstantiationService, ISessionHost } from '../../../workbench/services/sessions/browser/sessionHost.js';
+import { ISessionGridPane } from '../../../workbench/services/sessions/browser/sessionGridPane.js';
 
 /**
  * Owns the lifecycle of the {@link SessionsPart}. Selects the mobile vs. desktop

@@ -36,7 +36,7 @@ import { IAgentWorkbenchLayoutService } from '../../../../../sessions/browser/wo
 import { ISessionChangesService } from '../../../../contrib/sessionChanges/browser/sessionChangesService.js';
 import { ChatOriginKind, type IGitHubInfo, type IGitHubPullRequestRef, ISession, ISessionArtifact, ISessionCanvas, ISessionChatCustomization, ISessionTurnFileChange, ISessionWorkspace, IChat, ISessionCapabilities, ISessionFolder, ISessionGitRepository, SessionArtifactKind, SessionCustomizationKind, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../contrib/sessions/common/sessionsManagement.js';
-import { ISessionHost, SessionHostKind } from '../../../../contrib/sessions/browser/sessionHost.js';
+import { ISessionHost, SessionHostKind } from '../../../../services/sessions/browser/sessionHost.js';
 import { ISessionsProvidersService } from '../../../../contrib/sessions/browser/sessionsProvidersService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, type ServiceRegistration } from '../fixtureUtils.js';
 import { registerChatFixtureServices } from '../chat/chatFixtureUtils.js';

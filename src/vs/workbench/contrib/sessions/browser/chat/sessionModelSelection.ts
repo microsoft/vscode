@@ -23,7 +23,7 @@ import { IPendingModelSelection, isInConversationModelChoice, ModelSelectionReas
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { ChatModelSource, IChat, ISession, ISessionType, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../common/sessionsProvider.js';
-import { ISessionChatSource } from '../sessionHost.js';
+import { ISessionChatSource } from '../../../../services/sessions/browser/sessionHost.js';
 import { createModelSelectionState, EMPTY_MODEL_SELECTION_STATE, INormalizedSessionModelPickerOptions, ISessionModelSelectionState, normalizeModelPickerOptions } from './sessionModelPickerState.js';
 
 /** Bounded: a long-lived window binds arbitrarily many chats, and old ones are not worth the memory. */

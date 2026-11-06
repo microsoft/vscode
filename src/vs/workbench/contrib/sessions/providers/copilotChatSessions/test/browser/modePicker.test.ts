@@ -30,7 +30,7 @@ import { IAgentSource, PromptsStorage } from '../../../../../chat/common/promptS
 import { Target } from '../../../../../chat/common/promptSyntax/promptTypes.js';
 import { IChat, ISession } from '../../../../../../services/sessions/common/session.js';
 import { ModePicker, ModePickerModel, ScopedModePickerModelCache } from '../../browser/modePicker.js';
-import { ISessionChatSource } from '../../../../browser/sessionHost.js';
+import { ISessionChatSource } from '../../../../../../services/sessions/browser/sessionHost.js';
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
 import { ITestSessionWithChat, testChatSourceOf } from '../../../../test/browser/sessionHostTestUtils.js';
 

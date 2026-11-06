@@ -22,9 +22,9 @@ import { AbstractChatView, IChatViewOptions, ISessionViewHostOptions } from './c
 import { ChatGroupsView } from './chatGroupsView.js';
 import { SessionHeader, SessionViewFloatingToolbar } from './sessionHeader.js';
 import { ChatViewSessionActivityBar } from './sessionActivityBar.js';
-import { createSessionHostServices, ISessionHost, ISessionHostService, SessionHost, SessionHostKind } from '../sessionHost.js';
+import { createSessionHostServices, ISessionHost, ISessionHostService, SessionHost, SessionHostKind } from '../../../../services/sessions/browser/sessionHost.js';
 import { autorun, derived, disposableObservableValue, IObservable, observableValue, runOnChange, transaction } from '../../../../../base/common/observable.js';
-import { ISessionGridPane, paneShownOfSession } from '../sessionGridPane.js';
+import { ISessionGridPane, paneShownOfSession } from '../../../../services/sessions/browser/sessionGridPane.js';
 import { ISessionsService } from '../sessionsService.js';
 import { SessionIsMaximizedContext } from '../../common/contextkeys.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../common/layoutConstants.js';
@@ -34,7 +34,7 @@ import { applySessionViewThemeColors } from './sessionBarStyles.js';
 import { IChatViewFactory } from '../chatViewFactory.js';
 import { noSessionPickerVisibility, SessionPickerVisibilityContextKeys } from '../../common/sessionPickerVisibility.js';
 import { ISessionGridView } from '../../../../browser/parts/sessions/sessionGridLayout.js';
-import { ISessionView } from '../sessionsPartService.js';
+import { ISessionView } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { IPaneViewState, ISessionPaneContent } from '../../../../services/sessions/common/sessionPane.js';
 
 /**

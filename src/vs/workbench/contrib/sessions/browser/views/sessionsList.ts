@@ -80,7 +80,7 @@ import { HoverStyle, IDelayedHoverOptions } from '../../../../../base/browser/ui
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { inheritableSessionTarget, ISessionsManagementService } from '../../common/sessionsManagement.js';
-import { getMainWindowHost, ISessionHostService, shownChatOf } from '../sessionHost.js';
+import { getMainWindowHost, ISessionHostService, shownChatOf } from '../../../../services/sessions/browser/sessionHost.js';
 import { getSessionComparisonChat, getSessionComparisonHarnessLabel, getSessionComparisonParticipantsInDisplayOrder, ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../common/sessionComparison.js';
 import { ISessionsService } from '../sessionsService.js';
 import { ISessionListModelChangeEvent, ISessionsListModelService, SessionListModelChangeKind, SessionSortEntry, SessionSortMode } from '../sessionsListModelService.js';
@@ -138,7 +138,7 @@ import { getExtensionSuggestionsBadgeDescription } from '../agentsWindowExtensio
 import { KeybindingLabel } from '../../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { IPinnedCanvas, IPinnedCanvasService, PINNED_CANVAS_PAGE_ID, PinnedCanvasConnectedContext, PinnedCanvasState } from '../pinnedCanvases.js';
 import { logSessionsInteraction } from '../../common/sessionsTelemetry.js';
-import { ISessionGridPane } from '../sessionGridPane.js';
+import { ISessionGridPane } from '../../../../services/sessions/browser/sessionGridPane.js';
 import { IShownChat } from '../../../../services/sessions/common/sessionPane.js';
 
 const $ = DOM.$;

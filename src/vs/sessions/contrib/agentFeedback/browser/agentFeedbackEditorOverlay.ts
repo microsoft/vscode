@@ -22,7 +22,7 @@ import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { ICodeReviewService } from '../../../../workbench/contrib/sessions/browser/codeReviewService.js';
 import { EmptyFileEditorInput } from '../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
 import { getAcceptedAgentFeedbackCommentCount, getSessionEditorComments } from './sessionEditorComments.js';
-import { ISessionHostService, SessionHostKind } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ISessionHostService, SessionHostKind } from '../../../../workbench/services/sessions/browser/sessionHost.js';
 import { ISession } from '../../../../workbench/services/sessions/common/session.js';
 
 export interface IAgentFeedbackOverlayEditorGroup extends IEditorGroup {

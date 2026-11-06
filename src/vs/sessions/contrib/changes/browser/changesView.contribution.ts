@@ -9,7 +9,7 @@ import { IActionViewItemService } from '../../../../platform/actions/browser/act
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { MenuItemAction, registerAction2, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { ISessionHost } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ISessionHost } from '../../../../workbench/services/sessions/browser/sessionHost.js';
 import { IChangesViewService, getActiveSessionChanges } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';

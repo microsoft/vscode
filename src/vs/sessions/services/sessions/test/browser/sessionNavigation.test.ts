@@ -19,7 +19,7 @@ import { CustomViewService } from '../../../customView/browser/customViewService
 import { ICreateNewSessionOptions, IProviderSessionType, IRecentlyOpenedSessions, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ChatInteractivity, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionType, ISessionWorkspace, ISideChatSelection, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { SessionsNavigation } from '../../../../../workbench/contrib/sessions/browser/sessionNavigation.js';
-import { getRecencyEntryKey, SessionsRecencyHistory } from '../../../../../workbench/contrib/sessions/browser/sessionsRecencyHistory.js';
+import { getRecencyEntryKey, SessionsRecencyHistory } from '../../../../../workbench/services/sessions/browser/sessionsRecencyHistory.js';
 import { Event } from '../../../../../base/common/event.js';
 import { INestedChatWorkspace, ISendRequestOptions } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { TestWindowCanvasService } from '../../../canvas/test/browser/testWindowCanvasService.js';

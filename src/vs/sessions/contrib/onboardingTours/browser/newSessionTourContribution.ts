@@ -19,7 +19,7 @@ import { ISession } from '../../../../workbench/services/sessions/common/session
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { createNewSessionTour, NEW_SESSION_TOUR_ID } from './tours/newSessionTour.js';
-import { readPaneSessions } from '../../../../workbench/contrib/sessions/browser/sessionGridPane.js';
+import { readPaneSessions } from '../../../../workbench/services/sessions/browser/sessionGridPane.js';
 
 const NEW_SESSION_BUTTON_TARGET = 'sessions.newSession.button';
 

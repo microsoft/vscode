@@ -23,7 +23,7 @@ import { IPullRequestIconCache, PullRequestIconCache } from '../../../browser/gi
 import { URI } from '../../../../../../base/common/uri.js';
 import { GITHUB_REMOTE_FILE_SCHEME } from '../../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../browser/sessionsService.js';
-import { ISessionHostService } from '../../../browser/sessionHost.js';
+import { ISessionHostService } from '../../../../../services/sessions/browser/sessionHost.js';
 import { ITestSessionWithChat, sessionHostServiceOf } from '../sessionHostTestUtils.js';
 import { constObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 

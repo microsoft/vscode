@@ -17,7 +17,7 @@ import { autorun, IObservable, IReader } from '../../../../../base/common/observ
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { localize } from '../../../../../nls.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
-import { ISessionHost, sessionMenuArgs } from '../sessionHost.js';
+import { ISessionHost, sessionMenuArgs } from '../../../../services/sessions/browser/sessionHost.js';
 import { getChatCapabilities, getUntitledSessionTitle, IChat, ISession, isSessionCreated, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';

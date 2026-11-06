@@ -77,7 +77,7 @@ import { AutomationDialogService } from '../../browser/automationDialogService.j
 import { AutomationCustomizationSelection, AutomationIsolationGroupActionViewItem, AutomationSessionDraftSynchronizer, canSelectAutomationWorkspace, getAutomationDialogProviders, IFormState, IValidationState, isAutomationDialogPopupTarget, MobileAutomationsWorkspacePicker, registerAutomationDialogKeyboardNavigation, renderForm, shouldPassThroughAutomationDialogCommand, updateSaveButtonState } from '../../browser/automationDialog.js';
 import { AutomationInputCompletions } from '../../browser/automationInputCompletions.js';
 import { AutomationIsolationModel } from '../../common/isolationGroupModel.js';
-import { SessionHostKind } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { SessionHostKind } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { stubSessionHosts } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
 

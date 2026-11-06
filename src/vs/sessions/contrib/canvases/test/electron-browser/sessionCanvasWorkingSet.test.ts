@@ -46,7 +46,7 @@ import { WindowCanvasService } from '../../../../../workbench/contrib/sessions/b
 import { WindowCanvasInput, IWindowCanvas, IWindowCanvasService } from '../../../../../workbench/contrib/sessions/browser/windowCanvas.js';
 import { WindowCanvasEditor } from '../../browser/windowCanvasEditor.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { IFocusedSessionHostService, ISessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { IFocusedSessionHostService, ISessionHostService } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { focusedSessionHostServiceOf, sessionHostServiceOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 class TestCanvasLayoutController extends BaseLayoutController { }

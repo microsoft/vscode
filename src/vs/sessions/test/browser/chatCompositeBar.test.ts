@@ -37,7 +37,7 @@ import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../
 import { ARCHIVE_CHAT_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { ISessionsProvidersService } from '../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsListModelService } from '../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
-import { ISessionsPartService } from '../../../workbench/contrib/sessions/browser/sessionsPartService.js';
+import { ISessionsPartService } from '../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionCapabilities, SessionStatus } from '../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../workbench/contrib/sessions/common/sessionsManagement.js';
@@ -53,7 +53,7 @@ import '../../../workbench/contrib/sessions/browser/media/chatBackground.css';
 import '../../../workbench/contrib/modernUI/browser/media/tabs.css';
 // eslint-disable-next-line local/code-import-patterns -- Test the presentation supplied by the editor contribution.
 import '../../../workbench/contrib/modernUI/browser/connectedEditorTabs.js';
-import { ISessionHost } from '../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ISessionHost } from '../../../workbench/services/sessions/browser/sessionHost.js';
 import { ISessionPaneTabs } from '../../../workbench/services/sessions/common/sessionPane.js';
 
 class TestResizeObserver implements ResizeObserver {

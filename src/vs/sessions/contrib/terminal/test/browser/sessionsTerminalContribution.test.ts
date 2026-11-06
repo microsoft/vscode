@@ -44,7 +44,7 @@ import { Menus, SessionActivityBarGroup } from '../../../../../workbench/contrib
 import '../../../../browser/layoutActions.js';
 import { CustomViewVisibleContext } from '../../../../common/agentsWindowContextKeys.js';
 import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
-import { ISessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ISessionHostService } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { ITestSessionWithChat, sessionHostServiceOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 const HOME_DIR = URI.file('/home/user');

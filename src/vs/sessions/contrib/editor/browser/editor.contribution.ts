@@ -47,7 +47,7 @@ import { getModalToMainTransferVeto, showEditorTransferVeto } from '../../../../
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { TERMINAL_VIEW_ID } from '../../../../workbench/contrib/terminal/common/terminal.js';
 import { TEXT_FILE_EDITOR_ID } from '../../../../workbench/contrib/files/common/files.js';
-import { ISessionsPartService } from '../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
+import { ISessionsPartService } from '../../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { SessionsCategories } from '../../../../workbench/contrib/sessions/common/categories.js';
 import { IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
 

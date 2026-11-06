@@ -20,9 +20,9 @@ import { contrastBorder } from '../../../../../platform/theme/common/colorRegist
 import { SessionDropTarget, ISessionDropTargetDelegate } from './sessionDropTarget.js';
 import { SessionsChatSurface } from '../sessionsChatSurface.js';
 import { noSessionPickerVisibility, SessionPickerVisibilityContextKeys } from '../../common/sessionPickerVisibility.js';
-import { ISessionGridSlot, SessionGridRequest } from '../sessionsPartService.js';
-import { ISessionGridPane, SessionGridPaneKind } from '../sessionGridPane.js';
-import type { ISessionHost } from '../sessionHost.js';
+import { ISessionGridSlot, SessionGridRequest } from '../../../../services/sessions/browser/sessionsPartService.js';
+import { ISessionGridPane, SessionGridPaneKind } from '../../../../services/sessions/browser/sessionGridPane.js';
+import type { ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
 import { SessionGridLayout } from '../../../../browser/parts/sessions/sessionGridLayout.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ISessionsPartContent, ISessionsPartContentHost, ISessionsPartContentLayout } from '../../../../browser/parts/sessions/sessionsPartContent.js';

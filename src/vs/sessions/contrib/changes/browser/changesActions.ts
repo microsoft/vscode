@@ -42,7 +42,7 @@ import { getChangesFileUri, isChangesFileResource } from '../../../../workbench/
 import { ISessionActionContextKeysSource, registerSessionActionContextKeyBinder } from '../../../../workbench/contrib/sessionChanges/browser/sessionActionContextKeys.js';
 import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
 import { mainWindowChangesOwner } from '../../../../workbench/contrib/sessionChanges/browser/changesViewService.js';
-import { readPaneSessions } from '../../../../workbench/contrib/sessions/browser/sessionGridPane.js';
+import { readPaneSessions } from '../../../../workbench/services/sessions/browser/sessionGridPane.js';
 
 function getWorkspaceResource(resource: URI, changes: readonly ISessionFileChange[]): URI {
 	const change = changes.find(change => isChangesFileResource(change, resource));

@@ -27,7 +27,7 @@ import { BaseAgentHostSessionsProvider } from '../../../../../../workbench/contr
 // which is the slot that hosts our skill buttons as a dropdown.
 import '../../../../applyCommitsToParentRepo/browser/applyChangesToParentRepo.js';
 import { ITestSessionsService, ITestSessionWithChat, stubFocusedSessionHostFromSessionsService, stubSessionHostsFromSessionsService } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
-import { ISessionHostService, SessionHostKind } from '../../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ISessionHostService, SessionHostKind } from '../../../../../../workbench/services/sessions/browser/sessionHost.js';
 
 function makeActiveSession(providerId: string): ITestSessionWithChat {
 	const chat = {

@@ -44,7 +44,7 @@ import { ICopilotHomeService } from '../../../../../services/environment/common/
 import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../common/agentHostSessionWorkspace.js';
 import { areDevContainerSamplesEnabled, IDevContainerAgentHostService } from '../../../common/devContainerAgentHostService.js';
 import { IGitHubInfo, ISession, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../../../services/sessions/common/session.js';
-import { IFocusedSessionHostService, ISessionHostService } from '../../../browser/sessionHost.js';
+import { IFocusedSessionHostService, ISessionHostService } from '../../../../../services/sessions/browser/sessionHost.js';
 import { ISessionsRecentWorkspacesService } from '../../../browser/sessionsRecentWorkspacesService.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
 import { IGitHubService } from '../../../browser/github/githubService.js';

@@ -50,9 +50,9 @@ import { hashSessionIdForTelemetry } from '../../../common/sessionsTelemetry.js'
 import { IGitHubService as ISessionsGitHubService } from '../../../browser/github/githubService.js';
 import { OPEN_PULL_REQUEST_CHANGES_ACTION_ID } from '../../../common/github/types.js';
 import { getSessionGitHubReferences } from '../../../common/github/sessionGitHubReferences.js';
-import { ISessionHost } from '../../../browser/sessionHost.js';
+import { ISessionHost } from '../../../../../services/sessions/browser/sessionHost.js';
 import { ISessionsService } from '../../../browser/sessionsService.js';
-import { ISessionGridPane } from '../../../browser/sessionGridPane.js';
+import { ISessionGridPane } from '../../../../../services/sessions/browser/sessionGridPane.js';
 import { ITestSessionWithChat } from '../sessionHostTestUtils.js';
 
 suite('Session Artifacts', () => {

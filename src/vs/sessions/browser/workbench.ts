@@ -81,13 +81,13 @@ import { observeSessionActivityBarSize, registerSessionActivityBarExternalHost, 
 import { getMobileViewportDimension, IMobileVisualViewport } from './parts/mobile/mobileVisualViewport.js';
 import { autorun, derived, IObservable } from '../../base/common/observable.js';
 import { ISessionsService } from '../../workbench/contrib/sessions/browser/sessionsService.js';
-import { ISessionsPartService } from '../../workbench/contrib/sessions/browser/sessionsPartService.js';
+import { ISessionsPartService } from '../../workbench/services/sessions/browser/sessionsPartService.js';
 import { ICustomViewService, ICustomViewDescriptor } from '../../workbench/contrib/sessions/browser/customView.js';
 import { ICustomViewGridPartService } from '../services/customView/browser/customViewGridPartService.js';
 import { ISessionsSetUpService } from './sessionsSetUpService.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../../workbench/contrib/sessions/common/layoutConstants.js';
 import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
-import { createMainWindowInstantiationService } from '../../workbench/contrib/sessions/browser/sessionHost.js';
+import { createMainWindowInstantiationService } from '../../workbench/services/sessions/browser/sessionHost.js';
 import { AgentWorkbenchLayout, ISessionsHostLayoutService, ISessionsHostSidePane } from '../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 
 const PHONE_NOTIFICATION_ROW_HEIGHT = 44;

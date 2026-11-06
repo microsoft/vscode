@@ -20,7 +20,7 @@ import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { SessionsCategories } from '../../../../workbench/contrib/sessions/common/categories.js';
 import { SessionIsCreatedContext, SessionItemIsMultiSelectionContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { getMainWindowHost, ISessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { getMainWindowHost, ISessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
 import { resolveSessionCommandTarget } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
 import { IChat, ISession } from '../../../../workbench/services/sessions/common/session.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../common/chatWindows.js';

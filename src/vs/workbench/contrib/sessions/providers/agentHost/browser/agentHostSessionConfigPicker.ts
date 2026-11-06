@@ -59,7 +59,7 @@ import { NEW_WORKTREE_LABEL } from '../../../browser/chat/branchPicker.js';
 import { ISessionChangesService } from '../../../common/sessionChangesService.js';
 import { CHANGES_VIEW_ID } from '../../../common/changes.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
-import { getFocusedSessionChatSource, IFocusedSessionHostService, InSessionHostScopeContext, ISessionChatSource, ISessionHost } from '../../../browser/sessionHost.js';
+import { getFocusedSessionChatSource, IFocusedSessionHostService, InSessionHostScopeContext, ISessionChatSource, ISessionHost } from '../../../../../services/sessions/browser/sessionHost.js';
 import { ISessionsService } from '../../../browser/sessionsService.js';
 import type { ISessionsProvider } from '../../../common/sessionsProvider.js';
 import { type IAgentHostSessionsProvider, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
@@ -87,7 +87,7 @@ import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IUncommittedChangesListItem, IWorktreeSuggestion, IWorktreeSuggestionService } from '../../../browser/worktreeSuggestion/worktreeSuggestionService.js';
 import { getChangedFileUri, getUncommittedFilesDescription, getUncommittedFilesSectionLabel } from '../../../browser/worktreeSuggestion/worktreeSuggestionPresentation.js';
 import { WorktreeSuggestionVariant } from '../../../common/worktreeSuggestion.js';
-import { readPaneSessions } from '../../../browser/sessionGridPane.js';
+import { readPaneSessions } from '../../../../../services/sessions/browser/sessionGridPane.js';
 
 const ExperimentalSessionComposerLayout = SessionUsesExperimentalComposerLayoutContext;
 const LegacySessionComposerLayout = SessionUsesExperimentalComposerLayoutContext.negate();

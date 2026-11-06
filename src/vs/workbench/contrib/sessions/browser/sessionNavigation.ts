@@ -15,8 +15,8 @@ import { IWindowCanvasService } from './windowCanvas.js';
 import { ICustomViewOpenRequest, ICustomViewService } from './customView.js';
 import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../common/sessionsManagement.js';
-import { ISessionGridPane } from './sessionGridPane.js';
-import { getRecencyEntryKey, SessionRecencyEntry, SessionsRecencyHistory } from './sessionsRecencyHistory.js';
+import { ISessionGridPane } from '../../../services/sessions/browser/sessionGridPane.js';
+import { getRecencyEntryKey, SessionRecencyEntry, SessionsRecencyHistory } from '../../../services/sessions/browser/sessionsRecencyHistory.js';
 
 export type SessionNavigationIntent = 'explicit' | 'history' | 'automatic';
 

@@ -18,7 +18,7 @@ import { IMicCaptureService } from '../../../chat/browser/voiceClient/micCapture
 import { ITtsPlaybackService } from '../../../chat/browser/voiceClient/ttsPlaybackService.js';
 import { IVoiceSessionController } from '../../../chat/browser/voiceClient/voiceSessionController.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../chat/common/languageModels.js';
-import { IFocusedSessionHostService } from '../sessionHost.js';
+import { IFocusedSessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
 import { setupVoiceInputDecorations } from './voiceInputDecorations.js';
 import { isSessionCreated } from '../../../../services/sessions/common/session.js';
 

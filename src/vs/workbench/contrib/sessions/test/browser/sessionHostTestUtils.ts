@@ -13,11 +13,11 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ServiceIdentifier } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
-import { IFocusedSessionHostService, ISessionChatSource, ISessionHost, ISessionHostService, SessionHost, SessionHostKind } from '../../browser/sessionHost.js';
+import { IFocusedSessionHostService, ISessionChatSource, ISessionHost, ISessionHostService, SessionHost, SessionHostKind } from '../../../../services/sessions/browser/sessionHost.js';
 import { SessionHostService } from '../../browser/sessionHostService.js';
 import { ISessionsService } from '../../browser/sessionsService.js';
-import { ISessionsPartService, ISessionView } from '../../browser/sessionsPartService.js';
-import { ISessionGridPane, SessionGridPaneKind } from '../../browser/sessionGridPane.js';
+import { ISessionsPartService, ISessionView } from '../../../../services/sessions/browser/sessionsPartService.js';
+import { ISessionGridPane, SessionGridPaneKind } from '../../../../services/sessions/browser/sessionGridPane.js';
 import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IPaneViewState, ISessionPaneContent, ISessionPaneTabs } from '../../../../services/sessions/common/sessionPane.js';
 

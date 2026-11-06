@@ -23,7 +23,7 @@ import { ISessionActivityBarActivityService, SessionActivityBarActivityService }
 import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { createSessionViewTestServices, createTestActiveSession, testPaneOf } from './sessionViewTestUtils.js';
-import { SessionHostKind } from '../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { SessionHostKind } from '../../../workbench/services/sessions/browser/sessionHost.js';
 import { TestLayoutService, TestMenuService, workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { IWorkbenchLayoutService } from '../../../workbench/services/layout/browser/layoutService.js';
 import { AgentWorkbenchLayout } from '../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';

@@ -44,7 +44,7 @@ import { ChatGroupView } from '../../../workbench/contrib/sessions/browser/parts
 import { GRID_GAP_SASH_CLASS } from '../../../workbench/browser/parts/partGrid/partGridGap.js';
 import { SessionDropTarget } from '../../../workbench/contrib/sessions/browser/parts/sessionDropTarget.js';
 import { DraggedSessionIdentifier, fillSessionChatDragData, SessionsDataTransfers } from '../../../workbench/contrib/sessions/browser/dnd.js';
-import { ChatHostOpenerService, IChatHostOpenerService } from '../../../workbench/contrib/sessions/browser/chatHostOpener.js';
+import { ChatHostOpenerService, IChatHostOpenerService } from '../../../workbench/services/sessions/browser/chatHostOpener.js';
 import { SessionActiveChatCanArchiveContext, SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatIsDeletableContext, SessionActiveChatIsUntitledContext, SessionActiveChatResourceContext, SessionFocusedChatIsRenameTargetContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionHeaderTargetsChatContext, SessionToolbarShowsSessionContext } from '../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ISessionActivityBarActivityService, SessionActivityBarActivityService } from '../../../workbench/contrib/sessions/common/sessionActivityBarActivityService.js';
 import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../workbench/contrib/sessions/common/sessionConfig.js';
@@ -52,7 +52,7 @@ import { agentsPanelBorder } from '../../../workbench/contrib/sessions/common/th
 import { type IAgentHostAutoConnect, type IAgentHostConnectProgress, type IAgentHostConnectionLabels, IAgentHostSessionsProvider } from '../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { IChatViewFactory } from '../../../workbench/contrib/sessions/browser/chatViewFactory.js';
 import { ISessionsProvidersService } from '../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { ISessionsPartService } from '../../../workbench/contrib/sessions/browser/sessionsPartService.js';
+import { ISessionsPartService } from '../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { ISessionsListModelService } from '../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { ISessionsService } from '../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionCapabilities, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../../workbench/services/sessions/common/session.js';
@@ -60,7 +60,7 @@ import { ISessionsManagementService } from '../../../workbench/contrib/sessions/
 import { ITestSessionWithChat, LegacyFakePaneState, testPaneContentOf } from '../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsProvider } from '../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import '../../browser/media/workbench.css';
-import { ISessionHost, SessionHostKind } from '../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ISessionHost, SessionHostKind } from '../../../workbench/services/sessions/browser/sessionHost.js';
 import { stubSessionsHostLayout } from './sessionsHostLayoutTestUtils.js';
 import { ISessionPaneContent } from '../../../workbench/services/sessions/common/sessionPane.js';
 

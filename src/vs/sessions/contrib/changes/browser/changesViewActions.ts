@@ -38,7 +38,7 @@ import { SessionIsCreatedContext, DesktopDiffEditorInputActiveContext, DesktopLa
 import { CustomViewVisibleContext } from '../../../common/agentsWindowContextKeys.js';
 import { logChangesViewViewModeChange } from '../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
 import { resolveSessionCommandTarget } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
-import { getMainWindowHost, ISessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { getMainWindowHost, ISessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
 import { OPEN_PULL_REQUEST_ACTION_ID } from '../../../../workbench/contrib/sessions/common/github/types.js';
 import { ActiveSessionContextKeys, CHANGES_VIEW_ID, ChangesContextKeys, ChangesViewMode, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../../../../workbench/contrib/sessions/common/changes.js';
 import { getChangesOfSession, IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';

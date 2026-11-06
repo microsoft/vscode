@@ -24,7 +24,7 @@ import { IProgressService, ProgressLocation } from '../../../../../platform/prog
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { localize } from '../../../../../nls.js';
 import { ISessionsListModelService } from '../sessionsListModelService.js';
-import { ISessionHostService } from '../sessionHost.js';
+import { ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IManagedSessionWorktree, ISessionsManagementService } from '../../common/sessionsManagement.js';
 

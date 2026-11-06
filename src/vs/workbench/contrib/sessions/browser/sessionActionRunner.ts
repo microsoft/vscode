@@ -6,8 +6,8 @@
 import { ActionRunner, IAction } from '../../../../base/common/actions.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ISessionGridPane, SessionGridPaneKind } from './sessionGridPane.js';
-import { ISessionHost } from './sessionHost.js';
+import { ISessionGridPane, SessionGridPaneKind } from '../../../services/sessions/browser/sessionGridPane.js';
+import { ISessionHost } from '../../../services/sessions/browser/sessionHost.js';
 import { ISessionsService } from './sessionsService.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 

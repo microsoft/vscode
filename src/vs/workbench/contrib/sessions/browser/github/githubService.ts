@@ -25,7 +25,7 @@ import { derived, derivedOpts, IObservable } from '../../../../../base/common/ob
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { structuralEquals } from '../../../../../base/common/equals.js';
 import { decodeBase64 } from '../../../../../base/common/buffer.js';
-import { ISessionHostService } from '../sessionHost.js';
+import { ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
 import { GitHubCommit } from '../../../../../platform/github/common/githubQueryService.js';
 import { GitHubRequestError } from '../../../../../platform/github/common/githubTypes.js';

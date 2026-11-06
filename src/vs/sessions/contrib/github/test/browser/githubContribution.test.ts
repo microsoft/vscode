@@ -26,7 +26,7 @@ import { IGitHubService } from '../../../../../workbench/contrib/sessions/browse
 import { ChatInteractivity, IChat, IGitHubInfo, ISession, ISessionArtifact, ISessionCapabilities, ISessionChangeset, IChatCheckpoints, ISessionFileChange, ISessionWorkspace, SessionArtifactKind, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { focusedSessionHostServiceOf, ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
-import { ISessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ISessionHostService } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 
 suite('GitHubPullRequestPollingContribution', () => {

@@ -23,7 +23,7 @@ import type { ISessionChatPillsDebugData } from '../chat/sessionChatInputToolbar
 import { IGitHubService } from '../github/githubService.js';
 import { GitHubPullRequestCIModel } from '../github/models/githubPullRequestCIModel.js';
 import { GitHubPullRequestState, OPEN_PULL_REQUEST_ACTION_ID } from '../../common/github/types.js';
-import { getWindowHost, ISessionHost } from '../sessionHost.js';
+import { getWindowHost, ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { getGitHubPullRequestRefs, IChat, IGitHubPullRequestRef, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { getSessionAgentMergeConfigurationObservable } from '../sessionAgentMerge.js';

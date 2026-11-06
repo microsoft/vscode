@@ -27,7 +27,7 @@ import { IEditorGroupsService } from '../../workbench/services/editor/common/edi
 import { IAgentWorkbenchLayoutService } from './workbench.js';
 import { AgentWorkbenchLayout } from '../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 import { DesktopMainEditorPart } from './parts/desktopEditorPart.js';
-import { createMainWindowInstantiationService } from '../../workbench/contrib/sessions/browser/sessionHost.js';
+import { createMainWindowInstantiationService } from '../../workbench/services/sessions/browser/sessionHost.js';
 
 export class AgenticPaneCompositePartService extends Disposable implements IPaneCompositePartService {
 

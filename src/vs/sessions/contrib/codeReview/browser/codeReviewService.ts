@@ -17,7 +17,7 @@ import { IGitHubService } from '../../../../workbench/contrib/sessions/browser/g
 import { IGitHubPullRequestReviewThread } from '../../../../workbench/contrib/sessions/common/github/types.js';
 import { getGitHubPullRequestRefs, IChat, IGitHubPullRequestRef, ISessionFileChange } from '../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { IFocusedSessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { IFocusedSessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
 import { parsePRContentUri } from '../../../../workbench/contrib/sessions/common/github/utils.js';
 import { PRReviewStateKind, IPRReviewState, IPRReviewComment, IPRReviewCommentTarget, ICodeReviewService } from '../../../../workbench/contrib/sessions/browser/codeReviewService.js';
 import { isIChatSessionFileChange2 } from '../../../../workbench/common/chatSessionFileChange.js';

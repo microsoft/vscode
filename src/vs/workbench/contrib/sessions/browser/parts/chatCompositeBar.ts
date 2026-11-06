@@ -52,7 +52,7 @@ import { SessionStatusIcon } from '../sessionStatusIcon.js';
 import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { createInstantHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
-import { ISessionHost, sessionMenuArgs } from '../sessionHost.js';
+import { ISessionHost, sessionMenuArgs } from '../../../../services/sessions/browser/sessionHost.js';
 
 interface IChatTab {
 	readonly chat: IChat;

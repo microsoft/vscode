@@ -23,7 +23,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { ISessionsService } from '../sessionsService.js';
-import { ISessionHost } from '../sessionHost.js';
+import { ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { INestedChatWorkspace, INestedChatWorkspaceSupport, NestedChatWorkspaceError } from '../../common/sessionsProvider.js';
 import { getChatHarness, IChat, isSessionCreated, SessionStatus, ISession } from '../../../../services/sessions/common/session.js';

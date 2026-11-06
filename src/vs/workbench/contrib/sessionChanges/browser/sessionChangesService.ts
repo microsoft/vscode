@@ -20,7 +20,7 @@ import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../servi
 import { getSessionChangesFileCountLabel } from '../../sessions/common/changes.js';
 import { IChangesViewService } from '../../sessions/common/changesViewService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { getHostOfSession, getMainWindowHost, IFocusedSessionHostService, ISessionHostService } from '../../sessions/browser/sessionHost.js';
+import { getHostOfSession, getMainWindowHost, IFocusedSessionHostService, ISessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { ISessionsService } from '../../sessions/browser/sessionsService.js';
 import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../../sessions/common/sessionChangesService.js';

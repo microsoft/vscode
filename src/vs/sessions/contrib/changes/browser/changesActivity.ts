@@ -35,7 +35,7 @@ import { SessionActivityBarActionViewItem } from '../../../../workbench/contrib/
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { AgentWorkbenchLayout } from '../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 import { ISessionActivityBarActivityService } from '../../../../workbench/contrib/sessions/common/sessionActivityBarActivityService.js';
-import { IFocusedSessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { IFocusedSessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
 import { ISessionChangesStatsCache } from '../../../../workbench/contrib/sessions/common/sessionChangesStatsCache.js';
 import { computeSessionInputPillStats, readLoadedSessionInputPillStats } from '../../../../workbench/contrib/sessions/browser/chat/sessionChatInputToolbar.js';
 import { NEW_CHANGES_TAB_COMMAND_ID } from '../../editor/browser/addTabActions.js';

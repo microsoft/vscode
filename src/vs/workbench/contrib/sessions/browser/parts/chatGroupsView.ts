@@ -21,8 +21,8 @@ import { IThemeService, Themable } from '../../../../../platform/theme/common/th
 import { agentsPanelBorder } from '../../common/theme.js';
 import { ChatOriginKind, IChat, ISession, isSessionCreated } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../sessionsService.js';
-import { IChatHostOpenerService } from '../chatHostOpener.js';
-import { getWindowHost, ISessionHost } from '../sessionHost.js';
+import { IChatHostOpenerService } from '../../../../services/sessions/browser/chatHostOpener.js';
+import { getWindowHost, ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
 import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../../services/sessions/common/workspaceSelection.js';
 import { AbstractChatView, IChatViewOptions, ISessionViewHostOptions } from './chatView.js';
 import { ChatGroupView, IChatGroupContext } from './chatGroupView.js';

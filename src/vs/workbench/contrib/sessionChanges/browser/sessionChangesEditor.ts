@@ -46,7 +46,7 @@ import { IResourceLabel, IWorkbenchUIElementFactory, MultiDiffEditorItemLabelKin
 import { Menus } from '../../sessions/browser/menus.js';
 import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../services/sessions/browser/sessionsHostLayoutService.js';
 import { ActiveSessionContextKeys, SessionChangesEditorFileListContext } from '../../sessions/common/changes.js';
-import { ISessionHost, ISessionHostService } from '../../sessions/browser/sessionHost.js';
+import { ISessionHost, ISessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { ISessionsManagementService } from '../../sessions/common/sessionsManagement.js';
 import { getChangesEditorChanges } from './changesMultiDiffSourceResolver.js';
 import { IChangesSessionScope, IChangesViewService } from '../../sessions/common/changesViewService.js';

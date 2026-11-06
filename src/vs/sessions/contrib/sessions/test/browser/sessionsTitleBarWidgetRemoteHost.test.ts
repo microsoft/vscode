@@ -28,7 +28,7 @@ import { ISessionsManagementService } from '../../../../../workbench/contrib/ses
 import { BlockedSessionsIndicatorModel } from '../../browser/blockedSessionsIndicatorModel.js';
 import { SessionActionFeedback } from '../../browser/sessionActionFeedback.js';
 import { SessionsTitleBarWidget } from '../../browser/sessionsTitleBarWidget.js';
-import { ISessionHost } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ISessionHost } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { IChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { ITestSessionsService, ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 

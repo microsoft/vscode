@@ -29,7 +29,7 @@ import { SessionUsesCombinedConfigPickerContext, IsPhoneLayoutContext } from '..
 import { type IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { IChat, ISession } from '../../../../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../../browser/sessionsProvidersService.js';
-import { IFocusedSessionHostService, ISessionChatSource, ISessionHost } from '../../../../browser/sessionHost.js';
+import { IFocusedSessionHostService, ISessionChatSource, ISessionHost } from '../../../../../../services/sessions/browser/sessionHost.js';
 import { isWellKnownModeSchema } from '../agentHostPermissionPickerDelegate.js';
 import { getAgentHostModeIcon } from '../agentHostModeIcon.js';
 import { INewChatModelPickerService } from '../../../../browser/chat/newChatModelPicker.js';

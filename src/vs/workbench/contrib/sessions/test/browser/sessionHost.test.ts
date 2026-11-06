@@ -14,7 +14,7 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
-import { getMainWindowHost, getWindowHost, IFocusedSessionHostService, ISessionHost, SessionHost, SessionHostKind, shownChatOf } from '../../browser/sessionHost.js';
+import { getMainWindowHost, getWindowHost, IFocusedSessionHostService, ISessionHost, SessionHost, SessionHostKind, shownChatOf } from '../../../../services/sessions/browser/sessionHost.js';
 import { FocusedSessionHostService, SessionHostService } from '../../browser/sessionHostService.js';
 import { IChat, ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../browser/sessionsService.js';

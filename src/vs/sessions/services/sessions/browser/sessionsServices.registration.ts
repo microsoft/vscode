@@ -7,9 +7,9 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { IAgentHostCustomizationService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { AgentHostCustomizationService } from '../../../../workbench/contrib/sessions/browser/agentHostCustomizationService.js';
 import { ISessionsService, SessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { ISessionHostService, IFocusedSessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ISessionHostService, IFocusedSessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
 import { SessionHostService, FocusedSessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHostService.js';
-import { IChatHostOpenerService, ChatHostOpenerService } from '../../../../workbench/contrib/sessions/browser/chatHostOpener.js';
+import { IChatHostOpenerService, ChatHostOpenerService } from '../../../../workbench/services/sessions/browser/chatHostOpener.js';
 import { ISessionsListModelService, SessionsListModelService } from '../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { ISessionGroupsService, SessionGroupsService } from '../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
 import { ISessionComparisonService } from '../../../../workbench/contrib/sessions/common/sessionComparison.js';

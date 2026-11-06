@@ -11,7 +11,7 @@ import { AbstractAgentHostCustomizationService, type IAgentHostCustomizationTarg
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
 import { ISessionsManagementService } from '../common/sessionsManagement.js';
-import { IFocusedSessionHostService } from './sessionHost.js';
+import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { ISessionsProvider } from '../common/sessionsProvider.js';
 import { AgentCustomization, CustomizationType } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { type CustomizationEnablement } from '../../../../platform/agentHost/common/state/protocol/state.js';

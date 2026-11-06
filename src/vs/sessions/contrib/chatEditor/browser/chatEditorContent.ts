@@ -9,7 +9,7 @@ import { autorun, constObservable, derived, IObservable, observableValue } from 
 import { localize } from '../../../../nls.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { createSessionHostServices, ISessionHost, ISessionHostService, SessionHost, SessionHostKind } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { createSessionHostServices, ISessionHost, ISessionHostService, SessionHost, SessionHostKind } from '../../../../workbench/services/sessions/browser/sessionHost.js';
 import { IChat } from '../../../../workbench/services/sessions/common/session.js';
 import { ISessionChangesStatsCache } from '../../../../workbench/contrib/sessions/common/sessionChangesStatsCache.js';
 import { setHostSessionContextKeys } from '../../../../workbench/contrib/sessions/common/sessionContextKeys.js';

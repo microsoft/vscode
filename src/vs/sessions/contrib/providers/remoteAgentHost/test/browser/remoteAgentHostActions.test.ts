@@ -33,7 +33,7 @@ import { NotificationChangeType } from '../../../../../../workbench/common/notif
 import { ICommandService, CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { ISessionsPartService } from '../../../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
+import { ISessionsPartService } from '../../../../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { IAgentHostSessionsProvider } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { SessionView } from '../../../../../../workbench/contrib/sessions/browser/parts/sessionView.js';
 import { ISessionWorkspace, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../../../workbench/services/sessions/common/session.js';

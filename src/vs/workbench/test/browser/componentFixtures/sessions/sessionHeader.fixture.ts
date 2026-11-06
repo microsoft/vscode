@@ -17,7 +17,7 @@ import { ITestSessionWithChat, testPaneContentOf } from '../../../../contrib/ses
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 
 import '../../../../contrib/sessions/browser/parts/media/chatCompositeBar.css';
-import { ISessionHost } from '../../../../contrib/sessions/browser/sessionHost.js';
+import { ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
 
 interface IMockSessionOptions {
 	readonly title: string;
