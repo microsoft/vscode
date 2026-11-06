@@ -66,6 +66,28 @@ function fixBadRegex(grammar) {
 	} else {
 		fail('function-call');
 	}
+
+	const regexDoubleQuoted = grammar.repository['regex-double-quoted'];
+	if (regexDoubleQuoted) {
+		if (regexDoubleQuoted.begin === '"/(?=(\\\\.|[^"/])++/[imsxeADSUXu]*")') {
+			regexDoubleQuoted.begin = '"/(?!\\*)(?=(\\\\.|[^"/])++/[imsxeADSUXu]*")';
+		} else {
+			fail('regex-double-quoted.begin');
+		}
+	} else {
+		fail('regex-double-quoted');
+	}
+
+	const regexSingleQuoted = grammar.repository['regex-single-quoted'];
+	if (regexSingleQuoted) {
+		if (regexSingleQuoted.begin === "'/(?=(\\\\(?:\\\\(?:\\\\[\\\\']?|[^'])|.)|[^'/])++/[imsxeADSUXu]*')") {
+			regexSingleQuoted.begin = "'/(?!\\*)(?=(\\\\(?:\\\\(?:\\\\[\\\\']?|[^'])|.)|[^'/])++/[imsxeADSUXu]*')";
+		} else {
+			fail('regex-single-quoted.begin');
+		}
+	} else {
+		fail('regex-single-quoted');
+	}
 }
 
 vscodeGrammarUpdater.update('KapitanOczywisty/language-php', 'grammars/php.cson', './syntaxes/php.tmLanguage.json', fixBadRegex);

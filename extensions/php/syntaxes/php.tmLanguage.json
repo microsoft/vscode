@@ -3046,7 +3046,7 @@
 			}
 		},
 		"regex-double-quoted": {
-			"begin": "\"/(?=(\\\\.|[^\"/])++/[imsxeADSUXu]*\")",
+			"begin": "\"/(?!\\*)(?=(\\\\.|[^\"/])++/[imsxeADSUXu]*\")",
 			"beginCaptures": {
 				"0": {
 					"name": "punctuation.definition.string.begin.php"
@@ -3101,7 +3101,7 @@
 			]
 		},
 		"regex-single-quoted": {
-			"begin": "'/(?=(\\\\(?:\\\\(?:\\\\[\\\\']?|[^'])|.)|[^'/])++/[imsxeADSUXu]*')",
+			"begin": "'/(?!\\*)(?=(\\\\(?:\\\\(?:\\\\[\\\\']?|[^'])|.)|[^'/])++/[imsxeADSUXu]*')",
 			"beginCaptures": {
 				"0": {
 					"name": "punctuation.definition.string.begin.php"
