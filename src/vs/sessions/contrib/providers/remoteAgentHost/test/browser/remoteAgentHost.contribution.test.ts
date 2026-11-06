@@ -65,10 +65,7 @@ interface IRemoteAuthNotificationHarness {
 interface IRemoteAuthenticationHarness extends IRemoteAuthNotificationHarness {
 	_initialAuthentication: Pick<IAgentHostAdvertisedAuthenticationResolver, 'takePendingSessionRemovals'>;
 	_connections: Map<string, IRemoteAuthenticationState & IDisposable>;
-	_remoteAgentHostService: {
-		getConnection(address: string): IAgentConnection | undefined;
-		getEntryByAddress(address: string): IRemoteAgentHostEntry | undefined;
-	};
+	_remoteAgentHostService: { getConnection(address: string): IAgentConnection | undefined };
 	_agentHostFileSystemService: { registerAuthority(authority: string, connection: IAgentConnection): IDisposable };
 	_getScenarioAutomationToken(): string | undefined;
 	_setupConnection(connection: IRemoteAgentHostConnectionInfo): void;
@@ -124,7 +121,7 @@ function createAuthenticationHarness(store: Pick<DisposableStore, 'add'>) {
 				override readonly onDidNotification = Event.None;
 				override authenticate = authenticate;
 			}();
-			contribution._remoteAgentHostService = { getConnection: () => connection, getEntryByAddress: () => undefined };
+			contribution._remoteAgentHostService = { getConnection: () => connection };
 			contribution._setupConnection(upcastPartial<IRemoteAgentHostConnectionInfo>({ address }));
 			store.add(contribution._connections.get(address)!);
 			return connection;

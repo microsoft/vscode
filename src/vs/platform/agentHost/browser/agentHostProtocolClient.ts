@@ -574,7 +574,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private _connectionOperation: 'connect' | 'recover' = 'connect';
 	private readonly _resolveInitialAuthentication: (() => Promise<AuthenticateParams | undefined>) | undefined;
 	private readonly _resolveAdvertisedAuthentication: IAgentHostProtocolClientOptions['resolveAdvertisedAuthentication'];
-	private readonly _withholdCredentials: boolean;
+	readonly withholdsCredentials: boolean;
 	private _didLogWithheldCredentials = false;
 	private readonly _clientCertificates: IAgentHostProtocolClientOptions['clientCertificates'];
 	private readonly _clientProxy: IAgentHostProtocolClientOptions['clientProxy'];
@@ -658,7 +658,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		this._resolveInitialAuthentication = options?.resolveInitialAuthentication;
 		this._trustedAuthenticationTokenSealer = options?.sealAuthenticationToken;
 		this._resolveAdvertisedAuthentication = options?.resolveAdvertisedAuthentication;
-		this._withholdCredentials = options?.withholdCredentials ?? false;
+		this.withholdsCredentials = options?.withholdCredentials ?? false;
 		this._clientCertificates = options?.clientCertificates;
 		this._clientProxy = options?.clientProxy;
 		if (this._clientProxy) {
@@ -3775,7 +3775,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		params: unknown,
 		options: { readonly bypassInitializeQueue?: boolean; readonly allowIncompatibleUpgrade?: boolean; readonly bypassReconnectGate?: boolean; readonly timeoutMs?: number; readonly acceptResult?: (result: unknown) => void; readonly authenticationToken?: CancellationToken } = {},
 	): Promise<TResult> {
-		if (method === 'authenticate' && this._withholdCredentials) {
+		if (method === 'authenticate' && this.withholdsCredentials) {
 			if (!this._didLogWithheldCredentials) {
 				this._didLogWithheldCredentials = true;
 				this._logService.warn(`[RemoteAgentHostProtocol] Not sending credentials to untrusted agent host ${this._address}`);

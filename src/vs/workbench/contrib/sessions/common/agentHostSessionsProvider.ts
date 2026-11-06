@@ -383,6 +383,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 
 	/** Authenticate against the backing agent-host connection. */
 	authenticate(params: AuthenticateParams): Promise<AuthenticateResult>;
+	/** Whether the backing agent host is untrusted and never receives the user's credentials. */
+	withholdsCredentials?(): boolean;
 
 	// -- Custom Agents --
 

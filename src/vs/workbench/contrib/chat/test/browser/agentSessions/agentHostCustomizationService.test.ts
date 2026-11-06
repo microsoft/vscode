@@ -65,6 +65,7 @@ class FakeTarget implements IAgentHostCustomizationTarget {
 	startError: Error | undefined;
 	onAuthenticate: ((request: IAgentHostAuthenticateRequest) => void) | undefined;
 	handleMcpRequest?: IAgentHostCustomizationTarget['handleMcpRequest'];
+	withholdsCredentials = false;
 
 	constructor(
 		public customizations: readonly Customization[],
@@ -1303,6 +1304,35 @@ suite('AbstractAgentHostCustomizationService', () => {
 			});
 		});
 	}
+
+	test('never looks up, prompts for, or forwards MCP credentials when the host withholds them', async () => {
+		const lookups: string[] = [];
+		const sut = createSut(undefined, {
+			configure: instantiationService => instantiationService.stub(IAuthenticationService, {
+				getOrActivateProviderIdForServer: async () => { lookups.push('provider'); return 'provider'; },
+				getSessions: async () => { lookups.push('getSessions'); return []; },
+				createSession: async () => { lookups.push('createSession'); throw new CancellationError(); },
+			}),
+		});
+		const session = URI.parse('vscode-agent-session:///session-1');
+		const target = new FakeTarget([{
+			...mcpServer('server-1', 'Server One'),
+			state: {
+				kind: McpServerStatus.AuthRequired,
+				reason: McpAuthRequiredReason.Required,
+				resource: { resource: 'https://mcp.example.com', authorization_servers: ['https://auth.example.com'] },
+			},
+		}]);
+		target.withholdsCredentials = true;
+		sut.setTarget(session, target);
+
+		const authenticating = sut.getMcpServers(session).map(server => server.authenticating);
+		const result = await sut.authenticateMcpServer(session, 'server-1');
+		await timeout(0);
+		assert.deepStrictEqual({ authenticating, result, lookups, operations: target.operationLog }, {
+			authenticating: [false], result: false, lookups: [], operations: [],
+		});
+	});
 
 	test('does not forward credentials or repeat the start when sign-in is cancelled', async () => {
 		const notifications: string[] = [];

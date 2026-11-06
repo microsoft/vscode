@@ -309,7 +309,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		}
 
 		const { address, name } = connectionInfo;
-		const withholdCredentials = this._remoteAgentHostService.getEntryByAddress(address)?.trusted === false;
+		const withholdCredentials = connection.withholdsCredentials === true;
 		const connState = this._instantiationService.createInstance(ConnectionState, address, name, connection, withholdCredentials);
 		this._connections.set(address, connState);
 		const store = connState.store;
