@@ -5,11 +5,11 @@
 
 import * as l10n from '@vscode/l10n';
 import type { CancellationToken, ChatContext, ChatPromptReference, ChatSummarizer, Uri } from 'vscode';
-import { IVSCodeExtensionContext } from '../../../../platform/extContext/common/extensionContext';
-import { createServiceIdentifier } from '../../../../util/common/services';
-import { Sequencer } from '../../../../util/vs/base/common/async';
-import { ResourceMap } from '../../../../util/vs/base/common/map';
-import { URI } from '../../../../util/vs/base/common/uri';
+import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
+import { createServiceIdentifier } from '../../../util/common/services';
+import { Sequencer } from '../../../util/vs/base/common/async';
+import { ResourceMap } from '../../../util/vs/base/common/map';
+import { URI } from '../../../util/vs/base/common/uri';
 
 const SummaryFileScheme = 'copilot-delegated-chat-summary';
 const DelegationSummaryMementoKey = 'github.copilot.chat.delegationSummary';

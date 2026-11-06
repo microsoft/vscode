@@ -31,7 +31,7 @@ import { IChatSessionWorktreeCheckpointService } from '../common/chatSessionWork
 import { IChatSessionWorktreeService } from '../common/chatSessionWorktreeService';
 import { IChatFolderMruService, IFolderRepositoryManager } from '../common/folderRepositoryManager';
 import { ICustomSessionTitleService } from '../copilotcli/common/customSessionTitleService';
-import { ChatDelegationSummaryService, IChatDelegationSummaryService } from '../copilotcli/common/delegationSummaryService';
+import { ChatDelegationSummaryService, IChatDelegationSummaryService } from '../common/delegationSummaryService';
 import { SessionIdForCLI } from '../copilotcli/common/utils';
 import { CopilotCLIAgents, CopilotCLIModels, CopilotCLISDK, ICopilotCLIAgents, ICopilotCLIModels, ICopilotCLISDK } from '../copilotcli/node/copilotCli';
 import { CopilotCLIImageSupport, ICopilotCLIImageSupport } from '../copilotcli/node/copilotCLIImageSupport';
@@ -118,9 +118,12 @@ export class ChatSessionsContrib extends Disposable implements IExtensionContrib
 		// depend on the extension-host Copilot CLI session provider. Its services are created as a
 		// child of this container so both share one session tracker and terminal integration.
 		const copilotCLITerminalInstaService = this.registerCopilotCLITerminal(instantiationService);
+		// The cloud agent does not depend on the extension-host Copilot CLI session provider, which
+		// only uses it to delegate a session to the cloud.
+		const cloudSessionProvider = this.registerCopilotCloudAgent();
 		useController
-			? this.registerCopilotCLIServices(copilotCLITerminalInstaService, delegationSummary, logService)
-			: this.registerCopilotCLIServicesV1(copilotCLITerminalInstaService, delegationSummary, logService);
+			? this.registerCopilotCLIServices(copilotCLITerminalInstaService, delegationSummary, cloudSessionProvider, logService)
+			: this.registerCopilotCLIServicesV1(copilotCLITerminalInstaService, delegationSummary, cloudSessionProvider, logService);
 
 	}
 
@@ -136,8 +139,7 @@ export class ChatSessionsContrib extends Disposable implements IExtensionContrib
 		return copilotCLITerminalInstaService;
 	}
 
-	private registerCopilotCLIServices(instantiationService: IInstantiationService, delegationSummary: IChatDelegationSummaryService, logService: ILogService) {
-		const cloudSessionProvider = this.registerCopilotCloudAgent();
+	private registerCopilotCLIServices(instantiationService: IInstantiationService, delegationSummary: IChatDelegationSummaryService, cloudSessionProvider: CopilotCloudSessionsProvider | undefined, logService: ILogService) {
 		const copilotcliAgentInstaService = instantiationService.createChild(
 			new ServiceCollection(
 				[IAgentSessionsWorkspace, new SyncDescriptor(AgentSessionsWorkspace)],
@@ -207,8 +209,7 @@ export class ChatSessionsContrib extends Disposable implements IExtensionContrib
 		return { sessionMetadata };
 	}
 
-	private registerCopilotCLIServicesV1(instantiationService: IInstantiationService, delegationSummary: IChatDelegationSummaryService, logService: ILogService) {
-		const cloudSessionProvider = this.registerCopilotCloudAgent();
+	private registerCopilotCLIServicesV1(instantiationService: IInstantiationService, delegationSummary: IChatDelegationSummaryService, cloudSessionProvider: CopilotCloudSessionsProvider | undefined, logService: ILogService) {
 		const copilotcliAgentInstaService = instantiationService.createChild(
 			new ServiceCollection(
 				[IAgentSessionsWorkspace, new SyncDescriptor(AgentSessionsWorkspace)],
