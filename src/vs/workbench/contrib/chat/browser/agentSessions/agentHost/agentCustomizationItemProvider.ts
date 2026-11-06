@@ -40,7 +40,7 @@ import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { ChatModeKind } from '../../../common/constants.js';
 import { localize } from '../../../../../../nls.js';
 import { getAgentHostPluginEnablementActions } from '../../agentPluginActions.js';
-import type { ICustomizationSkillItem } from '../../aiCustomization/aiCustomizationItemSource.js';
+import type { ICustomizationHookItem, ICustomizationSkillItem } from '../../aiCustomization/aiCustomizationItemSource.js';
 import { getMcpCustomizationSource } from '../../aiCustomization/mcpCustomizationSource.js';
 
 
@@ -167,7 +167,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		return items;
 	}
 
-	private toDirectoryChildItem(child: ChildCustomization, source: AICustomizationSource, scope: AICustomizationScope | undefined, isRemote: boolean): ICustomizationItem | undefined {
+	private toDirectoryChildItem(child: ChildCustomization, source: AICustomizationSource, scope: AICustomizationScope | undefined, isRemote: boolean): ICustomizationHookItem | undefined {
 		const type = toPromptsType(child.type);
 		if (!type) {
 			return undefined;
@@ -202,16 +202,22 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			}
 		}
 
+		const uri = this.toRemoteUri(child.uri);
+		let description = getChildDescription(child);
+		if (discovery?.hookType) {
+			description = hasReadableCustomizationContent(uri) ? discovery.sourceLabel
+				: discovery.sourceLabel
+					? localize('discoveredHookSource', "{0} — Source file unavailable", discovery.sourceLabel)
+					: localize('discoveredHookSourceUnavailable', "Source file unavailable");
+		}
+
 		return {
 			itemKey: child.id,
-			uri: this.toRemoteUri(child.uri),
+			uri,
 			type,
 			name: hookMetadata?.label ?? child.name,
-			description: discovery?.hookType
-				? discovery.sourceLabel
-					? localize('discoveredHookSource', "{0} — Source file unavailable", discovery.sourceLabel)
-					: localize('discoveredHookSourceUnavailable', "Source file unavailable")
-				: getChildDescription(child),
+			description,
+			...(child.type === CustomizationType.Hook && discovery?.hookType ? { isHookAction: true } : {}),
 			enabled: child.type === CustomizationType.McpServer ? isCustomizationEnabled(child) : child.enabled,
 			source,
 			scope,

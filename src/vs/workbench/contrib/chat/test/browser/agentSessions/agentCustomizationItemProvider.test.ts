@@ -17,12 +17,13 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { IFileContent, IFileService } from '../../../../../../platform/files/common/files.js';
 import { createInMemoryFileService } from '../../../../../../platform/files/test/common/inMemoryFileService.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
+import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../../../../platform/extensions/common/extensions.js';
-import { CustomizationLoadStatus, CustomizationType, type AgentCustomization, type ClientPluginCustomization, type Customization, type McpServerCustomization, type PluginCustomization, type SkillCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { CustomizationLoadStatus, CustomizationType, type AgentCustomization, type ClientPluginCustomization, type Customization, type HookCustomization, type McpServerCustomization, type PluginCustomization, type SkillCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { createAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { CustomizationEnablementKind, McpServerStatus } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AgentCustomizationItemProvider } from '../../../browser/agentSessions/agentHost/agentCustomizationItemProvider.js';
@@ -34,7 +35,7 @@ import { IExtensionPromptPath, IPromptPath, IPromptsService, PromptsStorage } fr
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
 import { withCustomizationDiscoveryMeta } from '../../../../../../platform/agentHost/common/meta/customizationDiscoveryMeta.js';
 import { AGENT_BUILTIN_CUSTOMIZATION_SCHEME, hasReadableCustomizationContent } from '../../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
-import { expandHookFileItems, ICustomizationSkillItem } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
+import { AICustomizationItemNormalizer, expandHookFileItems, ICustomizationSkillItem, ItemProviderItemSource } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
 import { buildMcpResourceUri } from '../../../../../../platform/agentHost/common/mcpResourceUri.js';
 import { withMcpServerDisplayNameMeta, withMcpServerSourceMeta } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import { TestPathService } from '../../../../../test/browser/workbenchTestServices.js';
@@ -247,6 +248,69 @@ suite('AgentCustomizationItemProvider', () => {
 			}))
 		});
 	});
+
+	for (const kind of agentHostConnectionKinds) {
+		for (const origin of ['repository', 'user'] as const) {
+			test(`keeps readable SDK ${origin} hook actions distinct while expanding hook-file records (${kind.name})`, async () => {
+				const session = URI.parse('other-session:/opaque');
+				const definition = URI.file('/host/settings.json');
+				const hookFile = URI.file('/host/hooks/legacy.json');
+				const readRequests: string[] = [];
+				const fileService = upcastPartial<IFileService>({
+					readFile: async uri => {
+						readRequests.push(uri.toString());
+						return upcastPartial<IFileContent>({
+							value: VSBuffer.fromString(JSON.stringify({
+								version: 1,
+								hooks: { sessionStart: ['first', 'second'].map(name => ({ type: 'command', bash: `echo ${name}`, powershell: `echo ${name}` })) },
+							}))
+						});
+					},
+				});
+				class TestCustomizationService extends NullAgentHostCustomizationService {
+					override getCustomizations(): readonly Customization[] {
+						return [{
+							type: CustomizationType.Directory, id: 'hooks', uri: 'agent-discovery://other-host/hooks',
+							name: 'Hooks', contents: CustomizationType.Hook, enabled: true, writable: false,
+							children: [
+								...[true, false].map<HookCustomization>((enabled, index) => ({
+									type: CustomizationType.Hook, id: `opaque-action-${index}`, uri: definition.toString(),
+									name: 'sessionStart', enabled,
+									_meta: withCustomizationDiscoveryMeta(undefined, { source: origin, sourceLabel: 'settings.json', hookType: 'sessionStart' }),
+								})),
+								{ type: CustomizationType.Hook, id: 'hook-file', uri: hookFile.toString(), name: 'legacy.json' },
+							],
+						}];
+					}
+				}
+				const provider = disposables.add(new AgentCustomizationItemProvider(
+					{ clientId: 'vscode', resourceUris: kind.resourceUris }, undefined, undefined, fileService,
+					new NullLogService(), new TestCustomizationService(), makePromptsService(), labelService,
+				));
+				const source = disposables.add(new ItemProviderItemSource(
+					session, provider, makePromptsService(), upcastPartial<IAICustomizationWorkspaceService>({ getActiveProjectRoot: () => undefined }),
+					fileService, new TestPathService(URI.file('/client-home')), new AICustomizationItemNormalizer(labelService, upcastPartial<IProductService>({})),
+				));
+				const items = await source.fetchAICustomizationItems(PromptsType.hook);
+				const definitionUri = kind.toClient(definition).toString();
+				const hookFileUri = kind.toClient(hookFile).toString();
+				assert.deepStrictEqual({
+					readRequests,
+					items: items.map(item => ({ id: item.id, uri: item.uri.toString(), description: item.description, disabled: item.disabled })),
+					actionSources: items.filter(item => item.id.startsWith('opaque-action-')).map(item => item.source),
+				}, {
+					readRequests: [hookFileUri],
+					items: [
+						{ id: 'opaque-action-0', uri: definitionUri, description: 'settings.json', disabled: false },
+						{ id: 'opaque-action-1', uri: definitionUri, description: 'settings.json', disabled: true },
+						{ id: hookFileUri, uri: hookFileUri, description: 'echo first', disabled: false },
+						{ id: `${hookFileUri}#1`, uri: hookFileUri, description: 'echo second', disabled: false },
+					],
+					actionSources: [origin === 'repository' ? AICustomizationSources.local : AICustomizationSources.user, origin === 'repository' ? AICustomizationSources.local : AICustomizationSources.user],
+				});
+			});
+		}
+	}
 
 	test('preserves provider metadata when expanding readable hook files', async () => {
 		const fileService = createInMemoryFileService(disposables, Schemas.file);
