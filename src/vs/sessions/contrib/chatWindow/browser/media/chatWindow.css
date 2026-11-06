@@ -57,6 +57,11 @@
 	--part-grid-card-radius: 0;
 }
 
+/* The strip's column shows the window behind the strip, as the main window's column does: only the strip is framed. */
+.monaco-workbench .agents-chat-window .part-grid-cell[data-part-grid-cell="strip"] > .part-grid-card {
+	--part-grid-card-background: transparent;
+}
+
 /* Compact density keeps the cards flush, without frames. */
 .monaco-workbench.modern-ui-compact .agents-chat-window .part-grid-cell > .part-grid-card {
 	--part-grid-card-border-width: 0;
@@ -149,4 +154,28 @@
 /* The tab row at the top right of the window keeps the room of the window controls that float above it (Windows, Linux), as the title row would. */
 .monaco-workbench .agents-chat-window .part-grid-cell-top-edge.part-grid-cell-right-edge .editor-group-container.part-grid-top-right-group > .title {
 	padding-right: var(--chat-window-controls-right-width, 0px);
+}
+
+/*
+ * The strip fills its column from top to bottom, as the main window's does (`sessionActivityBar.css`), to the right of
+ * the gap the column keeps to the cards (`getChatWindowStripWidth`). By rules of its own: those of the main window's
+ * column follow the state of the main window, whose classes the workbench element of a chat window mirrors. It starts
+ * below the window controls floating above its column (Windows, Linux).
+ */
+.monaco-workbench .agents-chat-window .chat-window-strip {
+	width: 100%;
+	height: 100%;
+}
+
+.monaco-workbench .agents-chat-window .chat-window-strip > .session-activity-bar.docked {
+	top: 0;
+	bottom: 0;
+	right: 0;
+	margin-top: var(--chat-window-controls-right-height, 0px);
+}
+
+/* The cards beside it show their frames inset within them by the stroke, as the main window's chat does: moved toward
+ * them by as much, as beside that chat, so that the gap between them shows as wide as the gap between cards. */
+.monaco-workbench:not(.modern-ui-compact) .agents-chat-window .chat-window-strip > .session-activity-bar.docked {
+	right: var(--vscode-strokeThickness);
 }

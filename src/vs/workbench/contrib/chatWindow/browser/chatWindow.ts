@@ -142,8 +142,7 @@ export interface IChatWindowChrome {
 	 */
 	createTitleRow?(window: IChatWindow, container: HTMLElement, instantiationService: IInstantiationService): IChatWindowChromeElement | undefined;
 	/**
-	 * A column at the right of the window while the chat is below the main part or hidden (Stacked, Editor Only), such as
-	 * the session's activity bar, which shows beside the chat otherwise.
+	 * A column at the right of the window, in every layout mode, such as the session's activity bar.
 	 */
 	createStrip?(window: IChatWindow, container: HTMLElement, instantiationService: IInstantiationService): IChatWindowChromeElement | undefined;
 }
